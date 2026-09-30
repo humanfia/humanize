@@ -123,8 +123,8 @@ says what it got to. Every line has `event` and `at`.
 
 | `event` | Written | Carries |
 | --- | --- | --- |
-| `began` | when the flow starts | `flow` as it was named, its canonical `ref`, `task`, `workspace`, `resumable`, `picked_up` (the epic it was picked up from, where there was one), `agents` (one per role: `agent`, `backend`, `model`, `effort`, `provider`), `envs` as `-e` spells each, `params` and `budget` |
-| `opened` | each time an agent opens a session | `agent`, `backend`, `provider`, `session` (the backend's id), `name`, and `where` it is kept |
+| `began` | when the flow starts | `flow` as it was named, its canonical `ref`, `task`, `workspace`, `resumable`, `picked_up` (the epic it was picked up from, where there was one), `agents` (one per role: `agent`, `backend`, `model`, `effort`, `provider`), `envs` as `-e` spells each, `params`, `budget` and `harness` as `-H` spells it |
+| `opened` | each time an agent opens a session | `agent`, `backend`, `provider`, `session` (the backend's id), `name`, `where` it is kept, and for work on another machine `harness`: where its harness ran (`local`, `env`, `standalone:<target>`) |
 | `called` | when the flow calls another flow | `flow`, the callee's canonical ref; `task`; and `epic`, the record that call is written to |
 | `returned` | when that call returns, however it ended | `flow` and the same `epic` |
 | `usage` | as the run stops | what every session spent: `cost`, `output_tokens`, `seconds` |

@@ -69,6 +69,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
 
     from hmz.coganchor.agents import AgentBase
+    from hmz.coganchor.machines import MachineConfig
 
     from .tracing.profile import Profiler
 
@@ -88,6 +89,7 @@ __all__ = [
     "Sub",
     "called",
     "epics",
+    "harnessed",
     "logs",
     "opened",
     "picks_up",
@@ -177,6 +179,9 @@ class Session(NamedTuple):
         `sessions/<cli>` -- for one a turn kept in the run, and whole for one that stayed
         wherever its CLI keeps them. "" for a line that never said, which :func:`where` reads
         as the directory of links an epic written before sessions were kept holds.
+      harness: Where its harness ran, for a session whose work was on another machine:
+        `local` here, `env` on that machine, `standalone:<target>` on one of its own. ""
+        for a session that worked here, where there was nowhere else for it to be.
     """
 
     agent: str
@@ -189,6 +194,7 @@ class Session(NamedTuple):
     parent: str = ""
     record: str = ""
     where: str = ""
+    harness: str = ""
 
 
 class Drove(NamedTuple):
@@ -268,6 +274,8 @@ class Ran(NamedTuple):
       params: What the flow was set up with, as JSON.
       budget: What the run was allowed to spend, as JSON, or None where it said nothing.
       picked_up: The epic this run was picked up from, by name, or "".
+      harness: Where its agents' harnesses were to run, as `-H` says it, or "" for a run
+        that said nothing -- which is adaptive.
     """
 
     at: Path
@@ -286,6 +294,7 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     budget: dict[str, Any] | None = None
     picked_up: str = ""
+    harness: str = ""
 
     @property
     def name(self) -> str:
@@ -356,6 +365,28 @@ def _provider(agent: AgentBase) -> str:
     except ValueError:
         return agent.config.provider
     return at.name if at is not None else ""
+
+
+def harnessed(machine: MachineConfig | None) -> str:
+    """Where a session's harness runs, as it was settled, in the words `-H` has for it.
+
+    Args:
+      machine: The machine its agent's turns land on, or None for this one.
+
+    Returns:
+      `local` for a harness on this machine, `env` for the CLI the environment's machine
+      has, and `standalone:<target>` for a harness on a machine of its own.
+    """
+    from hmz.coganchor.elsewhere import HERE
+    from hmz.coganchor.machines import AnchoredConfig
+
+    if not isinstance(machine, AnchoredConfig):
+        return "local"
+    if machine.anchor.native:
+        return "env"
+    if machine.anchor.harness != HERE:
+        return f"standalone:{machine.anchor.harness}"
+    return "local"
 
 
 def _journal(epic: Path) -> Iterator[dict[str, Any]]:
@@ -470,6 +501,7 @@ class Epic:
         resumable: bool = False,
         picked_up: Path | None = None,
         profile: bool = False,
+        harness: str = "",
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
 
@@ -490,6 +522,8 @@ class Epic:
           profile: Whether to sample the programs the agents start while the run goes, so
             that what a turn spent its minutes on is in the run's trace beside the turn. A
             setting of the workspace, asked of it by whoever opens the epic.
+          harness: Where the agents' harnesses were to run, as `-H` says it, or "" for a
+            run that said nothing.
         """
         self._begin(
             home()
@@ -526,6 +560,7 @@ class Epic:
             envs=list(envs),
             params=dict(params or {}),
             **({"budget": dict(budget)} if budget is not None else {}),
+            **({"harness": harness} if harness else {}),
         )
 
     def _begin(self, at: Path, journal: str, workspace: Path, flow: str) -> None:
@@ -693,8 +728,15 @@ class Epic:
           parent: The id of the conversation it was forked from, or "" for one that
             started from nothing.
         """
+        machine = agent.config.machine
         self.session(
-            agent.id, agent.backend, _provider(agent), session, parent, agent.kept()
+            agent.id,
+            agent.backend,
+            _provider(agent),
+            session,
+            parent,
+            agent.kept(),
+            harness=harnessed(machine) if machine is not None else "",
         )
 
     def session(
@@ -705,6 +747,8 @@ class Epic:
         ident: str,
         parent: str = "",
         where: Path | None = None,
+        *,
+        harness: str = "",
     ) -> None:
         """Writes down a session, as :meth:`opened` does, for one no coganchor agent opened.
 
@@ -716,6 +760,8 @@ class Epic:
           parent: The id of the conversation it was forked from, or "".
           where: The directory it is kept under, laid out as its CLI lays out its home, or
             None for this run's own directory for that CLI.
+          harness: Where its harness ran, for a session whose work was on another machine,
+            or "" for one whose work was here.
         """
         at = where if where is not None else self.keeps / backend
         self.write(
@@ -732,6 +778,7 @@ class Epic:
             else str(at),
             # Said only where there is one, so that the ordinary line stays the line it was.
             **({"parent": parent} if parent else {}),
+            **({"harness": harness} if harness else {}),
         )
 
     def write(self, event: str, **said: Any) -> None:
@@ -954,6 +1001,7 @@ def sessions(epic: Path) -> list[Session]:
                     parent=str(said.get("parent") or ""),
                     record=at.name,
                     where=str(said.get("where") or ""),
+                    harness=str(said.get("harness") or ""),
                 )
             )
     # By when each was opened rather than by which record it is in: the records are one run,
@@ -1013,6 +1061,7 @@ def read(epic: Path) -> Ran | None:
         params=cast("dict[str, Any]", params) if isinstance(params, dict) else {},
         budget=cast("dict[str, Any]", budget) if isinstance(budget, dict) else None,
         picked_up=str(began.get("picked_up") or ""),
+        harness=str(began.get("harness") or ""),
     )
 
 

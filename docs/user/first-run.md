@@ -67,7 +67,9 @@ choose `fetch again`.
 
 ## 4. Give the role an agent
 
-The flow opens on its **roles**: a row for each agent it drives, then `budget` and `save`.
+The flow opens on its **roles**: a row for each agent it drives, then `budget`, `harness` and
+`save`. `harness` is where each agent's CLI runs: here, for a flow whose work is here; see
+[Remote execution › Where the agent runs](/user/remote-execution#where-the-agent-runs).
 `ralph_loop` has one role, `agent`. humanize fills it with the first CLI it found, so the row
 may already name one.
 
@@ -83,6 +85,7 @@ or an environment.
 ❯ 1. agent     claude/claude-opus-4-8:high
 
      budget    none set; a run needs one
+     harness   adaptive → local: the work is on this machine
 
      save      flow and roles
 

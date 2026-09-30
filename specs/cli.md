@@ -11,11 +11,12 @@ decides.
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
          [-p|--params <key>=<value>[,...]]... [-b|--budget <limit>[,<limit>...]]...
-         [--resume] [--json] <task>
+         [-H|--harness <where>] [--resume] [--json] <task>
 <ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>]#<flow>[:<name>]
 <agent>  := <role>=<cli>[@<provider>]/<model>:<effort>
 <env>    := <role>=<backend>@<provider>[/<workdir>]
 <limit>  := duration=<duration> | cost=<usd> | output_tokens=<count> | graceful=<bool>
+<where>  := adaptive | local | env | standalone:<backend>@<provider>[/<workdir>] | standalone:<name>
 hmz internal <command> [<args>...]
 hmz internal anchor [<options>] <agent> [<args>...]
 hmz internal anchor serve --export <virtual>[:<real>] [--export ...]
@@ -106,6 +107,12 @@ def tools(argv: list[str]) -> int: ...
   be the docker provider written down under that name, or `local` for docker's default here, and
   anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
   with one, and the run MUST record the workdir it took.
+- `-H` MUST say where every agent's harness runs, `adaptive` where the line says nothing, and
+  MUST be recorded with the run; one that is none of `<where>`, or a standalone machine that is
+  this one, MUST be a usage error before any agent has started. A `standalone:<name>` MUST be
+  the environment provider written down under that name, and a machine given no `/<workdir>`
+  and saved with none MUST be worked in at the login's home over ssh and, on docker's default
+  here, at a directory humanize keeps.
 - `hmz exec` MUST stop its run on a terminate or a hangup as it does on an interrupt, and MUST
   exit with 128 plus the signal only once the run has let go of everything it made.
 - `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;

@@ -382,6 +382,7 @@ class Cell:
         as_json: bool = True,
         check: bool = True,
         timeout: float = 600,
+        harness: str = "",
     ) -> Exec:
         """Runs `hmz exec` in the workspace, as its own process, and reads back what it said.
 
@@ -399,6 +400,7 @@ class Cell:
           as_json: Whether to read the run as NDJSON, which is how its events are checked.
           check: Whether a run that exits non-zero fails the cell.
           timeout: How long the run may take, in seconds.
+          harness: The `-H`, or "" for none.
 
         Returns:
           What it came to. Under `as_json`, every stdout line has been read as an object
@@ -413,6 +415,8 @@ class Cell:
             argv += ["-p", one]
         if budget:
             argv += ["-b", budget]
+        if harness:
+            argv += ["-H", harness]
         if resume:
             argv.append("--resume")
         if as_json:

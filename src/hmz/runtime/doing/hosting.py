@@ -881,6 +881,7 @@ class Host:
                 params=params,
                 budget=said.get("budget"),
                 resume=resume,
+                harness=str(said.get("harness") or "") or None,
                 # Whoever is outside the run is every frontend here: asked on a thread of
                 # the run's own, and away while `/afk` says so.
                 outworlder=open_outworlder(
@@ -1083,6 +1084,7 @@ class Host:
     ) -> None:
         """Takes one session the run opened as one of its own, before its first turn."""
         from hmz.coganchor.agents import HumanAgent
+        from hmz.runtime.epic import harnessed
 
         person = isinstance(agent, HumanAgent)
         board: Board | None = None
@@ -1101,6 +1103,9 @@ class Host:
             forks = False
             with contextlib.suppress(Exception):
                 forks = bool(session.forks)
+            # Where its harness was put, for work on another machine: the one thing about
+            # a session that was settled as it opened rather than written on the line.
+            machine = None if person else agent.config.machine
             self._record(
                 {
                     "type": "opened",
@@ -1115,6 +1120,7 @@ class Host:
                     "person": person,
                     "kept": "" if person else str(agent.kept()),
                     "env": _placed(where),
+                    "harness": "" if machine is None else harnessed(machine),
                     "mono": time.monotonic(),
                 }
             )

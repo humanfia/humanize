@@ -321,6 +321,7 @@ def test_a_session_is_named_for_whose_it_is_what_ran_it_and_which_account(
         "",  # forked from nothing, which is what a session nobody branched is
         JOURNAL,
         one.where,
+        "",  # its work was here, so its harness had nowhere else to be
     )
     assert one.name == called("builder", "claude", "", one.ident)
 

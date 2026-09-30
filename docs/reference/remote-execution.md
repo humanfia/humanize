@@ -42,6 +42,15 @@ Every session the flow spawns in `repo` is anchored at `ssh://build-box` with th
 `/srv/project`, and the flow's own `await repo.exec([...])` runs there too. See
 [Machines › Where a flow's agents work](/reference/machines#where-a-flow-s-agents-work).
 
+Which [arrangement](#the-arrangements) each session gets is the run's
+[`-H`](/reference/cli#choosing-where-the-harness-runs), settled once per role and machine:
+`adaptive` (the default) is [`native=True`](#native-the-target-s-own-cli) where the target has
+the CLI and can hold its fence and no hook that gates the CLI is hung, and supervised here
+otherwise; `local` is always supervised here; `env` is always `native=True`, refused where the
+CLI is missing; `standalone:<env>` is
+[`harness=<target>`](#where-the-harness-runs), `<target>` being that environment's machine.
+The probe is the native road itself: `/bin/sh -c 'command -v <cli>'` driven on the target.
+
 **How often the target is reached depends on the backend.** A backend that runs a process per
 turn is anchored once per turn; a `tcp://` target makes that a socket rather than an ssh
 bootstrap. A backend that holds one process across turns is anchored once for the agent.
