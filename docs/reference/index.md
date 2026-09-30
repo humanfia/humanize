@@ -1,63 +1,74 @@
+---
+pageClass: hmz-ref
+---
+
 <script setup>
-import { withBase } from 'vitepress'
+import '../.vitepress/theme/components/ref-cli/ref.css'
 </script>
 
 # Reference
 
-Every command, flag, key, argument and return, for a reader who knows what they are looking
-for. New to humanize? Start with the [User Guide](/user/) or the [Weaver Guide](/weaver/).
+The complete technical specification of humanize as built: every command, option, grammar,
+key, screen, setting, protocol message, file, environment variable, Python symbol, default,
+limit and error. Each page states behaviour; tasks and explanations are in the
+[User Guide](/user/), [Weaver Guide](/weaver/) and [Features](/features/).
 
-## Find it
+## Pages {#pages}
 
-| You are looking for | It is in |
+| Page | Covers | Package |
+| --- | --- | --- |
+| [CLI](/reference/cli) | `hmz`, `hmz exec`, `hmz internal …`: synopsis, options, the `-f`/`-a`/`-e`/`-p`/`-b`/`-H` grammars, refusals, output and NDJSON schema, signals, exit statuses | `hmz.cli` |
+| [TUI](/reference/tui) | The interface `hmz` opens: views, status line, commands, keys, menus, `/settings`, the monitor, completion, history | `hmz.tui` |
+| [Daemon](/reference/daemon) | The per-workspace host process, its files, lifecycle, frame protocol, requests, messages and multi-frontend rules | `hmz.daemon` |
+| [SDK](/reference/sdk) | `hmz.sdk`: every exported class, method, parameter, return type and exception | `hmz.sdk` |
+| [Flows](/reference/flows) | The flow API: `@flow`, roles, params, budgets, context, errors, testing | `hmz.flows` |
+| [Agents](/reference/agents) | Coding-agent drivers below the flow API: backends, sessions, hooks, fences | `hmz.coganchor` |
+| [Machines](/reference/machines) | Environments: local, ssh, docker; environment providers | `hmz.coganchor` |
+| [Providers](/reference/providers) | Accounts an agent runs as, ways in, fail-over | `hmz.coganchor` |
+| [Remote execution](/reference/remote-execution) | `hmz internal anchor`: harness placement, targets, mirrors | `hmz.coganchor` |
+| [Tracing](/reference/tracing) | Epics, journals, traces, profiling, export | `hmz.runtime` |
+| [Files](/reference/files) | Everything under `$HUMANIZE_HOME` and a workspace's `.humanize/` | — |
+| [Environment variables](/reference/environment) | Every variable any part of humanize reads or sets | — |
+| [Settings](/reference/settings) | Every key of `settings.yaml` and the other stores the interface writes | — |
+
+## Lookup {#find-it}
+
+| Looking for | Section |
 | --- | --- |
-| a flag of `hmz exec`, or how to write `-a`, `-e`, `-p`, `-b` | [CLI › `hmz exec`](/reference/cli#hmz-exec) |
-| what `hmz exec --json` writes | [CLI › Watching a run](/reference/cli#watching-a-run) |
+| an `hmz exec` option | [CLI › Options](/reference/cli#exec-options) |
+| the grammar of `-a`, `-e`, `-p`, `-b`, `-H` | [CLI › Grammar](/reference/cli#grammar) |
 | why `hmz exec` refused a line | [CLI › What is refused](/reference/cli#what-is-refused-before-anything-runs) |
-| an environment variable | [CLI › Environment variables](/reference/cli#environment-variables) |
-| a file under `~/.humanize` | [CLI › Files](/reference/cli#files) |
+| what `hmz exec --json` writes | [CLI › `--json`](/reference/cli#ndjson) |
 | an exit status | [CLI › Exit statuses](/reference/cli#exit-statuses) |
 | a process named `hmz internal …` | [CLI › `hmz internal`](/reference/cli#hmz-internal) |
-| a key, at the prompt or in a menu | [TUI › Keys](/reference/tui#keys) |
-| a slash command | [TUI › Slash commands](/reference/tui#commands) |
-| a menu: `/flow`, `/epics`, `/settings` | [TUI › Menus](/reference/tui#menus) |
-| the monitor | [TUI › The monitor](/reference/tui#watching-the-run) |
-| a run left going after `/exit` | [Daemon](/reference/daemon) |
-| the API a flow is written against | [Flows](/reference/flows) |
-| driving humanize from another program | [SDK](/reference/sdk) |
-| an agent, a session, a hook, below the flow API | [Agents](/reference/agents) |
-| where an agent's work lands | [Machines](/reference/machines), [Remote execution](/reference/remote-execution) |
-| an account an agent runs as | [Providers](/reference/providers) |
-| a trace, or what a run wrote down | [Tracing](/reference/tracing) |
+| a slash command, and when it is refused | [TUI › Commands](/reference/tui#commands) |
+| a key | [TUI › Keys](/reference/tui#keys) |
+| a menu, sheet or form | [TUI › Menus](/reference/tui#menus), [`/settings`](/reference/tui#what-humanize-remembers) |
+| the monitor | [TUI › Monitor](/reference/tui#watching-the-run) |
+| a daemon request or message | [Daemon › Requests](/reference/daemon#requests), [Messages](/reference/daemon#messages) |
+| a Python class or method | [SDK](/reference/sdk) |
+| a file under `~/.humanize` | [Files](/reference/files) |
+| an environment variable | [Environment variables](/reference/environment) |
 
-## Command line
+## Conventions {#conventions}
 
-<div class="hmz-paths by-three">
-  <a :href="withBase('/reference/cli')">
-    <strong>CLI</strong>
-    <span><code>hmz</code>, <code>hmz exec</code> and <code>hmz internal</code>: every flag,
-    the environment variables, the files and the exit statuses.</span>
-  </a>
-  <a :href="withBase('/reference/tui')">
-    <strong>TUI</strong>
-    <span>The screen <code>hmz</code> opens: every key, every slash command, and each
-    menu.</span>
-  </a>
-  <a :href="withBase('/reference/daemon')">
-    <strong>Daemon</strong>
-    <span>The process holding a directory's runs so a terminal can leave and several can
-    read them, and how to reach it from Python.</span>
-  </a>
-</div>
-
-## Python
-
-| Page | |
+| Notation | Meaning |
 | --- | --- |
-| [SDK](/reference/sdk) | How a tool that is not humanize reaches it: `Hmz` straight at the runtime, `Daemons` over held runs. |
-| [Flows](/reference/flows) | The flow API: what `@flow` declares, and the agents, environments and params a flow is handed. |
-| [Agents](/reference/agents) | Driving a coding agent from Python: an agent is settings, a session is memory. |
-| [Machines](/reference/machines) | Where an agent's turns land: here, a container, or a machine already running. |
-| [Providers](/reference/providers) | Which account an agent runs as, kept apart from the CLI's own. |
-| [Remote execution](/reference/remote-execution) | `hmz internal anchor`: an agent on this machine whose work lands on another. |
-| [Tracing](/reference/tracing) | The sessions and programs a run left behind, gathered into one timeline. |
+| `monospace` | Literal text: typed, printed or stored exactly as shown. |
+| `<name>` | A placeholder for a value described alongside. |
+| `[x]` | Optional. |
+| `x…`, `x [x …]` | One or more. |
+| `a \| b` | One of the alternatives. |
+| `{a, b}` | Every combination, as a shell brace expansion. |
+| EBNF blocks | `=` defines, `,` concatenates, `\|` alternates, `[ ]` optional, `{ }` zero or more, `( )` groups, `" "` terminal, `? ?` prose. |
+| `~/.humanize` | `$HUMANIZE_HOME` where set and non-empty. |
+| `hmz: …` | Text as printed; a leading `hmz: ` or `hmz exec: error: ` is part of the message. |
+| Types | Python annotations as written in the source (`str \| None`, `tuple[str, ...]`). |
+| *as local* | A CLI running as this machine's own login, with no humanize account. |
+| workspace | The directory a run or an interface is started in (resolved path). |
+| run | One execution of one flow; recorded as one epic. |
+| role | A name a flow declares for an agent, an environment or an outworlder. |
+| frontend | An interface or program attached to a [host](/reference/daemon). |
+
+Where behaviour and a spec under `specs/` differ, these pages describe the behaviour of the
+code.
