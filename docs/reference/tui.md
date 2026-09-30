@@ -122,9 +122,10 @@ See [Cost and rate](/user/tally).
 | /flow | <kbd>←</kbd> <kbd>→</kbd> | On the flows: the place before or after, wrapping round. |
 | /settings accounts | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | Making an account, while writing `variables`, the one field that takes a list: breaks the line. |
 | monitor | <kbd>↑</kbd> <kbd>↓</kbd> | With nothing typed: the node before or after. |
-| monitor | <kbd>enter</kbd> · click | With nothing typed: reads that node's log. On a board line, changes it; saved empty, takes it off. On `+ add entry`, puts one up. |
+| monitor | <kbd>enter</kbd> · click | With nothing typed: reads that node's log. On an environment, opens its page. On a board line, changes it; saved empty, takes it off. On `+ add entry`, puts one up. A click on an agent picks it out, or on its `▸` or once picked opens it out; a double click reads it. |
 | monitor | <kbd>→</kbd> | With nothing typed: back to the log last read. |
-| monitor | <kbd>ctrl+t</kbd> | A node per agent, or per session. |
+| monitor | <kbd>space</kbd> | With nothing typed: opens the agent under the cursor out to its sessions, or shuts it. |
+| monitor | <kbd>ctrl+t</kbd> | The graph, or the list. |
 | /exit | <kbd>enter</kbd> | Takes the answer under the cursor. |
 | /exit | <kbd>esc</kbd> | Stays. |
 
@@ -998,18 +999,25 @@ never refused, redraws itself while up, and every command works from its prompt.
 command for it, and <kbd>esc</kbd> does not open it.
 
 ```text
+   graph   list
 ❯ ▣ all agents · 1 of 2 working · 17 turns · 7m11s · reading
-  ┌──────────────────────────────────────────────────────┐
-  │ ● builder                                        43s │
-  │ claude/claude-opus-5:high · 12 turns                 │
-  └──────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │ ▸ ● builder                                                      43s │
+  │ claude/claude-opus-5:high · 12 turns · 48.2k tokens                  │
+  │ ▤ repo docker                                                        │
+  └──────────────────────────────────────────────────────────────────────┘
     ├╴◆ Task read the tests
     └╴◇ Task find the flaky one
   │   ↓ 6 · ↑ 5
-  ┌──────────────────────────────────────────────────────┐
-  │ ○ reviewer                                idle 1m04s │
-  │ codex/gpt-5.6-sol:high · 5 turns              unread │
-  └──────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │ ▾ ○ reviewer                                              idle 1m04s │
+  │ codex/gpt-5.6-sol:high · 5 turns · 2 sessions · 9.1k tokens   unread │
+  │ ▤ repo docker                                                        │
+  └──────────────────────────────────────────────────────────────────────┘
+    ├╴○ session 1 · 3 turns · 5.0k tokens                     idle 6m40s
+    │   ▤ repo · docker · builders · /work
+    └╴○ session 2 · 2 turns · 4.1k tokens            unread · idle 1m04s
+        ▤ repo · docker · builders · /work
 
 Flow:             humanize1:rlcr   431s
 Set:              max                          20
@@ -1023,28 +1031,60 @@ Kinds:            input                 1.2k
 ────────────────────────────────────────────────────────────────────────
 ❯
 ────────────────────────────────────────────────────────────────────────
-  ▣ monitor · by agent  ↑↓ node · enter open · → back · ctrl+t by session
+  ▣ monitor · graph  ↑↓ node · space sessions · enter open · → back · ctrl+t list
 ```
 
 | Part | |
 | --- | --- |
+| `graph` `list` | The switch above the drawing, the way it is drawn now lit. A click on the other half, or <kbd>ctrl+t</kbd>, turns to it; the monitor opens again the way it was left. |
 | `▣ all agents` | The first node, where the cursor starts: how many boxes are working, the run's turns and time. <kbd>enter</kbd> reads the shared transcript. |
 | `◉ <role> · outworlder` | Under it, a node per outworlder of a run that talks to you, with `yours` or `<name>'s` where somebody [holds it](#several-people-on-one-run). <kbd>enter</kbd> reads what the flow says to you. |
-| a box | One per agent that has taken a turn, in the order the flow declares them; with <kbd>ctrl+t</kbd>, one per session, as `<role> · session <n>`. Left: `●` working or `○` idle, the name, what it runs and its turns. Right: how long the open turn has run, or `idle` and how long since its last; `reading` or `unread`. <kbd>enter</kbd> or a click reads it, working or ended. |
-| `├╴◆` `└╴◇` | Sub-agents it started of its own: `◆` still going, `◇` back. Only from [backends that report them](/reference/agents#not-every-backend-runs-every-moment). A long fleet is cut, with a count. |
+| a box | One per agent that has taken a turn, in the order the flow declares them. Left: `▸` shut or `▾` opened out, `●` working or `○` idle, the name, what it runs, its turns, its sessions where it has more than one, and the tokens its backend reported; a third line names the environments its sessions work in. Right: how long the open turn has run, or `idle` and how long since its last; `reading` or `unread`. <kbd>enter</kbd> reads it, working or ended. |
+| `├╴○ session <n>` | Under an agent opened out with <kbd>space</kbd>, a row per session that has taken a turn: its turns, tokens and clock. <kbd>enter</kbd> reads that session's own log. |
+| `▤ <role> · <kind> · <target> · <workdir>` | Under each session, the environment it works in. <kbd>enter</kbd> opens [its page](#an-environment-s-page). |
+| `├╴◆` `└╴◇` | Sub-agents it started of its own, under the box, or under the session that started them once the box is opened out: `◆` still going, `◇` back. Only from [backends that report them](/reference/agents#not-every-backend-runs-every-moment). A long fleet is cut, with a count. |
 | `↓ 6 · ↑ 5` | Handovers between neighbouring boxes, each way; the latest one lit. |
 | `Flow` | What is running, nested flows indented under the flow that called them, each with its time. |
 | `Set` | The flow's params that are not at their defaults. |
 | `Reading` | Where [more than one frontend](#several-people-on-one-run) reads the runs: each by name, yours marked `you`. |
 | `Agents` | Before any agent has worked: the agents set up, in place of the boxes. |
-| `Also` | Handovers between boxes that are not neighbours. |
+| `Also` | On the graph, handovers between boxes that are not neighbours. |
 | `Tokens` | One row per model, biggest first: tokens, money (blank where unpriced), output tokens a second. |
 | `Kinds` | The run's tokens by kind, over every model. `+` marks a floor. |
 | the last line under them | What the last command typed here answered. |
-| the status line | `▣ monitor`, whether a node is an agent or a session, and the keys that work now. |
+| the status line | `▣ monitor`, `graph` or `list`, and the keys that work now. |
 
-The arrows and <kbd>enter</kbd> are the graph's only while nothing is typed; once you type, they
-are the prompt's.
+The arrows, <kbd>space</kbd> and <kbd>enter</kbd> are the graph's only while nothing is typed;
+once you type, they are the prompt's. <kbd>space</kbd> on a session or an environment shuts the
+agent it hangs under.
+
+**With the mouse**, a click does what <kbd>enter</kbd> does, except on an agent: on its left
+edge, where `▸` is, or on the agent the cursor is already on, it opens the agent out or shuts
+it; anywhere else it moves the cursor there, and a double click reads it.
+
+**The list** (<kbd>ctrl+t</kbd>) is the same nodes as rows, without the handovers: every agent,
+the sessions of the ones opened out, and every environment, each with what it runs or where it
+is, its turns (an environment's sessions), its clock and its tokens. Whatever is working is at
+the top; the rest keep their order, so a row moves only when what it is about starts or stops.
+
+#### An environment's page
+
+Opened with <kbd>enter</kbd> or a click on an environment, and live while it is up:
+
+| Row | |
+| --- | --- |
+| `kind` | `LOCAL`, `SSH` or `DOCKER`. |
+| `target` | The ssh host or docker provider, or `this machine`. |
+| `workdir` | Where on it its sessions work. |
+| `set up as` | Its `-e` spelling, where it was set up here. |
+| `image` | What a container for it starts from, where the flow names one. |
+| `grants` | The environment capabilities the flow declared for the role. |
+| `needs` | CPUs, memory and GPUs the flow asks of the machine. |
+| `harness` | Where its agents run: on this machine, anchored to an ssh or docker environment so that what they run lands there. |
+| `status` | How many of its sessions are working. |
+| `Sessions` | Each session working in it; <kbd>enter</kbd> or a click reads one. |
+
+<kbd>esc</kbd> goes back to the monitor.
 
 **The board** sits under the diagram where the run keeps one: named lines you and the flow both
 write, each a node the arrows reach. <kbd>enter</kbd> on `+ add entry` puts one up (a name,

@@ -638,7 +638,8 @@ async def test_the_diagram_reads_an_agent_that_is_not_working() -> None:
 
         # Clicked rather than walked to: a box is drawn where it is in order to be pointed at.
         # Row nought is the one they all appear on, and a box is four rows under the one above.
-        await driver.click(boxes, offset=(4, 1 + 4 + 4))
+        # Twice, and off its left edge: once picks an agent out, and its edge opens it out.
+        await driver.double_click(boxes, offset=(20, 1 + 4 + 4))
         await until(lambda: app._attached == "reviewer", driver)
 
         assert "then it stopped" in transcript(app)

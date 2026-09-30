@@ -8,7 +8,16 @@ from __future__ import annotations
 
 import pytest
 
-from hmz.tui.monitor import Monitor, lasting
+from hmz.tui.monitor import Monitor, Shape, Under, lasting
+from hmz.tui.monitoring import (
+    Drawn,
+    Placed,
+    declared_places,
+    floated,
+    place_key,
+    place_row,
+    session_row,
+)
 
 
 def test_who_is_working_is_whoever_has_a_turn_open() -> None:
@@ -97,6 +106,75 @@ def test_a_run_whose_turns_name_no_session_has_no_session_to_draw() -> None:
     monitor.begins("actor", "opus")
 
     assert monitor.shape(sessions=True).turns == {}
+
+
+def test_what_each_node_spent_is_kept_by_agent_and_by_session() -> None:
+    """A node of the list says what it cost, where the bill itself is counted per model."""
+    monitor = Monitor()
+    monitor.begins("actor", "opus", session="actor/1")
+    monitor.spend("actor", 300, session="actor/1")
+    monitor.spend("actor", 200, session="actor/2")
+    monitor.spend("reviewer", 50)
+
+    assert monitor.shape().used == {"actor": 500, "reviewer": 50}
+    assert monitor.shape(sessions=True).used == {"actor/1": 300, "actor/2": 200}
+    # And counted once in the bill, however many nodes it is said on.
+    assert [(one.model, one.tokens) for one in monitor.spending()] == [
+        ("opus", 500),
+        ("reviewer", 50),
+    ]
+
+
+def test_the_list_puts_what_is_working_first_and_moves_nothing_else() -> None:
+    """Stable, so a row moves only when what it is about starts or stops."""
+    nodes = [(False, "a"), (True, "b"), (False, "c"), (True, "d")]
+
+    assert floated(nodes) == ["b", "d", "a", "c"]
+    assert floated([(False, "a"), (False, "c")]) == ["a", "c"]
+
+
+def test_an_environment_is_one_place_however_many_sessions_work_in_it() -> None:
+    """Its role and where it is: a worktree derived from it is the same role elsewhere."""
+    here = {"role": "repo", "kind": "local", "target": "", "workdir": "/proj"}
+
+    assert place_key(here) == place_key(dict(here))
+    assert place_key(here) != place_key({**here, "workdir": "/proj/.worktrees/one"})
+    assert place_key(here) != place_key({**here, "role": "scratch"})
+
+
+def test_a_session_hangs_under_its_agent_with_its_clock_and_its_fleet() -> None:
+    """A branch rather than a box, its clock down the column the boxes keep theirs in."""
+    shape = Shape(
+        {"actor/2": 1},
+        frozenset({"actor/2"}),
+        {},
+        under={"actor/2": (Under("c1", "read the tests"),)},
+        since={"actor/2": 43.0},
+    )
+    one = Drawn("actor/2", "actor · session 2", working=True, of="actor")
+
+    drawn = session_row(one, shape, 80, last=True)
+    first, *under = drawn.split("\n")
+
+    assert "session 2" in first
+    assert "actor · session" not in first  # its agent is the box it hangs from
+    assert "43s" in first
+    assert "└╴" in first  # the last of its agent's
+    assert ["read the tests" in line for line in under] == [True]
+
+
+def test_the_workspace_a_flow_runs_in_is_among_the_places_it_declares() -> None:
+    """A `LocalEnv` is filled by the runtime, and is still a place its page says things of."""
+    assert [(one.name, one.auto) for one in declared_places("chat")] == [
+        ("workspace", True)
+    ]
+    assert declared_places("no/such-flow") == ()  # one that will not load says nothing
+
+
+def test_an_environment_row_says_which_role_it_fills_and_where() -> None:
+    place = Placed("k", "repo", "docker", "builders", "/work")
+
+    assert "repo · docker · builders · /work" in place_row(place, 80)
 
 
 def test_spending_is_counted_per_model_and_not_per_agent() -> None:

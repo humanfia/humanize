@@ -50,14 +50,16 @@ if TYPE_CHECKING:
     )
     from hmz.runtime.flowing.harnesses import Listener
     from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
+    from hmz.runtime.flowing.spi import Placement
 
     from .epic import Drove, Epic
 
 __all__ = ["Line", "Refused", "Runner", "read_line"]
 
-#: What is told of each session a run opens, as it is opened: the role it was opened for, and
-#: the coganchor agent and conversation behind it.
-type Opened = Callable[[str, AgentBase, SessionBase], None]
+#: What is told of each session a run opens, as it is opened: the role it was opened for, the
+#: coganchor agent and conversation behind it, and where it works -- or None for a driver that
+#: does not say.
+type Opened = Callable[[str, AgentBase, SessionBase, Placement | None], None]
 
 
 class Refused(ValueError):  # noqa: N818 -- named for what happened, as the flow API names its own
@@ -736,7 +738,7 @@ class Recorder:
         agent.epic = record
         conversation: SessionBase | None = getattr(session, "coganchor", None)
         if self._opened is not None and conversation is not None:
-            self._opened(role, agent, conversation)
+            self._opened(role, agent, conversation, getattr(session, "placement", None))
 
     def named(
         self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
