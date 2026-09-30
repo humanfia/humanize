@@ -1,21 +1,26 @@
 <script setup lang="ts">
-// Everything humanize does, by what the reader is trying to do, each item leading to the page
+// Everything humanize does, by what the reader is trying to do, each item a link to the page
 // that does it. The areas and items are the sections and rows of `features/capabilities.md`,
-// one for one: add a row there and it is an item here, in the same place.
-import { computed, ref } from 'vue'
+// one for one: add a row there and it is an item here, in the same place. The scene flies each
+// area in, in turn, then settles on the whole map and stays there, since it is something to
+// click, not to watch. It is on the features index too, so every id in it is its own.
+import { computed, nextTick, onMounted, onUnmounted, ref, useId } from 'vue'
 import { withBase } from 'vitepress'
+
+import HmzStage from '../motion/HmzStage.vue'
+import { createFx, type Fx } from '../motion/fx'
+import { useNarrow } from '../motion/layout'
+import { usePalette } from '../motion/palette'
+import { useScene } from '../motion/useScene'
 
 interface Item {
   name: string
-  line: string
   link: string
-  page: string
 }
 
 interface Area {
   code: string
   name: string
-  who: string
   items: Item[]
 }
 
@@ -23,388 +28,358 @@ const AREAS: Area[] = [
   {
     code: 'A',
     name: 'Run it your way',
-    who: 'the agents, the accounts, and how it starts',
     items: [
-      {
-        name: 'Ready-made loops',
-        line: 'Pick a loop somebody already wrote: a Ralph loop, a reviewer loop, three lanes at once.',
-        link: '/flows/',
-        page: 'Flows',
-      },
-      {
-        name: 'Any coding agent',
-        line: 'Claude Code, Codex, Cursor, Kimi and eight more, most under the login they already have.',
-        link: '/user/settings#accounts',
-        page: 'Accounts',
-      },
-      {
-        name: 'Model and effort',
-        line: 'Choose each agent’s model and how hard it thinks.',
-        link: '/user/efforts',
-        page: 'Efforts',
-      },
-      {
-        name: 'Two accounts of one CLI',
-        line: 'A subscription and a gateway of the same CLI, side by side, each with its own login.',
-        link: '/user/settings#accounts',
-        page: 'Accounts',
-      },
-      {
-        name: 'Fall back',
-        line: 'When an account runs out, another takes the conversation on. When a CLI is gone, the turn moves where you said.',
-        link: '/user/settings#fallback',
-        page: 'Falling back',
-      },
-      {
-        name: 'Skills',
-        line: 'See which skills each agent loads. A flow can bring its own.',
-        link: '/user/skills',
-        page: 'Skills',
-      },
-      {
-        name: 'From a script',
-        line: 'Run a flow from a shell script or a cron job, with no interface.',
-        link: '/user/unattended',
-        page: 'Run it unattended',
-      },
-      {
-        name: 'In CI',
-        line: 'Run a flow on a schedule and open a pull request with what it did.',
-        link: '/user/ci',
-        page: 'humanize in CI',
-      },
-      {
-        name: 'From Python',
-        line: 'Drive humanize from a Python program of your own.',
-        link: '/reference/sdk',
-        page: 'SDK reference',
-      },
+      { name: 'Ready-made loops', link: '/flows/' },
+      { name: 'Any coding agent', link: '/user/settings#accounts' },
+      { name: 'Model and effort', link: '/user/efforts' },
+      { name: 'Two accounts of one CLI', link: '/user/settings#accounts' },
+      { name: 'Fall back', link: '/user/settings#fallback' },
+      { name: 'Skills', link: '/user/skills' },
+      { name: 'From a script', link: '/user/unattended' },
+      { name: 'In CI', link: '/user/ci' },
+      { name: 'From Python', link: '/reference/sdk' },
     ],
   },
   {
     code: 'B',
     name: 'While it runs',
-    who: 'watching, steering, and stopping it',
     items: [
-      {
-        name: 'Talk into a turn',
-        line: 'Correct an agent mid-turn without stopping it. On Claude Code, Codex, Kimi and pi.',
-        link: '/user/steering',
-        page: 'Talking to a running turn',
-      },
-      {
-        name: 'Side questions',
-        line: 'Ask what a running flow is up to without interrupting it.',
-        link: '/user/btw',
-        page: 'Side questions',
-      },
-      {
-        name: 'Watch every agent',
-        line: 'See who is working, for how long, and who handed over to whom.',
-        link: '/user/monitor',
-        page: 'Watching a run',
-      },
-      {
-        name: 'Answer, or step away',
-        line: 'Answer when an agent or the flow asks you, or say you are away so nothing waits.',
-        link: '/user/questions',
-        page: 'Questions',
-      },
-      {
-        name: 'What it costs',
-        line: 'Tokens, money and rate for every agent, while it runs.',
-        link: '/user/tally',
-        page: 'Cost and rate',
-      },
-      {
-        name: 'A budget on every run',
-        line: 'Cap a run’s time, cost or output tokens. The first limit it reaches stops it.',
-        link: '/user/unattended',
-        page: 'Run it unattended',
-      },
-      {
-        name: 'Stop it',
-        line: 'Stop the run from the keyboard, and force it if it will not stop.',
-        link: '/user/stopping',
-        page: 'Stopping',
-      },
-      {
-        name: 'Leave it running',
-        line: 'Close the terminal or lose the connection. Open humanize in the same directory to find the run again.',
-        link: '/reference/daemon',
-        page: 'Daemon reference',
-      },
+      { name: 'Talk into a turn', link: '/user/steering' },
+      { name: 'Side questions', link: '/user/btw' },
+      { name: 'Watch every agent', link: '/user/monitor' },
+      { name: 'Answer, or step away', link: '/user/questions' },
+      { name: 'What it costs', link: '/user/tally' },
+      { name: 'A budget on every run', link: '/user/unattended' },
+      { name: 'Stop it', link: '/user/stopping' },
+      { name: 'Leave it running', link: '/reference/daemon' },
     ],
   },
   {
     code: 'C',
     name: 'Where the work lands',
-    who: 'your directory, a container, another machine',
     items: [
-      {
-        name: 'In a container',
-        line: 'Give an agent a toolchain you have not got, with your project at the path it already has.',
-        link: '/user/containers',
-        page: 'Containers',
-      },
-      {
-        name: 'On another machine',
-        line: 'The commands run on the build box. The agent and its login stay on your machine.',
-        link: '/user/remote-execution',
-        page: 'Remote execution',
-      },
-      {
-        name: 'What an agent may touch',
-        line: 'See what a flow lets each agent do. Nothing is put to you for approval.',
-        link: '/user/permissions',
-        page: 'Permissions',
-      },
+      { name: 'In a container', link: '/user/containers' },
+      { name: 'On another machine', link: '/user/remote-execution' },
+      { name: 'What an agent may touch', link: '/user/permissions' },
     ],
   },
   {
     code: 'D',
     name: 'After a run',
-    who: 'picking it up, and reading it back',
     items: [
-      {
-        name: 'Pick it up',
-        line: 'Carry a stopped run on from where it stood, if its flow can be picked up.',
-        link: '/user/resuming',
-        page: 'Picking a run up',
-      },
-      {
-        name: 'One timeline',
-        line: 'Every agent and sub-agent of a run on one clock in Perfetto, and the programs they ran if you profiled it.',
-        link: '/user/tracing',
-        page: 'Tracing',
-      },
-      {
-        name: 'Hand it to somebody',
-        line: 'Pack a whole run into one archive somebody else can open.',
-        link: '/user/export',
-        page: 'Exporting a run',
-      },
-      {
-        name: 'Crash reports',
-        line: 'Send crash reports and feedback, or never. You are asked once.',
-        link: '/user/reporting',
-        page: 'Reporting',
-      },
+      { name: 'Pick it up', link: '/user/resuming' },
+      { name: 'One timeline', link: '/user/tracing' },
+      { name: 'Hand it to somebody', link: '/user/export' },
+      { name: 'Crash reports', link: '/user/reporting' },
     ],
   },
   {
     code: 'E',
     name: 'Writing a flow',
-    who: 'for the weaver, in Python',
     items: [
-      {
-        name: 'A loop in plain Python',
-        line: 'Write the loop as an async function and declare the agents it needs by role.',
-        link: '/weaver/writing-a-flow',
-        page: 'Writing a flow',
-      },
-      {
-        name: 'Params of its own',
-        line: 'Typed settings that the prompt and the command line both fill in.',
-        link: '/weaver/flow-settings',
-        page: 'Params of its own',
-      },
-      {
-        name: 'Many conversations at once',
-        line: 'Fan out across as many conversations as the work needs.',
-        link: '/weaver/async-flows',
-        page: 'Many turns at once',
-      },
-      {
-        name: 'Answers as typed data',
-        line: 'Ask for a pydantic model and read a field, not a paragraph.',
-        link: '/weaver/shapes',
-        page: 'Answers in a shape',
-      },
-      {
-        name: 'The agent decides it is done',
-        line: 'Give an agent a goal and let it keep going until it judges the goal met.',
-        link: '/weaver/goals',
-        page: 'Goals',
-      },
-      {
-        name: 'React to each moment',
-        line: 'Run your own code before a tool, on a prompt, or when a turn stops.',
-        link: '/weaver/hooks',
-        page: 'Hooks',
-      },
-      {
-        name: 'Tools that call the flow',
-        line: 'Let the agent reach the flow mid-turn, and answer with the flow’s own code.',
-        link: '/weaver/tools',
-        page: 'The agent asking the flow',
-      },
-      {
-        name: 'Ask the person',
-        line: 'Put a question to whoever is at the prompt, as one of the flow’s agents.',
-        link: '/weaver/human-agent',
-        page: 'The person as an agent',
-      },
-      {
-        name: 'Cap a single turn',
-        line: 'Stop one turn once it has spent enough time, money or output tokens.',
-        link: '/reference/flows',
-        page: 'Flows reference',
-      },
-      {
-        name: 'Call another flow',
-        line: 'Use another flow as a step, under what is left of your budget.',
-        link: '/weaver/calling-flows',
-        page: 'A flow that calls a flow',
-      },
-      {
-        name: 'Branch a conversation',
-        line: 'Fork a conversation and try more than one way on from the same point.',
-        link: '/weaver/branching',
-        page: 'Branching a conversation',
-      },
-      {
-        name: 'Worktrees and copies',
-        line: 'A worktree per task, a throwaway copy, or an empty scratch directory.',
-        link: '/weaver/worktrees',
-        page: 'Worktrees, copies and scratch',
-      },
-      {
-        name: 'Test without a model',
-        line: 'Run a flow against scripted agents: milliseconds a test, and nothing spent.',
-        link: '/weaver/testing-flows',
-        page: 'Testing a flow',
-      },
-      {
-        name: 'Publish it',
-        line: 'Put flows in a git repository that anybody can add and run by name.',
-        link: '/weaver/flowverses',
-        page: 'Flowverses',
-      },
+      { name: 'A loop in plain Python', link: '/weaver/writing-a-flow' },
+      { name: 'Params of its own', link: '/weaver/flow-settings' },
+      { name: 'Many conversations at once', link: '/weaver/async-flows' },
+      { name: 'Answers as typed data', link: '/weaver/shapes' },
+      { name: 'The agent decides it is done', link: '/weaver/goals' },
+      { name: 'React to each moment', link: '/weaver/hooks' },
+      { name: 'Tools that call the flow', link: '/weaver/tools' },
+      { name: 'Ask the person', link: '/weaver/human-agent' },
+      { name: 'Cap a single turn', link: '/reference/flows' },
+      { name: 'Call another flow', link: '/weaver/calling-flows' },
+      { name: 'Branch a conversation', link: '/weaver/branching' },
+      { name: 'Worktrees and copies', link: '/weaver/worktrees' },
+      { name: 'Test without a model', link: '/weaver/testing-flows' },
+      { name: 'Publish it', link: '/weaver/flowverses' },
     ],
   },
 ]
 
-const hovered = ref<Item | null>(null)
-const focused = ref<Item | null>(null)
-const active = computed(() => focused.value ?? hovered.value)
-const count = AREAS.reduce((n, area) => n + area.items.length, 0)
-const id = (area: Area, i: number) => `hmz-map-${area.code}${i}`
+const BEATS = [...AREAS.map((area) => area.name), 'Open any one for its page']
+
+const uid = useId()
+const areaId = (code: string) => `${uid}-map-${code}`
+
+const palette = usePalette()
+const canvas = ref<HTMLCanvasElement | null>(null)
+const cam = ref<HTMLElement | null>(null)
+let fx: Fx | undefined
+
+const narrow = useNarrow(() => scene.rebuild())
+
+// The screen takes the map's own shape, so the whole of it is legible once it settles.
+const ratio = ref('16 / 9')
+const mobileRatio = ref('3 / 5')
+
+interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+const scene = useScene({
+  still: 'rest',
+  loop: false,
+  tick: (dt) => fx?.step(dt),
+  build(tl, q) {
+    const view = cam.value
+    const screen = view?.parentElement
+    if (!view || !screen) return
+    const W = screen.clientWidth
+    const H = screen.clientHeight
+    fx?.destroy()
+    fx = canvas.value ? createFx(canvas.value, W, H) : undefined
+    fx?.clear()
+
+    // Where everything sits in the map, measured flat, before the camera moves.
+    const origin = view.getBoundingClientRect()
+    const box = (el: Element): Box => {
+      const r = el.getBoundingClientRect()
+      return { x: r.left - origin.left, y: r.top - origin.top, w: r.width, h: r.height }
+    }
+    const areas = q('.area')
+    const areaBox = areas.map(box)
+    const shot = (b: Box | null) => {
+      if (!b || narrow.value) return { x: 0, y: 0, scale: 1 }
+      const s = Math.min((W * 0.84) / b.w, (H * 0.8) / b.h, 1.45)
+      return { x: W / 2 - (b.x + b.w / 2) * s, y: H / 2 - (b.y + b.h / 2) * s, scale: s }
+    }
+    // A point of the map, on the screen, under a given shot.
+    const on = (p: { x: number; y: number }, s: { x: number; y: number; scale: number }) => ({ x: s.x + p.x * s.scale, y: s.y + p.y * s.scale })
+
+    tl.set(view, { transformOrigin: '0 0', ...shot(areaBox[0]) }, 0)
+    tl.set(q('.item'), { opacity: 0, z: -420, y: 24, rotationX: -35 }, 0)
+    tl.set(q('.code'), { scale: 0 }, 0)
+    tl.set(q('.area-name'), { opacity: 0, x: -12 }, 0)
+    tl.set(areas, { opacity: 0.18, filter: 'blur(2px)' }, 0)
+    tl.set(q('.shine'), { opacity: 0 }, 0)
+
+    let t = 0
+    areas.forEach((area, k) => {
+      const s = shot(areaBox[k])
+      tl.addLabel(`beat-${k}`, t)
+      if (k) tl.to(view, { ...s, duration: 1.2, ease: 'cine' }, t)
+      // Depth of field: this area sharp and lit, the others soft.
+      areas.forEach((other, j) => {
+        if (j === k) tl.to(other, { opacity: 1, filter: 'blur(0px)', duration: 0.7, ease: 'power2.out' }, t + 0.2)
+        else if (j < k) tl.to(other, { opacity: 0.4, filter: 'blur(1.5px)', duration: 0.7 }, t + 0.1)
+      })
+      const code = area.querySelector('.code')!
+      tl.to(code, { scale: 1, duration: 0.5, ease: 'back.out(3)' }, t + 0.35)
+      tl.to(area.querySelector('.area-name'), { opacity: 1, x: 0, duration: 0.5 }, t + 0.45)
+      const from = on({ x: box(code).x + box(code).w / 2, y: box(code).y + box(code).h / 2 }, s)
+      tl.call(() => fx?.spark(from.x, from.y, palette.lane[k], 18, 90), [], t + 0.45)
+      const items = Array.from(area.querySelectorAll('.item'))
+      items.forEach((item, i) => {
+        const at = t + 0.6 + i * 0.07
+        tl.to(item, { opacity: 1, z: 0, y: 0, rotationX: 0, duration: 0.7, ease: 'cine.out' }, at)
+        const b = box(item)
+        const to = on({ x: b.x + b.w / 2, y: b.y + b.h / 2 }, s)
+        // A streak from the area's badge to the item as it lands.
+        const p = { t: 0 }
+        tl.fromTo(
+          p,
+          { t: 0 },
+          {
+            t: 1,
+            duration: 0.45,
+            ease: 'power2.in',
+            onUpdate: () => fx?.trail(from.x + (to.x - from.x) * p.t, from.y + (to.y - from.y) * p.t, palette.lane[k], 2),
+            onComplete: () => fx?.spark(to.x, to.y, palette.lane[k], 5, 50),
+          },
+          at,
+        )
+      })
+      t += 0.6 + items.length * 0.07 + 1.3
+    })
+
+    // The whole map, sharp, a light passing over every item, and then it stays.
+    tl.addLabel(`beat-${areas.length}`, t)
+    tl.to(view, { x: 0, y: 0, scale: 1, duration: 1.5, ease: 'cine' }, t)
+    tl.to(areas, { opacity: 1, filter: 'blur(0px)', duration: 0.8 }, t + 0.3)
+    const shines = q('.shine')
+    tl.to(shines, { opacity: 1, duration: 0.25, stagger: 0.025 }, t + 1.2)
+    tl.to(shines, { opacity: 0, duration: 0.5, stagger: 0.025 }, t + 1.45)
+    tl.addLabel('rest', t + 1.45 + shines.length * 0.025 + 0.5)
+    // Leave no filter behind: a blur of nothing still costs the page a layer.
+    tl.set(areas, { clearProps: 'filter' }, 'rest')
+  },
+})
+
+// Size the screen to the map: its width is the page's, its height the map's at that width.
+let observer: ResizeObserver | undefined
+let pending = 0
+function fit() {
+  cancelAnimationFrame(pending)
+  pending = requestAnimationFrame(() => {
+    const view = cam.value
+    const screen = view?.parentElement
+    if (!view || !screen) return
+    const next = `${Math.round(screen.clientWidth)} / ${Math.ceil(view.offsetHeight)}`
+    const was = narrow.value ? mobileRatio.value : ratio.value
+    if (next === was) return
+    if (narrow.value) mobileRatio.value = next
+    else ratio.value = next
+    void nextTick(() => scene.rebuild())
+  })
+}
+
+onMounted(() => {
+  void nextTick(fit)
+  observer = new ResizeObserver(fit)
+  if (cam.value) observer.observe(cam.value)
+  if (cam.value?.parentElement) observer.observe(cam.value.parentElement)
+})
+
+onUnmounted(() => {
+  observer?.disconnect()
+  cancelAnimationFrame(pending)
+  fx?.destroy()
+})
+
+const label = computed(
+  () =>
+    `Everything humanize does, in ${AREAS.length} areas: ${AREAS.map((area) => `${area.name}, ${area.items.map((item) => item.name).join(', ')}`).join('; ')}. Each item links to the page that does it.`,
+)
 </script>
 
 <template>
-  <div class="map hmz-panel">
-    <section
-      v-for="(area, a) in AREAS"
-      :key="area.code"
-      class="area"
-      :style="{ '--tone': `var(--hmz-lane-${a + 1})` }"
-      :aria-labelledby="`hmz-area-${area.code}`"
-    >
-      <header>
-        <span class="code">{{ area.code }}</span>
-        <strong :id="`hmz-area-${area.code}`">{{ area.name }}</strong>
-        <span class="who">{{ area.who }}</span>
-      </header>
-      <div class="items">
-        <a
-          v-for="(item, i) in area.items"
-          :key="item.name"
-          class="item"
-          :class="{ held: active === item }"
-          :href="withBase(item.link)"
-          :aria-describedby="id(area, i)"
-          @mouseenter="hovered = item"
-          @mouseleave="hovered = null"
-          @focus="focused = item"
-          @blur="focused = null"
+  <HmzStage :scene="scene" :beats="BEATS" :label="label" interactive :ratio="ratio" :mobile-ratio="mobileRatio">
+    <div class="layer depth">
+      <div ref="cam" class="cam">
+        <section
+          v-for="(area, a) in AREAS"
+          :key="area.code"
+          class="area"
+          :class="`area-${area.code}`"
+          :style="{ '--tone': `var(--hmz-lane-${a + 1})` }"
+          :aria-labelledby="areaId(area.code)"
         >
-          {{ item.name }}
-          <span :id="id(area, i)" class="line">{{ item.line }}</span>
-        </a>
+          <header>
+            <span class="code" aria-hidden="true">{{ area.code }}</span>
+            <strong :id="areaId(area.code)" class="area-name">{{ area.name }}</strong>
+          </header>
+          <div class="items">
+            <a v-for="item in area.items" :key="item.name" class="item" :href="withBase(item.link)">
+              <span class="shine" aria-hidden="true" />
+              {{ item.name }}
+            </a>
+          </div>
+        </section>
       </div>
-    </section>
-    <p class="caption">
-      <template v-if="active">
-        {{ active.line }} <b>→ {{ active.page }}</b>
-      </template>
-      <template v-else>
-        {{ AREAS.length }} areas, {{ count }} things it does. Point at one to read it; open it for
-        the page that does it.
-      </template>
-    </p>
-  </div>
+    </div>
+    <canvas ref="canvas" />
+  </HmzStage>
 </template>
 
 <style scoped>
-.area {
+.depth {
+  perspective: 900px;
+  overflow: hidden;
+}
+
+.cam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 10px 18px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--hmz-panel-border);
-  border-left: 3px solid var(--tone);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    'a b c'
+    'a b d'
+    'e e e';
+  align-content: start;
+  gap: 10px;
+  padding: 16px 14px 14px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.area-A {
+  grid-area: a;
+}
+
+.area-B {
+  grid-area: b;
+}
+
+.area-C {
+  grid-area: c;
+}
+
+.area-D {
+  grid-area: d;
+}
+
+.area-E {
+  grid-area: e;
+}
+
+.area {
+  padding: 10px 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--tone) 32%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tone) 7%, transparent);
+  /* Its own lens: the blur that softens an area flattens it, so the depth is set here. */
+  perspective: 700px;
 }
 
 header {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 8px;
-  align-content: start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .code {
-  grid-row: 1 / 3;
   display: grid;
   place-items: center;
+  flex: none;
   width: 22px;
   height: 22px;
   border-radius: 7px;
   background: var(--tone);
-  color: var(--vp-c-bg);
+  color: var(--hmz-stage-card);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: 0 0 calc(16px * var(--hmz-glow)) color-mix(in srgb, var(--tone) 70%, transparent);
 }
 
-header strong {
-  font-size: 14px;
-  line-height: 1.35;
-  color: var(--vp-c-text-1);
-}
-
-.who {
-  font-size: 11.5px;
-  line-height: 1.4;
-  color: var(--vp-c-text-3);
+.area-name {
+  font-size: 13.5px;
+  line-height: 1.3;
+  color: var(--hmz-stage-ink);
 }
 
 .items {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  align-content: start;
+  gap: 5px;
 }
 
 .vp-doc .item,
 .item {
-  padding: 4px 11px;
-  border: 1px solid var(--vp-c-divider);
+  position: relative;
+  overflow: hidden;
+  padding: 3px 10px;
+  border: 1px solid var(--hmz-stage-line);
   border-radius: 999px;
-  background: var(--vp-c-bg);
-  color: var(--vp-c-text-2);
+  background: var(--hmz-stage-card);
+  color: var(--hmz-stage-ink);
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1.5;
   text-decoration: none;
-  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
 .vp-doc .item:hover,
-.item:hover,
-.item.held {
+.item:hover {
   border-color: var(--tone);
-  color: var(--vp-c-text-1);
-  background: var(--vp-c-default-soft);
+  color: var(--hmz-stage-ink);
+  box-shadow: 0 0 0 1px var(--tone), 0 0 calc(18px * var(--hmz-glow)) color-mix(in srgb, var(--tone) 55%, transparent);
   text-decoration: none;
 }
 
@@ -413,41 +388,20 @@ header strong {
   outline-offset: 2px;
 }
 
-.line {
+.shine {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 10%, color-mix(in srgb, var(--tone) 45%, transparent) 50%, transparent 90%);
+  pointer-events: none;
 }
 
-.caption {
-  margin: 0;
-  padding: 14px 18px;
-  min-height: 72px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--vp-c-text-2);
-}
-
-.caption b {
-  color: var(--vp-c-brand-1);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-@media (max-width: 720px) {
-  .area {
+@media (max-width: 640px) {
+  .cam {
     grid-template-columns: minmax(0, 1fr);
-    padding: 12px 14px;
-  }
-
-  .caption {
-    display: none;
+    grid-template-areas: 'a' 'b' 'c' 'd' 'e';
+    padding: 12px 10px 12px;
+    gap: 8px;
   }
 }
 

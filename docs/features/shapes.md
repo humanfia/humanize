@@ -8,53 +8,25 @@ import { withBase } from 'vitepress'
 
 # Answers in a shape
 
-A flow can ask an agent for an answer with named, typed fields instead of a paragraph: `done`
-and `notes`, or `approach` and `tests`. The flow then decides on a field, rather than on
-whether some phrase turned up in the prose. The shape is written once, in the flow, and the
-same shape can be put to a model or to you.
+<p class="hmz-tagline">Named, typed fields instead of a paragraph. The flow decides on a field.</p>
 
 <HmzShape />
 
-## What a shape is good for
+<div class="hmz-facts">
 
-Two or three fields usually make a whole decision. Each kind of field does one job in a loop:
+- **Each kind of field has a job.** Yes or no decides, a few words pick a branch, text carries,
+  a number bounds.
+- **Two or three fields.** A shape with thirty is a form, and filling in forms is not the work.
+- **Never half an answer.** An answer out of shape fails the turn; the usual response is another
+  round.
+- **Asked is freer to miss.** On a CLI that is only asked, a loop's retry does more of the work.
 
-| A field that is | Does this in the loop |
-| --- | --- |
-| **yes or no** | decides: is it finished, does it pass, go round again or stop |
-| **one of a few words** | picks a branch, such as `fast` or `careful`, and never a third |
-| **text** | carries: a reviewer's notes become the builder's next prompt, word for word |
-| **a number** | bounds: how many rounds, how many files |
-
-A shape with thirty fields is a form, and an agent busy filling in a form is not doing the
-work.
-
-## When the answer does not fit
-
-An answer that is not in the shape fails the turn, however cleanly the agent finished. The
-flow never gets half an answer to act on. It gets a failed turn, and the usual response is to
-take that round again.
-
-## The same decision, put to a person
-
-Give [the person at the prompt](/features/human) the same shape and they get one short
-question per field: the field's description is the question, `yes` and `no` for a switch, the
-words on offer for a choice. Their answers come back as the same fields a model would have
-filled in, so the flow reads them the same way.
-
-## Which CLIs hold the shape themselves
-
-Some CLIs take the shape as a setting of their own and keep the model to it. The rest are asked
-for it in the prompt, and the answer is checked when it comes back. The flow gets the same
-fields either way. The difference is that a model that was only asked is freer to miss, so on
-those CLIs a loop's retry does more work.
+</div>
 
 | | CLIs |
 | --- | --- |
 | **Held by the CLI** | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="agy" /> <Badge type="tip" text="grok" /> <Badge type="tip" text="qwen" /> |
-| **Asked in the prompt** | <Badge type="info" text="cursor-agent" /> <Badge type="info" text="dsh" /> <Badge type="info" text="kimi" /> <Badge type="info" text="mimo" /> <Badge type="info" text="opencode" /> <Badge type="info" text="pi" /> <Badge type="info" text="zcode" />, and any CLI you add on [the Accounts page of `/settings`](/user/settings#accounts) |
-
-## Go further
+| **Asked in the prompt** | <Badge type="info" text="cursor-agent" /> <Badge type="info" text="dsh" /> <Badge type="info" text="kimi" /> <Badge type="info" text="mimo" /> <Badge type="info" text="opencode" /> <Badge type="info" text="pi" />, and any CLI you [add](/user/settings#accounts) |
 
 <div class="hmz-paths by-three">
   <a :href="withBase('/weaver/shapes')">

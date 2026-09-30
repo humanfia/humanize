@@ -26,6 +26,18 @@
 
   /* The wordmark on the page at the site's root: the three colours above, in one sweep. */
   --hmz-wordmark: linear-gradient(110deg, #608ab1 0%, #2a9d8f 45%, #7c6cf0 100%);
+
+  /* The stage a feature scene plays on (motion/HmzStage.vue): a lit screen, pale in light mode
+     and night in dark, with ink, a dimmer ink, hairlines, a card fill and the falloff at its
+     edges. `--hmz-glow` scales every halo, since light reads stronger on the dark stage. */
+  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #ffffff 0%, #f1f5fa 55%, #e4ecf5 100%);
+  --hmz-stage-deck: var(--vp-c-bg-soft);
+  --hmz-stage-ink: #13233a;
+  --hmz-stage-dim: #5d6f86;
+  --hmz-stage-line: rgba(42, 110, 166, 0.2);
+  --hmz-stage-card: rgba(255, 255, 255, 0.86);
+  --hmz-stage-vignette: rgba(120, 146, 176, 0.18);
+  --hmz-glow: 0.55;
 }
 
 .dark {
@@ -47,6 +59,15 @@
 
   --hmz-grid: rgba(140, 184, 222, 0.14);
   --hmz-wordmark: linear-gradient(110deg, #8cb8de 0%, #2dd4bf 45%, #c084fc 100%);
+
+  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #17223b 0%, #0d1426 58%, #080c18 100%);
+  --hmz-stage-deck: var(--vp-c-bg-soft);
+  --hmz-stage-ink: #e7eef9;
+  --hmz-stage-dim: #8d9bb5;
+  --hmz-stage-line: rgba(140, 184, 222, 0.2);
+  --hmz-stage-card: rgba(22, 32, 56, 0.86);
+  --hmz-stage-vignette: rgba(0, 0, 0, 0.45);
+  --hmz-glow: 1;
 }
 
 /* A feature page -- and a flow page, and the features landing the site's root goes to -- is a
@@ -64,6 +85,44 @@
 .Layout.hmz-feature .vp-doc > div > blockquote,
 .Layout.hmz-feature .vp-doc > div > .custom-block {
   max-width: 46rem;
+}
+
+/* A feature page is a title, this one line, a scene, and a few facts. The line is the page's
+   whole argument, so it is set larger than prose and nothing else on the page is. */
+.vp-doc p.hmz-tagline {
+  max-width: 40rem;
+  margin: 10px 0 0;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--vp-c-text-2);
+}
+
+/* The facts under a scene: what the motion cannot say, one short line each, in a grid. */
+.vp-doc .hmz-facts ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.vp-doc .hmz-facts li {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background: var(--vp-c-bg-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--vp-c-text-2);
+}
+
+.vp-doc .hmz-facts li strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 14px;
+  color: var(--vp-c-text-1);
 }
 
 /* The shell every diagram on the site is drawn in. Two dozen components set it as their root
