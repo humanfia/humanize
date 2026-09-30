@@ -157,7 +157,7 @@ async def _opens(app: Humanize, driver: Pilot[None], held: str, sheet: type) -> 
       held: The row, by its id.
       sheet: What it opens.
     """
-    await until(lambda: held in ids(app), driver)
+    await until(lambda: held in ids(app) or held in bar(app), driver)
     await onto(app, driver, held)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, sheet), driver)

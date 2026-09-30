@@ -1391,11 +1391,15 @@ async def test_a_page_of_settings_is_gone_into_and_come_out_of_with_the_mouse() 
         await until(lambda: sheet._home, driver)
         assert listing.highlighted == 2
 
-        # And the arrows across go in and come out as well, as a file manager's do.
-        await driver.press("right")
+        # And the arrows across go in and come out as well, as a file manager's do -- on a
+        # page with rows, since on an empty one the focus is on its buttons, which the arrows
+        # across walk along instead.
+        await driver.press("up", "up", "right")
         await until(lambda: not sheet._home, driver)
+        assert sheet._tab == 0
         await driver.press("left")
         await until(lambda: sheet._home, driver)
+        assert sheet._home
 
 
 #: A `claude` that stops to ask before it answers, as the real one does when it reaches for
