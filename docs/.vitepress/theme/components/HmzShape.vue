@@ -83,6 +83,7 @@ const BACKENDS: Backend[] = [
   { name: 'agy', held: true },
   { name: 'grok', held: true },
   { name: 'qwen', held: true },
+  { name: 'mcode', held: true },
   { name: 'cursor-agent', held: false },
   { name: 'dsh', held: false },
   { name: 'kimi', held: false },

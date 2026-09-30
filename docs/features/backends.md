@@ -4,7 +4,7 @@ pageClass: hmz-feature
 
 # Many backends, one agent
 
-humanize drives eleven coding agent CLIs, and any other CLI that speaks the Agent Client
+humanize drives twelve coding agent CLIs, and any other CLI that speaks the Agent Client
 Protocol. Each one runs under a login you already have, so most need no API key. A flow names
 its **roles**, and you pick the backend that plays each one. If the backend cannot do what the
 role needs, the run is refused before it starts, not an hour in.
@@ -39,8 +39,8 @@ than guesses:
 
 - **It asks as the account.** Two accounts of one CLI can offer two different lists.
 - **An account on a gateway is asked the gateway.** Its list is what that endpoint serves,
-  under the ids it serves them by. pi, opencode, mimocode and Cursor Agent are asked
-  themselves.
+  under the ids it serves them by. pi, opencode, mimocode, Cursor Agent and MiniMax Code are
+  asked themselves.
 - **It asks once, when you make the account,** and keeps the answer with the account. Opening
   a menu never starts a CLI or reaches the network. The list is refreshed when you ask it
   again, on [Accounts](/user/settings#accounts).

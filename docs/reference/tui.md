@@ -303,6 +303,7 @@ The pin shows at most five lines, cut at the screen edge, and counts the rest:
 | **DeepSeek Harness** | <Badge type="info" text="next turn" /> |
 | **Grok Build** | <Badge type="info" text="next turn" /> |
 | **mimocode** | <Badge type="info" text="next turn" /> |
+| **MiniMax Code** | <Badge type="info" text="next turn" /> |
 | **opencode** | <Badge type="info" text="next turn" /> |
 | **Qwen Code** | <Badge type="info" text="next turn" /> |
 | an **ACP CLI** of your own | <Badge type="info" text="next turn" /> |

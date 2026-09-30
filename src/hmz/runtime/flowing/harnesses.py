@@ -43,8 +43,8 @@ the CLI stops spending -- and raises the :class:`~hmz.flows.errors.BudgetExceede
 
 A fork is the CLI's own: Claude Code, Codex and Kimi Code fork into another workdir,
 every other harness that forks does so only into the workdir it is in, and cursor-agent,
-Antigravity and dsh do not fork. A fork is cut where its first turn is taken, so it is refused
-then if the session it came from has taken a turn since.
+MiniMax Code, Antigravity and dsh do not fork. A fork is cut where its first turn is taken, so
+it is refused then if the session it came from has taken a turn since.
 
 :func:`open_outworlder` is the driver for whoever is outside the run.
 """

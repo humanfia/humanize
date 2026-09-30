@@ -20,6 +20,7 @@ const HAVE = [
   { name: 'agy', has: false },
   { name: 'cursor-agent', has: false },
   { name: 'grok', has: false },
+  { name: 'mcode', has: false },
   { name: 'mimo', has: false },
   { name: 'opencode', has: false },
   { name: 'pi', has: false },

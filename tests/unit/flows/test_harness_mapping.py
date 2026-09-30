@@ -86,6 +86,7 @@ RUNGS: dict[HarnessKind, tuple[str, str, str]] = {
     HarnessKind.CURSOR_AGENT: ("read-only", "bypass", "bypass"),
     HarnessKind.OPENCODE: ("read-only", "bypass", "bypass"),
     HarnessKind.MIMO: ("read-only", "bypass", "bypass"),
+    HarnessKind.MCODE: ("bypass", "bypass", "bypass"),
     HarnessKind.QWEN: ("read-only", "bypass", "bypass"),
     HarnessKind.KIMI: ("read-only", "bypass", "bypass"),
     HarnessKind.GROK: ("read-only", "bypass", "bypass"),
@@ -340,6 +341,7 @@ def test_each_capability_is_one_the_coganchor_driver_has(harness: HarnessKind) -
         (HarnessKind.GROK, False, False),
         (HarnessKind.QWEN, False, False),
         (HarnessKind.CURSOR_AGENT, False, False),
+        (HarnessKind.MCODE, False, False),
     ],
 )
 def test_steering_and_asking_are_where_the_coganchor_driver_has_them(

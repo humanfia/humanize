@@ -61,6 +61,12 @@ const BACKENDS: Backend[] = [
     note: 'Swarm mode runs the same effort as a fleet of subagents: swarmmax is max, run wide.',
   },
   {
+    cli: 'mcode',
+    called: 'MiniMax Code',
+    ladder: ['max', 'xhigh', 'high', 'medium', 'low'],
+    note: 'Only MiniMax-M3.1-Flash-Preview takes a rung. Its other models, and any model added to it, take none: give them auto.',
+  },
+  {
     cli: 'mimo',
     called: 'MiMo Code',
     ladder: VARIANTS,

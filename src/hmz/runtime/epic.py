@@ -1180,9 +1180,9 @@ def logs(epic: Path, session: Session) -> dict[str, Path]:
     profile = backends.named(session.backend)
     if profile is None:
         return held
-    for pattern in profile.logs:
+    for pattern in profile.logged(session.ident):
         try:
-            found = sorted(at.glob(pattern.format(ident=session.ident)))
+            found = sorted(at.glob(pattern))
         except (OSError, ValueError):
             continue  # a directory that cannot be read is a session with no logs
         for one in found:

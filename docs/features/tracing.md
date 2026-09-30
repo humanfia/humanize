@@ -48,6 +48,7 @@ Every backend humanize ships with, except one:
 
 <Badge type="tip" text="agy" /> <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" />
 <Badge type="tip" text="dsh" /> <Badge type="tip" text="grok" /> <Badge type="tip" text="kimi" />
+<Badge type="tip" text="mcode" />
 <Badge type="tip" text="mimo" /> <Badge type="tip" text="opencode" /> <Badge type="tip" text="pi" />
 <Badge type="tip" text="qwen" />
 <Badge type="warning" text="cursor-agent: nothing to read" />

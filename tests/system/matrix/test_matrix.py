@@ -867,7 +867,9 @@ def test_fence_user_none(cell: Cell) -> None:
 @feature(
     limits={
         "cursor-agent": "online NONE is refused, its web tools running on Cursor's own "
-        "servers (docs/user/permissions.md)"
+        "servers (docs/user/permissions.md)",
+        "mcode": "online NONE is refused, its web search running on MiniMax's own "
+        "service (docs/user/permissions.md)",
     }
 )
 def test_fence_offline(cell: Cell) -> None:

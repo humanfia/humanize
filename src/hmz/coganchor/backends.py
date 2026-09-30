@@ -18,6 +18,7 @@ purpose does: driving in :mod:`hmz.coganchor.agents`, reading back in :mod:`hmz.
 
 from __future__ import annotations
 
+import base64
 import os
 import re
 import shutil
@@ -526,6 +527,11 @@ class Profile:
       logs: The files one session is logged to under that home, as globs taking `{ident}`.
         Claude gets two -- a sub-agent it starts writes its own transcript, and the tokens it
         spends are the run's.
+      encodes: Whether those globs name a session by its id written in URL-safe base64 rather
+        than by the id itself. MiniMax Code's is: a session's directory is named for the
+        moment it opened and `session_` and the id encoded, and nothing under its home is
+        named for the id as the CLI states it. Read by :meth:`logged`, so that whatever looks
+        for a log asks one question whichever of the two spellings it is under.
       sessions: Where under that home a session is kept: everything one writes, and
         everything a resumed or forked one reads back -- the transcripts, the index they are
         found by, what the CLI keeps per conversation beside them. Paths relative to the home,
@@ -669,6 +675,7 @@ class Profile:
     logs: tuple[str, ...]
     efforts: tuple[str, ...]
     home_in: str = ""
+    encodes: bool = False
     sessions: tuple[str, ...] = ()
     told: bool = False
     skills: tuple[str, ...] = ()
@@ -730,6 +737,23 @@ class Profile:
         if not self.efforts or self.efforts == (_UNSAID,):
             return True
         return rung in self.efforts or rung in self.beyond
+
+    def logged(self, ident: str) -> tuple[str, ...]:
+        """The globs one session is logged to under this backend's home.
+
+        Args:
+          ident: The session, by the id the backend gave it.
+
+        Returns:
+          `logs` with that id written in, spelled the way this backend names it on disk --
+          as it is, or in URL-safe base64 with no padding where :attr:`encodes` says so.
+        """
+        spelled = (
+            base64.urlsafe_b64encode(ident.encode()).decode().rstrip("=")
+            if self.encodes
+            else ident
+        )
+        return tuple(pattern.format(ident=spelled) for pattern in self.logs)
 
     def directory(self, environment: Mapping[str, str] | None = None) -> Path:
         """Where this backend keeps its state and its logs, wherever it has been moved to.
@@ -922,6 +946,13 @@ _GATEWAY = (
 
 #: What Antigravity CLI calls its reasoning levels, hardest first.
 _AGY = ("high", "medium", "low")
+
+#: What MiniMax Code calls a reasoning effort, hardest first, as 0.5.9's own model table writes
+#: them for the one model of its own that takes any: `max`, `xhigh`, `high`, `medium` and
+#: `low`, beside a `default` that is the absence of one and so is not a rung here. Its other
+#: models take none at all, and are refused a turn given `--effort` rather than run at some
+#: other strength -- which is why what a model takes is the catalogue's to say, per model.
+_MCODE = ("max", "xhigh", "high", "medium", "low")
 
 #: What Cursor calls a reasoning effort, hardest first. Not a flag of its own, and -- on a
 #: signed-in account -- not the bracket its `--help` still documents either: `cursor-agent
@@ -2121,6 +2152,154 @@ PROFILES = (
                 asks=(
                     Asked(env="CURSOR_API_ENDPOINT", about="where it is, as a URL"),
                     Asked(env="CURSOR_API_KEY", about="the key it takes", secret=True),
+                ),
+            ),
+        ),
+    ),
+    Profile(
+        # Installed from `@minimax-ai/code` as `mcode`, which is the name `-a` takes for the
+        # reason `cursor-agent` is what that one takes: the word somebody would type at a
+        # shell to run the thing itself.
+        name="mcode",
+        # Its agent service in each of the three places it is served from, which is where a
+        # sign-in is refreshed, where the managed models answer and where its own permission
+        # check and web search go; its API in both regions, where a key's turns go; and the
+        # account pages a sign-in is made on. Read off 0.5.9's own bundle.
+        hosts=(
+            "agent.minimax.io",
+            "agent.minimaxi.com",
+            "agent.minimax.cn",
+            "api.minimax.io",
+            "api.minimaxi.com",
+            "account.minimax.io",
+            "account.minimax.cn",
+        ),
+        installs="npm i -g @minimax-ai/code",
+        # `mcode exec` has no flag that takes a tool away, and the one file that could is
+        # its `config.yaml` -- the person at this machine's, which a driver does not write.
+        searches=False,
+        # A conversation is resumed with `--session` under the id it was opened with, and
+        # its command line has no way of cutting a second one from it: the forking it does
+        # is a thing its interface offers a person, from `/history`.
+        forks=False,
+        aliases=("mcode", "minimax", "minimax-code"),
+        home_var="MINIMAX_DATA_DIR",
+        home_dir=".minimax",
+        # A directory per session, under the day it was opened, named for the moment it
+        # opened and the session's id in URL-safe base64. `messages.jsonl` inside it is the
+        # conversation as the model saw it, a record per message, and every answer carries
+        # what the request it came back on cost.
+        logs=("v2/sessions/*/*/*/*-session_{ident}/messages.jsonl",),
+        encodes=True,
+        # The database a session is resumed out of, the directory per session the logs are
+        # in, and where what a tool call ran is written out in full -- traced through a turn
+        # and a second one resuming it. The rest of `v2/` is the runtime's own: its leases,
+        # its migrations and its observability logs.
+        sessions=("v2/sqlite", "v2/sessions", "background-tasks"),
+        efforts=_MCODE,
+        # Its own under its data home, and what it calls external skills: Claude Code's,
+        # Codex's and the shared ones under yours, and a project's own, Claude Code's and the
+        # shared ones under the workspace -- every one of them on unless its `config.yaml`
+        # says otherwise. The ones it ships are in `.builtin-skills`, and are the CLI's
+        # rather than a person's to add to or switch off.
+        skills=("skills/*/SKILL.md",),
+        shared=(
+            ".agents/skills/*/SKILL.md",
+            ".claude/skills/*/SKILL.md",
+            ".codex/skills/*/SKILL.md",
+        ),
+        works=(
+            ".minimax/skills/*/SKILL.md",
+            ".claude/skills/*/SKILL.md",
+            ".agents/skills/*/SKILL.md",
+        ),
+        # The shared one of the three, as for the others that read it.
+        mounts=".agents/skills",
+        # Everything an account is: `config.yaml` holds a key and every provider added to it,
+        # and `auth/` what a sign-in leaves -- a directory per build, and the lock two of its
+        # processes refresh a token under.
+        creds=("config.yaml", "auth"),
+        # The endpoints and the region that say whose account a turn is taken as, and the
+        # vendor's own names for a key. None of them is a way in of its own.
+        ambient=(
+            "MCODE_API_BASE_URL",
+            "MCODE_AUTH_BASE_URL",
+            "MCODE_AUTH_PROVIDER",
+            "MCODE_CLIENT_ID",
+            "MCODE_REGION",
+            "MINIMAX_API_KEY",
+            "MINIMAX_CN_API_KEY",
+        ),
+        # What it says when a turn stops on its sign-in, which none of the shared signs read:
+        # `Sign in to MiniMax to use Agent features`, before a turn has started, and a managed
+        # model's `OAuth bearer is not synced`, when one has.
+        signs=(
+            Sign("refused", r"sign in to minimax"),
+            Sign("refused", r"oauth bearer is not synced"),
+        ),
+        ways=(
+            Way(
+                name="login",
+                about="sign in to a MiniMax account, in a browser",
+                argv=("mcode", "login"),
+            ),
+            Way(
+                name="key",
+                about="a MiniMax API key, from the platform",
+                # Saved into its `config.yaml` and chosen as where its models run from. It
+                # reads the key out of this variable rather than off its command line or
+                # its standard input, so the variable is what the answer has to be.
+                argv=("mcode", "provider", "set-minimax-key"),
+                asks=(
+                    Asked(
+                        env="MCODE_PROVIDER_API_KEY", about="the API key", secret=True
+                    ),
+                ),
+            ),
+            Way(
+                name="gateway",
+                about=_GATEWAY,
+                # A provider of its own, added to its `config.yaml` with the one model named
+                # here and made the default -- after a request to it, so an endpoint that
+                # does not answer is a way in that fails where it is made rather than a
+                # provider nothing can use.
+                argv=(
+                    "mcode",
+                    "provider",
+                    "add",
+                    "--name",
+                    "gateway",
+                    "--base-url",
+                    "{MCODE_GATEWAY_URL}",
+                    "--api-format",
+                    "{MCODE_GATEWAY_FORMAT}",
+                    "--model",
+                    "{MCODE_GATEWAY_MODEL}",
+                    "--api-key-env",
+                    "MCODE_PROVIDER_API_KEY",
+                    "--use",
+                ),
+                asks=(
+                    Asked(env="MCODE_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="MCODE_PROVIDER_API_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(
+                        env="MCODE_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
+                        keep=False,
+                    ),
+                    Asked(
+                        env="MCODE_GATEWAY_FORMAT",
+                        about=(
+                            "the protocol it speaks: anthropic-messages, "
+                            "openai-completions or openai-responses"
+                        ),
+                        fixed="openai-completions",
+                        keep=False,
+                    ),
                 ),
             ),
         ),
