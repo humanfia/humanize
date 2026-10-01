@@ -226,7 +226,7 @@ saved with:
 
 ```text
    Environment for box
-     1. backend  ssh ↔             a machine reached over ssh
+     1. backend  ssh ▾             a machine reached over ssh
      2. host     build-box ▸       build-box · working directory: /home/me/build/myproject
      3. workdir                    leave blank to use saved default: /home/me/build/myproject
      4. as -e    ssh@build-box     full -e spec: typing one sets the rows above
@@ -283,13 +283,19 @@ host says.
 ## Where the agent runs {#where-the-agent-runs}
 
 The harness is the agent's CLI and whatever supervises it. `-H` places it for every agent of
-the run, and the `harness` row of `/flow` does the same at the prompt. Its form steps through
-the four with <kbd>←</kbd> <kbd>→</kbd>, saying what each does:
+the run, and the `harness` row of `/flow` does the same at the prompt. On its form,
+<kbd>enter</kbd> or a click drops the four under the row, saying what each does, and
+<kbd>enter</kbd> or a click picks one:
 
 ```text
    Where the harness runs for local/onbox
-   ❯ 1. harness  adaptive ↔   on the env's machine where its CLI is installed, else here
-        done                      runs them adaptive when the flow is saved
+   ❯ 1. harness  adaptive ▾   on the env's machine where its CLI is installed, else here
+                 ╭─ harness ────────────────────────────────────────────────────────────────╮
+        done     │ adaptive ✔  on the env's machine where its CLI is installed, else here   │
+                 │ local  here, reaching the env through the anchor                         │
+                 │ env  on the env's machine; refused where its CLI is missing              │
+                 │ standalone  on a machine of its own, reaching the env through the anchor │
+                 ╰──────────────────────────────────────────────────────────────────────────╯
 ```
 
 | | `adaptive` | `local` | `env` | `standalone:<machine>` |
@@ -415,7 +421,7 @@ At the prompt, choose `standalone` on the harness form and a `machine` row appea
 the same form an environment role is placed with:
 
 ```text
-     1. harness  standalone ↔              on a machine of its own, reaching the env through the anchor
+     1. harness  standalone ▾              on a machine of its own, reaching the env through the anchor
      2. machine  ssh@gpu-box/~/scratch ▸   as -e names one
    ❯    done                      runs them standalone:ssh@gpu-box/~/scratch when the flow is saved
 ```

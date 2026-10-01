@@ -18,8 +18,9 @@ from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
+from hmz.tui.dropdown import Dropdown
 from hmz.tui.pick import _DONE, Agent, Configures, Flows, setting
-from tests.integration.tui.test_app import changes, into_agent, keeps, onto, rows
+from tests.integration.tui.test_app import changes, into_agent, keeps, onto, picks, rows
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -240,8 +241,8 @@ async def test_a_flow_that_takes_no_setting_up_is_not_asked_about(flows: Path) -
 
 
 @pytest.mark.timeout(60)
-async def test_the_arrows_move_a_setting_and_letters_write_one(flows: Path) -> None:
-    """A switch and a literal step; a number and a word are typed, once enter begins them."""
+async def test_a_setting_is_picked_from_a_list_or_written(flows: Path) -> None:
+    """A switch and a literal drop their values; a number and a word are typed, once begun."""
     app = Humanize()
     with unittest.mock.patch(
         "hmz.tui.app.installed",
@@ -258,13 +259,15 @@ async def test_the_arrows_move_a_setting_and_letters_write_one(flows: Path) -> N
             await driver.pause()
             assert sheet._typed_in["named"] == ""
 
-            await changes(app, driver, "loud", "right")  # off -> on
+            await picks(app, driver, "loud", "on")
             assert sheet._typed_in["loud"] == "on"
 
-            await changes(app, driver, "rounds", "right")  # 3 -> 4
+            # A number is written, its value selected whole as it is begun on; the arrows
+            # across step nothing.
+            await changes(app, driver, "rounds", "4", "right")
             assert sheet._typed_in["rounds"] == "4"
 
-            await changes(app, driver, "mode", "right")  # fast -> slow
+            await picks(app, driver, "mode", "slow")
             assert sheet._typed_in["mode"] == "slow"
 
             await changes(app, driver, "named", *"here")  # which is written
@@ -285,8 +288,8 @@ async def test_what_the_flow_refuses_is_said_where_it_was_typed(flows: Path) -> 
             sheet = app.screen
             assert isinstance(sheet, Configures)
 
-            await changes(app, driver, "loud", "right")  # on
-            await changes(app, driver, "mode", "right")  # slow
+            await picks(app, driver, "loud", "on")
+            await picks(app, driver, "mode", "slow")
             await _sets(app, driver)
 
             assert isinstance(app.screen, Configures)  # still here, not moved on
@@ -345,7 +348,7 @@ async def test_how_it_was_set_up_is_kept_and_read_back(
         async with app.run_test() as driver:
             await _set_up(app, driver)
             await until(lambda: isinstance(app.screen, Configures), driver)
-            await changes(app, driver, "loud", "right")  # on
+            await picks(app, driver, "loud", "on")
             await _sets(app, driver)
             await until(lambda: isinstance(app.screen, Flows), driver)
             await keeps(app, driver)
@@ -506,7 +509,7 @@ async def test_walking_past_how_the_flow_is_set_up_leaves_it_alone(flows: Path) 
         async with app.run_test() as driver:
             await _set_up(app, driver)
             await until(lambda: isinstance(app.screen, Configures), driver)
-            await changes(app, driver, "loud", "right")  # on
+            await picks(app, driver, "loud", "on")
             await _sets(app, driver)
             await until(lambda: isinstance(app.screen, Flows), driver)
             await keeps(app, driver)
@@ -539,14 +542,14 @@ async def test_a_setting_that_is_written_carries_a_caret_under_the_cursor(
             sheet = app.screen
             assert isinstance(sheet, Configures)
 
-            # The cursor starts on a switch, which is stepped rather than written.
+            # The cursor starts on a switch, whose values are dropped rather than written.
             assert "reverse" not in _under(app)
+            assert "enter choose" in str(sheet.query_one("#keys", Label).content)
             await driver.press("enter")
-            await driver.pause()
-            assert "reverse" not in _under(app)
-            assert "←/→" in str(sheet.query_one("#keys", Label).content)
+            await until(lambda: isinstance(app.screen, Dropdown), driver)
             await driver.press("escape")
-            await driver.pause()
+            await until(lambda: app.screen is sheet, driver)
+            assert "reverse" not in _under(app)
 
             await onto(app, driver, "named")  # which is written
             assert sheet.under() == "named"

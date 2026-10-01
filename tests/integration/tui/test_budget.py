@@ -21,7 +21,7 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import _BUDGET, _DONE, _HARNESS, _SAVE, Configures, Flows, budget_of
-from tests.integration.tui.test_app import changes, onto, opens, rows
+from tests.integration.tui.test_app import changes, onto, opens, picks, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -113,8 +113,8 @@ async def test_what_is_set_there_is_kept_and_read_back(
         assert rows(app) == ["duration", "cost", "output_tokens", "graceful", _DONE]
 
         await changes(app, driver, "duration", *"1h")  # written, as `-b` writes one
-        await changes(app, driver, "cost", "right")  # 0 -> 1
-        assert (sheet._typed_in["duration"], sheet._typed_in["cost"]) == ("1h", "1.0")
+        await changes(app, driver, "cost", "1")  # the 0.0 there, selected, typed over
+        assert (sheet._typed_in["duration"], sheet._typed_in["cost"]) == ("1h", "1")
         await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
@@ -356,7 +356,7 @@ async def test_what_is_typed_into_a_limit_is_what_it_holds(
 
 @pytest.mark.timeout(60)
 async def test_a_limit_is_still_edited_after_the_first_key(flows: Path) -> None:
-    """Only the first key replaces: backspace after it takes one letter, and an arrow steps."""
+    """Only the first key replaces: backspace after it takes one letter, and an arrow nothing."""
     app = Humanize()
     async with app.run_test() as driver:
         await _into(app, driver, "local/quiet")
@@ -368,7 +368,7 @@ async def test_a_limit_is_still_edited_after_the_first_key(flows: Path) -> None:
         await changes(app, driver, "cost", "backspace")  # the whole value, selected
         assert sheet._typed_in["cost"] == ""
 
-        await changes(app, driver, "output_tokens", "right", *"5")  # 0 -> 1, then 15
+        await changes(app, driver, "output_tokens", "1", "left", "right", *"5")
         assert sheet._typed_in["output_tokens"] == "15"
 
         # And esc puts back what was there before the row was begun on.
@@ -376,3 +376,45 @@ async def test_a_limit_is_still_edited_after_the_first_key(flows: Path) -> None:
         await driver.press("enter", *"9h", "escape")
         await driver.pause()
         assert sheet._typed_in["duration"] == ""
+
+
+@pytest.mark.timeout(60)
+async def test_whether_a_run_finishes_its_turn_is_picked_from_a_list(
+    flows: Path,
+) -> None:
+    """`graceful` drops `on` and `off` under it, picked by a click or by the keys.
+
+    Not stepped with the arrows across, which once did nothing on it until enter had begun
+    it: a value is picked from every value it can take, as `/settings` picks one.
+    """
+    from hmz.tui.dropdown import Dropdown
+
+    app = Humanize()
+    async with app.run_test(size=(120, 40)) as driver:
+        await _into(app, driver, "local/quiet")
+        sheet = await _reopens(app, driver)
+        await changes(app, driver, "duration", *"1h")
+        assert sheet._typed_in["graceful"] == "on"
+        assert "▾" in str(
+            sheet.query_one("#choices", OptionList).get_option_at_index(3).prompt
+        )
+
+        # The fourth row, clicked: the list drops, opening on the answer it is not.
+        await driver.click("#choices", offset=(8, 3))
+        await until(lambda: isinstance(app.screen, Dropdown), driver)
+        values = app.screen.query_one(OptionList)
+        assert [str(one.id) for one in values.options] == ["=on", "=off"]
+        assert values.highlighted == 1
+        await driver.click(values, offset=(2, 2))
+        await until(lambda: app.screen is sheet, driver)
+        assert sheet._typed_in["graceful"] == "off"
+
+        # And back with the keys, enter dropping it and enter taking the one under the cursor.
+        await picks(app, driver, "graceful", "on")
+        assert sheet._typed_in["graceful"] == "on"
+        await picks(app, driver, "graceful", "off")
+
+        menu = await _sets(app, driver)
+        assert menu._budget == Budget(
+            duration=datetime.timedelta(hours=1), graceful=False
+        )

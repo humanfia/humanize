@@ -235,11 +235,15 @@ Press <kbd>enter</kbd> on `agent`. An agent is four rows:
      <span class="d">1.</span> cli         claude ▸                          <span class="m">coding agent CLI to use</span> <span class="n">1</span>
      <span class="d">2.</span> account     as local ▸                        <span class="m">account to run as</span> <span class="n">2</span>
      <span class="d">3.</span> model       claude-haiku-4-5-20251001 ▸       <span class="m">model to use</span> <span class="n">3</span>
-   <span class="p">❯ 4. effort      low ↔</span>                             <span class="m">reasoning effort</span> <span class="n">4</span>
-
-        save                      <span class="m">this agent</span>
-
-   <span class="d">←/→ change · enter keep · esc undo</span></pre>
+   <span class="p">❯ 4. effort      low ▾</span>                             <span class="m">reasoning effort</span> <span class="n">4</span>
+                    ╭─ effort ─────────────╮
+        save        │ ultracode            │
+                    │ max                  │
+                    │ xhigh                │
+                    │ high                 │
+   <span class="d">enter choose · es</span>│ medium               │
+                    │ low ✔                │
+                    ╰──────────────────────╯</pre>
 
 </Term>
 
@@ -249,9 +253,10 @@ Press <kbd>enter</kbd> on `agent`. An agent is four rows:
    see [Accounts](/user/settings#accounts).
 3. **`model`**: one of the models that CLI said it runs. The list shows each model's efforts
    beside it, and `check again` asks the CLI again.
-4. **`effort`**: how hard it thinks, from the model's own list. `↔` means <kbd>enter</kbd>,
-   then <kbd>←</kbd> <kbd>→</kbd> to step through it, and <kbd>enter</kbd> to keep it. See
-   [Efforts](/user/efforts).
+4. **`effort`**: how hard it thinks, from the model's own list. `▾` means <kbd>enter</kbd> or a
+   click drops every effort the model takes under the row, hardest first, with `✔` on the one
+   in force; <kbd>↑</kbd> <kbd>↓</kbd> and <kbd>enter</kbd>, or a click, pick one, and
+   <kbd>esc</kbd> picks none. See [Efforts](/user/efforts).
 
 A row marked `▸` opens a list: <kbd>enter</kbd>, then pick. For a first run, pick a small
 model and a low effort, as here. Press <kbd>enter</kbd> on `save` to save the agent.
@@ -268,9 +273,9 @@ Press <kbd>enter</kbd> on `budget`:
    <span class="m">A run stops at whichever limit it reaches first; at least one limit is required. Leave empty or 0 for no limit.</span>
 
      <span class="d">1.</span> duration                          20m          <span class="m">maximum run duration: 1h30m, 90s, PT2H; empty for no limit</span> <span class="n">1</span>
-   <span class="p">❯ 2. cost                              0.5 ↔</span>        <span class="m">maximum cost in US dollars, 0 for no limit</span> <span class="n">2</span>
-     <span class="d">3.</span> output_tokens                     0 ↔          <span class="m">maximum output tokens, 0 for no limit</span>
-     <span class="d">4.</span> graceful                          on ↔         <span class="m">finish the current turn when a limit is reached</span> <span class="n">3</span>
+   <span class="p">❯ 2. cost                              0.5</span>          <span class="m">maximum cost in US dollars, 0 for no limit</span> <span class="n">2</span>
+     <span class="d">3.</span> output_tokens                     0            <span class="m">maximum output tokens, 0 for no limit</span>
+     <span class="d">4.</span> graceful                          on ▾         <span class="m">finish the current turn when a limit is reached</span> <span class="n">3</span>
 
         set                       <span class="m">all of the above</span> <span class="n">4</span>
 
@@ -281,10 +286,10 @@ Press <kbd>enter</kbd> on `budget`:
 1. **`duration`**: how long the run may take. <kbd>enter</kbd>, type `20m`, <kbd>enter</kbd>.
    `1h30m`, `90s` and `PT2H` are all understood.
 2. **`cost`**: how many US dollars it may spend. <kbd>enter</kbd>, type `0.5`, <kbd>enter</kbd>:
-   the first key you type replaces the `0.0` that was there. <kbd>←</kbd> <kbd>→</kbd> step it
-   a dollar at a time. `output_tokens` works the same way.
+   the first key you type replaces the `0.0` that was there. `output_tokens` works the same
+   way.
 3. **`graceful`**: on lets the turn that is running finish when a limit is reached; off cuts
-   it off.
+   it off. <kbd>enter</kbd> or a click drops the two under it, opening on the one it is not.
 4. **`set`** keeps all four. The roles sheet then reads `stops at 20m, $0.50`.
 
 The run stops at whichever limit it reaches first. If your account is billed by the token, set

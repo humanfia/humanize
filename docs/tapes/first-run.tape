@@ -60,14 +60,16 @@ Wait+Screen /claude-sonnet-4-8 /
 Sleep 500ms
 Down
 Sleep 400ms
-# The effort is changed where it stands: enter begins, the arrows step it, enter keeps it.
+# The effort is picked from the model's own list: enter drops it under the row, the arrows
+# walk it, enter takes one.
 Enter
-Sleep 300ms
-Left
-Wait+Screen /medium/
+Wait+Screen /╭─ effort/
+Sleep 700ms
+Down
+Sleep 400ms
+Enter
+Wait+Screen /medium ▾/
 Sleep 900ms
-Enter
-Sleep 300ms
 # And `save`, under the rows, hands the agent back to the menu.
 Down
 Sleep 400ms

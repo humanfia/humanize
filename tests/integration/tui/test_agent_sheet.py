@@ -47,6 +47,7 @@ from tests.integration.tui.test_app import (
     keeps,
     onto,
     opens,
+    picks,
     rows,
 )
 from tests.stubs import written
@@ -267,7 +268,7 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver, "pair")
-        await changes(app, driver, "effort", "left")
+        await picks(app, driver, "effort", "max")
 
         await opens(app, driver, _SAVE)
         await until(lambda: isinstance(app.screen, Flows), driver)
@@ -284,7 +285,7 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
-    # The builder was stepped round from the effort it opened on, and the reviewer saved as
+    # The builder was moved off the effort it opened on, and the reviewer saved as
     # it opened.
     chosen = {
         "builder": Runs("claude/claude-opus-5:max"),
@@ -446,7 +447,7 @@ async def test_nothing_is_applied_until_the_menu_is_saved_on_the_way_out(
     async with app.run_test() as driver:
         was = (app._flow_named, dict(app._models))
         await _open(app, driver, "here")
-        await changes(app, driver, "effort", "left")  # round to the other, a change
+        await picks(app, driver, "effort", "max")  # the other, a change
         assert "max" in _value(app, "effort")
 
         await drops(app, driver)  # asked about, and thrown away
@@ -458,7 +459,7 @@ async def test_nothing_is_applied_until_the_menu_is_saved_on_the_way_out(
 
         # And the same walk saved lands the lot, flow and agent together.
         await _open(app, driver, "here")
-        await changes(app, driver, "effort", "left")
+        await picks(app, driver, "effort", "max")
         await keeps(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
         await _budgets(app, driver, "1h")
@@ -479,7 +480,7 @@ async def test_the_question_on_the_way_out_is_two_answers_and_esc(
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver, "here")
-        await changes(app, driver, "effort", "left")
+        await picks(app, driver, "effort", "max")
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms), driver)
