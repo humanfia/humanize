@@ -453,3 +453,165 @@ def test_a_backend_reports_what_its_log_says_once_that_log_has_been_read(
 
     # The driver's two, and the cached read only the rollout names.
     assert monitor.reports[agent.id] == frozenset({"input", "output", "cache_read"})
+
+
+def _block(ident: str, kind: str, output: int) -> dict[str, object]:
+    """One block of a Claude message, written as a row of its own as Claude Code writes it.
+
+    Every block of one message is its own row under the one message id, and every one of them
+    carries the whole of the usage of the request that produced the message.
+    """
+    row = _said("claude-haiku-4-5", output)
+    message = row["message"]
+    assert isinstance(message, dict)
+    message["id"] = ident
+    message["content"] = [{"type": kind}]
+    return row
+
+
+def _counted(total: int, last: int) -> dict[str, object]:
+    """One `token_count` of a Codex rollout: the request that just came back, and the thread."""
+    return {
+        "type": "event_msg",
+        "payload": {
+            "type": "token_count",
+            "info": {
+                "last_token_usage": {"output_tokens": last, "total_tokens": last},
+                "total_token_usage": {"output_tokens": total, "total_tokens": total},
+            },
+        },
+    }
+
+
+def test_a_claude_message_written_a_block_at_a_time_is_counted_once(
+    home: Path,
+) -> None:
+    """Its thinking, its words and its tool call are three rows of one request, not three."""
+    log = home / "claude_config_dir" / "projects" / "-tmp-work" / "s1.jsonl"
+    _rows(log, _block("msg_1", "thinking", 300), _block("msg_1", "text", 300))
+    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="haiku", effort="high"))
+    monitor = Monitor()
+    tally = Tally([_seen(agent, "s1")], monitor)
+
+    tally.read()
+
+    assert monitor.spent == {"claude-haiku-4-5": 1302}
+
+    # Its tool call lands on the next read, and is still the same request.
+    _rows(log, _block("msg_1", "tool_use", 300), _block("msg_2", "text", 40))
+    tally.read()
+
+    assert monitor.spent == {"claude-haiku-4-5": 1302 + 1042}
+    assert monitor.kinds[("read", "claude-haiku-4-5")] == {
+        "input": 4,
+        "output": 340,
+        "cache_read": 2000,
+    }
+
+
+def test_a_claude_message_carried_into_another_session_is_counted_once(
+    home: Path,
+) -> None:
+    """A session picked up under a new name writes the messages it carried over again."""
+    projects = home / "claude_config_dir" / "projects" / "-tmp-work"
+    _rows(projects / "s1.jsonl", _block("msg_1", "text", 300))
+    _rows(
+        projects / "s2.jsonl",
+        _block("msg_1", "text", 300),
+        _block("msg_2", "text", 40),
+    )
+    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="haiku", effort="high"))
+    monitor = Monitor()
+
+    Tally([_seen(agent, "s1", "s2")], monitor).read()
+
+    assert monitor.spent == {"claude-haiku-4-5": 1302 + 1042}
+
+
+def test_a_codex_count_said_again_unmoved_is_counted_once(home: Path) -> None:
+    """Codex writes a `token_count` again where nothing was spent, the thread's total unmoved."""
+    log = (
+        home
+        / "codex_home"
+        / "sessions"
+        / "2026"
+        / "08"
+        / "rollout-2026-08-06T07-14-14-t1.jsonl"
+    )
+    _rows(log, _counted(1000, 1000), _counted(1000, 1000), _counted(1500, 500))
+    agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="low"))
+    monitor = Monitor()
+    tally = Tally([_seen(agent, "t1")], monitor)
+
+    tally.read()
+
+    assert monitor.spent == {"gpt-5.6-sol": 1500}
+
+    _rows(log, _counted(1500, 500))  # said again on the next read, still unmoved
+    tally.read()
+
+    assert monitor.spent == {"gpt-5.6-sol": 1500}
+
+    # A thread cut back can come to a total it has come to before, over a request it has not
+    # made before: only the row just before is the one said again.
+    _rows(log, _counted(1000, 700))
+    tally.read()
+
+    assert monitor.spent == {"gpt-5.6-sol": 2200}
+
+
+def test_a_claude_request_is_named_by_its_request_id_where_it_has_one(
+    home: Path,
+) -> None:
+    """The request rather than the message, as the trace of a run names one."""
+    log = home / "claude_config_dir" / "projects" / "-tmp-work" / "s1.jsonl"
+    rows: list[dict[str, object]] = []
+    for kind in ("thinking", "text"):
+        row = _block("", kind, 300)
+        row["requestId"] = "req_1"
+        rows.append(row)
+    _rows(log, *rows)
+    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="haiku", effort="high"))
+    monitor = Monitor()
+
+    Tally([_seen(agent, "s1")], monitor).read()
+
+    assert monitor.spent == {"claude-haiku-4-5": 1302}
+
+
+def test_what_is_read_and_what_the_backend_said_come_to_the_same_bill(
+    home: Path,
+) -> None:
+    """The readout, an agent's box and its session's row are one count of the same tokens.
+
+    The log is read beside what the backend reports at the end of each request, and what was
+    spent is the higher of the two. A log counted a row at a time read as twice the run, and
+    the readout said twice what every box under it added up to.
+    """
+    log = home / "claude_config_dir" / "projects" / "-tmp-work" / "s1.jsonl"
+    _rows(
+        log,
+        _block("msg_1", "thinking", 300),
+        _block("msg_1", "text", 300),
+        _block("msg_2", "text", 40),
+        _block("msg_2", "tool_use", 40),
+    )
+    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="haiku", effort="high"))
+    monitor = Monitor()
+    monitor.begins(agent.id, "claude-haiku-4-5", session="coder/1")
+    for output in (300, 40):  # what the backend said of the same two requests
+        monitor.spend(
+            agent.id,
+            1002 + output,
+            model="claude-haiku-4-5",
+            kinds={"input": 2, "output": output, "cache_read": 1000},
+            session="coder/1",
+        )
+
+    Tally([_seen(agent, "s1")], monitor).read()
+
+    (spending,) = monitor.spending()
+    assert spending.tokens == 2344
+    assert sum(monitor.shape().used.values()) == 2344
+    assert sum(monitor.shape(sessions=True).used.values()) == 2344
+    assert sum(one.tokens for one in monitor.reckoning()) == 2344

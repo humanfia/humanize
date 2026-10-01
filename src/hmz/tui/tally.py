@@ -29,6 +29,15 @@ if TYPE_CHECKING:
 
 __all__ = ["Seen", "Tally", "reported"]
 
+#: The backends whose name for a request is unique across every log, so that a row naming one
+#: already counted is that request again wherever it is written. Claude's ids come from the
+#: API, and a session it has resumed or forked writes the messages it carried over again under
+#: the new name -- which a run reads too, the backend having called the session both. Any other
+#: backend's name for a request is only the thread's total so far, which says a row is the one
+#: before it said again and nothing more: two threads, or one thread after it has been cut
+#: back, can come to the same total over different requests.
+_EVERYWHERE = frozenset({"claude"})
+
 #: How often the logs are looked at. Often enough that a turn's spending shows while the turn
 #: is still running, and cheap because only what has been appended since is ever read.
 _EVERY = 1.0
@@ -127,7 +136,7 @@ def _kinds(backend: str, usage: dict[str, Any]) -> dict[str, float]:
 
 def _spent(
     backend: str, row: dict[str, Any]
-) -> tuple[str | None, int, dict[str, float]]:
+) -> tuple[str | None, int, dict[str, float], str | None]:
     """What one row of a log says was spent, read as that backend writes it.
 
     Every one of them is per request rather than a running total, so a session's spending is
@@ -138,6 +147,13 @@ def _spent(
     Kimi writes a `turn.step.completed` whose usage is that step's. MiniMax Code writes each
     answer with the usage of the request it came back on.
 
+    Two of them say one request more than once. Claude writes a row per block of a message --
+    its thinking, its words, each tool it calls -- and puts the whole of the request's usage
+    on every one of them, under the one request id. Codex writes a `token_count` again where
+    nothing new was spent, with the same `last_token_usage` and the thread's total unmoved.
+    Either, added up row by row, is a run counted two or three times over; so each says which
+    request a row is of, and a request said again is counted once.
+
     Args:
       backend: Whose log this row came out of.
       row: The row, as read.
@@ -145,7 +161,10 @@ def _spent(
     Returns:
       The model it names, or None to leave that to whoever asked; how many tokens the request
       cost -- zero for a row that is not one of these -- and what those tokens were, kind by
-      kind, which is the only reckoning a price can be put against.
+      kind, which is the only reckoning a price can be put against; and which request it is,
+      or None where the row does not say and is a request of its own -- a name that holds
+      across every log for a backend in `_EVERYWHERE`, and only beside the row before it in
+      the same log for any other.
     """
     if backend == "claude":
         message: dict[str, Any] = row.get("message") or {}
@@ -155,10 +174,13 @@ def _spent(
             str(message.get("model") or "") or None,
             int(sum(broken.values())),
             broken,
+            # The request rather than the message, as the trace of a run names one, and the
+            # message where a row does not say the request.
+            str(row.get("requestId") or message.get("id") or "") or None,
         )
     if backend == "dsh":
         if row.get("type") != "assistant/message":
-            return None, 0, {}
+            return None, 0, {}, None
         data: dict[str, Any] = row.get("data") or {}
         message = data.get("message") or {}
         source: dict[str, Any] = message.get("source") or {}
@@ -168,6 +190,7 @@ def _spent(
             str(source.get("model") or "") or None,
             int(sum(broken.values())),
             broken,
+            None,
         )
     if backend == "mcode":
         # One record per message of the conversation, and an answer carries what the request
@@ -175,21 +198,29 @@ def _spent(
         # -- and the provider and model that answered, which is what it is counted against.
         said: dict[str, Any] = row.get("message") or {}
         if said.get("role") != "assistant":
-            return None, 0, {}
+            return None, 0, {}, None
         broken = _kinds(backend, said.get("usage") or {})
         answering = f"{said.get('provider') or ''}/{said.get('model') or ''}".strip("/")
-        return answering or None, int(sum(broken.values())), broken
+        return answering or None, int(sum(broken.values())), broken, None
     envelope: dict[str, Any] = row.get("envelope") or {}
     payload: dict[str, Any] = row.get("payload") or envelope.get("payload") or {}
     if backend == "codex":
         info: dict[str, Any] = payload.get("info") or {}
         counted: dict[str, Any] = info.get("last_token_usage") or {}
+        # The thread so far, which is what names the request: it rises with every one that
+        # comes back, and a row that says it again unmoved is the last request said again.
+        thread: object = info.get("total_token_usage")
         # The total is Codex's own rather than what the kinds add up to: a rollout row naming
         # only the total still says what that request cost, and that is what is counted.
-        return None, int(counted.get("total_tokens") or 0), _kinds(backend, counted)
+        return (
+            None,
+            int(counted.get("total_tokens") or 0),
+            _kinds(backend, counted),
+            json.dumps(thread, sort_keys=True) if thread else None,
+        )
     spent: dict[str, Any] = payload.get("usage") or {}
     broken = _kinds("kimi", spent)
-    return None, int(sum(broken.values())), broken
+    return None, int(sum(broken.values())), broken, None
 
 
 @dataclass
@@ -231,6 +262,9 @@ class _Reading:
 
     at: int = 0
     spent: dict[str, Counter[str]] = field(default_factory=dict[str, Counter[str]])
+    #: What the last row that named its request named, for a backend whose name for one says
+    #: only that a row is the one before it said again.
+    last: str | None = None
 
 
 class Tally:
@@ -246,6 +280,10 @@ class Tally:
         self._sessions = list(sessions)
         self._monitor = monitor
         self._read: dict[Path, _Reading] = {}
+        #: What each request has been counted as so far, by kind and by the backend that
+        #: named it, for a backend whose names hold across every log: a request said again
+        #: adds only what it says beyond what was already counted of it.
+        self._requests: dict[tuple[str, str], Counter[str]] = {}
         #: Which roles this has actually opened a log of, so that what the monitor is told a
         #: backend reports is what the interface can in fact see. A rollout written on another
         #: machine, or in a container, is one nothing here reads -- and a kind claimed off a
@@ -349,12 +387,26 @@ class Tally:
                 continue
             if not isinstance(loaded, dict):
                 continue
-            named, tokens, broken = _spent(backend, cast("dict[str, Any]", loaded))
-            if tokens > 0:
-                counted = reading.spent.setdefault(named or model, Counter())
-                counted.update({kind: int(count) for kind, count in broken.items()})
-                # Whatever the kinds did not account for still cost something, and is put
-                # under no kind at all rather than guessed at as one.
-                if (rest := tokens - int(sum(broken.values()))) > 0:
-                    counted[""] += rest
+            named, tokens, broken, request = _spent(
+                backend, cast("dict[str, Any]", loaded)
+            )
+            if tokens <= 0:
+                continue
+            counted = Counter({kind: int(count) for kind, count in broken.items()})
+            # Whatever the kinds did not account for still cost something, and is put under
+            # no kind at all rather than guessed at as one.
+            if (rest := tokens - int(sum(broken.values()))) > 0:
+                counted[""] += rest
+            if request is not None and backend in _EVERYWHERE:
+                # A request said again counts for the most any row of it has said, kind by
+                # kind, and not for every row it was said on.
+                before = self._requests.setdefault((backend, request), Counter[str]())
+                grown = counted - before
+                before |= counted
+                counted = grown
+            elif request is not None:
+                if request == reading.last:
+                    continue  # the row before said again
+                reading.last = request
+            reading.spent.setdefault(named or model, Counter()).update(counted)
         return True

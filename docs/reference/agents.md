@@ -990,7 +990,10 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
   `https://openllmprices.com/data/prices.json`, refreshed after 24 h; `HUMANIZE_PRICES`
   points elsewhere or turns fetching off with `off`) and return `None` for an unlisted model.
 - The TUI's running cost reads the CLIs' own logs as they are written, for `claude`, `codex`,
-  `dsh`, `kimi` and `mcode`; for the rest it moves as each turn lands.
+  `dsh`, `kimi` and `mcode`; for the rest it moves as each turn lands. Each model request is
+  counted once: Claude's rows sharing a message id (one per content block, each with the whole
+  usage) and Codex's `token_count` rows with an unmoved `total_token_usage` are one request.
+  What is shown per model is the higher of what the logs and the backends say, never the sum.
 
 <small>Defined in [`src/hmz/coganchor/agents/event.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/event.py) (`Usage`, `KINDS`), [`src/hmz/coganchor/agents/allowance.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/allowance.py), [`src/hmz/coganchor/prices.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/prices.py), [`src/hmz/tui/tally.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/tui/tally.py).</small>
 
