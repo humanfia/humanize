@@ -448,6 +448,11 @@ for line in sys.stdin:
         send({"method": "turn/completed", "params": {}})
         send({"method": "thread/status/changed", "params": {"status": {"type": "idle"}}})
         send({"method": "turn/started", "params": {"turnId": "turn_fake"}})
+        # Which reaches for something, as a goal's turns do: started, then done.
+        for state in ("started", "completed"):
+            send({"method": "item/" + state,
+                  "params": {"item": {"type": "commandExecution", "id": "cmd_1",
+                                      "command": "ls", "status": state}}})
         send({"method": "item/completed",
               "params": {"item": {"type": "agentMessage", "text": " answered "}}})
         send({"method": "turn/completed", "params": {}})
@@ -1071,6 +1076,48 @@ def test_codex_pursues_by_setting_a_goal_on_the_thread(codex: _FakeServer) -> No
     # The thread is the session, so `codex exec resume` goes on with the one a goal opened.
     assert session.id == "thread_fake"
     assert agent.opened == ["thread_fake"]
+
+
+def test_codex_says_what_a_goal_does_as_a_turn_says_it(codex: _FakeServer) -> None:
+    """Whoever is watching sees a goal's turns reach for things, bracketed as a turn is."""
+    del codex
+    agent = CodexAgent(CodexAgentConfig(model="gpt-5-codex", effort="high"))
+    heard: list[tuple[str, str]] = []
+    agent.watch(lambda _agent, _session, event: heard.append((event.kind, event.text)))
+
+    assert agent.new().pursue("the suite passes") == "answered"
+
+    assert heard == [
+        ("begins", "the suite passes"),
+        ("text", " halfway "),
+        ("tool", "Bash ls"),
+        ("text", " answered "),
+        ("result", "answered"),
+        ("ends", ""),
+    ]
+
+
+def test_codex_puts_what_a_goal_does_on_stderr_where_nothing_watches(
+    codex: _FakeServer, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With nobody watching, a goal says its progress and its answer as a turn does."""
+    del codex
+    CodexAgent(CodexAgentConfig(model="gpt-5-codex", effort="high")).new().pursue(
+        "the suite passes"
+    )
+
+    out, err = capsys.readouterr()
+    assert out.split() == ["answered"]
+    assert "Bash ls" in err
+
+
+def test_codex_ends_a_goal_whose_turn_failed(codex: _FakeServer) -> None:
+    """A failed turn leaves the thread in an error rather than idle, and the goal is over."""
+    del codex
+    session = CodexAgent(CodexAgentConfig(model="gpt-5-codex", effort="high")).new()
+    with pytest.raises(subprocess.CalledProcessError) as failed:
+        session.pursue("doomed")
+    assert "usageLimitExceeded" in str(failed.value.stderr)
 
 
 def test_codex_gives_up_on_a_goal_that_has_gone_quiet(

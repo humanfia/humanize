@@ -26,7 +26,6 @@ from tests.flows import standins
 from tests.stubs import written
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
     from pathlib import Path
 
 #: A flow that says it is going and then waits, and says so again once it has unwound. With
@@ -95,22 +94,6 @@ async def loading(task, *, agents, envs, params, ctx):
 #: What a stand-in CLI is started with to die of an interrupt as a program that does not
 #: handle one does.
 _DIES = "import signal\nsignal.signal(signal.SIGINT, signal.SIG_DFL)\n"
-
-
-@pytest.fixture(autouse=True)
-def _heard() -> Generator[None]:
-    """An interrupt this process hands down as heard rather than ignored.
-
-    An ignored signal stays ignored across `exec`, and `hmz exec` keeps an interrupt ignored
-    where it finds one so -- as it should for a job a shell put in the background. Something
-    else run in this worker may have left it ignored here, which would hand the runs below
-    an interrupt they are right not to hear.
-    """
-    was = signal.signal(signal.SIGINT, signal.default_int_handler)
-    try:
-        yield
-    finally:
-        signal.signal(signal.SIGINT, signal.SIG_DFL if was is None else was)
 
 
 def _exec(where: Path, *line: str) -> subprocess.Popen[str]:

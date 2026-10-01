@@ -56,3 +56,47 @@ def test_a_session_is_counted_from_the_answers_it_keeps(
 
     assert monitor.spent == {"custom_provider:gateway/minimax-m3": 107}
     assert reported("mcode") == {"input", "output", "cache_read", "cache_write"}
+
+
+def test_a_resumed_session_counts_only_what_this_run_spent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Its messages carry their time in milliseconds, and the earlier ones are not this run's."""
+    home = tmp_path / "minimax"
+    monkeypatch.setenv("MINIMAX_DATA_DIR", str(home))
+    session = "mvs_0123456789abcdef0123456789abcdef"
+    encoded = base64.urlsafe_b64encode(session.encode()).decode().rstrip("=")
+    log = home / "v2/sessions/2026/09/30" / f"01-33-02-085-session_{encoded}"
+    log.mkdir(parents=True)
+    opened = 1_790_000_000.0
+    rows = [
+        {
+            "message": {
+                "role": "assistant",
+                "provider": "minimax",
+                "model": "minimax-m3",
+                "usage": {"input": tokens},
+                "timestamp": int(moment * 1000),
+            }
+        }
+        for moment, tokens in ((opened - 3600, 1000), (opened + 5, 30))
+    ]
+    (log / "messages.jsonl").write_text("".join(json.dumps(one) + "\n" for one in rows))
+    agent = MiniMaxCodeAgent(MiniMaxCodeAgentConfig(model="", effort=""))
+    monitor = Monitor()
+
+    Tally(
+        [
+            Seen(
+                agent.id,
+                agent.backend,
+                "",
+                type(agent).counts,
+                frozenset({session}),
+                since=opened,
+            )
+        ],
+        monitor,
+    ).read()
+
+    assert monitor.spent == {"minimax/minimax-m3": 30}
