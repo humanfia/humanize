@@ -214,8 +214,19 @@ agent's account off an image you did not build.
 **`env`** runs the CLI the image has, in the container. It needs the CLI on the image's `PATH`,
 and a sign-in there: an agent with an `@account` has the account's variables and credential
 files sent in for each turn, and one without runs as the image's CLI is signed in, which a
-fresh image is not. Its sessions are kept in the container, and go with it. On an image without
-the CLI, the run is refused before the flow starts, with exit status 2:
+fresh image is not. Its sessions are kept in the container, and go with it.
+
+::: warning Never copy your own sign-in into an image or a container
+A ChatGPT login of Codex and a subscription login of Claude Code renew themselves, and each
+renewal cancels the copy it replaced: a container signed in with a copy of your
+`~/.codex/auth.json` or `~/.claude/.credentials.json` signs this machine out the first time it
+renews. Give the role an `@account` signed in with a key, sign the CLI in inside the container,
+or run the role with `-H local`. An `@account` that is itself such a login goes in only while no
+other turn is using it, and comes back renewed: see
+[Providers › A sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself).
+:::
+
+On an image without the CLI, the run is refused before the flow starts, with exit status 2:
 
 ```text
 hmz exec: error: claude is not installed on docker@local: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local

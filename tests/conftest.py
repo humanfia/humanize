@@ -237,6 +237,106 @@ def _forgotten() -> None:
     loading.forget()
 
 
+#: The sign-ins this machine's own CLIs keep that refresh themselves: the variable that moves
+#: each CLI's home, where that home is otherwise, and the file. Codex signed in with ChatGPT and
+#: Claude Code signed in with a subscription each keep one, and each refresh spends the refresh
+#: token the file held -- so a copy of the file that refreshes on its own leaves the original
+#: holding a spent one, and the vendor revokes the sign-in the moment that is presented.
+_SIGN_INS = (
+    ("CODEX_HOME", ".codex", "auth.json"),
+    ("CLAUDE_CONFIG_DIR", ".claude", ".credentials.json"),
+)
+
+#: The keys a refresh token is kept under in those files, and in the others like them.
+_REFRESH_KEYS = frozenset({"refresh_token", "refreshtoken", "refresh"})
+
+#: A token shorter than this is not one worth looking for: it would be found by accident.
+_TOKEN_AT_LEAST = 16
+
+#: Bigger files than this are not looked in. A sign-in is a few kilobytes, and a test's tree
+#: holds images and archives nobody copied a sign-in into.
+_LOOKED_IN_AT_MOST = 1 << 20
+
+
+def _refresh_tokens() -> frozenset[bytes]:
+    """The refresh tokens this machine's own sign-ins hold right now, which nothing prints."""
+    import json
+    import os
+    from pathlib import Path
+
+    found: set[bytes] = set()
+
+    def walk(said: object) -> None:
+        if isinstance(said, dict):
+            for key, value in cast("dict[str, object]", said).items():
+                if (
+                    key.lower() in _REFRESH_KEYS
+                    and isinstance(value, str)
+                    and len(value) >= _TOKEN_AT_LEAST
+                ):
+                    found.add(value.encode())
+                walk(value)
+        elif isinstance(said, list):
+            for value in cast("list[object]", said):
+                walk(value)
+
+    for variable, default, name in _SIGN_INS:
+        home = Path(os.environ.get(variable) or Path.home() / default)
+        try:
+            walk(json.loads((home / name).read_bytes()))
+        except (OSError, ValueError):
+            continue
+    return frozenset(found)
+
+
+def _holding(root: Path, tokens: frozenset[bytes]) -> list[str]:
+    """Every file under `root` holding any of `tokens`, by path -- never by what it held."""
+    import os
+
+    held: list[str] = []
+    for at, _, names in os.walk(root):
+        for name in names:
+            path = os.path.join(at, name)  # noqa: PTH118
+            try:
+                if os.path.islink(path) or os.path.getsize(path) > _LOOKED_IN_AT_MOST:  # noqa: PTH114, PTH202
+                    continue
+                with open(path, "rb") as reading:  # noqa: PTH123
+                    said = reading.read()
+            except OSError:
+                continue
+            if any(token in said for token in tokens):
+                held.append(path)
+    return held
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _copies_no_sign_in(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """Fails the run if a test left a copy of this machine's own sign-in under its temp dirs.
+
+    The one thing a test must never do with a sign-in that refreshes itself is copy it: a
+    Codex in a container signed in with a copy of `~/.codex/auth.json` refreshed it, and the
+    sign-in on this machine was revoked. A test that needs one uses it where it is -- the CLI
+    run as local, or the CLI's home mounted rather than copied -- and this is what says so
+    when one does not. Looked for by the refresh tokens themselves, as this machine holds them
+    at the start and at the end (a real CLI may refresh the original meanwhile), in every
+    file under the temporary directories pytest keeps for the run. Nothing at all where this
+    machine is signed in with no such file, which is every machine CI runs on.
+    """
+    before = _refresh_tokens()
+    yield
+    tokens = before | _refresh_tokens()
+    if not tokens:
+        return
+    if copied := _holding(tmp_path_factory.getbasetemp(), tokens):
+        pytest.fail(
+            "a test copied this machine's own sign-in, which refreshes itself, to "
+            + ", ".join(copied)
+            + " -- a copy refreshing apart from the original gets the sign-in revoked; "
+            "use the CLI's own home in place instead",
+            pytrace=False,
+        )
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _clones_nothing_elsewhere() -> Iterator[None]:
     """Stops anything in the suite cloning a repository that is not already on this machine.

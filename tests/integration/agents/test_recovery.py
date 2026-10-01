@@ -141,6 +141,8 @@ def test_what_a_cli_says_when_it_stops_is_read_as_the_kind_it_is() -> None:
         "API Error: 401 unauthorized": "refused",
         "Authentication required": "refused",
         "You are not logged into Antigravity.": "refused",
+        "Your access token could not be refreshed because your refresh token was "
+        "revoked. Please log out and sign in again.": "refused",
         "The model is not supported when using a ChatGPT account": "unlisted",
         "403 key not allowed to access model. This key can only access "
         "models=['default-models']. Tried to access gpt-5.2": "unlisted",
@@ -149,6 +151,8 @@ def test_what_a_cli_says_when_it_stops_is_read_as_the_kind_it_is() -> None:
         "Permission denied: /home/me": "unmirrored",
         "404 model not found: gpt-9": "retired",
         "SqliteError: database is locked": "contended",
+        "hmz: this account signs in with a token that refreshes itself, and a copy of "
+        "it is out on another machine for a turn there": "contended",
         "Error: read ECONNRESET": "dropped",
         "FetchError: socket hang up": "dropped",
         "502 Bad Gateway": "dropped",

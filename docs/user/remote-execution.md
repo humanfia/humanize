@@ -380,7 +380,16 @@ reaches.
 
 - **Its sign-in is the host's.** An agent with no `@account` runs as the host's CLI is signed
   in. One with an `@account` has the account's variables and credential files sent to the host
-  for each turn, and taken away after.
+  for each turn, and taken away after. An account signed in with a login that renews itself
+  (Codex with ChatGPT, Claude Code with a subscription, and other OAuth logins) is sent only
+  while no other turn is using it, and what the host renewed it to is brought back: two copies
+  renewing apart get the login revoked. A turn that finds it in use the other way is refused
+  with `… signs in with a token that refreshes itself …`; give such roles an account signed in
+  with a key, or run them all with `-H local`
+  ([more](/user/troubleshooting#this-account-signs-in-with-a-token-that-refreshes-itself)).
+- **Never copy your own sign-in to the host.** Sign the CLI in there itself. A copy of
+  `~/.codex/auth.json` or `~/.claude/.credentials.json` renews apart from yours and signs this
+  machine out.
 - **Its sessions are kept on the host**, not with the run here.
 - **The flow's own tools are not offered to it**, and a hook that decides whether each tool
   runs can only watch.

@@ -84,6 +84,15 @@ File a test by what is on the other side of it. Its directory is its tier: no ma
 
 `tests/test_tiers.py` fails the run if a test's marker and its directory disagree.
 
+::: danger Never copy a sign-in into a test's home
+Codex's ChatGPT login and Claude Code's subscription login renew themselves, and a renewal
+cancels the token the other copies hold: a container or temporary home signed in with a copy of
+`~/.codex/auth.json` or `~/.claude/.credentials.json` signs your machine out. A test that needs
+one runs the CLI as local, or mounts the CLI's own home where it is (`--volume=DIR:DIR`). The
+run fails if any file under pytest's temporary directories holds one of those refresh tokens
+(`_copies_no_sign_in` in `tests/conftest.py`).
+:::
+
 ::: details Splitting a test file across two tiers
 Helpers and a subsystem's fixtures stay where they are: `tests/stubs.py`,
 `tests/agents/standins.py`, `tests/tui/fixtures.py` and the rest. A test that moves into a
