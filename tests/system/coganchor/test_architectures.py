@@ -178,7 +178,7 @@ def test_every_aarch64_syscall_number_is_the_one_the_generic_table_gives_it() ->
 
 
 def test_the_calls_aarch64_is_said_not_to_have_are_absent_from_that_table() -> None:
-    """Fourteen calls, and each one missing because libc reaches it through the `*at` form."""
+    """Nineteen calls, and each one missing because libc reaches it through the `*at` form."""
     table = generic_syscalls()
     missing = {
         field.name.lower()
@@ -188,7 +188,8 @@ def test_the_calls_aarch64_is_said_not_to_have_are_absent_from_that_table() -> N
 
     assert missing == {
         "open", "creat", "stat", "lstat", "access", "readlink", "mkdir", "rmdir",
-        "unlink", "rename", "symlink", "link", "chmod", "utimes",
+        "unlink", "rename", "symlink", "link", "chmod", "utimes", "utime", "futimesat",
+        "chown", "lchown", "mknod",
     }  # fmt: skip
     assert not missing & set(table)
 
@@ -487,7 +488,7 @@ def test_a_syscall_this_architecture_has_not_got_is_never_trapped_for() -> None:
     """The filter is built out of the numbers, and an absent one is not a number it has."""
     assert all(number >= 0 for number in AARCH64_NUMBERS.trapped())
     assert AARCH64_NUMBERS.OPENAT in AARCH64_NUMBERS.trapped()
-    assert len(X86_64_NUMBERS.trapped()) == len(AARCH64_NUMBERS.trapped()) + 14
+    assert len(X86_64_NUMBERS.trapped()) == len(AARCH64_NUMBERS.trapped()) + 19
 
 
 def test_a_filter_asked_to_trap_a_call_this_machine_has_not_got_simply_does_not() -> (
@@ -512,7 +513,7 @@ def test_either_architecture_s_trap_set_assembles_into_a_filter_that_fits(
 ) -> None:
     """A flat filter jumps over its own tail, and a jump is one byte wide.
 
-    aarch64 traps fourteen calls fewer, so it cannot be the one that overflows -- but the
+    aarch64 traps nineteen calls fewer, so it cannot be the one that overflows -- but the
     filter it does build has to name that architecture, or a tracee's every syscall would
     be compared against x86-64's audit number and let through untouched.
     """
