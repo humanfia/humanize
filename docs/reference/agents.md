@@ -993,7 +993,13 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
   `https://openllmprices.com/data/prices.json`, refreshed after 24 h; `HUMANIZE_PRICES`
   points elsewhere or turns fetching off with `off`) and return `None` for an unlisted model.
 - The TUI's running cost reads the CLIs' own logs as they are written, for `claude`, `codex`,
-  `dsh`, `kimi` and `mcode`; for the rest it moves as each turn lands.
+  `dsh`, `kimi` and `mcode`; for the rest it moves as each turn lands. Each model request is
+  counted once: Claude's rows sharing a message id (one per content block, each with the whole
+  usage) and Codex's `token_count` rows with an unmoved `total_token_usage` are one request.
+  Only rows the log timestamps at or after the moment the run opened that session count: a
+  conversation carried on from an earlier run, or forked from another, keeps that one's rows,
+  and a row with no timestamp is counted.
+  What is shown per model is the higher of what the logs and the backends say, never the sum.
 
 <small>Defined in [`src/hmz/coganchor/agents/event.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/event.py) (`Usage`, `KINDS`), [`src/hmz/coganchor/agents/allowance.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/allowance.py), [`src/hmz/coganchor/prices.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/prices.py), [`src/hmz/tui/tally.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/tui/tally.py).</small>
 
@@ -1227,7 +1233,8 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 
 ```text
 codex app-server [--strict-config] [--disable goals] [--enable|--disable <feature>]...
-  [--disable apps] [--enable use_legacy_landlock] [-c web_search="live"|"disabled"] --stdio
+  [--disable apps] [--enable use_legacy_landlock] [--disable shell_snapshot]
+  [-c web_search="live"|"disabled"] --stdio
   [-c <override>]... [-c mcp_servers.humanize.command=… -c mcp_servers.humanize.args=…]
 ```
 
@@ -1257,6 +1264,10 @@ effort, rung, approval, service tier, `outputSchema`); steering is `turn/steer`.
 - No hook table: Codex runs hooks only once trusted in the user's `config.toml`.
 - On another machine, a sandboxed rung whose fence is at least as narrow is sent
   `sandboxPolicy: externalSandbox` ([Remote execution](/reference/remote-execution#a-fence-on-both-machines)).
+- Supervised with its commands on another machine (any anchor but `native`), the server starts
+  with `--disable shell_snapshot` unless `features` names it: Codex writes its shell capture
+  into its own home and sources it from each command, which runs on the target, where that
+  home is not. Each command is a login shell on the target instead.
 - A `gateway` account appends `-c model_provider=humanize …` ([Providers › Gateways](/reference/providers#gateways)).
 
 ### Cursor Agent {#cursor-agent}
@@ -1367,9 +1378,11 @@ No fields of its own.
 - The stream reports its `task` tool as `SUBAGENT_START`/`SUBAGENT_STOP`; usage arrives on the
   closing result, and the running cost reads its session log.
 - Each start creates `~/.minimax.lock` beside its data directory, which a fence that reads but
-  does not write the home cannot grant. A fenced turn's supervisor answers that path from beside
-  the kept session directory, so a fenced `mcode` turn requires kept sessions: with
-  `HUMANIZE_SESSIONS=off` it cannot take the lock and fails.
+  does not write the home cannot grant. A fenced turn's supervisor answers that path from the
+  kept session directory (`sessions/mcode/minimax.lock`), shared by every agent of the run.
+  With `HUMANIZE_SESSIONS=off` the directory is still made and holds only that lock. On a
+  machine that cannot supervise a turn the path is not answered, and only a fence that
+  writes the home lets `mcode` start.
 - `config.yaml` and `auth/` are credential files, so an account holds its own settings.
 
 ### opencode and mimocode {#what-opencode-and-mimocode-add-to-a-bare-run}

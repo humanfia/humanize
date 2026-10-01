@@ -349,6 +349,40 @@ async def test_git_is_refused_up_front_where_the_machine_has_none() -> None:
     assert await run_fake(snapshots_one) == "refs/hmz/snapshots/1"
 
 
+class Trees(Env, GitWorktreeEnvMixin, BashEnvMixin): ...
+
+
+class Forest(EnvCollection):
+    trees: Trees
+
+
+@flow(agents=Plain, envs=Forest, params=Nothing)
+async def plants(
+    task: str, *, agents: Plain, envs: Forest, params: Nothing, ctx: FlowContext
+) -> None:
+    raise AssertionError("a flow refused up front ran")
+
+
+async def test_a_worktree_and_a_script_are_refused_up_front_where_their_tool_is_not() -> (
+    None
+):
+    gitless = ENV_CAPABILITIES - {GitEnvMixin, GitWorktreeEnvMixin}
+    with pytest.raises(CapabilityMissing) as refused:
+        await run_fake(plants, envs={"trees": FakeEnvDriver(capabilities=gitless)})
+    assert str(refused.value).endswith(
+        "needs GitWorktreeEnvMixin, which local@/work does not support: "
+        "GitWorktreeEnvMixin needs git on the machine's PATH, and it has none"
+    )
+
+    bare = gitless - {BashEnvMixin}
+    with pytest.raises(CapabilityMissing) as refused:
+        await run_fake(plants, envs={"trees": FakeEnvDriver(capabilities=bare)})
+    assert str(refused.value).endswith(
+        "does not support: BashEnvMixin needs bash on the machine's PATH, and it has none; "
+        "GitWorktreeEnvMixin needs git on the machine's PATH, and it has none"
+    )
+
+
 async def test_a_script_needs_bash_where_an_argv_needs_only_a_shell() -> None:
     @flow(agents=Plain, envs=ShellOnly, params=Nothing)
     async def shell(

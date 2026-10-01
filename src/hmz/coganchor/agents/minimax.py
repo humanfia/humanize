@@ -491,20 +491,29 @@ class MiniMaxCodeAgent(AgentBase):
         same name with `.lock` on the end -- beside the home rather than inside it, which is a
         directory of the user's home and not one a fence lets be written unless the whole home
         may be. Landlock cannot grant one name inside a directory without granting the
-        directory, so the lock is answered from beside where this agent's sessions are kept,
-        by the supervisor that answers those: every fenced turn of it takes the same lock.
+        directory, so the lock is answered by a supervisor from beside where this agent's
+        sessions are kept, which every fence of it lets be written: every fenced turn of it
+        takes the same lock. So too where no session is kept -- `HUMANIZE_SESSIONS=off` --
+        since the directory is made before a fenced turn is spawned whether or not a session
+        is kept in it, and the lock is then all that is ever in it, the CLI taking it away
+        again as it exits.
 
         Returns:
           The kept sessions' pairs, and for a fenced turn the lock's under both spellings of
-          the home where it is reached through a link; nothing where no session is kept.
+          the home where it is reached through a link -- unless the turn is run here, keeps
+          no session, and this machine cannot supervise one, where it is left to the CLI.
         """
         kept = super()._keeping_swaps()
-        if not kept or self._config.fence is None:
+        fence = self._config.fence
+        if fence is None or fence.open:
             return kept
         from hmz.coganchor.backends import named
+        from hmz.coganchor.providers.redirect import supervises
 
+        if not kept and self._config.machine is None and not supervises():
+            return kept
         profile = named(self.backend)
-        assert profile is not None  # noqa: S101 -- kept is empty for a backend with none
+        assert profile is not None  # noqa: S101 -- mcode's profile is always there
         home = profile.directory(self._environ())
         instead = str(self.keeps / profile.name / f"{home.name}.lock")
         spellings = {str(home), os.path.realpath(home)}

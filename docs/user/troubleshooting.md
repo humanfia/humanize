@@ -844,8 +844,10 @@ so: list its GPUs there.
 **Symptom.** The run is refused before any agent starts.
 
 **Cause.** The flow works with git on that machine, and the machine has no `git`.
+`GitWorktreeEnvMixin` is refused the same way, and `BashEnvMixin` where the machine has no
+`bash` (`… BashEnvMixin needs bash on the machine's PATH …`).
 
-**Fix.** Install git there.
+**Fix.** Install git (or bash) there.
 
 **Verify.** `ssh build-box git --version` prints a version.
 

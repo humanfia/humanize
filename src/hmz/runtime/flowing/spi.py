@@ -75,6 +75,7 @@ if TYPE_CHECKING:
 __all__ = [
     "AGENT_CAPABILITIES",
     "ENV_CAPABILITIES",
+    "ENV_TOOLS",
     "HARNESS_CAPABILITIES",
     "AgentDriver",
     "BoundHook",
@@ -124,6 +125,14 @@ ENV_CAPABILITIES: frozenset[type] = frozenset(
         TemporaryClonedDirEnvMixin,
         ScratchDirEnvMixin,
     }
+)
+
+#: The environment mixins served with a program of the machine's own, by the name it is
+#: found on its PATH under. A driver on a machine seen to lack the program does not list the
+#: mixin, so a flow declaring it there is refused before it runs rather than when it first
+#: calls it.
+ENV_TOOLS: Mapping[type, str] = MappingProxyType(
+    {GitEnvMixin: "git", GitWorktreeEnvMixin: "git", BashEnvMixin: "bash"}
 )
 
 _CAPABILITIES = AGENT_CAPABILITIES | ENV_CAPABILITIES

@@ -60,8 +60,19 @@ class Numbers:
     missing call is unreachable rather than an attribute that is not there.  aarch64 is the
     architecture that makes this necessary: the generic table it uses has no ``open``,
     ``stat``, ``lstat``, ``access``, ``readlink``, ``mkdir``, ``rmdir``, ``unlink``,
-    ``rename``, ``symlink``, ``link``, ``chmod``, ``creat`` or ``utimes``, because libc
-    reaches every one of them through the ``*at`` form instead.
+    ``rename``, ``symlink``, ``link``, ``chmod``, ``creat``, ``utimes``, ``utime``,
+    ``futimesat``, ``chown``, ``lchown`` or ``mknod``, because libc reaches every one of them
+    through the ``*at`` form instead.
+
+    Every call an unprivileged process can name a path with is here, so that a path the
+    target spells another way -- a Mac's ``/private/tmp``, or the workspace's own path for a
+    harness whose mirror is elsewhere -- is settled onto the mirror whichever call names it.
+    Left out on purpose: the calls that need a capability no agent is given (``mount``,
+    ``umount2``, ``pivot_root``, ``chroot``, ``swapon``, ``swapoff``, ``acct``, ``quotactl``,
+    ``move_mount``, ``uselib``), whose arguments are not always paths at all; the
+    ``*xattrat`` and ``file_*attr`` calls, too new for any libc to reach a path through; and
+    a socket's address, which names a file only for a local socket, whose other end is never
+    on the target.
     """
 
     # Process execution.
@@ -86,6 +97,16 @@ class Numbers:
     READLINK: int
     READLINKAT: int
     CHDIR: int
+    STATFS: int
+    GETXATTR: int
+    LGETXATTR: int
+    LISTXATTR: int
+    LLISTXATTR: int
+    NAME_TO_HANDLE_AT: int
+    OPEN_TREE: int
+    # Watching a path, which looks it up like any other call that names one.
+    INOTIFY_ADD_WATCH: int
+    FANOTIFY_MARK: int
 
     # Mutations, replayed on the target.
     MKDIR: int
@@ -102,9 +123,24 @@ class Numbers:
     LINKAT: int
     CHMOD: int
     FCHMODAT: int
+    FCHMODAT2: int
     TRUNCATE: int
     UTIMENSAT: int
     UTIMES: int
+    UTIME: int
+    FUTIMESAT: int
+
+    # Mutations kept in the mirror: ownership, device nodes and extended attributes do not
+    # cross to a target, but the path each of these names still has to be the mirror's.
+    CHOWN: int
+    LCHOWN: int
+    FCHOWNAT: int
+    MKNOD: int
+    MKNODAT: int
+    SETXATTR: int
+    LSETXATTR: int
+    REMOVEXATTR: int
+    LREMOVEXATTR: int
 
     # Networking.
     CONNECT: int
@@ -141,6 +177,15 @@ class Numbers:
                 self.READLINK,
                 self.READLINKAT,
                 self.CHDIR,
+                self.STATFS,
+                self.GETXATTR,
+                self.LGETXATTR,
+                self.LISTXATTR,
+                self.LLISTXATTR,
+                self.NAME_TO_HANDLE_AT,
+                self.OPEN_TREE,
+                self.INOTIFY_ADD_WATCH,
+                self.FANOTIFY_MARK,
                 self.MKDIR,
                 self.MKDIRAT,
                 self.RMDIR,
@@ -155,9 +200,21 @@ class Numbers:
                 self.LINKAT,
                 self.CHMOD,
                 self.FCHMODAT,
+                self.FCHMODAT2,
                 self.TRUNCATE,
                 self.UTIMENSAT,
                 self.UTIMES,
+                self.UTIME,
+                self.FUTIMESAT,
+                self.CHOWN,
+                self.LCHOWN,
+                self.FCHOWNAT,
+                self.MKNOD,
+                self.MKNODAT,
+                self.SETXATTR,
+                self.LSETXATTR,
+                self.REMOVEXATTR,
+                self.LREMOVEXATTR,
                 self.CONNECT,
             )
             if number >= 0
@@ -183,6 +240,15 @@ X86_64_NUMBERS = Numbers(
     READLINK=89,
     READLINKAT=267,
     CHDIR=80,
+    STATFS=137,
+    GETXATTR=191,
+    LGETXATTR=192,
+    LISTXATTR=194,
+    LLISTXATTR=195,
+    NAME_TO_HANDLE_AT=303,
+    OPEN_TREE=428,
+    INOTIFY_ADD_WATCH=254,
+    FANOTIFY_MARK=301,
     MKDIR=83,
     MKDIRAT=258,
     RMDIR=84,
@@ -197,9 +263,21 @@ X86_64_NUMBERS = Numbers(
     LINKAT=265,
     CHMOD=90,
     FCHMODAT=268,
+    FCHMODAT2=452,
     TRUNCATE=76,
     UTIMENSAT=280,
     UTIMES=235,
+    UTIME=132,
+    FUTIMESAT=261,
+    CHOWN=92,
+    LCHOWN=94,
+    FCHOWNAT=260,
+    MKNOD=133,
+    MKNODAT=259,
+    SETXATTR=188,
+    LSETXATTR=189,
+    REMOVEXATTR=197,
+    LREMOVEXATTR=198,
     CONNECT=42,
     SOCKET=41,
     BIND=49,
@@ -214,7 +292,7 @@ X86_64_NUMBERS = Numbers(
 
 #: aarch64's table, which is the generic one in <asm-generic/unistd.h> -- the same header
 #: this machine has, so `tests/system/coganchor/test_architectures.py` checks every number
-#: below against it rather than against this comment.  The fourteen calls spelled `_absent()`
+#: below against it rather than against this comment.  The nineteen calls spelled `_absent()`
 #: are not in that header at all: a 64-bit architecture added after the ``*at`` calls existed
 #: gets only the ``*at`` calls, and libc synthesises the rest.
 AARCH64_NUMBERS = Numbers(
@@ -235,6 +313,15 @@ AARCH64_NUMBERS = Numbers(
     READLINK=_absent(),
     READLINKAT=78,
     CHDIR=49,
+    STATFS=43,
+    GETXATTR=8,
+    LGETXATTR=9,
+    LISTXATTR=11,
+    LLISTXATTR=12,
+    NAME_TO_HANDLE_AT=264,
+    OPEN_TREE=428,
+    INOTIFY_ADD_WATCH=27,
+    FANOTIFY_MARK=263,
     MKDIR=_absent(),
     MKDIRAT=34,
     RMDIR=_absent(),
@@ -249,9 +336,21 @@ AARCH64_NUMBERS = Numbers(
     LINKAT=37,
     CHMOD=_absent(),
     FCHMODAT=53,
+    FCHMODAT2=452,
     TRUNCATE=45,
     UTIMENSAT=88,
     UTIMES=_absent(),
+    UTIME=_absent(),
+    FUTIMESAT=_absent(),
+    CHOWN=_absent(),
+    LCHOWN=_absent(),
+    FCHOWNAT=54,
+    MKNOD=_absent(),
+    MKNODAT=33,
+    SETXATTR=5,
+    LSETXATTR=6,
+    REMOVEXATTR=14,
+    LREMOVEXATTR=15,
     CONNECT=203,
     SOCKET=198,
     BIND=200,
