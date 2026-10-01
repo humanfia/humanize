@@ -149,6 +149,25 @@
   margin: 22px 0 30px;
 }
 
+/* A feature scene on a screen narrower than it was drawn for (`HmzStage` sets `lifted`): its
+   small words drawn back up, about their own anchors, to the size they have on the screen it
+   was drawn for (`--lift`, per word).
+   Here rather than in the stage, because a scene's words sit at any depth inside it, and
+   important because GSAP writes `scale: none` and an origin inline on whatever it moves. */
+.hmz-stage .screen.lifted svg text {
+  scale: var(--lift, var(--stage-lift)) !important;
+  transform-box: fill-box !important;
+  transform-origin: 0% 50% !important;
+}
+
+.hmz-stage .screen.lifted svg text[text-anchor='middle'] {
+  transform-origin: 50% 50% !important;
+}
+
+.hmz-stage .screen.lifted svg text[text-anchor='end'] {
+  transform-origin: 100% 50% !important;
+}
+
 /* On a phone a scene takes the whole width of the screen, edge to edge, rather than the column
    inside the page's 24px gutters: that is the room that keeps its words at 11px or more. The
    gutter is VitePress's own, `.VPDoc`'s padding below 768px. */

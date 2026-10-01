@@ -128,7 +128,9 @@ const PINS = [
   { text: 'use pathlib', slot: 1 },
   { text: 'keep the CLI', slot: 0 },
 ]
-const chip = (text: string) => (text.length + 15) * 6.9 + 12
+// A character's width, with room on a phone for its words to be lifted (see HmzStage).
+const CH = computed(() => (narrow.value ? 6.9 * 1.12 : 6.9))
+const chip = (text: string) => (text.length + 15) * CH.value + 12
 
 const SIDES = [
   { title: 'into this turn', who: 'Claude Code · Codex · Kimi Code · pi', hue: 'var(--hmz-accent)' },
@@ -283,7 +285,7 @@ const scene = useScene({
     say(1, 2, hit + 0.05)
     beam(1, bar(hit + 0.1), pinAt(), palette.danger, hit + 0.1, { bend: -0.3, duration: 0.6 })
     tl.to(of(1, '.pin-0 .with'), { fillOpacity: 0, duration: 0.3 }, hit + 0.5)
-    tl.fromTo(of(1, '.pin-0 .pin-chip'), { attr: { width: chip(LINE) } }, { attr: { width: chip(LINE) - 13 * 6.9 }, duration: 0.4 }, hit + 0.5)
+    tl.fromTo(of(1, '.pin-0 .pin-chip'), { attr: { width: chip(LINE) } }, { attr: { width: chip(LINE) - 13 * CH.value }, duration: 0.4 }, hit + 0.5)
     tl.to(of(1, '.pin-0'), { keyframes: { opacity: [1, 0.55, 1, 0.55, 1] }, duration: 1.6, ease: 'none' }, hit + 0.7)
     tl.addLabel('rest', hit + 1.7)
     say(0, 4, hit + 2.2)

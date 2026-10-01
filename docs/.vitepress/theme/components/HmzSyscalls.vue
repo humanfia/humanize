@@ -94,27 +94,28 @@ const NARROW: Layout = {
   here: { x: 10, y: 40, w: 340, h: 170 },
   there: { x: 10, y: 248, w: 340, h: 162 },
   anchor: { x1: 24, y1: 229, x2: 336, y2: 229 },
-  agent: { x: 124, y: 50, w: 108, h: 58 },
+  // Left of the middle, to leave "this machine" its corner on the narrowest phones.
+  agent: { x: 112, y: 50, w: 116, h: 58 },
   vault: { x: 22, y: 116, w: 150, h: 86 },
   mirror: { x: 188, y: 116, w: 150, h: 86 },
   ws: { x: 206, y: 282, w: 132, h: 86 },
   term: { x: 22, y: 282, w: 172, h: 118 },
-  provider: { x: 180, y: 18 },
+  provider: { x: 170, y: 18 },
   pypi: { x: 180, y: 426 },
   pill: 124,
   paths: {
-    cmdIn: 'M180 108 C 180 150, 180 200, 180 229',
+    cmdIn: 'M170 108 C 170 150, 180 200, 180 229',
     cmdOut: 'M180 229 C 150 250, 90 262, 60 294',
     file: 'M263 156 C 360 190, 360 290, 272 322',
   },
   fileFrom: { x: 263, y: 156 },
   fileTo: { x: 272, y: 322 },
   shots: {
-    open: { x: 180, y: 80, s: 1.8 },
+    open: { x: 170, y: 80, s: 1.8 },
     files: { x: 180, y: 170, s: 1.2 },
     cross: { x: 260, y: 234, s: 1.3 },
     cmd: { x: 150, y: 330, s: 1.3 },
-    keys: { x: 180, y: 110, s: 1.25 },
+    keys: { x: 172, y: 110, s: 1.25 },
   },
   stamp: { x: 180, y: 229 },
   word: { x: 262, y: 229 },
@@ -464,6 +465,13 @@ svg {
 
 .machine-name.here {
   fill: var(--hmz-lane-1);
+}
+
+/* Tighter on a phone, where "this machine" shares its row with the agent. */
+@media (max-width: 640px) {
+  .machine-name {
+    letter-spacing: 0.04em;
+  }
 }
 
 .machine-name.there {

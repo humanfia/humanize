@@ -6,7 +6,7 @@
 // the chapter plays and the line of words that says what it shows. So the words are always on
 // the page -- to a screen reader they are the chapters' buttons, and under reduced motion they
 // are all shown at once, numbered, beside a still frame -- and the motion only acts them out.
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import type { Scene } from './useScene'
 
@@ -38,6 +38,50 @@ function fill(i: number) {
   return (p - start) / Math.max(end - start, 1e-6)
 }
 
+// A scene is drawn for a screen at least as wide as its viewBox: 360 on a phone. On a narrower
+// one it is scaled down to fit, and its words with it. The small ones are lifted back, each
+// about its own anchor, to the size they would be drawn at on that 360 screen -- so no word is
+// under 11px on a 320 phone either -- and the drawing around them shrinks alone. A word set
+// large enough to stay readable shrinks with the drawing, so it still fits the box it is in.
+const screen = ref<HTMLElement | null>(null)
+const lift = ref(1)
+let sized: ResizeObserver | undefined
+let frame = 0
+function measure() {
+  cancelAnimationFrame(frame)
+  frame = requestAnimationFrame(() => {
+    const el = screen.value
+    const svg = el?.querySelector<SVGSVGElement>('svg[viewBox]')
+    const box = svg?.viewBox.baseVal
+    if (!el || !box?.width || !box.height) return
+    const k = Math.min(el.clientWidth / box.width, el.clientHeight / box.height)
+    lift.value = k > 0 && k < 0.995 ? 1 / k : 1
+    for (const text of el.querySelectorAll<SVGTextElement>('svg text')) {
+      if (lift.value === 1) {
+        text.style.removeProperty('--lift')
+        continue
+      }
+      // By its smallest part: a tspan may be set smaller than the line it is in.
+      const parts = [text, ...text.querySelectorAll('tspan')]
+      const size = Math.min(...parts.map((part) => parseFloat(getComputedStyle(part).fontSize))) * k
+      text.style.setProperty('--lift', String(Math.min(lift.value, Math.max(1, ROOM / size))))
+    }
+  })
+}
+/** A word drawn this big or bigger is left to shrink with its scene. */
+const ROOM = 12.5
+// A rebuild may have drawn other words, for another layout or another pick.
+watch(() => props.scene.timeline.value, measure)
+onMounted(() => {
+  measure()
+  sized = new ResizeObserver(measure)
+  if (screen.value) sized.observe(screen.value)
+})
+onUnmounted(() => {
+  cancelAnimationFrame(frame)
+  sized?.disconnect()
+})
+
 const bind = (el: unknown) => {
   props.scene.root.value = (el as HTMLElement | null) ?? null
 }
@@ -45,12 +89,13 @@ const bind = (el: unknown) => {
 const style = computed(() => ({
   '--stage-ratio': props.ratio,
   '--stage-ratio-m': props.mobileRatio || props.ratio,
+  '--stage-lift': lift.value,
 }))
 </script>
 
 <template>
   <figure :ref="bind" class="hmz-stage hmz-panel" :class="{ still: scene.reduced.value && !scene.playing.value, simulated: sim }" :style="style">
-    <div class="screen" :class="{ running: scene.running.value }" :role="interactive ? 'group' : 'img'" :aria-label="label">
+    <div ref="screen" class="screen" :class="{ running: scene.running.value, lifted: lift > 1 }" :role="interactive ? 'group' : 'img'" :aria-label="label">
       <div class="ambient" aria-hidden="true"><i /><i /></div>
       <slot :beat="scene.beat.value" />
       <span v-if="sim" class="sim on-screen" aria-hidden="true">simulated</span>

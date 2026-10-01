@@ -403,8 +403,8 @@ watch(cliName, () => void nextTick(() => scene.rebuild()))
             <text y="4" text-anchor="middle">may it run?</text>
           </g></g>
           <g class="tool">
-            <rect class="tool-box" x="-48" y="-12" width="96" height="24" rx="6" />
-            <rect class="tool-fill" x="-48" y="-12" width="96" height="24" rx="6" />
+            <rect class="tool-box" x="-54" y="-12" width="108" height="24" rx="6" />
+            <rect class="tool-fill" x="-54" y="-12" width="108" height="24" rx="6" />
             <text y="4" text-anchor="middle">delete build/</text>
             <line class="tool-x" x1="-9" y1="-9" x2="9" y2="9" />
             <line class="tool-x" x1="9" y1="-9" x2="-9" y2="9" />

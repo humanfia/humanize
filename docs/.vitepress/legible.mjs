@@ -46,12 +46,12 @@ const { values: args } = parseArgs({
     jobs: { type: 'string', default: '6' },
   },
 })
-// The flows' diagrams are drawn for the width they are given, so they are held to 320. The
-// feature scenes are drawn for a 360-wide phone and scaled to fit, so they are held to 360, the
-// narrowest phone in common use; below it they shrink with the screen.
+// The flows' diagrams are drawn for the width they are given. The feature scenes are drawn for
+// a 360-wide phone and scaled to fit, with their words lifted back on a narrower one: so 360
+// too, the width where nothing is lifted.
 const WIDTHS = {
   // and every other page a scene plays on
-  features: [360, 390, 768],
+  features: [320, 360, 390, 768],
   flows: [320, 390, 768],
 }
 const widthsOf = (path) => (args.width ? args.width.map(Number) : WIDTHS[path.split('/')[0]] ?? WIDTHS.features)

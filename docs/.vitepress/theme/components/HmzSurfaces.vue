@@ -523,7 +523,7 @@ svg {
 .node-name {
   font-size: 11px;
   font-weight: 650;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   fill: var(--hmz-stage-dim);
 }

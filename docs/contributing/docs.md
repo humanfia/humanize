@@ -195,7 +195,9 @@ Add a Vue component only where a control settles a real question, not as decorat
 - **390px wide.** It works on a phone, with no horizontal scroll, and no word on it is drawn
   smaller than 11px: a font size times every scale between it and the screen, the viewBox and
   the camera too. On a phone a scene runs the full width of the screen, past the page's gutters,
-  and is drawn for 360px. `pnpm check:legible` measures it.
+  and is drawn for 360px; on a narrower one `HmzStage` lifts its small words back to the size
+  they have at 360, so leave a word some room in its box. `pnpm check:legible` measures it, down
+  to 320px.
 - **Honest.** A simulated run says it is simulated, and the demos under `/demo/` are the real
   terminal. A drawing says what it is drawn from and matches it: the layer diagram on
   [Architecture](/contributing/architecture) copies the table in
