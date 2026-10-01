@@ -332,6 +332,121 @@ def test_nothing_is_fetched_where_somebody_has_said_not_to(
     assert prices.refresh(wait=True) is False
 
 
+def test_a_run_held_to_a_cost_fetches_a_list_it_has_never_had(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A machine that only ever runs `hmz exec` has never opened the interface that fetches."""
+    source = tmp_path / "source.json"
+    source.write_text(
+        json.dumps(_listing(_model("first-model", input_tokens=3))), encoding="utf-8"
+    )
+    monkeypatch.setenv(prices.WHENCE, str(source))
+    prices._tried = 0.0
+
+    assert not prices.where().exists()
+    assert prices.ready()
+    assert prices.price("first-model") is not None
+
+
+def test_a_list_still_fresh_is_not_fetched_again_before_a_run(
+    listed: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A day is how long a list is kept before it is worth asking for again, run or no run."""
+    assert listed(_model("kept-model", input_tokens=3))
+    newer = tmp_path / "newer.json"
+    newer.write_text(
+        json.dumps(_listing(_model("newer-model", input_tokens=3))), encoding="utf-8"
+    )
+    monkeypatch.setenv(prices.WHENCE, str(newer))
+    prices._tried = 0.0
+
+    assert prices.ready()
+    assert prices.price("newer-model") is None
+    assert prices.price("kept-model") is not None
+
+
+def test_a_run_waits_on_a_fetch_already_in_the_air_rather_than_starting_another(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The interface fetches as it opens; a run started straight after it wants that answer."""
+    source = tmp_path / "source.json"
+    source.write_text(
+        json.dumps(_listing(_model("slow-model", input_tokens=3))), encoding="utf-8"
+    )
+    monkeypatch.setenv(prices.WHENCE, str(source))
+    prices._tried = 0.0
+    going = threading.Event()
+    fetched = prices._fetch
+    calls = 0
+
+    def slowly(whence: str) -> bool:
+        nonlocal calls
+        calls += 1
+        going.set()
+        threading.Event().wait(0.3)
+        return fetched(whence)
+
+    monkeypatch.setattr(prices, "_fetch", slowly)
+
+    assert prices.refresh() is False  # on a thread of its own
+    assert going.wait(5)
+    assert prices.ready()
+    assert prices.price("slow-model") is not None
+    assert calls == 1
+
+
+def test_a_run_stopped_while_it_waits_for_the_list_is_not_held_up_by_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fetch that is slow to come back is a run that has to be stoppable all the same."""
+    import time
+
+    source = tmp_path / "source.json"
+    source.write_text(
+        json.dumps(_listing(_model("late-model", input_tokens=3))), encoding="utf-8"
+    )
+    monkeypatch.setenv(prices.WHENCE, str(source))
+    prices._tried = 0.0
+    letting_go = threading.Event()
+    fetched = prices._fetch
+
+    def stuck(whence: str) -> bool:
+        letting_go.wait(10)
+        return fetched(whence)
+
+    monkeypatch.setattr(prices, "_fetch", stuck)
+    began = time.monotonic()
+    try:
+        assert prices.ready(stopped=lambda: True) is False
+        assert time.monotonic() - began < 2
+    finally:
+        letting_go.set()
+    assert prices._idle.wait(5)
+    # And what the fetch brought lands for the turns after the first all the same.
+    assert prices.price("late-model") is not None
+
+
+def test_a_run_held_to_a_cost_fetches_nothing_where_somebody_has_said_not_to(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """And so has no list, which is the cap the run then says it cannot read."""
+    monkeypatch.setenv(prices.WHENCE, "off")
+    prices._tried = 0.0
+
+    assert prices.ready() is False
+    assert not prices.where().exists()
+
+
+def test_a_run_held_to_a_cost_goes_on_without_a_list_it_cannot_reach(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Offline, and with nothing kept: no list, said by the caller, and nothing raised."""
+    monkeypatch.setenv(prices.WHENCE, str(tmp_path / "nowhere.json"))
+    prices._tried = 0.0
+
+    assert prices.ready() is False
+
+
 def test_nothing_kept_is_no_price_at_all(monkeypatch: pytest.MonkeyPatch) -> None:
     """A first start, before anything has been fetched: tokens, and no bill beside them."""
     monkeypatch.setenv(prices.WHENCE, "off")

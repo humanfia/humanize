@@ -114,6 +114,7 @@ conversation), `outworlder` and `monitor`.
 | `● <notice>` | yellow bullet | always |
 | `● <question>` | yellow bullet | always |
 | `hmz: <why>` (a failed turn) | red | always |
+| `hmz: nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` | yellow | always, before the first turn of a run whose `cost` limit no agent's price can enforce |
 | `✻ Worked for <s>s · <agent>` | dim | always |
 | `❯ <task> · by <name>` | | a run another frontend started |
 | `<role>'s harness runs here (local)` / `<role>'s harness runs on its environment's machine (env)` / `<role>'s harness runs on <target> (standalone)` | dim | once per role per run, where the session reports a harness placement (`opened.harness` not empty) |

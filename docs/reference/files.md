@@ -119,9 +119,11 @@ one keeps its own. Deleting it forgets every added CLI.
    "per_million": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}}}}
 ```
 
-Refreshed by the TUI when older than 24 h, with a conditional GET (a `304` only touches the
-mtime), from [`HUMANIZE_PRICES`](/reference/environment#humanize-prices). Written to
-`prices.json.<pid>` and renamed. `hmz exec` reads it and never fetches.
+Refreshed when older than 24 h, with a conditional GET (a `304` only touches the mtime), from
+[`HUMANIZE_PRICES`](/reference/environment#humanize-prices), at most one attempt an hour per
+process, 20 s timeout: by the TUI as it opens, in the background; and by every run as it starts
+(`hmz exec`, the SDK, the TUI's), in the background unless the run has a finite `cost` limit,
+which waits for it before its first turn. Written to `prices.json.<pid>` and renamed.
 
 ### Model catalogues
 

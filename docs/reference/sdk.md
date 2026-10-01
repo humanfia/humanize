@@ -228,7 +228,7 @@ One run of one flow. Made by [`Hmz.run`](#hmz-run). Constructing one starts noth
 | `wait(timeout: float \| None = None)` | `bool` | Blocks until the run ends or `timeout` seconds pass; returns whether it ended. |
 | `stop()` | `None` | Interrupts the turn under way; every flow call raises `CancelledError` where it stands; sessions are closed and temporary directories removed as the flow unwinds. Thread-safe. Does not wait. |
 | `close()` | `None` | `stop()`, then closes every open session and agent at once. The flow sees a failed turn. |
-| `unreadable()` | `str` | The budget cap nothing driven can enforce, in words (the [`hmz exec` note](/reference/cli#writing-a-budget)), or `""`. |
+| `unreadable()` | `str` | The budget cap nothing driven can enforce, in words (the [`hmz exec` note](/reference/cli#writing-a-budget)), or `""`. A finite `cost` limit first brings a missing or stale price list up to date (at most 20 s), as `run` and `start` do. |
 | `watch(listener)` | `None` | Registers `listener(agent: AgentBase, session: SessionBase \| None, event: Event)`, called for every event of every session from the thread that read it. Watching also stops CLIs writing their own progress to this process's streams. |
 | `opened(callback)` | `None` | Registers `callback(role: str, agent: AgentBase, session: SessionBase, where: Placement | None)` (`where` is `None` where the driver reports no placement), called on the run's loop as each session opens, before its first turn. |
 

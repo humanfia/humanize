@@ -299,6 +299,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | `unheld` | `agent`, `texts`: lines a turn ended without acknowledging; discarded |
 | `dropped` | `given` `[{agent, text, by, client}]`, `queued` `[{text, by, client, to}]`, `because` (`stopped` or `ended`); only where something was waiting |
 | `printed` | `text`: one line printed in the host |
+| `notice` | `text`: humanize's own note about the run, after `started` and before its first turn: `nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` where the run's `cost` limit cannot be enforced. The interface shows it as `hmz: <text>`, in yellow. |
 | `stopping` | `by`, `client` |
 | `ended` | `how`, `why`, `mono` |
 

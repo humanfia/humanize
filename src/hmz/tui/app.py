@@ -1210,9 +1210,9 @@ class Humanize(App[None]):
         self._asks_about_reports()
         self._freshens_flows()
         self._looks_for_resume()
-        # What a token costs in money, fetched here and nowhere else: this is the one part of
-        # humanize that shows a bill, and it is asked for once on a thread of its own so that
-        # nothing drawn afterwards ever waits on a network. What is already kept is served
+        # What a token costs in money, asked for as this opens -- as every run asks for it as
+        # it starts -- once, on a thread of its own, so that nothing drawn afterwards ever
+        # waits on a network. What is already kept is served
         # throughout, including while this is still in the air and including if it never lands.
         refresh()
         # The editor is the only thing to type at, so it is the only thing that takes focus:
@@ -4133,6 +4133,10 @@ class Humanize(App[None]):
             self._never_sent(message)
         elif kind == "printed":
             self._prints(str(message.get("text") or ""))
+        elif kind == "notice":
+            # humanize's own word about the run, such as a cap nothing can price: said
+            # whatever the details say, as `hmz exec` says it on its stderr.
+            self.show(f"hmz: {message.get('text') or ''}", "yellow")
         elif kind == "welcome":
             self._me, self._named = message["client"], message["name"]
         elif kind == "live":

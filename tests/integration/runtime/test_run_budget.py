@@ -234,3 +234,71 @@ def test_a_budget_that_cannot_be_read_stops_the_line_before_anything_runs(
     assert ran.returncode == 2
     assert "-b" in ran.stderr
     assert _how(stand_in) == []  # nothing ran at all
+
+
+def _source(tmp_path: Path) -> Path:
+    """The list a fetch reads from: `m` at a dollar a million in and five out."""
+    source = tmp_path / "prices-source.json"
+    source.write_text(
+        json.dumps(
+            {
+                "currency": "USD",
+                "unit": "per 1M tokens",
+                "versions": [
+                    {
+                        "date": "2026-09-10",
+                        "models": [
+                            {
+                                "provider": "nobody",
+                                "id": "m",
+                                "pricingItems": [
+                                    {"category": "input_tokens", "price": 1},
+                                    {"category": "output_tokens", "price": 5},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return source
+
+
+@pytest.mark.timeout(300)
+def test_a_cost_cap_on_a_machine_that_never_fetched_a_list_fetches_one_and_bites(
+    tmp_path: Path, stand_in: dict[str, str]
+) -> None:
+    """A fresh home -- a CI runner, a container -- has no list until a run asks for one.
+
+    The run held to a cost asks for it itself, before its first turn, and is then stopped
+    by its cost exactly as a run on a machine that had one would be.
+    """
+    (Path(stand_in["HUMANIZE_HOME"]) / "prices.json").unlink()
+    said = {**stand_in, "HUMANIZE_PRICES": str(_source(tmp_path))}
+
+    ran = _ran(tmp_path, said, f"cost={2 * EACH * 5 / 1_000_000}")
+
+    assert ran.returncode == 0, ran.stderr
+    assert "nobody lists a price" not in ran.stderr, ran.stderr
+    assert "hmz exec: stopped --" in ran.stderr
+    assert "cost" in ran.stderr, ran.stderr
+    assert (Path(stand_in["HUMANIZE_HOME"]) / "prices.json").exists()
+    assert _how(said) == ["stopped"]
+
+
+@pytest.mark.timeout(300)
+def test_a_cost_cap_with_no_list_to_be_had_is_said_and_another_cap_still_bites(
+    tmp_path: Path, stand_in: dict[str, str]
+) -> None:
+    """Offline with nothing kept: the cap in money is said to be unreadable, and the run goes."""
+    (Path(stand_in["HUMANIZE_HOME"]) / "prices.json").unlink()
+    said = {**stand_in, "HUMANIZE_PRICES": str(tmp_path / "nowhere.json")}
+
+    ran = _ran(tmp_path, said, f"cost=50,output_tokens={2 * EACH}")
+
+    assert ran.returncode == 0, ran.stderr
+    assert "nobody lists a price for m" in ran.stderr, ran.stderr
+    assert "output tokens" in ran.stderr, ran.stderr
+    assert _how(said) == ["stopped"]

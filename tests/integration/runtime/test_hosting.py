@@ -605,6 +605,25 @@ def test_forcing_closes_the_conversations_still_working(
     assert alice.told("ended")["how"] == "stopped"
 
 
+@pytest.mark.timeout(60)
+def test_a_cost_cap_nothing_can_price_is_said_to_every_frontend(
+    host: Host, workspace: Path
+) -> None:
+    """As a command line says it on its stderr: `m` is on nobody's list, so `cost=1` cannot bite."""
+    alice = Told(host, "alice")
+    _steers(alice)
+
+    said = alice.told("notice")
+
+    assert said["run"] == 1
+    assert said["text"] == (
+        "nobody lists a price for m, so cost=1 cannot stop what it spends"
+    )
+    (workspace / "start").write_text("")
+    (workspace / "go").write_text("")
+    alice.told("ended")
+
+
 # ---------------------------------------------------------------- arriving late
 
 

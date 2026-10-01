@@ -7,7 +7,8 @@ OpenLLMPrices, which is one JSON file of them, and kept under humanize's own hom
 
 Two rules hold this whole module up. **Nothing here may cost a prompt its responsiveness**:
 `price` and `cost` read what was already kept and never reach for the network, and fetching
-is asked for by whoever has time for it and runs on a thread of its own. And **a model
+is asked for by whoever has time for it: on a thread of its own, or -- by a run that a cost
+cap is to hold, before its first turn -- held to the fetch's own timeout. And **a model
 nobody lists reads as tokens alone**: the list covers a few dozen models and humanize drives
 whatever CLI you have, so answering nothing is the ordinary case rather than the broken one.
 A `$0.00` against a model nobody priced would be a lie about a bill.
@@ -31,9 +32,9 @@ from typing import TYPE_CHECKING, Any, cast
 from hmz import home
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
-__all__ = ["SOURCE", "Price", "cost", "money", "price", "refresh", "where"]
+__all__ = ["SOURCE", "Price", "cost", "money", "price", "ready", "refresh", "where"]
 
 #: The one JSON file OpenLLMPrices is over. There is no API beside it: the site itself reads
 #: this and nothing else, so this is the whole of the source rather than a scrape of a page.
@@ -49,8 +50,12 @@ WHENCE = "HUMANIZE_PRICES"
 #: is conditional, and an unchanged file comes back as three hundred and four bytes of nothing.
 STALE = 24 * 60 * 60.0
 
-#: How long the fetch is given before it is left for another day. Nobody is waiting on it.
+#: How long the fetch is given before it is left for another day -- and how long a run held
+#: to a cost waits for it before its first turn, which is the only time anybody waits on it.
 _WAITING = 20.0
+
+#: How often a run waiting on the fetch looks up to see whether it has been stopped.
+_GLANCE = 0.1
 
 #: The most that will be read from the source. It is two and a half megabytes today; this is
 #: the cap that says a redirect onto something else is not a file to parse.
@@ -107,6 +112,10 @@ _read_from: tuple[str, float] | None = None
 #: must not be asked again on every redraw of a screen.
 _fetching = False
 _tried = 0.0
+#: Set whenever no fetch is running, so that a caller who needs what one brings can wait on
+#: one somebody else already started rather than starting a second.
+_idle = threading.Event()
+_idle.set()
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,10 +234,11 @@ def money(dollars: float) -> str:
 def refresh(*, wait: bool = False) -> bool:
     """Fetches the list again, if what is kept has got old.
 
-    Asked for by whoever has the time for it -- the interface, as it opens -- and never by
-    the drawing of a figure. It runs on a thread of its own, it is conditional on the etag of
-    what is already here, and every way it can go wrong ends with what was kept still being
-    served: a price list that could stop a run would be worth less than no price list.
+    Asked for by whoever has the time for it -- the interface as it opens, a run as it
+    starts -- and never by the drawing of a figure. It runs on a thread of its own, it is
+    conditional on the etag of what is already here, and every way it can go wrong ends with
+    what was kept still being served: a price list that could stop a run would be worth less
+    than no price list.
 
     Args:
       wait: Whether to fetch on this thread instead of on one of its own. For a caller that
@@ -250,6 +260,7 @@ def refresh(*, wait: bool = False) -> bool:
             return False  # what is kept is new enough to go on serving
         _fetching = True
         _tried = now
+        _idle.clear()
     if wait:
         try:
             return _fetch(whence)
@@ -272,6 +283,34 @@ def _release() -> None:
     global _fetching  # noqa: PLW0603 -- one list per process, held beside it
     with _lock:
         _fetching = False
+        _idle.set()
+
+
+def ready(*, stopped: Callable[[], bool] | None = None) -> bool:
+    """Brings what is kept up to date before a run that a cost cap is to hold.
+
+    A cap in dollars can only stop what can be priced, and a machine that has only ever run
+    `hmz exec` has never opened the interface that fetches the list in the background -- so a
+    run that is about to be held to one asks for it here, before its first turn. Only where
+    what is kept is stale or missing, and on the rules :func:`refresh` keeps: refusable, and
+    tried at most once an hour in a process. The fetch is on a thread of its own, a fetch
+    already in the air is waited on rather than doubled, and the wait is held to the fetch's
+    own timeout by the clock -- one that outlasts it lands for the turns after the first.
+    Every way it goes wrong leaves what was kept serving, and none of them stops the run.
+
+    Args:
+      stopped: Asked as it waits, so that a run stopped in the meantime is not held up.
+
+    Returns:
+      Whether there is a list kept to price with now, however old.
+    """
+    if not _fresh() and _whence():
+        refresh()
+        until = time.monotonic() + _WAITING
+        while not _idle.wait(_GLANCE):
+            if time.monotonic() >= until or (stopped is not None and stopped()):
+                break
+    return bool(_index())
 
 
 def _whence() -> str:
