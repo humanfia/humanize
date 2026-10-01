@@ -83,6 +83,17 @@ export const HEAD_GLYPH: Record<RoleKind, string> = {
 export const doesOf = (kind: RoleKind, does?: Does): Does =>
   does ?? (kind === 'human' ? 'ask' : kind === 'program' ? 'run' : 'work')
 
+/** The smallest any word of a scene is set, in the units of its world: at the camera's zoom of
+ *  1 it is drawn at 11.5px, and no word is ever drawn smaller than 11px on screen. */
+export const WORDS = 11.5
+
+/** How much of a scene's words to show where the camera draws the world at `scale` screen
+ *  pixels to the unit: all of them while they can be read, fading as they near 11px, and
+ *  none below it. The words of one thing -- a head's name and its note, a turn's lines --
+ *  come and go together, by the smallest of them, `WORDS`. A wide shot on a narrow screen is the marks alone, and the words come back
+ *  as the camera closes in; the line under the picture says what is happening either way. */
+export const legible = (scale: number) => Math.min(1, Math.max(0, (scale * WORDS - 11) / (WORDS - 11)))
+
 /** Sizes, in the units of the world a scene is laid out in. */
 export const SIZE = {
   /** From one lane's centre to the next one's. */

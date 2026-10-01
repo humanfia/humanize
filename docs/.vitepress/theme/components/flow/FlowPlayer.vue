@@ -9,13 +9,16 @@
 // scrubber are all just that number moving. It stops while scrolled out of sight. Under
 // reduced motion nothing moves: the whole run is drawn at rest, every label showing, and the
 // step buttons and the scrubber still move through it, a moment at a time, without a camera.
+// No word is drawn too small to read (see `legible` in grammar.ts): where the whole run at
+// rest would be, it is drawn at full size in a frame that scrolls along it, under a map of
+// the whole run that shows where the frame is and takes it anywhere along it.
 import { gsap } from 'gsap'
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 
 import { SCENES } from '../../flows'
 import FlowScene from './FlowScene.vue'
-import { OUTCOME_SAID, SESSION_SAID } from './grammar'
-import { cut, direct, film, heightFor, lay, still, type TurnG } from './stage'
+import { legible, OUTCOME_SAID, SESSION_SAID } from './grammar'
+import { type Cam, cut, direct, film, heightFor, lay, still, type TurnG } from './stage'
 
 const props = defineProps<{
   /** The scene to play, by its key in SCENES. */
@@ -70,6 +73,73 @@ const cam = computed(() =>
       ? still(layout.value, view.value)
       : cut(keys.value, manual.value + 0.01),
 )
+
+/* The whole run at rest, when it does not fit the screen at a size its words can be read. */
+// Only once mounted: until then nobody knows yet whether the reader wants the motion, and the
+// picture the server draws is the one most readers keep.
+const mounted = ref(false)
+const big = computed(() => mounted.value && mode.value === 'still' && legible(cam.value.zoom) < 1)
+const PAD = 12
+const bigView = computed(() => ({
+  w: Math.ceil(layout.value.width + 2 * PAD),
+  h: Math.ceil(layout.value.height + 2 * PAD),
+}))
+const bigCam = computed<Cam>(() => ({
+  x: layout.value.width / 2,
+  y: layout.value.height / 2,
+  z: 0,
+  zoom: 1,
+  pitch: 0,
+  yaw: 0,
+  fan: 0,
+  open: 1,
+}))
+const mapView = computed(() => ({
+  w: width.value,
+  h: Math.round(Math.min(96, Math.max(48, (width.value * layout.value.height) / layout.value.width))),
+}))
+const mapCam = computed(() => still(layout.value, mapView.value))
+const scroller = ref<HTMLElement | null>(null)
+const peek = reactive({ left: 0, width: 1 })
+function looked() {
+  const el = scroller.value
+  if (!el) return
+  peek.left = el.scrollLeft
+  peek.width = el.clientWidth
+}
+/** Where the frame is, on the map: from a point of the frame to a point of the map and back. */
+const toMap = (px: number) =>
+  mapView.value.w / 2 + (bigCam.value.x + px - bigView.value.w / 2 - mapCam.value.x) * mapCam.value.zoom
+const fromMap = (px: number) =>
+  mapCam.value.x + (px - mapView.value.w / 2) / mapCam.value.zoom - bigCam.value.x + bigView.value.w / 2
+const lens = computed(() => {
+  const a = Math.max(0, toMap(peek.left))
+  const b = Math.min(mapView.value.w, toMap(peek.left + peek.width))
+  return { left: `${a}px`, width: `${Math.max(8, b - a)}px` }
+})
+let dragging = false
+function aimAt(event: PointerEvent) {
+  const el = scroller.value
+  const map = event.currentTarget as HTMLElement
+  if (!el) return
+  const x = event.clientX - map.getBoundingClientRect().left
+  el.scrollLeft = fromMap(x) - el.clientWidth / 2
+  looked()
+}
+function press(event: PointerEvent) {
+  dragging = true
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  aimAt(event)
+}
+function drag(event: PointerEvent) {
+  if (dragging) aimAt(event)
+}
+function release() {
+  dragging = false
+}
+watch(big, (on) => {
+  if (on) void nextTick(looked)
+})
 
 let tl: gsap.core.Timeline | null = null
 let stepping: gsap.core.Tween | null = null
@@ -159,7 +229,10 @@ const running = computed(() => layout.value.turns.filter((g) => g.t0 <= t.value 
 const nameOf = (g: TurnG) => g.lane.role.name
 const now = computed(() => {
   const L = layout.value
-  if (mode.value === 'still') return 'The whole run, at rest. Step through it with the buttons, or drag the bar.'
+  if (mode.value === 'still')
+    return big.value
+      ? 'The whole run, at rest: scroll along it, or tap the map above it. Step through it with the buttons, or drag the bar.'
+      : 'The whole run, at rest. Step through it with the buttons, or drag the bar.'
   if (t.value < 0) return `${L.scene.of}: ${L.scene.roles.length === 1 ? 'one lane' : `${L.scene.roles.length} lanes`}.`
   if (t.value >= L.firedAt) {
     const end = L.scene.ends[0]
@@ -210,14 +283,19 @@ onMounted(() => {
     frame = requestAnimationFrame(() => {
       const w = Math.round(stage.value?.clientWidth ?? 800)
       if (w > 0 && Math.abs(w - width.value) > 1) width.value = w
+      looked()
     })
   }
   measure()
   sized = new ResizeObserver(measure)
   if (stage.value) sized.observe(stage.value)
 
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    mounted.value = true
+    return
+  }
   motion.value = true
+  mounted.value = true
   seen = new IntersectionObserver(
     (entries) => {
       onScreen.value = entries[0].isIntersecting
@@ -260,10 +338,19 @@ onUnmounted(() => {
     <div
       ref="stage"
       class="stage"
-      role="img"
+      :role="big ? 'group' : 'img'"
       :aria-label="`A simulated run of ${layout.scene.of}. ${layout.scene.caption}`"
     >
-      <FlowScene :lay="layout" :view="view" :cam="cam" :t="t" :mode="mode" :fades="motion && playing" />
+      <template v-if="big">
+        <div class="map" aria-hidden="true" @pointerdown="press" @pointermove="drag" @pointerup="release" @pointercancel="release">
+          <FlowScene :lay="layout" :view="mapView" :cam="mapCam" :t="t" mode="still" bare />
+          <span class="seen" :style="lens" />
+        </div>
+        <div ref="scroller" class="scroller" tabindex="0" role="region" aria-label="the whole run, at full size" @scroll="looked">
+          <FlowScene :lay="layout" :view="bigView" :cam="bigCam" :t="t" mode="still" />
+        </div>
+      </template>
+      <FlowScene v-else :lay="layout" :view="view" :cam="cam" :t="t" :mode="mode" :fades="motion && playing" />
     </div>
 
     <div class="deck">
@@ -371,7 +458,7 @@ onUnmounted(() => {
   border-radius: 10px;
   background: var(--vp-c-default-soft);
   color: var(--vp-c-text-3);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -389,6 +476,40 @@ onUnmounted(() => {
   display: block;
   width: 100%;
   height: auto;
+}
+
+/* The whole run at full size, and the map of it. */
+.map {
+  position: relative;
+  border-bottom: 1px solid var(--hmz-panel-border);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.map .seen {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border: 1.5px solid var(--hmz-accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--hmz-accent) 10%, transparent);
+  pointer-events: none;
+}
+
+.scroller {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.scroller:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: -2px;
+}
+
+.scroller :deep(svg) {
+  width: auto;
+  max-width: none;
 }
 
 .deck {

@@ -142,7 +142,9 @@ const scene = useScene({
     const areaBox = areas.map(box)
     const shot = (b: Box | null) => {
       if (!b || narrow.value) return { x: 0, y: 0, scale: 1 }
-      const s = Math.min((W * 0.84) / b.w, (H * 0.8) / b.h, 1.45)
+      // Never further out than the map's own size: an area as wide as the map is shown whole
+      // at 1, rather than shrunk to leave a margin and its words with it.
+      const s = Math.max(1, Math.min((W * 0.84) / b.w, (H * 0.8) / b.h, 1.45))
       return { x: W / 2 - (b.x + b.w / 2) * s, y: H / 2 - (b.y + b.h / 2) * s, scale: s }
     }
     // A point of the map, on the screen, under a given shot.

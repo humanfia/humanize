@@ -5,12 +5,14 @@
   "packageManager": "pnpm@10.18.0",
   "devDependencies": {
     "gsap": "^3.15.0",
+    "playwright": "^1.63.0",
     "vitepress": "^1.6.4"
   },
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview",
-    "check:anchors": "node .vitepress/anchors.mjs"
+    "check:anchors": "node .vitepress/anchors.mjs",
+    "check:legible": "node .vitepress/legible.mjs"
   }
 }

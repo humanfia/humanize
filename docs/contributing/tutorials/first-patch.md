@@ -147,7 +147,7 @@ Two workflows then run:
 | | |
 | --- | --- |
 | `ci.yml` | `uv lock --check`, the same hooks over every file, `uv build`, and a start with no extras installed. Then `uv run pytest --ignore=tests/system`, on Python 3.12 on Linux |
-| `build-docs.yml` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` |
+| `build-docs.yml` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` and `pnpm check:legible` |
 
 ## Check it worked
 

@@ -24,8 +24,10 @@ const props = withDefaults(
     inside?: number
     calls?: string
     bare?: boolean
+    /** How much of its words to show: see `legible`. */
+    words?: number
   }>(),
-  { state: 'landed', progress: 1, ignite: -1, pulse: 0, lines: () => [], inside: 0, calls: '', bare: false },
+  { state: 'landed', progress: 1, ignite: -1, pulse: 0, lines: () => [], inside: 0, calls: '', bare: false, words: 1 },
 )
 
 const h = SIZE.turn
@@ -89,7 +91,7 @@ const ticks = computed(() =>
       <circle class="core" r="1.9" />
     </g>
     <FlowGlyph :name="does" :x="glyphX" :y="inside && !bare ? -4 : 0" :size="13" class="does" />
-    <template v-if="!bare">
+    <g v-if="!bare && words > 0" :opacity="words < 1 ? words : undefined">
       <text
         v-for="(line, n) in lines"
         :key="n"
@@ -99,8 +101,8 @@ const ticks = computed(() =>
       >
         {{ line }}
       </text>
-      <text v-if="calls" class="calls mono" x="8" :y="h / 2 + 12">↳ {{ calls }}</text>
-    </template>
+      <text v-if="calls" class="calls mono" x="8" :y="h / 2 + 13">↳ {{ calls }}</text>
+    </g>
     <rect
       v-for="(tick, n) in ticks"
       :key="`i${n}`"
