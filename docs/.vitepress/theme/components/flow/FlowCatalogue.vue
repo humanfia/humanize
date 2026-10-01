@@ -262,7 +262,7 @@ dt {
   flex: none;
   width: 62px;
   font-family: var(--vp-font-family-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--vp-c-text-3);
 }
 

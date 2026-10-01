@@ -3,6 +3,7 @@
 // the comet on it with its trail, the sparks where it lands, and what it carries. Words are a
 // solid curve and a round comet; files left in the tree are a dotted curve and a square one.
 import type { RoleKind } from '../../flows'
+import { legible } from './grammar'
 
 export interface Dot {
   x: number
@@ -40,13 +41,13 @@ withDefaults(
     </g>
     <circle v-for="(dot, n) in sparks" :key="`s${n}`" class="spark" :cx="dot.x" :cy="dot.y" :r="dot.r" :opacity="dot.o" />
     <g
-      v-if="said && at && labelOn > 0.01"
+      v-if="said && at && labelOn * legible(at.s) > 0.01"
       class="said"
       :transform="`translate(${at.x} ${at.y}) scale(${at.s})`"
-      :opacity="labelOn"
+      :opacity="labelOn * legible(at.s)"
     >
-      <rect :x="-(said.length * 5.9 + 14) / 2" y="-9" :width="said.length * 5.9 + 14" height="18" rx="9" />
-      <text y="3.6">{{ said }}</text>
+      <rect :x="-(said.length * 6.5 + 14) / 2" y="-9.5" :width="said.length * 6.5 + 14" height="19" rx="9.5" />
+      <text y="4">{{ said }}</text>
     </g>
   </g>
 </template>

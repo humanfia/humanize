@@ -8,6 +8,7 @@
 import { computed, ref } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
+import { rig } from '../motion/camera'
 import { createFx, type Fx } from '../motion/fx'
 import { motion } from '../motion/gsap'
 import { useNarrow } from '../motion/layout'
@@ -66,7 +67,7 @@ const NARROW: Layout = {
   off: { x: -318, y: 300 },
   goal: { cx: 160, cy: 180, s: 1.1 },
   hook: { cx: 156, cy: 476, s: 1.1 },
-  both: { cx: 160, cy: 330, s: 0.88 },
+  both: { cx: 160, cy: 330, s: 0.92 },
 }
 
 const palette = usePalette()
@@ -91,30 +92,21 @@ const scene = useScene({
     const comet = at('.comet')[0]
     const pill = at('.pill')[0]
 
-    const shot = (c: { cx: number; cy: number; s: number }) => ({ x: l.w / 2 - c.cx * c.s, y: l.h / 2 - c.cy * c.s, scale: c.s })
-    const screen = (x: number, y: number) => {
-      const s = Number(gsap.getProperty(world, 'scale'))
-      return { x: x * s + Number(gsap.getProperty(world, 'x')), y: y * s + Number(gsap.getProperty(world, 'y')) }
-    }
+    const cam = rig(tl, { w: l.w, h: l.h, world, fx: () => fx, start: { x: l.goal.cx, y: l.goal.cy, s: l.goal.s * 1.25 } })
+    const shot = (c: { cx: number; cy: number; s: number }, when: number, duration: number) =>
+      cam.shot({ x: c.cx, y: c.cy, s: c.s }, when, duration)
     const spark = (x: number, y: number, color: () => string, n: number, when: number, speed = 90) =>
-      tl.call(
-        () => {
-          const p = screen(x, y)
-          fx?.spark(p.x, p.y, color(), n, speed)
-        },
-        [],
-        when,
-      )
+      cam.flare({ x, y }, color, when, n, speed)
     const trail = (el: Element, color: () => string, size = 2.6) => () => {
       const o = el === pill ? l.off : { x: 0, y: 0 }
-      const p = screen(Number(gsap.getProperty(el, 'x')) + o.x, Number(gsap.getProperty(el, 'y')) + o.y)
+      const p = cam.view({ x: Number(gsap.getProperty(el, 'x')) + o.x, y: Number(gsap.getProperty(el, 'y')) + o.y })
       fx?.trail(p.x, p.y, color(), size)
     }
     const along = (el: Element, path: string, when: number, duration: number, color: () => string, ease = 'power1.inOut') =>
       tl.to(el, { motionPath: { path, start: 0, end: 1 }, duration, ease, onUpdate: trail(el, color) }, when)
 
     // Where a loop starts.
-    tl.set(world, { svgOrigin: '0 0', ...shot({ ...l.goal, s: l.goal.s * 1.25 }), autoAlpha: 1 }, 0)
+    tl.set(world, { autoAlpha: 1 }, 0)
     tl.set(at('.check-glow, .gate-glow, .card, .answer, .counter'), { transformOrigin: '50% 50%', smoothOrigin: false }, 0)
     tl.set(at('.comet, .pill, .answer, .check, .scan, .gate-ok, .gate-no, .counter, .tick'), { opacity: 0 }, 0)
     tl.set(at('.check-glow, .gate-glow'), { opacity: 0 }, 0)
@@ -129,7 +121,7 @@ const scene = useScene({
 
     // 0 · a goal, not a prompt: the orbit is drawn round the objective as it is written.
     tl.addLabel('beat-0', 0)
-    tl.to(world, { ...shot(l.goal), duration: 2.4, ease: 'cine' }, 0)
+    shot(l.goal, 0, 2.4)
     tl.fromTo(at('.orbit'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.6, ease: 'cine' }, 0.2)
     tl.fromTo(at('.card'), { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.6 }, 0.3)
     const obj = at('.obj')
@@ -166,7 +158,7 @@ const scene = useScene({
     // 3 · pan across: the same loop by hand, a hook on the end of the turn.
     const T3 = J + 2.2
     tl.addLabel('beat-3', T3)
-    tl.to(world, { ...shot(l.hook), duration: 1.6, ease: 'cine' }, T3)
+    shot(l.hook, T3, 1.6)
     tl.to(at('.goal-half'), { opacity: 0.25, duration: 1 }, T3)
     tl.to(at('.hook-half'), { opacity: 1, duration: 1 }, T3 + 0.2)
     tl.to(at('.counter'), { opacity: 1, duration: 0.4 }, T3 + 1.2)
@@ -216,7 +208,7 @@ const scene = useScene({
 
     // Pull back on both, hold, and fade for the loop.
     const E = c + 1.9
-    tl.to(world, { ...shot(l.both), duration: 1.6, ease: 'cine' }, E)
+    shot(l.both, E, 1.6)
     tl.to(at('.goal-half, .hook-half'), { opacity: 1, duration: 1 }, E)
     tl.to(at('.gate-glow'), { opacity: 0, duration: 0.6 }, E)
     tl.addLabel('rest', E + 1.8)
@@ -340,7 +332,7 @@ svg {
 
 .caption,
 .flow-word {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -420,7 +412,7 @@ svg {
 
 .file {
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 12px;
   fill: var(--hmz-stage-dim);
 }
 

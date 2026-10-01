@@ -595,9 +595,9 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 
 | Fault | Meaning |
 | --- | --- |
-| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`) |
+| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`) |
 | `throttled` | too many requests or a quota spent (`429`, `529`, `rate limit`, `quota`, `resource exhausted`, `overloaded`, `usage limit`, …) |
-| `refused` | the credential (`401`, `403`, `unauthorized`, `invalid api key`, `not logged in`, `token expired`, `forbidden`, …) |
+| `refused` | the credential (`401`, `403`, `unauthorized`, `invalid api key`, `not logged in`, `token expired`, `token was revoked`, `forbidden`, …) |
 | `unlisted` | the model is not this account's (`not allowed to access model`, `can only access models`, `is not supported when using`, …) |
 | `retired` | the model is gone (`404`, `model not found`, `unknown model`, …) |
 | `missing` | nothing to run: exit 126 or 127 |

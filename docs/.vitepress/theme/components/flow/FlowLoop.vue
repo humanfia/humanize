@@ -2,6 +2,7 @@
 // The arc back under the lanes: from where a round ends to where the next one starts, with an
 // arrowhead at the start it returns to, what repeats, and a comet while it does.
 import FlowGlyph from './FlowGlyph.vue'
+import { legible } from './grammar'
 
 withDefaults(
   defineProps<{
@@ -31,10 +32,15 @@ withDefaults(
       <circle class="halo" r="12" />
       <circle class="comet" r="4.6" />
     </g>
-    <g v-if="!bare" class="said" :transform="`translate(${at.x} ${at.y}) scale(${at.s})`">
-      <rect :x="-(said.length * 5.9 + 34) / 2" y="-9.5" :width="said.length * 5.9 + 34" height="19" rx="9.5" />
-      <FlowGlyph name="loop" :x="-(said.length * 5.9) / 2 - 4" :size="11" />
-      <text :x="8" y="3.8">{{ said }}</text>
+    <g
+      v-if="!bare && legible(at.s) > 0"
+      class="said"
+      :transform="`translate(${at.x} ${at.y}) scale(${at.s})`"
+      :opacity="legible(at.s) < 1 ? legible(at.s) : undefined"
+    >
+      <rect :x="-(said.length * 6.5 + 34) / 2" y="-10" :width="said.length * 6.5 + 34" height="20" rx="10" />
+      <FlowGlyph name="loop" :x="-(said.length * 6.5) / 2 - 4" :size="11" />
+      <text :x="8" y="4">{{ said }}</text>
     </g>
   </g>
 </template>

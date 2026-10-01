@@ -263,7 +263,7 @@ const scene = useScene({
 
         <g :transform="`translate(${L.stamp.x} ${L.stamp.y})`">
           <g class="stamp">
-            <rect :x="narrow ? -150 : -170" y="-17" :width="narrow ? 300 : 340" height="34" rx="17" />
+            <rect :x="narrow ? -166 : -170" y="-17" :width="narrow ? 332 : 340" height="34" rx="17" />
             <text y="5" text-anchor="middle">budget reached · the run ends, exit 0</text>
           </g>
         </g>

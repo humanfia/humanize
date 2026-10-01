@@ -205,6 +205,132 @@ def test_a_projected_credential_is_taken_away_even_when_the_turn_failed(
     assert not Path(said.stdout.strip()).exists()
 
 
+#: A sign-in as Codex keeps one, before and after the CLI refreshed it. No real token: the
+#: shape of the file is all that says it refreshes itself.
+SIGNED_IN = '{"tokens": {"access_token": "a1", "refresh_token": "r1"}}\n'
+REFRESHED = '{"tokens": {"access_token": "a2", "refresh_token": "r2"}}\n'
+
+#: What a CLI refreshing its sign-in does to the file: a new one beside it, renamed over it.
+REFRESHING = (
+    'printf \'%s\' "$1" > "$CODEX_HOME/auth.json.tmp" && '
+    'mv "$CODEX_HOME/auth.json.tmp" "$CODEX_HOME/auth.json"'
+)
+
+
+def test_a_sign_in_refreshed_on_the_target_is_written_back_over_the_original(
+    driven: Driven, tmp_path: Path
+) -> None:
+    """Two copies of one sign-in refreshing apart get it revoked, so the copy comes home.
+
+    Whichever copy refreshes spends the refresh token the other is holding; the original,
+    left holding the spent one, presents it the next time and the vendor revokes the family.
+    """
+    creds = tmp_path / "creds"
+    creds.mkdir()
+    (creds / "auth.json").write_text(SIGNED_IN)
+    (creds / "auth.json").chmod(0o600)
+
+    said = driven.run(
+        "/bin/sh",
+        "-c",
+        REFRESHING,
+        "refreshing",
+        REFRESHED,
+        projects=(("CODEX_HOME", str(creds)),),
+    )
+
+    assert said.returncode == 0, said.stderr
+    assert (creds / "auth.json").read_text() == REFRESHED
+    assert oct((creds / "auth.json").stat().st_mode & 0o777) == oct(0o600)
+    # And nothing of it is left beside the original: the write-back is whole or not at all.
+    assert sorted(one.name for one in creds.iterdir()) == ["auth.json"]
+
+
+def test_a_projected_file_that_is_no_sign_in_is_never_written_back(
+    driven: Driven, tmp_path: Path
+) -> None:
+    creds = tmp_path / "creds"
+    creds.mkdir()
+    (creds / "auth.json").write_text('{"OPENAI_API_KEY": "sk-a-key"}\n')
+
+    said = driven.run(
+        "/bin/sh",
+        "-c",
+        REFRESHING,
+        "refreshing",
+        '{"OPENAI_API_KEY": "sk-another"}\n',
+        projects=(("CODEX_HOME", str(creds)),),
+    )
+
+    assert said.returncode == 0, said.stderr
+    assert (creds / "auth.json").read_text() == '{"OPENAI_API_KEY": "sk-a-key"}\n'
+
+
+def test_a_sign_in_refreshed_here_meanwhile_is_not_written_over(
+    driven: Driven, tmp_path: Path
+) -> None:
+    """Both halves refreshed: writing over this one would only choose which half to lose."""
+    creds = tmp_path / "creds"
+    creds.mkdir()
+    (creds / "auth.json").write_text(SIGNED_IN)
+    here = '{"tokens": {"access_token": "a3", "refresh_token": "r3"}}\n'
+
+    said = driven.run(
+        "/bin/sh",
+        "-c",
+        # A `local:` target is this machine, so the turn can refresh the original as well,
+        # which is what another turn running here at the same time would have done.
+        REFRESHING + ' && printf \'%s\' "$2" > "$3"',
+        "refreshing",
+        REFRESHED,
+        here,
+        str(creds / "auth.json"),
+        projects=(("CODEX_HOME", str(creds)),),
+    )
+
+    assert said.returncode == 0, said.stderr
+    assert (creds / "auth.json").read_text() == here
+    assert "refreshed both here and on the target" in said.stderr
+
+
+def test_a_sign_in_another_turn_is_using_is_not_copied_out(
+    driven: Driven, tmp_path: Path
+) -> None:
+    import fcntl
+
+    creds = tmp_path / "creds"
+    creds.mkdir()
+    (creds / "auth.json").write_text(SIGNED_IN)
+    marker = tmp_path / "ran"
+
+    # What a turn on this machine using it in place looks like from here: the directory
+    # held, shared, for as long as that turn runs.
+    held = os.open(creds, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(held, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        said = driven.run(
+            "/bin/sh",
+            "-c",
+            ': > "$1"',
+            "marking",
+            str(marker),
+            projects=(("CODEX_HOME", str(creds)),),
+        )
+    finally:
+        os.close(held)
+
+    assert said.returncode != 0
+    assert "refreshes itself" in said.stderr
+    assert not marker.exists()
+    # Once it is given back, the next turn takes it as ever.
+    assert (
+        driven.run(
+            "/bin/sh", "-c", "true", projects=(("CODEX_HOME", str(creds)),)
+        ).returncode
+        == 0
+    )
+
+
 def test_a_credential_is_never_written_into_the_command_line_that_carries_it(
     tmp_path: Path,
 ) -> None:

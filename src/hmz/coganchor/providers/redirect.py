@@ -45,6 +45,8 @@ from hmz.coganchor.policy import answered, head
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
+    from ._trace import Tracing
+
 __all__ = [
     "Swaps",
     "answered",
@@ -275,15 +277,32 @@ def run(swaps: Swaps, argv: Sequence[str]) -> int:
       OSError: If the supervisor cannot be started, which is a turn that must not run: an
         agent whose credentials were not pointed anywhere would sign in as somebody else.
     """
-    # Imported here rather than above: this half needs ptrace and an x86-64 register map,
-    # which reading a provider and rendering a command line do not.
-    from hmz.coganchor.linux import ptrace, seccomp
+    from hmz.coganchor._lending import lent, refreshing
 
     from ._trace import Tracing
 
     if not argv:
         raise ValueError("no program to run")
-    tracing = Tracing(swaps)
+    # A sign-in that refreshes itself is used here in place, beside every other turn here
+    # doing the same, and so never while a copy of it is out on another machine.
+    with lent(refreshing(instead for _, instead in swaps.pairs), away=False):
+        return _supervised(Tracing(swaps), argv)
+
+
+def _supervised(tracing: Tracing, argv: Sequence[str]) -> int:
+    """Runs a program under a supervisor answering its paths, and waits for it.
+
+    Args:
+      tracing: What answers them.
+      argv: The program and its arguments.
+
+    Returns:
+      Its exit status, or 128 plus the signal that killed it.
+    """
+    # Imported here rather than above: this half needs ptrace and an x86-64 register map,
+    # which reading a provider and rendering a command line do not.
+    from hmz.coganchor.linux import ptrace, seccomp
+
     pid = os.fork()
     if not pid:
         try:

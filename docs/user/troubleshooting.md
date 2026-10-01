@@ -570,16 +570,44 @@ next account of that CLI.
 **Cause.** The credential was refused, or the login expired. humanize moves straight on to the
 next account.
 
+A login that renews itself (Codex with ChatGPT, Claude Code with a subscription) is also
+revoked, with `refresh token was revoked`, when two copies of it renewed apart: a copy of
+`~/.codex/auth.json` or `~/.claude/.credentials.json` put in a container, on another machine or
+in a test's temporary home. humanize never makes one, but a copy made by hand does.
+
 **Fix.** Sign the account back in, with the CLI's own login for the account this machine uses:
 
 ```sh
 claude auth login
+codex login
 ```
 
 For an account humanize keeps, type `/settings accounts`, choose the account, and pick **sign
-in again**.
+in again**. Then delete every copy of the file that was made, so it cannot happen again: on
+another machine, sign its CLI in there instead.
 
 **Verify.** The CLI answers when you run it yourself, and the next turn goes through.
+
+### `… this account signs in with a token that refreshes itself, and another turn is using it …` {#this-account-signs-in-with-a-token-that-refreshes-itself}
+
+**Symptom.** A turn fails with this line, or with
+`… and a copy of it is out on another machine for a turn there …`, then with
+`(contended: …)` once its three tries are spent.
+
+**Cause.** The role's `@account` is a login that renews itself, and the CLI of one of the turns
+using it runs on another machine (`-H env`, or `adaptive` that went there). Two copies renewing
+apart get the login revoked, so a copy goes to another machine only while no other turn is
+using the account, and comes back renewed before any other turn may use it again. Turns on this
+machine share the one file and run side by side.
+
+**Fix.** One of:
+
+- give the roles that run at the same time an account each, or an account signed in with a key;
+- run every role of that account with `-H local`, where every turn uses the one file in place;
+- sign the CLI in on that machine and drop the `@account`.
+
+**Verify.** The next turn starts. See
+[Providers › A sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself).
 
 ### `(unlisted: … this account was last offered …)`
 
@@ -654,7 +682,10 @@ refused, and signing in again changes nothing.
 **Symptom.** A turn of opencode or mimocode fails with this bracket.
 
 **Cause.** Two turns wrote to the CLI's one database at once and got `database is locked`.
-humanize retries three times, a second apart, which nearly always clears it.
+humanize retries three times, a second apart, which nearly always clears it. A turn of any CLI
+whose account is a login that renews itself can end here too, when another turn holds it the
+other way round: see
+[the entry above](#this-account-signs-in-with-a-token-that-refreshes-itself).
 
 **Fix.** If it keeps happening, run fewer of those agents at once.
 

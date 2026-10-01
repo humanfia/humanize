@@ -150,8 +150,8 @@ git commit -m "docs(user): what my thing is and when to reach for it"
 ```
 
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), with the section as
-the scope. On the pull request, CI runs `pnpm build` and `pnpm check:anchors` again. A push to
-`main` deploys the site.
+the scope. On the pull request, CI runs `pnpm build`, `pnpm check:anchors` and `pnpm
+check:legible` again. A push to `main` deploys the site.
 
 ## Check it worked
 

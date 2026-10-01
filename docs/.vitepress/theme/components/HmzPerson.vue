@@ -492,7 +492,7 @@ svg {
 
 .t-status {
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 11.5px;
   fill: var(--hmz-stage-dim);
 }
 

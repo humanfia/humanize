@@ -121,6 +121,9 @@ _WRITE_PRIVATELY = (
 #: Taking one of them away again, whatever it turned out to be.
 _SWEEP = 'rm -rf -- "$1"'
 
+#: Reading one of them back, as it stands once the CLI is done with it.
+_READ_BACK = 'cat -- "$1"'
+
 #: Where the turns using a carried directory write down that they are using it. Inside what
 #: they are using, so that removing it removes them, and a dotted name so that a CLI reading a
 #: directory of skills does not read this as one.
@@ -203,7 +206,8 @@ class AnchorConfig:
         `(variable, the directory on this machine holding it)`. Each is written into a
         directory only the target's own user may enter, taken away when the turn is over, and
         named to the CLI by setting that variable to where it landed. Never by argv: what is
-        in a command line is in another user's `ps`.
+        in a command line is in another user's `ps`. A file holding a refresh token is out to
+        one turn at a time, and what the CLI refreshed it to is written back over it here.
       carries: Directories to put in the target's copy of the workspace for the length of the
         turn, as `(the directory on this machine, where it goes relative to the workspace)`.
         Which is how a flow's own skills reach a CLI that reads them on the target: a mirror
@@ -552,6 +556,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     # Imported here rather than at the top: this half needs ptrace and an x86-64 register
     # map, which the machines reading the settings above are not required to have.
     from hmz.coganchor import __version__, statepaths, transport
+    from hmz.coganchor._lending import lent, refreshing
     from hmz.coganchor.netproxy import NetProxy
     from hmz.coganchor.policy import Layout, Router, head
     from hmz.coganchor.remote import RemoteClient
@@ -650,11 +655,15 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     )
     log.info("running %s against %s", agent.profile.name, target.describe())
     try:
-        if netproxy is not None:
-            netproxy.start()
-        if walls is not None:
-            walls.start()
-        return supervisor.run()
+        # A sign-in that refreshes itself, answered here in place, is held for the turn's
+        # length beside every other turn here using it -- and so never while a copy of it is
+        # out on another machine. Files only: a directory answered may be the CLI's sessions.
+        with lent(refreshing((one for _, one in redirects), inside=False), away=False):
+            if netproxy is not None:
+                netproxy.start()
+            if walls is not None:
+                walls.start()
+            return supervisor.run()
     finally:
         if walls is not None:
             walls.stop()
@@ -794,9 +803,11 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     composed on the target, so what a provider hushes is taken off there with `env -u` rather
     than merely left out of what is sent. Credentials are written into a directory of the
     turn's own that only the target's user may enter, named to the CLI by variable and never by
-    argv, and taken away whatever happens. And what the flow carries -- its own skills -- is
-    put into the target's copy of the workspace and taken out of it again, since there is no
-    mirror to push it.
+    argv, and taken away whatever happens -- except a sign-in that refreshes itself, which is
+    let out to one turn at a time and whose refreshed copy is written back over the original
+    before it is taken away (:func:`_lending`). And what the flow carries -- its own skills --
+    is put into the target's copy of the workspace and taken out of it again, since there is
+    no mirror to push it.
 
     Args:
       command: The agent to run and its own arguments, e.g. `["claude", "--print"]`.
@@ -808,7 +819,8 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     Raises:
       ValueError: If the target cannot be read, or no agent was named.
       NotInstalled: If the agent is not installed on the target.
-      OSError: If the target cannot be reached, or a credential cannot be put on it.
+      OSError: If the target cannot be reached, or a credential cannot be put on it -- or,
+        with `EBUSY`, if a sign-in that refreshes itself is out for another turn already.
     """
     from hmz.coganchor import __version__
 
@@ -822,11 +834,17 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
 
     kept: list[str] = []
     making: set[str] = set()
+    lent: list[_Lent] = []
     session = ""
     # What this turn writes its claims on carried directories under. One per turn rather than
     # per session: a turn is what plants them and a turn is what gives them up.
     whose = uuid.uuid4().hex
-    with _reached(config) as (target, _, client):
+    # A sign-in that refreshes itself is held for the whole turn before anything is reached:
+    # one copy of it out at a time, and that copy brought back over the original at the end.
+    with (
+        _lending(config.projects) as refreshing,
+        _reached(config) as (target, _, client),
+    ):
         try:
             client.start(config.token)
             program = _installed(
@@ -841,7 +859,9 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             fence = _fenced(client, config)
             if config.projects:
                 session = _session(client, workspace)
-                said |= _projected(client, config.projects, session, workspace)
+                said |= _projected(
+                    client, config.projects, session, workspace, refreshing, lent
+                )
                 if fence is not None:
                     fence["write"] = [*fence["write"], session]
             _carried(client, config.carries, workspace, whose, kept, making)
@@ -850,7 +870,9 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             return _drives(client, argv, started_in, dict(os.environ), fence)
         finally:
             # Inside the channel rather than beside it: what this takes off the target is
-            # taken off *through* that channel, so it has to happen while there is one.
+            # taken off *through* that channel, so it has to happen while there is one. And
+            # a refreshed sign-in is read back before the copy it is in is taken away.
+            _brought_back(client, lent, workspace)
             _swept(
                 client, session, kept, sorted(making, reverse=True), workspace, whose
             )
@@ -891,6 +913,27 @@ def _fenced(client: RemoteClient, config: AnchorConfig) -> dict[str, Any] | None
 def _ran(
     client: RemoteClient, argv: list[str], cwd: str, feeding: bytes = b""
 ) -> tuple[int, str]:
+    """Runs one short command on the target and waits for the line it answered with.
+
+    Args:
+      client: The open connection.
+      argv: The command, as :func:`_exchanged` takes it.
+      cwd: Where to run it, as the target names it.
+      feeding: What to write to its stdin.
+
+    Returns:
+      Its exit status, and what it wrote to stdout with the trailing newline taken off.
+
+    Raises:
+      OSError: If the target could not be asked at all.
+    """
+    status, said = _exchanged(client, argv, cwd, feeding)
+    return status, said.decode("utf-8", "replace").strip()
+
+
+def _exchanged(
+    client: RemoteClient, argv: list[str], cwd: str, feeding: bytes = b""
+) -> tuple[int, bytes]:
     """Runs one short command on the target and waits for the whole of what it said.
 
     For the handful of things a session has to settle before the CLI starts -- is it there,
@@ -905,7 +948,7 @@ def _ran(
       feeding: What to write to its stdin, for a command whose input must not be in its argv.
 
     Returns:
-      Its exit status, and what it wrote to stdout with the trailing newline taken off.
+      Its exit status, and what it wrote to stdout byte for byte.
 
     Raises:
       OSError: If the target could not be asked at all.
@@ -943,7 +986,7 @@ def _ran(
         raise TimeoutError(f"the target did not answer {argv[0]!r} in {_SETTLING:.0f}s")
     if (error := held.get("error")) is not None:
         raise error
-    return _status(held.get("result")), said.decode("utf-8", "replace").strip()
+    return _status(held.get("result")), bytes(said)
 
 
 def _status(result: dict[str, Any] | None) -> int:
@@ -1036,11 +1079,66 @@ def _session(client: RemoteClient, workspace: str) -> str:
     return made
 
 
+@dataclass(frozen=True, slots=True)
+class _Lent:
+    """A sign-in that refreshes itself, as it was put on the target for one turn.
+
+    Attributes:
+      here: The file on this machine it is a copy of.
+      there: Where the copy is on the target.
+      sent: What the copy held as it was sent, which is what the original must still hold for
+        the copy to be brought back over it.
+    """
+
+    here: str
+    there: str
+    sent: bytes
+
+
+def _json(said: bytes) -> bool:
+    """Whether some bytes are a whole JSON document, as every sign-in file of these CLIs is."""
+    import json
+
+    try:
+        json.loads(said)
+    except ValueError:
+        return False
+    return True
+
+
+@contextlib.contextmanager
+def _lending(projects: Sequence[tuple[str, str]]) -> Generator[frozenset[str]]:
+    """Holds every projected sign-in that refreshes itself for one turn, or refuses the turn.
+
+    A copy of such a sign-in is a second holder of one family of tokens: whichever holder
+    refreshes first spends the refresh token the other still has, and the vendor revokes the
+    family when that is presented (:mod:`hmz.coganchor._lending`). So the copy goes
+    only while nothing else holds the file, and nothing else may until it is brought back.
+
+    Args:
+      projects: What the turn projects, as `(variable, the directory on this machine)`.
+
+    Yields:
+      The files on this machine that are such sign-ins, by path. Nothing at all for an
+      account that is keys and settings, which is held by nothing.
+
+    Raises:
+      OSError: With `EBUSY`, if another turn is using one of them.
+    """
+    from hmz.coganchor._lending import lent, refreshing
+
+    files = refreshing(whence for _, whence in projects)
+    with lent(files, away=True):
+        yield files
+
+
 def _projected(
     client: RemoteClient,
     projects: Sequence[tuple[str, str]],
     session: str,
     workspace: str,
+    refreshing: frozenset[str] = frozenset(),
+    lent: list[_Lent] | None = None,
 ) -> dict[str, str]:
     """Puts this turn's credentials on the target, and says what to call each of them.
 
@@ -1055,6 +1153,12 @@ def _projected(
       projects: What to put there, as `(variable, the directory on this machine)`.
       session: The directory on the target to put it under.
       workspace: Where to run the commands from, as the target names it.
+      refreshing: The files among them that are sign-ins refreshing themselves, as
+        :func:`_lending` found them.
+      lent: Filled in with each of those as it lands, so that what the CLI refreshes it to can
+        be brought back over the original however the turn ends -- given rather than answered
+        with, as :func:`_carried`'s are, so one that lands before a later one fails is still
+        brought back.
 
     Returns:
       The variable to set for each, naming where it landed.
@@ -1074,18 +1178,81 @@ def _projected(
         landed = posixpath.join(session, variable.lower())
         for one in sorted(path for path in root.rglob("*") if path.is_file()):
             at = posixpath.join(landed, *one.relative_to(root).parts)
+            sent = one.read_bytes()
             status, said = _ran(
                 client,
                 ["/bin/sh", "-c", _WRITE_PRIVATELY, "humanize", at],
                 workspace,
-                feeding=one.read_bytes(),
+                feeding=sent,
             )
             if status != 0:
                 raise OSError(
                     errno.EACCES, f"could not put {variable} on the target: {said}", at
                 )
+            if lent is not None and str(one) in refreshing:
+                lent.append(_Lent(here=str(one), there=at, sent=sent))
         named[variable] = landed
     return named
+
+
+def _brought_back(client: RemoteClient, lent: Sequence[_Lent], workspace: str) -> None:
+    """Writes what the CLI refreshed each lent sign-in to back over the one it was copied from.
+
+    The other half of :func:`_lending`. A CLI that refreshed its sign-in on the target has
+    spent the refresh token the original still holds, so the original is only still an
+    account if the new one is brought back into it. Only over an original that still holds
+    exactly what was sent: one that changed meanwhile was refreshed here too, which makes the
+    two copies the case all of this is to prevent, and writing over it would only choose which
+    half of a revoked family to keep. That is said, since the account will need signing in
+    again and nothing else would say why.
+
+    Never raises, for the reason :func:`_swept` does not: this runs on the way out of a turn.
+
+    Args:
+      client: The connection, which may already be broken.
+      lent: The sign-ins that were put on the target.
+      workspace: Where to run the command from, as the target names it.
+    """
+    from pathlib import Path
+
+    from hmz.coganchor._lending import REFRESHES
+    from hmz.coganchor.atomic import writes
+
+    for one in lent:
+        try:
+            status, now = _exchanged(
+                client, ["/bin/sh", "-c", _READ_BACK, "humanize", one.there], workspace
+            )
+        except (OSError, ValueError) as why:
+            log.warning("could not read %s back from the target: %s", one.here, why)
+            continue
+        if now == one.sent:
+            continue  # not refreshed, which is most turns
+        if (
+            status != 0
+            or not REFRESHES.search(now)
+            or (_json(one.sent) and not _json(now))
+        ):
+            # Gone, or caught half written: no sign-in to keep. Said, since the original may
+            # now hold a refresh token the target spent, and nothing else would say why.
+            log.warning(
+                "could not bring %s back from the target, which left no whole sign-in "
+                "there; if the account was refreshed there, it needs signing in again",
+                one.here,
+            )
+            continue
+        here = Path(one.here)
+        try:
+            if here.read_bytes() != one.sent:
+                log.warning(
+                    "%s was refreshed both here and on the target during one turn; the "
+                    "vendor may have revoked it, and the account may need signing in again",
+                    one.here,
+                )
+                continue
+            writes(here, now)
+        except OSError as why:
+            log.warning("could not bring %s back from the target: %s", one.here, why)
 
 
 def _carried(

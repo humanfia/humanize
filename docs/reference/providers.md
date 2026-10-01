@@ -261,6 +261,40 @@ which is how a token is rotated by rename).
 
 <small>Defined in [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py), [`_trace.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_trace.py), [`_staging.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_staging.py), [`src/hmz/coganchor/pathcalls.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/pathcalls.py).</small>
 
+### A sign-in that refreshes itself {#a-sign-in-that-refreshes-itself}
+
+Some logins keep a refresh token in their credential file, and each refresh writes a new one and
+spends the old one: Codex signed in with ChatGPT (`auth.json`), Claude Code with a subscription
+(`.credentials.json`), and the OAuth logins of `cursor-agent`, `kimi`, `opencode`, `mimo`, `pi`
+and `qwen`. A spent refresh token presented again is read by the vendor as a stolen one, and the
+whole sign-in is revoked, every copy of it included. API keys, gateway tokens and
+`CLAUDE_CODE_OAUTH_TOKEN` do not rotate.
+
+So such a file is never copied somewhere it could refresh on its own:
+
+| Where the turn runs | What it refreshes |
+| --- | --- |
+| This machine, or a supervised anchor | the account's own file: a write is always answered with it, never with a copy |
+| A native anchor (`-H env`) | a copy on the target, sent only while **no other turn is using the file**, and no other turn may until it is back; when the turn ends, the refreshed copy is written back over the account's file, unless that file changed meanwhile |
+| The machine's own sign-in (no `@account`) | never sent anywhere: a CLI on another machine uses that machine's own sign-in |
+
+A file holding `refresh_token`, `refreshToken` or a `"refresh":` key counts as one. Each turn
+holds the directory it is in with `flock` for its length: shared by turns using it in place,
+exclusive for a native turn sending a copy. Neither waits for the other, since the holder may be
+a session open until the run ends; the turn that finds it held the other way is refused with
+`… this account signs in with a token that refreshes itself, and another turn is using it …`
+(native) or `… and a copy of it is out on another machine for a turn there …` (here), which
+is the `contended` fault, tried three times a second apart. Run every role of that account with
+`-H local`, give the native one an account signed in with a key, or sign the CLI in on the host
+and use no `@account` there. A filesystem that cannot lock a directory (some NFS) logs
+`cannot hold … for this turn` and runs the turn unheld.
+
+If a login was revoked anyway (`refresh token was revoked`, `(refused: that account needs signing
+in again)`), sign it in again: `codex login` or `claude auth login` for this machine's own, or
+**sign in again** on the account under `/settings accounts`. Nothing else restores it.
+
+<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`_lending`, `_brought_back`), [`src/hmz/coganchor/_lending.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/_lending.py).</small>
+
 ## Where sessions are kept {#where-sessions-are-kept}
 
 The same supervisor keeps each turn's sessions out of the CLI's home, under whatever account
@@ -458,7 +492,7 @@ Each account names the account of the same backend a failing turn carries on und
 | --- | --- | --- | --- |
 | No anchor | this machine | set on the turn | answered here by `hmz internal cred` |
 | Supervised anchor | this machine | set on the agent; `private`, so commands on the target never get them | answered here by the anchor's supervisor |
-| Native anchor | the target | sent; `hushes()` removed there with `env -u` | written to a private directory on the target for the turn, where a variable of the backend moves their root; otherwise the turn is refused |
+| Native anchor | the target | sent; `hushes()` removed there with `env -u` | written to a private directory on the target for the turn, where a variable of the backend moves their root; otherwise the turn is refused. A [sign-in that refreshes itself](#a-sign-in-that-refreshes-itself) goes to one turn at a time and comes back refreshed |
 | Harness on another machine | the harness machine | not sent | redirected to this machine's paths, which that machine lacks |
 
 See [Remote execution › Where the account lives](/reference/remote-execution#where-the-account-lives).
@@ -472,6 +506,7 @@ See [Remote execution › Where the account lives](/reference/remote-execution#w
 | Another agent's credentials readable by a turn | never through the redirected paths: each turn is answered from its own account's directory |
 | A shell-profile key overriding the account | never: `hushes()` is removed from the turn |
 | A key passed as argv | never: `stdin` ways write it to the command's stdin |
+| A sign-in that refreshes itself held in two places that refresh apart | never, where its directory can be locked: it is used in place by every turn here, or lent to one native turn at a time while no other turn uses it, and written back |
 | `Provider.env` values from Python | returned in full to the caller |
 
 ## API summary

@@ -14,8 +14,9 @@ const props = withDefaults(
     /** 0 before the run ends; then 0 to 1 as the ending lands. */
     fired?: number
     bare?: boolean
+    words?: number
   }>(),
-  { fired: 0, bare: false },
+  { fired: 0, bare: false, words: 1 },
 )
 
 const on = computed(() => props.fired > 0)
@@ -34,9 +35,9 @@ const first = computed(() => props.ends[0]?.is ?? 'budget')
       :class="[`o-${end.is}`, { lit: on && n === 0 }]"
       :transform="`translate(10 ${34 + n * 26})`"
     >
-      <rect v-if="!bare" class="chip" x="0" y="-10.5" :width="end.said.length * 6.1 + 34" height="21" rx="10.5" />
+      <rect v-if="!bare" class="chip" x="0" y="-10.5" :width="end.said.length * 6.4 + 34" height="21" rx="10.5" />
       <FlowGlyph :name="end.is" :x="13" :size="12" :fill="end.is === 'you'" />
-      <text v-if="!bare" class="said" x="26" y="4">{{ end.said }}</text>
+      <text v-if="!bare && words > 0" class="said" x="26" y="4" :opacity="words < 1 ? words : undefined">{{ end.said }}</text>
     </g>
   </g>
 </template>

@@ -13,7 +13,10 @@ gateway), the column is run under one of the accounts this machine keeps in its 
 `~/.humanize/providers`, *borrowed*: made again in the test's own `HUMANIZE_HOME` through the
 SDK's accounts facade, out of the variables and files the machine's account holds, and taken
 back off disk when the cell ends. Nothing of the machine's own store is written; it is read, and
-only for the account a candidate names.
+only for the account a candidate names. And never an account signed in with a login whose token
+refreshes itself: a copy of one is a second holder of the same sign-in, and the first of the two
+to refresh has the vendor revoke the other -- the machine's own account. Such a candidate is
+passed over, saying so.
 
 A place that no candidate answers is a column that says why and skips, cell by cell: that is the
 machine's account, not humanize, and a red matrix for somebody's expired subscription is a
@@ -33,6 +36,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
+
+from hmz.coganchor._lending import refreshing
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -231,7 +236,8 @@ def borrowed(cli: str, theirs: str, ours: str = "") -> Generator[str]:
       The name it is under in the test's home.
 
     Raises:
-      LookupError: If this machine keeps no account of that name for that backend.
+      LookupError: If this machine keeps no account of that name for that backend, or keeps
+        one whose sign-in refreshes itself, which is never copied.
     """
     from hmz import home
     from hmz.sdk import Hmz
@@ -246,6 +252,14 @@ def borrowed(cli: str, theirs: str, ours: str = "") -> Generator[str]:
         raise LookupError(
             f"this machine keeps no {cli} account {theirs!r}"
         ) from missing
+    # Its credential roots, which is where a login leaves a sign-in -- not `provider.json`,
+    # whose variables are copied as variables and never refresh themselves.
+    if lent := refreshing(str(source / root) for root in ("home", "config", "user")):
+        raise LookupError(
+            f"this machine's {cli} account {theirs!r} signs in with a token that refreshes "
+            f"itself ({', '.join(sorted(Path(one).name for one in lent))}), and a borrowed "
+            "copy refreshing apart from it would get it revoked"
+        )
     name = ours or theirs
     # Checked before anything is written or registered to be deleted: what is removed below
     # is a recursive remove, and a run whose home had become the real one would remove the

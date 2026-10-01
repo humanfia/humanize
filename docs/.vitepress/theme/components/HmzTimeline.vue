@@ -14,7 +14,7 @@ import { createFx, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
-import { rig, type Point, type Shot } from './features/anchor-rig'
+import { rig, type Point, type Shot } from '../motion/camera'
 
 const BEATS = [
   'A CLI logs sessions under bare ids',
@@ -140,11 +140,11 @@ const WIDE: Layout = {
   divider: 162,
   logs: [
     { x: 110, y: 104, s: 1.05 },
-    { x: 300, y: 76, s: 0.8 },
-    { x: 500, y: 110, s: 0.9 },
+    { x: 300, y: 76, s: 0.9 },
+    { x: 500, y: 110, s: 0.95 },
     { x: 150, y: 262, s: 1 },
-    { x: 360, y: 290, s: 0.85 },
-    { x: 540, y: 250, s: 0.75 },
+    { x: 360, y: 290, s: 0.9 },
+    { x: 540, y: 250, s: 0.9 },
   ],
   card: { w: 96, h: 42 },
   ledger: { x: 320, y: 184, w: 240 },
@@ -172,11 +172,11 @@ const NARROW: Layout = {
   divider: 180,
   logs: [
     { x: 72, y: 96, s: 1 },
-    { x: 190, y: 74, s: 0.8 },
-    { x: 296, y: 118, s: 0.9 },
+    { x: 190, y: 74, s: 0.95 },
+    { x: 296, y: 118, s: 0.95 },
     { x: 84, y: 296, s: 1.05 },
-    { x: 200, y: 330, s: 0.85 },
-    { x: 296, y: 286, s: 0.8 },
+    { x: 200, y: 330, s: 0.95 },
+    { x: 296, y: 286, s: 0.95 },
   ],
   card: { w: 90, h: 40 },
   ledger: { x: 180, y: 204, w: 236 },
@@ -188,7 +188,7 @@ const NARROW: Layout = {
     sweepTo: { x: 200, y: 118, s: 1.1 },
     push: { x: 170, y: 190, s: 1.3 },
     wide: { x: 220, y: 240, s: 1.1 },
-    end: { x: 180, y: 200, s: 0.96 },
+    end: { x: 180, y: 200, s: 1 },
   },
   tick: 10,
 }
@@ -473,14 +473,14 @@ svg {
 
 .log-hex {
   font-family: var(--vp-font-family-mono);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   fill: var(--hmz-stage-ink);
 }
 
 .log-cli {
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 12px;
   fill: var(--hmz-stage-dim);
 }
 
