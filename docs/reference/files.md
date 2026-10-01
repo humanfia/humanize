@@ -334,7 +334,7 @@ Every path in this section is safe to delete while humanize is not running.
 | the same path, on a machine a supervised agent's commands run on | that agent's commands' `TMPDIR` there | kept |
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
 | `$TMPDIR/hmz-dsh-*/cordis.yml`, `hmz-qwen-*/` | per-session CLI configuration | with the session |
-| `$TMPDIR/humanize-<uid>.pyz` (`0700`), `.stamp` (`0600`) | the humanize bundle copied to other machines | kept |
+| `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | anything in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
 | `$TMPDIR/humanize-*` | a docker environment's cid file and machine shadow | with the container |
 | `${XDG_RUNTIME_DIR:-$TMPDIR}/humanize-ssh-<uid>/%C[-<hex8>]` (`0700`) | ssh control sockets ([`HUMANIZE_SSH_REUSE`](/reference/environment#humanize-ssh-reuse)) | 120 s after last use |
 | `/dev/shm/hmz-<pid>-<hex16>-*/<n>.<file>` (`0700`/`0600`) | credential copies staged for a turn (≤ 1 MiB each) | on close; dead-pid directories swept |
@@ -343,7 +343,7 @@ Every path in this section is safe to delete while humanize is not running.
 
 | Path | Is |
 | --- | --- |
-| `$HOME/.cache/humanize/humanize-<digest>.pyz` | the humanize bundle on an `ssh` machine (`/tmp/humanize/…` in a container); installed with `cat > f.$$ && mv`; kept |
+| `$HOME/.cache/humanize/humanize-<digest>.pyz` | the humanize bundle on an `ssh` machine (`/tmp/humanize/…` in a container); checked against `<digest>` on arrival and when already there, written to `f.<pid>` and moved into place; every run line touches the one it runs; other `humanize-*.pyz*` untouched for 14 days are removed by the next install |
 | `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` on an `ssh` machine; `/tmp/humanize-mirrors/<sha256[:16]>/` in a container | a remote harness's mirror of the workspace |
 | `${HUMANIZE_HOME:-$HOME/.humanize}/envs/` | as [above](#state-envs) |
 | a `mktemp -d` directory (umask `077`) | per-session files of a native turn, including projected credentials (`0600`); removed after the turn |
@@ -364,5 +364,7 @@ when their content changes.
 ## Retention
 
 Nothing prunes `epics/`, `sessions/`, `flowverses/.pinned/`, `skills/`, worktrees under
-`envs/`, snapshot refs, `compiled/`, `docker-ssh/`, remote bundle caches or `history.jsonl`.
+`envs/`, snapshot refs, `compiled/`, `docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
+Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
+`$TMPDIR/humanize-<uid>.pyz` and `.stamp` an earlier humanize shared between checkouts.
