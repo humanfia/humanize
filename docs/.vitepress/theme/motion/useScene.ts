@@ -13,6 +13,8 @@
 //   thing, and a chapter can be clicked to jump to it.
 // - Anything drawn per frame outside the timeline (sparks on a canvas) goes in `tick`, which
 //   runs only while the timeline does.
+// - It lists itself in `probe.ts`, so the check that every word can be read holds it still at
+//   moment after moment of its timeline rather than playing it on a clock.
 //
 // A rebuild reverts every tween, so an SVG attribute that only a tween ever set (an `attr`
 // tween on a `cx` the template leaves out) comes back empty: give it a value in the markup.
@@ -23,6 +25,7 @@ import { nextTick, onMounted, onUnmounted, ref, shallowRef, type Ref } from 'vue
 
 import { hush } from './fx'
 import { motion } from './gsap'
+import { probe } from './probe'
 
 type Timeline = gsap.core.Timeline
 
@@ -74,6 +77,7 @@ export function useScene(options: SceneOptions): Scene {
   let visible = false
   let started = false
   let ticking: ((time: number, delta: number) => void) | undefined
+  let unprobe: (() => void) | undefined
 
   function update() {
     const tl = timeline.value
@@ -176,6 +180,28 @@ export function useScene(options: SceneOptions): Scene {
     )
     if (root.value) observer.observe(root.value)
     document.addEventListener('visibilitychange', sync)
+    unprobe = probe({
+      root: () => root.value,
+      duration: () => timeline.value?.duration() ?? 0,
+      // Where each chapter ends, which is where the next one starts; the end of the last; and
+      // the frame held still under reduced motion.
+      settled: () => {
+        const tl = timeline.value
+        if (!tl) return []
+        const d = tl.duration()
+        const still = options.still ?? 1
+        const at = typeof still === 'number' ? Math.min(still, 0.9999) * d : tl.labels[still]
+        return [...marks.value.slice(1).map((m) => m * d - 1e-3), d, ...(at === undefined ? [] : [at])]
+      },
+      seek: async (t) => {
+        const tl = timeline.value
+        if (!tl) return
+        tl.pause()
+        tl.time(t, false)
+        update()
+        await nextTick()
+      },
+    })
     if (options.tick) {
       const tick = options.tick
       ticking = (_time, delta) => {
@@ -187,6 +213,7 @@ export function useScene(options: SceneOptions): Scene {
   })
 
   onUnmounted(() => {
+    unprobe?.()
     observer?.disconnect()
     document.removeEventListener('visibilitychange', sync)
     if (ticking) motion().ticker.remove(ticking)

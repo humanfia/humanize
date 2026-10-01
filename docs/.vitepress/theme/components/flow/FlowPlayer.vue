@@ -16,6 +16,7 @@ import { gsap } from 'gsap'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 
 import { SCENES } from '../../flows'
+import { probe } from '../../motion/probe'
 import FlowScene from './FlowScene.vue'
 import { legible, OUTCOME_SAID, SESSION_SAID } from './grammar'
 import { type Cam, cut, direct, film, heightFor, lay, still, type TurnG } from './stage'
@@ -276,6 +277,7 @@ const stage = ref<HTMLElement | null>(null)
 let seen: IntersectionObserver | undefined
 let sized: ResizeObserver | undefined
 let frame = 0
+let unprobe: (() => void) | undefined
 
 onMounted(() => {
   const measure = () => {
@@ -305,9 +307,26 @@ onMounted(() => {
   )
   if (root.value) seen.observe(root.value)
   build()
+  unprobe = probe({
+    root: () => root.value,
+    duration: () => tl?.duration() ?? 0,
+    // Where a step lands, and the finish.
+    settled: () => {
+      const L = layout.value
+      return [...L.marks.map((m) => (m - L.start) * BEAT), (L.end - L.start) * BEAT]
+    },
+    // The scene is a function of `clock.t` alone: the timeline moves it, the page follows.
+    seek: async (time) => {
+      stepping?.kill()
+      tl?.pause()
+      tl?.time(time, false)
+      await nextTick()
+    },
+  })
 })
 
 onUnmounted(() => {
+  unprobe?.()
   cancelAnimationFrame(frame)
   seen?.disconnect()
   sized?.disconnect()

@@ -46,41 +46,36 @@ function fill(i: number) {
 const screen = ref<HTMLElement | null>(null)
 const lift = ref(1)
 let sized: ResizeObserver | undefined
-let frame = 0
+// At once rather than on the next frame: a ResizeObserver is told before the frame is painted,
+// so no frame is ever drawn with its words unlifted.
 function measure() {
-  cancelAnimationFrame(frame)
-  frame = requestAnimationFrame(() => {
-    const el = screen.value
-    const svg = el?.querySelector<SVGSVGElement>('svg[viewBox]')
-    const box = svg?.viewBox.baseVal
-    if (!el || !box?.width || !box.height) return
-    const k = Math.min(el.clientWidth / box.width, el.clientHeight / box.height)
-    lift.value = k > 0 && k < 0.995 ? 1 / k : 1
-    for (const text of el.querySelectorAll<SVGTextElement>('svg text')) {
-      if (lift.value === 1) {
-        text.style.removeProperty('--lift')
-        continue
-      }
-      // By its smallest part: a tspan may be set smaller than the line it is in.
-      const parts = [text, ...text.querySelectorAll('tspan')]
-      const size = Math.min(...parts.map((part) => parseFloat(getComputedStyle(part).fontSize))) * k
-      text.style.setProperty('--lift', String(Math.min(lift.value, Math.max(1, ROOM / size))))
+  const el = screen.value
+  const svg = el?.querySelector<SVGSVGElement>('svg[viewBox]')
+  const box = svg?.viewBox.baseVal
+  if (!el || !box?.width || !box.height) return
+  const k = Math.min(el.clientWidth / box.width, el.clientHeight / box.height)
+  lift.value = k > 0 && k < 0.995 ? 1 / k : 1
+  for (const text of el.querySelectorAll<SVGTextElement>('svg text')) {
+    if (lift.value === 1) {
+      text.style.removeProperty('--lift')
+      continue
     }
-  })
+    // By its smallest part: a tspan may be set smaller than the line it is in.
+    const parts = [text, ...text.querySelectorAll('tspan')]
+    const size = Math.min(...parts.map((part) => parseFloat(getComputedStyle(part).fontSize))) * k
+    text.style.setProperty('--lift', String(Math.min(lift.value, Math.max(1, ROOM / size))))
+  }
 }
 /** A word drawn this big or bigger is left to shrink with its scene. */
 const ROOM = 12.5
-// A rebuild may have drawn other words, for another layout or another pick.
-watch(() => props.scene.timeline.value, measure)
+// A rebuild may have drawn other words, for another layout or another pick: once they are in.
+watch(() => props.scene.timeline.value, measure, { flush: 'post' })
 onMounted(() => {
   measure()
   sized = new ResizeObserver(measure)
   if (screen.value) sized.observe(screen.value)
 })
-onUnmounted(() => {
-  cancelAnimationFrame(frame)
-  sized?.disconnect()
-})
+onUnmounted(() => sized?.disconnect())
 
 const bind = (el: unknown) => {
   props.scene.root.value = (el as HTMLElement | null) ?? null

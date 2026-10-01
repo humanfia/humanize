@@ -600,8 +600,9 @@ svg {
   stroke-linecap: round;
 }
 
+/* Above 11px: the world falls away at the end of the loop, and they shrink with it while it fades. */
 .role {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 650;
   letter-spacing: 0.1em;
   text-transform: uppercase;
