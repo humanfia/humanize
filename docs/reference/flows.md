@@ -958,12 +958,13 @@ environment is in the same container.
 | `ScratchDirEnvMixin` | `async derive_scratch(id: str) -> Self`, `async destroy_scratch(id: str) -> None` |
 
 Each derived environment is on the same machine, fills the same role, and carries the same
-grant.
+grant. `GitWorktreeEnvMixin` needs `git` on the machine's `PATH`: a flow declaring it on one
+without is refused before anything runs, as for [`GitEnvMixin`](#snapshots-and-rewinding).
 
 | Method | Behaviour | Raises |
 | --- | --- | --- |
 | `derive_worktree` | `git worktree add` of the repository the workdir is in, `ref` checked out detached (default: what the workdir has checked out), at `dir` (relative to the workdir or absolute; default a fresh directory under `envs/…/worktrees/`). Not removed by humanize. | `WorktreeError`: not in a repository, unknown ref, directory taken |
-| `derive_temp_clone(id)` | A copy of the workdir (a reflink where the filesystem supports it). Same `id` from the same environment → same copy, made once. | `TempCloneBusy` if another environment holds that id |
+| `derive_temp_clone(id)` | A copy of the workdir (a reflink where the filesystem supports it). Same `id` from the same environment → same copy, made once. Needs no git, except to copy a workdir that is a linked worktree. | `TempCloneBusy` if another environment holds that id; `EnvError` if the copy fails |
 | `derive_scratch(id)` | An empty directory; same `id` → same directory. | `ScratchError` |
 | `destroy_temp_clone(id)`, `destroy_scratch(id)` | Remove now; no-op if absent. | `ScratchError` (scratch) |
 
@@ -998,8 +999,9 @@ The whole worktree is affected, whatever subdirectory the workdir is. Ignored fi
 git refuses as a ref, a snapshot taken before the first commit rewound on a detached `HEAD`,
 or any other git failure (`could not <snapshot|rewind|list the snapshots of> <workdir>: <what git said>`).
 
-A flow declaring `GitEnvMixin` for an environment whose machine has no `git` on its `PATH` is
-refused before anything runs:
+A flow declaring `GitEnvMixin` or `GitWorktreeEnvMixin` for an environment whose machine has
+no `git` on its `PATH`, or `BashEnvMixin` for one with no `bash`, is refused before anything
+runs:
 
 ```
 hmz exec: error: tries: 'repo' needs GitEnvMixin, which docker@local/srv/repo does not support: GitEnvMixin needs git on the machine's PATH, and it has none
@@ -1662,7 +1664,7 @@ FlowException
 | <code id="flowloadconflict">FlowLoadConflict</code> | `FlowRuntimeError` | importing would replace a module a running run uses |
 | <code id="requirementerror">RequirementError</code> | `FlowRuntimeError` | what was given does not meet the declaration; nothing ran. Raised directly for a role the flow does not declare, a runtime-filled role given, or an object the run did not hand out |
 | <code id="missingrole">MissingRole</code> | `RequirementError` | a required role was not given |
-| <code id="capabilitymissing">CapabilityMissing</code> | `RequirementError` | an agent or environment lacks a declared mixin (including `GitEnvMixin` on a machine without git), a `LocalEnv` given another machine, an outworlder given for a role it cannot fill |
+| <code id="capabilitymissing">CapabilityMissing</code> | `RequirementError` | an agent or environment lacks a declared mixin (including `GitEnvMixin` or `GitWorktreeEnvMixin` on a machine without git, `BashEnvMixin` on one without bash), a `LocalEnv` given another machine, an outworlder given for a role it cannot fill |
 | <code id="permissiontoonarrow">PermissionTooNarrow</code> | `RequirementError` | an agent's permission does not cover its role's |
 | <code id="resourceunmet">ResourceUnmet</code> | `RequirementError` | a machine has fewer CPUs/GPUs or less memory than declared, or a docker provider has not that much left |
 | <code id="harnessmismatch">HarnessMismatch</code> | `RequirementError` | a harness-protocol role got another harness |

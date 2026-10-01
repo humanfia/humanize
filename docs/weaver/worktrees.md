@@ -96,7 +96,8 @@ async def parts(
 
 1. **`class Workspace(LocalEnv, GitWorktreeEnvMixin)`** is the role's type. `LocalEnv` makes
    it the directory the run starts in, and `GitWorktreeEnvMixin` grants `derive_worktree`.
-   Without the mixin, the call in ② raises `CapabilityNotGranted`.
+   Without the mixin, the call in ② raises `CapabilityNotGranted`. The machine needs `git` on
+   its PATH: a run on one without is refused with `CapabilityMissing` before anything runs.
 2. **`derive_worktree(ref="main")`** checks out a new worktree of the repository, detached at
    `main`, and answers with an environment there. Leave `ref` out for whatever the workdir has
    checked out. `tree.workdir` is where it is: humanize picks a fresh directory unless you
@@ -390,7 +391,8 @@ await workspace.destroy_temp_clone("try-1")  # or let the flow end
 ```
 
 A copy of the workdir **as it is**, uncommitted changes and untracked files included, which a
-worktree is not. It needs no git.
+worktree is not. It needs no git, unless the workdir is itself a linked worktree: that copy is
+made a repository of its own with git.
 
 An id names one copy. Asking again for the same id from the same environment gives you the
 same copy. Asking for it from another environment raises `TempCloneBusy`, and that includes

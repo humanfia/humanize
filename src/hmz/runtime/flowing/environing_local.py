@@ -328,7 +328,8 @@ class LocalMachine(Machine):
     def __init__(self) -> None:
         """Initializes this machine, before anything has been looked for on it."""
         super().__init__()
-        self._git: bool | None = None
+        #: Which programs are on this process's PATH, by name, as each was first looked for.
+        self._tools: dict[str, bool] = {}
 
     def resources(self, *, gpus: bool) -> Resources:
         """What this machine has; the first ask for GPUs runs `nvidia-smi` if not probed."""
@@ -344,11 +345,15 @@ class LocalMachine(Machine):
     def placement(self, workdir: PurePosixPath) -> Placement:
         return Placement(EnvBackendKind.LOCAL, "", workdir, None)
 
-    def has_git(self) -> bool:
-        """Whether `git` is on this process's PATH, looked for the first time it is asked."""
-        found = self._git
+    def has(self, tool: str) -> bool:
+        """Whether a program is on this process's PATH, looked for the first time it is.
+
+        Args:
+          tool: The program.
+        """
+        found = self._tools.get(tool)
         if found is None:
-            found = self._git = shutil.which("git") is not None
+            found = self._tools[tool] = shutil.which(tool) is not None
         return found
 
     async def probe(self) -> None:

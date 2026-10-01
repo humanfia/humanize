@@ -524,7 +524,8 @@ machine lacks what one needs:
 
 | Mixin | Served when |
 | --- | --- |
-| `GitEnvMixin` | the machine's probe found `git` on `PATH`: this process's `PATH` for `local`, the login's for `ssh`, the image's for `docker`. Unknown before the probe counts as served. |
+| `GitEnvMixin`, `GitWorktreeEnvMixin` | the machine's probe found `git` on `PATH`: this process's `PATH` for `local`, the login's for `ssh`, the image's for `docker`. Unknown before the probe counts as served. |
+| `BashEnvMixin` | the same probe found `bash` on `PATH` |
 | `RewindableEnvMixin` | declared through `GitEnvMixin`, which implements it |
 | every other | always |
 

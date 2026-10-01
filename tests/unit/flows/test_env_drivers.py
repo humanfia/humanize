@@ -23,6 +23,7 @@ import pytest
 
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.flows import (
+    BashEnvMixin,
     EnvBackendKind,
     EnvCommandTimeout,
     EnvConnectionError,
@@ -31,6 +32,7 @@ from hmz.flows import (
     EnvPermissionDenied,
     EnvUnavailable,
     GitEnvMixin,
+    GitWorktreeEnvMixin,
     RewindError,
     ScratchError,
     TempCloneBusy,
@@ -131,7 +133,7 @@ class MemoryMachine(Machine):
         self.copies = 0
         self.failing: set[PurePosixPath] = set()
         self.let_go = 0
-        self.git: bool | None = None
+        self.tools: dict[str, bool] = {}
         self.snapshots: dict[str, dict[PurePosixPath, bytes]] = {}
 
     def resources(self, *, gpus: bool) -> Resources:
@@ -143,8 +145,8 @@ class MemoryMachine(Machine):
     def placement(self, workdir: PurePosixPath) -> Placement:
         return Placement(self.backend, self.provider, workdir, None)
 
-    def has_git(self) -> bool | None:
-        return self.git
+    def has(self, tool: str) -> bool | None:
+        return self.tools.get(tool)
 
     async def probe(self) -> None:
         return
@@ -343,13 +345,19 @@ async def test_a_ref_that_would_be_read_as_an_option_is_refused_before_git_is() 
 
 async def test_a_machine_seen_without_git_serves_no_git_env() -> None:
     driver, machine = _driver()
-    for git in (None, True):
-        machine.git = git
-        assert driver.capabilities == ENV_CAPABILITIES
-    machine.git = False
-    assert driver.capabilities == ENV_CAPABILITIES - {GitEnvMixin}
+    assert driver.capabilities == ENV_CAPABILITIES
+    machine.tools = {"git": True, "bash": True}
+    assert driver.capabilities == ENV_CAPABILITIES
+    machine.tools = {"git": False}
+    assert driver.capabilities == ENV_CAPABILITIES - {GitEnvMixin, GitWorktreeEnvMixin}
     sub = await driver.derive_subdir("sub")
     assert sub.capabilities == driver.capabilities
+
+
+async def test_a_machine_seen_without_bash_runs_no_script() -> None:
+    driver, machine = _driver()
+    machine.tools = {"git": True, "bash": False}
+    assert driver.capabilities == ENV_CAPABILITIES - {BashEnvMixin}
 
 
 async def test_a_snapshot_is_named_for_when_it_was_taken_unless_it_is_named() -> None:
@@ -780,17 +788,19 @@ def test_what_a_host_says_about_itself_is_read() -> None:
         facts_of("cpus=4\n")
 
 
-def test_a_host_says_whether_it_has_git() -> None:
+def test_a_host_says_whether_it_has_git_and_bash() -> None:
     said = "home=/home/me\n"
-    assert facts_of(said + "git=1\n").git is True
-    assert facts_of(said + "git=0\n").git is False
-    assert facts_of(said).git is None
+    assert facts_of(said + "git=1\nbash=0\n").tools == {"git": True, "bash": False}
+    assert facts_of(said + "git=0\n").tools == {"git": False}
+    assert facts_of(said + "git=maybe\n").tools == {}
+    assert facts_of(said).tools == {}
 
 
 def test_the_probe_asks_for_everything_facts_are_read_from() -> None:
     keys = ("home=", "state=", "cpus=", "memkb=", "memory=", "cuda=", "gpu=")
-    for key in (*keys, "git="):
+    for key in keys:
         assert key in PROBE_SCRIPT, key
+    assert "for tool in bash git; do" in PROBE_SCRIPT
 
 
 # ---------------------------------------------------------------------------------- ssh
