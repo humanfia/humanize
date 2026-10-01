@@ -57,7 +57,9 @@
 .hmz-flow .o-budget { --hue: var(--flow-budget); }
 .hmz-flow .o-you { --hue: var(--flow-you); }
 
-/* Text is drawn under the camera's transforms, scaled and skewed; geometric precision keeps its
+/* No word is set smaller than `WORDS` in grammar.ts, 11.5px, so that at a zoom of 1 every word
+   is drawn at 11px or more; a camera that draws them smaller fades them out (`legible`).
+   Text is drawn under the camera's transforms, scaled and skewed; geometric precision keeps its
    letters where they belong at any scale, rather than snapped to a pixel grid one by one. */
 .hmz-flow text {
   font-family: var(--vp-font-family-base);
@@ -105,7 +107,7 @@
 
 .hmz-flow .f-plate .name {
   fill: var(--flow-ink-3);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.03em;
 }
@@ -147,9 +149,17 @@
   font-weight: 700;
 }
 
+/* small, over its lane: a halo of the panel's colour keeps the name clear of what it crosses */
+.hmz-flow .f-head.compact .name {
+  paint-order: stroke;
+  stroke: var(--hmz-panel-bg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
 .hmz-flow .f-head .note {
   fill: var(--flow-ink-3);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 /* a held session */
@@ -225,7 +235,7 @@
 
 .hmz-flow .f-turn .calls {
   fill: var(--hue);
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 600;
 }
 
@@ -284,7 +294,7 @@
 .hmz-flow .f-wire .said text,
 .hmz-flow .f-loop .said text {
   fill: var(--flow-ink);
-  font-size: 10.5px;
+  font-size: 11.5px;
   text-anchor: middle;
 }
 
@@ -368,7 +378,7 @@
 
 .hmz-flow .f-gate .end .said {
   fill: var(--flow-ink-2);
-  font-size: 11px;
+  font-size: 11.5px;
 }
 
 .hmz-flow .f-gate .end.lit .chip {
@@ -404,7 +414,7 @@
 
 .hmz-flow .f-meter .read {
   fill: var(--flow-ink-3);
-  font-size: 10px;
+  font-size: 11.5px;
   text-anchor: end;
 }
 
@@ -425,6 +435,6 @@
 
 .hmz-flow .f-kid .name {
   fill: var(--flow-ink-2);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
 }

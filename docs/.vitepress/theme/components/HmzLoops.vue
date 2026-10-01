@@ -183,23 +183,25 @@ const G = computed(() => {
     const y = laneYs[e.lane] + BLOCK_H / 2
     return `M${blocks[j].x + blocks[j].w} ${y} L${blocks[i].x} ${y}`
   })
-  // The act where another flow calls this one: the world shrinks into the caller's frame.
-  const s = n ? 0.74 : 0.78
+  // The act where another flow calls this one: the world shrinks into the caller's frame. On
+  // a phone it stays its size, so its words stay readable, and the caller holds its agents
+  // under it, over the loop faded back.
+  const s = n ? 1 : 0.78
   const o: Pt = n ? { x: 344, y: 392 } : { x: 628, y: 350 }
   const map = (p: Pt): Pt => ({ x: o.x + s * (p.x - o.x), y: o.y + s * (p.y - o.y) })
   const held = [...l.roles.map((r) => r.name), 'planner']
   const chipW = n ? (328 - (held.length - 1) * 8) / held.length : 112
   const caller: Rect[] = held.map((_, i) =>
-    n ? { x: 16 + i * (chipW + 8), y: 74, w: chipW, h: 28 } : { x: 22, y: 150 + i * 50, w: chipW, h: 28 },
+    n ? { x: 16 + i * (chipW + 8), y: 330, w: chipW, h: 28 } : { x: 22, y: 150 + i * 50, w: chipW, h: 28 },
   )
   const calls = held.map((_, i) => {
     const c = caller[i]
     const declared = i < l.roles.length
     const t = declared ? sockets[i] : null
     if (n) {
-      const from = { x: c.x + c.w / 2, y: c.y + c.h }
-      const to = t ? map({ x: t.x + t.w / 2, y: t.y }) : map({ x: c.x + c.w / 2 > 330 ? 320 : c.x + c.w / 2, y: card.y })
-      return { from, to, d: `M${from.x} ${from.y} C${from.x} ${from.y + 30} ${to.x} ${to.y - 30} ${to.x} ${to.y}` }
+      const from = { x: c.x + c.w / 2, y: c.y }
+      const to = t ? map({ x: t.x + t.w / 2, y: t.y + t.h }) : map({ x: Math.min(c.x + c.w / 2, 320), y: card.y + card.h })
+      return { from, to, d: `M${from.x} ${from.y} C${from.x} ${from.y - 60} ${to.x} ${to.y + 60} ${to.x} ${to.y}` }
     }
     const from = { x: c.x + c.w, y: c.y + c.h / 2 }
     const to = t ? map({ x: t.x, y: t.y + t.h / 2 }) : map({ x: card.x, y: card.y + card.h - 30 })
@@ -338,7 +340,7 @@ const scene = useScene({
         const at = { x: c.x, y: b.y - 16 }
         tl.fromTo(f, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 }, t + 0.45)
         tl.fromTo(f.querySelector('.lp-field-in')!, { scale: 0.4, transformOrigin: '50% 50%' }, { scale: 1, duration: 0.4, ease: 'back.out(2)' }, t + 0.45)
-        tl.to(f.querySelector('.lp-field-in')!, { x: next.x - at.x, y: next.y - at.y, scale: 0.8, duration: 0.5, ease: 'cine' }, t + 0.95)
+        tl.to(f.querySelector('.lp-field-in')!, { x: next.x - at.x, y: next.y - at.y, duration: 0.5, ease: 'cine' }, t + 0.95)
         tl.to(f, { autoAlpha: 0, duration: 0.2 }, t + 1.35)
       }
     })
@@ -353,7 +355,7 @@ const scene = useScene({
     tl.to(one('.lp-shrink'), { scale: g.s, duration: 1.5, ease: 'cine' }, T3)
     tl.to(q('.lp-cli'), { autoAlpha: 0, duration: 0.4 }, T3 + 0.2)
     tl.to(q('.lp-slot-on'), { autoAlpha: 0, duration: 0.4 }, T3 + 0.2)
-    tl.to(q('.lp-loop'), { opacity: 0.3, duration: 1.2 }, T3 + 0.3)
+    tl.to(q('.lp-loop'), { opacity: g.n ? 0.1 : 0.3, duration: 1.2 }, T3 + 0.3)
     tl.to(q('.lp-caller'), { autoAlpha: 1, duration: 0.2 }, T3 + 0.6)
     tl.fromTo(one('.lp-frame'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.2, ease: 'cine' }, T3 + 0.6)
     tl.fromTo(q('.lp-held'), { autoAlpha: 0, scale: 0.6, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.5, stagger: 0.15, ease: 'back.out(2)' }, T3 + 1)
@@ -422,7 +424,7 @@ const scene = useScene({
           <!-- The caller, drawn behind the world it will hold. -->
           <g class="lp-caller">
             <rect class="lp-frame" :x="G.frame.x" :y="G.frame.y" :width="G.frame.w" :height="G.frame.h" rx="16" />
-            <text class="lp-caller-name" :x="G.frame.x + 16" :y="G.frame.y + 26">your flow</text>
+            <text class="lp-caller-name" :x="G.frame.x + 16" :y="G.n ? G.frame.y + G.frame.h - 10 : G.frame.y + 26">your flow</text>
             <text v-if="!G.n" class="lp-cap" :x="G.caller[0].x" :y="G.caller[0].y - 12">holds</text>
             <path v-for="(c, i) in G.calls" :key="`c${i}`" class="lp-call" :d="c.d" :style="{ stroke: i < loop.roles.length ? `var(--hmz-lane-${i + 1})` : 'var(--hmz-lane-5)' }" />
             <g v-for="(c, i) in G.caller" :key="`h${i}`" :class="{ 'lp-planner': i === G.held.length - 1 }">
@@ -584,12 +586,12 @@ svg {
 
 .lp-py {
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 13.5px;
   fill: var(--hmz-accent);
 }
 
 .lp-cap {
-  font-size: 11px;
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
   fill: var(--hmz-stage-dim);
@@ -609,7 +611,7 @@ svg {
 
 .lp-cli-name {
   font-family: var(--vp-font-family-mono);
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   fill: #fff;
 }

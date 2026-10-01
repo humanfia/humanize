@@ -19,11 +19,9 @@ the target, and which leave it alone.
 from __future__ import annotations
 
 import errno
-import json
 import os
 import subprocess
 import uuid
-from dataclasses import fields
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -41,6 +39,7 @@ from hmz.coganchor.linux.syscalls import NR
 from hmz.coganchor.proto import spelled_twice
 from hmz.runtime.flowing.environing_docker import TRACING
 from tests.machines.fixtures import IMAGE
+from tests.system.coganchor.probing import NUMBERS, PROBE, check, seed
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -49,58 +48,8 @@ if TYPE_CHECKING:
 
 pytestmark = [traced, pytest.mark.timeout(240)]
 
-PROBE = (Path(__file__).parent / "_spellings_probe.py").read_text()
-
-#: This machine's number for every call the probe makes, by the name it is printed under.
-NUMBERS = json.dumps(
-    {field.name.lower(): getattr(NR, field.name) for field in fields(NR)}
-)
-
-#: Every call this architecture has that the probe makes, each of which has to come back `ok`.
-CALLS = sorted(
-    name
-    for name in (
-        "stat", "lstat", "newfstatat", "statx", "access", "faccessat", "faccessat2",
-        "statfs", "getxattr", "lgetxattr", "listxattr", "llistxattr", "setxattr",
-        "lsetxattr", "removexattr", "lremovexattr", "name_to_handle_at", "open_tree",
-        "chown", "lchown", "fchownat", "chmod", "fchmodat", "fchmodat2", "utime", "utimes",
-        "futimesat", "utimensat", "mknod", "mknodat", "readlink", "readlinkat",
-        "inotify_add_watch", "chdir",
-    )
-    if name == "chdir" or getattr(NR, name.upper()) >= 0
-)  # fmt: skip
-
 #: What a container is labelled with, so a run killed outright leaves something to sweep up.
 LABEL = "humanize-spellings"
-
-
-def _seed(directory: Path) -> None:
-    """What the target holds: a file, a link to it, and a program for each machine to run."""
-    (directory / "seed.txt").write_text("seeded\n")
-    (directory / "link").symlink_to("seed.txt")
-    here = directory / "tool.sh"
-    # Builtins only, and a redirect, which the shell opens itself: a program run here that
-    # started another would have that one run on the target.
-    here.write_text("#!/bin/sh\nread name < /etc/hostname\necho TOOL-RAN-ON-$name\n")
-    there = directory / "remote.sh"
-    there.write_text("#!/bin/sh\necho REMOTE-RAN-ON-$(cat /etc/hostname)\n")
-    here.chmod(0o755)
-    there.chmod(0o755)
-
-
-def _said(output: str) -> dict[str, str]:
-    """The probe's lines, by the call each one is about."""
-    return dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
-
-
-def _check(said: dict[str, str], output: str, here: str, there: str) -> None:
-    """Every call reached the file, and each program ran on the machine it belongs to."""
-    assert {name: said.get(name) for name in CALLS} == dict.fromkeys(CALLS, "ok"), (
-        output
-    )
-    assert said.get("fanotify_mark", "").startswith(("ok", "unavailable")), output
-    assert said.get("execve-here") == f"TOOL-RAN-ON-{here}", output
-    assert said.get("execve-there") == f"REMOTE-RAN-ON-{there}", output
 
 
 def test_a_mirror_named_the_way_a_mac_names_it_is_reached_by_every_call(
@@ -109,7 +58,7 @@ def test_a_mirror_named_the_way_a_mac_names_it_is_reached_by_every_call(
     """`/private/tmp/...` for a mirror at `/tmp/...`, which a Mac target hands its agent."""
     if not spelled_twice(str(anchorage.mirror)):
         pytest.skip(f"{anchorage.mirror} is not where a Mac has a second name for")
-    _seed(anchorage.target)
+    seed(anchorage.target)
     hostname = Path("/etc/hostname").read_text().strip()
 
     result = anchorage.run(
@@ -122,7 +71,32 @@ def test_a_mirror_named_the_way_a_mac_names_it_is_reached_by_every_call(
     )
 
     assert result.returncode == 0, result.stderr
-    _check(_said(result.stdout), result.stdout, hostname, hostname)
+    check(result.stdout, hostname, hostname)
+
+
+def test_a_redirected_directory_is_answered_by_every_call_under_an_anchor(
+    anchorage: Anchorage, tmp_path: Path
+) -> None:
+    """A provider's credentials under an anchor: every call answers the redirected file."""
+    named = tmp_path / "home" / ".claude"
+    instead = tmp_path / "provider" / "home"
+    instead.mkdir(parents=True)
+    seed(instead)
+
+    result = anchorage.run(
+        "python3",
+        "-c",
+        PROBE,
+        str(named),
+        NUMBERS,
+        "--no-programs",
+        redirects=((str(named), str(instead)),),
+    )
+
+    assert result.returncode == 0, result.stderr
+    check(result.stdout)
+    assert (instead / "watched.txt").read_text() == "seen\n"
+    assert not named.exists()
 
 
 def _docker(*argv: str) -> str:
@@ -175,7 +149,7 @@ def test_a_workspace_named_by_its_own_path_is_reached_by_every_call_under_a_harn
     """`-H standalone`: the harness in a container that has no such directory at all."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    _seed(workspace)
+    seed(workspace)
     harness = _machine(containers, given=TRACING)
     work = _machine(containers, str(workspace))
 
@@ -191,7 +165,7 @@ def test_a_workspace_named_by_its_own_path_is_reached_by_every_call_under_a_harn
 
     output = capfd.readouterr().out
     assert status == 0, output
-    _check(_said(output), output, harness, work)
+    check(output, harness, work)
     # And what the agent made through the workspace's own path is in the workspace.
     assert (workspace / "watched.txt").read_text() == "seen\n"
 

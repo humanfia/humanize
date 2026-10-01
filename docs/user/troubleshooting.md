@@ -68,7 +68,7 @@ want the agents to work in.
 
 **Verify.** The line runs without it.
 
-### `-a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>:<effort>`
+### `-a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>[:<effort>]`
 
 **Symptom.** `hmz exec` prints its usage, then this.
 
@@ -78,14 +78,15 @@ want the agents to work in.
 
 **Verify.** The usage line is gone.
 
-### `-a 'agent=claude:high': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT`
+### `-a 'agent=claude:high': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`
 
 **Symptom.** `hmz exec` prints its usage, then this.
 
-**Cause.** A part is missing, or the CLI is not one humanize knows. The CLI, the model and the
-effort are all required.
+**Cause.** A part is missing, or the CLI is not one humanize knows. The CLI and the model are
+required; the effort may be left off, which asks for none.
 
-**Fix.** Write all three. `auto` is the effort that asks for none:
+**Fix.** Write the CLI, a `/` and the model, and the effort after a `:` if you want one. `auto`
+is the effort that asks for none:
 
 ```sh
 -a agent=claude/claude-opus-5:high

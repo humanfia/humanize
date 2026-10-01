@@ -30,7 +30,7 @@ jobs:
   build:
     name: build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -65,6 +65,18 @@ jobs:
       - name: Every #fragment resolves
         working-directory: docs
         run: pnpm check:anchors
+
+      # A diagram's words are drawn at whatever size its camera and its viewBox leave them, and
+      # the build cannot see one shrink to a smudge on a phone. This plays every scene on the
+      # Flows and Features pages through, at phone and tablet widths, moving and held still,
+      # and fails on a word drawn under 11px or a page that scrolls sideways.
+      - name: Install Chromium
+        working-directory: docs
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Every word can be read on a phone
+        working-directory: docs
+        run: pnpm check:legible
 
       - uses: actions/upload-pages-artifact@v5
         with:

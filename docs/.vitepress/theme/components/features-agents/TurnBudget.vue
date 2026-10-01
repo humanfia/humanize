@@ -9,6 +9,7 @@
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
+import { rig } from '../../motion/camera'
 import { count, createFx, type Fx } from '../../motion/fx'
 import { motion } from '../../motion/gsap'
 import { useNarrow } from '../../motion/layout'
@@ -116,14 +117,10 @@ const scene = useScene({
     const one = (i: number, sel: string) => lane[i].querySelectorAll(sel)
 
     // The camera: a point of the world brought to the middle of the screen at a scale.
-    const shot = (cx: number, cy: number, s: number) => ({ x: l.w / 2 - cx * s, y: l.h / 2 - cy * s, scale: s })
-    const screen = (x: number, y: number) => {
-      const s = Number(gsap.getProperty(world, 'scale'))
-      return { x: x * s + Number(gsap.getProperty(world, 'x')), y: y * s + Number(gsap.getProperty(world, 'y')) }
-    }
+    const cam = rig(tl, { w: l.w, h: l.h, world, fx: () => fx, start: { s: 1.12 } })
     const look = (i: number, at: number, s = l.focus) => {
       const y = l.lanes[i] + (narrow.value ? -14 : 0)
-      tl.to(world, { ...shot(l.w / 2, y, s), duration: 1.3, ease: 'cine' }, at)
+      cam.shot({ x: l.w / 2, y, s }, at, 1.3)
       lane.forEach((el, k) => tl.to(el, { opacity: k === i ? 1 : 0.28, duration: 0.8, ease: 'power1.inOut' }, at))
     }
 
@@ -140,7 +137,7 @@ const scene = useScene({
           duration: (to - from) * D,
           ease,
           onUpdate() {
-            const p = screen(l.x0 + Number(gsap.getProperty(el, 'x')), l.lanes[i] + 13)
+            const p = cam.view({ x: l.x0 + Number(gsap.getProperty(el, 'x')), y: l.lanes[i] + 13 })
             fx?.trail(p.x, p.y + (Math.random() - 0.5) * 4, palette.lane[0], 1.8)
           },
         },
@@ -152,16 +149,8 @@ const scene = useScene({
       tl.fromTo(block, { scaleY: 0 }, { scaleY: 1, duration: 0.35, ease: 'back.out(2.4)' }, at)
       sparkAt(px(REQUESTS[k].at - 0.05), l.lanes[i] - 12, () => palette.lane[0], 6, at + 0.05, 50)
     }
-    function sparkAt(x: number, y: number, color: () => string, n: number, at: number, speed = 80) {
-      tl.call(
-        () => {
-          const p = screen(x, y)
-          fx?.spark(p.x, p.y, color(), n, speed)
-        },
-        [],
-        at,
-      )
-    }
+    const sparkAt = (x: number, y: number, color: () => string, n: number, at: number, speed = 80) =>
+      cam.flare({ x, y }, color, at, n, speed)
     const meter = (i: number, spent: number, at: number, duration = 0.4) => {
       tl.to(one(i, '.fill'), { scaleX: Math.min(spent, LIMIT) / TOTAL, duration, }, at)
       tl.to(one(i, '.over'), { scaleX: Math.max(0, spent - LIMIT) / (TOTAL - LIMIT), duration }, at + (spent > LIMIT ? duration * 0.5 : 0))
@@ -184,7 +173,7 @@ const scene = useScene({
     }
 
     // Everything back where a loop starts.
-    tl.set(world, { svgOrigin: '0 0', ...shot(l.w / 2, l.h / 2, 1.12), autoAlpha: 1 }, 0)
+    tl.set(world, { autoAlpha: 1 }, 0)
     // Origins first and on their own, so that GSAP has nothing to compensate for.
     tl.set(q('.block'), { transformOrigin: '50% 100%', smoothOrigin: false }, 0)
     tl.set(q('.fill, .over'), { transformOrigin: '0% 50%', smoothOrigin: false }, 0)
@@ -203,7 +192,7 @@ const scene = useScene({
 
     // 0 · the budget: three lanes drawn in, the camera settling, then onto the first.
     tl.addLabel('beat-0', 0)
-    tl.to(world, { ...shot(l.w / 2, l.h / 2, 1), duration: 2, ease: 'cine' }, 0)
+    cam.shot({ x: l.w / 2, y: l.h / 2, s: 1 }, 0, 2)
     tl.fromTo(q('.slot-track, .meter-track'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1, stagger: 0.08, ease: 'cine' }, 0.1)
     tl.fromTo(q('.limit'), { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: 0.5, stagger: 0.15, ease: 'back.out(3)' }, 0.8)
     tl.fromTo(q('.words'), { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.6, stagger: 0.12 }, 0.4)
@@ -289,7 +278,7 @@ const scene = useScene({
     result(0, 'answer', E5 + 0.1)
 
     // Pull back on all three, hold, and fade for the loop.
-    tl.to(world, { ...shot(l.w / 2, l.h / 2, 1), duration: 1.4, ease: 'cine' }, E5 + 0.8)
+    cam.shot({ x: l.w / 2, y: l.h / 2, s: 1 }, E5 + 0.8, 1.4)
     tl.to(lane, { opacity: 1, duration: 0.8 }, E5 + 0.8)
     tl.addLabel('rest', E5 + 2.3)
     tl.to(world, { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, E5 + 4.6)

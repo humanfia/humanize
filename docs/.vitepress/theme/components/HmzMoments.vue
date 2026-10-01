@@ -138,7 +138,7 @@ function tall(): Layout {
     glyph: (i) => `translate(${st[i].x + 30} ${st[i].y}) rotate(90)`,
     hangFrom: { x: 50, y: 0 },
     act: (i) => ({ x: 80, y: st[i].y + 24 }),
-    ask: (i) => ({ x: 80, y: st[i].y + 50 }),
+    ask: (i) => ({ x: 80, y: st[i].y + 29 }),
     loop: (i) => `M${st[i].x} ${st[i].y} C${st[i].x + 80} ${st[i].y - 40} ${st[i].x + 80} ${st[i].y + 40} ${st[i].x} ${st[i].y}`,
     back: `M${st[6].x} ${st[6].y} C${st[6].x + 190} ${st[6].y} ${st[2].x + 190} ${st[2].y} ${st[2].x} ${st[2].y}`,
     focus: (i) => ({ cx: 180, cy: clamp(st[i].y, 256, 300), s }),
@@ -403,8 +403,8 @@ watch(cliName, () => void nextTick(() => scene.rebuild()))
             <text y="4" text-anchor="middle">may it run?</text>
           </g></g>
           <g class="tool">
-            <rect class="tool-box" x="-48" y="-12" width="96" height="24" rx="6" />
-            <rect class="tool-fill" x="-48" y="-12" width="96" height="24" rx="6" />
+            <rect class="tool-box" x="-54" y="-12" width="108" height="24" rx="6" />
+            <rect class="tool-fill" x="-54" y="-12" width="108" height="24" rx="6" />
             <text y="4" text-anchor="middle">delete build/</text>
             <line class="tool-x" x1="-9" y1="-9" x2="9" y2="9" />
             <line class="tool-x" x1="9" y1="-9" x2="-9" y2="9" />
@@ -649,7 +649,7 @@ svg {
 
 .pick span {
   font-family: var(--vp-font-family-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--hmz-stage-dim);

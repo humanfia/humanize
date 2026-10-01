@@ -370,7 +370,6 @@ def test_an_agent_that_cannot_be_what_its_role_asks_is_refused_before_the_run(
 @pytest.mark.parametrize(
     "spec",
     [
-        "builder=claude/claude-opus-4-8",
         "builder=claude",
         "builder=gemini/g:high",
         "builder=/m:high",
@@ -380,7 +379,7 @@ def test_an_agent_that_cannot_be_what_its_role_asks_is_refused_before_the_run(
         "builder=claude/m:high,builder=claude/m:low",
     ],
 )
-def test_an_agent_that_is_not_a_role_a_cli_a_model_and_an_effort_is_a_usage_error(
+def test_an_agent_that_is_not_a_role_a_cli_and_a_model_is_a_usage_error(
     tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str], spec: str
 ) -> None:
     error = _refused(capsys, "-f", _flow(tmp_path), "-a", spec, *BUDGET, "task")
@@ -389,24 +388,30 @@ def test_an_agent_that_is_not_a_role_a_cli_a_model_and_an_effort_is_a_usage_erro
     assert not (tmp_path / "flows" / "record" / "seen.json").exists()
 
 
-@pytest.mark.parametrize("effort", ["auto", ""])
+@pytest.mark.parametrize(
+    ("model", "effort"),
+    [("m", ":auto"), ("m", ":"), ("m", ""), ("custom_provider:gateway/m", "")],
+)
 def test_an_agent_at_no_effort_is_named_with_auto_and_runs(
-    tmp_path: Path, here: Path, effort: str
+    tmp_path: Path, here: Path, model: str, effort: str
 ) -> None:
-    """`auto` is the word for the CLI's own default, and a spec without one says the same."""
+    """`auto` is the word for the CLI's own default, and a spec without one says the same.
+
+    So does one with no effort at all, and a `:` the model holds of its own stays the model's.
+    """
     main(
         [
             "exec",
             "-f",
             _flow(tmp_path),
             "-a",
-            f"builder=claude/m:{effort}",
+            f"builder=claude/{model}{effort}",
             *BUDGET,
             "task",
         ]
     )
 
-    assert _seen(tmp_path)["agents"]["builder"] == ["claude", "", "m", ""]
+    assert _seen(tmp_path)["agents"]["builder"] == ["claude", "", model, ""]
 
 
 def test_a_flow_that_is_not_there_is_a_usage_error(

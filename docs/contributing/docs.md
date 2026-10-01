@@ -25,7 +25,13 @@ Before you push, run what CI runs:
 ```sh
 pnpm build           # fails on a dead internal link
 pnpm check:anchors   # fails on a dead #fragment
+pnpm check:legible   # fails on a diagram's word drawn under 11px on a phone
 ```
+
+`check:legible` plays every scene on the Flows and Features pages, and on any other page, through in Chromium, at phone and tablet
+widths, moving and held still, and measures every word it draws. The first run wants the
+browser: `pnpm exec playwright install chromium`. `--page flows/rlar --width 390` looks at one
+page, and `--overlap` also lists words drawn over each other, for you to look at.
 
 ## Where a page goes
 
@@ -186,7 +192,12 @@ Add a Vue component only where a control settles a real question, not as decorat
   looking at. Stop animating while scrolled offscreen. Nothing is said only by a moving thing.
 - **Light and dark.** Take colours from the `--vp-c-*` and `--hmz-*` variables. `.hmz-panel`
   is the shell every diagram sits in.
-- **390px wide.** It works on a phone, with no horizontal scroll.
+- **390px wide.** It works on a phone, with no horizontal scroll, and no word on it is drawn
+  smaller than 11px: a font size times every scale between it and the screen, the viewBox and
+  the camera too. On a phone a scene runs the full width of the screen, past the page's gutters,
+  and is drawn for 360px; on a narrower one `HmzStage` lifts its small words back to the size
+  they have at 360, so leave a word some room in its box. `pnpm check:legible` measures it, down
+  to 320px.
 - **Honest.** A simulated run says it is simulated, and the demos under `/demo/` are the real
   terminal. A drawing says what it is drawn from and matches it: the layer diagram on
   [Architecture](/contributing/architecture) copies the table in
@@ -196,9 +207,9 @@ Add a Vue component only where a control settles a real question, not as decorat
   `HmzStage`. The toolkit starts a scene when it is scrolled into view, pauses it off screen,
   holds it at its `still` frame under reduced motion, and turns the timeline's `beat-0`,
   `beat-1`… labels into the chapters under the picture: one short line each, so the words are
-  always on the page. Put sparks and light trails on the canvas from `fx.ts`, keep a second
-  layout for phone width with `useNarrow`, and take GSAP from `motion()` rather than importing
-  it bare. A screen that holds links or controls sets `interactive`, so it is a group rather
+  always on the page. Move the world with the camera from `camera.ts`, put sparks and light
+  trails on the canvas from `fx.ts`, keep a second layout for phone width with `useNarrow`,
+  and take GSAP from `motion()` rather than importing it bare. A screen that holds links or controls sets `interactive`, so it is a group rather
   than a picture to a screen reader. Never tween the `x`, `y` or `scale` of an SVG element
   placed by a `transform` attribute: GSAP replaces the attribute. Place it with an outer `<g>`,
   and move an inner one.
@@ -226,6 +237,10 @@ read off the flow's own code) and nothing else:
   camera and motion are worked out from it by `stage.ts`, the same way for every flow.
 - **Every flow has its own page and scene**, and its card, its sidebar entry and its category
   come from the same entry in `FLOWS`. A flow belongs to one kind in `KINDS`.
+- **Every word can be read.** No word in the grammar is set smaller than 11.5px, the camera
+  closes in no further out than a zoom of 1, and a word it would draw under 11px fades out, so
+  a wide shot on a phone is the marks alone. Where the whole run at rest does not fit the
+  screen at that size, it is drawn full size in a frame that scrolls, under a map of the run.
 - **The run is a function of time.** Whatever moves is computed from the playhead, so the
   scrubber, the step buttons and reduced motion show the same frames the animation does.
 

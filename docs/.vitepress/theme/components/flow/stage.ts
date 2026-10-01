@@ -191,7 +191,7 @@ export function lay(scene: Scene): Layout {
   const lastT = Math.max(...turns.map((g) => g.t1))
   const cols = Math.max(...scene.turns.map((t) => t.at + (t.span ?? 1)))
   const gateX = X(cols) + 30
-  const gateW = Math.max(...scene.ends.map((end) => end.said.length * 6.1 + 34)) + 22
+  const gateW = Math.max(...scene.ends.map((end) => end.said.length * 6.4 + 34)) + 22
 
   const split = scene.split && byId.get(scene.split.at)
   // A pass leaves as its turn ends and lands as the next one starts; a long gap is crossed in
@@ -307,6 +307,9 @@ export interface View {
   h: number
 }
 
+/** A screen too narrow for a lane's head beside the turn the camera is close on. */
+export const narrowView = (view: View) => view.w < 520
+
 const DIST = 1200
 const RAD = Math.PI / 180
 
@@ -389,7 +392,8 @@ export interface Key {
 export function direct(lay: Layout, view: View): Key[] {
   const flat = wide(lay, view, 0, 0, 0)
   const fanned = wide(lay, view, 1, 36, -16, 0.96)
-  const close = clamp(Math.max(flat.zoom * 1.3, Math.min(1, view.w / (2.4 * lay.beat))), flat.zoom, 1.15)
+  // Close enough that every word can be read (see `legible`), on any screen.
+  const close = Math.max(flat.zoom, Math.min(1.15, Math.max(flat.zoom * 1.3, 1)))
 
   const aim = (cam: Cam): Cam => {
     // Never show more than a little past the edges of the scene.
@@ -416,15 +420,21 @@ export function direct(lay: Layout, view: View): Key[] {
       const hi = Math.max(...set.map((g) => g.x1))
       cam = { ...fanned, x: lerp(fanned.x, (lo + hi) / 2, 0.35) }
     } else {
-      // Close on the turns starting, and keep in frame the lanes that just handed them work.
+      // Close on the turns starting, and keep in frame the lanes that just handed them work --
+      // unless that would take the camera too far out to read them, on a small screen, when
+      // it keeps to the turns starting alone.
       const from = lay.passes.filter((p) => p.to && set.includes(p.to)).map((p) => p.from)
-      const ys = [...set, ...from].map((g) => g.lane.y)
-      const lo = Math.min(...ys)
-      const hi = Math.max(...ys)
+      const span = (gs: TurnG[]) => {
+        const ys = gs.map((g) => g.lane.y)
+        return { lo: Math.min(...ys), hi: Math.max(...ys) }
+      }
+      const fit = (r: { lo: number; hi: number }) => (view.h * 0.9) / (r.hi - r.lo + SIZE.lane + 50)
+      const both = span([...set, ...from])
+      const { lo, hi } = fit(both) >= 1 ? both : span(set)
       const x = set.reduce((sum, g) => sum + (g.x0 + g.x1) / 2, 0) / set.length
-      const zoom = Math.max(flat.zoom, Math.min(close, (view.h * 0.9) / (hi - lo + SIZE.lane + 50)))
+      const zoom = Math.max(flat.zoom, Math.min(close, fit({ lo, hi })))
       // Centred in what the lane heads, kept at the left edge, leave free.
-      cam = aim({ ...flat, x: x - Math.min(150, view.w * 0.3) / (2 * zoom), y: (lo + hi) / 2, zoom })
+      cam = aim({ ...flat, x: x - (narrowView(view) ? 0 : Math.min(150, view.w * 0.3) / (2 * zoom)), y: (lo + hi) / 2, zoom })
     }
     shots.push({ at: t0 + 0.08, move: 0.48, cam })
   }
@@ -457,7 +467,7 @@ export function direct(lay: Layout, view: View): Key[] {
       ...flat,
       x: lay.gateX + lay.gateW / 2,
       y: lay.lanesTop + (lay.scene.ends.length * 26 + 44) / 2,
-      zoom: clamp(Math.max(flat.zoom * 1.5, close * 0.9), flat.zoom, 1.1),
+      zoom: clamp(Math.max(flat.zoom * 1.5, close), flat.zoom, 1.1),
     }),
   })
   shots.push({ at: lay.end, move: 0.8, cam: { ...flat, zoom: flat.zoom * 0.96 } })

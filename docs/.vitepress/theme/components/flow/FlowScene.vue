@@ -12,7 +12,7 @@ import FlowMeter from './FlowMeter.vue'
 import FlowPlate from './FlowPlate.vue'
 import FlowTurn from './FlowTurn.vue'
 import FlowWire, { type Dot } from './FlowWire.vue'
-import { doesOf, SIZE } from './grammar'
+import { doesOf, legible, SIZE } from './grammar'
 import {
   cubic,
   type Cam,
@@ -20,6 +20,7 @@ import {
   type LaneG,
   type Layout,
   matrix,
+  narrowView,
   type P3,
   place,
   project,
@@ -53,6 +54,8 @@ const shade = `flow-shade-${useId()}`
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
 const lerp = (a: number, b: number, u: number) => a + (b - a) * u
 const f = (n: number) => n.toFixed(1)
+/** How much of the words placed by a matrix to show: by how tall it draws a unit. */
+const wordsAt = (k: number[]) => legible(Math.hypot(k[2], k[3]))
 
 /** Motes far behind the scene, which the camera's moves set drifting at their own speed: the
  *  parallax that says the picture has depth. The same scatter every time. */
@@ -114,10 +117,10 @@ const frame = computed(() => {
     key: string
     z: number
     fog: number
-    plates: { key: string; points: string; m: string; name: string; lit: boolean }[]
+    plates: { key: string; points: string; m: string; name: string; lit: boolean; words: number }[]
     rails: { key: string; d: string }[]
     threads: { key: string; d: string; w: number; kind: RoleKind; on: boolean }[]
-    turns: { key: string; m: string; w: number; kind: RoleKind; g: TurnG; state: State; progress: number; ignite: number }[]
+    turns: { key: string; m: string; w: number; kind: RoleKind; g: TurnG; state: State; progress: number; ignite: number; words: number }[]
     playhead: string
   }
   const layers = new Map<number, Layer>()
@@ -155,18 +158,32 @@ const frame = computed(() => {
       [x1, y1],
       [x0, y1],
     ].map(([x, y]) => P([x, y, layer.z]))
+    const tab = M([x0, y0, layer.z])
     layer.plates.push({
       key: plate.env.id,
       points: pts.map((p) => `${f(p.x)},${f(p.y)}`).join(' '),
-      m: M([x0, y0, layer.z]).m,
+      m: tab.m,
+      words: wordsAt(tab.k),
       name: plate.env.name,
       lit: play && lay.lanes.some((l) => l.role.env === plate.env.id && running.has(l.role.id)),
     })
   }
 
   /* The lane heads go on top of everything, and while the camera is close on a flat scene they
-     keep to the left edge of the frame, over a shade, so a lane is never without its name. */
-  const heads: { key: string; m: string; kind: RoleKind; name: string; note: string; glow: number; fog: number }[] = []
+     keep to the left edge of the frame, over a shade, so a lane is never without its name. On a
+     narrow screen, where a head beside its lane would leave no room for the turn, a moving
+     picture draws each head small, over the left end of its lane. */
+  const tight = play && !bare && narrowView(view)
+  const heads: {
+    key: string
+    m: string
+    kind: RoleKind
+    name: string
+    note: string
+    glow: number
+    fog: number
+    words: number
+  }[] = []
   let pushed = 0
   let shadeW = 0
   for (const lane of lay.lanes) {
@@ -178,12 +195,12 @@ const frame = computed(() => {
     layer.rails.push({ key: lane.role.id, d: `M ${f(a.x)} ${f(a.y)} L ${f(b.x)} ${f(b.y)}` })
     const { k } = M([SIZE.head, y, z])
     if (play && !bare && fan < 0.02) {
-      const edge = 20 * k[0] + 6
+      const edge = (tight ? 8 : 20) * k[0] + 6
       if (k[4] < edge) {
         pushed = Math.max(pushed, edge - k[4])
         k[4] = edge
       }
-      shadeW = Math.max(shadeW, k[4] + 150 * k[0])
+      if (!tight) shadeW = Math.max(shadeW, k[4] + 150 * k[0])
     }
     heads.push({
       key: lane.role.id,
@@ -193,6 +210,7 @@ const frame = computed(() => {
       note: lane.role.note,
       glow: play && running.has(lane.role.id) ? 0.55 + 0.45 * pulse : 0,
       fog: layer.fog,
+      words: wordsAt(k),
     })
   }
 
@@ -214,9 +232,11 @@ const frame = computed(() => {
         on: state !== 'waiting',
       })
     }
+    const at = M([g.x0, y, z])
     layer.turns.push({
       key: g.turn.id,
-      m: M([g.x0, y, z]).m,
+      m: at.m,
+      words: wordsAt(at.k),
       w: g.x1 - g.x0,
       kind: g.lane.kind,
       g,
@@ -332,12 +352,15 @@ const frame = computed(() => {
   /* The finish, and the budget. */
   const gateH = Math.max(bottom - lay.lanesTop, lay.scene.ends.length * 26 + 44)
   const fired = !play ? 1 : t >= lay.firedAt ? Math.max(0.001, clamp((t - lay.firedAt) / 0.8, 0, 1)) : 0
-  const gate = { m: M([lay.gateX, lay.lanesTop - 4, 0]).m, h: gateH, fired }
+  const post = M([lay.gateX, lay.lanesTop - 4, 0])
+  const gate = { m: post.m, h: gateH, fired, words: wordsAt(post.k) }
+  const bar = M([SIZE.x0, bottom + lay.meterOff, 0])
   const meter =
     lay.scene.budget === false
       ? null
       : {
-          m: M([SIZE.x0, bottom + lay.meterOff, 0]).m,
+          m: bar.m,
+          words: wordsAt(bar.k),
           w: lay.gateX - SIZE.x0 - 24,
           fill: play ? spentAt(lay, t) : spentAt(lay, lay.firedAt),
         }
@@ -348,6 +371,7 @@ const frame = computed(() => {
     points: string
     m: string
     name: string
+    words: number
     drop: string
     minis: { key: string; m: string; w: number; kind: RoleKind; does: Does; state: State }[]
     o: number
@@ -370,10 +394,12 @@ const frame = computed(() => {
       const q = play ? clamp((t - s.t0 - 0.25 - 0.3 * k) / Math.max(0.4, s.t1 - s.t0 - 0.6), 0, 1) : 1
       const top = P([(s.at.x0 + s.at.x1) / 2, yOf(s.at.lane) + SIZE.turn / 2, 0])
       const land = P([x0 + w / 2, y0, z])
+      const tag = M([x0, y0, z])
       kids.push({
         key: `k${k}`,
         points: pts.map((p) => `${f(p.x)},${f(p.y)}`).join(' '),
-        m: M([x0, y0, z]).m,
+        m: tag.m,
+        words: wordsAt(tag.k),
         name: `lemma ${k + 1}: ${k === 0 ? s.said : 'the same line'}`,
         drop: `M ${f(top.x)} ${f(top.y)} L ${f(land.x)} ${f(land.y)}`,
         minis: LINE.map(([kind, does], j) => ({
@@ -408,7 +434,8 @@ const frame = computed(() => {
   return {
     layers: ordered,
     heads,
-    shade: pushed > 0 ? { w: shadeW, o: clamp(pushed / 30, 0, 1) } : null,
+    shade: pushed > 0 && !tight ? { w: shadeW, o: clamp(pushed / 30, 0, 1) } : null,
+    tight,
     wires,
     loop,
     gate,
@@ -434,7 +461,7 @@ const frame = computed(() => {
     <defs>
       <linearGradient :id="shade" x1="0" x2="1" y1="0" y2="0">
         <stop offset="0" style="stop-color: var(--hmz-panel-bg); stop-opacity: 0.96" />
-        <stop offset="0.72" style="stop-color: var(--hmz-panel-bg); stop-opacity: 0.85" />
+        <stop offset="0.72" style="stop-color: var(--hmz-panel-bg); stop-opacity: 0.93" />
         <stop offset="1" style="stop-color: var(--hmz-panel-bg); stop-opacity: 0" />
       </linearGradient>
     </defs>
@@ -458,6 +485,7 @@ const frame = computed(() => {
           :name="plate.name"
           :lit="plate.lit"
           :bare="bare"
+          :words="plate.words"
         />
         <path v-for="rail in layer.rails" :key="rail.key" class="f-rail" :d="rail.d" />
         <path
@@ -483,6 +511,7 @@ const frame = computed(() => {
             :inside="turn.g.turn.inside ?? 0"
             :calls="turn.g.turn.calls ?? ''"
             :bare="bare"
+            :words="turn.words"
           />
         </g>
       </g>
@@ -491,7 +520,7 @@ const frame = computed(() => {
       <g v-for="kid in frame.kids" :key="kid.key" class="f-kid" :opacity="kid.o">
         <path class="drop" :d="kid.drop" />
         <polygon class="floor" :points="kid.points" />
-        <g v-if="!bare" :transform="kid.m">
+        <g v-if="!bare && kid.words > 0" :transform="kid.m" :opacity="kid.words < 1 ? kid.words : undefined">
           <text class="name" x="10" y="16">{{ kid.name }}</text>
         </g>
         <g v-for="mini in kid.minis" :key="mini.key" :transform="mini.m">
@@ -529,11 +558,11 @@ const frame = computed(() => {
       />
 
       <g :transform="frame.gate.m">
-        <FlowGate :ends="lay.scene.ends" :h="frame.gate.h" :fired="frame.gate.fired" :bare="bare" />
+        <FlowGate :ends="lay.scene.ends" :h="frame.gate.h" :fired="frame.gate.fired" :bare="bare" :words="frame.gate.words" />
       </g>
 
       <g v-if="frame.meter" :transform="frame.meter.m">
-        <FlowMeter :w="frame.meter.w" :fill="frame.meter.fill" :bare="bare" />
+        <FlowMeter :w="frame.meter.w" :fill="frame.meter.fill" :bare="bare" :words="frame.meter.words" />
       </g>
 
       <rect
@@ -547,7 +576,15 @@ const frame = computed(() => {
         :opacity="frame.shade.o"
       />
       <g v-for="head in frame.heads" :key="head.key" :transform="head.m" :opacity="head.fog">
-        <FlowHead :kind="head.kind" :name="head.name" :note="head.note" :glow="head.glow" :bare="bare" />
+        <FlowHead
+          :kind="head.kind"
+          :name="head.name"
+          :note="head.note"
+          :glow="head.glow"
+          :bare="bare"
+          :words="head.words"
+          :compact="frame.tight"
+        />
       </g>
     </g>
   </svg>

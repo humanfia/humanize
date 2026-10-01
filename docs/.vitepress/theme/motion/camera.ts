@@ -1,4 +1,6 @@
-// A camera for a scene, shared by the anchor, tracing and resuming scenes.
+// The camera a feature scene films its world with: a centre and a zoom. Every scene that moves
+// its world and draws light over it takes it from here -- anchor, tracing, resuming, goals,
+// steering, budgets -- rather than writing its own.
 //
 // The world group is moved by a camera (a centre and a zoom) rather than by tweening its
 // transform, so a point in the world can always be turned into a point on the screen -- which
@@ -9,8 +11,8 @@
 // Every camera tween writes the transform itself in its `onUpdate`, which GSAP also calls when
 // the timeline is seeked across it, so a chapter jump or the reduced-motion still frame shows
 // the camera where it would be.
-import { motion } from '../../motion/gsap'
-import type { Fx } from '../../motion/fx'
+import type { Fx } from './fx'
+import { motion } from './gsap'
 
 type Timeline = gsap.core.Timeline
 
@@ -65,9 +67,21 @@ export function rig(
     to: Point,
     color: () => string,
     at: gsap.Position,
-    opts: { duration?: number; bend?: number; burst?: number; size?: number; ease?: string } = {},
+    opts: {
+      duration?: number
+      bend?: number
+      burst?: number
+      size?: number
+      ease?: string
+      /** How fast the burst's sparks fly. */
+      speed?: number
+      /** Where a point of the curve is in the world, if the curve is drawn on something that
+       *  moves under the camera (a side that leans in): called every frame. */
+      place?: (p: Point) => Point
+    } = {},
   ) {
     const p = { t: 0 }
+    const onto = opts.place ?? ((q: Point) => q)
     const bend = opts.bend ?? 0.2
     const cx = (from.x + to.x) / 2 - (to.y - from.y) * bend
     const cy = (from.y + to.y) / 2 + (to.x - from.x) * bend
@@ -81,13 +95,13 @@ export function rig(
         onUpdate() {
           const t = p.t
           const u = 1 - t
-          const v = view({ x: u * u * from.x + 2 * u * t * cx + t * t * to.x, y: u * u * from.y + 2 * u * t * cy + t * t * to.y })
+          const v = view(onto({ x: u * u * from.x + 2 * u * t * cx + t * t * to.x, y: u * u * from.y + 2 * u * t * cy + t * t * to.y }))
           o.fx()?.trail(v.x, v.y, color(), opts.size)
         },
         onComplete() {
           if (!opts.burst) return
-          const v = view(to)
-          o.fx()?.spark(v.x, v.y, color(), opts.burst, 60)
+          const v = view(onto(to))
+          o.fx()?.spark(v.x, v.y, color(), opts.burst, opts.speed ?? 60)
         },
       },
       at,

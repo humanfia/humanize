@@ -232,15 +232,18 @@ python -Pm hmz internal cred --map=FROM=TO [--map=…] [--keep=FROM=TO …] -- C
 ```
 
 `hmz internal cred` runs the CLI under a seccomp-filtered ptrace supervisor that stops only
-path-naming syscalls. A path is matched after `.`, `..` and doubled `/` are resolved and
-`/proc/<pid>/fd/<n>`, `cwd`, `exe` and `root` links are followed, as the file itself, as
+path-naming syscalls: the same set an anchored supervisor stops, less `execve`, `execveat` and
+`connect` ([Remote execution › Interception](/reference/remote-execution#interception)). A
+path is matched after `.`, `..` and doubled `/` are resolved and `/proc/<pid>/fd/<n>`, `cwd`,
+`exe` and `root` links are followed, as the file itself, as
 anything inside a directory entry, or as the same name with a suffix (`.credentials.json.tmp`,
 which is how a token is rotated by rename).
 
 | Syscall | Answered with |
 | --- | --- |
 | `stat`, `lstat`, `newfstatat`, `statx`, `access`, `faccessat`, `faccessat2`, `readlink`, `readlinkat`, and `open`/`openat`/`openat2` without `O_WRONLY`, `O_RDWR`, `O_CREAT`, `O_TRUNC` or `O_APPEND` | a copy in `/dev/shm/hmz-<pid>-<random>/` (directory `0700`, files `0600`), made on first read and re-checked against the provider's file once a second |
-| everything else (create, write, truncate, rename, link, unlink, chmod, utime, open for writing) | the provider's own file; the copy is dropped |
+| everything else (create, write, truncate, rename, link, unlink, `mknod`, chmod, chown, utime, `setxattr`/`removexattr`, open for writing) | the provider's own file; the copy is dropped |
+| `statfs`, `getxattr`/`listxattr` (and their `l` forms), `name_to_handle_at`, `open_tree`, `inotify_add_watch`, `fanotify_mark` | the provider's own file; the copy is kept |
 | `chdir`, and reads of directories, lock files, files over 1 MiB, or anything when `/dev/shm` is unusable | the provider's own path |
 
 - A path that cannot be answered fails with `EIO` rather than falling through to the real one;
@@ -256,7 +259,7 @@ which is how a token is rotated by rename).
   pairs as `redirects` and its own supervisor answers them
   ([Remote execution › Where the account lives](/reference/remote-execution#where-the-account-lives)).
 
-<small>Defined in [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py), [`_trace.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_trace.py), [`_staging.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_staging.py).</small>
+<small>Defined in [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py), [`_trace.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_trace.py), [`_staging.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_staging.py), [`src/hmz/coganchor/pathcalls.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/pathcalls.py).</small>
 
 ### A sign-in that refreshes itself {#a-sign-in-that-refreshes-itself}
 

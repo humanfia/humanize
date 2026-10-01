@@ -13,7 +13,7 @@ import { createFx, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
-import { rig, type Point, type Shot } from './features/anchor-rig'
+import { rig, type Point, type Shot } from '../motion/camera'
 
 const BEATS = [
   'A loop keeps every round it finishes',
@@ -420,7 +420,7 @@ svg {
 }
 
 .fresh text {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   fill: #fff;
 }
