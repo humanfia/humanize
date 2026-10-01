@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.coganchor.backends import AUTO
+from hmz.coganchor.spelling import parted
 from hmz.runtime.kept import Runs, read_back, written
 from hmz.runtime.settings import Settings
 
@@ -32,6 +34,8 @@ def test_an_agent_is_written_down_as_the_word_a_line_takes() -> None:
         # A model's own punctuation stays the model's: read from both ends.
         Runs("opencode/openrouter/some:model:low"),
         Runs("codex/gpt-5.5:auto", "a@b"),
+        Runs("mcode/custom_provider:gateway/mock/first-model:auto", "loopback"),
+        Runs("opencode/ollama/qwen3:latest:high"),
     ],
 )
 def test_an_agent_written_down_comes_back_as_itself(runs: Runs) -> None:
@@ -44,13 +48,52 @@ def test_an_agent_written_down_comes_back_as_itself(runs: Runs) -> None:
         None,
         {"cli": "claude", "model": "m", "effort": "high"},  # a mapping, not a line
         "claude",
-        "claude/m",
         "/m:high",
         "claude/:high",
     ],
 )
 def test_what_is_not_one_reads_back_as_nothing(held: object) -> None:
     assert read_back(held) is None
+
+
+@pytest.mark.parametrize(
+    ("held", "runs"),
+    [
+        ("claude/m", Runs("claude/m:auto")),
+        ("claude/m:", Runs("claude/m:auto")),
+        (
+            "mcode@loopback/custom_provider:gateway/mock/first-model",
+            Runs("mcode/custom_provider:gateway/mock/first-model:auto", "loopback"),
+        ),
+        ("opencode/ollama/qwen3:8b", Runs("opencode/ollama/qwen3:8b:auto")),
+    ],
+)
+def test_one_written_with_no_effort_reads_back_at_none(held: str, runs: Runs) -> None:
+    """A model's own `:` is the model's, and no effort is written `auto`, as a line writes it."""
+    assert read_back(held) == runs
+    assert AUTO == "auto"
+
+
+@pytest.mark.parametrize(
+    ("said", "model", "effort"),
+    [
+        ("m:high", "m", "high"),
+        ("m", "m", ""),
+        ("m:", "m", ""),
+        ("custom_provider:gateway/m", "custom_provider:gateway/m", ""),
+        ("custom_provider:gateway/m:max", "custom_provider:gateway/m", "max"),
+        ("some:model:as configured", "some:model", "as configured"),
+        ("qwen3:8b", "qwen3:8b", ""),
+        ("llama3:q4_0", "llama3:q4_0", ""),
+        # A word off every ladder is still an effort, refused as one, not a model's.
+        ("opus:High", "opus", "High"),
+        ("gpt-5:x_high", "gpt-5", "x_high"),
+    ],
+)
+def test_an_effort_is_what_follows_the_last_colon_only_where_it_is_a_word(
+    said: str, model: str, effort: str
+) -> None:
+    assert parted(said) == (model, effort)
 
 
 def test_what_a_flow_was_set_up_with_is_read_back_by_role(tmp_path: Path) -> None:

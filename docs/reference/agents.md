@@ -121,7 +121,7 @@ runs `PERMISSION_REQUEST`. `HumanAgent` runs no moment at all.
 
 ## Agent specs (`-a`) {#agent-specs}
 
-An agent is written `[ROLE=]CLI[@ACCOUNT]/MODEL:EFFORT` wherever one is named: `-a`, a settings
+An agent is written `[ROLE=]CLI[@ACCOUNT]/MODEL[:EFFORT]` wherever one is named: `-a`, a settings
 file, `Runs`, the TUI. `backends.read` parses one item; `-a` splits a value on `,` followed by
 `KEY=`.
 
@@ -130,14 +130,14 @@ file, `Runs`, the TUI. `backends.read` parses one item; `-a` splits a value on `
 | `ROLE` | Required for `-a`. A Python identifier: a field of the flow's agent collection. |
 | `CLI` | Any alias in [Backends](#backends), or an added ACP CLI's name. Never contains `@`. |
 | `ACCOUNT` | After `@`: a [provider](/reference/providers) name. Omitted: the CLI as already signed in. `@` with nothing after it is refused. |
-| `MODEL` | Everything between the first `/` and the last `:`. May contain `/` (`kimi-code/k3`, `opencode/big-pickle`). Must be non-empty. |
-| `EFFORT` | After the last `:`. The colon is required. `auto` (or empty) is no rung. Checked against the backend's ladder when the agent is built. |
+| `MODEL` | Everything after the first `/`, less a trailing `:EFFORT`. May contain `/` (`kimi-code/k3`, `opencode/big-pickle`) and `:` (`custom_provider:gateway/m`). Must be non-empty. |
+| `EFFORT` | After the last `:`, where what follows it is spelled as an effort: words of letters joined by `-`, `_` or a space (`high`, `extra-high`, `as configured`), or nothing. Otherwise -- `custom_provider:gateway/m`, `qwen3:8b` -- the `:` is the model's, and so is everything after it. Left off, or `auto`, or empty: no rung, stored as `""`. A model whose own name ends in `:<word>` is written with its effort after it: `qwen3:latest:auto`. Checked against the backend's ladder when the agent is built. |
 
 | Input | `AgentSpecError` (exit 2 from `hmz exec`) |
 | --- | --- |
-| no `ROLE=` | `-a 'claude/m:high': expected <role>=<harness>[@<provider>]/<model>:<effort>` |
+| no `ROLE=` | `-a 'claude/m:high': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
 | a role that is not an identifier | `` -a '9x=claude/m:high': '9x' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier `` |
-| unknown CLI, no `/`, no `:`, empty model | `-a 'agent=claude/m': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT` |
+| unknown CLI, no `/`, empty model | `-a 'agent=claude': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
 | `@` with no account | `-a 'agent=claude@/m:high': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |
 | a role given twice | `-a: the role 'agent' is given twice` |
 | an empty item | `-a '<value>': an item is empty` |

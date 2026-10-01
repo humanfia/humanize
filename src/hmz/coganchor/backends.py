@@ -458,7 +458,9 @@ _UNSAID = "as configured"
 #: agent runs at `""` -- the absence of a rung, which every driver already knows to say
 #: nothing about. But `""` cannot be written down: an agent is spelled `CLI/MODEL:EFFORT`
 #: everywhere a person or a settings file names one, and `cursor-agent/composer-2.5:` is not
-#: a line anybody could type or a string `read` could take back. So the absence gets a word.
+#: a line anybody would type. Nor can the effort just be left off where it is written back:
+#: a model may hold a `:` of its own, and `qwen3:latest` written with no effort after it reads
+#: back as `qwen3` at `latest`. So the absence gets a word.
 #:
 #: The two are one value and not two. Every way in normalises `auto` to `""` and every way
 #: out writes `""` back as `auto`, so nothing downstream has to know there were ever two
@@ -3011,7 +3013,7 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
     answered about the one it got wrong rather than about all three.
 
     Args:
-      spec: `[NAME=]CLI[@PROVIDER]/MODEL:EFFORT`. NAME is the place the agent fills, which is
+      spec: `[NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`. NAME is the place the agent fills, which is
         a field of the tuple of agents the flow declares; a line that leaves it off fills the
         flow's places in the order it takes them. The CLI may name a provider after an `@`, as
         `claude@deepseek/MODEL:EFFORT`, which is the account that agent's turns run as.
@@ -3039,9 +3041,13 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
             "expected one agent: a `,` separates several, each read on its own"
         )
     # Read from both ends: a model may hold slashes of its own -- Kimi Code's and opencode's
-    # are `provider/id` -- while a CLI and an effort never do.
+    # are `provider/id` -- and colons -- MiniMax Code's are `custom_provider:name/id` --
+    # while a CLI and an effort never do. So the effort is what follows the last `:` only
+    # where that is spelled as one, and left off it is no rung at all.
+    from hmz.coganchor.spelling import parted
+
     backend, _, said = spec.partition("/")
-    model, _, effort = said.rpartition(":")
+    model, effort = parted(said)
     # The account, if one was named: a CLI is never spelled with an `@` in it, so the two are
     # told apart wherever the agent was written -- `-a`, a settings file, an interface. An
     # `@` with nothing after it is a line to correct rather than a line saying nothing: it
@@ -3053,16 +3059,11 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
         )
     profile = named(backend.strip())
     if profile is None or not model.strip():
-        raise ValueError("expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT")
+        raise ValueError("expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]")
     # `auto` is the written form of no rung at all, and this is where it stops being written:
     # everything downstream reads the absence as "", which is what every driver already knows
-    # to say nothing about.
-    #
-    # An effort that is empty rather than absent says the same thing, and is taken. Not a
-    # second spelling to write by hand -- `auto` is the one a person types, and what `written`
-    # hands back -- but what a spec that has been round-tripped through a settings file comes
-    # back as: the layers that keep a run written down may import nothing at all, so they
-    # carry the agent as the string they were given and cannot be asked to know this word.
-    # The colon is still required, so a spec with no effort *field* is still the typo it was.
+    # to say nothing about. So is an effort left off, and one that is empty rather than
+    # absent -- what a spec round-tripped through a settings file may come back as: the
+    # layers that keep a run written down carry the agent as the string they were given.
     rung = effort.strip()
     return name, profile, model.strip(), "" if rung == AUTO else rung, provider.strip()

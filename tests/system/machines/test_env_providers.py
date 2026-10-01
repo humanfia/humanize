@@ -37,6 +37,10 @@ def docker_here() -> None:
         pytest.skip(f"needs a docker daemon: {said.stderr.strip()}")
 
 
+#: Where the NVIDIA driver lists every GPU it is bound to, one directory per PCI address.
+_DRIVER = Path("/proc/driver/nvidia/gpus")
+
+
 def _gpus() -> int:
     """How many GPUs `nvidia-smi` sees here, or 0 where there is none to ask."""
     if shutil.which("nvidia-smi") is None:
@@ -48,6 +52,11 @@ def _gpus() -> int:
         check=False,
     )
     return len(said.stdout.split()) if said.returncode == 0 else 0
+
+
+def _bound() -> int | None:
+    """How many GPUs the NVIDIA driver here is bound to, or None where it does not say."""
+    return len(list(_DRIVER.iterdir())) if _DRIVER.is_dir() else None
 
 
 @pytest.mark.timeout(120)
@@ -65,8 +74,15 @@ def test_the_daemon_here_says_what_it_has(endpoint: str) -> None:
     assert checked.memory > 0
     assert checked.runtimes
     assert checked.short == ()
-    if checked.gpus:  # a daemon naming its GPUs names the ones nvidia-smi sees
-        assert len(checked.gpus) == _gpus()
+    if checked.gpus:
+        # A daemon names the GPUs its CDI specs list, which are written down once for every
+        # GPU the driver is bound to: one that has since stopped answering -- bound, but gone
+        # from `nvidia-smi` -- is named still. So every GPU nvidia-smi sees is named, and
+        # what is named is what the driver is bound to, where the driver says.
+        assert len(checked.gpus) >= _gpus()
+        bound = _bound()
+        if bound is not None:
+            assert len(checked.gpus) == bound
 
 
 @pytest.mark.timeout(120)

@@ -637,7 +637,12 @@ class _AppServer:
         #: taking it in turns would make sharing a server cost what starting one saved.
         self._waiting: dict[int, _Mailbox] = {}
         self._listening: dict[str, _Mailbox] = {}
-        self._routing = threading.Lock()  # those two books, and whether it has stopped
+        #: The turn under way on each thread a turn is reading, told which turn it is as the
+        #: stream names it rather than once its reader gets round to the message: something
+        #: the turn asks of us is answered on a thread of its own, and a hook answering it
+        #: may put a word into that turn before its reader has woken to hear it began.
+        self._turning: dict[str, _Running] = {}
+        self._routing = threading.Lock()  # those books, and whether it has stopped
         self._gone = False
         #: How many turns are running here, counted under `_routing`. A conversation belongs
         #: to the server that opened it -- Codex refuses to pick a thread up anywhere else
@@ -939,7 +944,7 @@ class _AppServer:
         """
         thread = str(params["threadId"])
         ident = next(self._pending)
-        with self._mailbox(ident=ident, thread=thread) as mailbox:
+        with self._mailbox(ident=ident, thread=thread, running=running) as mailbox:
             self._write(
                 {
                     "jsonrpc": "2.0",
@@ -1078,7 +1083,12 @@ class _AppServer:
                         case _:  # the rest of the stream is not this turn's to show
                             pass
             finally:
-                running.turn = None
+                # Both at once, so that nothing the stream says of this turn after it has
+                # ended can tell it that it is running again.
+                with self._routing:
+                    running.turn = None
+                    if self._turning.get(thread) is running:
+                        del self._turning[thread]
             if failed is not None:
                 raise Failed(1, self._argv, said, failed)
             # What the turn cost is the rise across it, charged to the model it ran on: the
@@ -1219,13 +1229,18 @@ class _AppServer:
 
     @contextlib.contextmanager
     def _mailbox(
-        self, ident: int | None = None, thread: str | None = None
+        self,
+        ident: int | None = None,
+        thread: str | None = None,
+        running: _Running | None = None,
     ) -> Generator[_Mailbox]:
         """Says where one reader's messages go, for as long as it is reading them.
 
         Args:
           ident: The id of the call whose answer this reader is waiting for, if it made one.
           thread: The thread whose notifications are this reader's, if it is running a turn.
+          running: Told which turn of that thread is under way as the stream names it, if
+            this reader is running one.
 
         Yields:
           Where those messages arrive.
@@ -1240,6 +1255,8 @@ class _AppServer:
                 self._waiting[ident] = mailbox
             if thread is not None:
                 self._listening[thread] = mailbox
+                if running is not None:
+                    self._turning[thread] = running
         try:
             yield mailbox
         finally:
@@ -1250,6 +1267,8 @@ class _AppServer:
                 # next one on the same thread began must not take the new one's stream away.
                 if thread is not None and self._listening.get(thread) is mailbox:
                     del self._listening[thread]
+                if running is not None and self._turning.get(str(thread)) is running:
+                    del self._turning[str(thread)]
 
     def _route(self, message: dict[str, Any]) -> None:
         """Hands one message to whoever it belongs to.
@@ -1301,6 +1320,7 @@ class _AppServer:
         assert self._proc.stdout is not None  # noqa: S101
         for line in self._proc.stdout:
             message: dict[str, Any] = json.loads(line)
+            self._begun(message)
             if "id" in message and "method" in message:
                 # Something asked of us. A request left unanswered stalls the turn holding the
                 # stream -- and with it every session of the agent -- so every one of them is
@@ -1334,6 +1354,26 @@ class _AppServer:
             everyone = [*self._waiting.values(), *self._listening.values()]
         for mailbox in everyone:
             mailbox.put(None)  # it has stopped, and nothing more is coming
+
+    def _begun(self, message: dict[str, Any]) -> None:
+        """Tells the turn reading a thread which turn the stream says is under way on it.
+
+        Here, on the one reader of the stream, rather than only where the turn's own reader
+        gets to the message: an approval is answered on a thread of its own the moment it is
+        read, and a hook refusing it puts its reason into the turn -- which a turn whose reader
+        has not yet woken to `turn/started` would otherwise not know it is running.
+
+        Args:
+          message: The message read.
+        """
+        told: dict[str, Any] = message.get("params") or {}
+        named: dict[str, Any] = told.get("turn") or {}
+        thread, turn = told.get("threadId"), told.get("turnId") or named.get("id")
+        if thread is None or not turn:
+            return
+        with self._routing:
+            if (running := self._turning.get(str(thread))) is not None:
+                running.turn = str(turn)
 
     def _approve(self, message: dict[str, Any]) -> None:
         """Answers something the agent asked to be allowed to do, as its rung says.

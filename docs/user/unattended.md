@@ -61,7 +61,7 @@ this directory: the line is the whole setup.
 ### Name an agent for each role
 
 ```
-<role>=<cli>[@<account>]/<model>:<effort>
+<role>=<cli>[@<account>]/<model>[:<effort>]
 ```
 
 - **role** is the name the flow gives the agent: `agent` for [ralph_loop](/flows/ralph-loop),
@@ -73,6 +73,9 @@ this directory: the line is the whole setup.
   to run the CLI as this machine is signed in.
 - **model** goes to the CLI as written. humanize does not check it against a list.
 - **effort** must be on that CLI's [ladder](/user/efforts); a CLI you added takes any word.
+  Leave it off, or write `auto`, for none. A `:` in the model stays the model's unless a word
+  follows it, so `mcode/custom_provider:gateway/m` needs no effort; a model whose name ends in
+  `:<word>`, as `qwen3:latest`, is written with its effort after it: `qwen3:latest:auto`.
   `auto` asks for none.
 
 The CLI is read up to the first `/` and the effort after the last `:`, so a model with slashes

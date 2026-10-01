@@ -60,7 +60,7 @@ class SpecError(ValueError):
 
 
 class AgentSpecError(SpecError):
-    """An `-a` that is not `<role>=<harness>[@<provider>]/<model>:<effort>`."""
+    """An `-a` that is not `<role>=<harness>[@<provider>]/<model>[:<effort>]`."""
 
 
 class EnvSpecError(SpecError):
@@ -182,7 +182,7 @@ def parse_agents(values: Sequence[str]) -> list[AgentSpec]:
         role, written, _ = said.partition("=")
         if not written or not role.strip():
             raise AgentSpecError(
-                f"-a {said!r}: expected <role>=<harness>[@<provider>]/<model>:<effort>"
+                f"-a {said!r}: expected <role>=<harness>[@<provider>]/<model>[:<effort>]"
             )
         try:
             role, profile, model, effort, provider = backends.read(said)
