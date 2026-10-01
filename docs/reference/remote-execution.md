@@ -280,7 +280,8 @@ protocol (Codex's `thread/start` `cwd`, an ACP `session/new` `cwd`, and so on) i
 `workspace`. On a harness reaching its work as a `peer://` target (a third machine), the
 supervisor answers `workspace` and everything under it with the mirror, as another
 [spelling](#interception) of it, whatever the harness machine holds at that path; it is never
-created there. A `--local-path` under `workspace` is kept here by either name. Not for a
+created there. A `--local-path` or `--local-exec` under `workspace` is kept here by either
+name. Not for a
 mirror nested in the workspace or the other way round.
 
 ### `-H`: placement for a flow run
@@ -404,20 +405,37 @@ network is answered from the target.
 - A seccomp filter traps exactly the syscalls that name a path, start a program or open a
   connection; every other syscall (`read`, `write`, `mmap`, `futex`, `getdents64`, …) runs
   natively.
-- Trapped on x86-64 (34): `access`, `chdir`, `chmod`, `connect`, `creat`, `execve`,
-  `execveat`, `faccessat`, `faccessat2`, `fchmodat`, `link`, `linkat`, `lstat`, `mkdir`,
-  `mkdirat`, `newfstatat`, `open`, `openat`, `openat2`, `readlink`, `readlinkat`, `rename`,
-  `renameat`, `renameat2`, `rmdir`, `stat`, `statx`, `symlink`, `symlinkat`, `truncate`,
-  `unlink`, `unlinkat`, `utimensat`, `utimes`. On aarch64 the 14 legacy forms do not exist and
-  20 are trapped.
+- Trapped on x86-64 (55): `access`, `chdir`, `chmod`, `chown`, `connect`, `creat`, `execve`,
+  `execveat`, `faccessat`, `faccessat2`, `fanotify_mark`, `fchmodat`, `fchmodat2`, `fchownat`,
+  `futimesat`, `getxattr`, `inotify_add_watch`, `lchown`, `lgetxattr`, `link`, `linkat`,
+  `listxattr`, `llistxattr`, `lremovexattr`, `lsetxattr`, `lstat`, `mkdir`, `mkdirat`,
+  `mknod`, `mknodat`, `name_to_handle_at`, `newfstatat`, `open`, `open_tree`, `openat`,
+  `openat2`, `readlink`, `readlinkat`, `removexattr`, `rename`, `renameat`, `renameat2`,
+  `rmdir`, `setxattr`, `stat`, `statfs`, `statx`, `symlink`, `symlinkat`, `truncate`,
+  `unlink`, `unlinkat`, `utime`, `utimensat`, `utimes`. On aarch64 the 19 legacy forms do not
+  exist and 36 are trapped.
+- `chmod`, `fchmodat`, `fchmodat2` (except on a link it was told not to follow, which the
+  kernel refuses), the `utime*` family (a descriptor's own file too, as `futimens` names it)
+  and every mutation of the tree are replayed on the target first. A plain file `mknod` makes
+  is sent like any other; a pipe or device it makes stays here. `chown`, `lchown`, `fchownat`
+  and the `*setxattr`/`*removexattr` calls act on the mirror only, once it holds the file's
+  contents; the lookups (`stat*`, `access*`, `statfs`, `*getxattr`, `*listxattr`,
+  `name_to_handle_at`, `open_tree`, `inotify_add_watch`, `fanotify_mark`) run against the
+  mirror once it holds the path.
+- Not trapped: `fstatfs` and every other call taking a descriptor rather than a path; calls
+  that need a capability an agent is not given (`mount`, `umount2`, `pivot_root`, `chroot`,
+  `swapon`, `swapoff`, `acct`, `quotactl`, `move_mount`, `uselib`); the `*xattrat` and
+  `file_getattr`/`file_setattr` calls; and a local socket's address in `bind` or `connect`.
 - A path is resolved as text: `.` and `..` are collapsed, doubled `/` removed, and
   `/proc/self/fd/<n>`, `/proc/<pid>/fd/<n>`, `/proc/self/cwd`, `/proc/self/root` and
   `/proc/self/exe` are followed to what they name. An ordinary symlink in the middle of a path
   is not walked. A link that cannot be read back fails the call.
 - A path the mirror is also reached by is rewritten onto the mirror's own path before the call
-  runs: `/private/tmp/…` for a mirror under `/tmp` on a Mac target, any case on a target that
-  ignores case, and `workspace/…` for a `peer://` target
-  ([a harness elsewhere](#where-the-harness-runs)).
+  runs, for every trapped call that names a path: `/private/tmp/…` for a mirror under `/tmp`
+  on a Mac target, any case on a target that ignores case, and `workspace/…` for a `peer://`
+  target ([a harness elsewhere](#where-the-harness-runs)). A program run here (the agent's own,
+  or a `--local-exec`) named that way is run from the mirror; one run on the target is named
+  to it by its own path.
 - Only x86-64 and aarch64 Linux are supported. Any other platform fails at start-up with
   `RuntimeError`, naming where the supervisor can run instead.
 

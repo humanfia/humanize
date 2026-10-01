@@ -232,3 +232,12 @@ def test_an_alias_is_one_more_spelling_on_a_mac() -> None:
         platform=lambda: "darwin",
     )
     assert router.canonical("/users/ME/w/a.py") == "/cache/m/a.py"
+
+
+def test_a_program_kept_here_is_kept_here_by_either_name() -> None:
+    """A `--local-exec` written as the workspace's own path is the program in the mirror."""
+    for kept in ("/cache/mirrors/abc/bin/tool", "/project/bin/tool"):
+        router = elsewhere_router(local_programs=(kept,))
+        assert router.runs_locally(router.canonical("/project/bin/tool"))
+        assert router.runs_locally("/cache/mirrors/abc/bin/tool")
+        assert not router.runs_locally(router.canonical("/project/bin/other"))
