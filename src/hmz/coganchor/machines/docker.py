@@ -338,6 +338,10 @@ _QUERIED = ("--query-gpu=index,uuid", "--format=csv,noheader")
 #: How `nvidia-smi` exits where it finds no GPU it can talk to.
 _NO_DEVICES = 6
 
+#: How long taking down a container that did not answer in time is given: the asking has
+#: already waited as long as it was allowed to.
+_REMOVING = 10.0
+
 
 def gpus_usable(
     endpoint: str,
@@ -345,6 +349,7 @@ def gpus_usable(
     devices: Sequence[Any],
     *,
     seconds: float | None = None,
+    fresh: bool = False,
 ) -> tuple[tuple[str, str], ...] | None:
     """The GPUs of a daemon's host that answer, asked of containers given them.
 
@@ -366,6 +371,8 @@ def gpus_usable(
         NVIDIA container toolkit's to put in it.
       devices: `DiscoveredDevices`, as `docker info` says it.
       seconds: How long each container may take, or None for as long as it does.
+      fresh: Whether to ask even where an answer is kept -- as somebody checking a daemon
+        does, who may have just seen to the GPU it said had failed.
 
     Returns:
       Each GPU that answers, as `(name, uuid)` -- `name` the CDI name it is handed out by, or
@@ -383,7 +390,8 @@ def gpus_usable(
     listed = gpus_listed(devices, _CDI)
     key = f"{where} {','.join(listed)}"
     now = time.monotonic()
-    if (kept := _USABLE.get(key)) is not None and now - kept[0] < USABLE_FOR:
+    kept = None if fresh else _USABLE.get(key)
+    if kept is not None and now - kept[0] < USABLE_FOR:
         return kept[1]
     answered: tuple[tuple[str, str], ...] | None
     if listed:
@@ -449,7 +457,7 @@ def _gpus_in(
         said = _asked(argv, seconds)
     except OSError:
         with contextlib.suppress(OSError):
-            _asked(where.docker("rm", "--force", name), seconds)
+            _asked(where.docker("rm", "--force", name), _REMOVING)
         return None
     return _answered(said.returncode, said.stdout + said.stderr)
 

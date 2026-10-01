@@ -388,6 +388,11 @@ def test_each_gpu_a_daemon_lists_is_asked_whether_it_answers_once(
         ]
         # Given the one GPU named and no other the runtime might add of its own.
         assert argv[argv.index("--env") + 1] == "NVIDIA_VISIBLE_DEVICES=void"
+    # Somebody checking asks afresh, whatever is kept.
+    assert docker.gpus_usable("local", "img", devices, fresh=True) == (
+        ("0", "GPU-1ac8"),
+    )
+    assert len(asked) == 4
 
 
 def test_a_container_seeing_more_than_its_gpu_says_nothing_and_is_asked_again(

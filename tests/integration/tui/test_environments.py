@@ -533,6 +533,64 @@ async def test_what_a_daemon_is_saved_to_hand_out_and_has_not_got_is_said_in_yel
         assert "no GPU 3" in _under(app)
 
 
+@pytest.fixture
+def failing(standins: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The stand-in daemon's GPU 1 failed after its CDI specs were written: listed, not there.
+
+    And nothing anybody else asked before is taken as this daemon's answer.
+    """
+    from hmz.coganchor.machines import docker
+
+    monkeypatch.setenv("STANDIN_GPUS", "1")
+    monkeypatch.setattr(docker, "_USABLE", {})
+    return standins
+
+
+@pytest.mark.timeout(60)
+async def test_a_check_says_which_gpus_answer_and_says_it_is_checking_meanwhile(
+    failing: Path,
+) -> None:
+    store.add(DockerProvider(name="local", gpus=("0", "1")))
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await onto(app, driver, "docker/local")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await onto(app, driver, _CHECKS)
+        await driver.press("enter")
+        # Asked off the loop: the page is back, and says so on the row, while it is.
+        await until(lambda: "checking docker/local" in _under(app), driver)
+        assert "checking…" in _drawn(app)
+        await until(lambda: "answers" in _under(app), driver)
+        assert "checking…" not in _drawn(app)
+
+        said = _under(app)
+        assert "GPUs 0, 1" in said
+        assert "[yellow]1 of 2 GPUs answer; GPU 1 does not" in said
+        assert "lacks configured resources: GPU 1 does not answer" in said
+    asked = _asked(failing)
+    assert "--device nvidia.com/gpu=0" in asked
+    assert "--device nvidia.com/gpu=1" in asked
+
+
+@pytest.mark.timeout(60)
+async def test_detect_writes_in_only_the_gpus_that_answer(failing: Path) -> None:
+    del failing
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await _opens(app, driver, _ACT_DOCKS, Docking)
+        form = cast("Docking", app.screen)
+
+        await onto(app, driver, _DETECTS)
+        await driver.press("enter")
+        await until(lambda: form._typed_in.get("cpus") == "64", driver)
+
+        assert form._typed_in["gpus"] == "0"
+        assert "1 of 2 GPUs answer; GPU 1 does not" in _under(app)
+
+
 @pytest.mark.timeout(60)
 async def test_a_host_that_cannot_be_reached_says_why_rather_than_hanging(
     standins: Path,

@@ -470,11 +470,12 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | `said` | why not: the last stderr line, `it did not answer within <n>s`, or the validation error | the same |
 | `home` | the login's home | — |
 | `cpus`, `memory` | from the probe | `NCPU`, `MemTotal` |
-| `gpus` | `("0", …)` by count | CDI-listed GPU ids |
+| `gpus` | `("0", …)` by count | CDI-listed GPU ids, answering or not |
+| `usable` | `None` | those of `gpus` that answer, asked afresh as a run asks (`gpus_usable(..., fresh=True)`, with the provider's image or `python:3.12-slim`, in what is left of `seconds` after `docker info`); `None` where nothing could be asked, no time was left, or it lists none |
 | `gpu_memory` | smallest GPU's memory | — |
 | `runtimes` | — | runtimes, the default first |
 | `version` | — | the daemon's version |
-| `short` | — | `it is to hand out N CPUs and has M`, `it is to hand out N bytes and has M`, `it has no GPU <ids>`, `it has no runtime <r>` |
+| `short` | — | `it is to hand out N CPUs and has M`, `it is to hand out N bytes and has M`, `it has no GPU <ids>`, `GPU <ids> does not answer` / `do not answer` (a saved GPU listed but not usable), `it has no runtime <r>` |
 
 The ssh check runs the environment probe down the same `ssh` a run uses, in a new session with
 no terminal and `SSH_ASKPASS_REQUIRE=never`, so a host that wants a password fails instead of
@@ -612,7 +613,8 @@ what it runs: …`; `seconds` bounds each question (`OSError` `ETIMEDOUT` past i
 `gpus_usable(endpoint, image, devices, *, seconds=None)` returns the GPUs of the daemon's
 host that answer, as `(name, uuid)` pairs -- `name` the CDI name, or `nvidia-smi`'s index
 where the daemon lists none; `()` where none answers -- or `None` where nothing could be
-asked; one answer per daemon is kept for `USABLE_FOR` (300 s).
+asked; one answer per daemon is kept for `USABLE_FOR` (300 s), and `fresh=True` asks even
+so. A container that does not answer within `seconds` is removed (10 s).
 
 ## Writing a machine of your own {#writing-a-machine-of-your-own}
 

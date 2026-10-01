@@ -82,7 +82,9 @@ _INFO: dict[str, object] = {
 }
 
 #: What stands in for `docker`: `info` answers with what the test left for it, or with the
-#: error a daemon that is not there gives.
+#: error a daemon that is not there gives. Where `STANDIN_GPUS` is set, a container asking
+#: `nvidia-smi` of GPU 0 is answered, a second on, and one asking of any other finds none --
+#: GPU 1 failed after the daemon's CDI specs were written. Nothing else is answered.
 _DOCKER = r"""#!/bin/sh
 printf '%s | %s\n' "$*" "$PATH" >> "$STANDIN_LOG"
 for word in "$@"; do
@@ -93,6 +95,12 @@ for word in "$@"; do
     cat "$STANDIN_INFO"; exit 0
   fi
 done
+case "$*" in *nvidia-smi*)
+  [ -n "$STANDIN_GPUS" ] || exit 1
+  sleep 1
+  case "$*" in *nvidia.com/gpu=0\ *) echo "0, GPU-1ac8"; exit 0 ;; esac
+  echo "No devices were found"; exit 6 ;;
+esac
 exit 1
 """
 
@@ -253,6 +261,8 @@ def test_a_docker_daemon_behind_a_stored_ssh_host_dials_it_as_it_says(
     )
     checked = Hmz().environments.check(DockerProvider(name="far", endpoint="ssh:gpu"))
     assert checked.reached, checked.said
-    (_, docker) = standins.read_text().splitlines()
+    # Its GPUs asked after too, of a container each on the same daemon.
+    (_, docker, *asked) = standins.read_text().splitlines()
     assert docker.startswith("--host ssh://box info ")
+    assert all(one.startswith("--host ssh://box run ") for one in asked)
     assert docker.split(" | ")[1].startswith(path.split(os.pathsep)[0])
