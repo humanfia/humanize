@@ -10,6 +10,7 @@
 import { computed, ref } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
+import { rig } from '../motion/camera'
 import { createFx, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
@@ -127,7 +128,7 @@ const PINS = [
   { text: 'use pathlib', slot: 1 },
   { text: 'keep the CLI', slot: 0 },
 ]
-const chip = (text: string) => (text.length + 15) * (narrow.value ? 6.6 : 6.9) + 12
+const chip = (text: string) => (text.length + 15) * 6.9 + 12
 
 const SIDES = [
   { title: 'into this turn', who: 'Claude Code · Codex · Kimi Code · pi', hue: 'var(--hmz-accent)' },
@@ -145,10 +146,9 @@ const L = computed(() => (narrow.value ? NARROW : WIDE))
 const turn1 = computed(() => ({ a: PAD, b: PAD + (L.value.W - 2 * PAD) * 0.64 }))
 const turn2 = computed(() => ({ a: turn1.value.b + 12, b: L.value.W - PAD }))
 
-// The camera over the whole picture, and a lens on each side (the side in focus comes forward,
-// the other falls back). Both are applied by hand, so a point on a side can be followed onto
-// the canvas while they move.
-const cam = { x: 0, y: 0, s: 1 }
+// The camera over the whole picture (`rig`), and a lens on each side (the side in focus comes
+// forward, the other falls back). Both are applied by hand, so a point on a side can be
+// followed onto the canvas while they move.
 const lens = [{ s: 1 }, { s: 1 }]
 let worldEl: SVGGElement | null = null
 let sideEls: SVGGElement[] = []
@@ -158,10 +158,6 @@ function centre(i: number): P {
   return { x: l.halves[i].x + l.W / 2, y: l.halves[i].y + l.H / 2 }
 }
 
-function applyCam() {
-  worldEl?.setAttribute('transform', `translate(${cam.x} ${cam.y}) scale(${cam.s})`)
-}
-
 function applyLens() {
   sideEls.forEach((el, i) => {
     const c = centre(i)
@@ -169,13 +165,11 @@ function applyLens() {
   })
 }
 
-/** A point on side `i`, in the side's own coordinates, where it is on the screen right now. */
-function onScreen(i: number, p: P): P {
+/** A point on side `i`, in the side's own coordinates, where it is in the world right now. */
+function lensed(i: number, p: P): P {
   const l = L.value
   const c = centre(i)
-  const wx = c.x + (l.halves[i].x + p.x - c.x) * lens[i].s
-  const wy = c.y + (l.halves[i].y + p.y - c.y) * lens[i].s
-  return { x: cam.x + wx * cam.s, y: cam.y + wy * cam.s }
+  return { x: c.x + (l.halves[i].x + p.x - c.x) * lens[i].s, y: c.y + (l.halves[i].y + p.y - c.y) * lens[i].s }
 }
 
 const scene = useScene({
@@ -205,33 +199,12 @@ const scene = useScene({
     const bar = (t: number): P => ({ x: headAt(t), y: l.track + 4 })
     const pinAt = (slot = 0): P => ({ x: PAD + 14, y: l.pin - 4 - slot * l.row })
 
-    // A mote of light from one point of a side to another, followed through the camera.
+    // The camera over both sides, and a mote of light from one point of a side to another,
+    // followed through it and the side's lens.
+    const cam = rig(tl, { w: l.w, h: l.h, world: worldEl ?? undefined, fx: () => fx, start: { s: 1.14 } })
+    const onScreen = (i: number, p: P) => cam.view(lensed(i, p))
     function beam(i: number, from: P, to: P, color: string, at: number, opts: { duration?: number; bend?: number; burst?: number } = {}) {
-      const p = { t: 0 }
-      const bend = opts.bend ?? 0.3
-      const cx = (from.x + to.x) / 2 - (to.y - from.y) * bend
-      const cy = (from.y + to.y) / 2 + (to.x - from.x) * bend
-      tl.fromTo(
-        p,
-        { t: 0 },
-        {
-          t: 1,
-          duration: opts.duration ?? 0.6,
-          ease: 'cine',
-          onUpdate: () => {
-            const t = p.t
-            const u = 1 - t
-            const s = onScreen(i, { x: u * u * from.x + 2 * u * t * cx + t * t * to.x, y: u * u * from.y + 2 * u * t * cy + t * t * to.y })
-            fx?.trail(s.x, s.y, color, 2.6)
-          },
-          onComplete: () => {
-            if (!opts.burst) return
-            const s = onScreen(i, to)
-            fx?.spark(s.x, s.y, color, opts.burst, 80)
-          },
-        },
-        at,
-      )
+      cam.beam(from, to, () => color, at, { duration: opts.duration ?? 0.6, bend: opts.bend ?? 0.3, burst: opts.burst, speed: 80, size: 2.6, place: (p) => lensed(i, p) })
     }
 
     // A transcript row appears, and the rows scroll up once they are full.
@@ -260,8 +233,7 @@ const scene = useScene({
 
     // 0 · the camera settles on two sides of one moment; a turn runs on both.
     tl.addLabel('beat-0', 0)
-    const mid = { x: l.w / 2, y: l.h / 2 }
-    tl.fromTo(cam, { s: 1.14, x: mid.x * -0.14, y: mid.y * -0.14 }, { s: 1, x: 0, y: 0, duration: 2.6, ease: 'cine', onUpdate: applyCam }, 0)
+    cam.shot({ s: 1 }, 0, 2.6)
     tl.fromTo(all('.card'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.4, stagger: 0.15, ease: 'cine' }, 0)
     tl.fromTo(all('.side-words'), { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.15 }, 0.3)
     for (const i of [0, 1]) {
@@ -311,7 +283,7 @@ const scene = useScene({
     say(1, 2, hit + 0.05)
     beam(1, bar(hit + 0.1), pinAt(), palette.danger, hit + 0.1, { bend: -0.3, duration: 0.6 })
     tl.to(of(1, '.pin-0 .with'), { fillOpacity: 0, duration: 0.3 }, hit + 0.5)
-    tl.fromTo(of(1, '.pin-0 .pin-chip'), { attr: { width: chip(LINE) } }, { attr: { width: chip(LINE) - 13 * (narrow.value ? 6.6 : 6.9) }, duration: 0.4 }, hit + 0.5)
+    tl.fromTo(of(1, '.pin-0 .pin-chip'), { attr: { width: chip(LINE) } }, { attr: { width: chip(LINE) - 13 * 6.9 }, duration: 0.4 }, hit + 0.5)
     tl.to(of(1, '.pin-0'), { keyframes: { opacity: [1, 0.55, 1, 0.55, 1] }, duration: 1.6, ease: 'none' }, hit + 0.7)
     tl.addLabel('rest', hit + 1.7)
     say(0, 4, hit + 2.2)
@@ -522,7 +494,7 @@ svg {
 }
 
 .t-turn {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -609,11 +581,4 @@ svg {
   opacity: 0;
 }
 
-@media (max-width: 640px) {
-  .said,
-  .pin,
-  .typed {
-    font-size: 11px;
-  }
-}
 </style>

@@ -424,7 +424,7 @@ svg {
 
 .spec {
   font-family: var(--vp-font-family-mono);
-  font-size: 10px;
+  font-size: 11px;
   fill: var(--hmz-stage-dim);
 }
 
@@ -434,7 +434,7 @@ svg {
 }
 
 .strip-title {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;

@@ -13,7 +13,7 @@ import { createFx, type, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
-import { rig, type Point, type Shot } from './features/anchor-rig'
+import { rig, type Point, type Shot } from '../motion/camera'
 
 const BEATS = [
   'The agent runs here, unchanged',

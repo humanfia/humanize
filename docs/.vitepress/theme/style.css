@@ -149,6 +149,20 @@
   margin: 22px 0 30px;
 }
 
+/* On a phone a scene takes the whole width of the screen, edge to edge, rather than the column
+   inside the page's 24px gutters: that is the room that keeps its words at 11px or more. The
+   gutter is VitePress's own, `.VPDoc`'s padding below 768px. */
+@media (max-width: 640px) {
+  .vp-doc div > .hmz-stage.hmz-panel,
+  .vp-doc div > .hmz-flow-player.hmz-panel {
+    margin-left: -24px;
+    margin-right: -24px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+}
+
 /* ---------------------------------------------------------------------------------------
    The page at the site's root.
 

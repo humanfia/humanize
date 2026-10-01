@@ -49,11 +49,11 @@ const style = computed(() => ({
 </script>
 
 <template>
-  <figure :ref="bind" class="hmz-stage hmz-panel" :class="{ still: scene.reduced.value && !scene.playing.value }" :style="style">
+  <figure :ref="bind" class="hmz-stage hmz-panel" :class="{ still: scene.reduced.value && !scene.playing.value, simulated: sim }" :style="style">
     <div class="screen" :class="{ running: scene.running.value }" :role="interactive ? 'group' : 'img'" :aria-label="label">
       <div class="ambient" aria-hidden="true"><i /><i /></div>
       <slot :beat="scene.beat.value" />
-      <span v-if="sim" class="sim" aria-hidden="true">simulated</span>
+      <span v-if="sim" class="sim on-screen" aria-hidden="true">simulated</span>
     </div>
     <div class="deck">
       <button
@@ -74,6 +74,7 @@ const style = computed(() => ({
           </button>
         </li>
       </ol>
+      <span v-if="sim" class="sim in-deck" aria-hidden="true">simulated</span>
     </div>
   </figure>
 </template>
@@ -162,19 +163,29 @@ const style = computed(() => ({
 }
 
 .sim {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 6;
   padding: 2px 8px;
   border: 1px solid var(--hmz-stage-line);
   border-radius: 999px;
   font-family: var(--vp-font-family-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--hmz-stage-dim);
   background: var(--hmz-stage-card);
+}
+
+.sim.on-screen {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 6;
+}
+
+/* On a phone the picture has no corner to spare: the word goes under it, by the controls. */
+.sim.in-deck {
+  display: none;
+  flex: none;
+  align-self: center;
 }
 
 .deck {
@@ -294,6 +305,21 @@ const style = computed(() => ({
 @media (max-width: 640px) {
   .screen {
     aspect-ratio: var(--stage-ratio-m);
+  }
+
+  .sim.on-screen {
+    display: none;
+  }
+
+  .sim.in-deck {
+    display: block;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+
+  /* The words of the chapter playing run under the bars, and stop short of the word. */
+  .hmz-stage.simulated:not(.still) .chapters li.on .words {
+    right: 108px;
   }
 
   .deck {

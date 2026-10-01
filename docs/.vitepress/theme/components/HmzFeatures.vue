@@ -478,7 +478,7 @@ function rest(event: PointerEvent) {
 }
 
 .human .q {
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 700;
   font-family: var(--vp-font-family-mono);
   fill: var(--hmz-stage-ink);
@@ -639,7 +639,7 @@ function rest(event: PointerEvent) {
 }
 
 .resuming .round {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   font-family: var(--vp-font-family-mono);
   fill: var(--hmz-stage-dim);
@@ -688,7 +688,7 @@ function rest(event: PointerEvent) {
 }
 
 .shapes .fields text {
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 700;
   font-family: var(--vp-font-family-mono);
   fill: var(--hmz-stage-ink);
@@ -829,12 +829,20 @@ function rest(event: PointerEvent) {
     gap: 10px;
   }
 
+  /* Tall enough that a drawing's words, set at 11px in its 160 × 72 box, are drawn at 11px. */
   .glass {
-    height: 70px;
+    height: 76px;
   }
 
   .title {
     font-size: 12.5px;
+  }
+}
+
+/* Below 380px two cards side by side would draw their words under 11px: one to a row. */
+@media (max-width: 379px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>
