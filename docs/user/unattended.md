@@ -242,8 +242,8 @@ that cannot be, is refused the same way, still before the flow runs. Every messa
 | `0` | The flow returned, or its budget stopped it. |
 | `1` | The run failed: the flow raised an error it did not handle. The traceback on stderr says which. |
 | `2` | Refused before any agent started. The line after `hmz exec: error:` says why. |
+| `130` | Interrupted with <kbd>ctrl+c</kbd>, once the run has let go of everything it started. A second <kbd>ctrl+c</kbd> ends it at once, without waiting. |
 | `143` | Stopped by a terminate signal, such as `kill` or a cancelled CI job, once the run has let go of everything it started. |
-| not 0 | Interrupted with <kbd>ctrl+c</kbd>. It prints a traceback on stderr. |
 
 ```sh
 if ! hmz exec -f goal -a worker=claude/claude-opus-5:max -b duration=4h "$(cat TASK.md)"; then

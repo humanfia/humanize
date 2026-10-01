@@ -88,7 +88,7 @@ from .specs import ADAPTIVE, ENV, STANDALONE
 from .spi import HARNESS_CAPABILITIES, HookBridge
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
 
     import pydantic
 
@@ -378,7 +378,7 @@ class HarnessDriver:
         cwd = self._where(placement)
         hung = frozenset(kind for kind in _STARTING if kind in hooks)
         config = self._configured(permission, placement, hung)
-        machine = await self._harnessed(placement, config, cwd, gated=bool(hung))
+        machine = await self._harnessed(placement, config, cwd, hung=hung)
         if machine is None:
             self._check_installed()
         config = dataclasses.replace(config, machine=machine)
@@ -400,6 +400,56 @@ class HarnessDriver:
             raise SessionError("the agent's driver is closed")
         self._sessions.add(handle)
         return handle
+
+    async def placeable(
+        self, placements: Iterable[Placement], permission: Permission
+    ) -> None:
+        """Refuses, before any session opens, a harness `-H` puts where it cannot run.
+
+        What a run asks of every machine it was given before its flow is called, so that a
+        placement that could never hold is a line to correct rather than a flow that fails
+        at its first session. Under `env`, whether each machine has the CLI and can hold the
+        role's fence; under `standalone`, whether the role's permission fences anything,
+        which a harness on another machine cannot be held to. Nothing under `adaptive`, which
+        puts a harness wherever it can go, nor under `local`. The answers are remembered,
+        and are the ones the sessions are given as they open.
+
+        Args:
+          placements: Where the role's sessions may work: every environment of the run.
+          permission: What the role's sessions run under.
+
+        Raises:
+          HarnessNotInstalled: If the harness is to run on a machine without the CLI.
+          HarnessSandboxed: If it is to run on a machine that cannot hold its fence, or on
+            a machine of its own and the role is fenced at all.
+          HarnessUnrecoverable: If a machine cannot be asked.
+        """
+        if self._harness not in (ENV, STANDALONE):
+            return
+        for placement in placements:
+            cwd = self._where(placement)
+            config = self._configured(permission, placement, frozenset())
+            machine = await self._harnessed(placement, config, cwd)
+            if machine is not None:
+                # Built and let go, as `open_agent` builds one: where coganchor refuses a
+                # fence it could not hold there, before any machine is reached for a turn.
+                self._made_as(dataclasses.replace(config, machine=machine))
+
+    def _made_as(self, config: AgentConfig) -> AgentBase:
+        """The agent a session is built as, refused as `open` refuses it.
+
+        Raises:
+          HarnessUnrecoverable: If the agent cannot be built as configured.
+          HarnessSandboxed: If its fence can be held neither by the CLI nor here.
+        """
+        from hmz.coganchor.agents import Unfenced
+
+        try:
+            return self._kind(config)
+        except Unfenced as refused:
+            raise HarnessSandboxed(f"{self._spec}: {refused}") from refused
+        except ValueError as refused:
+            raise HarnessUnrecoverable(f"{self._spec}: {refused}") from refused
 
     def _parent(
         self, fork_of: SessionHandle | None, placement: Placement
@@ -493,7 +543,7 @@ class HarnessDriver:
         config: AgentConfig,
         cwd: str | None,
         *,
-        gated: bool = False,
+        hung: frozenset[HookKind] = frozenset(),
     ) -> MachineConfig | None:
         """The machine a session's turns land on, told where its harness runs.
 
@@ -507,10 +557,12 @@ class HarnessDriver:
           placement: Where the session works.
           config: What its agent is configured with, for the fence it is held to.
           cwd: The directory it opens at, as :meth:`_where` found it.
-          gated: Whether a hook that decides what the CLI may do is hung on it. The CLI's
-            own hook table names a program on this machine, so a CLI driven on another one
-            can only watch what such a hook would have decided -- which adaptive does not
-            choose for anybody, and keeps the harness here instead.
+          hung: The hooks among :data:`_STARTING` hung on it. One that decides whether a
+            tool runs is served by the CLI's own hook table, which names a program on this
+            machine, so a CLI driven on another one can only watch what it would have
+            decided -- which adaptive does not choose for anybody, and keeps the harness
+            here instead. A question the agent asks its user is not one of them: it comes
+            back down the CLI's own stream, wherever the CLI runs.
 
         Returns:
           The machine, None for this one with the harness here as well.
@@ -545,7 +597,7 @@ class HarnessDriver:
             return dataclasses.replace(anchored, anchor=there)
         if anchored is None or self._harness not in (ADAPTIVE, ENV):
             return machine
-        if self._harness == ADAPTIVE and gated:
+        if self._harness == ADAPTIVE and hung & _GATES:
             return machine
         anchor = anchored.anchor
         why = await self._native_on(anchor, config.fence, placement)
@@ -725,15 +777,9 @@ class HarnessDriver:
           UnsupportedOperation: If the CLI will not fork into `cwd`.
           SessionError: If the session to fork cannot be carried on from.
         """
-        from hmz.coganchor.agents import Unfenced
         from hmz.coganchor.agents.skills import Loaded
 
-        try:
-            agent = self._kind(config)
-        except Unfenced as refused:
-            raise HarnessSandboxed(f"{self._spec}: {refused}") from refused
-        except ValueError as refused:
-            raise HarnessUnrecoverable(f"{self._spec}: {refused}") from refused
+        agent = self._made_as(config)
         agent.loads(Loaded(name=one.name, at=one.at) for one in skills)
         for listener in self._listeners:
             agent.watch(listener)
@@ -789,7 +835,7 @@ def settled(
     Raises:
       HarnessUnrecoverable: If the CLI cannot be configured so.
     """
-    from hmz.coganchor.agents import CodexAgentConfig
+    from hmz.coganchor.agents import ClaudeCodeAgentConfig, CodexAgentConfig
 
     try:
         fence = harnessing.fenced(
@@ -813,6 +859,8 @@ def settled(
         asks = ((feature, True),) if HookKind.ASK_USER in hung else ()
         changes["features"] = rest + asks
         changes["approvals"] = harnessing.approvals(harness, hung)
+    if isinstance(config, ClaudeCodeAgentConfig):
+        changes["asks"] = harnessing.prompting(harness, hung)
     try:
         return dataclasses.replace(config, **changes)
     except ValueError as refused:
@@ -823,15 +871,16 @@ def _environ(config: AgentConfig, profile: Profile | None) -> Mapping[str, str]:
     """The environment a session's turns run under, its account's variables included.
 
     What says where an account points its CLI's model, which the fence has to let through: a
-    gateway's endpoint is a variable its account sets. An account that is not there is this
-    process's own environment here, and is refused where the agent is made.
+    gateway's endpoint is a variable its account sets. Less what the account hushes, and read
+    by the one function the agent reads its own hosts with (`providers.composed`), so the hosts
+    the fence lets through here are the hosts it lets through there. An account that is not
+    there is this process's own environment here, and is refused where the agent is made.
     """
     from hmz.coganchor import providers
 
     if profile is None or not config.provider:
         return os.environ
-    found = providers.find(profile.name, config.provider)
-    return os.environ | providers.environ(found) if found is not None else os.environ
+    return providers.composed(providers.find(profile.name, config.provider), profile)
 
 
 class HarnessSession:

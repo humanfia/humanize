@@ -18,9 +18,10 @@ from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import _DONE, _HARNESS, _SAVE, Flows, Harnessing
+from hmz.tui.pick import _DONE, _HARNESS, _SAVE, Flows, Harnessing, Placing
 from tests.integration.tui.test_app import changes, onto, opens, rows
 from tests.integration.tui.test_budget import QUIET
+from tests.integration.tui.test_environments import _types
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -246,3 +247,47 @@ async def test_the_row_turned_to_from_another_flow_reads_that_flow_s_last_run(
         await driver.pause()
         # The role's last session: where it went last is where it went.
         assert "adaptive → env (last run)" in _said(app)
+
+
+@pytest.mark.timeout(60)
+async def test_its_machine_is_read_as_the_command_line_reads_it(flows: Path) -> None:
+    """`ssh@gpu-box` with no directory is the login's home there, as `-H` takes it.
+
+    The machine is chosen on the form an environment role is placed on, but it is not one:
+    it takes no `local`, and a directory left off is filled in as the command line fills it.
+    """
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/quiet")
+        await opens(app, driver, _HARNESS)
+        await until(lambda: isinstance(app.screen, Harnessing), driver)
+        await changes(app, driver, "where", "left")  # adaptive -> standalone
+        await opens(app, driver, "on")
+        await until(lambda: isinstance(app.screen, Placing), driver)
+        form = cast("Placing", app.screen)
+        assert "local" not in form.choices("backend")
+
+        # What `-H` refuses, it refuses in its own words.
+        await _types(app, driver, "spelled", "bogus@x")
+        await onto(app, driver, _DONE)
+        await driver.press("enter")
+        await driver.pause()
+        assert app.screen is form
+        said = str(form.query_one("#tuning", Label).content)
+        assert "'bogus' is not a backend" in said
+        assert "<role>" not in said
+
+        await _types(app, driver, "spelled", "ssh@gpu-box")
+        assert (form._typed_in["backend"], form._typed_in["provider"]) == (
+            "ssh",
+            "gpu-box",
+        )
+        await onto(app, driver, _DONE)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Harnessing), driver)
+        await until(lambda: _DONE in rows(app), driver)
+
+        await onto(app, driver, _DONE)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        assert "standalone → ssh@gpu-box" in _said(app)

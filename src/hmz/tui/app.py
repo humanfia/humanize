@@ -1261,7 +1261,7 @@ class Humanize(App[None]):
         In the background and one at a time, because asking means starting a coding agent,
         or reaching the endpoint an account points one at: a prompt cannot wait on either, and
         six at once is six of them. A backend that will not answer is left alone rather than
-        retried -- `r` on the models is what asks again.
+        retried -- the `check again` row under its models is what asks again.
         """
         import asyncio
 
@@ -1308,7 +1308,8 @@ class Humanize(App[None]):
 
         And not one somebody has written into. A fetch resets the clone to what the repository
         says now, so a weaver editing a flow in a flowverse of their own would lose it to a
-        download nobody asked for -- `r` is still how somebody says they meant that.
+        download nobody asked for -- the flowverse's `fetch again` row is still how somebody
+        says they meant that.
 
         Nor under a flow that is running, for the same reason read the other way round: the
         clone reset under a running flow is its own source swapped out from beneath it, and

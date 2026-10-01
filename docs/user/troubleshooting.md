@@ -241,6 +241,22 @@ runs](/user/remote-execution#where-the-agent-runs).
 
 **Verify.** The usage line is gone.
 
+### `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker`
+
+**Symptom.** `hmz exec` prints its usage, then this, or
+`no environment provider is saved as '<name>'` for a bare name, or
+`docker@gpubox is not saved with a workdir of its own` for a docker daemon.
+
+**Cause.** What follows `standalone:` is a machine: `ssh@<host>[/<workdir>]`,
+`docker@<provider>[/<workdir>]`, or the name of an environment provider saved on the
+[Environments page](/user/settings#environments). A docker daemon nobody saved needs its
+directory said.
+
+**Fix.** Write it as one of those, such as `-H standalone:ssh@gpu-box` or
+`-H standalone:docker@gpubox/srv/scratch`, or save the machine first.
+
+**Verify.** The usage line is gone.
+
 ### `ralph_loop has no run to resume here: none saved any progress` {#ralph-loop-has-no-run-here-to-pick-up-none-got-as-far-as-writing-anything-down}
 
 **Symptom.** A `--resume` line is refused.
@@ -617,6 +633,21 @@ CLI.
 
 **Verify.** The turn starts.
 
+### `(unmirrored: that path cannot be made here; …)`
+
+**Symptom.** A turn fails with this bracket, after
+`cannot keep the local copy of the work at <path>: Permission denied: …`.
+
+**Cause.** The agent's CLI runs here and works in a copy of another machine's directory, kept
+at that directory's own path for an `ssh` environment, and that path cannot be made on this
+machine: a parent you may not write, or a file where a directory should be. No account was
+refused, and signing in again changes nothing.
+
+**Fix.** Use a workdir whose path you can create here, or run the CLI on that machine with
+`-H env`. See [The path is taken here too](/user/remote-execution#the-path-is-taken-here-too).
+
+**Verify.** The turn starts.
+
 ### `(contended: two turns of it are sharing one database)`
 
 **Symptom.** A turn of opencode or mimocode fails with this bracket.
@@ -677,6 +708,19 @@ HUMANIZE_WATCHDOG=3600 hmz
 machine's own, and they forbid full access. So the agent runs one
 [permission](/user/permissions) rung down, at `auto`: Codex asks before it reaches past the
 workspace, and humanize says yes.
+
+**Fix.** Nothing to do.
+
+**Verify.** The agent's turns go through as usual.
+
+### `claude: this account will not run an agent at bypass, so it runs at acceptEdits, where what it asks for is granted` {#claude-this-account-will-not-run-an-agent-at-bypass-so-it-runs-at-acceptedits}
+
+**Symptom.** A note during a Claude Code agent's first turn. The work goes on.
+
+**Cause.** The Claude account's managed settings carry `"disableBypassPermissionsMode":
+"disable"`, or Claude runs as root, so Claude will not run at `bypassPermissions`. The agent
+runs at `acceptEdits` instead: Claude asks before what that mode does not cover, and humanize
+says yes.
 
 **Fix.** Nothing to do.
 
@@ -807,7 +851,8 @@ so: list its GPUs there.
 
 ### `claude is not installed on ssh@build-box: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local`
 
-**Symptom.** A role's first session on another machine fails with this, under `-H env`.
+**Symptom.** `hmz exec` refuses the run with this under `-H env`, before the flow starts, with
+exit status 2.
 
 **Cause.** `-H env` runs the agent's CLI on the environment's machine, and that machine does not
 have it on the `PATH` its shell gives a command. `adaptive`, the default, would have run it
@@ -821,7 +866,7 @@ says `builder's harness runs on its environment's machine (env)`.
 
 ### `ssh@build-box cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local`
 
-**Symptom.** A role's first session on another machine fails with this, under `-H env`.
+**Symptom.** `hmz exec` refuses the run with this under `-H env`, before the flow starts.
 `… cannot fence the commands the agent runs there: it needs Landlock …` is the same, for an
 agent whose CLI runs here.
 
@@ -836,7 +881,8 @@ the flow and grant the role everything. Docker's default seccomp profile allows 
 
 ### `… a fence cannot hold a harness that runs on another machine`
 
-**Symptom.** A role is refused under `-H standalone:…`.
+**Symptom.** `hmz exec` refuses the run with this under `-H standalone:…`, before the flow
+starts, with exit status 2.
 
 **Cause.** A standalone harness runs on a third machine, where humanize cannot hold a
 permission narrower than everything. Only a role granted `ALL` in every scope can run that way.
@@ -844,7 +890,7 @@ permission narrower than everything. Only a role granted `ALL` in every scope ca
 **Fix.** Use `-H local` or `-H env` for this flow, or copy the flow and grant the role
 everything.
 
-**Verify.** The role's first turn starts.
+**Verify.** The run starts.
 
 ### `humanize: no python 3.12 or newer on this machine; looked for: …`
 
@@ -950,6 +996,18 @@ it.
 
 **Verify.** The target listens, and an agent given the token reaches it.
 
+### `hmz: ignoring HUMANIZE_LOG='verbose', which is not one of debug, info, warning, error`
+
+**Symptom.** A turn on another machine, or `hmz internal anchor` run by hand, starts with this
+line on stderr.
+
+**Cause.** [`HUMANIZE_LOG`](/reference/environment#humanize-log) is set to something that is not
+a log level. It is ignored, and the command logs at its default level.
+
+**Fix.** Set it to `debug`, `info`, `warning` or `error`, or unset it.
+
+**Verify.** The line is gone.
+
 ### `… already contains files and is not an humanize mirror. …`
 
 **Symptom.** An agent whose work lands elsewhere will not start.
@@ -1003,8 +1061,10 @@ create it, owned by root.
 
 **Symptom.** `docker ps` lists containers from runs that are over.
 
-**Cause.** The run was killed before it could take them down. The next run on the same daemon
-takes down those whose run has gone.
+**Cause.** The run was killed before it could take them down: <kbd>ctrl+c</kbd>, `kill` and a
+hangup all let it take them down first, but a second <kbd>ctrl+c</kbd>, `kill -9` or a machine
+that went down do not. The
+next run on the same daemon takes down those whose run has gone.
 
 **Fix.** Every container humanize starts is labelled with your uid, so this removes yours and
 nobody else's:

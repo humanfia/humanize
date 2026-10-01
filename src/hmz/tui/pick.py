@@ -37,6 +37,7 @@ The run itself, drawn, is not a sheet: it is the monitor, a screen of its own in
 from __future__ import annotations
 
 import contextlib
+import datetime
 import re
 import shlex
 import sys
@@ -75,7 +76,7 @@ from hmz.runtime.telemetry import KEPT, SENT
 
 from .discover import installed, ready_to_open
 from .dropdown import Dropdown, Value, anchor
-from .monitor import lasting, thousands
+from .monitor import thousands
 from .selecting import Choices
 
 if TYPE_CHECKING:
@@ -1731,6 +1732,37 @@ def params_of(flow: str, kept: Mapping[str, Any]) -> BaseModel | None:
         return None
 
 
+#: The units a duration is written back in, largest first, in microseconds. Days and not
+#: weeks: `12d` is read at a glance where `1w5d` has to be added up.
+_WRITTEN_IN = (("d", 86_400_000_000), ("h", 3_600_000_000), ("m", 60_000_000))
+
+
+def _units(duration: datetime.timedelta) -> str:
+    """A duration, written the way `-b duration=` reads one.
+
+    Counted in whole microseconds, which is all a duration holds, so that what is written is
+    exactly what is read back however long it is: `12d`, `1h30m`, `1.5s`, `0s`.
+
+    Args:
+      duration: The duration. Not negative, which no budget's is.
+
+    Returns:
+      Each unit that is not nothing, largest first, and seconds to the microsecond.
+    """
+    left = duration // datetime.timedelta(microseconds=1)
+    said = ""
+    for unit, size in _WRITTEN_IN:
+        whole, left = divmod(left, size)
+        if whole:
+            said += f"{whole}{unit}"
+    seconds, micro = divmod(left, 1_000_000)
+    if micro:
+        said += f"{seconds}.{micro:06d}".rstrip("0") + "s"
+    elif seconds or not said:
+        said += f"{seconds}s"
+    return said
+
+
 def spent(budget: Budget) -> str:
     """What a budget caps, shortest first, as a row says it.
 
@@ -1738,14 +1770,15 @@ def spent(budget: Budget) -> str:
       budget: The budget.
 
     Returns:
-      Each limit it sets -- the time, the output tokens, the money -- and `no limit` for the
-      one a conversation runs under, whose one cap is an infinite cost.
+      Each limit it sets -- the time as the sheet it is set on writes it, the output tokens,
+      the money -- and `no limit` for the one a conversation runs under, whose one cap is an
+      infinite cost.
     """
     import math
 
     caps: list[str] = []
     if budget.duration is not None:
-        caps.append(lasting(budget.duration.total_seconds()))
+        caps.append(_units(budget.duration))
     if budget.output_tokens is not None:
         caps.append(f"{thousands(budget.output_tokens)} out")
     if budget.cost is not None and not math.isinf(budget.cost):
@@ -1928,6 +1961,27 @@ def _model(runs: Runs) -> str:
       The model, or "" for an agent nobody has answered yet.
     """
     return runs.spec.partition("/")[2].rpartition(":")[0]
+
+
+def _standing_on(spec: str) -> str:
+    """What is wrong with the machine a standalone harness was said to run on, or "".
+
+    Read the way `-H` reads what follows `standalone:`, so that what the menu takes is what a
+    command line would.
+
+    Args:
+      spec: The machine, as `-e` spells one after `<role>=`, or a saved one's name.
+
+    Returns:
+      Why it is not one, in words, or "" for a machine that reads.
+    """
+    from hmz.runtime.flowing import SpecError, parse_harness
+
+    try:
+        parse_harness(f"standalone:{spec}")
+    except SpecError as why:
+        return str(why)
+    return ""
 
 
 def placed(role: str, spec: str) -> str:
@@ -4202,12 +4256,17 @@ class Budgeted(BaseModel):
 
     @classmethod
     def of(cls, budget: Budget) -> Budgeted:
-        """A budget, as the sheet shows it."""
+        """A budget, as the sheet shows it.
+
+        Built rather than validated: this is what the sheet opens on, and the sheet is where
+        a budget is checked, when it is set. A budget that was valid when it was written --
+        one whose only limit is a cost of nothing, say -- is shown so that it can be changed,
+        rather than refused before anybody sees it.
+        """
         import math
 
-        seconds = budget.duration.total_seconds() if budget.duration else 0.0
-        return cls(
-            duration=f"{seconds:g}s" if seconds else "",
+        return cls.model_construct(
+            duration=_units(budget.duration) if budget.duration is not None else "",
             cost=budget.cost
             if budget.cost is not None and not math.isinf(budget.cost)
             else 0.0,
@@ -4355,6 +4414,10 @@ class Configures(Drafts["BaseModel"]):
         }
         #: What the model said was wrong with them, if it has been asked yet.
         self._wrong = ""
+        #: The setting just begun on whose whole value is still selected, or "" for none:
+        #: the first letter typed replaces it and backspace clears it, as a form's pre-filled
+        #: answer is replaced. Without it `5` typed into a cost of `0.0` is `0.05`.
+        self._whole = ""
         #: Which setting the cursor was last on, counting settings rather than rows: the
         #: headings between them are rows nothing can land on, so a row number is not one.
         #: One past the last for the row that sets them all.
@@ -4479,11 +4542,19 @@ class Configures(Drafts["BaseModel"]):
         number = f"{at + 1:>{self._counting}}."
         value = self._typed_in[name]
         about = dict(self._fields)[name].description or ""
+        # A value still selected whole is drawn reversed, as a selection is, and the next
+        # letter replaces it rather than landing after it; there is no caret beside it.
+        whole = bool(value) and self._editing == name and self._whole == name
+        shown = (
+            f"[reverse]{escape(value)}[/reverse]"
+            if whole
+            else f"[$secondary]{escape(value)}[/]"
+        )
         # A block where the next letter goes, drawn by reversing what is already there --
         # the one thing a list in the terminal's own colours can show without naming one.
         caret = (
             "[reverse] [/reverse]"
-            if self._editing == name and not self._steps(name)
+            if self._editing == name and not self._steps(name) and not whole
             else ""
         )
         # And the mark that says which rows move where they stand, which is the other half of
@@ -4496,7 +4567,7 @@ class Configures(Drafts["BaseModel"]):
         room = _VALUE - len(value) - (1 if caret else 0) - len(cycles)
         return (
             f"{mark}[$text-muted]{number}[/] {named}"
-            f"[$secondary]{escape(value)}[/]{caret}[$text-muted]{cycles}[/]"
+            f"{shown}{caret}[$text-muted]{cycles}[/]"
             f"{' ' * max(1, room)}[$text-muted]{escape(about)}[/]"
         )
 
@@ -4569,6 +4640,20 @@ class Configures(Drafts["BaseModel"]):
         """
         self._typed_in = dict(cast("dict[str, str]", was))
 
+    def pressed(self) -> bool:
+        """Takes enter as :meth:`Sheet.pressed` does, selecting a written value it begins on.
+
+        Returns:
+          Whether enter was taken, as there.
+        """
+        begun = not self._editing
+        taken = super().pressed()
+        self._whole = ""
+        if begun and self._editing and not self._steps(self._editing):
+            self._whole = self._editing
+            self._fill()
+        return taken
+
     def step(self, row: str, by: int) -> None:
         """Moves one setting along, however that setting moves.
 
@@ -4576,6 +4661,7 @@ class Configures(Drafts["BaseModel"]):
           row: The setting.
           by: One step forward or back.
         """
+        self._whole = ""  # a value stepped to is one chosen, and typing goes after it
         if steps := self._steps(row):
             at = steps.index(self._typed_in[row]) if self._typed_in[row] in steps else 0
             self._typed_in[row] = steps[(at + by) % len(steps)]
@@ -4604,6 +4690,11 @@ class Configures(Drafts["BaseModel"]):
         """
         if self._steps(row):
             return False
+        typed = event.key == "backspace" or (event.is_printable and event.character)
+        if typed and self._whole == row:
+            # A value selected whole is replaced by the first thing typed.
+            self._whole = ""
+            self._typed_in[row] = ""
         if event.key == "backspace":
             self._typed_in[row] = self._typed_in[row][:-1]
         elif event.is_printable and event.character:
@@ -9018,20 +9109,29 @@ class Unsaved(Form[str]):
         self.dismiss(said)
 
 
-def _spelled(role: str, spec: str) -> tuple[str, str, str] | None:
+def _spelled(
+    role: str, spec: str, *, harness: bool = False
+) -> tuple[str, str, str] | None:
     """What an `-e` spec comes to -- its backend, its machine, its directory -- read as `-e` is.
 
     Args:
       role: The role it is for.
       spec: What follows `<role>=`.
+      harness: Whether it is the machine a standalone harness runs on, read as `-H` reads
+        what follows `standalone:` -- a directory left off being the login's home over ssh.
 
     Returns:
       The three, or None for a spec that does not read.
     """
-    from hmz.runtime.flowing import SpecError, parse_envs
+    from hmz.runtime.flowing import SpecError, parse_envs, parse_harness
 
     try:
-        (one,) = parse_envs([f"{role}={spec}"])
+        if harness:
+            one = parse_harness(f"standalone:{spec}").on
+            if one is None:
+                return None
+        else:
+            (one,) = parse_envs([f"{role}={spec}"])
     except (SpecError, ValueError):
         return None
     # A directory the spec leaves out is its provider's, followed rather than copied: `-e`
@@ -9068,22 +9168,30 @@ class Placing(Form[str]):
     #: Stepped along where it stands, as the rest of the flow menu it is opened from is.
     DROPS: ClassVar = False
 
-    def __init__(self, role: str, spec: str = "") -> None:
+    def __init__(self, role: str, spec: str = "", *, harness: bool = False) -> None:
         """Initializes the form on where the role is now.
 
         Args:
           role: The environment role.
           spec: Where it is now, as `-e` spells it after `<role>=`, or "" for nowhere yet --
             which starts on the first backend anything is saved for.
+          harness: Whether this is the machine a standalone harness runs on rather than an
+            environment role: read as `-H` reads what follows `standalone:`, which takes no
+            `local` and fills in a directory left off as the command line does.
         """
         from hmz.flows import EnvBackendKind
 
         super().__init__()
         self._role = role
-        self._kinds = [kind.value for kind in EnvBackendKind]
+        self._harness = harness
         self._local = EnvBackendKind.LOCAL.value
+        self._kinds = [
+            kind.value
+            for kind in EnvBackendKind
+            if not harness or kind is not EnvBackendKind.LOCAL
+        ]
         envs = _hmz().environments
-        read = _spelled(role, spec) if spec else None
+        read = _spelled(role, spec, harness=harness) if spec else None
         # One that does not read is kept as it was written, for somebody to correct.
         raw = spec if read is None else ""
         if read is None:
@@ -9179,6 +9287,7 @@ class Placing(Form[str]):
                     needed=not provider,
                 )
             )
+        filled = self._filled_in()
         rows.append(
             Question(
                 _WORKDIR,
@@ -9187,18 +9296,38 @@ class Placing(Form[str]):
                 if backend == self._local
                 else f"leave blank to use saved default: {saved}"
                 if saved
+                else f"leave blank for {filled}"
+                if filled
                 else "remote working directory: /path or ~/path under home",
-                needed=not typed.get(_WORKDIR, "").strip() and not saved,
+                needed=not typed.get(_WORKDIR, "").strip() and not saved and not filled,
             )
         )
         rows.append(
             Question(
                 _SPELLED,
-                "as -e",
-                "full -e spec: typing one sets the rows above",
+                "as -H" if self._harness else "as -e",
+                "what follows standalone: in -H; typing one sets the rows above"
+                if self._harness
+                else "full -e spec: typing one sets the rows above",
             )
         )
         return rows
+
+    def _filled_in(self) -> str:
+        """Where a standalone harness's machine left without a directory works, or "".
+
+        What `-H` fills in for one that says none and was saved with none: the login's home
+        over ssh, and on docker's default here a directory humanize keeps. An environment
+        role is filled in with nothing.
+        """
+        if not self._harness:
+            return ""
+        backend = self._typed_in.get(_BACKEND, "")
+        if backend == _SSH:
+            return "the login's home"
+        if backend == _DOCKER and self._typed_in.get(_PROVIDER, "").strip() == "local":
+            return "a directory humanize keeps"
+        return ""
 
     def choices(self, held: str) -> Sequence[str]:
         """Every backend `-e` takes."""
@@ -9292,7 +9421,11 @@ class Placing(Form[str]):
         if _SPELLED in self._fresh:
             self._spells()  # something above it moved, pasted in or walked off
             return
-        read = _spelled(self._role, self._typed_in.get(_SPELLED, "").strip())
+        read = _spelled(
+            self._role,
+            self._typed_in.get(_SPELLED, "").strip(),
+            harness=self._harness,
+        )
         if read is None:
             return  # kept as written, and said what is wrong with it once it is answered
         self._reads_in(read)
@@ -9307,10 +9440,17 @@ class Placing(Form[str]):
 
     def _ask(self) -> None:
         """Says which role this is, and lands on the first thing still to be answered."""
-        self.query_one("#asked", Label).update(escape(f"Environment for {self._role}"))
+        self.query_one("#asked", Label).update(
+            escape(
+                "Machine for the standalone harness"
+                if self._harness
+                else f"Environment for {self._role}"
+            )
+        )
         self.query_one("#about", Label).update(
-            "The machine and working directory for this environment role. "
-            "Choosing a machine saved on the environments page of /settings by "
+            "The machine and working directory for "
+            + ("the harness. " if self._harness else "this environment role. ")
+            + "Choosing a machine saved on the environments page of /settings by "
             "name includes its saved working directory."
         )
         self._fill()
@@ -9334,7 +9474,9 @@ class Placing(Form[str]):
                 else "specify an environment"
             )
         elif spec:
-            self._wrong = placed(self._role, spec)
+            self._wrong = (
+                _standing_on(spec) if self._harness else placed(self._role, spec)
+            )
         if self._wrong:
             self._fill()
             return
@@ -9435,7 +9577,7 @@ class Harnessing(Form[str]):
         )
         try:
             chosen = await showing.push_screen_wait(
-                Placing("harness", self._typed_in.get(_STANDS_ON, ""))
+                Placing("harness", self._typed_in.get(_STANDS_ON, ""), harness=True)
             )
         finally:
             self.opened()

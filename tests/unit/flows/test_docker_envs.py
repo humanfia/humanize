@@ -11,6 +11,7 @@ is the integration tier's against a stand-in and the system tier's against a dae
 from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
+from typing import cast
 
 import pytest
 
@@ -34,6 +35,7 @@ from hmz.runtime.flowing.declaring import env_roles
 from hmz.runtime.flowing.environing import MachineEnvDriver
 from hmz.runtime.flowing.environing_docker import (
     IMAGE,
+    TRACING,
     Asked,
     DockerMachine,
     Has,
@@ -320,3 +322,52 @@ def test_an_agent_in_a_container_is_anchored_to_it_in_a_mirror_of_its_own() -> N
     assert not anchor.shadow.startswith("/srv/x")
     # The same workdir is the same machine, which is what a fork asks.
     assert driver.placement() == placement
+
+
+def test_a_container_holding_a_harness_may_borrow_its_agents_descriptors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A standalone harness's container is started with `CAP_SYS_PTRACE`, and no other is.
+
+    Its supervisor borrows each command's descriptors from the agent, which docker's default
+    seccomp profile refuses a container without it; a socket cannot be opened again through
+    `/proc` instead, so a CLI handing its commands one would see them say nothing.
+    """
+    from hmz.coganchor import machines
+    from hmz.runtime.flowing import environing_docker
+
+    started: list[tuple[str, ...]] = []
+
+    class Config:
+        def __init__(self, **said: object) -> None:
+            started.append(tuple(cast("tuple[str, ...]", said["run_args"])))
+
+        def create(self) -> Config:
+            return self
+
+        def start(self) -> None:
+            return None
+
+    def said(*_: object) -> dict[str, object]:
+        return {}
+
+    def has(*_: object) -> Has:
+        return Has(1.0, 1 << 30, (), 0, 0)
+
+    def held(*_: object, **__: object) -> list[Allocation]:
+        return []
+
+    monkeypatch.setattr(environing_docker, "_info", said)
+    monkeypatch.setattr(environing_docker, "has_of", has)
+    monkeypatch.setattr(machines, "allocations", held)
+    monkeypatch.setattr(machines, "DockerConfig", Config)
+    store.add(store.DockerProvider(name="box", run_args=("--shm-size", "1g")))
+    (spec,) = parse_envs(["harness=docker@box/srv/x"])
+
+    _machine(open_env(spec, traced=True))._brought_up()
+    _machine(open_env(spec))._brought_up()
+
+    assert started == [
+        (*TRACING, "--shm-size", "1g"),
+        ("--shm-size", "1g"),
+    ]

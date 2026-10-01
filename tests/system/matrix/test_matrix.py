@@ -26,6 +26,7 @@ import re
 import secrets
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -47,6 +48,7 @@ from hmz.flows import (
 )
 from tests.matrix.cells import (
     _BUDGETED,
+    BUDGET,
     Unsettled,
     feature,
     forks,
@@ -434,6 +436,56 @@ def test_stop(cell: Cell) -> None:
         f"a run stopped {took:.1f}s ago reads {ran.how!r}: it raised {running.raised!r}"
         f" and returned {running.result!r}"
     )
+
+
+@feature()
+def test_exec_interrupt(cell: Cell) -> None:
+    """`hmz exec` given ctrl+c mid-turn lets go of the run and exits 130, with no traceback.
+
+    Sent to the whole process group, as a terminal sends it, so the CLI hears it too: what
+    that CLI does with it is the CLI's, and the run is stopped whatever that is.
+    """
+    argv = [
+        *(sys.executable, "-Pm", "hmz", "exec", "-f", str(_one(cell))),
+        *("-a", cell.agent(), "-b", BUDGET, SLOW),
+    ]
+    running = subprocess.Popen(
+        argv,
+        cwd=cell.workspace,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        # Long enough for the slowest CLI to have started and reached for its shell.
+        time.sleep(2 * SETTLE)
+        if running.poll() is not None:
+            _, err = running.communicate()
+            with cell.environmental():
+                pytest.fail(
+                    f"the slow turn was over within {2 * SETTLE}s\n{err[-2000:]}"
+                )
+        began = time.monotonic()
+        os.killpg(running.pid, signal.SIGINT)
+        _, err = running.communicate(timeout=120)
+        took = time.monotonic() - began
+    finally:
+        if running.poll() is None:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(running.pid, signal.SIGKILL)
+            running.communicate()
+
+    assert running.returncode == 128 + signal.SIGINT, err[-2000:]
+    # The CLI's own words on the stream it shares are its own; what is checked is that
+    # humanize raised nothing.
+    assert not re.search(r'File "[^"]*/hmz/', err), err[-2000:]
+    assert took < 60, f"an interrupted run took {took:.0f}s to end"
+    (epic,) = cell.hmz.epics.all()
+    ran = cell.hmz.epics.read(epic)
+    assert ran is not None
+    assert ran.how == "stopped", ran
 
 
 # -------------------------------------------------------------- sessions, and runs again
@@ -1692,9 +1744,10 @@ def test_docker_env_remote(cell: Cell, docker_box: Docked) -> None:
 def test_harness_placement(cell: Cell, daemon: None) -> None:
     """Where the harness runs is what `-H` says, for a container that has no CLI of its own.
 
-    `-H env` is refused before a turn, naming the container and saying how to install the CLI
-    there. `adaptive`, said by saying nothing, finds no CLI there and runs the harness here, as
-    every docker row always has -- and the run writes down that it did.
+    `-H env` is refused before the run, as a line to correct, naming the container and saying
+    how to install the CLI there. `adaptive`, said by saying nothing, finds no CLI there and
+    runs the harness here, as every docker row always has -- and the run writes down that it
+    did.
     """
     from hmz.runtime.epic import epics, read
 
@@ -1711,8 +1764,9 @@ def test_harness_placement(cell: Cell, daemon: None) -> None:
         check=False,
         timeout=600,
     )
-    assert refused.status, f"-H env ran with no CLI in the container\n{refused}"
+    assert refused.status == 2, f"-H env was not refused before the run\n{refused}"
     assert "is not installed on docker@local" in refused.err, refused
+    assert "Traceback" not in refused.err, refused
 
     ran = cell.exec(boxed, CONTAINED, envs=[f"box=docker@local{there}"], timeout=600)
 

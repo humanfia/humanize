@@ -17,13 +17,12 @@ import json
 import os
 import re
 import shutil
-import tempfile
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz import home
-from hmz.coganchor import backends
+from hmz.coganchor import atomic, backends
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -35,8 +34,10 @@ __all__ = [
     "add",
     "alone",
     "chain",
+    "composed",
     "copies",
     "find",
+    "hushed",
     "points",
     "providers",
     "serves",
@@ -505,20 +506,11 @@ def _writes(at: Path, said: str) -> None:
       is the old one or the new one and never half of each -- and beside it under a name
       nothing else will pick, because two `hmz` at once (a menu saving while a script points
       a chain) writing one fixed `.new` is one of them finding its own file already moved
-      away. `mkstemp` is `0600` from the moment the file exists, which is what these hold: a
+      away. It is `0600` before anything is written into it, which is what these hold: a
       key, a token, or an endpoint somebody pays for. A file that was readable for the moment
       between being written and being chmodded was readable.
     """
-    handle, beside = tempfile.mkstemp(
-        dir=at.parent, prefix=f".{at.name}.", suffix=".new"
-    )
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as writing:
-            writing.write(said)
-        Path(beside).replace(at)
-    except OSError:
-        Path(beside).unlink(missing_ok=True)
-        raise
+    atomic.writes(at, said, mode=0o600)
 
 
 def add(
@@ -735,3 +727,48 @@ def environ(provider: Provider | None) -> dict[str, str]:
       The variables to add, which is nothing at all where there is no provider.
     """
     return dict(provider.env) if provider is not None else {}
+
+
+def hushed(
+    provider: Provider | None, profile: backends.Profile | None
+) -> frozenset[str]:
+    """The variables a turn under a provider is run without, whoever left them lying about.
+
+    A provider is which account the agent is, and these CLIs take an account from an
+    environment variable before the credentials they were signed in with. So a turn under a
+    provider is run without every variable its backend would read an account from, except
+    the ones that provider sets itself.
+
+    Args:
+      provider: The provider, or None for an agent running as the CLI already runs.
+      profile: The backend, or None for a CLI nothing is written down about.
+
+    Returns:
+      The variables to take away: nothing at all where there is no provider or no backend.
+    """
+    if provider is None or profile is None:
+        return frozenset()
+    return profile.hushes() - set(provider.env)
+
+
+def composed(
+    provider: Provider | None, profile: backends.Profile | None
+) -> dict[str, str]:
+    """The environment a turn under a provider runs under, as far as its account is concerned.
+
+    This process's own, less what the provider hushes and plus what it sets. It is what says
+    where the account points the CLI's model, so it is what the hosts a fence lets through
+    are read from, wherever the fence is drawn: a flow's harness and the agent itself read
+    them from here, so a variable the turn is run without never opens a host.
+
+    Args:
+      provider: The provider, or None for an agent running as the CLI already runs.
+      profile: The backend, or None for a CLI nothing is written down about.
+
+    Returns:
+      The variables.
+    """
+    gone = hushed(provider, profile)
+    return {
+        name: value for name, value in os.environ.items() if name not in gone
+    } | environ(provider)

@@ -18,12 +18,12 @@ import json
 import os
 import re
 import shutil
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz import home
+from hmz.coganchor import atomic
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -668,17 +668,7 @@ def _kept(at: Path) -> None:
 
 def _writes(at: Path, said: str, mode: int = 0o600) -> None:
     """Writes a file whole, readable by its owner alone from the moment it exists."""
-    handle, beside = tempfile.mkstemp(
-        dir=at.parent, prefix=f".{at.name}.", suffix=".new"
-    )
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as writing:
-            writing.write(said)
-        Path(beside).chmod(mode)
-        Path(beside).replace(at)
-    except OSError:
-        Path(beside).unlink(missing_ok=True)
-        raise
+    atomic.writes(at, said, mode=mode)
 
 
 # ------------------------------------------------------------------------ an ssh config

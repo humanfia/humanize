@@ -18,6 +18,8 @@ import pytest
 from hmz.coganchor import backends
 from hmz.coganchor.agents import (
     AgentBase,
+    ClaudeCodeAgent,
+    ClaudeCodeAgentConfig,
     CodexAgent,
     CodexAgentConfig,
     Failed,
@@ -299,6 +301,30 @@ def test_a_session_config_carries_the_rung_the_web_and_codex_asking() -> None:
         ("undo", True),
         ("default_mode_request_user_input", True),
     )
+
+
+def test_a_claude_session_asks_only_while_a_permission_hook_is_hung() -> None:
+    """At BYPASS Claude asks nothing, unless a PERMISSION_REQUEST hook needs asking."""
+    config = ClaudeCodeAgentConfig(model="m", effort="low")
+    plain = settled(
+        config,
+        HarnessKind.CLAUDE,
+        ClaudeCodeAgent,
+        EVERYTHING,
+        frozenset(),
+        tellable=True,
+    )
+    assert isinstance(plain, ClaudeCodeAgentConfig)
+    assert (plain.permission, plain.asks) == ("bypass", False)
+    for hung, asks in (
+        (frozenset({HookKind.PERMISSION_REQUEST}), True),
+        (frozenset({HookKind.ASK_USER, HookKind.PRE_TOOL_USE}), False),
+    ):
+        made = settled(
+            config, HarnessKind.CLAUDE, ClaudeCodeAgent, EVERYTHING, hung, tellable=True
+        )
+        assert isinstance(made, ClaudeCodeAgentConfig)
+        assert (made.permission, made.asks) == ("bypass", asks)
 
 
 # ---------------------------------------------------------------------------- capabilities

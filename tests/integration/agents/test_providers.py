@@ -26,6 +26,8 @@ from hmz.coganchor import providers
 from hmz.coganchor.agents import AgentConfig, ClaudeCodeAgent, ClaudeCodeAgentConfig
 from hmz.coganchor.backends import named
 from hmz.coganchor.machines import MachineBase, MachineConfig
+from hmz.flows import HarnessKind, Permission, PermissionKind
+from hmz.runtime.flowing.harnesses import settled
 from tests.agents import homes
 from tests.stubs import ClaudeShellAgent, HereAnchor, ShellAgent
 
@@ -194,3 +196,52 @@ def test_a_provider_reaches_the_command_a_real_backend_builds(
     assert any(f"--map={home}/.claude/.credentials.json=" in one for one in spawned), (
         spawned
     )
+
+
+def test_a_hushed_endpoint_opens_no_host_in_either_half_of_the_fence(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The flow's harness and the agent read a fence's hosts from the one environment.
+
+    An `ANTHROPIC_BASE_URL` left in the shell is hushed from a provider's turn, so the turn
+    never goes there -- and neither half of its fence lets it: not the fence the harness
+    draws, and not what the agent adds to it. The endpoint the provider sets itself is let
+    through by both.
+    """
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://stray.example")
+    providers.add("claude", "mine", way="login")
+    providers.add(
+        "claude",
+        "gateway",
+        way="gateway",
+        env={"ANTHROPIC_BASE_URL": "https://gw.example", "ANTHROPIC_API_KEY": "k"},
+    )
+    cut = Permission(
+        local=PermissionKind.ALL,
+        user=PermissionKind.READ,
+        system=PermissionKind.NONE,
+        online=PermissionKind.NONE,
+    )
+
+    def hosts(account: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        config = settled(
+            ClaudeCodeAgentConfig(model="m", effort="high", provider=account),
+            HarnessKind.CLAUDE,
+            ClaudeCodeAgent,
+            cut,
+            frozenset(),
+            tellable=True,
+            workdir=str(home),
+            profile=named("claude"),
+        )
+        assert config.fence is not None
+        fenced = ClaudeCodeAgent(config).fenced()
+        assert fenced is not None
+        return config.fence.hosts, fenced.hosts
+
+    drawn, held = hosts("mine")
+    assert "stray.example" not in (*drawn, *held)
+    drawn, held = hosts("gateway")
+    assert "gw.example" in drawn
+    assert "gw.example" in held
+    assert "stray.example" not in (*drawn, *held)

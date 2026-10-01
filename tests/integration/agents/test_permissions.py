@@ -225,7 +225,7 @@ def test_the_ordinary_tier_leaves_the_users_own_fast_mode_alone() -> None:
         ("read-only", "plan"),
         ("workspace-write", "acceptEdits"),
         ("auto", "auto"),
-        ("bypass", "manual"),
+        ("bypass", "bypassPermissions"),
     ],
 )
 def test_claude_runs_at_the_permission_mode_the_rung_means(
@@ -239,8 +239,7 @@ def test_claude_runs_at_the_permission_mode_the_rung_means(
 
     argv = _noted(log)[0]["argv"]
     assert argv[argv.index("--permission-mode") + 1] == mode
-    # No rung skips the asking: `--dangerously-skip-permissions` is the flag an account may
-    # forbid, so humanize never sends it and answers the asking itself instead.
+    # The mode is said by its name, never by the older flag for the one that asks nothing.
     assert "--dangerously-skip-permissions" not in argv
 
 
@@ -262,21 +261,21 @@ def test_claude_is_told_no_mode_at_all_for_an_agent_on_no_rung(
     assert "--dangerously-skip-permissions" not in argv
 
 
-def test_claude_takes_the_asking_for_bypass_rather_than_skipping_it(
+def test_claude_at_bypass_asks_nothing_and_routes_what_it_still_asks_home(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`bypass` runs at `manual` and routes every request to humanize, which answers it.
+    """`bypass` is Claude's `bypassPermissions`, and what it still asks humanize answers.
 
-    Which is what lets a `bypass` agent run on an account whose managed settings forbid
-    `bypassPermissions`: the mode humanize uses is one every account allows, and the deciding
-    is humanize's rather than the flag's. `stdio` is the request reaching us, and it is only
-    on for `bypass` -- the other rungs are enforced by the mode Claude runs them at.
+    `stdio` is the request reaching us, and it is only on for `bypass` -- the other rungs are
+    enforced by the mode Claude runs them at. At `bypassPermissions` Claude still asks its
+    user's questions over it, and it is what the account's own mode asks through where the
+    account forbids `bypassPermissions`.
 
     Pinned because the flag has left `claude --help`, where `--permission-prompts` now stands
     with `host` for its default. The default is not enough by itself: a 2.1.272 at `manual`
     without this flag sends no `control_request` at all and denies the tool itself, so taking
-    it away as a legacy spelling of a default would make `bypass` a rung that decides nothing
-    and leave a flow's `PERMISSION_REQUEST` hooks with none of what they are hung for.
+    it away as a legacy spelling of a default would leave a flow's `PERMISSION_REQUEST` hooks
+    with none of what they are hung for.
     """
     log = _claude(tmp_path, monkeypatch)
     assert ClaudeCodeAgent(
@@ -284,9 +283,172 @@ def test_claude_takes_the_asking_for_bypass_rather_than_skipping_it(
     ).new()("hi")
 
     argv = _noted(log)[0]["argv"]
-    assert argv[argv.index("--permission-mode") + 1] == "manual"
+    assert argv[argv.index("--permission-mode") + 1] == "bypassPermissions"
     assert argv[argv.index("--permission-prompt-tool") + 1] == "stdio"
     assert "--dangerously-skip-permissions" not in argv
+
+
+def test_claude_at_bypass_asks_everything_while_a_hook_is_to_be_asked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`bypassPermissions` asks nothing, so a PERMISSION_REQUEST hook needs `manual`."""
+    log = _claude(tmp_path, monkeypatch)
+    assert ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="m", effort="high", permission="bypass", asks=True)
+    ).new()("hi")
+
+    argv = _noted(log)[0]["argv"]
+    assert argv[argv.index("--permission-mode") + 1] == "manual"
+    assert argv[argv.index("--permission-prompt-tool") + 1] == "stdio"
+
+
+#: A `claude` on an account whose managed settings forbid `bypassPermissions`: told that mode,
+#: it runs at `default` and says so in its `system/init`, as Claude Code 2.1.285 does. It
+#: writes down every control request it is sent, asks to use one tool, and writes down what
+#: it was answered.
+_MANAGED = """
+import json, pathlib, sys
+
+log = pathlib.Path(LOG)
+
+
+def note(entry):
+    with log.open("a") as stream:
+        json.dump(entry, stream)
+        stream.write("\\n")
+
+
+note({"argv": sys.argv[1:]})
+flags = dict(zip(sys.argv, sys.argv[1:]))
+mode = flags["--permission-mode"]
+session = flags.get("--session-id") or flags["--resume"]
+for line in sys.stdin:
+    said = json.loads(line)
+    if said["type"] == "control_request":
+        note({"told": said["request"]})
+        continue
+    print(json.dumps({"type": "system", "subtype": "init", "session_id": session,
+                      "permissionMode": "default" if mode == "bypassPermissions" else mode}),
+          flush=True)
+    print(json.dumps({"type": "control_request", "request_id": "r_1",
+                      "request": {"tool_name": "Bash", "input": {"command": "true"}}}),
+          flush=True)
+    while (answered := json.loads(sys.stdin.readline()))["type"] == "control_request":
+        note({"told": answered["request"]})
+    note({"answered": answered["response"]["response"]})
+    print(json.dumps({"type": "result", "result": said["message"]["content"][0]["text"],
+                      "session_id": session}), flush=True)
+"""
+
+
+#: A `claude` run as root: told `bypassPermissions`, it says what Claude Code 2.1.285 says and
+#: exits before it reads the turn. Told anything else, it answers.
+_ROOTED = """
+import json, pathlib, sys
+
+log = pathlib.Path(LOG)
+with log.open("a") as stream:
+    json.dump({"argv": sys.argv[1:]}, stream)
+    stream.write("\\n")
+flags = dict(zip(sys.argv, sys.argv[1:]))
+if flags["--permission-mode"] == "bypassPermissions":
+    print("--dangerously-skip-permissions cannot be used with root/sudo privileges for "
+          "security reasons", file=sys.stderr, flush=True)
+    raise SystemExit(1)
+session = flags.get("--session-id") or flags["--resume"]
+for line in sys.stdin:
+    said = json.loads(line)["message"]["content"][0]["text"]
+    print(json.dumps({"type": "system", "subtype": "init", "session_id": session,
+                      "permissionMode": flags["--permission-mode"]}), flush=True)
+    print(json.dumps({"type": "result", "result": said, "session_id": session}), flush=True)
+"""
+
+
+def test_claude_as_root_runs_accept_edits_rather_than_failing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Root is refused `bypassPermissions` outright, which is BYPASS disallowed too."""
+    log = tmp_path / "claude.jsonl"
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    fake = binaries / "claude"
+    fake.write_text(
+        f"#!{sys.executable}\n{standins.refusing('claude')}"
+        f"{_ROOTED.replace('LOG', repr(str(log)))}"
+    )
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="m", effort="high", permission="bypass")
+    )
+
+    events = list(agent.new().stream("hi"))
+
+    assert [event.text for event in events if event.kind == "result"] == ["hi"]
+    assert [event.kind for event in events].count("notice") == 1
+
+    def modes() -> list[str]:
+        return [
+            one["argv"][one["argv"].index("--permission-mode") + 1]
+            for one in _noted(log)
+        ]
+
+    assert modes() == ["bypassPermissions", "acceptEdits"]
+    # And the agent's next session goes straight there.
+    assert agent.new()("again") == "again"
+    assert modes() == ["bypassPermissions", "acceptEdits", "acceptEdits"]
+
+
+def test_claude_runs_accept_edits_where_the_account_forbids_bypass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The spec's own example: BYPASS disallowed runs at `acceptEdits`, every request granted.
+
+    Found out from the first process's `system/init`, which is moved to `acceptEdits` over
+    the control protocol at once and said once; every process after it on that account is
+    started there outright.
+    """
+    log = tmp_path / "claude.jsonl"
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    fake = binaries / "claude"
+    fake.write_text(
+        f"#!{sys.executable}\n{standins.refusing('claude')}"
+        f"{_MANAGED.replace('LOG', repr(str(log)))}"
+    )
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="m", effort="high", permission="bypass")
+    )
+
+    events = list(agent.new().stream("hi"))
+
+    assert [event.kind for event in events if event.kind == "result"] == ["result"]
+    notices = [event.text for event in events if event.kind == "notice"]
+    assert notices == [
+        (
+            "claude: this account will not run an agent at bypass, so it runs at "
+            "acceptEdits, where what it asks for is granted"
+        )
+    ]
+    noted = _noted(log)
+    argv = noted[0]["argv"]
+    assert argv[argv.index("--permission-mode") + 1] == "bypassPermissions"
+    assert {"subtype": "set_permission_mode", "mode": "acceptEdits"} in [
+        one["told"] for one in noted if "told" in one
+    ]
+    # Every request it still makes is granted.
+    assert [one["answered"]["behavior"] for one in noted if "answered" in one] == [
+        "allow"
+    ]
+
+    # A session opened after it is started at `acceptEdits`, and nothing more is said.
+    events = list(agent.new().stream("again"))
+    assert not [event for event in events if event.kind == "notice"]
+    argv = _noted(log)[len(noted)]["argv"]
+    assert argv[argv.index("--permission-mode") + 1] == "acceptEdits"
+    assert argv[argv.index("--permission-prompt-tool") + 1] == "stdio"
 
 
 @pytest.mark.parametrize("permission", ["read-only", "workspace-write", "auto", UNSAID])
@@ -342,9 +504,13 @@ def test_a_hook_may_refuse_a_permission_at_any_rung_that_asks(
     ):
         assert agent.new()("hi") == "hi"
 
-    answered = _noted(log)[1]["answered"]
+    noted = _noted(log)
+    answered = noted[1]["answered"]
     assert answered["behavior"] == "deny"
     assert answered["message"] == "not that"
+    # `bypassPermissions` would ask nothing, so an agent something is to be asked for asks.
+    argv = noted[0]["argv"]
+    assert argv[argv.index("--permission-mode") + 1] == "manual"
 
 
 @pytest.mark.parametrize(

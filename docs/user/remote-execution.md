@@ -244,7 +244,7 @@ saved with:
      1. builder                   claude/claude-haiku-4-5-20251001:high
      2. reviewer                  claude/claude-haiku-4-5-20251001:high
      3. box                       ssh@build-box                                          ⑤
-        budget                    stops at 10m00s
+        budget                    stops at 10m
         harness                   adaptive → env where its CLI is installed, else local   ⑥
         save                      flow and roles
 ```
@@ -313,7 +313,8 @@ host when all three hold, and here otherwise:
   any role not granted everything;
 - the flow hangs no hook on the role that decides whether each tool runs, such as the builder
   of [`humanize1:rlcr`](/flows/humanize1): a CLI on another machine can only report what such a
-  hook would have decided, so adaptive keeps that role here.
+  hook would have decided, so adaptive keeps that role here. A hook that answers the agent's
+  questions is not one of those: a question comes back from wherever the CLI runs.
 
 The `harness` row says what it comes to:
 
@@ -353,7 +354,8 @@ from an earlier run.
   `ssh@build-box/home/me/code/myproject` fails when your own checkout is at
   `/home/me/code/myproject` on this machine.
 - A path you may not create here fails the turn, as
-  `Permission denied: '/home/me'`.
+  `cannot keep the local copy of the work at /home/me/build/myproject: Permission denied: /home/me`,
+  marked `(unmirrored: …)`.
 
 A `docker@` environment keeps its copy under `~/.humanize/envs/mirrors/` instead, so its
 workdir may be your own checkout.
@@ -378,11 +380,12 @@ reaches.
   runs can only watch.
 - **A role not granted everything needs Landlock on the host** to hold its permission.
 
-Where the host has no CLI, the role's first session is refused, and the run fails with exit
-status 1. The last line of what it prints says what to do:
+Where the host has no CLI, the run is refused before the flow starts, with exit status 2.
+Every role's CLI is looked for on every environment's machine, so the line says what to do
+about the first one missing:
 
 ```text
-hmz.flows.errors.HarnessNotInstalled: claude is not installed on ssh@build-box: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local
+hmz exec: error: claude is not installed on ssh@build-box: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local
 ```
 
 ::: tip Installed is on the `PATH` an ssh command gets
@@ -426,7 +429,7 @@ the same form an environment role is placed with:
 Its caveats are the strictest of the four:
 
 - **Only a role granted everything.** A permission cannot be held around a CLI on a third
-  machine, so any other role is refused at its first session:
+  machine, so a run with any other role is refused before the flow starts:
   `a fence cannot hold a harness that runs on another machine`. Most flows' roles run at the
   default grant; see [Permissions](/user/permissions).
 - **The CLI must be installed and signed in there.** Nothing checks before the turn: a machine
@@ -477,7 +480,7 @@ status 2.
 | `… 'box' needs 8 GPUs, and the environment given has 0` | The flow asks more of the host than it has. Pick another host. |
 | `… already contains files and is not an humanize mirror …` | The same path here holds other files. See [the path is taken here too](#the-path-is-taken-here-too). |
 | `… mirrors ssh://old-box, not ssh://build-box …` | That path here holds humanize's copy of another host. Use another path. |
-| `Permission denied: '/home/me'` on the first turn | The path cannot be created here. Use one you can create, or `-H env`. |
+| `cannot keep the local copy of the work at …` on the first turn | The path cannot be created here. Use one you can create, or `-H env`. |
 | `claude is not installed on ssh@build-box: …` | `-H env` and no CLI on the host's `PATH`. Install it there, or use `-H local`. |
 | `a fence cannot hold a harness that runs on another machine` | `-H standalone:…` for a role not granted everything. Use another `-H`. |
 | `-H 'somewhere': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` | Spell `-H` as one of the four. |

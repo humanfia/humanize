@@ -59,7 +59,7 @@ Directory: `$HUMANIZE_HOME/daemons/<name>-<digest>/` (`~/.humanize/daemons/…`)
 | File | Written | Mode | Content | Removed |
 | --- | --- | --- | --- | --- |
 | `daemon.sock` | when the host binds | `0600` | Unix stream socket, backlog 8. A stale one is unlinked only after the lock is held. | on clean exit, and by `Daemon.kill` |
-| `daemon.json` | after binding, atomically (`.daemon.json.new` → rename) | default | See below. | on clean exit, and by `Daemon.kill` |
+| `daemon.json` | after binding, atomically (`.daemon.json.<random>.new`, fsync → rename) | `0600` | See below. | on clean exit, and by `Daemon.kill` |
 | `daemon.lock` | at start | `0600` | Empty. Held with `flock(LOCK_EX \| LOCK_NB)` for the host's lifetime; the kernel releases it when the process ends. | never |
 | `daemon.log` | at start; append | `0600` | The host's file descriptors 1 and 2 (output of CLIs it spawns), and entries written by `logged()`: start failures, `the daemon could not carry a round of messages`, `a <type> message was too long to carry`, socket-path `chdir` failures. Never rotated. | never |
 

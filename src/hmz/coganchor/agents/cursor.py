@@ -195,7 +195,8 @@ def _carried(model: str) -> str:
     from its model.
 
     Args:
-      model: The model the agent is configured with, as `cursor-agent models` lists it.
+      model: The model the agent is configured with, as `cursor-agent --list-models`
+        lists it.
 
     Returns:
       The rung its name carries, hardest first where a name could read as two, and "" for a
@@ -212,9 +213,9 @@ def _listed(account: str) -> tuple[str, ...]:
     """Every model id one account was last offered, which a built id is checked against.
 
     Read where it is wanted rather than kept from the first time: a catalogue is a file
-    somebody asks for again with `r` while a run is going, and a check holding the list from
-    before that would go on refusing a model this account has had all along. One file read,
-    beside a process being started.
+    somebody asks for again with `check again` while a run is going, and a check holding the
+    list from before that would go on refusing a model this account has had all along. One
+    file read, beside a process being started.
 
     Args:
       account: The account, by the name its provider was made under, or "" for the CLI as
@@ -234,13 +235,14 @@ def _listed(account: str) -> tuple[str, ...]:
 def spelled(model: str, effort: str, *, fast: bool, listed: tuple[str, ...]) -> str:
     """One model as this account is asked for it, the rung and the tier written into its id.
 
-    Cursor spells both in the name. `cursor-agent models` lists `gpt-5.2`, `gpt-5.2-low`,
-    `gpt-5.2-high` and `gpt-5.2-xhigh` side by side, and `composer-2.5-fast` is that model on
-    the faster service; the bracket its own `--help` documents is refused outright by a
-    signed-in account, on a bare name and on one already carrying a rung alike. So what goes
-    after `--model` is an id out of that list, made by writing on what the name has not
-    already said -- and a model written with a bracket by whoever configured it is left
-    exactly as it is, that being a flow which spelled out its own parameters and meant them.
+    Cursor spells both in the name. `cursor-agent --list-models` lists `gpt-5.2`,
+    `gpt-5.2-low`, `gpt-5.2-high` and `gpt-5.2-xhigh` side by side, and `composer-2.5-fast`
+    is that model on the faster service; the bracket its own `--help` documents is refused
+    outright by a signed-in account, on a bare name and on one already carrying a rung
+    alike. So what goes after `--model` is an id out of that list, made by writing on what
+    the name has not already said -- and a model written with a bracket by whoever
+    configured it is left exactly as it is, that being a flow which spelled out its own
+    parameters and meant them.
 
     Which combinations exist is the account's to say and not this driver's to guess.
     `gpt-5.2-low` is listed and `gpt-5.2-medium` is not; `composer-2.5` and `auto` have no rung
@@ -539,8 +541,8 @@ class CursorAgentConfig(AgentConfig):
     """What Cursor Agent is configured with: the common settings, and four of its own.
 
     The model is written as Cursor writes it -- an id out of this account's own catalogue,
-    which `cursor-agent models` prints -- at the rung its name carries or at the bare name
-    whose rung the common `effort` then writes on. One spelled with a bracket of its own is
+    which `cursor-agent --list-models` prints -- at the rung its name carries or at the bare
+    name whose rung the common `effort` then writes on. One spelled with a bracket of its own is
     passed exactly as it stands and the effort beside it left alone, which is the only way
     left to reach a parameter this account may still take.
 

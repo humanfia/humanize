@@ -80,6 +80,15 @@ IMAGE = "python:3.12-slim"
 #: The provider docker's default here is named by, where no provider is written down under it.
 LOCAL = "local"
 
+#: What a container a harness runs in is started with besides what its provider says. The
+#: supervisor there borrows each command's descriptors from the agent with `pidfd_getfd`,
+#: which docker's default seccomp profile refuses a container not given `CAP_SYS_PTRACE`.
+#: One opened again through `/proc` stands in for a pipe or a tty, but not for a socket --
+#: which is what opencode and Claude Code hand theirs -- and a command whose output could
+#: not be borrowed runs and says nothing. Within the container and nowhere else: its
+#: processes are the harness's own.
+TRACING = ("--cap-add", "SYS_PTRACE")
+
 #: What a container is labelled with besides what it holds: the provider it was handed out
 #: by, the role it is for, and the host and process that brought it up -- which is what tells
 #: a container a run left behind when it died from one a run is still using.
@@ -371,6 +380,7 @@ class DockerMachine(SSHMachine):
         stored: DockerProvider | None = None,
         role: EnvRole | None = None,
         named: str = "",
+        traced: bool = False,
     ) -> None:
         """Initializes a machine whose container has not been started.
 
@@ -381,6 +391,7 @@ class DockerMachine(SSHMachine):
           role: What the container is for, whose image and resources it is started with;
             None asks for nothing.
           named: The role's name, where there is no role to read it off.
+          traced: Whether a harness runs in it, which starts it with :data:`TRACING`.
 
         Raises:
           EnvUnavailable: If the provider's endpoint cannot be reached as it is written.
@@ -415,6 +426,7 @@ class DockerMachine(SSHMachine):
             stored.image if stored is not None else ""
         )
         self.image = image or IMAGE
+        self.traced = traced
         self._docker: Docker | None = None
         self._share: Share | None = None
         self._starting: asyncio.Future[tuple[Docker, Share]] | None = None
@@ -474,7 +486,10 @@ class DockerMachine(SSHMachine):
                 memory=share.memory,
                 gpus=share.gpus,
                 runtime=(stored.runtime if stored is not None else "") or None,
-                run_args=stored.run_args if stored is not None else (),
+                run_args=(
+                    *(TRACING if self.traced else ()),
+                    *(stored.run_args if stored is not None else ()),
+                ),
                 labels={
                     PROVIDER: self.provider,
                     ROLE: self.role,

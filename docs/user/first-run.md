@@ -280,12 +280,12 @@ Press <kbd>enter</kbd> on `budget`:
 
 1. **`duration`**: how long the run may take. <kbd>enter</kbd>, type `20m`, <kbd>enter</kbd>.
    `1h30m`, `90s` and `PT2H` are all understood.
-2. **`cost`**: how many US dollars it may spend. <kbd>←</kbd> <kbd>→</kbd> step it a dollar at
-   a time. What you type is added to what is there, so delete the `0.0` first, then type
-   `0.5`. `output_tokens` works the same way.
+2. **`cost`**: how many US dollars it may spend. <kbd>enter</kbd>, type `0.5`, <kbd>enter</kbd>:
+   the first key you type replaces the `0.0` that was there. <kbd>←</kbd> <kbd>→</kbd> step it
+   a dollar at a time. `output_tokens` works the same way.
 3. **`graceful`**: on lets the turn that is running finish when a limit is reached; off cuts
    it off.
-4. **`set`** keeps all four. The roles sheet then reads `stops at 20m00s, $0.50`.
+4. **`set`** keeps all four. The roles sheet then reads `stops at 20m, $0.50`.
 
 The run stops at whichever limit it reaches first. If your account is billed by the token, set
 a `cost` as well as a `duration`. See [Every run has a budget](/features/allowances).

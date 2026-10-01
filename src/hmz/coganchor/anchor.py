@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.supervisor import Launch
     from hmz.coganchor.transport import Target
 
-__all__ = ["AnchorConfig", "NotInstalled", "check", "connect", "drive"]
+__all__ = ["AnchorConfig", "NotInstalled", "Unmirrored", "check", "connect", "drive"]
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +47,31 @@ class NotInstalled(FileNotFoundError):  # noqa: N818 -- what it is, not what wen
     `ssh` this machine has not got -- is a different thing gone wrong and must not be read as
     this one.
     """
+
+
+class Unmirrored(OSError):  # noqa: N818 -- what it is, not what went wrong
+    """The copy of the target's workspace kept on this machine could not be made where it goes.
+
+    Its own kind, and its own words, because what went wrong is this machine's filesystem
+    rather than anything the turn was to reach: a path that may not be created here, or one
+    that is not a directory. Said as the error underneath says it, a path
+    that may not be created reads `Permission denied` -- which is also what a credential
+    that was refused reads, and a person sent to sign an account in again is a person sent
+    to fix something that was never broken.
+    """
+
+
+#: What a copy of the workspace that could not be made is said as, which is also what a
+#: turn that failed for one is known by (:data:`hmz.coganchor.backends.SIGNS`).
+UNMIRRORED = "cannot keep the local copy of the work at"
+
+
+def _unmirrored(path: str, why: OSError) -> Unmirrored:
+    """The copy of the workspace that could not be made at `path`, and why, in words."""
+    said = why.strerror or str(why)
+    if why.filename and str(why.filename) != path and str(why.filename) not in said:
+        said = f"{said}: {why.filename}"
+    return Unmirrored(f"{UNMIRRORED} {path}: {said}")
 
 
 #: How long the short commands a native session settles itself with may take. Generous, since
@@ -504,7 +529,9 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     Raises:
       ValueError: If the target cannot be read, or no agent was named.
       FileNotFoundError: If the agent is not on PATH.
-      OSError: If the mirror cannot be prepared or the target cannot be reached.
+      Unmirrored: If the mirror's path cannot be made a directory here.
+      FileExistsError: If the mirror's directory holds other files, or mirrors another target.
+      OSError: If the target cannot be reached.
     """
     config = config or AnchorConfig()
     # Answered before anything below is imported, and before a mirror is so much as looked
@@ -548,6 +575,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     )
     router = Router(
         layouts=(Layout.create(shadow_root, workspace),),
+        aliases=_aliases(target, shadow_root, workspace),
         local_paths=tuple(
             agent.local_paths
             + [os.path.abspath(path) for path in config.local_paths]
@@ -568,9 +596,18 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     )
     # The machine it mirrors, by its destination: what ssh is told on the way there -- a key,
     # a keepalive -- is not another machine, and a mirror is not refused for being told it.
-    prepare_shadow_root(
-        shadow_root, force=config.force, target=replace(target, options=()).describe()
-    )
+    try:
+        prepare_shadow_root(
+            shadow_root,
+            force=config.force,
+            target=replace(target, options=()).describe(),
+        )
+    except FileExistsError:
+        # A directory that is somebody's, or another target's mirror: a path that was made,
+        # whose own words say what to do about it -- another directory, or `--force`.
+        raise
+    except OSError as why:
+        raise _unmirrored(shadow_root, why) from why
 
     link = transport.connect(target, [export], config.token)
     client = RemoteClient(link.channel)
@@ -627,6 +664,39 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
         link.close()
 
 
+def _aliases(
+    target: Target, shadow_root: str, workspace: str
+) -> tuple[tuple[str, str], ...]:
+    """The other name the agent may reach its mirror by, as `(name, mirror)`, if it has one.
+
+    The workspace's own path, for a harness on another machine than this session's driver:
+    its mirror is kept under that machine's mirror cache, and the driver tells a CLI where to
+    work by the workspace's own path, over its protocol rather than as a directory to start
+    in -- Codex's `thread/start` takes a `cwd`, and every shell it then ran was started in a
+    directory that harness had never had. That harness reaches its work at a `peer://`
+    target, and only there is the path the target's alone: whatever this machine holds at it
+    is some other directory of the same name. Nothing for a mirror nested in its workspace,
+    or the other way about, where one name for both could only be answered in circles.
+
+    Args:
+      target: Where the work lands.
+      shadow_root: The mirror, as this machine names it.
+      workspace: The workspace, as the target names it.
+
+    Returns:
+      The alias, or nothing.
+    """
+    from hmz.coganchor.proto import path_within
+
+    if (
+        target.scheme != "peer"
+        or path_within(shadow_root, workspace) is not None
+        or path_within(workspace, shadow_root) is not None
+    ):
+        return ()
+    return ((workspace, shadow_root),)
+
+
 class _Walls:
     """The fence around a supervised agent, on both sides of the anchor.
 
@@ -663,10 +733,14 @@ class _Walls:
             read=[mirror] if level == READ else [],
             write=[mirror] if level == ALL else [],
         )
-        self.told = abroad.told(fence, home=os.path.expanduser("~"), native=False)
         self._made = not fence.tmp
         self.tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
         os.makedirs(self.tmp, mode=0o700, exist_ok=True)
+        # With the scratch the agent is given, for the target to keep its own at the same
+        # path: the agent names it in the commands it sends there.
+        self.told = abroad.told(
+            replace(fence, tmp=self.tmp), home=os.path.expanduser("~"), native=False
+        )
         self._proxy = None if fence.online else Proxy(fence.hosts)
 
     def around(self, launch: Launch) -> Launch:

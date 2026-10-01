@@ -181,3 +181,54 @@ def test_an_argument_naming_the_mirror_in_another_case_is_rewritten_for_a_mac() 
     layouts = (Layout.create("/Mirror", "/project"),)
     assert mac_router(layouts=layouts).rewrite("cat /mirror/f") == "cat /project/f"
     assert Router(layouts=layouts).rewrite("cat /mirror/f") == "cat /mirror/f"
+
+
+def elsewhere_router(**kwargs: object) -> Router:
+    """A harness on another machine: its mirror in that machine's cache, not at `/project`."""
+    return Router(
+        layouts=(Layout.create("/cache/mirrors/abc", "/project"),),
+        aliases=(("/project", "/cache/mirrors/abc"),),
+        **kwargs,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def test_the_workspace_named_by_its_own_path_is_settled_onto_the_mirror() -> None:
+    """What a CLI told where to work by the target's path names, which only the mirror has."""
+    router = elsewhere_router()
+    assert router.settles
+    assert router.canonical("/project") == "/cache/mirrors/abc"
+    assert router.canonical("/project/src/a.py") == "/cache/mirrors/abc/src/a.py"
+    assert router.is_remote_path(router.canonical("/project/src/a.py"))
+    assert router.to_virtual(router.canonical("/project/src/a.py")) == (
+        "/project/src/a.py"
+    )
+    assert router.virtual_cwd(router.canonical("/project/sub")) == "/project/sub"
+
+
+def test_an_alias_answers_nothing_outside_the_workspace() -> None:
+    """Only the workspace's own path: a sibling sharing its prefix is this machine's."""
+    router = elsewhere_router()
+    for outside in ("/projects/a.py", "/project-old/a.py", "/etc/passwd", "/"):
+        assert router.canonical(outside) == outside
+    assert router.canonical("/cache/mirrors/abc/a.py") == "/cache/mirrors/abc/a.py"
+
+
+def test_an_alias_leaves_what_stays_here_to_stay_here() -> None:
+    """A path kept on this machine inside the workspace is still kept, by either name."""
+    for kept in ("/cache/mirrors/abc/.state", "/project/.state"):
+        router = elsewhere_router(local_paths=(kept,))
+        assert not router.is_remote_path(router.canonical("/project/.state/session"))
+        assert not router.is_remote_path(
+            router.canonical("/cache/mirrors/abc/.state/session")
+        )
+        assert router.is_remote_path(router.canonical("/project/src"))
+
+
+def test_an_alias_is_one_more_spelling_on_a_mac() -> None:
+    """The target's path in whichever case a Mac does not distinguish, and still the mirror."""
+    router = Router(
+        layouts=(Layout.create("/cache/m", "/Users/me/w"),),
+        aliases=(("/Users/me/w", "/cache/m"),),
+        platform=lambda: "darwin",
+    )
+    assert router.canonical("/users/ME/w/a.py") == "/cache/m/a.py"

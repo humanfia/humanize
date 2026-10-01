@@ -23,6 +23,7 @@ collide, e.g. `/a/b.c` and `/a/b-c`). Timestamps written into files are UTC,
 ```
 H/
 ├── settings.yaml                       what each workspace was set up to run; machine settings
+├── .settings.yaml.lock                 held by each writer of settings.yaml
 ├── history.jsonl                       lines typed at the TUI prompt
 ├── fallbacks.json                      where a failed turn goes next
 ├── acp.json                            CLIs added by hand (ACP)
@@ -66,8 +67,8 @@ H/
 | Property | Value |
 | --- | --- |
 | Format | YAML (`yaml.safe_dump`, key order kept); read with `yaml.safe_load` |
-| Write | re-read and merged ([rules](/reference/settings#file-behaviour)), written to `.settings.yaml.<random>.new` (`mkstemp`, mode `0600`), renamed over |
-| Lock | none |
+| Write | under the lock: re-read, this writer's one change made to it ([rules](/reference/settings#file-behaviour)), written to `.settings.yaml.<random>.new` (`mkstemp`; mode `0600` for a new file, the existing file's otherwise), fsynced, renamed over |
+| Lock | `flock(LOCK_EX)` on `H/.settings.yaml.lock` (`0600`, opened read-only, kept) for each write, waited for up to 30 s and then gone without; released by the kernel if the writer dies. Readers take no lock. |
 | Unreadable, missing, not a mapping | read as empty; never an error |
 | Write failure | ignored |
 | Removed | never; `forget` removes one workspace's entry |
@@ -99,14 +100,16 @@ H/
 | `policy` | `str` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci` |
 | `timeout` | `float` | seconds |
 
-Written with `mkstemp` (`0600`) and rename; invalid entries are dropped on read.
+Written to `.fallbacks.json.<random>.new` (`0600`), fsynced and renamed; invalid entries are
+dropped on read.
 
 ### `H/acp.json`
 
 CLIs added on the Accounts page, driven over ACP. A JSON object from name to either an argv
 list or `{"command": [...], "hosts": [...], "state": [...]}` (`hosts`, `state` are set by
-hand: the hosts it may reach with `online` `NONE`, and extra paths it may write). Written via
-`.acp.json.new` and rename (umask mode). Deleting it forgets every added CLI.
+hand: the hosts it may reach with `online` `NONE`, and extra paths it may write). Written to
+`.acp.json.<random>.new`, fsynced and renamed; a new file gets the umask's mode, an existing
+one keeps its own. Deleting it forgets every added CLI.
 
 ### `H/prices.json`
 
@@ -129,14 +132,16 @@ account):
 {"asked": "2026-09-30T05:33:55Z", "models": [{"name": "…", "efforts": ["low", "high"], "swarms": false}]}
 ```
 
-Asked again after 7 days. Written via `.<file>.new` and rename.
+Asked again after 7 days. Written to `.<file>.<random>.new`, fsynced and renamed; a new file
+gets the umask's mode, an existing one keeps its own.
 
 ### `H/providers/<cli>/<name>/`
 
 An [account](/reference/providers). `<name>` matches `[A-Za-z0-9][A-Za-z0-9._-]*`.
 Directories `0700`.
 
-`provider.json` (`0600`, `mkstemp` and rename):
+`provider.json` (`0600` from creation, written to `.provider.json.<random>.new`, fsynced and
+renamed):
 
 | Field | Type | |
 | --- | --- | --- |
@@ -174,8 +179,8 @@ Removing an account deletes its directory.
 ### `H/env-providers/`
 
 [Environment providers](/reference/machines#environment-providers). Directories `0700`; each
-`provider.json` written with `mkstemp`, `chmod 0600`, rename. A file that does not validate is
-skipped.
+`provider.json` written to `.provider.json.<random>.new` (`0600` from creation), fsynced and
+renamed. A file that does not validate is skipped.
 
 `ssh/<name>/provider.json`:
 
@@ -277,7 +282,7 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | --- | --- | --- |
 | `epic.jsonl` | appended per event, open/write/close under a thread lock; no fsync | [events](/reference/tracing#epic-jsonl) |
 | `epic.<flow>_<hex6>.jsonl` | one per flow call | [records](/reference/tracing#records-of-called-flows) |
-| `resume.jsonl` | resumable runs only; compacted via `.resume.jsonl.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
+| `resume.jsonl` | resumable runs only; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
 | `profile.jsonl` | profiled runs only | [profile](/reference/tracing#profile-jsonl) |
 | `sessions/<cli>/…` | by the CLI itself, redirected | the CLI's own layout |
 | `traces/*.trace.json` | on demand; plain write | [Chrome trace](/reference/tracing#document) |
@@ -304,7 +309,7 @@ name with each run of characters outside `[A-Za-z0-9]` replaced by `-`, leading 
 | File | Mode | Lifetime | Content |
 | --- | --- | --- | --- |
 | `daemon.sock` | `0600` | removed on stop | Unix socket (reached via `chdir` if the path exceeds 100 bytes) |
-| `daemon.json` | umask | removed on stop | `{"pid": int, "workspace": str, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "host", "protocol": int}`, via `.daemon.json.new` |
+| `daemon.json` | `0600` | removed on stop | `{"pid": int, "workspace": str, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "host", "protocol": int}`, via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename |
 | `daemon.lock` | `0600` | kept | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit |
 | `daemon.log` | `0600` | kept, never rotated | the daemon's stdout and stderr |
 
@@ -326,6 +331,7 @@ Every path in this section is safe to delete while humanize is not running.
 | Path | Is | Removed |
 | --- | --- | --- |
 | `$TMPDIR/hmz-fence-XXXXXXXX/` (`0700`) | a fenced process's `TMPDIR`; `cache/<var>` inside for redirected caches | when the process ends (left on `SIGKILL`) |
+| the same path, on a machine a supervised agent's commands run on | that agent's commands' `TMPDIR` there | kept |
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
 | `$TMPDIR/hmz-dsh-*/cordis.yml`, `hmz-qwen-*/` | per-session CLI configuration | with the session |
 | `$TMPDIR/humanize-<uid>.pyz` (`0700`), `.stamp` (`0600`) | the humanize bundle copied to other machines | kept |

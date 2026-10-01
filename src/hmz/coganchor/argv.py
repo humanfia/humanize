@@ -45,8 +45,8 @@ def parser() -> ArgumentParser:
         "--target",
         default=os.environ.get("HUMANIZE_TARGET", "local"),
         metavar="URL",
-        help="ssh://HOST, docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, or local[:DIR] "
-        "(default: $HUMANIZE_TARGET)",
+        help="ssh://HOST, docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, "
+        "peer://TICKET@HOST:PORT, or local[:DIR] (default: $HUMANIZE_TARGET)",
     )
     built.add_argument(
         "--harness",
@@ -193,9 +193,9 @@ def parser() -> ArgumentParser:
     )
     built.add_argument(
         "--log-level",
-        default=os.environ.get("HUMANIZE_LOG", "warning"),
+        default=None,
         choices=["debug", "info", "warning", "error"],
-        help="logging verbosity (default: warning)",
+        help="logging verbosity (default: $HUMANIZE_LOG, else warning)",
     )
     built.add_argument(
         "command",

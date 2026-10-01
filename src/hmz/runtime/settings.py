@@ -27,8 +27,12 @@ set up, and remembered here against that flow's own name for it.
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import os
+import stat
 import tempfile
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -38,9 +42,14 @@ from hmz import home
 from hmz.runtime.kept import Runs, read_back, written
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Generator, Mapping
 
 __all__ = ["Settings"]
+
+#: How long, in seconds, a write waits for another writer to be done before going ahead
+#: without it. A write takes milliseconds, and seconds on a disk busy enough that fsync
+#: queues; this is for a writer that has stopped, not for one that is slow.
+_PATIENCE = 30.0
 
 
 class Settings:
@@ -55,20 +64,11 @@ class Settings:
         self._where = str(Path(workspace or Path.cwd()).resolve())
         self._file = home() / "settings.yaml"
         self._held = self._read()
-        #: What was in the file when this read it: which workspaces, and what every setting
-        #: beside them was. A write merges against this rather than against what it holds, so
-        #: that an instance which has been open all session cannot put back a setting somebody
-        #: has changed since -- and an absence, which is the one thing a merge cannot see for
-        #: itself, is told from a value another instance has written.
-        self._knew = frozenset(self._workspaces(self._held))
-        self._read_as = {
-            name: value for name, value in self._held.items() if name != "workspaces"
-        }
 
     @property
     def flow(self) -> str:
         """The flow this workspace was last run with, or "" if it never has been."""
-        return str(self._mine().get("flow") or "")
+        return str(self._here().get("flow") or "")
 
     @property
     def enable_sentry(self) -> bool | None:
@@ -101,8 +101,7 @@ class Settings:
         Args:
           on: What was answered.
         """
-        self._held["details"] = on
-        self._write()
+        self._sets("details", on)
 
     @property
     def btw(self) -> str:
@@ -118,8 +117,7 @@ class Settings:
     @btw.setter
     def btw(self, spec: str) -> None:
         """Writes down which agent `/btw` asks, or "" to go back to the flow's first."""
-        self._held["btw"] = spec
-        self._write()
+        self._sets("btw", spec)
 
     @property
     def profiling(self) -> bool:
@@ -130,7 +128,7 @@ class Settings:
         different question from one whose tests take an hour -- and off unless somebody says
         otherwise, since it is a sampler running for as long as the flow does.
         """
-        return bool(self._mine().get("profile"))
+        return bool(self._here().get("profile"))
 
     def profiles(self, *, on: bool) -> None:
         """Writes down whether a run here is profiled as well as traced.
@@ -138,8 +136,11 @@ class Settings:
         Args:
           on: What was answered.
         """
-        self._mine()["profile"] = on
-        self._write()
+
+        def change(held: dict[str, Any]) -> None:
+            self._mine(held)["profile"] = on
+
+        self._write(change)
 
     def answers(self, *, enable_sentry: bool) -> None:
         """Writes down whether humanize reports its own failures.
@@ -147,8 +148,7 @@ class Settings:
         Args:
           enable_sentry: What was answered.
         """
-        self._held["enable_sentry"] = enable_sentry
-        self._write()
+        self._sets("enable_sentry", enable_sentry)
 
     def forget(self, workspace: str = "") -> bool:
         """Forgets what one workspace was set up to run, leaving everything else as it is.
@@ -160,12 +160,15 @@ class Settings:
           Whether there was anything written down about it.
         """
         where = workspace or self._where
-        workspaces = self._held.get("workspaces")
-        if not isinstance(workspaces, dict) or where not in workspaces:
-            return False
-        del cast("dict[str, Any]", workspaces)[where]
-        self._write()
-        return True
+        found: list[bool] = []
+
+        def change(held: dict[str, Any]) -> None:
+            workspaces = self._workspaces(held)
+            found.append(where in workspaces)
+            workspaces.pop(where, None)
+
+        self._write(change)
+        return any(found)
 
     def agents(self, flow: str) -> dict[str, Runs]:
         """What each agent role of one flow was last given here.
@@ -212,7 +215,7 @@ class Settings:
           One entry per flow, as it was written down, and nothing at all for a workspace that
           has run none.
         """
-        held = self._mine().get("flows")
+        held = self._here().get("flows")
         return cast("dict[str, Any]", held) if isinstance(held, dict) else {}
 
     def params(self, flow: str) -> dict[str, Any]:
@@ -261,31 +264,33 @@ class Settings:
           It as `-H` spells it, and "" for a flow nobody has said it for here -- which runs
           adaptive.
         """
-        flows: dict[str, Any] = self._mine().get("flows") or {}
-        kept = flows.get(flow)
-        held = (
-            cast("dict[str, Any]", kept).get("harness")
-            if isinstance(kept, dict)
-            else ""
-        )
+        held = self._flow(self._here(), flow).get("harness")
         return held if isinstance(held, str) else ""
 
-    def _kept(self, flow: str, under: str) -> dict[str, Any]:
+    def _kept(
+        self, flow: str, under: str, entry: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """One of the things remembered about a flow here, as a mapping.
 
         Args:
           flow: The flow.
           under: Which of them.
+          entry: The workspace's entry to look in, defaulting to the one this holds.
 
         Returns:
           What was written down, and nothing at all where it was not or is not a mapping.
         """
-        flows: dict[str, Any] = self._mine().get("flows") or {}
-        kept = flows.get(flow)
-        if not isinstance(kept, dict):
-            return {}
-        held = cast("dict[str, Any]", kept).get(under)
+        held = self._flow(self._here() if entry is None else entry, flow).get(under)
         return cast("dict[str, Any]", held) if isinstance(held, dict) else {}
+
+    @staticmethod
+    def _flow(entry: dict[str, Any], flow: str) -> dict[str, Any]:
+        """What one workspace's entry holds about one flow, and nothing where it holds none."""
+        flows = entry.get("flows")
+        kept = (
+            cast("dict[str, Any]", flows).get(flow) if isinstance(flows, dict) else None
+        )
+        return cast("dict[str, Any]", kept) if isinstance(kept, dict) else {}
 
     def remember(
         self,
@@ -297,6 +302,11 @@ class Settings:
         harness: str | None = None,
     ) -> None:
         """Writes down what this workspace is set up to run, so that it opens that way.
+
+        What is not handed in is read back out of the file as it is when this writes, not out
+        of what this read when it was made: another `hmz` in this workspace may have set the
+        flow's params since, and choosing the agents here is not a way of putting back the
+        ones it replaced.
 
         Args:
           flow: The flow to run.
@@ -312,27 +322,48 @@ class Settings:
           harness: Where its agents' harnesses run, as `-H` spells it, or None to leave
             whatever was kept; "" erases it, which is adaptive.
         """
-        was = self.harness(flow)
-        mine = self._mine()
-        mine["flow"] = flow
-        kept: dict[str, Any] = {
-            "agents": {role: written(runs) for role, runs in agents.items()}
-        }
-        for under, given in (("envs", envs), ("params", params), ("budget", budget)):
-            held = dict(given) if given is not None else self._kept(flow, under)
-            if held:
-                kept[under] = held
-        where = harness if harness is not None else was
-        if where:
-            kept["harness"] = where
-        mine.setdefault("flows", {})[flow] = kept
-        self._write()
 
-    def _mine(self) -> dict[str, Any]:
-        """This workspace's entry, made if it is not there and replaced if it is not one."""
-        if not isinstance(self._held.get("workspaces"), dict):
-            self._held["workspaces"] = {}
-        workspaces = cast("dict[str, Any]", self._held["workspaces"])
+        def change(held: dict[str, Any]) -> None:
+            mine = self._mine(held)
+            was = self._flow(mine, flow).get("harness")
+            mine["flow"] = flow
+            kept: dict[str, Any] = {
+                "agents": {role: written(runs) for role, runs in agents.items()}
+            }
+            for under, given in (
+                ("envs", envs),
+                ("params", params),
+                ("budget", budget),
+            ):
+                one = (
+                    dict(given) if given is not None else self._kept(flow, under, mine)
+                )
+                if one:
+                    kept[under] = one
+            where = harness if harness is not None else was
+            if where and isinstance(where, str):
+                kept["harness"] = where
+            flows = mine.get("flows")
+            if not isinstance(flows, dict):
+                flows = mine["flows"] = {}
+            cast("dict[str, Any]", flows)[flow] = kept
+
+        self._write(change)
+
+    def _here(self) -> dict[str, Any]:
+        """This workspace's entry as this holds it, and nothing where it has none."""
+        found = self._workspaces(self._held).get(self._where)
+        return cast("dict[str, Any]", found) if isinstance(found, dict) else {}
+
+    def _mine(self, held: dict[str, Any]) -> dict[str, Any]:
+        """This workspace's entry in one reading of the file, made if it is not there.
+
+        Args:
+          held: The reading, which is changed where it has no entry or one that is not one.
+        """
+        if not isinstance(held.get("workspaces"), dict):
+            held["workspaces"] = {}
+        workspaces = cast("dict[str, Any]", held["workspaces"])
         if not isinstance(workspaces.get(self._where), dict):
             workspaces[self._where] = {}
         return cast("dict[str, Any]", workspaces[self._where])
@@ -349,21 +380,57 @@ class Settings:
         A settings file that is missing, unreadable, or not what this writes is a workspace
         with nothing remembered about it -- never a reason not to open.
         """
+        held = self._reading()
+        return {} if held is None else held
+
+    def _reading(self) -> dict[str, Any] | None:
+        """Everything the file holds, and None where there is one that cannot be read as one.
+
+        Told apart from a file that is not there, which holds nothing, because a write makes
+        its change to what the file holds: one somebody left half-edited is not a reason to
+        write it back as nothing but that change.
+        """
         try:
-            held = yaml.safe_load(self._file.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
+            said = self._file.read_text(encoding="utf-8")
+        except FileNotFoundError:
             return {}
-        return cast("dict[str, Any]", held) if isinstance(held, dict) else {}
+        except OSError:
+            return None
+        try:
+            held = yaml.safe_load(said)
+        except yaml.YAMLError:
+            return None
+        if held is None:
+            return {}
+        return cast("dict[str, Any]", held) if isinstance(held, dict) else None
 
-    def _write(self) -> None:
-        """Puts the file back, keeping what this one was not holding.
+    def _sets(self, name: str, value: object) -> None:
+        """Writes down one of the settings that are not a workspace's.
 
-        Read again and merged rather than dumped over: this holds what it read when it was
-        made, and two of these are alive at once wherever a menu writes a setting while the
-        interface goes on remembering flows -- so a plain dump would put back a file missing
-        whatever the other one had written since. What this one is holding wins for the
-        workspace it is about and for the settings it has answered; everything else is
-        whatever is on disk now.
+        Args:
+          name: Which.
+          value: What it is now.
+        """
+
+        def change(held: dict[str, Any]) -> None:
+            held[name] = value
+
+        self._write(change)
+
+    def _write(self, change: Callable[[dict[str, Any]], None]) -> None:
+        """Makes one change to the file, and to nothing else in it.
+
+        Two of these are alive at once wherever a menu writes a setting while the interface
+        goes on remembering flows, and wherever two `hmz` share a home -- so what this holds
+        is never written back. The file is read again under a lock, the change is made to
+        what it holds now, and that is what goes back: a setting, a workspace or a flow some
+        other holder wrote since this one read the file is still there afterwards, and one
+        this holder did not touch is never put back as it was an hour ago. What this holds
+        from then on is the file as it wrote it.
+
+        The lock is a `flock` on a file beside it, which the kernel lets go of however the
+        process ends. Where the file cannot be written the change is made to what this holds
+        instead, so that it is remembered for as long as this is.
 
         Whole and then moved into place, as every other file humanize writes is: one read
         while it is being written is the old one or the new one and never half of each.
@@ -371,44 +438,90 @@ class Settings:
         A file nobody can write is not a reason to stop: what it holds is a convenience, and
         an interface that refused to run because it could not remember would be worse than
         one that forgets.
+
+        Args:
+          change: What to do to a reading of the file, in place. It may be made twice: to
+            the file as it is now, and -- where that could not be written -- to what this
+            holds.
         """
-        held = self._read()
-        for name, value in self._held.items():
-            # Only what this instance has actually changed: one that read `enable_sentry` as
-            # true an hour ago and has been remembering flows ever since must not put that
-            # back over the no somebody answered in the meantime.
-            if name != "workspaces" and value != self._read_as.get(name):
-                held[name] = value
-        workspaces = self._workspaces(held)
-        held["workspaces"] = workspaces
-        mine = self._workspaces(self._held)
-        workspaces.update(mine)
-        # And what this one has forgotten goes from the file too, which is the one thing a
-        # merge cannot see for itself: an absence here is either a workspace this instance
-        # took away or one another instance has written since, and only what this instance
-        # read when it opened tells them apart.
-        for gone in self._knew - set(mine):
-            workspaces.pop(gone, None)
-        self._held = held
-        self._knew = frozenset(workspaces)
-        self._read_as = {
-            name: value for name, value in held.items() if name != "workspaces"
-        }
+        with self._locked():
+            fresh = self._reading()
+            # One that cannot be read is written over, as it always was -- with what this
+            # holds rather than with nothing but the change.
+            held = copy.deepcopy(self._held) if fresh is None else fresh
+            change(held)
+            try:
+                self._writes(yaml.safe_dump(held, sort_keys=False, allow_unicode=True))
+            except (OSError, yaml.YAMLError):
+                # Remembered for as long as this is, which is all it can be.
+                change(self._held)
+                return
+            self._held = held
+
+    @contextlib.contextmanager
+    def _locked(self) -> Generator[None]:
+        """Holds the lock every writer of the file takes, for as long as the block runs.
+
+        Where it cannot be had the block runs anyway, which is a write that might meet
+        another rather than one that never happens: a home that cannot be written, a lock
+        file somebody else made that this cannot open, a filesystem that has no `flock`, or
+        a writer that has held it for longer than anybody at an interface should wait -- one
+        stopped with ctrl-z halfway through a write is holding it for as long as it is
+        stopped.
+        """
+        import fcntl
+
         try:
             self._file.parent.mkdir(parents=True, exist_ok=True)
-            said = yaml.safe_dump(held, sort_keys=False, allow_unicode=True)
-            # Beside it under a name nothing else will pick: two `hmz` running at once both
-            # write this file, and a fixed `.new` between them is one of them finding its own
-            # half-written file moved away underneath it.
-            handle, beside = tempfile.mkstemp(
-                dir=self._file.parent, prefix=f".{self._file.name}.", suffix=".new"
+            # Read-only, which `flock` needs no more than, so that one another user made is
+            # still one this can take.
+            fd = os.open(
+                self._file.with_name(f".{self._file.name}.lock"),
+                os.O_CREAT | os.O_RDONLY | os.O_CLOEXEC,
+                0o600,
             )
-            try:
-                with os.fdopen(handle, "w", encoding="utf-8") as writing:
-                    writing.write(said)
-                Path(beside).replace(self._file)
-            except OSError:
-                Path(beside).unlink(missing_ok=True)
-                raise
-        except (OSError, yaml.YAMLError):
+        except OSError:
+            yield
             return
+        try:
+            waited = time.monotonic() + _PATIENCE
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    if time.monotonic() < waited:
+                        time.sleep(0.01)
+                        continue
+                except OSError:
+                    pass
+                break
+            yield
+        finally:
+            os.close(fd)  # which lets go of the lock too
+
+    def _writes(self, said: str) -> None:
+        """Puts the file in place whole, keeping the mode it already has.
+
+        Args:
+          said: What it is to hold.
+
+        Raises:
+          OSError: If it cannot be written, with nothing of the attempt left beside it.
+        """
+        # Beside it under a name nothing else will pick: a fixed `.new` between two writers
+        # is one of them finding its own half-written file moved away underneath it.
+        # `mkstemp` makes it `0600`, which is what a new one is left at.
+        handle, beside = tempfile.mkstemp(
+            dir=self._file.parent, prefix=f".{self._file.name}.", suffix=".new"
+        )
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as writing:
+                with contextlib.suppress(FileNotFoundError):
+                    os.fchmod(handle, stat.S_IMODE(self._file.stat().st_mode))
+                writing.write(said)
+                writing.flush()
+                os.fsync(handle)
+            Path(beside).replace(self._file)
+        except BaseException:
+            Path(beside).unlink(missing_ok=True)
+            raise

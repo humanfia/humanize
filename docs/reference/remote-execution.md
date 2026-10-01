@@ -135,7 +135,8 @@ ssh <target options> -T -o BatchMode=no -o ServerAliveInterval=30 <reuse options
 ```
 
 - The target's own options come first; `ssh` keeps the first value it is given for a keyword.
-- Reuse options, unless `HUMANIZE_SSH_REUSE` is `0`, `no`, `false` or empty:
+- Reuse options, unless `HUMANIZE_SSH_REUSE` is `off`, `0`, `no` or `false` (trimmed,
+  case-insensitive) or set and empty:
   `-o ControlMaster=auto -o ControlPersist=120 -o ControlPath=<dir>/%C[-<8 hex>]`, where
   `<dir>` is `$XDG_RUNTIME_DIR/humanize-ssh-<uid>` (else the system temporary directory), mode
   `0700`. The `-<8 hex>` suffix is a digest of the target's options, so two targets at one host
@@ -274,6 +275,14 @@ Where `shadow` is unset, the mirror on the harness machine is
 `sha256(workspace \0 remote_path \0 target)`. It is passed as `HUMANIZE_SHADOW` with `force`
 set, and kept between turns.
 
+The driver still names the workspace by its own path: a CLI told where to work over its
+protocol (Codex's `thread/start` `cwd`, an ACP `session/new` `cwd`, and so on) is told
+`workspace`. On a harness reaching its work as a `peer://` target (a third machine), the
+supervisor answers `workspace` and everything under it with the mirror, as another
+[spelling](#interception) of it, whatever the harness machine holds at that path; it is never
+created there. A `--local-path` under `workspace` is kept here by either name. Not for a
+mirror nested in the workspace or the other way round.
+
 ### `-H`: placement for a flow run
 
 ```text
@@ -294,21 +303,28 @@ set, and kept between turns.
   saved [environment provider](/reference/machines#environment-providers), looked up as ssh
   first, then docker. A missing workdir becomes the provider's own, else `~` over ssh, else
   `$HUMANIZE_HOME/harness` for `docker@local` (created by the run). The standalone machine is
-  opened, probed and closed as an environment of the run.
+  opened, probed and closed as an environment of the run. A container for it is started with
+  `--cap-add SYS_PTRACE`: without it, docker's default seccomp profile refuses the
+  `pidfd_getfd` the supervisor borrows each command's descriptors with, and a command whose
+  output goes to a socket (opencode's, Claude Code's stdin) is run with that output lost.
 - A standalone machine may not be this machine.
 
 | `-H` value | `HarnessSpecError` (exit 2 from `hmz exec`) |
 | --- | --- |
 | anything else, `standalone:` with nothing after it, `env:x` | `-H 'bogus': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:local@…` | `-H 'standalone:local@/tmp': a standalone harness runs on another machine; -H local runs it on this one` |
-| a machine `-e` would refuse | `-H '<value>': <the -e message after its prefix>`, e.g. `-H 'standalone:bogus@x': expected <role>=<backend>[@<provider>]/<workdir>` |
+| a bare name nothing is saved under | `-H 'standalone:bogus': no environment provider is saved as 'bogus'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
+| an unknown backend | `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker` |
+| a docker provider nobody saved, with no workdir | `-H 'standalone:docker@gpubox': docker@gpubox is not saved with a workdir of its own; expected standalone:docker@gpubox/<workdir>` |
+| `ssh@` with no host | `-H 'standalone:ssh@': ssh needs a host, as in ssh@host/workdir` |
 
 ### Adaptive resolution {#adaptive-resolution}
 
 The decision is made in `HarnessDriver.open` (`hmz.runtime.flowing.harnesses`) for every session
 a role opens, before the session's agent is built. With the session's machine `M` (from its
-environment), its fence, and the set `H` of hooks hung on the flow agent among `PreToolUse`,
-`PermissionRequest` and `AskUser`:
+environment), its fence, and the set `H` of hooks hung on the flow agent among `PreToolUse`
+and `PermissionRequest` (an `AskUser` hook is not among them: a question comes back down the
+CLI's own stream wherever the CLI runs):
 
 1. `standalone:<env>`: the result is the work's anchor (for work here,
    `AnchorConfig(target="local", workspace=<cwd>)`) with `harness` set to `<env>`'s target and
@@ -316,7 +332,7 @@ environment), its fence, and the set `H` of hooks hung on the flow agent among `
    unchanged.)
 2. `M` is this machine, or the mode is `local`: `M` unchanged.
 3. `adaptive` and `H` is non-empty: `M` unchanged. The CLI's own hook table names a program on
-   this machine, so a gating or asking hook is kept here.
+   this machine, so a gating hook is kept here.
 4. Otherwise the machine is asked, once per role and target, whether the CLI is there; then,
    for a session with a non-open fence, once per role, target and `online` value, whether the
    machine can hold the fence.
@@ -331,8 +347,12 @@ environment), its fence, and the set `H` of hooks hung on the flow agent among `
 Answers are cached on the role's driver for the rest of the run; concurrent sessions wait for
 one answer. The probes are asked one at a time.
 
-Refusals, raised from the session's `spawn` (`<where>` is `<backend>@<provider>` of the
-environment, e.g. `ssh@gpu-box`):
+Under `env` and `standalone`, `Runner.arun` asks the same of every agent (`HarnessDriver.placeable`)
+against every environment, the workspace included, with the role's declared permission, once
+the environments are probed and before the flow is called; a refusal there is `Refused`, which
+`hmz exec` prints as `hmz exec: error: <message>` with exit 2, and the answers are kept for
+the sessions. A session opened later is still refused as it opens, raised from its `spawn`.
+Refusals (`<where>` is `<backend>@<provider>` of the environment, e.g. `ssh@gpu-box`):
 
 | Error | Message | When |
 | --- | --- | --- |
@@ -357,8 +377,9 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
   a flow role must grant `local`, `user`, `system` and `online` all `ALL`. The default
   `Permission` (`local=ALL, user=READ, system=READ, online=ALL`) is refused.
 - **Accounts do not follow a harness elsewhere.** See [Where the account lives](#where-the-account-lives).
-- **Gating hooks keep `adaptive` here.** A role with a `PreToolUse`, `PermissionRequest` or
-  `AskUser` hook hung is never placed natively by `adaptive`; `env` places it natively anyway.
+- **Gating hooks keep `adaptive` here.** A role with a `PreToolUse` or `PermissionRequest`
+  hook hung is never placed natively by `adaptive`; `env` places it natively anyway. An
+  `AskUser` hook does not keep it here.
   An anchored turn gets no hook table, so there `PreToolUse` is read off the CLI's stream and
   cannot stop a tool ([Agents › Refusing a tool](/reference/agents#refusing-a-tool)).
 - **Callbacks do not cross.** A native turn on a non-`local` target offered the flow's tool
@@ -393,6 +414,10 @@ network is answered from the target.
   `/proc/self/fd/<n>`, `/proc/<pid>/fd/<n>`, `/proc/self/cwd`, `/proc/self/root` and
   `/proc/self/exe` are followed to what they name. An ordinary symlink in the middle of a path
   is not walked. A link that cannot be read back fails the call.
+- A path the mirror is also reached by is rewritten onto the mirror's own path before the call
+  runs: `/private/tmp/…` for a mirror under `/tmp` on a Mac target, any case on a target that
+  ignores case, and `workspace/…` for a `peer://` target
+  ([a harness elsewhere](#where-the-harness-runs)).
 - Only x86-64 and aarch64 Linux are supported. Any other platform fails at start-up with
   `RuntimeError`, naming where the supervisor can run instead.
 
@@ -406,8 +431,13 @@ network is answered from the target.
   | --- | --- |
   | the directory was last used for another target | `FileExistsError: <path> mirrors <old>, not <new>. humanize replaces this directory with the new target's contents and would delete everything only the old one has. Use a different directory, or pass --force.` |
   | the directory holds files and was never a mirror | `FileExistsError: <path> already contains files and is not an humanize mirror. humanize replaces this directory with the target's contents and would delete them. Use an empty directory, or pass --force.` |
-  | the path exists and is not a directory | `NotADirectoryError: shadow root is not a directory` (always) |
+  | the path exists and is not a directory | `Unmirrored: … shadow root is not a directory` (always) |
+  | the path cannot be created here | `Unmirrored: … <reason>`, e.g. `Permission denied: /home/me` (always) |
 
+  `Unmirrored` (an `OSError`) is printed by `hmz internal anchor` as
+  `hmz: cannot keep the local copy of the work at <path>: <reason>`, with exit 1. A turn that
+  fails with it is classified `unmirrored`
+  ([Agents › Failures](/reference/agents#failures)), not as a refused credential.
   The target's identity for this check is its spelling without ssh options.
 - Structure is materialised on first access: real directories and symlinks, and sparse
   placeholder files carrying the target's size, mode and mtime. `stat`, `getdents64`, `read`,
@@ -560,7 +590,7 @@ what crosses is its levels, not its paths.
 
 | Arrangement | This machine | Target |
 | --- | --- | --- |
-| Supervised | The agent process is walled in by Landlock before it runs, with the mirror granted at the workdir's level. Where `online=False`, a proxy served by the anchor process is its only way out, passing the fence's hosts; binds are limited to a kernel-chosen port and the fence's `listen` ports, on loopback. The supervisor, its link and the mirror are outside the wall. | Every command the agent runs is sent with `{local, user, system, online}`. The serving half draws the fence again (`abroad.drawn`) around its exported directories, its own `$HOME` and its own minimum, and runs the command under its own `hmz internal fence`. Where `online=False`, the command reaches no host. |
+| Supervised | The agent process is walled in by Landlock before it runs, with the mirror granted at the workdir's level. Where `online=False`, a proxy served by the anchor process is its only way out, passing the fence's hosts; binds are limited to a kernel-chosen port and the fence's `listen` ports, on loopback. The supervisor, its link and the mirror are outside the wall. | Every command the agent runs is sent with `{local, user, system, online, tmp}`, `tmp` being the agent's scratch directory here. The serving half draws the fence again (`abroad.drawn`) around its exported directories, its own `$HOME` and its own minimum, and runs the command under its own `hmz internal fence` with its scratch at that same path: made `0700` there if missing and left afterwards, used where it is a directory of the serving user's own (not a link), and otherwise replaced by one made for the one command. A command that names the path, as Claude Code's shell commands name the file they write their working directory to, finds it. Where `online=False`, the command reaches no host. |
 | Native | nothing | The CLI is run under `hmz internal fence` on the target with the levels, the hosts its model is at, the state it writes under its home (sent as `~/…`), the turn's credential directory, read access to its own install tree, and its `listen` ports. |
 | Afar | refused | refused |
 
@@ -682,6 +712,11 @@ from hmz.coganchor.anchor import NotInstalled
   mirrored files still read, and the agent exits with its own status.
 - **The mirror is authoritative.** What the target lacks is deleted from the mirror, including
   a file written here and never pushed; the deletion is logged.
+- **A command's output may not reach the agent in a container.** The supervisor borrows each
+  command's descriptors with `pidfd_getfd`, which docker's default seccomp profile refuses
+  without `CAP_SYS_PTRACE`. A pipe or tty is opened again through `/proc` instead; a socket
+  cannot be, and is logged as `could not borrow fd <n> from pid <pid>`. humanize starts a
+  standalone harness's container with `--cap-add SYS_PTRACE`; one started otherwise needs it.
 - **A path is read when its syscall stops.** A descriptor replaced by another thread in between
   resolves as it was.
 - **Native setup commands are bounded.** Each short command a native turn runs to set itself
@@ -721,10 +756,10 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 | `HUMANIZE_HARNESS` | `hmz internal anchor` | default `--harness` |
 | `HUMANIZE_SHADOW` | `hmz internal anchor` | default `--shadow`; set by humanize for a harness elsewhere |
 | `HUMANIZE_TOKEN` | `hmz internal anchor`, `… serve` | default `--token`; passed to a spawned serving half |
-| `HUMANIZE_LOG` | `hmz internal anchor`, `… serve`, `… rendezvous` | default `--log-level` (`warning`; `info` for `rendezvous`) |
+| `HUMANIZE_LOG` | `hmz internal anchor`, `… serve`, `… rendezvous` | default `--log-level` (`warning`; `info` for `rendezvous`); a value that is not a level is ignored with a warning |
 | `HUMANIZE_RENDEZVOUS` | `hmz internal anchor`, the in-process broker | default `--broker`; the address advertised to both halves |
 | `HUMANIZE_RENDEZVOUS_PORT` | the in-process broker | the port it listens on; `0` or unset for any |
-| `HUMANIZE_SSH_REUSE` | every `ssh` humanize runs | `0`, `no`, `false` or empty disables connection sharing |
+| `HUMANIZE_SSH_REUSE` | every `ssh` humanize runs | `off`, `0`, `no`, `false` (any case, trimmed) or empty disables connection sharing |
 | `HUMANIZE_SHADOWS` | the mirror guard | where mirror records are kept, instead of `~/.cache/humanize/shadows` |
 | `XDG_RUNTIME_DIR` | every `ssh` humanize runs | where `humanize-ssh-<uid>/` control sockets are made |
 | `HUMANIZE`, `HUMANIZE_TARGET`, `HUMANIZE_WORKSPACE` | set for the agent | see [Variables the agent is given](#variables-the-agent-is-given) |

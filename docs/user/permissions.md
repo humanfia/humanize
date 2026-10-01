@@ -214,16 +214,24 @@ codex: this machine will not run an agent at bypass, so it runs at auto, where w
 It keeps the same freedom: Codex asks before it reaches past the workspace, and humanize says
 yes.
 
-**Claude Code, on an account whose managed settings turn off bypass mode.** Agents run as
-usual. humanize approves each request itself, and the organisation's own `deny` rules still
-apply.
+**Claude Code, on an account whose managed settings turn off bypass mode, or as root.** The
+agent runs at `acceptEdits` instead, and says so once:
+
+```text
+claude: this account will not run an agent at bypass, so it runs at acceptEdits, where what it asks for is granted
+```
+
+It keeps the same freedom: Claude asks before what `acceptEdits` does not cover, and humanize
+says yes. The organisation's own `deny` rules still apply.
 
 ### On another machine
 
 A [container](/user/containers) or an [ssh host](/user/remote-execution) is held to the same
 grant as this machine. Every command the agent runs lands on the other machine and is fenced
 there, around that machine's own workdir and `$HOME`. With `online` of `NONE`, those commands
-reach no host at all.
+reach no host at all. The agent's temporary directory is kept on the other machine at the path
+it has here, so a command that names it, as Claude Code's every shell command does, finds it
+there and ends with its own exit status.
 
 ## Pitfalls
 

@@ -327,6 +327,91 @@ def test_a_lock_per_provider_is_held_beside_the_providers(
     assert [one.name for one in store.providers("docker")] == ["gpubox"]
 
 
+#: One agent at work in a container, which the flow never gets to where it is refused.
+_BOXED = """
+import pathlib
+
+from hmz.flows import Agent, AgentCollection, Env, EnvCollection, FlowParams, flow
+from hmz.flows import ImageEnvMixin, ShellEnvMixin
+
+
+class Box(Env, ShellEnvMixin, ImageEnvMixin):
+    _image = "python:3.12-slim"
+
+
+class Agents(AgentCollection):
+    coder: Agent
+
+
+class Envs(EnvCollection):
+    box: Box
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def boxed(task, *, agents, envs, params, ctx):
+    pathlib.Path(task).write_text("called")
+    session = await agents["coder"].spawn(env=envs["box"])
+    await agents["coder"].run(task, session=session)
+"""
+
+
+@pytest.mark.timeout(120)
+def test_env_is_refused_before_the_run_where_the_container_has_no_cli(
+    standin: Standin, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Asked down the road a native turn takes, and refused before the flow is called."""
+    from hmz.runtime.flowing.harnesses import HarnessDriver
+
+    del standin
+
+    def nowhere(self: HarnessDriver) -> str:
+        del self
+        return "/opt/nowhere/no-cli"
+
+    monkeypatch.setattr(HarnessDriver, "_program", nowhere)
+    work = tmp_path / "work"
+    work.mkdir()
+    called = tmp_path / "called"
+    runner = Runner(
+        written(tmp_path / "flows", "boxed", _BOXED),
+        agents={"coder": "claude/m:high"},
+        envs={"box": f"docker@local{work}"},
+        budget={"cost": 1},
+        workspace=tmp_path,
+        harness="env",
+    )
+
+    with pytest.raises(Refused, match="is not installed on docker@local") as refused:
+        runner.run(str(called))
+
+    assert "-H local" in str(refused.value)
+    assert not called.exists()
+
+
+@pytest.mark.timeout(120)
+def test_standalone_is_refused_before_the_run_for_a_role_it_would_have_to_fence(
+    standin: Standin, tmp_path: Path
+) -> None:
+    """A harness on a machine of its own cannot be held to the default permission."""
+    del standin
+    work = tmp_path / "work"
+    work.mkdir()
+    called = tmp_path / "called"
+    runner = Runner(
+        written(tmp_path / "flows", "boxed", _BOXED),
+        agents={"coder": "claude/m:high"},
+        envs={"box": f"docker@local{work}"},
+        budget={"cost": 1},
+        workspace=tmp_path,
+        harness=f"standalone:docker@local{work}",
+    )
+
+    with pytest.raises(Refused, match="a fence cannot hold a harness that runs on"):
+        runner.run(str(called))
+
+    assert not called.exists()
+
+
 #: A flow holding its container until it is ended from outside: it says it has one, and waits.
 _WAITS = """
 from hmz.flows import AgentCollection, Env, EnvCollection, FilesEnvMixin, FlowParams
