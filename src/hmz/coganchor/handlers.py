@@ -89,6 +89,8 @@ _MAKES = frozenset(
         NR.RENAME,
         NR.RENAMEAT,
         NR.RENAMEAT2,
+        NR.MKNOD,
+        NR.MKNODAT,
     }
 )
 
@@ -122,11 +124,16 @@ def _creates(pid: int, registers: Registers) -> bool:
 #: Where each syscall keeps the paths it names, as ``(descriptor argument, path
 #: argument)`` pairs -- the descriptor being ``None`` for a call that has none and
 #: resolves against the process's own directory.  Read off the manual pages, one
-#: line per call, and the same table :mod:`hmz.coganchor.providers._trace` redirects
-#: against when a turn is run under a provider without being anchored.
+#: line per call: every call the supervisor stops that names a path, so that a
+#: spelling of the mirror only the target has -- a Mac's ``/private/tmp``, the
+#: workspace's own path for a harness elsewhere -- is settled whichever call it is
+#: handed to.  :mod:`hmz.coganchor.providers._trace`, which redirects a turn run under
+#: a provider without being anchored, keeps a table of its own of the calls that
+#: read or write a file's contents, and it is that table's calls this one began as.
 #:
 #: ``execve`` is deliberately absent: what a process becomes is the exec bridge's
-#: business, and a redirected path is a credential rather than a program.
+#: business, and a redirected path is a credential rather than a program.  Its
+#: spelling is settled by the handler, which knows whether it runs here at all.
 _REDIRECTABLE: dict[int, tuple[tuple[int | None, int], ...]] = {
     NR.OPEN: ((None, 0),),
     NR.CREAT: ((None, 0),),
@@ -135,12 +142,28 @@ _REDIRECTABLE: dict[int, tuple[tuple[int | None, int], ...]] = {
     NR.ACCESS: ((None, 0),),
     NR.READLINK: ((None, 0),),
     NR.CHDIR: ((None, 0),),
+    NR.STATFS: ((None, 0),),
+    NR.GETXATTR: ((None, 0),),
+    NR.LGETXATTR: ((None, 0),),
+    NR.LISTXATTR: ((None, 0),),
+    NR.LLISTXATTR: ((None, 0),),
+    NR.SETXATTR: ((None, 0),),
+    NR.LSETXATTR: ((None, 0),),
+    NR.REMOVEXATTR: ((None, 0),),
+    NR.LREMOVEXATTR: ((None, 0),),
     NR.MKDIR: ((None, 0),),
     NR.RMDIR: ((None, 0),),
     NR.UNLINK: ((None, 0),),
     NR.CHMOD: ((None, 0),),
+    NR.CHOWN: ((None, 0),),
+    NR.LCHOWN: ((None, 0),),
+    NR.MKNOD: ((None, 0),),
     NR.TRUNCATE: ((None, 0),),
     NR.UTIMES: ((None, 0),),
+    NR.UTIME: ((None, 0),),
+    # The descriptor first, here, and the path after it: `inotify_add_watch(fd, path,
+    # mask)` resolves the path as `open` would, against the process's own directory.
+    NR.INOTIFY_ADD_WATCH: ((None, 1),),
     # The link itself, not what it says: what a symlink points at is text the
     # kernel does not resolve here, and rewriting it would answer a question
     # nobody asked.
@@ -154,15 +177,73 @@ _REDIRECTABLE: dict[int, tuple[tuple[int | None, int], ...]] = {
     NR.FACCESSAT: ((0, 1),),
     NR.FACCESSAT2: ((0, 1),),
     NR.READLINKAT: ((0, 1),),
+    NR.NAME_TO_HANDLE_AT: ((0, 1),),
+    NR.OPEN_TREE: ((0, 1),),
     NR.MKDIRAT: ((0, 1),),
+    NR.MKNODAT: ((0, 1),),
     NR.UNLINKAT: ((0, 1),),
     NR.FCHMODAT: ((0, 1),),
+    NR.FCHMODAT2: ((0, 1),),
+    NR.FCHOWNAT: ((0, 1),),
     NR.UTIMENSAT: ((0, 1),),
+    NR.FUTIMESAT: ((0, 1),),
+    # `fanotify_mark(fd, flags, mask, dirfd, path)`, the mask one register wide on every
+    # architecture a tracee is watched on. A null path marks the descriptor itself.
+    NR.FANOTIFY_MARK: ((3, 4),),
     NR.SYMLINKAT: ((1, 2),),
     NR.RENAMEAT: ((0, 1), (2, 3)),
     NR.RENAMEAT2: ((0, 1), (2, 3)),
     NR.LINKAT: ((0, 1), (2, 3)),
 }
+
+#: The calls among those that only look a path up, and so need of the mirror only that the
+#: path is there, as the target has it, before they run.
+_LOOKS = frozenset(
+    {
+        NR.STAT,
+        NR.LSTAT,
+        NR.ACCESS,
+        NR.READLINK,
+        NR.NEWFSTATAT,
+        NR.STATX,
+        NR.FACCESSAT,
+        NR.FACCESSAT2,
+        NR.READLINKAT,
+        NR.STATFS,
+        NR.GETXATTR,
+        NR.LGETXATTR,
+        NR.LISTXATTR,
+        NR.LLISTXATTR,
+        NR.NAME_TO_HANDLE_AT,
+        NR.OPEN_TREE,
+        NR.INOTIFY_ADD_WATCH,
+        NR.FANOTIFY_MARK,
+    }
+)
+
+#: The calls among those that change what of a file the target is never sent -- its owner and
+#: its extended attributes -- and so are the mirror's alone. Each needs the file's contents
+#: there first: a placeholder is replaced whole when they are fetched, and what had been set
+#: on it would go with it.
+_KEEPS = frozenset(
+    {
+        NR.SETXATTR,
+        NR.LSETXATTR,
+        NR.REMOVEXATTR,
+        NR.LREMOVEXATTR,
+        NR.CHOWN,
+        NR.LCHOWN,
+        NR.FCHOWNAT,
+    }
+)
+
+#: `AT_SYMLINK_NOFOLLOW`, which `fchmodat2` may be given and the target's `chmod` cannot.
+AT_SYMLINK_NOFOLLOW = 0x100
+
+#: What of a mode says which kind of file `mknod` makes, and the kind that is a file whose
+#: contents cross like any other's -- the default, where the kind is left at nought.
+_S_IFMT = 0o170000
+_S_IFREG = 0o100000
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,22 +271,20 @@ class SyscallDispatcher:
         #: The directories an answered path has already been given, so that making sure of
         #: one is a lookup after the first time rather than a call on every open.
         self._made: set[str] = set()
-        self._table = {
+        self._table: dict[int, Callable[[Tracee, Registers], Action]] = {
+            number: self._peeking(*_REDIRECTABLE[number][0]) for number in _LOOKS
+        }
+        self._table |= {
+            number: self._peeking(*_REDIRECTABLE[number][0], whole=True)
+            for number in _KEEPS
+        }
+        self._table |= {
             NR.EXECVE: self._execve,
             NR.EXECVEAT: self._execveat,
             NR.OPEN: self._open,
             NR.OPENAT: self._openat,
             NR.OPENAT2: self._openat2,
             NR.CREAT: self._creat,
-            NR.STAT: self._peek_path0,
-            NR.LSTAT: self._peek_path0,
-            NR.ACCESS: self._peek_path0,
-            NR.READLINK: self._peek_path0,
-            NR.NEWFSTATAT: self._peek_path1,
-            NR.STATX: self._peek_path1,
-            NR.FACCESSAT: self._peek_path1,
-            NR.FACCESSAT2: self._peek_path1,
-            NR.READLINKAT: self._peek_path1,
             NR.CHDIR: self._chdir,
             NR.MKDIR: self._mkdir,
             NR.MKDIRAT: self._mkdirat,
@@ -219,11 +298,16 @@ class SyscallDispatcher:
             NR.SYMLINKAT: self._symlinkat,
             NR.LINK: self._link,
             NR.LINKAT: self._linkat,
+            NR.MKNOD: self._mknod,
+            NR.MKNODAT: self._mknodat,
             NR.CHMOD: self._chmod,
             NR.FCHMODAT: self._fchmodat,
+            NR.FCHMODAT2: self._fchmodat2,
             NR.TRUNCATE: self._truncate,
-            NR.UTIMENSAT: self._utimensat,
-            NR.UTIMES: self._utimes,
+            NR.UTIMENSAT: self._timing(0, 1, 2, "timespec"),
+            NR.UTIMES: self._timing(None, 0, 1, "timeval"),
+            NR.FUTIMESAT: self._timing(0, 1, 2, "timeval"),
+            NR.UTIME: self._timing(None, 0, 1, "utimbuf"),
             NR.CONNECT: self._connect,
         }
 
@@ -359,14 +443,29 @@ class SyscallDispatcher:
 
     # ----------------------------------------------------- metadata and lookups
 
-    def _peek_path0(self, tracee: Tracee, registers: Registers) -> Action:
-        """Materialise the directory holding ``arg0`` and let the syscall run."""
-        return self._peek(self._path(tracee.pid, AT_FDCWD, registers.arg(0)))
+    def _peeking(
+        self, descriptor: int | None, argument: int, *, whole: bool = False
+    ) -> Callable[[Tracee, Registers], Action]:
+        """A handler that materialises the path one call names and lets the call run.
 
-    def _peek_path1(self, tracee: Tracee, registers: Registers) -> Action:
-        return self._peek(
-            self._path(tracee.pid, registers.signed_arg(0), registers.arg(1))
-        )
+        Args:
+          descriptor: Which argument holds the directory the path is resolved against, or
+            None for a call that resolves it against the process's own.
+          argument: Which argument holds the path.
+          whole: Whether the file's contents are fetched too, rather than only its entry.
+
+        Returns:
+          The handler.
+        """
+
+        def peek(tracee: Tracee, registers: Registers) -> Action:
+            dirfd = AT_FDCWD if descriptor is None else registers.signed_arg(descriptor)
+            path = self._path(tracee.pid, dirfd, registers.arg(argument))
+            if whole and path is not None:
+                self._sup.shadow.ensure_content(path)
+            return self._peek(path)
+
+        return peek
 
     def _peek(self, path: str | None) -> Action:
         if path is not None and self._sup.router.is_remote_path(path):
@@ -512,6 +611,45 @@ class SyscallDispatcher:
             registers.arg(2),
         )
 
+    def _fchmodat2(self, tracee: Tracee, registers: Registers) -> Action:
+        """``fchmodat`` with a flags word, one of which says not to follow a link.
+
+        Linux keeps no mode on a link, so the kernel refuses that for one with `EOPNOTSUPP`
+        and the call is left to it: replayed, the target's `chmod` would follow the link and
+        change the mode of whatever it points at. For anything else the flag changes nothing.
+        """
+        path = self._path(tracee.pid, registers.signed_arg(0), registers.arg(1))
+        if path is not None and registers.arg(3) & AT_SYMLINK_NOFOLLOW:
+            self._peek(path)
+            if os.path.islink(path):
+                return ALLOW
+        return self._change_mode(path, registers.arg(2))
+
+    def _mknod(self, tracee: Tracee, registers: Registers) -> Action:
+        return self._make_node(
+            self._path(tracee.pid, AT_FDCWD, registers.arg(0)), registers.arg(1)
+        )
+
+    def _mknodat(self, tracee: Tracee, registers: Registers) -> Action:
+        return self._make_node(
+            self._path(tracee.pid, registers.signed_arg(0), registers.arg(1)),
+            registers.arg(2),
+        )
+
+    def _make_node(self, path: str | None, mode: int) -> Action:
+        """Makes room for a node, and has one that is a plain file reach the target.
+
+        A plain file made this way is one like any other, sent with the next flush as a file
+        `creat` made would be. A pipe, a socket or a device stays in the mirror: none of them
+        is something a target is sent.
+        """
+        if path is None or not self._sup.router.is_remote_path(path):
+            return ALLOW
+        self._sup.shadow.ensure_path(path)
+        if (mode & _S_IFMT) in (0, _S_IFREG):
+            self._sup.shadow.note_write(path)
+        return ALLOW
+
     def _change_mode(self, path: str | None, mode: int) -> Action:
         if path is None or not self._sup.router.is_remote_path(path):
             return ALLOW
@@ -530,15 +668,36 @@ class SyscallDispatcher:
         self._sup.shadow.note_write(path)
         return ALLOW
 
-    def _utimensat(self, tracee: Tracee, registers: Registers) -> Action:
-        path = self._path(tracee.pid, registers.signed_arg(0), registers.arg(1))
-        times = self._read_times(tracee.pid, registers.arg(2), micro=False)
-        return self._set_times(path, times)
+    def _timing(
+        self, descriptor: int | None, argument: int, given: int, shape: _Times
+    ) -> Callable[[Tracee, Registers], Action]:
+        """A handler for one of the calls that set a file's times, replayed on the target.
 
-    def _utimes(self, tracee: Tracee, registers: Registers) -> Action:
-        path = self._path(tracee.pid, AT_FDCWD, registers.arg(0))
-        times = self._read_times(tracee.pid, registers.arg(1), micro=True)
-        return self._set_times(path, times)
+        Args:
+          descriptor: Which argument holds the directory the path is resolved against, or
+            None for a call that resolves it against the process's own.
+          argument: Which argument holds the path.
+          given: Which argument points at the pair of times.
+          shape: How that pair is laid out.
+
+        Returns:
+          The handler.
+        """
+
+        def timing(tracee: Tracee, registers: Registers) -> Action:
+            dirfd = AT_FDCWD if descriptor is None else registers.signed_arg(descriptor)
+            address = registers.arg(argument)
+            # No path at all is the descriptor's own file: `futimens(fd)` is
+            # `utimensat(fd, NULL)`, and `futimesat` reads a null path the same way.
+            path = (
+                self._path(tracee.pid, dirfd, address)
+                if address or dirfd == AT_FDCWD
+                else _fd_path(tracee.pid, dirfd)
+            )
+            times = self._read_times(tracee.pid, registers.arg(given), shape)
+            return self._set_times(path, times)
+
+        return timing
 
     def _set_times(
         self, path: str | None, times: tuple[int | None, int | None]
@@ -557,13 +716,13 @@ class SyscallDispatcher:
     def _execve(self, tracee: Tracee, registers: Registers) -> Action:
         program = procfs.read_cstring(tracee.pid, registers.arg(0))
         return self._exec(
-            tracee, registers, program, registers.arg(1), registers.arg(2)
+            tracee, registers, program, 0, registers.arg(1), registers.arg(2)
         )
 
     def _execveat(self, tracee: Tracee, registers: Registers) -> Action:
-        program = self._path(tracee.pid, registers.signed_arg(0), registers.arg(1))
+        program = self._raw(tracee.pid, registers.signed_arg(0), registers.arg(1))
         return self._exec(
-            tracee, registers, program, registers.arg(2), registers.arg(3)
+            tracee, registers, program, 1, registers.arg(2), registers.arg(3)
         )
 
     def _exec(
@@ -571,15 +730,23 @@ class SyscallDispatcher:
         tracee: Tracee,
         registers: Registers,
         program: str | None,
+        argument: int,
         argv_addr: int,
         envp_addr: int,
     ) -> Action:
         tracee.exec_count += 1
         if program is None:
             return ALLOW
-        resolved = self._absolute(tracee.pid, program)
+        named = self._absolute(tracee.pid, program)
+        resolved = self._sup.router.canonical(named)
         if self._sup.is_agent_launch(tracee, resolved):
             log.debug("pid %d: running %s on this machine", tracee.pid, resolved)
+            if resolved != named:
+                # Run by the kernel from the name it was given, and one the target spells
+                # -- under the workspace's own path, for a harness whose mirror is elsewhere
+                # -- is a file this machine has under the mirror. Left as it was where it
+                # cannot be planted, which the kernel answers `ENOENT` as it always did.
+                _plant(tracee.pid, registers, 0, argument, resolved)
             return ALLOW
         argv = procfs.read_string_array(tracee.pid, argv_addr)
         env = _as_mapping(procfs.read_string_array(tracee.pid, envp_addr))
@@ -669,6 +836,11 @@ class SyscallDispatcher:
         return os.path.normpath(procfs.resolve_magic(pid, named))
 
     def _absolute(self, pid: int, program: str) -> str:
+        """The program a process asked for, absolute and as it spelled it.
+
+        Not yet settled onto this machine's spelling: whoever asks compares the two, since a
+        program run here is run from the name it was given.
+        """
         joined = (
             program
             if program.startswith("/")
@@ -678,29 +850,34 @@ class SyscallDispatcher:
         # `/proc/self/fd/<n>` to apply its own seccomp filter, and a program named that way
         # is the agent's own binary rather than a path to hand the target, which has no such
         # descriptor and would be asked to run a file it does not have.
-        return self._sup.router.canonical(
-            os.path.normpath(procfs.resolve_magic(pid, joined))
-        )
+        return os.path.normpath(procfs.resolve_magic(pid, joined))
 
     @staticmethod
     def _read_times(
-        pid: int, address: int, *, micro: bool
+        pid: int, address: int, shape: _Times
     ) -> tuple[int | None, int | None]:
-        """Read the atime/mtime pair ``utimensat`` and ``utimes`` both point at.
+        """Read the atime/mtime pair one of the calls that set times points at.
 
-        The two structs are laid out identically; only the fraction's scale
-        differs, and only ``timespec`` carries the OMIT/NOW sentinels.  A null
-        pointer means "set both to now", which is spelled out here so that a
-        ``None`` in the result can mean only "leave this one alone".
+        ``timespec`` and ``timeval`` pairs are laid out identically; only the fraction's
+        scale differs, and only ``timespec`` carries the OMIT/NOW sentinels.  ``utime``'s
+        ``utimbuf`` is two whole seconds.  A null pointer means "set both to now", which is
+        spelled out here so that a ``None`` in the result can mean only "leave this one
+        alone".
         """
         if address == 0:
             now = time.time_ns()
             return (now, now)
+        if shape == "utimbuf":
+            raw = procfs.read_bytes(pid, address, _UTIMBUF)
+            if len(raw) < _UTIMBUF:
+                return (None, None)
+            atime, mtime = struct.unpack("<qq", raw)
+            return (atime * 1_000_000_000, mtime * 1_000_000_000)
         raw = procfs.read_bytes(pid, address, _TIMES_PAIR)
         if len(raw) < _TIMES_PAIR:
             return (None, None)
         atime_s, atime_frac, mtime_s, mtime_frac = struct.unpack("<qqqq", raw)
-        if micro:
+        if shape == "timeval":
             return (
                 atime_s * 1_000_000_000 + atime_frac * 1000,
                 mtime_s * 1_000_000_000 + mtime_frac * 1000,
@@ -708,8 +885,15 @@ class SyscallDispatcher:
         return (_timespec_ns(atime_s, atime_frac), _timespec_ns(mtime_s, mtime_frac))
 
 
+#: How a call that sets times lays out the pair it is given: two ``timespec`` for
+#: ``utimensat``, two ``timeval`` for ``utimes`` and ``futimesat``, a ``utimbuf`` for ``utime``.
+type _Times = Literal["timespec", "timeval", "utimbuf"]
+
 #: The pair of times ``utimensat`` takes, sixteen bytes apiece.
 _TIMES_PAIR = 32
+
+#: And the ``struct utimbuf`` ``utime`` takes: two ``time_t``, eight bytes apiece.
+_UTIMBUF = 16
 
 #: ``UTIME_NOW``/``UTIME_OMIT`` sentinels from <linux/stat.h>, which every architecture
 #: shares -- as do the ``timespec`` and ``timeval`` pairs read above, eight bytes a field on

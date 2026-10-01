@@ -258,6 +258,16 @@ _LANDLOCK = "use_legacy_landlock"
 #: switched off for a fence that cuts the network, as the web search is.
 _APPS = "apps"
 
+#: The feature that has Codex capture its shell's start-up state once per thread and source
+#: it before every command, rather than start each one as a login shell. On by default on
+#: codex-cli 0.153.4, which writes the capture into its own home and then checks it by running
+#: `. <that file>` in a shell -- a command, which a supervised Codex runs on the target, where
+#: its home is not. Every thread so started logged `Shell snapshot validation failed: ...: No
+#: such file or directory` and went on as a login shell per command. So it is switched off for
+#: a Codex whose commands land on another machine: each command is still a login shell on
+#: that machine, which is the state a capture taken there would have restored.
+_SHELL_SNAPSHOT = "shell_snapshot"
+
 #: A turn's `sandboxPolicy` for a `read-only` rung whose fence grants the network: the
 #: filesystem read-only, as the rung says, and the network the permission grants left to the
 #: commands. `turn/start` takes it and keeps it for every turn after, and it is sent with each.
@@ -2184,6 +2194,20 @@ class CodexAgent(AgentBase):
         weakref.finalize(self, server.stop)
         return server
 
+    def _native(self) -> bool:
+        """Whether this agent's turns are taken by the target's own Codex, asked without starting.
+
+        The anchor says so once the machine is up. Before that only an anchor named outright
+        can, which is the one way a turn is placed natively; a machine this agent brings up
+        itself is supervised from here.
+        """
+        from hmz.coganchor.machines import AnchoredConfig
+
+        if self._anchor is not None:
+            return self._anchor.native
+        machine = self.config.machine
+        return isinstance(machine, AnchoredConfig) and machine.anchor.native
+
     def _argv(self, offering: tuple[str, ...]) -> list[str]:
         """The command that starts one more app server for this agent.
 
@@ -2235,6 +2259,15 @@ class CodexAgent(AgentBase):
             # Not said where the flow named the feature either way, nor for a turn that lands
             # on another machine, whose sandbox is that machine's to start.
             argv += ["--enable", _LANDLOCK]
+        if (
+            self.config.machine is not None
+            and not self._native()
+            and _SHELL_SNAPSHOT not in dict(features)
+        ):
+            # Off where this Codex is supervised and its commands land on another machine,
+            # which would be asked to read a capture kept in this one's home. A Codex that is
+            # the target's own keeps its home there and captures there too.
+            argv += ["--disable", _SHELL_SNAPSHOT]
         # Off where the fence cuts the network, whatever `web_search` says: the one tool the
         # fence cannot stop, left on beside a network it has cut, would be the network.
         searching = False if offline else self.config.web_search

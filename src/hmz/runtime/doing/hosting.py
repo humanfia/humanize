@@ -1134,6 +1134,9 @@ class Host:
                     "env": _placed(where),
                     "harness": "" if machine is None else harnessed(machine),
                     "mono": time.monotonic(),
+                    # And on the wall, which is the clock the CLIs write their logs on: a
+                    # row written before this is not one this run's session spent.
+                    "wall": time.time(),
                 }
             )
             self._snap_sessions(current)

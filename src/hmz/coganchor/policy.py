@@ -251,13 +251,10 @@ class Router:
             (_normalise(name), _normalise(root)) for name, root in self.aliases
         )
         # A hole written as the workspace's own path is a hole in the mirror that path now
-        # reaches, since a path is matched against the holes once it has been settled.
-        self.local_paths += tuple(
-            posixpath.join(root, suffix) if suffix else root
-            for kept in self.local_paths
-            for name, root in self.aliases
-            if (suffix := path_within(kept, name)) is not None
-        )
+        # reaches, since a path is matched against the holes once it has been settled -- and
+        # a program kept here is the program in the mirror, for the same reason.
+        self.local_paths += self._realiased(self.local_paths)
+        self.local_programs += self._realiased(self.local_programs)
         # And longest named path first, so a path under two redirects takes the
         # one that says most about it.
         self.redirects = tuple(
@@ -268,6 +265,15 @@ class Router:
                 ),
                 key=lambda pair: -len(pair[0]),
             )
+        )
+
+    def _realiased(self, paths: tuple[str, ...]) -> tuple[str, ...]:
+        """Each of `paths` under an alias, named again under the root it is another name for."""
+        return tuple(
+            posixpath.join(root, suffix) if suffix else root
+            for kept in paths
+            for name, root in self.aliases
+            if (suffix := path_within(kept, name)) is not None
         )
 
     def canonical(self, local_path: str) -> str:
