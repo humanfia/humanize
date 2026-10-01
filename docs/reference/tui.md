@@ -842,7 +842,7 @@ budget.
 | --- | --- |
 | `standalone → <machine spec>` | standalone (whatever the environment roles) |
 | `<mode> → local: the work is on this machine` | adaptive, local or env, and no `ssh`/`docker` environment role set |
-| `adaptive → <values> (last run)` | adaptive, after a run this session reported placements (distinct, sorted) |
+| `adaptive → <values> (last run)` | adaptive, where the last run of the flow in this directory put a session's harness anywhere (distinct, sorted): while a run of it goes, its [`opened.harness`](/reference/daemon#history-records) values; otherwise the `harness` of each session in the newest epic of the flow (matched by ref or by the name it ran under), whether `hmz`, `hmz exec` or the SDK ran it, taking each role's last session |
 | `adaptive → env where its CLI is installed, else local` | adaptive |
 | `local → here, anchored to the environment` | local |
 | `env → on the environment's machine` | env |
@@ -1334,7 +1334,7 @@ Label `<Field>:` padded to 18; groups separated by a blank line: (`Flow`, `Agent
 | `Set` | Params not at their default: name padded to 34, value. |
 | `Reading` | Where more than one frontend: `<name> · you` first, then the others. |
 | `Also` | Graph only: handovers between non-adjacent boxes, `<a> → <b> · ×<n>`. |
-| `Tokens` | Per model, largest first: name (26), tokens (8), money (10, blank where unpriced), `   <n> out/s`. Nothing yet: `no tokens used yet`. |
+| `Tokens` | Per model, in the order each was first spent on (a model spent on later is added below; rows never swap): name (26), tokens (8), money (10, blank where unpriced), `   <n> out/s`. Nothing yet: `no tokens used yet`. |
 | `Kinds` | Per kind (fixed order, as the readout): name (26), tokens (8), `+` for a floor; then `+ is a minimum: not all agents report this kind` where any `+`. |
 | last line | The first line of whatever the interface last showed (command answers, errors, `— the flow is done —`, board saves). |
 
@@ -1373,7 +1373,7 @@ environment is not in the run.`
 | `image` | the image the flow declares for the role |
 | `grants` | the role's environment capabilities (class names without `EnvMixin`), or `nothing beyond running in it` |
 | `needs` | `<n> CPUs · <x> GiB memory · <n> GPU(s) · <x> GiB per GPU` (declared parts only) |
-| `harness` | `on this machine; what it runs lands here` for an `ssh`/`docker` environment, `on this machine, in this workdir` for `local`. Reflects the environment's kind only; where each session's harness actually ran is its [`opened.harness`](/reference/daemon#history-records) and the transcript's harness line. |
+| `harness` | `[<-H> → ]<placement>: <where>`, the placement being each session's [`opened.harness`](/reference/daemon#history-records) and `<-H>` the run's [`started.harness`](/reference/daemon#history-records) (left out where the host did not say). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `env` `on this environment's machine, with the CLI installed there`; `standalone` `on <target>, reaching this environment through the anchor`. Where its sessions went different ways: `[<-H> → ]<placement> for <key>, <key> · <placement> for <key>`. |
 | `status` | `<w> of <n> session(s) working` |
 | `Sessions` | `●\|○ <role> · session <n> · <spec>` (or the bare key before its first turn); `enter` or a click reads it and leaves the monitor. |
 
@@ -1445,7 +1445,8 @@ and when the width changes. The status line says `· copied` for 2 s.
 `<flow>` is the name the flow is offered under (`chat`, `local/<f>`, `user/<f>`,
 `<flowverse>/<f>`), so two flows with one bare name never share a setup. Roles are keyed by
 their declared names. Params are read back through the flow's `FlowParams`. Away, claims, the
-monitor's graph/list choice and the harness's `(last run)` are not persisted.
+monitor's graph/list choice are not persisted. The harness's `(last run)` is read from the
+flow's newest epic, not from here.
 
 ## Colours {#colours}
 

@@ -157,8 +157,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   only nodes that have taken a turn, marked as working or as having something unread — never
   refused while a flow runs, redrawn as the run moves, every clock stopping where the run stopped.
 - MUST show the environment each session works in under that session, as a node that opens to a
-  page of its own — its kind, where it is, what the flow declared of it and the sessions working
-  in it, live — from which a session is read.
+  page of its own — its kind, where it is, what the flow declared of it, where the run put each of
+  its sessions' harnesses and the sessions working in it, live — from which a session is read.
 - MUST lead the monitor with a node for every agent's log, selected when it opens, then a node per
   outworlder, and read any node — working or ended — with enter or a click, two on an agent, the
   arrows moving between nodes while nothing is typed.
