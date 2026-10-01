@@ -182,16 +182,17 @@ def test_codex_with_its_harness_in_one_container_runs_commands_in_another(
 ) -> None:
     """`-H standalone`: the harness in a container of its own, the work in another.
 
-    Signed in with a copy of this machine's own sign-in, in a directory of the test's, so the
-    one Codex here is using is never written to by the one in the container.
+    Signed in as this machine's own Codex is, by handing the container that Codex's home
+    itself -- mounted at the path it has here, so there is one `auth.json` and both read and
+    write it. Never a copy of it: a ChatGPT sign-in refreshes itself, each refresh spending the
+    refresh token the other holder still has, and OpenAI revokes the sign-in the moment a
+    spent one is presented -- a copy that refreshed in a container would sign this machine
+    out. What the turn keeps lands there too, as any turn of the system tier's as local does.
     """
-    signed = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "auth.json"
-    if not signed.is_file():
-        pytest.skip("codex is not signed in with a file this test can copy")
+    home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+    if not (home / "auth.json").is_file():
+        pytest.skip("codex is not signed in here")
     image = _codex_image(tmp_path)
-    home = tmp_path / "codex-home"
-    home.mkdir(mode=0o700)
-    shutil.copy2(signed, home / "auth.json")
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     (workspace / "hello.txt").write_text("HELLO-FROM-THE-TARGET\n")

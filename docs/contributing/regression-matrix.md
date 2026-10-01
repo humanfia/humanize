@@ -127,7 +127,10 @@ in order, and every cell of the column runs at the first that answers:
 1. **As local**, the CLI as you signed it in, at the cheapest model it takes.
 2. **An account this machine keeps**, where as local does not answer. The account is copied out
    of `~/.humanize/providers` into the test's own home, through `hmz.sdk.Hmz().accounts`, and
-   removed when the cell ends. Nothing in `~/.humanize` is written.
+   removed when the cell ends. Nothing in `~/.humanize` is written. An account signed in with a
+   login whose token refreshes itself (a file holding a refresh token) is never copied: it is
+   passed over with `signs in with a token that refreshes itself`, since a copy refreshing
+   apart from it would get the original revoked.
 
 A column with no place that answers skips, cell by cell, and says what each candidate said.
 The `named_account` row always runs under an account made the second way.

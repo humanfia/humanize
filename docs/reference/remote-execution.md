@@ -531,13 +531,22 @@ traced or supervised. The sequence per turn:
    `mktemp -d`, `chmod 700`) and write each credential file into
    `<dir>/<variable lowercased>/...` through a command's stdin, mode `0600`. The variable is
    set to that directory. A failure raises `OSError: could not put <VAR> on the target: …` and
-   the turn does not run.
+   the turn does not run. A file holding a refresh token
+   ([a sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself)) is
+   first locked here, exclusively, for the whole turn (`flock` on its directory); one any other
+   turn is using refuses this one with `OSError` (`EBUSY`) before anything reaches the target.
+   A supervised turn holds the same lock shared, for the refresh-token files its redirects
+   answer.
 5. Put each `carries` directory into the target's workspace (below).
 6. Start the CLI as `env [-u HUSHED]... NAME=VALUE... PROGRAM ARGS...` in `chdir` (default the
    workspace), with this process's environment layered on the target's.
 7. Relay stdin, stdout and stderr byte for byte; forward the first `SIGINT`/`SIGTERM` to the
    CLI and restore the previous handler, so a second one reaches this process.
-8. Remove the credential directory and release carried directories, whatever happened.
+8. Read each refresh-token file back from the target; one the CLI changed, that is still a whole
+   sign-in, is written atomically over the file it was copied from here, unless that file
+   changed meanwhile (then it is left, with a warning that the account may need signing in
+   again). Then remove the credential directory and release carried directories, whatever
+   happened.
 
 | What does not follow the CLI | How it crosses |
 | --- | --- |
@@ -684,7 +693,7 @@ runs can do. Listen on a non-loopback address only with a secret `--token`.
 | --- | --- | --- | --- |
 | Supervised | this machine | set on the agent here; listed in `private`, so commands on the target do not get them | answered here as `redirects`; never cross |
 | Afar | the harness machine | not sent: the harness process's environment is the harness machine's | redirected to this machine's paths, which the harness machine does not have |
-| Native | the target, for each turn | sent as the turn's environment; hushed variables removed with `env -u` | written to a private directory on the target and removed after the turn, where they can [cross](#native-the-target-s-own-cli) |
+| Native | the target, for each turn | sent as the turn's environment; hushed variables removed with `env -u` | written to a private directory on the target and removed after the turn, where they can [cross](#native-the-target-s-own-cli); a refresh-token file goes to one turn at a time and is written back refreshed |
 
 ## Python API {#from-python}
 
@@ -758,6 +767,8 @@ from hmz.coganchor.anchor import NotInstalled
 | Property | Holds |
 | --- | --- |
 | A provider's credential files leave this machine | only under `native`, into a `0700` directory on the target, removed after each turn |
+| A sign-in that refreshes itself is out in two places at once | never, where its directory can be locked: a native turn holds it alone, and its refreshed copy is written back before it is removed |
+| This machine's own sign-in leaves this machine | never: without an `@account`, a CLI elsewhere uses that machine's sign-in |
 | A provider's variables reach commands on the target | never under supervised (`private`); under `native`, the CLI's environment is the turn's |
 | A credential appears in an argv | never; projected files cross on stdin |
 | A listening serving half without a token | loopback only |

@@ -220,6 +220,9 @@ SIGNS: tuple[Sign, ...] = (
     # told so before it has spoken to a provider at all. Transient, and nothing else fixes it.
     Sign("contended", r"database (is|table .{0,40} is) locked"),
     Sign("contended", r"SQLITE_BUSY"),
+    # A sign-in that refreshes itself, held by another turn the other way round: a copy of it
+    # out on another machine, or turns here using it while this one would send one out.
+    Sign("contended", r"signs in with a token that refreshes itself"),
     # Too many requests, under every name the services put on it. `RESOURCE_EXHAUSTED` is
     # Google's word for that status, `insufficient_quota` OpenAI's, and `overloaded_error`
     # what Anthropic answers 529 with -- each of them answered by waiting rather than by
@@ -293,6 +296,9 @@ SIGNS: tuple[Sign, ...] = (
     Sign("refused", r"please (run )?(login|log ?in|sign ?in)"),
     Sign("refused", r"no credential"),
     Sign("refused", r"(token|credentials?|session) (has |have )?expired"),
+    # A sign-in that refreshes itself, revoked by its vendor -- which is what two copies of it
+    # refreshing apart come to. Codex says `your refresh token was revoked`.
+    Sign("refused", r"token (was |has been )?revoked"),
     Sign("refused", r"forbidden"),
     # A model that is gone, or one this account was never entitled to. No other account of
     # this CLI has it either, so this is the one failure an account chain cannot answer.

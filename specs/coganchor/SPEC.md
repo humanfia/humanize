@@ -484,7 +484,11 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   own home MUST NOT be projected, and a turn with nothing else to carry the account MUST be refused.
 - What a provider keeps as files MUST be projected into a directory only the target's own user may
   enter, unreadable by anyone else from the instant it exists, named to the CLI by a variable and
-  never by a path, and removed when the turn is over whatever became of it.
+  never by a path, and removed when the turn is over whatever became of it. One holding a refresh
+  token MUST be projected only while no other turn is using it, and no turn MUST use it while it
+  is out -- either refused rather than made to wait -- and what the CLI refreshed it to MUST be
+  written back over the original before it is removed, unless the original changed meanwhile,
+  which MUST be said rather than written over.
 - A native session MUST refuse a turn asking for the flow's own callbacks and MUST ask nothing of
   this machine's kernel; the skills a flow carries MUST be put into the target's workspace for the
   turn and taken out again, writing over nothing and removing only what was made; and its sessions
