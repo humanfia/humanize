@@ -189,20 +189,31 @@ class Tracing:
             with contextlib.suppress(OSError):
                 os.kill(pid, said)
 
-        with contextlib.suppress(OSError, ValueError):
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-        for said in (signal.SIGTERM, signal.SIGQUIT, signal.SIGHUP):
+        # Put back once the program is over, for a caller that goes on in this process --
+        # which `hmz internal cred` called from the CLI's own `main` is.
+        was: dict[int, Any] = {}
+        for said, then in (
+            (signal.SIGINT, signal.SIG_IGN),
+            (signal.SIGTERM, passed),
+            (signal.SIGQUIT, passed),
+            (signal.SIGHUP, passed),
+        ):
             with contextlib.suppress(OSError, ValueError):
-                signal.signal(said, passed)
-        _try(ptrace.cont, pid)
-        while self._watching:
-            try:
-                got, status = os.waitpid(-1, ptrace.WALL)
-            except ChildProcessError:
-                break
-            except InterruptedError:  # pragma: no cover -- retried by the loop
-                continue
-            self._stopped(got, status)
+                was[said] = signal.signal(said, then)
+        try:
+            _try(ptrace.cont, pid)
+            while self._watching:
+                try:
+                    got, status = os.waitpid(-1, ptrace.WALL)
+                except ChildProcessError:
+                    break
+                except InterruptedError:  # pragma: no cover -- retried by the loop
+                    continue
+                self._stopped(got, status)
+        finally:
+            for said, before in was.items():
+                with contextlib.suppress(OSError, ValueError):
+                    signal.signal(said, signal.SIG_DFL if before is None else before)
         return self._status
 
     def _stopped(self, pid: int, status: int) -> None:

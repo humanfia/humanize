@@ -350,7 +350,10 @@ async def test_a_cli_without_the_hook_is_refused() -> None:
 ```
 
 `capabilities=` overrides what it serves, and `forks=False` makes a CLI that cannot fork a
-session. `model=`, `effort=` and `provider=` set what it reports about itself.
+session (`forks=True` one that can). A fake forks as its CLI would: only a session that has
+taken a turn, and its first turn is refused if the parent has taken another since the fork,
+so run the parent once before forking it and take the fork's first turn before the parent's
+next. `model=`, `effort=` and `provider=` set what it reports about itself.
 
 **The driver keeps what happened**, for the test to read afterwards:
 

@@ -4341,6 +4341,7 @@ class Humanize(App[None]):
             record["model"],
             frozenset(record["counts"]),
             kept=record.get("kept", ""),
+            since=float(record.get("wall") or 0.0),
         )
         if record["run"] == self._generation:
             self._seen[record["key"]] = seen
