@@ -22,7 +22,10 @@ granted what it declared -- with the drivers underneath swapped for these::
   so that a flow's hooks are exercised too. A `STOP` hook that blocks keeps the turn going
   with its reason as the next prompt, as a real one does, and a hard deadline cuts off a turn
   its answer holds open -- one waiting on :meth:`FakeSession.until_steered` -- as a real
-  driver's does.
+  driver's does. It forks where its harness does, as a real one does: not a session that
+  has taken no turn, not onto another machine, not into another workdir on a harness that
+  forks only in place, and not -- refused at the fork's first turn, where a CLI cuts it --
+  from a session that has taken a turn since the fork was opened.
 - :class:`FakeEnvDriver` is a dictionary of files under a workdir, with worktrees,
   temporary copies, scratch directories and snapshots as copies of it, and `exec` answered by a
   function or a table, with a few commands -- `true`, `false`, `echo`, `cat`, `ls`, `sleep`
@@ -150,6 +153,15 @@ type Handler = (
 #: How many times a `STOP` hook may keep one turn going before the fake ends it anyway.
 _AGAIN = 100
 
+#: The harnesses whose CLI has no fork of its own, as coganchor's profiles say.
+_UNFORKED = frozenset(
+    {HarnessKind.CURSOR_AGENT, HarnessKind.MCODE, HarnessKind.AGY, HarnessKind.DSH}
+)
+
+#: The harnesses whose CLI forks into another workdir than the one it is in, as
+#: coganchor's sessions say; every other that forks does so only where it is.
+_FORKS_ELSEWHERE = frozenset({HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI})
+
 
 def _as(said: object, schema: type[pydantic.BaseModel] | None, who: str) -> Any:
     """An answer as what a turn asked for: text, or an instance of its schema."""
@@ -242,6 +254,9 @@ class FakeSession:
       requests: Every turn it was asked for, limits and all.
       steered: Every prompt it was steered with, and whether it was queued.
       tools: Every tool its answers reached for, what with, and whether it was let run.
+      turns: How many turns it was asked for, a turn a hook refused among them.
+      named: Whether a turn of it has got past its hooks to the agent, which is where a real
+        CLI names a conversation, and so has one to fork.
       closed: Whether it is over.
     """
 
@@ -272,6 +287,11 @@ class FakeSession:
         self._lock = threading.Lock()
         self._turning = False
         self._started = False
+        self.named = False
+        self.turns = 0
+        #: How many turns the session it was forked from had taken when the fork was asked
+        #: for: where it is cut, as its first turn goes.
+        self._forked_at = forked_from.turns if forked_from else 0
         self._interrupted = threading.Event()
         self._expired = False
         self._steers: deque[str] = deque()
@@ -283,7 +303,7 @@ class FakeSession:
 
     @property
     def id(self) -> str | None:
-        if self.driver.names_late and not self._started:
+        if self.driver.names_late and not self.named:
             return None
         return self._id
 
@@ -302,6 +322,15 @@ class FakeSession:
             raise SessionError(f"{self._id} is closed")
         if self._turning:
             raise SessionError(f"{self._id} is taking a turn already")
+        parent = self.forked_from
+        if not self.named and parent is not None and parent.turns != self._forked_at:
+            # A fork is cut where its first turn is taken, as a real CLI's is: one whose
+            # session has moved on since would be a branch from somewhere nobody chose.
+            raise SessionError(
+                f"{self._id}: the session it was forked from has taken a turn since; "
+                "fork it again to branch from where it is now"
+            )
+        self.turns += 1
         driver = self.driver
         loop = self._loop = asyncio.get_running_loop()
         self._wake = asyncio.Event()
@@ -335,6 +364,7 @@ class FakeSession:
             if submitted.context:
                 prompt = f"{prompt}\n\n{submitted.context}"
             self.requests.append(request)
+            self.named = True
             again = 0
             while True:
                 self.prompts.append(prompt)
@@ -516,7 +546,12 @@ class FakeAgentDriver:
       cost: What each answer costs, in USD.
       output_tokens: How many tokens each answer writes.
       seconds: How long each answer is reported to take; nothing actually waits.
-      forks: Whether it can fork a session.
+      forks: Whether it can fork a session, or None for whether its harness can. A session
+        is forked as a real harness forks one: only once it has taken a turn, and only while
+        it takes no other before the fork's first, which is where the fork is cut -- each
+        refused with :class:`~hmz.flows.SessionError` -- and only on the machine it is on
+        and, but for Claude Code, Codex and Kimi Code, in the workdir it is in -- each
+        refused with :class:`~hmz.flows.UnsupportedOperation` -- as a real driver refuses it.
       names_late: Whether a session says its id only once its first turn has started, as a
         real CLI's does, rather than as it opens.
 
@@ -539,7 +574,7 @@ class FakeAgentDriver:
         cost: float = 0.0,
         output_tokens: int = 1,
         seconds: float = 0.0,
-        forks: bool = True,
+        forks: bool | None = None,
         names_late: bool = False,
     ) -> None:
         self.harness = HarnessKind(harness)
@@ -555,7 +590,7 @@ class FakeAgentDriver:
         self.cost = cost
         self.output_tokens = output_tokens
         self.seconds = seconds
-        self.forks = forks
+        self.forks = self.harness not in _UNFORKED if forks is None else forks
         self.names_late = names_late
         self.sessions: list[FakeSession] = []
         self.live = 0
@@ -581,12 +616,31 @@ class FakeAgentDriver:
     ) -> FakeSession:
         forked: FakeSession | None = None
         if fork_of is not None:
-            if not self.forks:
-                raise UnsupportedOperation(f"{self.harness} cannot fork a session")
+            # In the order a real driver refuses them.
             if not isinstance(fork_of, FakeSession) or fork_of.driver is not self:
                 raise SessionError(f"{fork_of!r} is not a session of this agent")
             if fork_of.closed:
                 raise SessionError(f"{fork_of!r} is over")
+            if not fork_of.named:
+                raise SessionError(f"{fork_of!r} has taken no turn to carry on from")
+            if not self.forks:
+                raise UnsupportedOperation(f"{self.harness} cannot fork a session")
+            was = fork_of.placement
+            if (was.backend, was.provider, was.machine) != (
+                placement.backend,
+                placement.provider,
+                placement.machine,
+            ):
+                raise UnsupportedOperation(
+                    f"{self.harness} cannot fork a session onto another machine"
+                )
+            if (
+                was.workdir != placement.workdir
+                and self.harness not in _FORKS_ELSEWHERE
+            ):
+                raise UnsupportedOperation(
+                    f"{self.harness} cannot fork a session into another workdir"
+                )
             forked = fork_of
         session = FakeSession(self, placement, permission, skills, hooks, forked)
         self.sessions.append(session)

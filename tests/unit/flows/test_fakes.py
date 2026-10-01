@@ -192,6 +192,105 @@ async def test_a_fake_session_reaches_only_what_its_harness_serves() -> None:
         await session.until_steered()
 
 
+async def _opened(driver: FakeAgentDriver, fork_of: Any = None) -> Any:
+    return await driver.open(
+        PLACED, permission=Permission(), skills=(), hooks=HookTable(), fork_of=fork_of
+    )
+
+
+#: The harnesses a fake forks on by default, which are the ones a real CLI forks on.
+FORKING = sorted(kind for kind in HARNESS_CAPABILITIES if FakeAgentDriver(kind).forks)
+
+
+def test_a_fake_forks_where_its_harness_does() -> None:
+    from hmz.coganchor import agents, backends
+    from hmz.coganchor.agents.base import SessionBase
+    from hmz.runtime.flowing import fakes
+
+    for kind in HARNESS_CAPABILITIES:
+        profile = backends.named(kind.value)
+        if profile is not None:
+            assert FakeAgentDriver(kind).forks is profile.forks, kind
+    assert FakeAgentDriver(HarnessKind.CURSOR_AGENT, forks=True).forks
+    del agents  # imported for every backend's sessions to be among the subclasses below
+    classes: list[type[SessionBase]] = [SessionBase]
+    elsewhere: set[str] = set()
+    while classes:
+        one = classes.pop()
+        classes.extend(one.__subclasses__())
+        if one.forks_elsewhere:
+            elsewhere.add(one.__module__.rpartition(".")[2])
+    assert elsewhere == set(fakes._FORKS_ELSEWHERE)
+
+
+@pytest.mark.parametrize("harness", FORKING)
+async def test_a_fake_session_with_no_turn_has_nothing_to_fork(
+    harness: HarnessKind,
+) -> None:
+    driver = FakeAgentDriver(harness)
+    parent = await _opened(driver)
+    with pytest.raises(SessionError):
+        await _opened(driver, parent)
+    # Nor does a fork that has taken no turn of its own.
+    await parent.turn(TurnRequest("one"), RecordingSink())
+    child = await _opened(driver, parent)
+    with pytest.raises(SessionError):
+        await _opened(driver, child)
+    await child.turn(TurnRequest("two"), RecordingSink())
+    assert await _opened(driver, child) is not None
+    # Refused for that before it is refused for the harness, as a real driver refuses it.
+    lone = FakeAgentDriver(harness, forks=False)
+    with pytest.raises(SessionError):
+        await _opened(lone, await _opened(lone))
+
+
+@pytest.mark.parametrize("harness", FORKING)
+async def test_a_fake_fork_is_refused_once_its_parent_has_moved_on(
+    harness: HarnessKind,
+) -> None:
+    driver = FakeAgentDriver(harness)
+    parent = await _opened(driver)
+    await parent.turn(TurnRequest("one"), RecordingSink())
+    child = await _opened(driver, parent)
+    await parent.turn(TurnRequest("two"), RecordingSink())
+    with pytest.raises(SessionError):
+        await child.turn(TurnRequest("three"), RecordingSink())
+    with pytest.raises(SessionError):
+        await child.turn(TurnRequest("three"), RecordingSink())
+    # Cut again from where the parent is now, it carries on, and the parent moving on after
+    # the cut is nothing to it.
+    again = await _opened(driver, parent)
+    assert await again.turn(TurnRequest("four"), RecordingSink()) == "ok"
+    await parent.turn(TurnRequest("five"), RecordingSink())
+    assert await again.turn(TurnRequest("six"), RecordingSink()) == "ok"
+    assert again.prompts == ["one", "two", "four", "six"]
+
+
+@pytest.mark.parametrize("harness", FORKING)
+async def test_a_fake_forks_only_where_its_harness_can(harness: HarnessKind) -> None:
+    driver = FakeAgentDriver(harness)
+    parent = await _opened(driver)
+    await parent.turn(TurnRequest("one"), RecordingSink())
+
+    async def forked(placement: Placement) -> Any:
+        return await driver.open(
+            placement,
+            permission=Permission(),
+            skills=(),
+            hooks=HookTable(),
+            fork_of=parent,
+        )
+
+    with pytest.raises(UnsupportedOperation):
+        await forked(Placement(EnvBackendKind.SSH, "box", PurePosixPath("/work")))
+    there = Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/there"))
+    if harness in {HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI}:
+        assert (await forked(there)).placement == there
+    else:
+        with pytest.raises(UnsupportedOperation):
+            await forked(there)
+
+
 # --------------------------------------------------------------------- the environments
 
 

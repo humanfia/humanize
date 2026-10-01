@@ -754,6 +754,9 @@ another, and `pursue` answers with the last.
   CronCreate,CronDelete,CronList,Workflow`; `dsh` mounts no goal service.
 - A budget and `interrupt` do not end a goal; `agent.stop()` does, and so does `cut` on a
   backend whose transport it puts down.
+- A goal is watched as a turn is: what each of its turns says and reaches for reaches the
+  agent's watchers as it happens (on `codex`, bracketed by one `begins` and one `ends` for the
+  whole goal), and on stderr where nothing is watching.
 - Under a flow, `/goal <objective>` as the prompt of a role typed with `GoalCommandAgentMixin`.
 
 ### Loops {#loops}

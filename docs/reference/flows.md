@@ -1765,8 +1765,8 @@ the spending they are told to, so budgets, usage and sticky exhaustion behave as
 FakeAgentDriver(harness: HarnessKind | str = "claude", *, reply: Reply = None,
                 model: str = "fake", effort: str = "", provider: str = "",
                 capabilities: Iterable[type] | None = None, cost: float = 0.0,
-                output_tokens: int = 1, seconds: float = 0.0, forks: bool = True,
-                names_late: bool = False)
+                output_tokens: int = 1, seconds: float = 0.0,
+                forks: bool | None = None, names_late: bool = False)
 ```
 
 | Parameter | Meaning |
@@ -1776,8 +1776,8 @@ FakeAgentDriver(harness: HarnessKind | str = "claude", *, reply: Reply = None,
 | `model`, `effort`, `provider` | Reported identity. |
 | `capabilities` | Mixins served, overriding the harness's. |
 | `cost`, `output_tokens`, `seconds` | Reported per answer; nothing waits. |
-| `forks` | Whether it can fork; unlike a real harness it also forks a session with no turn. |
-| `names_late` | Sessions have no id until their first turn starts. |
+| `forks` | Whether it can fork; `None` for whether its harness can (all but `cursor-agent`, `mcode`, `agy`, `dsh`). A fork is refused as [`Agent.fork`](#fork) refuses it: of a session with no turn, onto another machine, or into another workdir on a harness other than Claude Code, Codex or Kimi Code; and at its first turn if the parent has taken a turn since. |
+| `names_late` | Sessions have no id until their first turn gets past its hooks. |
 
 | Attribute | |
 | --- | --- |
@@ -1801,7 +1801,7 @@ turn.
 | `await until_steered() -> str` | Waits for a `steer` and returns it. |
 
 Attributes: `prompts`, `requests`, `steered` (prompt, queued), `tools` (name, input, ran),
-`forked_from`, `permission`, `skills`, `closed`, `id`, `usage`.
+`forked_from`, `permission`, `skills`, `turns`, `named`, `closed`, `id`, `usage`.
 
 ::: warning `until_steered()` waits indefinitely
 Give such a test a hard deadline:

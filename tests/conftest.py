@@ -24,6 +24,7 @@ wherever the test that takes it is filed.
 from __future__ import annotations
 
 import shutil
+import signal
 import unittest.mock
 from typing import TYPE_CHECKING, Any, Final, cast
 
@@ -144,6 +145,71 @@ def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # answers it -- and the ones about the question itself do -- leaves the answer behind for
     # every test after it, and the next one that expects to be asked is never asked at all.
     telemetry.again()
+
+
+def _handlers() -> dict[int, Any]:
+    """What this process does with each signal it can be told to do something with.
+
+    All but `SIGALRM`, which is pytest-timeout's: it takes it for each test and puts it back
+    after -- early, where the test failed -- so no test leaves it to the next.
+    """
+    held: dict[int, Any] = {}
+    for one in signal.valid_signals():
+        if one == signal.SIGALRM:
+            continue
+        try:
+            held[int(one)] = signal.getsignal(one)
+        except (OSError, ValueError):
+            continue
+    return held
+
+
+def _name(one: int) -> str:
+    try:
+        return signal.Signals(one).name
+    except ValueError:
+        return f"signal {one}"
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _hears_interrupts() -> Iterator[None]:
+    """Hears an interrupt in every worker, even one started with interrupts ignored.
+
+    A suite started as a background job from a script starts with `SIGINT` ignored, which
+    Python keeps, and every program a test starts would inherit it -- which `hmz exec` is right
+    to leave alone, so a test interrupting one would wait on it forever. Once for the session,
+    before any test: what each test then leaves behind is the guard below's.
+    """
+    if signal.getsignal(signal.SIGINT) != signal.SIG_IGN:
+        yield
+        return
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+@pytest.fixture(autouse=True)
+def _leaves_the_signals_as_it_found_them() -> Iterator[None]:
+    """Fails a test that leaves how this process takes a signal changed, and changes it back.
+
+    A signal's handler is the process's, and an xdist worker is one process for every test it
+    runs: an interrupt one test left ignored is an interrupt every later test hands down to
+    what it starts as ignored -- which a child keeps across `exec` -- and the test that fails
+    for it is one that did nothing wrong, on whichever worker drew it. So it is the test that
+    changed it that fails, named, and the handlers are put back before the next one.
+    """
+    before = _handlers()
+    yield
+    after = _handlers()
+    changed = sorted(_name(one) for one in before if after.get(one) != before[one])
+    if not changed:
+        return
+    for one, was in before.items():
+        if after.get(one) != was:
+            signal.signal(one, signal.SIG_DFL if was is None else was)
+    pytest.fail(f"left these signals handled otherwise than it found them: {changed}")
 
 
 @pytest.fixture(autouse=True)
