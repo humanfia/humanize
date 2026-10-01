@@ -60,7 +60,9 @@ async def asks(task, *, agents, envs, params, ctx):
     reviewer = await agents["reviewer"].spawn(env=here)
     plan = await agents["planner"].run(f"what is the plan for {task}?", session=planner)
     review = await agents["reviewer"].run(f"is {plan!r} good?", session=reviewer)
-    Path("result.json").write_text(json.dumps({"plan": plan, "review": review}))
+    # Whole or not at all: the test reads it the moment it is there.
+    Path("result.part").write_text(json.dumps({"plan": plan, "review": review}))
+    Path("result.part").replace("result.json")
 """
 
 #: One agent's turn held open until the test lets it go, with the person outside asked
@@ -100,7 +102,9 @@ async def steers(task, *, agents, envs, params, ctx):
         return await agents["planner"].run("which way?", session=person)
 
     said, asked = await asyncio.gather(agents["coder"].run(task, session=session), asks())
-    Path("result.json").write_text(json.dumps({"said": said, "asked": asked}))
+    # Whole or not at all: the test reads it the moment it is there.
+    Path("result.part").write_text(json.dumps({"said": said, "asked": asked}))
+    Path("result.part").replace("result.json")
 """
 
 #: A person asked what to do, and then an agent's turn -- the order a flow that plans with
@@ -130,7 +134,9 @@ async def hands(task, *, agents, envs, params, ctx):
     person = await agents["planner"].spawn(env=here)
     plan = await agents["planner"].run("which way?", session=person)
     said = await agents["coder"].run(task, session=session)
-    Path("result.json").write_text(json.dumps({"plan": plan, "said": said}))
+    # Whole or not at all: the test reads it the moment it is there.
+    Path("result.part").write_text(json.dumps({"plan": plan, "said": said}))
+    Path("result.part").replace("result.json")
 """
 
 #: The turn the stand-in takes: open until `go` is there, then answering `done`.

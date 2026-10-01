@@ -69,6 +69,7 @@ from textual.widgets.option_list import Option
 from hmz.coganchor import backends
 from hmz.coganchor.agents import SWARM, driver
 from hmz.coganchor.prices import money
+from hmz.coganchor.spelling import parted
 from hmz.flows import Budget
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs, read_back
@@ -1968,7 +1969,7 @@ def _model(runs: Runs) -> str:
     """What one agent of the menu runs, out of the `cli/model:effort` it was set up as.
 
     Read from both ends, as :func:`hmz.runtime.kept.read_back` reads the same word: a model
-    may hold slashes of its own, while a CLI and an effort never do.
+    may hold slashes and colons of its own, while a CLI and an effort never do.
 
     Args:
       runs: The agent.
@@ -1976,7 +1977,7 @@ def _model(runs: Runs) -> str:
     Returns:
       The model, or "" for an agent nobody has answered yet.
     """
-    return runs.spec.partition("/")[2].rpartition(":")[0]
+    return parted(runs.spec.partition("/")[2])[0]
 
 
 def _standing_on(spec: str) -> str:
@@ -5865,7 +5866,7 @@ class Agent(Drafts[Runs]):
         self._unavailable = unavailable
         self._role = role
         cli, _, rest = runs.spec.partition("/")
-        model, _, effort = rest.rpartition(":")
+        model, effort = parted(rest)
         # Said outright, all of them: each is read where it is set -- what a CLI runs is
         # looked up as the CLI that is chosen now -- so what they are has to be settled
         # without reading what reads them.

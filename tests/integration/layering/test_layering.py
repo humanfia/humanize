@@ -77,7 +77,8 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.runtime": set(),
     # What an agent is written down as, which is a shape and a file and nothing else: the
     # interface keeps them and a command line reads the same ones, so it sits under both.
-    "hmz.runtime.kept": set(),
+    # Where its model ends and its effort begins is the leaf `-a` reads it with too.
+    "hmz.runtime.kept": {"hmz.coganchor.spelling"},
     # What humanize remembers: what each workspace was set up to run, and the handful of
     # settings that are not a workspace's. A leaf for the reason `kept` is one -- the
     # interface writes them and a command line has to be able to read them without loading

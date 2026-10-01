@@ -93,6 +93,29 @@ def test_an_agent_is_read_off_a_command_line() -> None:
     )
 
 
+def test_a_model_keeps_a_colon_of_its_own() -> None:
+    """MiniMax Code names a model a provider of its config serves `custom_provider:NAME/ID`."""
+    _, profile, model, effort, provider = backends.read(
+        "mcode@loopback/custom_provider:gateway/mock/first-model"
+    )
+    assert (profile.name, model, effort, provider) == (
+        "mcode",
+        "custom_provider:gateway/mock/first-model",
+        "",
+        "loopback",
+    )
+    _, _, model, effort, _ = backends.read("mcode/custom_provider:gateway/m:high")
+    assert (model, effort) == ("custom_provider:gateway/m", "high")
+    # A model whose own name ends in a word after a `:` takes its effort written after it.
+    _, _, model, effort, _ = backends.read("opencode/ollama/qwen3:latest:auto")
+    assert (model, effort) == ("ollama/qwen3:latest", "")
+
+
+def test_an_effort_left_off_is_no_rung_at_all() -> None:
+    _, profile, model, effort, _ = backends.read("claude/claude-haiku-4-5")
+    assert (profile.name, model, effort) == ("claude", "claude-haiku-4-5", "")
+
+
 def test_an_agent_may_name_the_place_it_fills() -> None:
     """Which is a field of the tuple of agents the flow declares, so it is an identifier."""
     place, profile, model, _, provider = backends.read(

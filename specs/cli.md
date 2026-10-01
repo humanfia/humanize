@@ -13,7 +13,7 @@ hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[
          [-p|--params <key>=<value>[,...]]... [-b|--budget <limit>[,<limit>...]]...
          [-H|--harness <where>] [--resume] [--json] <task>
 <ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>]#<flow>[:<name>]
-<agent>  := <role>=<cli>[@<provider>]/<model>:<effort>
+<agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
 <env>    := <role>=<backend>@<provider>[/<workdir>]
 <limit>  := duration=<duration> | cost=<usd> | output_tokens=<count> | graceful=<bool>
 <where>  := adaptive | local | env | standalone:<backend>@<provider>[/<workdir>] | standalone:<name>

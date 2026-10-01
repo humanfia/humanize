@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+from hmz.coganchor.spelling import parted
+
 __all__ = ["Runs", "read_back", "written"]
 
 
@@ -50,8 +52,8 @@ def written(runs: Runs) -> str:
 def read_back(said: object) -> Runs | None:
     """One agent as it comes back off a file, or None where what is there is not one.
 
-    Read from both ends, as a command line reads one: a model may hold slashes and colons of
-    its own, while a CLI and an effort never do.
+    Read from both ends, as a command line reads one: see
+    :func:`hmz.coganchor.spelling.parted`.
 
     Args:
       said: What the file holds for it.
@@ -63,7 +65,8 @@ def read_back(said: object) -> Runs | None:
         return None
     head, slash, rest = said.partition("/")
     cli, _, provider = head.partition("@")
-    model, colon, effort = rest.rpartition(":")
-    if not (slash and colon and cli and model and effort):
+    model, effort = parted(rest)
+    if not (slash and cli and model.strip()):
         return None
-    return Runs(f"{cli}/{model}:{effort}", provider)
+    # No effort is written `auto`, as a line writes it: see `hmz.coganchor.backends.AUTO`.
+    return Runs(f"{cli}/{model}:{effort.strip() or 'auto'}", provider)

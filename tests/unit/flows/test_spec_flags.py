@@ -99,7 +99,8 @@ def test_no_flags_is_no_agents() -> None:
         ("claude/opus:high", "expected <role>="),
         ("=claude/opus:high", "expected <role>="),
         ("coder=nothing/opus:high", "expected"),
-        ("coder=claude/opus", "expected"),
+        ("coder=claude/:high", "expected"),
+        ("coder=claude", "expected"),
         ("coder=claude@/opus:high", "account"),
         ("my-role=claude/opus:high", "identifier"),
         ("coder=claude/opus:high,codex/gpt-5:high", "expected one agent"),
@@ -149,11 +150,47 @@ def test_a_space_after_a_comma_still_separates_two_items() -> None:
         "coder=claude/opus:high",
         "coder=claude@work/opus:auto",
         "coder=opencode/openrouter/qwen/qwen3-coder:high",
+        "coder=claude/opus",
+        "coder=mcode@loopback/custom_provider:gateway/mock/first-model",
+        "coder=mcode/custom_provider:gateway/mock/first-model:high",
+        "coder=opencode/ollama/qwen3:latest:auto",
     ],
 )
 def test_an_agent_is_written_back_as_it_is_read(written: str) -> None:
     (spec,) = parse_agents([written])
     assert parse_agents([str(spec)]) == [spec]
+    assert str(parse_agents([str(spec)])[0]) == str(spec)
+
+
+@pytest.mark.parametrize(
+    ("written", "model", "effort"),
+    [
+        # MiniMax Code's own spelling of a model a provider of its config serves.
+        (
+            "mcode@loopback/custom_provider:gateway/mock/first-model",
+            "custom_provider:gateway/mock/first-model",
+            "",
+        ),
+        (
+            "mcode/custom_provider:gateway/mock/first-model:xhigh",
+            "custom_provider:gateway/mock/first-model",
+            "xhigh",
+        ),
+        ("opencode/ollama/qwen3:8b", "ollama/qwen3:8b", ""),
+        ("opencode/ollama/qwen3:latest:auto", "ollama/qwen3:latest", ""),
+        ("opencode/openrouter/some:model:low", "openrouter/some:model", "low"),
+        ("claude/claude-haiku-4-5", "claude-haiku-4-5", ""),
+        ("claude/claude-haiku-4-5:", "claude-haiku-4-5", ""),
+        ("kimi/kimi-code/k3:swarmmax", "kimi-code/k3", "swarmmax"),
+        ("cursor-agent/gpt-5.2:extra-high", "gpt-5.2", "extra-high"),
+    ],
+)
+def test_an_effort_is_only_what_is_spelled_as_one(
+    written: str, model: str, effort: str
+) -> None:
+    """The last `:` sets an effort off only where a word follows it; a model keeps the rest."""
+    (spec,) = parse_agents([f"coder={written}"])
+    assert (spec.model, spec.effort) == (model, effort)
 
 
 # ------------------------------------------------------------------------------------ -e

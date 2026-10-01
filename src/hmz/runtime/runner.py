@@ -136,7 +136,7 @@ def read_line(argv: list[str]) -> Line:
         action="append",
         default=[],
         metavar="ROLE=SPEC[,...]",
-        help="what an agent role runs: ROLE=CLI[@PROVIDER]/MODEL:EFFORT, several to one "
+        help="what an agent role runs: ROLE=CLI[@PROVIDER]/MODEL[:EFFORT], several to one "
         "option separated by commas, the option repeated as often as suits. CLI is one of "
         f"{', '.join(sorted(one.name for one in backends.profiles()))}",
     )
@@ -1053,12 +1053,14 @@ def _by_role(given: object) -> list[tuple[str, object]]:
 
 def _drove(role: str, spec: str) -> Drove:
     """One agent role as the epic writes it down, off the spec it was given as."""
+    from hmz.coganchor.spelling import parted
+
     from .epic import Drove
     from .kept import read_back
 
     runs = read_back(spec)
     cli, _, rest = (runs.spec if runs is not None else spec).partition("/")
-    model, _, effort = rest.rpartition(":")
+    model, effort = parted(rest)
     return Drove(role, cli, model, effort, runs.provider if runs is not None else "")
 
 

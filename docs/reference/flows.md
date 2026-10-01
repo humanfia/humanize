@@ -1462,7 +1462,7 @@ file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every refusal bel
 ### `-a`: agents {#a-agents}
 
 ```
-<role>=<cli>[@<provider>]/<model>:<effort>
+<role>=<cli>[@<provider>]/<model>[:<effort>]
 ```
 
 | Part | Rule |
@@ -1470,14 +1470,14 @@ file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every refusal bel
 | `<role>` | A Python identifier; a role the flow declares that is not an `Outworlder`. |
 | `<cli>` | A [`HarnessKind`](#harnesskind) value other than `acp`, or the name a CLI was added under on the Accounts page (then the harness is `acp`). |
 | `<provider>` | An account of that CLI (see [Providers](/reference/providers)). Absent: the account the CLI is already signed into. |
-| `<model>` | Everything between the first `/` and the last `:`; may contain `/` and `:`. Non-empty. |
-| `<effort>` | After the last `:`. `auto` (or empty) means the CLI's default and is stored as `""`. The `:` is required. Valid words per CLI: [Agents](/reference/agents). |
+| `<model>` | Everything after the first `/`, less a trailing `:<effort>`; may contain `/` and `:`. Non-empty. |
+| `<effort>` | After the last `:`, where what follows it is spelled as an effort: words of letters joined by `-`, `_` or a space (`high`, `extra-high`, `as configured`), or nothing. Otherwise -- `custom_provider:gateway/m`, `qwen3:8b` -- the `:` is the model's, and so is everything after it. Left off, or `auto`, or empty: no rung, stored as `""`. A model whose own name ends in `:<word>` is written with its effort after it: `qwen3:latest:auto`. Valid words per CLI: [Agents](/reference/agents). |
 
 | Input | Message |
 | --- | --- |
-| no `=`, or empty role | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>:<effort>` |
+| no `=`, or empty role | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
 | role not an identifier | ``-a '<item>': '<role>' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier`` |
-| unknown CLI, empty model, or no `:` | `-a '<item>': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT` |
+| unknown CLI, empty model, or no `/` | `-a '<item>': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
 | `@` with nothing after | `-a '<item>': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |
 | role twice | `-a: the role '<role>' is given twice` |
 | role not declared | `<flow> has no agent role '<role>'; available roles are '<a>', '<b>'` |

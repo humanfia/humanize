@@ -139,6 +139,12 @@ def qwen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Qwen]:
     )
     binary.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    # A home of its own: what a warm process is restarted for includes the Qwen home and
+    # what sits in the home directory, and the real ones are written to by whatever else is
+    # running on the machine -- a real qwen, the system tier -- which restarts a process
+    # these tests are watching stay warm.
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("QWEN_HOME", raising=False)
     monkeypatch.chdir(tmp_path)
     agent = QwenCodeAgent(QwenCodeAgentConfig(model="test-model", effort="low"))
     yield _Qwen(agent, log)

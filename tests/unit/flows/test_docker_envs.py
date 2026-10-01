@@ -16,7 +16,7 @@ from typing import cast
 import pytest
 
 from hmz.coganchor.machines import AnchoredConfig, gpus_listed, store
-from hmz.coganchor.machines.docker import Allocation
+from hmz.coganchor.machines.docker import CDI, Allocation
 from hmz.coganchor.transport import Endpoint, Target
 from hmz.flows import (
     CPUEnvMixin,
@@ -224,6 +224,25 @@ def test_a_provider_left_at_zero_hands_out_what_its_daemon_has() -> None:
     assert has_of(None, info) == Has(64.0, 256 << 30, ("0", "1"))
     assert has_of(capped, info) == Has(8.0, 16 << 30, ("1",), 1, 3)
     assert gpus_listed([{"ID": "k8s.io/gpu=GPU-a"}]) == ("GPU-a",)
+
+
+def test_a_gpu_listed_under_every_name_and_vendor_is_one_gpu() -> None:
+    # As the NVIDIA container toolkit and its k8s device plugin list two GPUs between them:
+    # each by index and by UUID, again by UUID under the plugin, and `all` under two vendors.
+    devices = [
+        {"Source": "cdi", "ID": "k8s.device-plugin.nvidia.com/gpu=GPU-1ac8"},
+        {"Source": "cdi", "ID": "k8s.device-plugin.nvidia.com/gpu=GPU-b2f7"},
+        {"Source": "cdi", "ID": "management.nvidia.com/gpu=all"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=0"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=1"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=GPU-1ac8"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=GPU-b2f7"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=all"},
+    ]
+
+    assert gpus_listed(devices) == ("0", "1")
+    assert gpus_listed(devices, CDI) == ("0", "1")
+    assert gpus_listed(devices[:3]) == ("GPU-1ac8", "GPU-b2f7")
 
 
 # ---------------------------------------------------------------------------- what -e names

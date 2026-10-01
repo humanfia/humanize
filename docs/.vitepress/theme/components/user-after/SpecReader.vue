@@ -37,6 +37,7 @@ const EXAMPLES = [
   { label: 'an account', spec: 'actor=claude@deepseek/claude-opus-5:high' },
   { label: 'two agents', spec: 'actor=claude/claude-opus-5:max,reviewer=codex/gpt-5.6-sol:high' },
   { label: 'slashes in the model', spec: 'agent=kimi/kimi-code/k3:swarmmax' },
+  { label: 'a colon in the model', spec: 'agent=mcode/custom_provider:gateway/mock/first-model' },
   { label: 'no effort', spec: 'agent=claude/claude-opus-5:auto' },
   { label: 'no role', spec: 'claude/claude-opus-5:high' },
   { label: 'effort off the ladder', spec: 'agent=codex/gpt-5.6-sol:extreme' },
@@ -87,7 +88,7 @@ function read(value: string): Reading {
     const role = at < 0 ? '' : one.slice(0, at).trim()
     const rest = at < 0 ? '' : one.slice(at + 1)
     if (at < 0 || !role) {
-      return refused(`-a '${one}': expected <role>=<harness>[@<provider>]/<model>:<effort>`)
+      return refused(`-a '${one}': expected <role>=<harness>[@<provider>]/<model>[:<effort>]`)
     }
     // Python's `str.isidentifier`, near enough: a letter or `_`, then letters, digits, `_`.
     if (!/^[\p{L}_][\p{L}\p{N}_]*$/u.test(role)) {
@@ -99,13 +100,17 @@ function read(value: string): Reading {
     if (rest.includes(',')) {
       return refused(`-a '${one}': expected one agent: a \`,\` separates several, each read on its own`)
     }
-    // Read from both ends: the CLI up to the first slash, the effort after the last colon.
+    // Read from both ends: the CLI up to the first slash, the effort after the last colon --
+    // where that is spelled as one. Otherwise the colon is the model's, as in
+    // `custom_provider:gateway/m`, and the agent is at no effort.
     const slash = rest.indexOf('/')
     const head = slash < 0 ? rest : rest.slice(0, slash)
     const tail = slash < 0 ? '' : rest.slice(slash + 1)
     const colon = tail.lastIndexOf(':')
-    const model = (colon < 0 ? '' : tail.slice(0, colon)).trim()
-    const effort = (colon < 0 ? tail : tail.slice(colon + 1)).trim()
+    const after = colon < 0 ? '' : tail.slice(colon + 1).trim()
+    const parted = colon >= 0 && (!after || /^[A-Za-z]+(?:[-_ ][A-Za-z]+)*$/.test(after))
+    const model = (parted ? tail.slice(0, colon) : tail).trim()
+    const effort = parted ? after : ''
     const monkey = head.indexOf('@')
     const cliAs = (monkey < 0 ? head : head.slice(0, monkey)).trim()
     const account = monkey < 0 ? '' : head.slice(monkey + 1).trim()
@@ -113,7 +118,7 @@ function read(value: string): Reading {
       return refused(`-a '${one}': expected an account after @, as in claude@deepseek/MODEL:EFFORT`)
     }
     const cli = named(cliAs)
-    if (!cli || !model) return refused(`-a '${one}': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT`)
+    if (!cli || !model) return refused(`-a '${one}': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`)
     if (agents.some((other) => other.role === role)) {
       return refused(`-a: the role '${role}' is given twice`)
     }
