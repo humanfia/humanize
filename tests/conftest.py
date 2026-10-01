@@ -292,13 +292,20 @@ def _refresh_tokens() -> frozenset[bytes]:
 def _holding(root: Path, tokens: frozenset[bytes]) -> list[str]:
     """Every file under `root` holding any of `tokens`, by path -- never by what it held."""
     import os
+    import stat
 
     held: list[str] = []
     for at, _, names in os.walk(root):
         for name in names:
             path = os.path.join(at, name)  # noqa: PTH118
             try:
-                if os.path.islink(path) or os.path.getsize(path) > _LOOKED_IN_AT_MOST:  # noqa: PTH114, PTH202
+                # A regular file alone: a link is somebody else's, and a FIFO or a device a
+                # test made -- with mknod, say -- is one whose opening waits on a writer.
+                found = os.lstat(path)
+                if (
+                    not stat.S_ISREG(found.st_mode)
+                    or found.st_size > _LOOKED_IN_AT_MOST
+                ):
                     continue
                 with open(path, "rb") as reading:  # noqa: PTH123
                     said = reading.read()
