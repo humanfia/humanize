@@ -253,7 +253,7 @@ class Monitor:
     rested: dict[str, float] = field(default_factory=dict[str, float])
     #: The handover taken most recently, so the arrow it went along can be drawn lit.
     handed: tuple[str, str] | None = None
-    #: Tokens spent per model, all told.
+    #: Tokens spent per model, all told, in the order each was first spent on.
     spent: Counter[str] = field(default_factory=Counter[str])
     #: And per agent, as its backend reported them: what one node of the monitor has cost.
     #: The backends' word alone, since only they say whose a token was.
@@ -572,7 +572,11 @@ class Monitor:
         self.changed += 1
 
     def spending(self, now: float | None = None) -> list[Spend]:
-        """What each model has cost, and how fast, biggest spender first.
+        """What each model has cost, and how fast, in the order each was first spent on.
+
+        An order that does not change: a readout whose rows swap as two models overtake each
+        other is one that cannot be read while it moves. A model first spent on later is
+        added under the rest.
 
         Args:
           now: The moment to measure the rate at, defaulting to this one.
@@ -630,7 +634,7 @@ class Monitor:
                     dollars=self.money.get(model),
                     kinds=dict(self.parts.get(model, {})),
                 )
-                for model, tokens in self.spent.most_common()
+                for model, tokens in self.spent.items()
             ]
 
     def _priced(self, model: str) -> float | None:
