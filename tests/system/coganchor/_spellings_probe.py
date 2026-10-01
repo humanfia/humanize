@@ -1,8 +1,10 @@
-"""What an anchored agent runs to name its workspace by a spelling only the target has.
+"""What a traced agent runs to name a directory by a path that is answered by another.
 
-Not a test: the program :mod:`tests.system.coganchor.test_spellings` hands a supervised
-`python3 -c`, on this machine or on a harness in a container, which has nothing of this
-repository. So it imports nothing but the standard library, and is told everything else on
+A spelling of the workspace only the target has, under an anchored supervisor, or a CLI's
+credentials, under a provider. Not a test: the program
+:mod:`tests.system.coganchor.test_spellings` and :mod:`tests.system.providers.test_redirect`
+hand a traced `python3 -c`, on this machine or on a harness in a container, which has nothing
+of this repository. So it imports nothing but the standard library, and is told everything else on
 its command line: the directory to name, and the syscall numbers to name it with.
 
 Each call is made as the bare syscall, by number, so that it is the call under test that the
@@ -117,7 +119,10 @@ def mark(numbers: dict[str, int], path: str) -> None:
 
 
 def main() -> None:
-    """Names `argv[1]` every way there is, `argv[2]` being the numbers to name it with."""
+    """Names `argv[1]` every way there is, `argv[2]` being the numbers to name it with.
+
+    And runs a program from it, here and on the target, unless `--no-programs` follows.
+    """
     base = Path(sys.argv[1])
     numbers: dict[str, int] = json.loads(sys.argv[2])
     seed = str(base / "seed.txt")
@@ -168,6 +173,10 @@ def main() -> None:
         say(f"chdir={'ok' if Path('seed.txt').exists() else 'empty'}")
     except OSError as why:
         say(f"chdir={errno.errorcode.get(why.errno or 0, why)}")
+    if "--no-programs" in sys.argv[3:]:
+        # Answered by a provider rather than settled onto a mirror: a credential is not a
+        # program, and what a process becomes is never redirected.
+        return
     # The program is read first, as a CLI reads the script it is about to run: that is what
     # brings its bytes into the mirror for the kernel to run here.
     tool = base / "tool.sh"
