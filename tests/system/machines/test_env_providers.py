@@ -83,6 +83,11 @@ def test_the_daemon_here_says_what_it_has(endpoint: str) -> None:
         bound = _bound()
         if bound is not None:
             assert len(checked.gpus) == bound
+        # And which of them answer, where a container could be asked: those nvidia-smi
+        # here sees, by the names the daemon lists them by.
+        if checked.usable is not None:
+            assert len(checked.usable) == _gpus()
+            assert set(checked.usable) <= set(checked.gpus)
 
 
 @pytest.mark.timeout(120)

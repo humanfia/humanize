@@ -84,7 +84,12 @@ def info(endpoint: str = "local", seconds: float | None = None) -> dict[str, Any
 def gpus_listed(devices: Sequence[Any], kind: str = "") -> tuple[str, ...]: ...
 USABLE_FOR: float  # how long one daemon's answer is kept, in seconds
 def gpus_usable(
-    endpoint: str, image: str, devices: Sequence[Any], *, seconds: float | None = None
+    endpoint: str,
+    image: str,
+    devices: Sequence[Any],
+    *,
+    seconds: float | None = None,
+    fresh: bool = False,  # ask even where an answer is kept
 ) -> tuple[tuple[str, str], ...] | None: ...  # (name, uuid) of each GPU that answers
 
 # mapped.py -- the workspace on that machine, as a flow's own Python reaches it
