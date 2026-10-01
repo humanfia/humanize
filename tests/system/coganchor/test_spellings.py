@@ -52,7 +52,9 @@ pytestmark = [traced, pytest.mark.timeout(240)]
 PROBE = (Path(__file__).parent / "_spellings_probe.py").read_text()
 
 #: This machine's number for every call the probe makes, by the name it is printed under.
-NUMBERS = json.dumps({field.name.lower(): getattr(NR, field.name) for field in fields(NR)})
+NUMBERS = json.dumps(
+    {field.name.lower(): getattr(NR, field.name) for field in fields(NR)}
+)
 
 #: Every call this architecture has that the probe makes, each of which has to come back `ok`.
 CALLS = sorted(
@@ -88,14 +90,14 @@ def _seed(directory: Path) -> None:
 
 def _said(output: str) -> dict[str, str]:
     """The probe's lines, by the call each one is about."""
-    return dict(
-        line.split("=", 1) for line in output.splitlines() if "=" in line
-    )
+    return dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
 
 
 def _check(said: dict[str, str], output: str, here: str, there: str) -> None:
     """Every call reached the file, and each program ran on the machine it belongs to."""
-    assert {name: said.get(name) for name in CALLS} == dict.fromkeys(CALLS, "ok"), output
+    assert {name: said.get(name) for name in CALLS} == dict.fromkeys(CALLS, "ok"), (
+        output
+    )
     assert said.get("fanotify_mark", "").startswith(("ok", "unavailable")), output
     assert said.get("execve-here") == f"TOOL-RAN-ON-{here}", output
     assert said.get("execve-there") == f"REMOTE-RAN-ON-{there}", output

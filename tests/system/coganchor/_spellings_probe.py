@@ -20,6 +20,7 @@ import os
 import select
 import subprocess
 import sys
+from pathlib import Path
 
 AT_FDCWD = -100
 IN_CREATE = 0x100
@@ -48,6 +49,12 @@ FINE: dict[str, tuple[int, ...]] = {
 }
 
 
+def say(line: str) -> None:
+    """Writes one line of the probe's answer, at once, for whoever is reading it."""
+    sys.stdout.write(line + "\n")
+    sys.stdout.flush()
+
+
 def arg(value: object) -> object:
     """One argument as `syscall(2)` takes it: a word, a string, or a buffer."""
     if isinstance(value, str):
@@ -66,49 +73,55 @@ def call(numbers: dict[str, int], name: str, *args: object) -> None:
     done = libc.syscall(ctypes.c_long(number), *map(arg, args))
     code = ctypes.get_errno()
     if done >= 0 or code in FINE.get(name, ()):
-        print(f"{name}=ok", flush=True)
+        say(f"{name}=ok")
     else:
-        print(f"{name}={errno.errorcode.get(code, code)}", flush=True)
+        say(f"{name}={errno.errorcode.get(code, code)}")
 
 
-def watch(numbers: dict[str, int], base: str) -> None:
+def readlink(numbers: dict[str, int], name: str, *args: object) -> None:
+    """Reads the link by number, and says whether it says what it was made to."""
+    if numbers.get(name, -1) < 0:
+        return
+    text = ctypes.create_string_buffer(512)
+    size = libc.syscall(ctypes.c_long(numbers[name]), *map(arg, args), text, arg(256))
+    said = text.value[: max(size, 0)]
+    say(f"{name}={'ok' if said == b'seed.txt' else size}")
+
+
+def watch(numbers: dict[str, int], base: Path) -> None:
     """Watches the directory for a file made in it, and makes one there."""
     held = libc.inotify_init1(0)
     ctypes.set_errno(0)
     added = libc.syscall(
         ctypes.c_long(numbers["inotify_add_watch"]),
         ctypes.c_long(held),
-        arg(base),
+        arg(str(base)),
         ctypes.c_long(IN_CREATE),
     )
     if added < 0:
-        code = errno.errorcode.get(ctypes.get_errno(), "?")
-        print(f"inotify_add_watch={code}", flush=True)
+        say(f"inotify_add_watch={errno.errorcode.get(ctypes.get_errno(), '?')}")
         return
-    with open(os.path.join(base, "watched.txt"), "w") as made:
-        made.write("seen\n")
+    (base / "watched.txt").write_text("seen\n")
     ready, _, _ = select.select([held], [], [], 10)
     heard = os.read(held, 4096) if ready else b""
-    said = "ok" if b"watched.txt" in heard else "silent"
-    print(f"inotify_add_watch={said}", flush=True)
+    say(f"inotify_add_watch={'ok' if b'watched.txt' in heard else 'silent'}")
 
 
 def mark(numbers: dict[str, int], path: str) -> None:
     """Marks the file for fanotify, where this kernel lets an unprivileged process at all."""
     held = libc.fanotify_init(FAN_CLASS_NOTIF | FAN_REPORT_FID, os.O_RDONLY)
     if held < 0:
-        code = errno.errorcode.get(ctypes.get_errno(), "?")
-        print(f"fanotify_mark=unavailable:{code}", flush=True)
+        say(f"fanotify_mark=unavailable:{errno.errorcode.get(ctypes.get_errno(), '?')}")
         return
     call(numbers, "fanotify_mark", held, FAN_MARK_ADD, FAN_MODIFY, AT_FDCWD, path)
 
 
 def main() -> None:
     """Names `argv[1]` every way there is, `argv[2]` being the numbers to name it with."""
-    base = sys.argv[1]
+    base = Path(sys.argv[1])
     numbers: dict[str, int] = json.loads(sys.argv[2])
-    seed = os.path.join(base, "seed.txt")
-    link = os.path.join(base, "link")
+    seed = str(base / "seed.txt")
+    link = str(base / "link")
     stat = ctypes.create_string_buffer(512)
     text = ctypes.create_string_buffer(512)
     uid, gid = os.getuid(), os.getgid()
@@ -133,7 +146,7 @@ def main() -> None:
     ctypes.c_uint32.from_buffer(handle).value = 128
     mount = ctypes.c_int()
     call(numbers, "name_to_handle_at", AT_FDCWD, seed, handle, ctypes.byref(mount), 0)
-    call(numbers, "open_tree", AT_FDCWD, base, O_CLOEXEC)
+    call(numbers, "open_tree", AT_FDCWD, str(base), O_CLOEXEC)
     call(numbers, "chown", seed, uid, gid)
     call(numbers, "lchown", seed, uid, gid)
     call(numbers, "fchownat", AT_FDCWD, seed, uid, gid, 0)
@@ -144,33 +157,24 @@ def main() -> None:
     call(numbers, "utimes", seed, None)
     call(numbers, "futimesat", AT_FDCWD, seed, None)
     call(numbers, "utimensat", AT_FDCWD, seed, None, 0)
-    call(numbers, "mknod", os.path.join(base, "pipe"), S_IFIFO | 0o600, 0)
-    call(numbers, "mknodat", AT_FDCWD, os.path.join(base, "pipeat"), S_IFIFO | 0o600, 0)
-    size = libc.syscall(ctypes.c_long(numbers["readlinkat"]), ctypes.c_long(AT_FDCWD),
-                        arg(link), text, ctypes.c_long(256))  # fmt: skip
-    print(f"readlinkat={'ok' if text.value[: max(size, 0)] == b'seed.txt' else size}")
-    if numbers.get("readlink", -1) >= 0:
-        size = libc.syscall(
-            ctypes.c_long(numbers["readlink"]), arg(link), text, ctypes.c_long(256)
-        )
-        print(f"readlink={'ok' if text.value[: max(size, 0)] == b'seed.txt' else size}")
+    call(numbers, "mknod", str(base / "pipe"), S_IFIFO | 0o600, 0)
+    call(numbers, "mknodat", AT_FDCWD, str(base / "pipeat"), S_IFIFO | 0o600, 0)
+    readlink(numbers, "readlinkat", AT_FDCWD, link)
+    readlink(numbers, "readlink", link)
     watch(numbers, base)
     mark(numbers, seed)
     try:
         os.chdir(base)
-        print(f"chdir={'ok' if 'seed.txt' in os.listdir('.') else 'empty'}", flush=True)
+        say(f"chdir={'ok' if Path('seed.txt').exists() else 'empty'}")
     except OSError as why:
-        print(f"chdir={errno.errorcode.get(why.errno or 0, why)}", flush=True)
+        say(f"chdir={errno.errorcode.get(why.errno or 0, why)}")
     # The program is read first, as a CLI reads the script it is about to run: that is what
     # brings its bytes into the mirror for the kernel to run here.
-    tool = os.path.join(base, "tool.sh")
-    with open(tool) as read:
-        read.read()
-    for name, program in (("execve-here", tool), ("execve-there", "remote.sh")):
-        ran = subprocess.run(
-            [os.path.join(base, program)], capture_output=True, text=True, check=False
-        )
-        print(f"{name}={ran.stdout.strip() or ran.stderr.strip() or ran.returncode}")
+    tool = base / "tool.sh"
+    tool.read_text()
+    for name, program in (("execve-here", tool), ("execve-there", base / "remote.sh")):
+        ran = subprocess.run([program], capture_output=True, text=True, check=False)
+        say(f"{name}={ran.stdout.strip() or ran.stderr.strip() or ran.returncode}")
 
 
 if __name__ == "__main__":
