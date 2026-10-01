@@ -426,9 +426,11 @@ def under() -> Path: ...
 - Before any agent starts, what the role asks MUST be held against what its provider may hand
   out -- what it was written down with, the daemon's own where that is 0 -- less what that
   provider's running containers hold, and its container limit; GPUs MUST be the first ids
-  nobody holds, and GPU memory the provider's where it says it. What is short MUST raise
-  `ResourceUnmet` saying how much of what is free and which container holds the rest, and no
-  two runs on this machine MUST work it out for one provider at once.
+  nobody holds of those its daemon's host says answer where it can be asked, handed out by
+  the CDI name each answered under or else its UUID, and GPU memory the provider's where it
+  says it. What is short MUST raise `ResourceUnmet` saying how much of what is free and which
+  container holds the rest -- for GPUs, how many of those listed are usable --, and no two
+  runs on this machine MUST work it out for one provider at once.
 - An agent working in one MUST be anchored to its container, reaching it by `docker exec` alone,
   its harness put where the next section says: supervised on this machine in a mirror of its
   own, or the container's own CLI driven natively.

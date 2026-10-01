@@ -32,7 +32,7 @@ import secrets
 import shutil
 import socket
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.flows import (
@@ -129,9 +129,13 @@ class Has:
     Attributes:
       cpus: CPUs.
       memory: Bytes of memory.
-      gpus: GPUs, by id, in the order they are handed out.
+      gpus: GPUs, by id, in the order they are handed out: those that answer, where its
+        daemon's host was asked which do.
       gpu_memory: Bytes of memory each GPU has, or 0 where nothing says.
       containers: How many containers may run at once, or 0 for no limit.
+      listed: How many GPUs it lists, answering or not, or None for as many as `gpus`.
+      known: Every other id a GPU of `gpus` is known by -- its index, its UUID -- mapped to
+        the one it is handed out by, so that a container labelled with either holds it.
     """
 
     cpus: float
@@ -139,6 +143,13 @@ class Has:
     gpus: tuple[str, ...]
     gpu_memory: int = 0
     containers: int = 0
+    listed: int | None = None
+    known: Mapping[str, str] = field(default_factory=dict[str, str])
+
+    @property
+    def bound(self) -> int:
+        """How many GPUs it lists, answering or not."""
+        return len(self.gpus) if self.listed is None else self.listed
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,13 +167,20 @@ class Share:
     gpus: tuple[str, ...]
 
 
-def has_of(provider: DockerProvider | None, info: Mapping[str, Any]) -> Has:
+def has_of(
+    provider: DockerProvider | None,
+    info: Mapping[str, Any],
+    usable: Sequence[tuple[str, str]] | None = None,
+) -> Has:
     """What a provider may hand out: as written down, the daemon's own for what is 0.
 
     Args:
       provider: The provider, or None for docker's default here, which may hand out all of
         what its daemon has.
       info: What `docker info` said of the daemon.
+      usable: The GPUs of its host that answer, as
+        :func:`~hmz.coganchor.machines.gpus_usable` says them, or None where nobody asked --
+        which leaves every GPU listed to be handed out.
     """
     from hmz.coganchor.machines.docker import CDI, gpus_listed
 
@@ -170,16 +188,61 @@ def has_of(provider: DockerProvider | None, info: Mapping[str, Any]) -> Has:
     memory = int(info.get("MemTotal") or 0)
     # NVIDIA's alone, being the one kind a container is handed a GPU of.
     devices = cast("list[Any]", info.get("DiscoveredDevices") or [])
-    gpus = gpus_listed(devices, CDI)
+    named = provider.gpus if provider is not None and provider.gpus else ()
+    named = named or gpus_listed(devices, CDI)
+    if usable is not None and not named:
+        # A daemon that lists none by name, but hands a container every GPU it is asked
+        # for: what answers there is what it has.
+        named = tuple(name for name, _ in usable)
+    gpus, known = (named, {}) if usable is None else _answering(named, usable, devices)
+    listed = None if usable is None else len(named)
     if provider is None:
-        return Has(cpus, memory, gpus)
+        return Has(cpus, memory, gpus, listed=listed, known=known)
     return Has(
         provider.cpus or cpus,
         provider.memory or memory,
-        provider.gpus or gpus,
+        gpus,
         provider.gpu_memory,
         provider.max_containers,
+        listed=listed,
+        known=known,
     )
+
+
+def _answering(
+    named: Sequence[str], usable: Sequence[tuple[str, str]], devices: Sequence[Any]
+) -> tuple[tuple[str, ...], dict[str, str]]:
+    """Which of the GPUs named answer, each by the id it is handed out by, and its aliases.
+
+    A GPU that answered under a CDI name is handed out by that name, which a container was
+    just given it by; one the daemon lists no name for is handed out by its UUID, the one id
+    that is the same GPU however `nvidia-smi` numbers them by then.
+
+    Args:
+      named: The GPUs the provider may hand out, by name or by UUID.
+      usable: The GPUs that answer, as `(name, uuid)`.
+      devices: `DiscoveredDevices`, as `docker info` says it.
+
+    Returns:
+      Those that answer, in the order named, and every id each is known by, mapped to the
+      one it is handed out by.
+    """
+    from hmz.coganchor.machines.docker import CDI, gpus_listed
+
+    listed = set(gpus_listed(devices, CDI))
+    by_name = dict(usable)
+    at = {uuid: name for name, uuid in usable}
+    gpus: list[str] = []
+    known: dict[str, str] = {}
+    for one in named:
+        uuid = one if one in at else by_name.get(one)
+        if uuid is None or uuid in known:
+            continue
+        name = at[uuid]
+        handed = name if name in listed else uuid
+        gpus.append(handed)
+        known.update({name: handed, uuid: handed, one: handed})
+    return tuple(gpus), known
 
 
 def shared(
@@ -229,15 +292,29 @@ def shared(
     taken: set[str] = set()
     holding = [one for one in held if one.gpus]
     for one in holding:
-        taken.update(has.gpus if one.gpus == "all" else one.gpus)
+        taken.update(
+            has.gpus
+            if one.gpus == "all"
+            else (has.known.get(id_, id_) for id_ in one.gpus)
+        )
     gpus = tuple(one for one in has.gpus if one not in taken)
     if asked.gpus > len(gpus):
+        failed = has.bound - len(has.gpus)
         short.append(
             f"{where} has {len(gpus)} of {len(has.gpus)} GPUs free, and {role!r} asks "
             f"for {asked.gpus}"
             + (
+                f" ({len(has.gpus)} of the {has.bound} GPUs it lists are usable: {failed} "
+                + ("is bound but does" if failed == 1 else "are bound but do")
+                + " not answer)"
+                if failed > 0
+                else ""
+            )
+            + (
                 _by(holding, _gpus_of)
-                if has.gpus
+                if has.bound
+                else " (no GPU of its host answers)"
+                if has.listed is not None
                 else " (its daemon lists no GPU by name: say which in the provider's gpus)"
             )
         )
@@ -472,7 +549,7 @@ class DockerMachine(SSHMachine):
                     live.append(one)
             share = shared(
                 self.asked,
-                has_of(stored, info),
+                has_of(stored, info, self._usable(info) if self.asked.gpus else None),
                 live,
                 where=where,
                 role=self.role or "the environment",
@@ -509,6 +586,17 @@ class DockerMachine(SSHMachine):
             except OSError as error:
                 raise EnvConnectionError(f"{where}: {error}") from error
         return docker, share
+
+    def _usable(self, info: Mapping[str, Any]) -> tuple[tuple[str, str], ...] | None:
+        """The GPUs of the daemon's host that answer, or None where it could not be asked.
+
+        Asked only for a role that asks for a GPU, and of a container of the image this one
+        is started from, which is pulled for it anyway.
+        """
+        from hmz.coganchor.machines import gpus_usable
+
+        devices = cast("list[Any]", info.get("DiscoveredDevices") or [])
+        return gpus_usable(str(self.endpoint), self.image, devices, seconds=_ASKING)
 
     async def _up(self) -> None:
         """Brings the container up where it is not yet, once however many ask at once."""

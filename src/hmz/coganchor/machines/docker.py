@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -319,6 +320,157 @@ def gpus_listed(devices: Sequence[Any], kind: str = "") -> tuple[str, ...]:
             names.append(name)
     indices = sorted((one for one in names if one.isdigit()), key=int)
     return tuple(indices or names)
+
+
+#: How long what a daemon's host said of its GPUs is taken as still true: a GPU that fails
+#: stays failed until its host is seen to, so asking once per bringing-up would only cost
+#: every container another one started before it.
+USABLE_FOR = 300.0
+
+#: What :func:`gpus_usable` was last told, by daemon: when, and what.
+_USABLE: dict[str, tuple[float, tuple[tuple[str, str], ...] | None]] = {}
+
+#: What a container asks of the GPUs it was handed, whatever its image's entrypoint: each one
+#: that answers, by the index `nvidia-smi` gives it and its UUID.
+_QUERY = ("--entrypoint", "nvidia-smi")
+_QUERIED = ("--query-gpu=index,uuid", "--format=csv,noheader")
+
+#: How `nvidia-smi` exits where it finds no GPU it can talk to.
+_NO_DEVICES = 6
+
+
+def gpus_usable(
+    endpoint: str,
+    image: str,
+    devices: Sequence[Any],
+    *,
+    seconds: float | None = None,
+) -> tuple[tuple[str, str], ...] | None:
+    """The GPUs of a daemon's host that answer, asked of containers given them.
+
+    What a daemon lists is what its CDI specs were written for, which is every GPU the driver
+    was bound to when they were written -- a GPU that has failed since is listed still, and a
+    container handed it is handed nothing. So the host is asked what answers, from where a
+    container would ask it: `nvidia-smi` in a container of `image`, once per daemon for
+    :data:`USABLE_FOR` seconds.
+
+    A container per GPU, where the daemon lists them by CDI name: `nvidia-smi` numbers only
+    the GPUs that answer, so one failing renumbers every one after it, while the specs keep
+    the names they were written with -- and only a container given one name says which GPU
+    that name is. One container given every GPU where the daemon lists none, which hands them
+    out by `--gpus`, numbered as `nvidia-smi` numbers them now.
+
+    Args:
+      endpoint: The daemon, spelled as :attr:`DockerConfig.endpoint` is.
+      image: What the containers are started from: any image will do, `nvidia-smi` being the
+        NVIDIA container toolkit's to put in it.
+      devices: `DiscoveredDevices`, as `docker info` says it.
+      seconds: How long each container may take, or None for as long as it does.
+
+    Returns:
+      Each GPU that answers, as `(name, uuid)` -- `name` the CDI name it is handed out by, or
+      the index `nvidia-smi` gives it where the daemon lists none -- none for a host whose
+      GPUs all failed, or None where there was no asking: no `nvidia-smi` put in a container,
+      no GPU runtime, a daemon that would not run one, or no answer in time. A GPU that does
+      not answer in time while another does is one that does not answer.
+
+    Raises:
+      ValueError: If the endpoint cannot be read.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    where = Endpoint.parse(endpoint)
+    listed = gpus_listed(devices, _CDI)
+    key = f"{where} {','.join(listed)}"
+    now = time.monotonic()
+    if (kept := _USABLE.get(key)) is not None and now - kept[0] < USABLE_FOR:
+        return kept[1]
+    answered: tuple[tuple[str, str], ...] | None
+    if listed:
+
+        def one_of(name: str) -> tuple[tuple[str, str], ...] | None:
+            # And no GPU of the runtime's own: a daemon whose default runtime is NVIDIA's
+            # hands an image saying `all` every GPU that answers, whichever it was given.
+            given = [
+                "--device",
+                f"{_CDI}={name}",
+                "--env",
+                "NVIDIA_VISIBLE_DEVICES=void",
+            ]
+            said = _gpus_in(where, image, given, seconds)
+            # One GPU, or none: anything else is not an answer about the one it was given.
+            return said if said is None or len(said) <= 1 else None
+
+        with ThreadPoolExecutor(max_workers=len(listed)) as pool:
+            said = list(pool.map(one_of, listed))
+        answered = (
+            None
+            if all(one is None for one in said)
+            else tuple(
+                (name, one[0][1]) for name, one in zip(listed, said, strict=True) if one
+            )
+        )
+    else:
+        answered = _gpus_in(where, image, ["--gpus", "all"], seconds)
+    # Only an answer is kept: no answer -- an image still being pulled, a daemon slow to
+    # start one -- is asked again by the next container that wants a GPU.
+    if answered is not None:
+        _USABLE[key] = (now, answered)
+    return answered
+
+
+def _gpus_in(
+    where: Endpoint, image: str, given: Sequence[str], seconds: float | None
+) -> tuple[tuple[str, str], ...] | None:
+    """What `nvidia-smi` says of the GPUs a container is given, as `(index, uuid)`.
+
+    None where it said nothing to read, or did not answer in time -- when its container,
+    which may be stuck on a GPU that has stopped answering, is taken down rather than left
+    holding it.
+    """
+    import secrets
+
+    name = f"{_LABEL}-gpus-{secrets.token_hex(4)}"
+    argv = where.docker(
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "--label",
+        f"{_LABEL}={os.getuid()}",
+        "--network",
+        "none",
+        *given,
+        *_QUERY,
+        image,
+        *_QUERIED,
+    )
+    try:
+        said = _asked(argv, seconds)
+    except OSError:
+        with contextlib.suppress(OSError):
+            _asked(where.docker("rm", "--force", name), seconds)
+        return None
+    return _answered(said.returncode, said.stdout + said.stderr)
+
+
+def _answered(status: int, said: str) -> tuple[tuple[str, str], ...] | None:
+    """What :data:`_QUERIED` answered with: each GPU as `(index, uuid)`, or None for no answer.
+
+    `nvidia-smi` that finds no GPU it can talk to says so and exits 6: an answer, and the
+    answer is none.
+    """
+    if status == _NO_DEVICES and "no devices were found" in said.lower():
+        return ()
+    if status != 0:
+        return None
+    found: list[tuple[str, str]] = []
+    for line in said.splitlines():
+        index, comma, uuid = (part.strip() for part in line.partition(","))
+        if comma and index.isdigit() and uuid.startswith("GPU-"):
+            found.append((index, uuid))
+    # Exit 0 is at least one GPU named; none read is something else said in its place.
+    return tuple(found) or None
 
 
 def _asked(argv: list[str], seconds: float | None) -> subprocess.CompletedProcess[str]:

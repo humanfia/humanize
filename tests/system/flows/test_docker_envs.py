@@ -31,7 +31,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor import backends
-from hmz.coganchor.machines import gpus_listed, store
+from hmz.coganchor.machines import gpus_listed, gpus_usable, store
+from hmz.coganchor.machines.docker import CDI
 from hmz.flows import (
     CPUEnvMixin,
     Env,
@@ -81,11 +82,17 @@ class OneGPU(Env, ShellEnvMixin, GPUEnvMixin, ImageEnvMixin):
     _gpu_count = 1
 
 
+class TwoGPUs(Env, ShellEnvMixin, GPUEnvMixin, ImageEnvMixin):
+    _image = IMAGE
+    _gpu_count = 2
+
+
 class Envs(EnvCollection):
     slim: Slim
     full: Full
     limited: Limited
     gpu: OneGPU
+    gpus: TwoGPUs
 
 
 def _role(name: str) -> EnvRole:
@@ -228,18 +235,27 @@ async def test_what_a_role_declares_is_the_containers_limit(
 # ------------------------------------------------------------------------------------ GPUs
 
 
-@pytest.fixture
-def gpubox(daemon: None) -> str:
-    """A provider handing out this machine's first two GPUs, or a skip where it has not two."""
+def _devices() -> list[object]:
+    """What the daemon here lists as its devices."""
     said = subprocess.run(
         ["docker", "info", "--format", "{{json .DiscoveredDevices}}"],
         capture_output=True,
         text=True,
         check=False,
     )
-    listed = gpus_listed(json.loads(said.stdout or "null") or [])
+    return json.loads(said.stdout or "null") or []
+
+
+@pytest.fixture
+def gpubox(daemon: None) -> str:
+    """A provider handing out this machine's first two GPUs, or a skip where it has not two."""
+    devices = _devices()
+    listed = gpus_listed(devices)
     if not {"0", "1"} <= set(listed):
         pytest.skip("needs a daemon listing two NVIDIA GPUs by their CDI names")
+    usable = gpus_usable("local", IMAGE, devices, seconds=120) or ()
+    if len(usable) < 2:
+        pytest.skip(f"needs two GPUs that answer, and {len(usable)} of {listed} do")
     name = f"gpubox-{os.getpid()}"
     store.write(store.DockerProvider(name=name, gpus=("0", "1")))
     return name
@@ -259,6 +275,74 @@ async def test_a_role_asking_one_gpu_sees_exactly_one(
     assert status == 0, err
     assert len(out.strip().splitlines()) == 1, out
     assert (driver.gpu_count, driver.gpu_memory > 0) == (1, True)
+
+
+@pytest.fixture
+def failing(daemon: None) -> tuple[str, tuple[tuple[str, str], ...]]:
+    """Docker's default here, where it lists a GPU that does not answer, and what does answer.
+
+    A skip anywhere else: what is tested is a GPU that failed after the daemon's CDI specs
+    were written for it -- bound to the driver, listed still, and handed to nobody.
+    """
+    devices = _devices()
+    listed = gpus_listed(devices, CDI)
+    usable = gpus_usable("local", IMAGE, devices, seconds=120)
+    if not usable or len(usable) >= len(listed):
+        pytest.skip(
+            f"needs a daemon listing a GPU that does not answer: it lists {listed}, and "
+            f"{'nobody could ask which answer' if usable is None else usable} answer"
+        )
+    name = f"failing-{os.getpid()}"
+    store.write(store.DockerProvider(name=name))
+    return name, usable
+
+
+@pytest.mark.timeout(300)
+async def test_a_gpu_that_does_not_answer_is_never_handed_out(
+    failing: tuple[str, tuple[tuple[str, str], ...]], tmp_path: Path
+) -> None:
+    """Every GPU that answers is handed out, by UUID, and then nothing more is."""
+    provider, usable = failing
+    opened: list[EnvDriver] = []
+    seen: list[str] = []
+    try:
+        for _ in usable:
+            driver = _opened(f"gpu=docker@{provider}{tmp_path}", "gpu")
+            opened.append(driver)
+            await probe(driver)
+            status, out, err = await driver.exec(
+                ["nvidia-smi", "--query-gpu=uuid", "--format=csv,noheader"], timeout=60
+            )
+            assert status == 0, err
+            seen += out.split()
+        assert sorted(seen) == sorted(uuid for _, uuid in usable)
+        last = _opened(f"gpu=docker@{provider}{tmp_path}", "gpu")
+        opened.append(last)
+        with pytest.raises(ResourceUnmet, match="bound but does not answer"):
+            await probe(last)
+    finally:
+        for driver in opened:
+            await driver.close()
+
+
+@pytest.mark.timeout(300)
+async def test_more_gpus_than_answer_is_refused_saying_how_many_do(
+    failing: tuple[str, tuple[tuple[str, str], ...]], tmp_path: Path
+) -> None:
+    provider, usable = failing
+    asked = len(usable) + 1
+    if asked != TwoGPUs._gpu_count:
+        pytest.skip(f"asks for two GPUs, and {len(usable)} answer here")
+    driver = _opened(f"gpus=docker@{provider}{tmp_path}", "gpus")
+    try:
+        with pytest.raises(
+            ResourceUnmet,
+            match=rf"has {len(usable)} of {len(usable)} GPUs free, and 'gpus' asks for "
+            rf"2 \({len(usable)} of the \d+ GPUs it lists are usable",
+        ):
+            await probe(driver)
+    finally:
+        await driver.close()
 
 
 #: A flow holding a GPU until it is let go: it writes what `nvidia-smi` sees in its container,

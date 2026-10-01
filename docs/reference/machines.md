@@ -293,8 +293,21 @@ Allocation, done while holding an exclusive `flock` on
 3. What the provider may hand out is its saved `cpus`, `memory`, `gpus` (each `0`/empty meaning
    the daemon's own `NCPU`, `MemTotal` and CDI-listed NVIDIA GPUs), `gpu_memory` and
    `max_containers`; what running containers hold is subtracted, read off their labels.
-4. GPUs are the first ids no running container holds.
-5. Anything short raises `ResourceUnmet`, every shortage joined by `; `:
+4. For a role asking for a GPU, the daemon's host is asked which GPUs answer: `nvidia-smi
+   --query-gpu=index,uuid` in a container of the role's image (`--network none`, 60 s each; an
+   answer is kept 300 s per daemon) -- one container per CDI-listed GPU, given `--device
+   nvidia.com/gpu=<name>` and `NVIDIA_VISIBLE_DEVICES=void`, all at once; or, where the daemon
+   lists none, one given `--gpus all`. Only GPUs that answer are handed out: one the driver is
+   bound to, and the CDI specs list, but that has failed since is never handed out; a container
+   seeing more than the one GPU it was given is no answer. A GPU is handed out by the CDI name
+   it answered under -- `nvidia-smi` renumbers the GPUs after one that fails, the specs do not
+   -- or by its UUID where the daemon lists none. A provider's `gpus` may name either. A
+   container labelled with a GPU's UUID holds it as surely as one labelled with its name. A GPU
+   whose container does not answer in time, while another does, does not answer, and its
+   container is removed. Where nothing could be asked -- no `nvidia-smi` put in the container,
+   no GPU runtime, no answer in time -- every GPU listed is handed out.
+5. GPUs are the first ids no running container holds.
+6. Anything short raises `ResourceUnmet`, every shortage joined by `; `:
 
 ```text
 docker@gpubox runs 4 of the 4 containers it may (one held by humanize-gpubox-box-1a2b3c4d, pid 4242 on gpubox; …)
@@ -302,6 +315,8 @@ docker@gpubox has 2 of 16 CPUs free, and 'box' asks for 4 (8 CPUs held by …)
 docker@gpubox has 8 GiB of 64 GiB of memory free, and 'box' asks for 16 GiB (…)
 docker@gpubox has 0 of 2 GPUs free, and 'box' asks for 1 (GPU 0 held by humanize-gpubox-box-1a2b3c4d, pid 4242 on gpubox; GPU 1 held by …)
 docker@gpubox has 0 of 0 GPUs free, and 'box' asks for 1 (its daemon lists no GPU by name: say which in the provider's gpus)
+docker@gpubox has 0 of 0 GPUs free, and 'box' asks for 1 (no GPU of its host answers)
+docker@gpubox has 1 of 1 GPUs free, and 'box' asks for 2 (1 of the 2 GPUs it lists are usable: 1 is bound but does not answer)
 docker@gpubox's GPUs have 24 GiB each, and 'box' asks for 40 GiB
 ```
 
@@ -594,6 +609,10 @@ what it runs: …`; `seconds` bounds each question (`OSError` `ETIMEDOUT` past i
 
 `info(endpoint="local", seconds=None)` returns `docker info` as a dict, and
 `gpus_listed(devices, kind="")` the GPU ids a daemon's `DiscoveredDevices` name.
+`gpus_usable(endpoint, image, devices, *, seconds=None)` returns the GPUs of the daemon's
+host that answer, as `(name, uuid)` pairs -- `name` the CDI name, or `nvidia-smi`'s index
+where the daemon lists none; `()` where none answers -- or `None` where nothing could be
+asked; one answer per daemon is kept for `USABLE_FOR` (300 s).
 
 ## Writing a machine of your own {#writing-a-machine-of-your-own}
 

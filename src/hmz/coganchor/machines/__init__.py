@@ -9,7 +9,15 @@ from __future__ import annotations
 
 from .anchored import Anchored, AnchoredConfig
 from .base import MachineBase, MachineConfig
-from .docker import Allocation, Docker, DockerConfig, allocations, gpus_listed, info
+from .docker import (
+    Allocation,
+    Docker,
+    DockerConfig,
+    allocations,
+    gpus_listed,
+    gpus_usable,
+    info,
+)
 from .mapped import Mapped, Ran
 
 __all__ = [
@@ -24,5 +32,6 @@ __all__ = [
     "Ran",
     "allocations",
     "gpus_listed",
+    "gpus_usable",
     "info",
 ]
