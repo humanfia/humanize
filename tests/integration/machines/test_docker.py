@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.coganchor import transport
 from hmz.coganchor.machines import DockerConfig, Mapped, allocations
 from hmz.coganchor.transport import Endpoint, Road, Target
 from tests.machines.fixtures import IMAGE, Standin
@@ -424,7 +425,7 @@ def test_a_container_made_again_under_its_old_name_is_given_the_bundle_again(
     installs = [
         one["argv"]
         for one in standin.said()
-        if one["argv"][:2] == ["exec", "-i"] and "cat >" in " ".join(one["argv"])
+        if one["argv"][:2] == ["exec", "-i"] and transport._INSTALLING in one["argv"]
     ]
     assert len(installs) == 2
 

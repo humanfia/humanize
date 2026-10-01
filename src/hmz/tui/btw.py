@@ -226,7 +226,9 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
 
     lines.append("spending:")
     if snapshot.spent:
-        spent = snapshot.spent[:_MAX_SPENDING]
+        # The biggest spenders, where there are more than are said: the monitor keeps its
+        # rows in the order each model was first spent on, and that is no order to cut by.
+        spent = sorted(snapshot.spent, key=lambda one: -one[1])[:_MAX_SPENDING]
         lines.extend(
             f"- {compact(model, 240)}: {max(tokens, 0)} token(s), "
             f"{max(rate, 0.0):.1f} output token(s)/s"

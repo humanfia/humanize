@@ -283,6 +283,7 @@ def started(
     agents: Mapping[str, str] | None = None,
     by: str = "you@tui",
     client: str = "c1",
+    harness: str | None = "adaptive",
 ) -> dict[str, Any]:
     """A run starting, as the record every frontend is told of it by.
 
@@ -296,6 +297,8 @@ def started(
         None.
       by: Who started it.
       client: Which frontend that was: `c1` is the interface a `FakeLink` is.
+      harness: Where its agents' harnesses were put, as `-H` spells it, or None for a
+        record from a host that did not say.
 
     Returns:
       The record.
@@ -318,6 +321,7 @@ def started(
         "params": {},
         "budget": {},
         "resume": "",
+        **({"harness": harness} if harness is not None else {}),
         "began": time.monotonic(),
         "at": time.time(),
     }
@@ -473,6 +477,7 @@ def opened(
     counts: Iterable[str] = (),
     person: bool = False,
     env: Mapping[str, Any] | None = None,
+    harness: str = "",
 ) -> dict[str, Any]:
     """A session a run has opened, as the record the interface is told of it by.
 
@@ -485,6 +490,8 @@ def opened(
       person: Whether it is the person, who holds the board rather than a conversation.
       env: Where it works -- its environment role, `kind`, `target`, `workdir` and whether
         it is `anchored` -- or None for a run that did not say.
+      harness: Where its harness went -- `local`, `env`, `standalone:<target>` -- or ""
+        for one working here.
 
     Returns:
       The record, as `hmz.runtime.doing.hosting.Host` says one.
@@ -503,6 +510,7 @@ def opened(
         "person": person,
         "kept": "",
         "env": dict(env) if env is not None else None,
+        "harness": harness,
         "mono": time.monotonic(),
     }
 
