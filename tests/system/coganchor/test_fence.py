@@ -1,5 +1,8 @@
 """`hmz internal fence`, walling a real shell in with this kernel's Landlock and seccomp.
 
+Or, on a Mac, with Seatbelt: the same tests, less the two about where a program may listen,
+which Seatbelt cannot say (:mod:`hmz.coganchor.darwin.seatbelt`).
+
 Each test builds a fence the way a flow's permission does, runs `sh -c` inside it through the
 real command, and reads back what the shell could and could not do. A system test because the
 other side is the kernel: `tests/tiers.py` puts real Landlock and seccomp in this tree, and a
@@ -21,7 +24,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.fence import ALL, NONE, READ, Fence
+from hmz.coganchor.fence import ALL, NONE, READ, Fence, enforceable
 from hmz.coganchor.linux import landlock
 from hmz.flows import Permission, PermissionKind
 from hmz.runtime.flowing import harnessing
@@ -31,11 +34,17 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 pytestmark = pytest.mark.skipif(
-    not landlock.available(), reason="this kernel has no Landlock"
+    not enforceable(net=False), reason="this machine has neither Landlock nor Seatbelt"
 )
 networked = pytest.mark.skipif(
-    not landlock.available(net=True),
+    not enforceable(net=True),
     reason=f"this kernel speaks Landlock ABI {landlock.abi()}; cutting TCP needs 4",
+)
+#: What Landlock and the loopback supervisor hold and Seatbelt cannot say: which address a
+#: socket is bound to, and whether its port was picked by the kernel.
+loopbacked = pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="Seatbelt cannot tell loopback from every address, nor a port picked from one named",
 )
 
 
@@ -167,8 +176,8 @@ import socket, sys, urllib.request
 how, url = sys.argv[1], sys.argv[2]
 try:
     if how == "udp":
-        socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        print("opened")
+        socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b"x", ("192.0.2.1", 9))
+        print("sent")
     else:
         opener = urllib.request.build_opener(
             *([urllib.request.ProxyHandler({})] if how == "direct" else [])
@@ -203,7 +212,8 @@ def test_a_cut_network_reaches_only_the_hosts_it_was_left(
     assert said[1].startswith("refused"), said
     # Through it, a host nobody listed is refused by the proxy.
     assert said[2] == "refused HTTPError", said
-    # And a protocol Landlock cannot see is not let open a socket at all.
+    # And a protocol Landlock cannot see is not let open a socket at all -- or, on a Mac,
+    # send from one.
     assert said[3].startswith("refused PermissionError"), said
 
 
@@ -221,6 +231,7 @@ except OSError as why:
 
 
 @networked
+@loopbacked
 def test_a_cut_network_still_lets_a_program_listen_where_the_kernel_says(
     home: Path,
 ) -> None:
@@ -294,6 +305,7 @@ def _ipv6() -> bool:
 
 
 @networked
+@loopbacked
 def test_a_cut_network_lets_a_program_listen_on_loopback_and_nowhere_else(
     home: Path,
 ) -> None:
@@ -397,6 +409,7 @@ print("raced" if raced is not None else "not raced", escaped)
 
 
 @networked
+@loopbacked
 def test_no_race_gets_a_listener_off_loopback(home: Path) -> None:
     """`bind` is let run once checked, so a rewrite may slip through it; `listen` may not."""
     (home / "work" / "racer.py").write_text(RACER)
@@ -434,9 +447,9 @@ def test_offline_a_real_host_that_is_not_listed_is_refused(home: Path) -> None:
 
 
 def test_a_fence_this_kernel_cannot_hold_runs_nothing(home: Path) -> None:
-    if landlock.available(net=True):
+    if enforceable(net=True):
         pytest.skip(
-            "this kernel can cut the network, so the refusal cannot be seen here"
+            "this machine can cut the network, so the refusal cannot be seen here"
         )
     fence = _fence(home, ALL, READ, READ, online=False)
     done = _run(fence, "touch ran", home / "work")

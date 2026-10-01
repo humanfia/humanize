@@ -18,6 +18,13 @@ Where the network is cut the parent is also the subreaper of everything inside: 
 that left its parent behind -- a daemon that forked twice -- is still one of the wrapper's
 descendants, which is what this kernel asks of a process before it lets another read its
 memory or take one of its descriptors, and so still one whose ``listen`` can be answered.
+
+On a Mac the wall is Seatbelt, and the child is ``sandbox-exec``, which applies the profile
+the fence comes to (:class:`~hmz.coganchor.darwin.seatbelt.Profile`) to itself and becomes the
+program; it is spawned rather than forked, there being nothing to do in the child that
+``sandbox-exec`` does not. The rest is as it is on Linux -- the proxy, the scratch, the
+signals passed on -- less what Seatbelt needs no help with: binds need no supervisor, and a
+process that left its parent behind is held by the profile it inherited wherever it went.
 """
 
 from __future__ import annotations
@@ -131,7 +138,11 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
         raise ValueError("no program to run")
     if not enforceable(net=not fence.online):
         needs = "Landlock ABI 4 and seccomp" if not fence.online else "Landlock"
+        if sys.platform == "darwin":
+            needs = "Seatbelt, which a process already inside a sandbox cannot apply"
         raise RuntimeError(f"this machine cannot fence a program: it needs {needs}")
+    if sys.platform == "darwin":
+        return _seatbelted(fence, argv)
     # Loaded before the fork rather than in the child: a child of a process with threads --
     # the proxy's -- may take no lock one of them held, and importing takes one.
     from hmz.coganchor.linux import landlock
@@ -173,9 +184,7 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
             status = _waited(pid)
         finally:
             _swept(pid)
-        if os.WIFEXITED(status):
-            return os.WEXITSTATUS(status)
-        return 128 + os.WTERMSIG(status) if os.WIFSIGNALED(status) else 1
+        return _status(status)
     finally:
         if supervisor is not None:
             supervisor.stop()
@@ -183,6 +192,50 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
             proxy.stop()
         if made:
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _seatbelted(fence: Fence, argv: Sequence[str]) -> int:
+    """:func:`run` on a Mac: the program run under ``sandbox-exec``, and waited for.
+
+    A wrapper killed outright leaves the program running, as it would not on Linux: a Mac has
+    no signal a process is sent when its parent dies. It stays inside its profile, and where
+    the network was cut it has lost its one way out with the proxy.
+    """
+    from hmz.coganchor.darwin import seatbelt
+
+    made = not fence.tmp
+    tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
+    Path(tmp).mkdir(mode=0o700, parents=True, exist_ok=True)
+    proxy = None if fence.online else Proxy(fence.hosts)
+    try:
+        if proxy is not None:
+            proxy.start()
+        port = proxy.port if proxy is not None else None
+        profile = seatbelt.Profile(
+            read=fence.read, write=(*fence.write, tmp), port=port
+        )
+        pid = os.posix_spawn(
+            seatbelt.SANDBOX_EXEC,
+            profile.command(argv),
+            environ(fence, os.environ, tmp=tmp, port=port),
+        )
+        try:
+            status = _waited(pid)
+        finally:
+            _swept(pid)
+        return _status(status)
+    finally:
+        if proxy is not None:
+            proxy.stop()
+        if made:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _status(status: int) -> int:
+    """The exit status a wait status comes to: the program's own, or 128 plus its signal."""
+    if os.WIFEXITED(status):
+        return os.WEXITSTATUS(status)
+    return 128 + os.WTERMSIG(status) if os.WIFSIGNALED(status) else 1
 
 
 def _swept(pid: int) -> None:

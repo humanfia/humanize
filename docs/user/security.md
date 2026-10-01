@@ -128,20 +128,23 @@ read it in the flow before you run the flow. It has four scopes:
 What that comes to in practice:
 
 - **Every scope is enforced** on the agent and on every command it runs, by Landlock on
-  Linux. An agent at the default writes its working directory and nothing else of yours:
-  its CLI's own settings, login and sessions, and a temporary directory of its own.
+  Linux and by Seatbelt on macOS. An agent at the default writes its working directory and nothing else of yours:
+  its CLI's own settings, login and sessions, and a temporary directory of its own. On
+  macOS its login includes the login keychain, which is where Claude Code keeps it.
 - **A read-only role** (`local` of `READ` or `NONE`) also runs in its CLI's read-only mode.
 - **`online` of `NONE`** cuts the network, except the hosts the agent's model and login are
   at. The CLI's web tools are switched off too, where it can be told.
 - **Work in a container or on an ssh host is fenced there too.** Every command the agent
-  runs on that machine is held by that machine's own Landlock, around its own working
-  directory and home.
-- **A grant that cannot be held is refused, not widened.** On macOS, on a Linux kernel
-  without Landlock, and for work on a machine without it, a role runs only with `ALL` in
-  every scope.
-- **Two ways out remain.** Landlock does not govern Unix sockets, so an agent can still talk
-  to a socket another program listens on, a docker daemon's among them. And whatever an
-  agent can write, a later run can read.
+  runs on that machine is held by that machine's own Landlock or Seatbelt, around its own
+  working directory and home.
+- **A grant that cannot be held is refused, not widened.** On a Linux kernel without
+  Landlock, on a Mac where humanize already runs inside another sandbox, and for work on a
+  machine like either, a role runs only with `ALL` in every scope.
+- **Some ways out remain.** Neither Landlock nor Seatbelt governs Unix sockets, so an agent
+  can still talk to a socket another program listens on, a docker daemon's among them; on
+  macOS a system service reached over Mach is the same. With `online` of `NONE` on macOS, a
+  program the agent runs may serve on any address, not only loopback. And whatever an agent
+  can write, a later run can read.
 
 [Permissions](/user/permissions) lists what the official flows declare, and how each CLI holds
 to it.
@@ -196,10 +199,11 @@ reference](/reference/providers).
 
 ### A role is refused before the run starts
 
-Its grant cannot be held here: on macOS, on a kernel without Landlock, or on a machine without
-it, only a role with `ALL` in every scope runs. And a `cursor-agent` role with `online` of
-`NONE` is refused on every machine, because Cursor's web tools cannot be switched off. Run the
-flow on Linux with Landlock, or choose another CLI for the role. See
+Its grant cannot be held here: on a kernel without Landlock, on a Mac where humanize runs
+inside another sandbox, or on a machine like either, only a role with `ALL` in every scope
+runs. And a `cursor-agent` role with `online` of `NONE` is refused on every machine, because
+Cursor's web tools cannot be switched off. Run the flow on Linux with Landlock or on macOS
+outside any other sandbox, or choose another CLI for the role. See
 [Permissions](/user/permissions).
 
 ### The flow changed things I did not expect

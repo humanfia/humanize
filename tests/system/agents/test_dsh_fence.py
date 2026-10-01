@@ -25,6 +25,7 @@ import pytest
 
 from hmz.coganchor import backends
 from hmz.coganchor.agents import DshAgent, DshAgentConfig
+from hmz.coganchor.fence import enforceable
 from hmz.coganchor.linux import landlock
 from hmz.flows import HarnessKind, Permission, PermissionKind
 from hmz.runtime.flowing import harnessing
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 pytestmark = pytest.mark.skipif(
-    not landlock.available(net=True),
+    not enforceable(net=True),
     reason=f"this kernel speaks Landlock ABI {landlock.abi()}; cutting TCP needs 4",
 )
 

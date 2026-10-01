@@ -26,6 +26,7 @@ def _able(*, net: bool) -> bool:
 def enforceable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Takes this machine to be one that can fence a process, with a home of the test's."""
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("CODEX_HOME", raising=False)
 
@@ -109,6 +110,34 @@ def test_a_cut_network_turns_off_what_openai_runs_whatever_web_search_says(
     assert argv.count("apps") == 1
 
 
+@pytest.mark.parametrize("offered", [True, False])
+def test_a_cut_network_takes_its_proxy_from_the_fence_where_codex_could_take_another(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, offered: bool
+) -> None:
+    """A Codex told to read the system's proxy settings would go around the fence's proxy."""
+
+    def known(feature: str) -> bool:
+        return offered and feature == "respect_system_proxy"
+
+    monkeypatch.setattr("hmz.coganchor.agents.codex._offered", known)
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="m",
+            effort="high",
+            fence=_fence(tmp_path),
+            features=(("respect_system_proxy", True),),
+        )
+    )
+
+    argv = agent._argv(())
+
+    # Off where this Codex knows it, and never named to one that would refuse the name.
+    assert argv.count("respect_system_proxy") == (1 if offered else 0)
+    if offered:
+        at = argv.index("respect_system_proxy")
+        assert argv[at - 1] == "--disable"
+
+
 def test_an_open_network_leaves_both_as_the_flow_said(tmp_path: Path) -> None:
     fence = dataclasses.replace(_fence(tmp_path), online=True)
     agent = CodexAgent(
@@ -187,7 +216,60 @@ def test_an_anchored_turn_leaves_its_sandbox_to_the_anchors_fence(
     assert "use_legacy_landlock" not in agent._argv(())
 
 
-def test_a_turn_on_this_machine_keeps_its_own_sandbox(tmp_path: Path) -> None:
+@pytest.mark.parametrize("online", [True, False])
+def test_on_a_mac_a_fenced_turn_leaves_its_sandbox_to_the_fence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, online: bool
+) -> None:
+    """Codex's own sandbox is Seatbelt, which cannot be applied inside the fence's."""
+    monkeypatch.setattr(sys, "platform", "darwin")
+    fence = dataclasses.replace(
+        Fence.of(
+            local=READ,
+            user=READ,
+            system=READ,
+            online=online,
+            workdir=tmp_path / "work",
+            home=tmp_path / "home",
+        ),
+        tmp=str(tmp_path / "scratch"),
+    )
+    agent = CodexAgent(
+        CodexAgentConfig(model="m", effort="high", permission="read-only", fence=fence)
+    )
+
+    said = agent.new()._turned(cast("Any", _Server()))
+
+    assert said["sandboxPolicy"] == {
+        "type": "externalSandbox",
+        "networkAccess": "enabled" if online else "restricted",
+    }
+
+
+def test_on_a_mac_a_turn_granted_everything_keeps_its_own_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "platform", "darwin")
+    fence = Fence.of(
+        local=ALL,
+        user=ALL,
+        system=ALL,
+        online=True,
+        workdir=tmp_path / "work",
+        home=tmp_path / "home",
+    )
+    agent = CodexAgent(
+        CodexAgentConfig(model="m", effort="high", permission="read-only", fence=fence)
+    )
+
+    said = agent.new()._turned(cast("Any", _Server()))
+
+    assert said.get("sandboxPolicy", {}).get("type") != "externalSandbox"
+
+
+def test_a_turn_on_this_machine_keeps_its_own_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "platform", "linux")
     fence = dataclasses.replace(_fence(tmp_path), online=True)
     agent = CodexAgent(
         CodexAgentConfig(model="m", effort="high", permission="read-only", fence=fence)

@@ -5,8 +5,9 @@ flow's permission was drawn from (:func:`hmz.coganchor.fence.abroad.told`). This
 fence again around its own paths -- the directories it exports as the workdir, this user's own
 home, this machine's minimum -- and runs the command under ``hmz internal fence``, the same
 wrapper a fenced turn runs under on the machine it was started from: Landlock for the paths
-and TCP, a seccomp filter for every other socket, and where the network is cut, a proxy that
-passes only the hosts the fence names -- none at all, for a command a supervised agent runs.
+and TCP and a seccomp filter for every other socket, or Seatbelt on a Mac, and where the
+network is cut, a proxy that passes only the hosts the fence names -- none at all, for a
+command a supervised agent runs.
 
 What this machine cannot hold, it refuses rather than runs. It says whether it can at the
 handshake (:func:`able`), so that a session is refused before its first turn, and refuses
@@ -21,6 +22,7 @@ import dataclasses
 import errno
 import os
 import stat
+import sys
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -35,8 +37,9 @@ def able() -> dict[str, bool]:
     """What this machine can fence, as the handshake says it.
 
     Returns:
-      `fs`, whether it has Landlock at all, and `net`, whether it can cut the network too --
-      Landlock ABI 4 with the socket filter loadable beside it.
+      `fs`, whether it can fence a command at all, and `net`, whether it can cut the
+      network too -- on Linux, Landlock and Landlock ABI 4 with the socket filter loadable
+      beside it; on a Mac, Seatbelt for both.
     """
     try:
         from hmz.coganchor import fence
@@ -75,6 +78,8 @@ def fenced(
     online = said.get("online", True)
     if not fence.enforceable(net=online is False):
         needs = "Landlock ABI 4 and seccomp" if online is False else "Landlock"
+        if sys.platform == "darwin":
+            needs = "Seatbelt, which a process already inside a sandbox cannot apply"
         raise PermissionError(
             errno.EPERM,
             f"this machine cannot fence a command: it needs {needs}",

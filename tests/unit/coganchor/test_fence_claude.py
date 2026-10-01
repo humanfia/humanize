@@ -30,6 +30,7 @@ def _able(*, net: bool) -> bool:
 def enforceable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Takes this machine to be one that can fence a process, with a home of the test's own."""
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
 

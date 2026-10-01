@@ -214,6 +214,7 @@ class Checked:
     cpus: float = 0.0
     memory: int = 0
     gpus: tuple[str, ...] = ()
+    usable: tuple[str, ...] | None = None  # those of a docker daemon's gpus that answer
     gpu_memory: int = 0
     runtimes: tuple[str, ...] = ()  # a docker daemon's, its default first
     version: str = ""

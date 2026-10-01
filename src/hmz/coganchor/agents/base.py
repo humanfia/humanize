@@ -3890,8 +3890,9 @@ class AgentBase(ABC):
         Asked where the config arrives rather than where a turn is spawned, so that a flow is
         refused when it opens the session and not an hour into it. What is asked is whether
         what is left once the CLI has enforced its own part (:meth:`natively`) can be put
-        around it from outside here: by Landlock, at an ABI that can cut the network where
-        the network is to be cut, beside a seccomp filter for every protocol Landlock cannot.
+        around it from outside here: on Linux by Landlock, at an ABI that can cut the network
+        where the network is to be cut, beside a seccomp filter for every protocol Landlock
+        cannot; on a Mac by Seatbelt.
 
         An agent whose turns land on another machine is fenced by its anchor, on both
         machines and whatever its CLI enforces natively (:meth:`_abroad`), and is refused here
@@ -3901,9 +3902,9 @@ class AgentBase(ABC):
           config: What the agent is to run at.
 
         Raises:
-          Unfenced: If the fence is not held natively in full and this machine has no
-            Landlock to hold the rest with, or the agent's work lands on another machine
-            and the fence cannot be held there.
+          Unfenced: If the fence is not held natively in full and this machine has neither
+            Landlock nor Seatbelt to hold the rest with, or the agent's work lands on another
+            machine and the fence cannot be held there.
         """
         if config.fence is None:
             return
@@ -3921,6 +3922,10 @@ class AgentBase(ABC):
                 if not rest.online
                 else "Landlock (Linux 5.13 or later, with landlock in its lsm= list)"
             )
+            if sys.platform == "darwin":
+                needs = (
+                    "Seatbelt, which a process already inside a sandbox cannot apply"
+                )
             raise Unfenced(
                 f"{type(self).__name__} cannot be held to its permission on this machine: "
                 f"it does not enforce it natively, and fencing it from outside needs {needs}"
@@ -3951,7 +3956,7 @@ class AgentBase(ABC):
             supervised here.
         """
         from hmz.coganchor.elsewhere import elsewhere
-        from hmz.coganchor.fence import enforceable
+        from hmz.coganchor.fence import landlocked
 
         fence = config.fence
         if fence is None or fence.open:
@@ -3973,7 +3978,9 @@ class AgentBase(ABC):
                 f"{name}: an agent whose own connections are sent to the target cannot "
                 "have its network cut here"
             )
-        if not enforceable(net=not fence.online):
+        # Landlock, and not whatever fences a turn here: a supervised agent is traced on
+        # Linux alone, and walled in by the supervisor that traces it.
+        if not landlocked(net=not fence.online):
             raise Unfenced(
                 f"{name} cannot be held to its permission: it is supervised on this "
                 "machine, which has no Landlock"
@@ -3983,10 +3990,11 @@ class AgentBase(ABC):
     def _reached(self, anchor: AnchorConfig, fence: Fence) -> None:
         """Refuses a target that cannot fence the commands run on it, asked once per target.
 
-        The target's own answer, which it gives at the handshake: a machine without Landlock
-        -- a kernel before 5.13 or booted without it, a Mac, a container whose seccomp profile
-        refuses the calls -- or older than 6.7 where the network is to be cut, cannot, and
-        neither can one running a humanize from before fences, which says nothing. A target
+        The target's own answer, which it gives at the handshake: a Linux machine without
+        Landlock -- a kernel before 5.13 or booted without it, a container whose seccomp
+        profile refuses the calls -- or older than 6.7 where the network is to be cut, cannot,
+        nor can a Mac already inside a sandbox, and neither can one running a humanize from
+        before fences, which says nothing. A target
         that could is remembered for the life of this process; one that could not is asked
         again, being a machine somebody may yet fix.
 
@@ -4008,8 +4016,8 @@ class AgentBase(ABC):
         if not hello_fences(check(anchor), net=net):
             raise Unfenced(
                 f"{self._id}: {anchor.target} cannot fence the commands the agent runs "
-                "there: it needs Landlock (Linux 5.13 or later, not refused by a "
-                "container's seccomp profile)"
+                "there: it needs Seatbelt on a Mac, or Landlock (Linux 5.13 or later, not "
+                "refused by a container's seccomp profile)"
                 + (
                     ", at ABI 4 (Linux 6.7) with seccomp, to cut the network"
                     if net
@@ -4084,7 +4092,8 @@ class AgentBase(ABC):
         what the agent itself needs whatever the scopes are: the CLI's own state and home to
         write, the directory its sessions are kept in, the account's directory and the hosts
         its model and sign-in are at -- read off the account it is on now, which a step down
-        its chain changes -- and the skills it is given, to read. With the scratch directory
+        its chain changes -- and the skills it is given, to read. On a Mac, the login keychain
+        to write besides, which is where a CLI there keeps its sign-in. With the scratch directory
         its processes are given as their temporary directory. Not humanize's own home: its
         settings, and every account's credentials, are no agent's to write.
 
@@ -4131,6 +4140,12 @@ class AgentBase(ABC):
             )
         if (provider := self.provider) is not None:
             writes.append(provider.at)
+        if sys.platform == "darwin":
+            # Where a CLI on a Mac keeps its sign-in rather than in a file of its own: Claude
+            # Code's is an item of the login keychain, and a token refreshed there is written
+            # through the keychain's own files, by the CLI's process. A home that may only be
+            # read would have it sign in once and lose every token it refreshed.
+            writes.append(os.path.expanduser("~/Library/Keychains"))  # noqa: PTH111
         tmp = fence.tmp
         if not tmp:
             with self._starting:

@@ -19,15 +19,14 @@ from hmz.coganchor.agents import (
     AntigravityCLIAgentConfig,
     Failed,
 )
-from hmz.coganchor.fence import ALL, NONE, READ, Fence
-from hmz.coganchor.linux import landlock
+from hmz.coganchor.fence import ALL, NONE, READ, Fence, enforceable
 
 
 @pytest.mark.agent
 @pytest.mark.timeout(600)
 @pytest.mark.skipif(shutil.which("agy") is None, reason="agy is not installed here")
 @pytest.mark.skipif(
-    not landlock.available(net=True), reason="this kernel cannot cut the network"
+    not enforceable(net=True), reason="this machine cannot cut the network"
 )
 def test_agy_offline_has_no_web_tool_and_still_writes_its_workdir(
     tmp_path: Path,

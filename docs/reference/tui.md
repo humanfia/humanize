@@ -1099,7 +1099,7 @@ providers](/reference/machines#environment-providers).
 | Row | Description | Effect |
 | --- | --- | --- |
 | `edit` | `edit saved settings` | Its form, without `name`; checked after saving (`<backend>/<name> updated`). |
-| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …`, a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
+| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …`; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
 | `remove` | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`. |
 
 #### ssh host form {#ssh-form}
@@ -1144,7 +1144,7 @@ nvidia; blank for daemon default`), `run args` (`extra arguments for docker run`
 containers` (`max concurrent containers; blank for no limit`), `workdir` (`default working
 directory when -e specifies no directory`), `cpus` (`max CPUs; blank to use all host CPUs`),
 `memory` (`e.g. 64G; blank to use all host memory`), `gpus` (`GPU IDs, e.g. 0, 1; blank to use
-all host GPUs`), `detect` (`detect host resources and fill them in`: `detecting resources on <endpoint>…`, then `detected …: auto-filled` with the cursor on `cpus`, or red `the daemon did
+all host GPUs`), `detect` (`detect host resources and fill them in`: `detecting resources on <endpoint>…`, then `detected …: auto-filled` with the cursor on `cpus` -- `gpus` written with only those that answer, and a yellow `<n> of <m> GPUs answer; …` where one does not -- or red `the daemon did
 not respond: …`), `done` (`adds docker/<name> and detects host resources`).
 
 Refusals: `a docker host named <name> already exists; …`, `memory: '<x>' must be a number and

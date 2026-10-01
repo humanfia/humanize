@@ -7753,6 +7753,8 @@ class _Had(Protocol):
     @property
     def gpus(self) -> tuple[str, ...]: ...
     @property
+    def usable(self) -> tuple[str, ...] | None: ...
+    @property
     def gpu_memory(self) -> int: ...
     @property
     def runtimes(self) -> tuple[str, ...]: ...
@@ -7939,6 +7941,8 @@ def _answered(one: EnvProvider, said: _Had) -> str:
         else ""
     )
     line = escape(f"{named} answers{lead}; {_has(said)}")
+    if failed := _failed(said):
+        line += "\n" + iffy(escape(failed))
     if said.short:
         line += "\n" + iffy(
             escape(f"lacks configured resources: {'; '.join(said.short)}")
@@ -7960,6 +7964,22 @@ async def _checked(one: EnvProvider) -> _Had | str:
         return await asyncio.to_thread(envs.check, one)
     except (OSError, ValueError, RuntimeError) as why:
         return f"{one.backend}/{one.name} could not be checked: {why}"
+
+
+def _failed(said: _Had) -> str:
+    """How many of the GPUs a daemon lists answer, where one does not, or "".
+
+    A GPU the driver is bound to but that has failed since the daemon's CDI specs were written
+    is listed still, and no container is handed it: said beside what it lists, so that what
+    it lists is not taken for what a run may have.
+    """
+    if said.usable is None or len(said.usable) >= len(said.gpus):
+        return ""
+    gone = [one for one in said.gpus if one not in said.usable]
+    return (
+        f"{len(said.usable)} of {len(said.gpus)} GPUs answer; GPU {', '.join(gone)} "
+        + ("does not" if len(gone) == 1 else "do not")
+    )
 
 
 def _has(said: _Had) -> str:
@@ -8550,12 +8570,17 @@ class Docking(Form["EnvProvider"]):
         for held, value in (
             (_CPUS, f"{said.cpus:g}" if said.cpus else ""),
             (_MEMORY, _sized(said.memory) if said.memory else ""),
-            (_GPUS, ", ".join(said.gpus)),
+            # Those that answer, where it could say: a GPU listed but failed is one no
+            # container is handed, and one saved to be handed out is one a check says lacks.
+            (_GPUS, ", ".join(said.gpus if said.usable is None else said.usable)),
         ):
             if value:
                 self._typed_in[held] = value
                 self._fresh.add(held)
-        self._noted = escape(f"detected {_has(said)}: auto-filled")
+        failed = _failed(said)
+        self._noted = escape(f"detected {_has(said)}: auto-filled") + (
+            f"\n{iffy(escape(failed))}" if failed else ""
+        )
         self.changed()
         self._fill()
         # On the first of them, for the typing over.

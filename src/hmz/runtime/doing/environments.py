@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -40,7 +41,9 @@ class Checked:
       home: Where the login's home is, for an ssh host.
       cpus: How many CPUs it has.
       memory: How many bytes of memory.
-      gpus: Its GPUs, by device id.
+      gpus: Its GPUs, by device id: every one it lists, answering or not.
+      usable: Those of `gpus` that answer, for a docker daemon whose host could be asked
+        which do; None where nobody could ask.
       gpu_memory: The bytes the smallest of those GPUs has, or 0 where nothing said.
       runtimes: The container runtimes a docker daemon offers, its default first.
       version: The docker daemon's version.
@@ -53,6 +56,7 @@ class Checked:
     cpus: float = 0.0
     memory: int = 0
     gpus: tuple[str, ...] = ()
+    usable: tuple[str, ...] | None = None
     gpu_memory: int = 0
     runtimes: tuple[str, ...] = ()
     version: str = ""
@@ -271,9 +275,16 @@ def _ssh(provider: SSHProvider, seconds: float) -> Checked:
 
 
 def _docker(provider: DockerProvider, seconds: float) -> Checked:
-    """A docker daemon, asked `docker info`, and held up against what it was given."""
-    from hmz.coganchor.machines import gpus_listed
+    """A docker daemon, asked `docker info`, and held up against what it was given.
 
+    And, where it lists a GPU, which of them answer: a GPU that has failed since the daemon's
+    CDI specs were written is listed still, and is handed to nobody -- asked of containers of
+    the provider's image, as a run asks before it hands one out.
+    """
+    from hmz.coganchor.machines import gpus_listed, gpus_usable
+    from hmz.runtime.flowing.environing_docker import IMAGE
+
+    began = time.monotonic()
     asking = provider.daemon().docker("info", "--format", "{{json .}}")
     status, out, err = _asked(asking, seconds)
     try:
@@ -289,7 +300,23 @@ def _docker(provider: DockerProvider, seconds: float) -> Checked:
     if default in runtimes:
         runtimes.remove(default)
         runtimes.insert(0, default)
-    gpus = gpus_listed(cast("list[Any]", info.get("DiscoveredDevices") or []))
+    devices = cast("list[Any]", info.get("DiscoveredDevices") or [])
+    gpus = gpus_listed(devices)
+    # Asked afresh, in what is left of the time it was given: somebody checking may have
+    # just seen to a GPU a run was told had failed.
+    left = seconds - (time.monotonic() - began)
+    answered = (
+        gpus_usable(
+            str(provider.daemon()),
+            provider.image or IMAGE,
+            devices,
+            seconds=left,
+            fresh=True,
+        )
+        if gpus and left > 0
+        else None
+    )
+    usable = None if answered is None else _answering(gpus, answered)
     cpus, memory = float(info.get("NCPU") or 0), int(info.get("MemTotal") or 0)
     short: list[str] = []
     if provider.cpus > cpus:
@@ -298,6 +325,13 @@ def _docker(provider: DockerProvider, seconds: float) -> Checked:
         short.append(f"it is to hand out {provider.memory} bytes and has {memory}")
     if gpus and (missing := [one for one in provider.gpus if one not in gpus]):
         short.append(f"it has no GPU {', '.join(missing)}")
+    if usable is not None and (
+        failed := [one for one in provider.gpus if one in gpus and one not in usable]
+    ):
+        short.append(
+            f"GPU {', '.join(failed)} "
+            + ("does not answer" if len(failed) == 1 else "do not answer")
+        )
     if provider.runtime and provider.runtime not in runtimes:
         short.append(f"it has no runtime {provider.runtime}")
     return Checked(
@@ -305,7 +339,21 @@ def _docker(provider: DockerProvider, seconds: float) -> Checked:
         cpus=cpus,
         memory=memory,
         gpus=gpus,
+        usable=usable,
         runtimes=tuple(runtimes),
         version=str(info.get("ServerVersion") or ""),
         short=tuple(short),
     )
+
+
+def _answering(
+    gpus: tuple[str, ...], answered: tuple[tuple[str, str], ...]
+) -> tuple[str, ...]:
+    """Which of the GPUs a daemon lists answer, by the ids it lists them by.
+
+    Args:
+      gpus: What it lists, by CDI name or UUID.
+      answered: What answers, as `(name, uuid)`.
+    """
+    known = {id_ for pair in answered for id_ in pair}
+    return tuple(one for one in gpus if one in known)

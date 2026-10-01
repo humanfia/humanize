@@ -784,9 +784,12 @@ Then `name`, `image` (what a container starts from when the flow names none), `r
 | gpus | device ids: `0, 1` | all it has |
 
 **`detect`** asks the daemon what it has and writes it into those three rows, for you to type
-less over; the first letter typed replaces what it wrote. Where the daemon has less than a
-provider is saved to hand out (more CPUs than it has, a GPU it does not have, a runtime it does
-not offer), the line under the list says so in yellow when it is checked.
+less over; the first letter typed replaces what it wrote. Only the GPUs that answer are written
+in: a GPU that has failed since docker was set up for it is listed by the daemon still, and
+said in yellow (`1 of 2 GPUs answer; GPU 1 does not`). Where the daemon has less than a
+provider is saved to hand out (more CPUs than it has, a GPU it does not have or that does not
+answer, a runtime it does not offer), the line under the list says so in yellow when it is
+checked.
 
 ### On one provider
 
@@ -795,7 +798,7 @@ not offer), the line under the list says so in yellow when it is checked.
 | On the menu | What it does |
 | --- | --- |
 | **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
-| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`. Either is given 30 seconds. |
+| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the provider's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Either is given 30 seconds, in the background: the row says `checking…` until it answers. |
 | **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing. |
 
 ### Choosing one for a role {#choosing-one-for-a-role}

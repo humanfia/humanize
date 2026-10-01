@@ -6,6 +6,7 @@ CLI, and the prices and the bill for a row run once. `ssh_box` and `docker_box` 
 agent's turn over ssh; and another machine with a docker daemon of its own, for the row that
 puts an agent's container on a daemon elsewhere. `daemon` is `tests/machines/fixtures.py`'s:
 docker here, holding the image a container of the rows that start one is started from.
+`home_kept_here` is `tests/matrix/fixtures.py`'s too: humanize's home where the default one is.
 The hooks that label each cell and draw the grid are in `tests/conftest.py`: a hook here would
 fire on the workers that run the cells and never on the process that draws the summary.
 """
@@ -14,6 +15,6 @@ from __future__ import annotations
 
 from tests.flows.sshd import docker_box, ssh_box
 from tests.machines.fixtures import daemon
-from tests.matrix.fixtures import billed, cell
+from tests.matrix.fixtures import billed, cell, home_kept_here
 
-__all__ = ["billed", "cell", "daemon", "docker_box", "ssh_box"]
+__all__ = ["billed", "cell", "daemon", "docker_box", "home_kept_here", "ssh_box"]

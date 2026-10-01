@@ -265,6 +265,7 @@ def test_agy_enforces_none_of_its_fence_itself(
     fence already lets agy read: its own home.
     """
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     fence = _offline(agy_home)
     agent = AntigravityCLIAgent(
         AntigravityCLIAgentConfig(model="m", effort="high", fence=fence)

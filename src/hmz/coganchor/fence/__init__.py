@@ -9,22 +9,27 @@ else that drives a CLI through coganchor may build one by hand.
 
 A CLI that can be told what it may reach is told natively, and the part it was told is taken
 off the fence by its driver (:meth:`hmz.coganchor.agents.AgentBase.natively`). Whatever is
-left is put around it from outside by ``hmz internal fence`` (:mod:`hmz.coganchor.fence.wrap`):
-Landlock for the filesystem and for TCP, a seccomp filter for every other kind of socket, a
-supervisor that lets a socket listen on loopback and nowhere else
-(:mod:`~hmz.coganchor.fence.loopback`), and for the network exactly one gate --
+left is put around it from outside by ``hmz internal fence`` (:mod:`hmz.coganchor.fence.wrap`).
+On Linux that is Landlock for the filesystem and for TCP, a seccomp filter for every other
+kind of socket, and a supervisor that lets a socket listen on loopback and nowhere else
+(:mod:`~hmz.coganchor.fence.loopback`); on a Mac it is a Seatbelt profile for all of it
+(:mod:`hmz.coganchor.darwin.seatbelt`). On both, the network has exactly one gate --
 :class:`Proxy`, which passes a connection only to the hosts the backend cannot run without.
 
-What cannot be fenced is refused rather than run wider. A host with no Landlock -- macOS, a
-kernel older than 5.13 or booted without it, one older than 6.7 where the network is to be cut
--- enforces nothing, and :func:`enforceable` is what says so before a session is opened.
+What cannot be fenced is refused rather than run wider. A host with neither -- a kernel older
+than 5.13 or booted without Landlock, one older than 6.7 where the network is to be cut, a Mac
+already inside a sandbox of its own -- enforces nothing, and :func:`enforceable` is what says
+so before a session is opened.
 
-Two holes are left by the kernel rather than by this module, and are said here so that
-nobody reads the fence as closing them. Landlock does not govern connecting to a Unix socket, so a
-socket some other process listens on -- a container daemon's, a session bus -- is a way to ask
-that process to act for the agent, whatever the fence says. And where the network is cut, TCP
-is cut by port rather than by address: the proxy's port is reachable on any address, which is
-reachable by number only, there being no name resolution left inside the fence to find one.
+Holes are left by the kernel rather than by this module, and are said here so that nobody
+reads the fence as closing them. Neither Landlock nor this profile governs connecting to a Unix
+socket, so a socket some other process listens on -- a container daemon's, a session bus -- is
+a way to ask that process to act for the agent, whatever the fence says; on a Mac, a Mach
+service is the same. Where the network is cut on Linux, TCP is cut by port rather than by
+address: the proxy's port is reachable on any address, which is reachable by number only,
+there being no name resolution left inside the fence to find one. And where it is cut on a
+Mac, Seatbelt cannot tell loopback from every address when a socket is bound: a program
+inside may listen on every address, though it still connects to nothing but the proxy.
 """
 
 from __future__ import annotations
@@ -45,14 +50,19 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ALL",
+    "DARWIN_DEVICES",
+    "DARWIN_SYSTEM",
     "DEVICES",
     "LEVELS",
+    "LINUX_DEVICES",
+    "LINUX_SYSTEM",
     "NONE",
     "READ",
     "SYSTEM",
     "Fence",
     "Proxy",
     "enforceable",
+    "landlocked",
     "permits",
     "wrapper",
 ]
@@ -72,7 +82,7 @@ LEVELS: Final = (NONE, READ, ALL)
 #: they are read-only, and `/proc` shows only what the kernel's own ptrace check lets a
 #: process of this user see. `/opt` is not among them: a CLI installed there is granted its
 #: own install tree, and nothing else under it is anybody's minimum.
-SYSTEM: Final = (
+LINUX_SYSTEM: Final = (
     "/usr",
     "/bin",
     "/sbin",
@@ -101,11 +111,33 @@ SYSTEM: Final = (
     "/sys",
 )
 
+#: The same on a Mac, where the libraries and frameworks are under `/System` as well as
+#: `/usr`, `/bin/sh` reads which shell it is from `/private/var/select`, and `/etc/localtime`
+#: leads into `/private/var/db/timezone`. `/Library` and `/opt` are not among them, for the
+#: reason `/opt` is not on Linux.
+DARWIN_SYSTEM: Final = (
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/System",
+    "/private/var/select",
+    "/private/var/db/timezone",
+    "/etc/ssl",
+    "/etc/resolv.conf",
+    "/etc/hosts",
+    "/etc/services",
+    "/etc/protocols",
+    "/etc/passwd",
+    "/etc/group",
+    "/etc/shells",
+    "/etc/localtime",
+)
+
 #: What any program needs to write to run at all, granted however little is: the devices a
 #: program writes to without meaning to change anything -- the bit bucket, the randomness, the
 #: terminal it was started on -- and `/dev/shm`, which is where POSIX shared memory lives and
 #: where a supervisor keeps the credentials it answers reads with.
-DEVICES: Final = (
+LINUX_DEVICES: Final = (
     "/dev/null",
     "/dev/zero",
     "/dev/full",
@@ -116,6 +148,26 @@ DEVICES: Final = (
     "/dev/ptmx",
     "/dev/shm",  # noqa: S108 -- the device, not a temporary file
 )
+
+#: The same on a Mac, which has no `/dev/shm` and numbers its terminals in `/dev` itself
+#: (:mod:`~hmz.coganchor.darwin.seatbelt` grants those), and where every Node program opens
+#: `/dev/dtracehelper` as it starts.
+DARWIN_DEVICES: Final = (
+    "/dev/null",
+    "/dev/zero",
+    "/dev/random",
+    "/dev/urandom",
+    "/dev/tty",
+    "/dev/ptmx",
+    "/dev/fd",
+    "/dev/dtracehelper",
+)
+
+#: This machine's minimum to read.
+SYSTEM: Final = DARWIN_SYSTEM if sys.platform == "darwin" else LINUX_SYSTEM
+
+#: This machine's minimum to write.
+DEVICES: Final = DARWIN_DEVICES if sys.platform == "darwin" else LINUX_DEVICES
 
 
 def _accelerators() -> tuple[str, ...]:
@@ -432,6 +484,26 @@ class Fence:
 
 def enforceable(*, net: bool) -> bool:
     """Whether this host can put a fence around a process at all.
+
+    Args:
+      net: Whether the fence cuts the network as well as the filesystem.
+
+    Returns:
+      On a Mac, whether Seatbelt can be applied here, which holds the network as well as the
+      filesystem; anywhere else, :func:`landlocked`.
+    """
+    if sys.platform == "darwin":
+        from hmz.coganchor.darwin import seatbelt
+
+        return seatbelt.available()
+    return landlocked(net=net)
+
+
+def landlocked(*, net: bool) -> bool:
+    """Whether this host can put a fence around a process with Landlock.
+
+    What a fence is put up with on Linux, and what a supervised agent is walled in with
+    wherever it runs, being traced on Linux and nowhere else.
 
     Args:
       net: Whether the fence cuts the network as well as the filesystem.

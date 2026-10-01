@@ -39,6 +39,35 @@ def test_local_paths_carve_holes_in_the_layout() -> None:
     assert not router.is_remote_path("/mirror/.agent-state/session.json")
 
 
+def test_a_mirror_inside_a_local_path_is_still_the_targets() -> None:
+    """A container's mirror under humanize's own home, which stays here, is the workdir there.
+
+    The agent starts in the mirror, so a mirror swallowed by the home it is kept in would send
+    its every command to the target's home directory instead of the workdir.
+    """
+    router = Router(
+        layouts=(Layout.create("/home/me/.humanize/envs/mirrors/box/ab12", "/work"),),
+        local_paths=("/home/me/.humanize", "/home/me/.humanize/envs/mirrors/box/ab12"),
+    )
+    assert router.virtual_cwd("/home/me/.humanize/envs/mirrors/box/ab12") == "/work"
+    assert router.to_virtual("/home/me/.humanize/envs/mirrors/box/ab12/a.py") == (
+        "/work/a.py"
+    )
+    assert not router.is_remote_path("/home/me/.humanize/providers/key.json")
+
+
+def test_a_mirror_reached_through_a_symlink_answers_to_both_names() -> None:
+    """The name a mirror was given and the kernel's name for it both reach the target's path."""
+    router = Router(
+        layouts=(Layout.create("/ephemeral/cache/m", "/work"),),
+        aliases=(("/home/me/.cache/m", "/ephemeral/cache/m"),),
+    )
+    assert router.rewrite("cd /home/me/.cache/m/src") == "cd /work/src"
+    assert router.rewrite("cat /ephemeral/cache/m/a.py") == "cat /work/a.py"
+    assert router.canonical("/home/me/.cache/m/a.py") == "/ephemeral/cache/m/a.py"
+    assert router.virtual_cwd("/ephemeral/cache/m") == "/work"
+
+
 def test_nested_layouts_prefer_the_longest_match() -> None:
     router = Router(
         layouts=(

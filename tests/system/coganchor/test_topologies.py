@@ -161,10 +161,13 @@ def test_a_harness_beside_its_work_runs_the_turn_on_that_machine(lab: Lab) -> No
         harness="same", target=f"docker://{box}", workspace=str(lab.workspace)
     )
 
-    status = ran(config, "hostname > where.txt; cat seed.txt > read-back.txt")
+    status = ran(
+        config, "hostname > where.txt; cat seed.txt > read-back.txt; /bin/pwd > pwd.txt"
+    )
 
     assert status == 0
     assert (lab.workspace / "where.txt").read_text().strip() == box
+    assert (lab.workspace / "pwd.txt").read_text().strip() == str(lab.workspace)
     assert (lab.workspace / "read-back.txt").read_text() == "only in the workspace\n"
 
 
@@ -185,11 +188,13 @@ def test_two_machines_that_can_reach_each_other_are_introduced(
         workspace=str(lab.workspace),
     )
 
-    status = ran(config, "hostname > where.txt")
+    status = ran(config, "hostname > where.txt; /bin/pwd > pwd.txt")
 
     assert status == 0
-    # The turn runs where the *work* is, the harness being the thing that supervises it.
+    # The turn runs where the *work* is, the harness being the thing that supervises it --
+    # and in the workdir there, though the harness has its mirror wherever it keeps them.
     assert (lab.workspace / "where.txt").read_text().strip() == work
+    assert (lab.workspace / "pwd.txt").read_text().strip() == str(lab.workspace)
     assert broker.carried == carried, "a session that could be introduced was carried"
 
 
