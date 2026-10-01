@@ -9,7 +9,7 @@ write on and neither waits at.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from textual.widgets import OptionList, Static
@@ -17,8 +17,17 @@ from textual.widgets import OptionList, Static
 from hmz.coganchor.agents import Board, Refused
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
-from hmz.tui.monitoring import EVERY, OUTWORLDER, Entry, Monitoring, Place
-from tests.tui.fixtures import event, link, opened, snapshot, told, until
+from hmz.tui.monitoring import EVERY, OUTWORLDER, Entry, Monitoring, Place, place_key
+from tests.tui.fixtures import (
+    event,
+    link,
+    opened,
+    running,
+    snapshot,
+    started,
+    told,
+    until,
+)
 
 if TYPE_CHECKING:
     from textual.pilot import Pilot
@@ -706,3 +715,161 @@ async def test_the_person_is_a_node_of_their_own() -> None:
         await driver.press("down", "enter")
         await until(lambda: not isinstance(app.screen, Monitoring), driver)
         assert app._attached == f"{OUTWORLDER}human"  # what that outworlder asks
+
+
+#: An environment on another machine, which every session working in it reaches by anchor.
+_DOCKER = {
+    "role": "repo",
+    "kind": "docker",
+    "target": "builders",
+    "workdir": "/work",
+    "anchored": True,
+}
+
+#: The workspace, on this machine.
+_HERE = {"role": "workspace", "kind": "local", "workdir": "/proj", "anchored": False}
+
+
+async def _page(app: Humanize, driver: Pilot[None], where: dict[str, Any]) -> str:
+    """Opens an environment's page over the monitor, and says everything on it."""
+    await _opens(app, driver)
+    app.push_screen(Place(place_key(where), app._places, app._branches))
+    await until(lambda: isinstance(app.screen, Place), driver)
+    await driver.pause()
+    page = app.screen.query_one("#choices", OptionList)
+    return "\n".join(
+        str(page.get_option_at_index(at).prompt) for at in range(page.option_count)
+    )
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.parametrize(
+    ("harness", "went", "where", "says"),
+    [
+        (
+            "adaptive",
+            "env",
+            _DOCKER,
+            "adaptive → env: on this environment's machine, with the CLI installed there",
+        ),
+        (
+            "local",
+            "local",
+            _DOCKER,
+            "local → local: on this machine; what it runs lands here",
+        ),
+        (
+            "env",
+            "env",
+            _DOCKER,
+            "env → env: on this environment's machine, with the CLI installed there",
+        ),
+        (
+            "standalone:ssh@box/~/h",
+            "standalone:ssh://box",
+            _DOCKER,
+            (
+                "standalone:ssh@box/~/h → standalone: on ssh://box, reaching this "
+                "environment through the anchor"
+            ),
+        ),
+        (
+            "standalone:docker@local",
+            "standalone:docker://local",
+            {**_HERE, "anchored": True},
+            (
+                "standalone:docker@local → standalone: on docker://local, reaching this "
+                "environment through the anchor"
+            ),
+        ),
+        (
+            "adaptive",
+            "",
+            _HERE,
+            "adaptive → local: on this machine, in this workdir",
+        ),
+    ],
+)
+async def test_an_environment_s_page_says_where_the_run_put_its_harnesses(
+    harness: str, went: str, where: dict[str, Any], says: str
+) -> None:
+    """As `-H` said and as the session found it, not as the environment's kind hints."""
+    app = Humanize()
+    async with app.run_test(size=(160, 40)) as driver:
+        began = started(1, flow="placed", roles=["builder"], harness=harness)
+        told(app, began, running(began))
+        told(app, opened("builder/1", run=1, env=where, harness=went))
+        told(app, event("builder/1", "begins", run=1))
+        await driver.pause()
+
+        assert says in await _page(app, driver, where)
+
+
+@pytest.mark.timeout(60)
+async def test_sessions_whose_harnesses_went_two_ways_are_said_one_by_one() -> None:
+    """Adaptive may put one role's harness on the machine and another's here."""
+    app = Humanize()
+    async with app.run_test(size=(160, 40)) as driver:
+        began = started(1, flow="placed", roles=["builder", "reviewer"])
+        told(app, began, running(began))
+        told(app, opened("builder/1", run=1, env=_DOCKER, harness="env"))
+        told(app, opened("reviewer/1", run=1, env=_DOCKER, harness="local"))
+        told(app, event("builder/1", "begins", run=1))
+        await driver.pause()
+
+        assert "adaptive → env for builder/1 · local for reviewer/1" in await _page(
+            app, driver, _DOCKER
+        )
+
+
+@pytest.mark.timeout(60)
+async def test_a_frontend_arriving_late_reads_the_run_s_harness_off_its_snapshot() -> (
+    None
+):
+    """Its `started` was dropped from what is kept: the `run` snapshot still says `-H`."""
+    app = Humanize()
+    async with app.run_test(size=(160, 40)) as driver:
+        told(app, running(started(3, flow="placed", roles=["builder"], harness="env")))
+        told(app, opened("builder/1", run=3, env=_DOCKER, harness="env"))
+        told(app, event("builder/1", "begins", run=3))
+        await driver.pause()
+
+        assert app._run is not None
+        assert app._run.harness == "env"
+        assert "env → env: on this" in await _page(app, driver, _DOCKER)
+
+
+@pytest.mark.timeout(60)
+async def test_a_host_that_does_not_say_the_run_s_harness_is_not_guessed_at() -> None:
+    """Where the run does not say what `-H` was, the page says only where each went."""
+    app = Humanize()
+    async with app.run_test(size=(160, 40)) as driver:
+        began = started(1, flow="placed", roles=["builder"], harness=None)
+        told(app, began, running(began))
+        told(app, opened("builder/1", run=1, env=_DOCKER, harness="local"))
+        told(app, event("builder/1", "begins", run=1))
+        await driver.pause()
+
+        said = await _page(app, driver, _DOCKER)
+        assert "local: on this machine; what it runs lands here" in said
+        assert "→" not in said
+
+
+@pytest.mark.timeout(60)
+async def test_the_models_spent_on_keep_their_rows_as_one_overtakes_another() -> None:
+    """In the order each was first spent on, which is an order spending does not change."""
+    app = Humanize()
+    async with app.run_test(size=(160, 40)) as driver:
+        _two(app)
+        told(app, event("builder/1", "begins"))
+        app._monitor.spend("builder", 100, model="small")
+        app._monitor.spend("reviewer", 50, model="big")
+        await driver.pause()
+        await _opens(app, driver)
+        before = _under(app)
+        assert before.index("small") < before.index("big")
+
+        app._monitor.spend("reviewer", 5000, model="big")  # overtaking it
+        await until(lambda: "5.0k" in _under(app), driver)
+        after = _under(app)
+        assert after.index("small") < after.index("big")
