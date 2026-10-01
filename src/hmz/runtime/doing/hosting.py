@@ -964,6 +964,13 @@ class Host:
 
         how, why = "done", ""
         try:
+            # Said where every frontend reads it, as a command line says it on its stderr.
+            if blind := current.run.unreadable():
+                with self._lock:
+                    if not self._closed:
+                        self._record(
+                            {"type": "notice", "run": current.number, "text": blind}
+                        )
             current.run.run()
         except (asyncio.CancelledError, Stopped):
             how = "stopped"
