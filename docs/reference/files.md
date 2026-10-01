@@ -123,7 +123,9 @@ Refreshed when older than 24 h, with a conditional GET (a `304` only touches the
 [`HUMANIZE_PRICES`](/reference/environment#humanize-prices), at most one attempt an hour per
 process, 20 s timeout: by the TUI as it opens, in the background; and by every run as it starts
 (`hmz exec`, the SDK, the TUI's), in the background unless the run has a finite `cost` limit,
-which waits for it before its first turn. Written to `prices.json.<pid>` and renamed.
+which waits for it before its first turn. Written to `.prices.json.<random>.new`, fsynced and
+renamed. Each fetch first deletes any `.prices.json.*.new` or `prices.json.*` (the older
+naming) more than 10 min old, left by a process that exited mid-write.
 
 ### Model catalogues
 

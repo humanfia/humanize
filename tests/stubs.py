@@ -168,3 +168,56 @@ def events(epic: Path) -> list[dict[str, Any]]:
     """
     at = epic / JOURNAL if epic.is_dir() else epic
     return [json.loads(line) for line in at.read_text(encoding="utf-8").splitlines()]
+
+
+def price_list(*models: dict[str, Any]) -> dict[str, Any]:
+    """A price list shaped as OpenLLMPrices writes one, for a fetch pointed at a file to read.
+
+    Args:
+      models: The models it lists, as :func:`priced_model` makes them -- in the newest
+        version, beside an older one that is never read.
+
+    Returns:
+      The whole document, ready to be written where the fetch will read it.
+    """
+    return {
+        "schemaVersion": 4,
+        "currency": "USD",
+        "unit": "per 1M tokens",
+        "versions": [
+            {"date": "2026-09-10", "models": list(models)},
+            {"date": "2019-01-01", "models": []},  # last year's, which is never read
+        ],
+    }
+
+
+def priced_model(
+    ident: str,
+    name: str = "",
+    *,
+    provider: str = "Somebody",
+    **priced: float | tuple[float, ...],
+) -> dict[str, Any]:
+    """One model of a :func:`price_list`, at one price per kind or several tiers of one.
+
+    Args:
+      ident: The id the list gives it.
+      name: What it is called, which is another way of naming the same model.
+      provider: Who sells it.
+      priced: Dollars per million tokens, by the category the list writes
+        (`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`).
+
+    Returns:
+      The model.
+    """
+    items: list[dict[str, Any]] = [
+        {"category": kind, "price": tier, "unit": "1M tokens"}
+        for kind, asked in priced.items()
+        for tier in (asked if isinstance(asked, tuple) else (asked,))
+    ]
+    return {
+        "provider": provider,
+        "id": ident,
+        "name": name or ident,
+        "pricingItems": items,
+    }

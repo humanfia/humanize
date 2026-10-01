@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz import home
+from hmz.coganchor import atomic
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -56,6 +57,10 @@ _WAITING = 20.0
 
 #: How often a run waiting on the fetch looks up to see whether it has been stopped.
 _GLANCE = 0.1
+
+#: How old a half-written copy beside the list must be before it is taken for one a process
+#: died writing rather than one being written now. Writing one takes milliseconds.
+_ABANDONED = 10 * 60.0
 
 #: The most that will be read from the source. It is two and a half megabytes today; this is
 #: the cap that says a redirect onto something else is not a file to parse.
@@ -341,6 +346,7 @@ def _fetch(whence: str) -> bool:
       Whether what is kept is now the source's.
     """
     kept = where()
+    _sweeps(kept)
     held = _held(kept)
     # The etag only where it belongs to the source being asked. Replayed at another, a 304
     # would date the first source's prices forward and go on serving them as this one's.
@@ -508,6 +514,10 @@ def _per_million(items: object) -> dict[str, float]:
 def _keep(kept: pathlib.Path, trimmed: dict[str, Any]) -> bool:
     """Writes what was fetched, whole or not at all.
 
+    Through :func:`hmz.coganchor.atomic.writes`: two humanize processes refresh this on their
+    own clocks, and a reader must never see half a file -- nor a writer find its copy beside
+    it already moved away by the other's.
+
     Args:
       kept: Where it goes.
       trimmed: What to write.
@@ -515,21 +525,33 @@ def _keep(kept: pathlib.Path, trimmed: dict[str, Any]) -> bool:
     Returns:
       Whether it landed.
     """
-    beside = kept.with_name(f"{kept.name}.{os.getpid()}")
     try:
         kept.parent.mkdir(parents=True, exist_ok=True)
-        beside.write_text(json.dumps(trimmed), encoding="utf-8")
-        # Replaced rather than written over: two humanize processes refresh this on their
-        # own clocks, and a reader must never see half a file.
-        beside.replace(kept)
+        atomic.writes(kept, json.dumps(trimmed))
     except OSError:
-        with contextlib.suppress(OSError):
-            beside.unlink()
         return False
     with _lock:
         global _read_from  # noqa: PLW0603 -- one list per process, held beside it
         _read_from = None  # so the next read picks this up rather than what it holds
     return True
+
+
+def _sweeps(kept: pathlib.Path) -> None:
+    """Takes away the copies a process died half way through writing beside the list.
+
+    A fetch runs on a thread nothing waits for, so a process that exits mid-write leaves its
+    copy behind: `.prices.json.<random>.new` as written now, and `prices.json.<pid>` as it
+    was written before. Only ones left long enough that nobody can still be writing them, and
+    only here, on the fetch's own thread -- reading a price stays one file read.
+    """
+    now = time.time()
+    for left in (
+        *kept.parent.glob(f".{kept.name}.*.new"),
+        *kept.parent.glob(f"{kept.name}.*"),
+    ):
+        with contextlib.suppress(OSError):
+            if now - left.stat().st_mtime > _ABANDONED:
+                left.unlink()
 
 
 def _held(kept: pathlib.Path) -> dict[str, Any]:

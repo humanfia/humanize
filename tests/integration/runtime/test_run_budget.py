@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.stubs import price_list, priced_model
+
 #: How long one round of the stand-in CLI takes, and what it says it cost. Slow enough that a
 #: budget in hours can be spelled without the test taking one, and dear enough that a budget
 #: in tokens is reached in a handful of rounds.
@@ -240,27 +242,7 @@ def _source(tmp_path: Path) -> Path:
     """The list a fetch reads from: `m` at a dollar a million in and five out."""
     source = tmp_path / "prices-source.json"
     source.write_text(
-        json.dumps(
-            {
-                "currency": "USD",
-                "unit": "per 1M tokens",
-                "versions": [
-                    {
-                        "date": "2026-09-10",
-                        "models": [
-                            {
-                                "provider": "nobody",
-                                "id": "m",
-                                "pricingItems": [
-                                    {"category": "input_tokens", "price": 1},
-                                    {"category": "output_tokens", "price": 5},
-                                ],
-                            }
-                        ],
-                    }
-                ],
-            }
-        ),
+        json.dumps(price_list(priced_model("m", input_tokens=1, output_tokens=5))),
         encoding="utf-8",
     )
     return source

@@ -289,32 +289,22 @@ def priced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     import json
 
     from hmz.coganchor import prices
+    from tests.stubs import price_list, priced_model
 
     source = tmp_path / "prices-source.json"
     source.write_text(
         json.dumps(
-            {
-                "currency": "USD",
-                "unit": "per 1M tokens",
-                "versions": [
-                    {
-                        "date": "2026-09-10",
-                        "models": [
-                            {
-                                "provider": "Anthropic",
-                                "id": "claude-haiku-4.5",
-                                "name": "Claude Haiku 4.5",
-                                "pricingItems": [
-                                    {"category": "input_tokens", "price": 1},
-                                    {"category": "output_tokens", "price": 5},
-                                    {"category": "cache_read_tokens", "price": 0.1},
-                                    {"category": "cache_write_tokens", "price": 1.25},
-                                ],
-                            }
-                        ],
-                    }
-                ],
-            }
+            price_list(
+                priced_model(
+                    "claude-haiku-4.5",
+                    "Claude Haiku 4.5",
+                    provider="Anthropic",
+                    input_tokens=1,
+                    output_tokens=5,
+                    cache_read_tokens=0.1,
+                    cache_write_tokens=1.25,
+                )
+            )
         ),
         encoding="utf-8",
     )
