@@ -433,9 +433,12 @@ network is answered from the target.
 - A path the mirror is also reached by is rewritten onto the mirror's own path before the call
   runs, for every trapped call that names a path: `/private/tmp/…` for a mirror under `/tmp`
   on a Mac target, any case on a target that ignores case, and `workspace/…` for a `peer://`
-  target ([a harness elsewhere](#where-the-harness-runs)). A program run here (the agent's own,
-  or a `--local-exec`) named that way is run from the mirror; one run on the target is named
-  to it by its own path.
+  target ([a harness elsewhere](#where-the-harness-runs)). A mirror whose path runs through a
+  symlink here (`~/.cache` linked elsewhere, say) is kept at the path the link resolves to,
+  which is where the agent starts and what the kernel reports as its working directory, and
+  the path it was given is one more such name, in calls and in a command's arguments alike.
+  A program run here (the agent's own, or a `--local-exec`) named that way is run from the
+  mirror; one run on the target is named to it by its own path.
 - Only x86-64 and aarch64 Linux are supported. Any other platform fails at start-up with
   `RuntimeError`, naming where the supervisor can run instead.
 
@@ -498,6 +501,10 @@ A path is answered from the target unless it is one of these:
 | `pi` | `~/.pi` |
 | `qwen` | `~/.qwen` |
 | any other program | none beyond the common paths; state inside the workspace must be named with `--local-path` |
+
+A path kept here carves a hole in the mirror only where it lies inside the mirror. A mirror
+kept inside one of them, as a container's is under `~/.humanize/envs/mirrors`, is the target's
+workspace all the same, and what is beside it in that directory stays here.
 
 ### Commands, network and signals
 

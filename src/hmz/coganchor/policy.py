@@ -331,19 +331,25 @@ class Router:
     def layout_for(self, local_path: str) -> Layout | None:
         """Return the layout owning ``local_path``, or ``None`` if it is local."""
         insensitive = self.insensitive
+        for layout in self.layouts:
+            if layout.contains(local_path, insensitive=insensitive):
+                break
+        else:
+            return None
         # A hole is carved by the same rule the layout is matched by, or a state directory
         # inside the workspace could be stepped over by a name that differs from it only in
         # the case the target does not distinguish -- and be mirrored onto the target, which
-        # is the one place the agent's own state must never reach.
+        # is the one place the agent's own state must never reach. Only a hole *in* the
+        # mirror is one: a mirror kept inside a directory that stays here -- a container's,
+        # under humanize's own home -- is the target's workspace all the same, and what is
+        # beside it in that directory stays here because it is outside the mirror.
         if any(
             path_within(local_path, kept, fold_case=insensitive) is not None
+            and path_within(kept, layout.local_root, fold_case=insensitive)
             for kept in self.local_paths
         ):
             return None
-        for layout in self.layouts:
-            if layout.contains(local_path, insensitive=insensitive):
-                return layout
-        return None
+        return layout
 
     def is_remote_path(self, local_path: str) -> bool:
         return self.layout_for(local_path) is not None
@@ -375,13 +381,21 @@ class Router:
         """
         insensitive = self.insensitive
         for layout in self.layouts:
-            for spelling in path_spellings(layout.local_root):
-                text = rewrite_path_prefix(
-                    text,
-                    spelling,
-                    layout.virtual_root,
-                    insensitive=insensitive,
-                )
+            # And every other name the mirror is reached by here, which a CLI told to work at
+            # one of them writes into its commands as readily as the root's own.
+            named = [
+                name
+                for name, root in self.aliases
+                if path_within(root, layout.local_root, fold_case=insensitive) == ""
+            ]
+            for one in (layout.local_root, *named):
+                for spelling in path_spellings(one):
+                    text = rewrite_path_prefix(
+                        text,
+                        spelling,
+                        layout.virtual_root,
+                        insensitive=insensitive,
+                    )
         return text
 
     def runs_locally(self, program: str) -> bool:

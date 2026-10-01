@@ -10,6 +10,7 @@ The other half of this file is `tests/unit/coganchor/test_anchor.py`: the round 
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import subprocess
 import sys
@@ -23,6 +24,8 @@ from tests.coganchor.fixtures import DEFAULT_TIMEOUT, REPO_ROOT
 from tests.supervising import traced
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from tests.coganchor.fixtures import Anchorage
 
 
@@ -83,3 +86,42 @@ def test_connect_refuses_to_run_nothing() -> None:
     """Refused before a mirror is prepared or a target dialled, so nothing is left half done."""
     with pytest.raises(ValueError, match="no agent"):
         connect([])
+
+
+def test_a_command_starts_in_the_workdir_through_a_mirror_reached_by_a_symlink(
+    anchorage: Anchorage, tmp_path: Path
+) -> None:
+    """A mirror named through a symlink, as `~/.cache` is on many machines, is the workdir.
+
+    Where a process is, is read back by the name the kernel has for it, and a mirror matched
+    only by the name it was given sent every command started in it to the target's home.
+    """
+    real = tmp_path / "real"
+    real.mkdir()
+    (tmp_path / "linked").symlink_to(real)
+    linked = dataclasses.replace(anchorage, mirror=tmp_path / "linked" / "mirror")
+
+    # And a command naming the mirror by the name it was given, as a CLI told to work there
+    # writes it: that name is the workdir's too.
+    result = linked.shell(f"/bin/pwd; /bin/sh -c 'cd {linked.mirror} && /bin/pwd'")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [str(anchorage.target)] * 2
+
+
+def test_a_command_starts_in_the_workdir_of_a_mirror_kept_inside_a_local_path(
+    anchorage: Anchorage, tmp_path: Path
+) -> None:
+    """A mirror inside a directory kept on this machine -- humanize's home -- is the workdir.
+
+    A container's mirrors are kept under `~/.humanize`, which never reaches a target, and a
+    hole taken to cover the mirror it holds sent every command to the target's home.
+    """
+    kept = tmp_path / "kept"
+    kept.mkdir()
+    inside = dataclasses.replace(anchorage, mirror=kept / "mirror")
+
+    result = inside.run("bash", "-c", "/bin/pwd", local_paths=(str(kept),))
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == str(anchorage.target)
