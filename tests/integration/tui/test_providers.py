@@ -23,11 +23,13 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import (
+    _ACT_ADD,
+    _ACT_SAVE,
+    _ACT_SEARCH,
+    _ACT_SPEAKS,
     _ADD,
     _DONE,
-    _SAVE,
     _SEARCH,
-    _SPEAKS,
     _TAKES_AWAY,
     Account,
     Accounts,
@@ -109,8 +111,8 @@ async def _adds(app: Humanize, driver: Pilot[None]) -> Signing:
     Returns:
       The form.
     """
-    await until(lambda: _ADD in ids(app) or _ADD in bar(app), driver)
-    await onto(app, driver, _ADD)
+    await until(lambda: _ADD in ids(app) or _ACT_ADD in bar(app), driver)
+    await onto(app, driver, _ACT_ADD if _ACT_ADD in bar(app) else _ADD)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Signing), driver)
     await until(
@@ -1046,7 +1048,7 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
             "=codex/work",
             "=codex/",
         ]
-        assert bar(app) == [_ADD, _SPEAKS, _SEARCH, _SAVE]
+        assert bar(app) == [_ACT_ADD, _ACT_SPEAKS, _ACT_SEARCH, _ACT_SAVE]
         mine = str(listing.get_option("=codex/").prompt)
         assert "as local" in mine
         assert "signed in on this machine" in mine
@@ -1098,7 +1100,7 @@ async def test_a_cli_of_your_own_is_written_down_from_a_row_of_its_own() -> None
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
 
-        await onto(app, driver, _SPEAKS)
+        await onto(app, driver, _ACT_SPEAKS)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Speaks), driver)
 

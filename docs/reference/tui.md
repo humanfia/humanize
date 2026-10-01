@@ -114,6 +114,7 @@ conversation), `outworlder` and `monitor`.
 | `● <notice>` | yellow bullet | always |
 | `● <question>` | yellow bullet | always |
 | `hmz: <why>` (a failed turn) | red | always |
+| `hmz: nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` | yellow | always, before the first turn of a run whose `cost` limit no agent's price can enforce |
 | `✻ Worked for <s>s · <agent>` | dim | always |
 | `❯ <task> · by <name>` | | a run another frontend started |
 | `<role>'s harness runs here (local)` / `<role>'s harness runs on its environment's machine (env)` / `<role>'s harness runs on <target> (standalone)` | dim | once per role per run, where the session reports a harness placement (`opened.harness` not empty) |
@@ -496,11 +497,10 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | offers | <kbd>↑</kbd> <kbd>↓</kbd> | offers open | Moves the highlight. |
 | offers | <kbd>tab</kbd> | offers open | Takes the highlight. |
 | offers | <kbd>esc</kbd> | offers open | Hides the offers until the text changes. |
-| every menu | <kbd>↑</kbd> <kbd>↓</kbd> | | Previous / next row, wrapping, skipping headings and spacers. Ignored while a row is being changed on the agent, params and budget sheets. |
-| every menu | <kbd>←</kbd> <kbd>→</kbd> | a row is being changed | Changes it. |
-| every menu | <kbd>←</kbd> <kbd>→</kbd> | a sheet of several pages; `/flow`'s list | Previous / next page or place, wrapping. |
-| every menu | <kbd>enter</kbd> · click | | On `search…`: starts a search. On a `↔` row: begins changing it; again: keeps it. Otherwise: selects the row. |
-| every menu | <kbd>esc</kbd> | | Puts back the row being changed; else ends a running search; else leaves (asking [Save?](#save-box) if the menu holds changes). |
+| every menu | <kbd>↑</kbd> <kbd>↓</kbd> | | Previous / next row, wrapping, skipping headings and spacers. Ignored while a row is being written on the params and budget sheets. |
+| every menu | <kbd>←</kbd> <kbd>→</kbd> | `/flow`'s list | Previous / next place, wrapping. Nowhere else on a sheet: no value is stepped with them. |
+| every menu | <kbd>enter</kbd> · click | | On `search…`: starts a search. On a `▾` row: drops its values (see dropdown). On a written row: begins writing it; again: keeps it. Otherwise: selects the row. |
+| every menu | <kbd>esc</kbd> | | Puts back the row being written; else ends a running search; else leaves (asking [Save?](#save-box) if the menu holds changes). |
 | every menu | typing · <kbd>backspace</kbd> | a search is running | Narrows it; the cursor goes to the first match. |
 | forms | typing · <kbd>backspace</kbd> · paste | on a written row | Begins writing it; the first character replaces a pre-filled value. Paste keeps the first line only (except `variables`). |
 | forms | <kbd>enter</kbd> | writing a row | Keeps it and moves to the next row still unanswered, else to `done`. |
@@ -581,11 +581,11 @@ own.
 
 | Element | Rule |
 | --- | --- |
-| Marks | `▸` opens something; `↔` changed in place; `▾` drops its values; `✔` (green) the choice in force; `❯` the cursor. |
+| Marks | `▸` opens something; `▾` drops its values; `✔` (green) the choice in force; `❯` the cursor. |
 | Set-apart rows | `search…`, `add …`, `save`, `set`, `done`, `check again`, `copy … here`, `manage flowverses`, …: unnumbered, each with a blank line above. Below the list, except on host pickers, where they sit above. |
 | Height | At most 14 rows, at least 3. |
 | Search | Case-insensitive subsequence of one field. `/flow`: flow name. Pick lists: label and about. `/epics`: flow, task, run name. Started from `search…` only; `esc cancel search` ends it. |
-| Hints | `enter <verb>` for the row under the cursor (`open`, `choose`, `change`, `save`, `set`, `add`, `search`, `refresh`, `copy`, `done`, `type a host`), `←/→ page` or `←/→ place` where applicable, `esc <verb>`. On a form's written row `type to edit` replaces the enter hint. While changing a row: `[shift+enter/ctrl+j new line · ][←/→ change · ]enter keep · esc undo`. |
+| Hints | `enter <verb>` for the row under the cursor (`open`, `choose` on a `▾` row, `change` on a written row of the params or budget sheet, `save`, `set`, `add`, `search`, `refresh`, `copy`, `done`, `type a host`), `←/→ place` on `/flow`'s list, `esc <verb>`. On a form's written row `type to edit` replaces the enter hint. While writing a row: `[shift+enter/ctrl+j new line · ]enter keep · esc undo`. |
 
 ### Held and immediate changes {#held-changes}
 
@@ -676,7 +676,7 @@ otherwise `not set`.
 ❯ 1. cli         claude ▸                          coding agent CLI to use
   2. account     as local ▸                        account to run as
   3. model       claude-opus-5 ▸                   model to use
-  4. effort      high ↔                            reasoning effort
+  4. effort      high ▾                            reasoning effort
 
      save                      this agent
 
@@ -688,8 +688,8 @@ otherwise `not set`.
 | `cli` | CLI or `—` | ▸ | [CLI list](#which-cli-and-which-account). Changing it clears account, model, effort and swarm. |
 | `account` | name or `as local` | ▸ | [Account list](#account-list). Keeps the model. Needs a CLI: `choose a coding agent first; accounts belong to the CLI`. |
 | `model` | model or `—` | ▸ | [Model list](#what-each-agent-runs). Needs a CLI: `choose a coding agent first; models belong to the CLI`. A new model keeps the effort where it takes it, else the hardest, else `—`. |
-| `effort` | effort or `—` | ↔ | The model's ladder; `→` harder, `←` easier, wrapping. |
-| `swarm` | `on`/`off` | ↔ | Only for a model that swarms (Kimi Code): `run turns as a swarm`. |
+| `effort` | effort or `—` | ▾ | The model's ladder, hardest first. Needs a model that names its efforts: `choose a model first; efforts belong to the model`. |
+| `swarm` | `on`/`off` | ▾ | Only for a model that swarms (Kimi Code): `run turns as a swarm` / `run turns as one agent`. |
 | `save` | `this agent` | set apart | Returns the agent into the flow's draft. |
 
 Choosing an account never asked for its models asks it: `checking models for <cli> as <account>…`, then the list or `could not get models for <cli> as <account>[: <why>]` (red).
@@ -742,7 +742,7 @@ older than 7 days; when an account never asked is chosen; on `check again`.
 
 | Row | Kind | About / values |
 | --- | --- | --- |
-| `backend` | ↔ `local` `ssh` `docker` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon`. Starts on the first of `ssh`, `docker` with a saved provider, else `local`. Changing it clears host and workdir. |
+| `backend` | ▾ `local` `ssh` `docker` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon`, beside each on the list too. Starts on the first of `ssh`, `docker` with a saved provider, else `local`. Changing it clears host and workdir. |
 | `host` (ssh) · `daemon` (docker) | ▸ | Opens the [host picker](#host-picker). Shows the saved provider's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
 | `workdir` | written | `absolute path on this machine` (local); `leave blank to use saved default: <dir>` (a provider saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the provider's workdir; while unchanged, the spec omits it. |
 | `as -e` | written | `full -e spec: typing one sets the rows above` |
@@ -774,20 +774,20 @@ spaces or slashes`.
 | --- | --- |
 | Title | `Set up <flow>` |
 | About | `Configure how this flow runs. Options and validation are defined by the flow itself.` |
-| Rows | `<n>. <field, padded to 34><value>[ ↔]  <field description>`; a heading per `json_schema_extra={"section": …}`. |
+| Rows | `<n>. <field, padded to 34><value>[ ▾]  <field description>`; a heading per `json_schema_extra={"section": …}`. |
 | Set apart | `set   all of the above` |
 
 | Field type | Editing |
 | --- | --- |
-| `bool` | `on`/`off`; `←` `→` toggle. |
-| `Literal[…]` | `←` `→` cycle in declared order, wrapping. |
-| `int`, `float` | Typed; `←` `→` ±1. |
+| `bool` | ▾ `on`/`off`, opening on the value not in force. |
+| `Literal[…]` | ▾ in declared order. |
+| `int`, `float` | Typed. |
 | `str` | Typed. |
 | other (list, dict, model, `Enum`, `Optional` with `None`) | Shown as Python `str()`; edited as text; not accepted by `set`. |
 
 <kbd>enter</kbd> on a typed row begins writing it with its whole value selected, drawn
 reversed: the first character typed replaces the value and <kbd>backspace</kbd> clears it.
-After that, typing goes after what is there. `←` `→` on a number step it and end the selection.
+After that, typing goes after what is there; `←` `→` do nothing.
 
 `set` validates with the flow's model; a refusal shows the first error as `<field>: <message>`.
 Equivalent on the command line: [`-p`](/reference/cli#writing-params).
@@ -802,9 +802,9 @@ Equivalent on the command line: [`-p`](/reference/cli#writing-params).
 | Row | Kind | Default | About |
 | --- | --- | --- | --- |
 | `duration` | written | `""` | `maximum run duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-b duration`](/reference/cli#writing-a-budget); reopens in days, hours, minutes and seconds, e.g. `6h`, `12d`, `1m30s`) |
-| `cost` | float ↔ | `0.0` | `maximum cost in US dollars, 0 for no limit` |
-| `output_tokens` | int ↔ | `0` | `maximum output tokens, 0 for no limit` |
-| `graceful` | bool ↔ | `on` | `finish the current turn when a limit is reached` |
+| `cost` | written | `0.0` | `maximum cost in US dollars, 0 for no limit` |
+| `output_tokens` | written | `0` | `maximum output tokens, 0 for no limit` |
+| `graceful` | ▾ `on`/`off` | `on` | `finish the current turn when a limit is reached` |
 
 Typed rows are written as on the [params sheet](#setting-a-flow-up): the first character
 typed replaces the value.
@@ -831,7 +831,7 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 
 | Row | Kind | Values / about |
 | --- | --- | --- |
-| `harness` | ↔ | `adaptive` (`on the env's machine where its CLI is installed, else here`), `local` (`here, reaching the env through the anchor`), `env` (`on the env's machine; refused where its CLI is missing`), `standalone` (`on a machine of its own, reaching the env through the anchor`) |
+| `harness` | ▾ | `adaptive` (`on the env's machine where its CLI is installed, else here`), `local` (`here, reaching the env through the anchor`), `env` (`on the env's machine; refused where its CLI is missing`), `standalone` (`on a machine of its own, reaching the env through the anchor`) |
 | `machine` | ▸, standalone only | `choose the machine it runs on`; opens the [environment form](#where-each-agent-works) as `Machine for the standalone harness`: backends `ssh` and `docker` only, its last row `as -H` (`what follows standalone: in -H; typing one sets the rows above`), read as `-H` reads what follows `standalone:`. A workdir left blank is filled in as the command line fills it (`leave blank for the login's home` over ssh, `leave blank for a directory humanize keeps` on `docker@local`); a refusal is the [`-H` error](/reference/cli#choosing-where-the-harness-runs). |
 | `done` | | `runs them <spec> when the flow is saved` |
 
@@ -946,7 +946,7 @@ is held. Coming back out of a page puts the cursor on its card.
 | Search | `/` or **Search…**: a box above the list, placeholder `type to filter`, filters as typed (case-insensitive subsequence). Letters typed on the list do not search. Cleared on leaving the page. |
 | Message | One line under the list; kept, with the cursor row, while another page is read. |
 | Focus on open | The list, or the first enabled button where the list has nothing selectable. |
-| Hints | List: `enter <change\|choose\|read\|open\|edit>   [/ search   ][tab actions   ]esc back`. Button: `enter <add\|search\|save\|import>   ←/→ move   tab list   esc back`. Search box: `enter to list   esc clear`. |
+| Hints | List: `enter <choose\|read\|open\|edit>   [/ search   ][tab actions   ]esc back`. Button: `enter <add\|search\|save\|import>   ←/→ move   tab list   esc back`. Search box: `enter to list   esc clear`. |
 
 | Page | Buttons | Search matches |
 | --- | --- | --- |
@@ -956,9 +956,10 @@ is held. Coming back out of a page puts the cursor on its card.
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
 | Flowverses | Add a flowverse · Search… | name, URL |
 
-**Dropdowns.** A `▾` value opens a framed list titled with the row's name, under the value
-(above it where there is no room), at most 12 visible values: `<value> ✔  <description>` with
-`✔` on the value in force. On/off lists open on the value not in force.
+**Dropdowns.** A `▾` value -- here and on every other menu -- opens a framed list titled with
+the row's name, under the value (above it where there is no room), at most 12 visible values:
+`<value> ✔  <description>` with `✔` on the value in force. On/off lists open on the value not
+in force.
 
 ### When saved changes take effect {#settings-effect}
 

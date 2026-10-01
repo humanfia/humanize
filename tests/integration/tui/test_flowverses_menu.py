@@ -25,7 +25,7 @@ from hmz.runtime.flowing import LOCAL, OFFICIAL, USER, flowverses
 from hmz.runtime.flowing import verses as store
 from hmz.tui import Humanize
 from hmz.tui.pick import (
-    _ADD,
+    _ACT_ADD,
     _AGAIN,
     _DONE,
     _TAKES_AWAY,
@@ -107,7 +107,7 @@ async def _fetches(app: Humanize, driver: Pilot[None], named: str) -> None:
 
 async def _adding(app: Humanize, driver: Pilot[None]) -> Fetches:
     """Opens the form a flowverse is added from, off the row below the list."""
-    await onto(app, driver, _ADD)
+    await onto(app, driver, _ACT_ADD)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Fetches), driver)
     sheet = app.screen
@@ -139,7 +139,7 @@ async def test_every_place_flows_come_from_is_listed(theirs: Path) -> None:
         # Adding one above them, as what is done about a list is on every page of
         # `/settings`, and no row to save from: nothing on this page is held.
         assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER]
-        assert _ADD in bar(app)
+        assert _ACT_ADD in bar(app)
         drawn = str(
             sheet.query_one("#choices", OptionList).get_option(f"={LOCAL}").prompt
         )
@@ -438,7 +438,7 @@ async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER]
-        assert _ADD in bar(app)
+        assert _ACT_ADD in bar(app)
 
         places = app.screen
         await onto(app, driver, "theirs")
