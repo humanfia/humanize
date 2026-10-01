@@ -238,6 +238,10 @@ class BashEnvMixin(ShellEnvMixin, Protocol):
     same timeout, same answer, same exceptions as a program. A string `exec` on an
     environment declared without this is a type error, and raises
     :class:`~hmz.flows.errors.CapabilityNotGranted` at run time.
+
+    The machine needs `bash` on its PATH: a flow declaring this for an environment on one
+    without is refused, with :class:`~hmz.flows.errors.CapabilityMissing`, before anything
+    runs.
     """
 
     @overload
@@ -289,7 +293,12 @@ class FilesEnvMixin(Protocol):
 
 
 class GitWorktreeEnvMixin(Protocol):
-    """Lets a flow check out more worktrees of the git repository the workdir is in."""
+    """Lets a flow check out more worktrees of the git repository the workdir is in.
+
+    The machine needs `git` on its PATH: a flow declaring this for an environment on one
+    without is refused, with :class:`~hmz.flows.errors.CapabilityMissing`, before anything
+    runs.
+    """
 
     async def derive_worktree(
         self,
@@ -417,7 +426,13 @@ class GitEnvMixin(RewindableEnvMixin, Protocol):
 
 
 class TemporaryClonedDirEnvMixin(Protocol):
-    """Lets a flow work in a throwaway copy of the workdir."""
+    """Lets a flow work in a throwaway copy of the workdir.
+
+    Served on every machine, with nothing but `sh` and `cp`. The one copy that needs `git`
+    as well is of a workdir that is a linked git worktree, which is made a repository of its
+    own: on a machine without git that copy fails, with
+    :class:`~hmz.flows.errors.EnvError`, rather than the flow being refused for it.
+    """
 
     async def derive_temp_clone(self, id: str) -> Self:  # noqa: A002 -- the spec's name
         """An environment at a temporary copy of the workdir.

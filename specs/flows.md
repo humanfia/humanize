@@ -68,6 +68,7 @@ class ShellEnvMixin:
     async def exec(self, argv: Sequence[str], *, timeout: float = 0) -> tuple[int, str, str]: ...
 
 class BashEnvMixin(ShellEnvMixin):
+    # Implemented with bash, which the target machine must have on its PATH: a flow declaring it on a machine without is refused before it runs, with `CapabilityMissing`.
     @overload
     async def exec(self, script: str, *, timeout: float = 0) -> tuple[int, str, str]: ...
 
@@ -85,6 +86,7 @@ class ImageEnvMixin:
     # `python:3.12-slim`. Says nothing of an env that is not a container.
 
 class GitWorktreeEnvMixin:
+    # Implemented with git, which the target machine must have on its PATH: a flow declaring it on a machine without is refused before it runs, with `CapabilityMissing`.
     async def derive_worktree(
         self,
         *,

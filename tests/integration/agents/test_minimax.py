@@ -39,6 +39,8 @@ from tests.agents import standins
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from hmz.coganchor.fence import Fence
+
 #: The model every turn here is asked for, as MiniMax Code spells one it was given.
 _MODEL = "custom_provider:gateway/minimax-m3"
 
@@ -418,6 +420,55 @@ def test_a_fenced_turn_takes_the_lock_beside_its_home_where_its_sessions_are_kep
     assert fenced[lock].endswith("/mcode/minimax.lock")
     assert lock not in unfenced
     assert f"{home}/v2/sqlite" in unfenced
+
+
+def _fence(at: Path) -> Fence:
+    """The recipe every CLI is put to, less the network cut `mcode` refuses."""
+    from hmz.coganchor.fence import Fence
+
+    return Fence.of(
+        local="all", user="read", system="none", online=True, workdir=at, home=at
+    )
+
+
+def test_a_fenced_turn_keeping_no_session_still_takes_the_lock_where_they_would_be(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`HUMANIZE_SESSIONS=off` keeps no session, and the lock is answered all the same."""
+    from hmz.coganchor.providers import redirect
+
+    monkeypatch.setattr(redirect, "supervises", lambda: True)
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
+    home = tmp_path / "minimax"
+    monkeypatch.setenv("MINIMAX_DATA_DIR", str(home))
+    agent = MiniMaxCodeAgent(replace(_CONFIG, fence=_fence(tmp_path)))
+    other = MiniMaxCodeAgent(replace(_CONFIG, fence=_fence(tmp_path)))
+
+    argv = agent.spawned(["mcode", "exec"])
+
+    lock = f"{home}.lock"
+    instead = f"{tmp_path}/humanize/sessions/mcode/minimax.lock"
+    assert dict(agent._keeping_swaps()) == {lock: instead}
+    # One lock for every agent of the run, since they share the one home it guards.
+    assert dict(other._keeping_swaps()) == {lock: instead}
+    # Made before the turn is spawned, which is what lets the lock be made in it.
+    assert os.path.isdir(os.path.dirname(instead))  # noqa: PTH112, PTH120
+    assert f"--keep={lock}={instead}" in argv
+    assert argv[-1] == "exec"
+    assert MiniMaxCodeAgent(_CONFIG)._keeping_swaps() == ()
+
+
+def test_a_machine_that_cannot_supervise_leaves_the_lock_to_the_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing to answer the path with, so it is not asked for: the turn is spawned bare."""
+    from hmz.coganchor.providers import redirect
+
+    monkeypatch.setattr(redirect, "supervises", lambda: False)
+    agent = MiniMaxCodeAgent(replace(_CONFIG, fence=_fence(tmp_path)))
+
+    assert agent._keeping_swaps() == ()
+    assert "cred" not in agent.spawned(["mcode", "exec"])
 
 
 @pytest.fixture
