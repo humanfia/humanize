@@ -23,6 +23,7 @@ is not walked again to be told what it already said.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
 import os
@@ -30,6 +31,7 @@ import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -41,6 +43,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from hmz import coganchor
+from hmz.coganchor import atomic
 from hmz.coganchor.proto import Channel
 
 if TYPE_CHECKING:
@@ -104,26 +107,97 @@ PYTHON_CANDIDATES = (
 #: The oldest Python the bundle runs on, which is this project's own floor.
 MINIMUM_PYTHON = (3, 12)
 
-#: Installing that copy, for a target reached by piping it there. Written under a name of its
-#: own and moved into place, so a session finds the whole archive or none of it, and a copy
-#: already there is left where it is: it is named by its digest, so it is the same archive, and
-#: rewriting it would be rewriting a file a live session may still be importing from.
+#: How many hex digits of an archive's SHA-256 name it, here and on every target.
+_DIGEST = 16
+
+#: How long an archive nothing has asked for is kept, here and on a target, before the next
+#: one built or installed beside it sweeps it away. By age rather than by count, because the
+#: only archive it is unsafe to remove is one a run is still using, and every run touches the
+#: one it uses each time it asks for it: an archive left alone this long belongs to a checkout
+#: or a version nobody is running.
+_KEPT_FOR = 14 * 24 * 3600
+
+#: Installing that copy, for a target reached by piping it there, in the target's own Python
+#: because that is the one thing it is certain to have that can take a digest. What arrived is
+#: checked against the digest it was sent as, and a copy already there against the same digest
+#: before it is believed: a name is only a promise, and a copy a run cut short or a humanize of
+#: another checkout left under it would otherwise be the code every later session on that
+#: machine runs. A copy that answers is left where it is, touched so the sweep below counts it
+#: as used -- rewriting it would be rewriting a file a live session may still be importing
+#: from; one that does not is replaced.
 #:
-#: That name of its own carries the writing shell's pid, because two sessions bootstrapping one
-#: machine at the same moment is the ordinary case rather than the unlucky one -- a fleet coming
-#: up does it by the hundred. Sharing a temporary name, both would write it and the second `mv`
-#: would find nothing there to move; each having its own, both write, both rename, and the
-#: loser's rename replaces a file with the identical bytes while anything already reading the
-#: old one goes on reading it.
+#: Written under a name of its own and moved into place, so a session finds the whole archive
+#: or none of it. That name carries the writer's pid, because two sessions bootstrapping one
+#: machine at the same moment is the ordinary case rather than the unlucky one -- a fleet
+#: coming up does it by the hundred.
 #:
-#: Quoted at every mention, because the path has a `$HOME` in it and that is the far side's to
-#: expand: a home directory with a space in its name would otherwise arrive as two words and
-#: the archive would be written somewhere nothing looks for it.
-_INSTALL = (
-    'mkdir -p "$(dirname -- "{file}")" || exit 1; '
-    'if [ ! -s "{file}" ]; then cat > "{file}.$$" && mv -f "{file}.$$" "{file}"; '
-    "else cat > /dev/null; fi"
-)
+#: The cache's own path is the far side's shell's to expand and make, which is what
+#: :func:`_installing` has it do, since it has a `$HOME` in it that only that machine can say.
+#: Then every other archive and half-written copy nobody has touched in `_KEPT_FOR` seconds
+#: goes.
+_INSTALL_SOURCE = f"""\
+import hashlib, os, sys, time
+cache = os.environ["HUMANIZE_BUNDLES"]
+name, want, kept = sys.argv[1], sys.argv[2], float(sys.argv[3])
+path = os.path.join(cache, name)
+came = sys.stdin.buffer.read()
+if hashlib.sha256(came).hexdigest()[:{_DIGEST}] != want:
+    sys.exit(f"humanize: {{len(came)}} bytes arrived that are not {{name}}")
+try:
+    with open(path, "rb") as held:
+        there = hashlib.file_digest(held, "sha256").hexdigest()[:{_DIGEST}]
+except OSError:
+    there = ""
+if there == want:
+    try:
+        os.utime(path)
+    except FileNotFoundError:
+        there = ""
+    except OSError:
+        pass
+if there != want:
+    staged = f"{{path}}.{{os.getpid()}}"
+    try:
+        with open(staged, "wb") as writing:
+            writing.write(came)
+            writing.flush()
+            os.fsync(writing.fileno())
+        os.replace(staged, path)
+    except BaseException:
+        if os.path.exists(staged):
+            os.unlink(staged)
+        raise
+now = time.time()
+for one in os.scandir(cache):
+    if one.name.startswith("humanize-") and ".pyz" in one.name and one.name != name:
+        try:
+            if now - one.stat(follow_symlinks=False).st_mtime > kept:
+                os.unlink(one.path)
+        except OSError:
+            pass
+"""
+
+#: And the same as one line, which is what crosses: a word with newlines in it is one that
+#: every log of a command line, and every stand-in for `ssh`, reads as several.
+_INSTALLING = f"exec({_INSTALL_SOURCE!r})"
+
+
+def _installing(cache: str, name: str, digest: str) -> list[str]:
+    """The command that installs an archive arriving on its input, on the far side.
+
+    Args:
+      cache: The directory it goes in, as that machine's own shell spells it.
+      name: What it is called there.
+      digest: What its SHA-256 has to start with, there and on its way.
+
+    Returns:
+      The argv to run over there.
+    """
+    return python_command(
+        ["-c", _INSTALLING, name, digest, str(_KEPT_FOR)],
+        setting=(("HUMANIZE_BUNDLES", cache),),
+    )
+
 
 #: What every `ssh` this reaches for carries. `-T` because the far side is a pipe rather than a
 #: terminal, and the keepalive so that a session held open across a long turn is not dropped by
@@ -186,6 +260,11 @@ def python_command(
         version=".".join(str(part) for part in MINIMUM_PYTHON),
         run=f'exec "$py" "{bundle}" "$@"' if bundle else 'exec "$py" "$@"',
     )
+    if bundle:
+        # Touched by every line that runs it, so the sweep an install of another version makes
+        # on that machine never counts an archive a run of this one is still starting from as
+        # one nobody uses -- a process pushes it once, and may go on running it for weeks.
+        script = f'touch -c "{bundle}" 2>/dev/null; ' + script
     # In front of the search rather than inside it, so a variable is set whichever
     # interpreter answers -- and `mkdir` with it, since a directory named by one of these is
     # one the far side has to have and nothing over there is going to make it first.
@@ -703,10 +782,16 @@ class Road:
           The archive's path over there, as that machine's shell reads it.
 
         Raises:
-          ConnectionError: If it cannot be written.
+          ConnectionError: If it cannot be written, or what arrived is not what was sent.
         """
-        archive, digest = bundled()
-        where = f"{self.cache}/humanize-{digest}.pyz"
+        try:
+            archive, digest = bundled()
+        except OSError as failed:
+            raise ConnectionError(
+                f"could not install humanize on {self.target.describe()}: {failed}"
+            ) from failed
+        name = f"humanize-{digest}.pyz"
+        where = f"{self.cache}/{name}"
         # One push per machine per bundle for the life of this process. The archive is named
         # by what is in it, so a second push would write the same bytes over the same path --
         # a round trip, and a file a live session may be importing from, for no news. Asked
@@ -716,9 +801,13 @@ class Road:
         with _PUSHED_LOCK:
             if already in _PUSHED:
                 return where
-        result = self.run(
-            ["/bin/sh", "-c", _INSTALL.format(file=where)], archive.read_bytes()
-        )
+        try:
+            carried = archive.read_bytes()
+        except FileNotFoundError:
+            # Swept between being asked for and being read, which only an archive nothing had
+            # used for weeks can be: built again, under the same name.
+            carried = _rebundled().read_bytes()
+        result = self.run(_installing(self.cache, name, digest), carried)
         if result.returncode != 0:
             raise ConnectionError(
                 f"could not install humanize on {self.target.describe()}: "
@@ -786,28 +875,165 @@ def _myself() -> list[str]:
     return [sys.executable, str(archive)] if archive else [sys.executable, "-m", "hmz"]
 
 
-#: The archive this process last built, as `(stamp, path, digest)`. The digest is what a
-#: target caches the archive under, and reading a megabyte off disk to work it out again is
-#: what asking for it a second time would otherwise cost.
-_bundle_held: tuple[str, Path, str] | None = None
+#: The archive this process last used, as `(stamp, path, digest, touched)`. The digest is
+#: what a target caches the archive under, and reading a megabyte off disk to work it out again
+#: is what asking for it a second time would otherwise cost. `touched` is when it was last
+#: marked as used, on the monotonic clock.
+_bundle_held: tuple[str, Path, str, float] | None = None
 _BUNDLING = threading.Lock()
+
+#: How often the archive held is marked as used. Far inside :data:`_KEPT_FOR`, so that no
+#: sweep ever finds it old while a run holds it, and far outside the time between two turns,
+#: so that marking it is not a write to the disk for every one of them.
+_RETOUCH = 3600.0
 
 
 def bundled() -> tuple[Path, str]:
     """The archive for the current source tree, and the name a target caches it under.
 
+    The archive held is touched every so often while it is asked for, which is what keeps
+    another run's sweep from taking it away while this one is still shipping it -- and what
+    finds that it has gone anyway, after a run idle for longer than the sweep waits, so that
+    it is built again rather than read from a path that is no longer there.
+
     Returns:
       Where it is, and the digest of what is in it.
     """
     global _bundle_held  # noqa: PLW0603 -- one archive per process, per source tree
-    stamp = _lately(Path(coganchor.__file__).parent)
+    source = Path(coganchor.__file__).parent
+    stamp = _lately(source)
     with _BUNDLING:
-        if _bundle_held is not None and _bundle_held[0] == stamp:
-            return _bundle_held[1], _bundle_held[2]
-        archive = build_bundle()
-        digest = hashlib.sha256(archive.read_bytes()).hexdigest()[:16]
-        _bundle_held = (stamp, archive, digest)
+        now = time.monotonic()
+        held = _bundle_held
+        if held is not None and held[0] == stamp:
+            if now - held[3] < _RETOUCH:
+                return held[1], held[2]
+            if _touched(held[1]):
+                _bundle_held = (*held[:3], now)
+                return held[1], held[2]
+        archive, digest = _built(source, stamp)
+        _bundle_held = (stamp, archive, digest, now)
         return archive, digest
+
+
+def _rebundled() -> Path:
+    """The archive again, for one that has gone from under this process since it was held.
+
+    Returns:
+      Where it is now.
+    """
+    global _bundle_held  # noqa: PLW0603 -- one archive per process, per source tree
+    with _BUNDLING:
+        _bundle_held = None
+    return bundled()[0]
+
+
+def _bundles() -> Path:
+    """This user's directory of archives, made private where it is not there yet.
+
+    One per user rather than one shared, and the archives in it named by what is in them
+    rather than by whose they are: two checkouts, two installed versions or two users on one
+    machine each find their own archive there and never one another's.
+
+    Returns:
+      The directory.
+
+    Raises:
+      PermissionError: If what is there under its name is not a directory of this user's
+        that nobody else can write. In a temporary directory everybody shares, that is
+        somebody else's way of handing this user an archive to ship as their own.
+    """
+    home = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}"
+    with contextlib.suppress(FileExistsError):
+        home.mkdir(mode=0o700)
+    found = home.lstat()
+    if (
+        not stat.S_ISDIR(found.st_mode)
+        or found.st_uid != os.getuid()
+        or found.st_mode & 0o022
+    ):
+        raise PermissionError(
+            f"{home} is not a directory only this user can write; remove it"
+        )
+    return home
+
+
+def _built(source: Path, stamp: str) -> tuple[Path, str]:
+    """The archive for the tree a stamp was taken of, built unless it already has been.
+
+    What a stamp built is written down under the stamp's own name, so that finding the
+    archive again is one small read rather than a build. The archive itself is written under a
+    name of its own, named by its digest once that is known, and moved into place: whoever
+    reads `humanize-<digest>.pyz` reads exactly the bytes that digest was taken of, which is
+    the whole of what a target caching it by that name relies on.
+
+    Args:
+      source: The package the archive is made of.
+      stamp: What :func:`_stamped` said of it.
+
+    Returns:
+      Where the archive is, and its digest.
+    """
+    home = _bundles()
+    index = home / f"{stamp}.digest"
+    digest = _read(index)
+    if digest:
+        archive = home / f"humanize-{digest}.pyz"
+        if _touched(archive):
+            _touched(index)
+            return archive, digest
+    handle, staged = tempfile.mkstemp(dir=home, prefix="humanize-", suffix=".pyz.new")
+    os.close(handle)
+    made = Path(staged)
+    try:
+        _write_bundle(source, made)
+        with made.open("rb") as reading:
+            digest = hashlib.file_digest(reading, "sha256").hexdigest()[:_DIGEST]
+        archive = home / f"humanize-{digest}.pyz"
+        # Over one already there, if one is: the same name is the same bytes, and a run
+        # already reading the old file goes on reading it.
+        made.replace(archive)
+    except BaseException:
+        # A build that failed leaves nothing of itself behind.
+        made.unlink(missing_ok=True)
+        raise
+    # The index after the archive, and only if it was written: an index that got there first
+    # would name an archive a run that died mid-build never finished.
+    atomic.writes(index, f"{digest}\n", mode=0o600)
+    _swept(home, archive)
+    return archive, digest
+
+
+def _touched(path: Path) -> bool:
+    """Marks a file as just used, and says whether it was there to mark."""
+    try:
+        os.utime(path)
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def _swept(home: Path, keeping: Path) -> None:
+    """Removes whatever in this user's directory of archives nothing has used in a while.
+
+    Only after a build, which is the one moment a new archive has joined the rest, and only
+    what has gone :data:`_KEPT_FOR` untouched: every run touches the archive it is using
+    every :data:`_RETOUCH` seconds while it asks for it, so nothing old enough to go is
+    anything a run still holds.
+
+    Args:
+      home: The directory.
+      keeping: The archive just built, which goes nowhere whatever its age says.
+    """
+    now = time.time()
+    # And what an earlier humanize kept beside it, one archive every checkout shared.
+    legacy = home.with_name(f"{home.name}.pyz")
+    for one in [*home.iterdir(), legacy, legacy.with_suffix(".stamp")]:
+        if one == keeping:
+            continue
+        with contextlib.suppress(OSError):
+            if now - one.lstat().st_mtime > _KEPT_FOR:
+                one.unlink()
 
 
 #: The ssh options that make one connection serve every command, worked out once. Making the
@@ -974,33 +1200,23 @@ def build_bundle(destination: Path | None = None) -> Path:
     the bundle runs on a target of any architecture.  It is pure stdlib, so a host needs
     nothing but ``python3``.
 
-    Built once per source tree rather than once per session. The archive is a function of the
-    source alone, so an unchanged tree is an unchanged archive, and a stamp beside it says
-    which tree the one already there was made from -- which is a few hundred `stat` calls
-    against copying the package, zipping it and rewriting every mode and timestamp in it,
-    every time an agent is anchored.
+    Built once per source tree rather than once per session, where no destination is given:
+    the archive is a function of the source alone, so an unchanged tree is an unchanged
+    archive, and the one already built for it is found by a few hundred `stat` calls rather
+    than by copying the package, zipping it and rewriting every mode and timestamp in it,
+    every time an agent is anchored. See :func:`bundled`.
 
     Args:
-      destination: Where to write it, defaulting to one shared path per user.
+      destination: Where to write it. None keeps it in this user's own directory of
+        archives, `$TMPDIR/humanize-<uid>/humanize-<digest>.pyz`.
 
     Returns:
       Where it is.
     """
     if destination is None:
-        destination = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}.pyz"
+        return bundled()[0]
     source = Path(coganchor.__file__).parent
-    stamp = destination.with_suffix(".stamp")
-    made = _stamped(source)
-    if destination.exists() and _read(stamp) == made:
-        return destination
-
-    def stamping(staged: Path) -> None:
-        staged.write_text(f"{made}\n")
-
     _publish(destination, lambda staged: _write_bundle(source, staged))
-    # The stamp after the archive, and only if it was written: a stamp that got there first
-    # would let a run that died mid-build be read as a build that finished.
-    _publish(stamp, stamping)
     return destination
 
 
@@ -1044,18 +1260,22 @@ def _stamped(source: Path) -> str:
     is no way to make one by accident.
     """
     seen = hashlib.sha256()
-    for path in sorted(source.rglob("*")):
-        if "__pycache__" in path.parts or path.is_dir():
-            continue
-        found = path.stat()
-        seen.update(
-            f"{path.relative_to(source)}\0{found.st_size}\0{found.st_mtime_ns}\n".encode()
-        )
+    # Both trees the archive is made of -- the command line goes in too -- and each by where
+    # it is, so that two checkouts never share a stamp however alike their files look.
+    for tree in (source, source.parent / "cli"):
+        seen.update(f"{tree.resolve()}\n".encode())
+        for path in sorted(tree.rglob("*")):
+            if "__pycache__" in path.parts or path.is_dir():
+                continue
+            found = path.stat()
+            seen.update(
+                f"{path.relative_to(tree)}\0{found.st_size}\0{found.st_mtime_ns}\n".encode()
+            )
     return seen.hexdigest()
 
 
 def _read(path: Path) -> str:
-    """What a stamp says, or nothing at all where there is none to read."""
+    """What an index says, or nothing at all where there is none to read."""
     try:
         return path.read_text().strip()
     except OSError:

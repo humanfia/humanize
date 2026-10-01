@@ -137,7 +137,8 @@ def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # The tests that are about the holding turn it back on for themselves.
     monkeypatch.setenv("HUMANIZE_DAEMON", "off")
     # And nothing here fetches the unit prices a bill is worked out from. The interface asks
-    # for those as it opens, which is right at a prompt and wrong in a suite: a test must not
+    # for those as it opens and a run as it starts, which is right at a prompt and wrong in a
+    # suite: a test must not
     # reach anybody's network, and one that is about the fetching points this at a file.
     monkeypatch.setenv("HUMANIZE_PRICES", "off")
     # Whether the question about reporting has been answered is read once and kept for the
@@ -354,32 +355,22 @@ def priced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     import json
 
     from hmz.coganchor import prices
+    from tests.stubs import price_list, priced_model
 
     source = tmp_path / "prices-source.json"
     source.write_text(
         json.dumps(
-            {
-                "currency": "USD",
-                "unit": "per 1M tokens",
-                "versions": [
-                    {
-                        "date": "2026-09-10",
-                        "models": [
-                            {
-                                "provider": "Anthropic",
-                                "id": "claude-haiku-4.5",
-                                "name": "Claude Haiku 4.5",
-                                "pricingItems": [
-                                    {"category": "input_tokens", "price": 1},
-                                    {"category": "output_tokens", "price": 5},
-                                    {"category": "cache_read_tokens", "price": 0.1},
-                                    {"category": "cache_write_tokens", "price": 1.25},
-                                ],
-                            }
-                        ],
-                    }
-                ],
-            }
+            price_list(
+                priced_model(
+                    "claude-haiku-4.5",
+                    "Claude Haiku 4.5",
+                    provider="Anthropic",
+                    input_tokens=1,
+                    output_tokens=5,
+                    cache_read_tokens=0.1,
+                    cache_write_tokens=1.25,
+                )
+            )
         ),
         encoding="utf-8",
     )

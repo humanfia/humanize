@@ -19,7 +19,7 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import _DONE, _HARNESS, _SAVE, Flows, Harnessing, Placing
-from tests.integration.tui.test_app import changes, onto, opens, rows
+from tests.integration.tui.test_app import onto, opens, picks, rows
 from tests.integration.tui.test_budget import QUIET
 from tests.integration.tui.test_environments import _types
 from tests.stubs import written
@@ -108,7 +108,7 @@ async def test_the_row_says_what_adaptive_comes_to(flows: Path, tmp_path: Path) 
 async def test_what_is_set_there_is_kept_and_read_back(
     flows: Path, tmp_path: Path
 ) -> None:
-    """Stepped to on its form, said on the row, written down with the flow, read back."""
+    """Picked on its form, said on the row, written down with the flow, read back."""
     Settings(tmp_path).remember(
         "local/placed",
         {"worker": Runs("claude/m:high")},
@@ -121,11 +121,9 @@ async def test_what_is_set_there_is_kept_and_read_back(
         await opens(app, driver, _HARNESS)
         await until(lambda: isinstance(app.screen, Harnessing), driver)
 
-        # One row, stepped through the modes `-H` takes: no machine to name but a third.
+        # One row, picked from the modes `-H` takes: no machine to name but a third.
         assert rows(app) == ["where", _DONE]
-        await changes(
-            app, driver, "where", "right", "right"
-        )  # adaptive -> local -> env
+        await picks(app, driver, "where", "env")
         await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
@@ -153,7 +151,7 @@ async def test_a_standalone_harness_is_not_set_without_its_machine(
         await until(lambda: isinstance(app.screen, Harnessing), driver)
         sheet = cast("Harnessing", app.screen)
 
-        await changes(app, driver, "where", "left")  # adaptive -> standalone
+        await picks(app, driver, "where", "standalone")
         assert rows(app) == ["where", "on", _DONE]
         await onto(app, driver, _DONE)
         await driver.press("enter")
@@ -172,6 +170,83 @@ async def test_a_standalone_harness_is_not_set_without_its_machine(
         assert "standalone → ssh@gpu-box/~/scratch" in _said(app)
 
 
+def _ran(
+    flow: str, *placed: tuple[str, str], harness: str = "adaptive", named: str = ""
+) -> None:
+    """Writes down a run of a flow here, as `hmz exec` or another interface would have.
+
+    Args:
+      flow: The flow.
+      placed: Each role that opened a session, and where its harness went.
+      harness: What `-H` said.
+      named: What the run named the flow, where not as the menu offers it.
+    """
+    from hmz.runtime.epic import Epic
+    from hmz.runtime.flowing import resolved
+
+    epic = Epic(named or flow, "go", ref=resolved(flow).ref, harness=harness)
+    for at, (role, went) in enumerate(placed):
+        epic.session(role, "claude", "", f"s{at}", harness=went)
+
+
+@pytest.mark.timeout(60)
+async def test_the_row_says_what_the_last_run_here_found_whoever_ran_it(
+    flows: Path, tmp_path: Path
+) -> None:
+    """Read off the last run's record, so an interface opened since, or `hmz exec`, says it."""
+    Settings(tmp_path).remember(
+        "local/placed",
+        {"worker": Runs("claude/m:high")},
+        {"repo": "docker@local/srv/repo"},
+        budget={"duration": "PT1H"},
+    )
+    _ran("local/placed", ("worker", "local"))
+    _ran(
+        "local/quiet", ("worker", "standalone:ssh://box")
+    )  # another flow's, not this one's
+    _ran("local/placed", ("worker", "env"))  # the last of this one's
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/placed")
+        assert "adaptive → env (last run)" in _said(app)
+        await driver.press("escape")
+        await until(lambda: not isinstance(app.screen, Flows), driver)
+
+        # And one whose last run worked only here says what adaptive comes to in general.
+        _ran("local/placed", ("worker", ""))
+        await _into(app, driver, "local/placed")
+        assert "adaptive → env where its CLI is installed, else local" in _said(app)
+
+
+@pytest.mark.timeout(60)
+async def test_the_row_turned_to_from_another_flow_reads_that_flow_s_last_run(
+    flows: Path, tmp_path: Path
+) -> None:
+    """Stepping from one flow to another on the menu reads the other's record, not nothing."""
+    Settings(tmp_path).remember(
+        "local/placed",
+        {"worker": Runs("claude/m:high")},
+        {"repo": "ssh@box/srv/repo"},
+        budget={"duration": "PT1H"},
+    )
+    # Named by its path, as `hmz exec` may name it: the same flow by its ref.
+    _ran(
+        "local/placed",
+        ("worker", "local"),
+        ("worker", "env"),
+        named=str(flows / "placed"),
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/quiet")
+        sheet = cast("Flows", app.screen)
+        sheet._chose("local/placed")
+        await until(lambda: sheet._flow == "local/placed", driver)
+        await driver.pause()
+        # The role's last session: where it went last is where it went.
+        assert "adaptive → env (last run)" in _said(app)
+
+
 @pytest.mark.timeout(60)
 async def test_its_machine_is_read_as_the_command_line_reads_it(flows: Path) -> None:
     """`ssh@gpu-box` with no directory is the login's home there, as `-H` takes it.
@@ -184,7 +259,7 @@ async def test_its_machine_is_read_as_the_command_line_reads_it(flows: Path) -> 
         await _into(app, driver, "local/quiet")
         await opens(app, driver, _HARNESS)
         await until(lambda: isinstance(app.screen, Harnessing), driver)
-        await changes(app, driver, "where", "left")  # adaptive -> standalone
+        await picks(app, driver, "where", "standalone")
         await opens(app, driver, "on")
         await until(lambda: isinstance(app.screen, Placing), driver)
         form = cast("Placing", app.screen)
@@ -214,3 +289,40 @@ async def test_its_machine_is_read_as_the_command_line_reads_it(flows: Path) -> 
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
         assert "standalone → ssh@gpu-box" in _said(app)
+
+
+@pytest.mark.timeout(60)
+async def test_the_mode_is_picked_from_a_list_by_a_click(flows: Path) -> None:
+    """A click on the row drops every mode, what each does beside it; a click takes one.
+
+    The arrows across change nothing on it: they once did nothing until enter had begun it,
+    and now there is nothing to begin.
+    """
+    from hmz.tui.dropdown import Dropdown
+
+    app = Humanize()
+    async with app.run_test(size=(140, 40)) as driver:
+        await _into(app, driver, "local/quiet")
+        await opens(app, driver, _HARNESS)
+        await until(lambda: isinstance(app.screen, Harnessing), driver)
+        sheet = cast("Harnessing", app.screen)
+
+        await driver.press("right", "left")
+        await driver.pause()
+        assert sheet._typed_in["where"] == "adaptive"
+        assert "enter choose" in str(sheet.query_one("#keys", Label).content)
+
+        await driver.click("#choices", offset=(8, 0))
+        await until(lambda: isinstance(app.screen, Dropdown), driver)
+        values = app.screen.query_one(OptionList)
+        assert [str(one.id) for one in values.options] == [
+            "=adaptive",
+            "=local",
+            "=env",
+            "=standalone",
+        ]
+        assert "on a machine of its own" in str(values.get_option_at_index(3).prompt)
+        await driver.click(values, offset=(2, 3))
+        await until(lambda: app.screen is sheet, driver)
+        assert sheet._typed_in["where"] == "env"
+        assert sheet._changed

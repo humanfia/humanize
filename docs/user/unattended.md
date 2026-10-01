@@ -107,9 +107,11 @@ the first turn, and runs anyway:
 hmz exec: nobody lists a price for claude-haiku-4-5-20251001, so cost=0.05 cannot stop what it spends
 ```
 
-The price list is fetched in the background by `hmz`, so a machine that has never opened the
-interface has none yet, and prices no model. Add a `duration` or `output_tokens` limit
-whenever a run must stop.
+A run with a `cost` limit fetches the price list before its first turn when the copy kept is
+missing or more than a day old, so a machine that has never opened the interface prices a run
+too. The fetch waits at most 20 s; offline, or with `HUMANIZE_PRICES=off`, the run goes on
+with whatever list is kept. Add a `duration` or `output_tokens` limit whenever a run must
+stop.
 :::
 
 ## Example: fix a failing test, stopped by its budget

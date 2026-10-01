@@ -24,6 +24,7 @@ silently fell back to local execution, the tests would read an empty directory.
 from __future__ import annotations
 
 import os
+import shutil
 import socket
 import subprocess
 import threading
@@ -33,7 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor import AnchorConfig
+from hmz.coganchor import AnchorConfig, transport
 from hmz.coganchor.proto import Channel
 from hmz.coganchor.remote import RemoteClient
 from hmz.coganchor.serve.exports import ExportTable
@@ -224,3 +225,25 @@ def echo_server() -> Iterator[tuple[str, int]]:
     stop.set()
     listener.close()
     thread.join(timeout=2)
+
+
+def checkout(under: Path, marker: str) -> Path:
+    """A copy of the package as another checkout of it would hold it, told apart by one line.
+
+    Returns:
+      Its `hmz/coganchor`, which is what an archive is made from.
+    """
+    real = Path(transport.__file__).parent
+    package = under / "hmz"
+    shutil.copytree(
+        real,
+        package / "coganchor",
+        ignore=shutil.ignore_patterns("__pycache__", *transport.DRIVING),
+    )
+    shutil.copytree(
+        real.parent / "cli",
+        package / "cli",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    (package / "coganchor" / "checkout.py").write_text(f"MARKER = {marker!r}\n")
+    return package / "coganchor"

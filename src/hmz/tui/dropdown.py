@@ -1,11 +1,11 @@
 """The list a value is picked out of, dropped under the row it is the value of.
 
-What `/settings` and the forms it opens change a value with. Stepping one along with the
-arrows across was the older way, and it hid what the row could be: a value nobody has seen
-listed is a value nobody knows is there until they have stepped past it. So enter or a click
-on the row drops every value it can take under it, the one in force ticked, and enter or a
-click on one takes it -- as Textual's own `Select`, a web page's `<select>` and Charm's `huh`
-select all do. Esc, or a click anywhere off the list, takes nothing.
+What every menu changes a value with: `/settings`, `/flow`, and the forms they open. Stepping
+one along with the arrows across was the older way, and it hid what the row could be: a value
+nobody has seen listed is a value nobody knows is there until they have stepped past it. So
+enter or a click on the row drops every value it can take under it, the one in force ticked,
+and enter or a click on one takes it -- as Textual's own `Select`, a web page's `<select>` and
+Charm's `huh` select all do. Esc, or a click anywhere off the list, takes nothing.
 
 A screen of its own rather than a widget inside the menu, so that while it is open the keys
 are its own and a click off it is a click on nothing: the menu under it is still drawn, and

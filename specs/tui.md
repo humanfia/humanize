@@ -157,8 +157,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   only nodes that have taken a turn, marked as working or as having something unread — never
   refused while a flow runs, redrawn as the run moves, every clock stopping where the run stopped.
 - MUST show the environment each session works in under that session, as a node that opens to a
-  page of its own — its kind, where it is, what the flow declared of it and the sessions working
-  in it, live — from which a session is read.
+  page of its own — its kind, where it is, what the flow declared of it, where the run put each of
+  its sessions' harnesses and the sessions working in it, live — from which a session is read.
 - MUST lead the monitor with a node for every agent's log, selected when it opens, then a node per
   outworlder, and read any node — working or ended — with enter or a click, two on an agent, the
   arrows moving between nodes while nothing is typed.
@@ -190,13 +190,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   `backspace` as well, and on a form `/settings` opens typing, saying them on the screen in one
   place: a row changed where it stands MUST change only between an `enter` -- or, on such a
   form's written row, a letter -- that begins it and an `enter` that keeps it, `esc` putting it
-  back, and keeping one on such a form MUST move on to what is still to be answered; a value the
-  pages of `/settings` and the forms they open change MUST instead be picked, with the keys or a
-  click, from every value it can take dropped under its row, `esc` or a click off it picking
-  none; whatever else a menu does -- search, add, fetch or ask again, copy, save -- MUST be a
+  back, and keeping one on such a form MUST move on to what is still to be answered; a value a
+  menu changes from a fixed few MUST instead be picked, with the keys or a click, from every value
+  it can take dropped under its row, `esc` or a click off it picking none, and never stepped with
+  `←`/`→`; whatever else a menu does -- search, add, fetch or ask again, copy, save -- MUST be a
   row of it, and on each page of `/settings` a button under the list instead, with saving last;
-  a search MUST be asked for from its row or button; every row, button and value of `/settings`
-  MUST be reachable by the keys and by a click alike; and such a form MUST be answered from a
+  a search MUST be asked for from its row or button; every row, button and value of a menu MUST
+  be reachable by the keys and by a click alike; and such a form MUST be answered from a
   row called `done` that says what answering it does.
 - MUST give a selection back as the text written rather than the rows it was drawn on, let one go
   when what it was made against changes, and never scroll the transcript out from under a reader.
@@ -205,7 +205,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 
 | Key | Where | What it does |
 | --- | --- | --- |
-| `enter` | editor, sheets | send the line or take the offer; open the row under the cursor, or begin and keep changing it |
+| `enter` | editor, sheets | send the line or take the offer; open the row under the cursor, drop its values or take one, or begin and keep writing it |
 | typing | `/settings` forms | on a written row, begin writing it |
 | `shift+enter`, `ctrl+j` | editor, sheets | break the line |
 | `shift+tab`, `tab` | app | round the views forward and back |
@@ -220,4 +220,4 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
 | `↑`, `↓` | sheets | walk the rows, round the ends; on a `/settings` form, keeping the row being written |
-| `←`, `→` | sheets | change the row being changed; otherwise turn pages, round the ends, or step between lists; in `/settings`, into a page and back out, or along its buttons |
+| `←`, `→` | sheets | step between lists, round the ends; in `/settings`, into a page and back out, or along its buttons |

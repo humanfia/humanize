@@ -1064,8 +1064,11 @@ and [`Agent.run`](#run)). They nest:
 | After any of the above | The budget stays spent: every later turn under it raises again. |
 
 Spending is read as the CLI reports it (polled every 1 s while the CLI is silent) and priced
-with humanize's price table ([Tally](/user/tally)); a model with no price costs `0`, so a cost
-limit alone does not stop it.
+with humanize's [price table](/reference/files#h-prices-json), which a run with a finite `cost`
+limit brings up to date before its first turn when it is missing or older than 24 h, however
+the run was started. A model with no price costs `0`, so a cost limit alone does not stop it:
+[`Run.unreadable()`](/reference/sdk#run-methods) says so before the run, and `hmz exec` and the interface
+print it.
 
 ### `Usage` {#usage}
 

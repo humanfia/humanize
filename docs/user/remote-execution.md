@@ -182,7 +182,10 @@ diff --git a/calc.py b/calc.py
 - `/epics` lists the run, and [a trace](/user/tracing) of it shows the builder's sessions like
   any other.
 - On `/flow`, the flow's `harness` row now says what `adaptive` came to:
-  `adaptive → local (last run)`.
+  `adaptive → local (last run)`, whether the run was made at the prompt or with `hmz exec`.
+- While a run goes, the monitor's page for `box` says the same on its `harness` row:
+  `adaptive → local: on this machine; what it runs lands here`. See [the monitor's environment
+  page](/user/monitor#environments).
 - `/home/me/build/myproject` also exists **here**: it is the copy the agent read and wrote
   through, kept at the same path. See [the path is taken here
   too](#the-path-is-taken-here-too).
@@ -226,7 +229,7 @@ saved with:
 
 ```text
    Environment for box
-     1. backend  ssh ↔             a machine reached over ssh
+     1. backend  ssh ▾             a machine reached over ssh
      2. host     build-box ▸       build-box · working directory: /home/me/build/myproject
      3. workdir                    leave blank to use saved default: /home/me/build/myproject
      4. as -e    ssh@build-box     full -e spec: typing one sets the rows above
@@ -283,13 +286,19 @@ host says.
 ## Where the agent runs {#where-the-agent-runs}
 
 The harness is the agent's CLI and whatever supervises it. `-H` places it for every agent of
-the run, and the `harness` row of `/flow` does the same at the prompt. Its form steps through
-the four with <kbd>←</kbd> <kbd>→</kbd>, saying what each does:
+the run, and the `harness` row of `/flow` does the same at the prompt. On its form,
+<kbd>enter</kbd> or a click drops the four under the row, saying what each does, and
+<kbd>enter</kbd> or a click picks one:
 
 ```text
    Where the harness runs for local/onbox
-   ❯ 1. harness  adaptive ↔   on the env's machine where its CLI is installed, else here
-        done                      runs them adaptive when the flow is saved
+   ❯ 1. harness  adaptive ▾   on the env's machine where its CLI is installed, else here
+                 ╭─ harness ────────────────────────────────────────────────────────────────╮
+        done     │ adaptive ✔  on the env's machine where its CLI is installed, else here   │
+                 │ local  here, reaching the env through the anchor                         │
+                 │ env  on the env's machine; refused where its CLI is missing              │
+                 │ standalone  on a machine of its own, reaching the env through the anchor │
+                 ╰──────────────────────────────────────────────────────────────────────────╯
 ```
 
 | | `adaptive` | `local` | `env` | `standalone:<machine>` |
@@ -321,6 +330,9 @@ The `harness` row says what it comes to:
 | `adaptive → env where its CLI is installed, else local` | one is, and no run has told yet |
 | `adaptive → local (last run)` | the last run here put every such role's CLI here |
 | `adaptive → env (last run)` | it put them on the host (`env, local` where roles went both ways) |
+
+The last run is read from the flow's record in this directory, so it counts a run made with
+`hmz exec` or before `hmz` was last opened as much as one made at this prompt.
 
 Nothing to do when it goes either way: the run is the same run. Pick one of the others only to
 insist.
@@ -415,7 +427,7 @@ At the prompt, choose `standalone` on the harness form and a `machine` row appea
 the same form an environment role is placed with:
 
 ```text
-     1. harness  standalone ↔              on a machine of its own, reaching the env through the anchor
+     1. harness  standalone ▾              on a machine of its own, reaching the env through the anchor
      2. machine  ssh@gpu-box/~/scratch ▸   as -e names one
    ❯    done                      runs them standalone:ssh@gpu-box/~/scratch when the flow is saved
 ```

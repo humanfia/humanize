@@ -24,10 +24,10 @@ from textual.widgets import OptionList
 
 from hmz.tui import Humanize
 from hmz.tui.pick import (
+    _ACT_DOCKS,
+    _ACT_IMPORTS,
     _CHECKS,
-    _DOCKS,
     _DONE,
-    _IMPORTS,
     Docking,
     Importing,
     Machine,
@@ -166,7 +166,7 @@ async def test_settings_environments(
     async with app.run_test() as driver:
         await into_settings(app, driver, 3)
         sheet = app.screen
-        await _opens(app, driver, _IMPORTS, Importing)
+        await _opens(app, driver, _ACT_IMPORTS, Importing)
         form = cast("Importing", app.screen)
         await onto(app, driver, "config")
         await driver.press(*config, "enter")
@@ -188,7 +188,7 @@ async def test_settings_environments(
         said = await _says(app, driver, f"{host} answers", f"{host} could not")
         assert f"{host} answers: home /root" in said, said
 
-        await _opens(app, driver, _DOCKS, Docking)
+        await _opens(app, driver, _ACT_DOCKS, Docking)
         name = cast("Docking", app.screen)._typed_in["name"]
         await _done(app, driver)
         await until(lambda: app.screen is sheet, driver)

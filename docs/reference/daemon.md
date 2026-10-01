@@ -288,7 +288,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 
 | `type` | Fields |
 | --- | --- |
-| `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
+| `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `harness` (the run's `-H`, as it spells it: `adaptive` where `start` gave none), `began` (host monotonic), `at` (Unix time) |
 | `opened` | `role`, `key` (`<role>/<n>`), `agent` (agent id), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono` |
 | `event` | `key`, `session` (`key` where the event names a conversation, else `""`), `agent`, `cli`, `model`, `ident` (backend's conversation id, `""` until named), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono`. Same fields as [`hmz exec --json`](/reference/cli#ndjson). |
 | `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`) |
@@ -299,6 +299,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | `unheld` | `agent`, `texts`: lines a turn ended without acknowledging; discarded |
 | `dropped` | `given` `[{agent, text, by, client}]`, `queued` `[{text, by, client, to}]`, `because` (`stopped` or `ended`); only where something was waiting |
 | `printed` | `text`: one line printed in the host |
+| `notice` | `text`: humanize's own note about the run, after `started` and before its first turn: `nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` where the run's `cost` limit cannot be enforced. The interface shows it as `hmz: <text>`, in yellow. |
 | `stopping` | `by`, `client` |
 | `ended` | `how`, `why`, `mono` |
 
@@ -320,6 +321,11 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | `local` | Harness here, work on another machine. |
 | `env` | Harness on the environment's machine (native CLI). |
 | `standalone:<target>` | Harness on a machine of its own; `<target>` is the anchor target spelling (`ssh://box`, `docker://…`). Also for a standalone harness serving work on this machine. |
+
+`started.harness` (and so the `run` snapshot's) is what the run was started with, where
+`opened.harness` is where each session's harness actually went. It is a field added within
+protocol `1`: a host of an earlier humanize leaves it out, and a frontend reads its absence as
+not said rather than as `adaptive`.
 
 `ended.how` and `why`:
 

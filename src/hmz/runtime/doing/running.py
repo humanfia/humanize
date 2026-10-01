@@ -112,8 +112,16 @@ class Run:
         return self._epic
 
     def unreadable(self) -> str:
-        """Which cap of the run nothing it drives can read, in words, or "" for none."""
-        return self._runner.unreadable()
+        """Which cap of the run nothing it drives can read, in words, or "" for none.
+
+        For a run held to a cost, a missing or stale price list is fetched first -- waited on
+        for no longer than the fetch's own timeout, and not at all once the run is stopped.
+        """
+        return self._runner.unreadable(self._stopped)
+
+    def _stopped(self) -> bool:
+        with self._lock:
+            return self._stopping
 
     def watch(self, listener: Listener) -> None:
         """Has everything every session of the run says reach `listener`, as it is said.

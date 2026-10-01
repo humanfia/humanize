@@ -272,8 +272,10 @@ must be set. The first limit reached stops the run. See
 With no `-b`, a flow humanize ships (`chat`) runs under `Budget(cost=inf)`; any other flow is
 refused.
 
-A `cost` limit over agents whose model has no known price cannot be enforced. The run starts,
-and stderr first carries:
+A run with a finite `cost` limit first brings the [price list](/reference/files#h-prices-json)
+up to date when the copy kept is missing or older than 24 h (at most 20 s; never with
+`HUMANIZE_PRICES=off`). A `cost` limit over agents whose model still has no known price cannot
+be enforced. The run starts, and stderr first carries:
 
 ```text
 hmz exec: nobody lists a price for <model>[, <model>…], so cost=<n> cannot stop what it spends
@@ -755,7 +757,7 @@ is [Files](/reference/files).
 | `settings.yaml` | `hmz` | read and written: [what the interface remembers](/reference/tui#what-it-remembers) |
 | `history.jsonl` | `hmz` | read and written: [prompt history](/reference/tui#history) |
 | `daemons/<project>-<digest>/` | `hmz` | the [host's](/reference/daemon#files) socket, record, lock and log |
-| `prices.json` | `hmz` writes, `hmz exec` reads | model prices, refreshed by the interface when older than a day |
+| `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
 | `providers/`, `env-providers/`, `fallbacks.json`, `acp.json`, `models/` | all | read when an agent or environment is opened |
 | `flowverses/`; `~/.humanize/flows/` and `./.humanize/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 

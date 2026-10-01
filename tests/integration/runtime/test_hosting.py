@@ -605,6 +605,25 @@ def test_forcing_closes_the_conversations_still_working(
     assert alice.told("ended")["how"] == "stopped"
 
 
+@pytest.mark.timeout(60)
+def test_a_cost_cap_nothing_can_price_is_said_to_every_frontend(
+    host: Host, workspace: Path
+) -> None:
+    """As a command line says it on its stderr: `m` is on nobody's list, so `cost=1` cannot bite."""
+    alice = Told(host, "alice")
+    _steers(alice)
+
+    said = alice.told("notice")
+
+    assert said["run"] == 1
+    assert said["text"] == (
+        "nobody lists a price for m, so cost=1 cannot stop what it spends"
+    )
+    (workspace / "start").write_text("")
+    (workspace / "go").write_text("")
+    alice.told("ended")
+
+
 # ---------------------------------------------------------------- arriving late
 
 
@@ -625,6 +644,28 @@ def test_a_late_frontend_reads_the_run_exactly_as_the_first_did(
     assert live["seq"] == alice.records()[-1]["seq"]
     assert late.records()[0]["type"] == "started"
     assert late.records()[0]["by"] == "alice"
+
+
+@pytest.mark.timeout(60)
+def test_a_late_frontend_is_told_where_the_run_put_its_harnesses(
+    host: Host, workspace: Path
+) -> None:
+    """As `-H` spells it, on the run's start and on the snapshot of it: adaptive unsaid."""
+    alice = Told(host, "alice")
+    _asks(alice)
+    assert alice.told("started")["harness"] == "adaptive"
+    for role, text in (("planner", "a plan"), ("reviewer", "fine")):
+        alice.asks(do="answer", question=alice.asked(role)["question"], text=text)
+    alice.told("ended")
+
+    said = alice.asks(
+        do="start", flow="asks", task="again", budget={"cost": 1}, harness="local"
+    )
+    assert said["ok"], said
+    alice.told("started", harness="local")
+
+    late = Told(host, "late", replay=False)
+    assert late.told("run", state="running")["harness"] == "local"
 
 
 @pytest.mark.timeout(60)

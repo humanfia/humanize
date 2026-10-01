@@ -14,7 +14,7 @@ CLI signs in with, and run the same line CI will run, on your own machine first:
 hmz exec \
     -f 'git+https://github.com/humanfia/flowverse@main#ralph_loop' \
     -a agent=claude/claude-opus-5:high \
-    -b duration=45m,output_tokens=2m \
+    -b duration=45m,cost=20 \
     "$(cat TASK.md)"
 ```
 
@@ -48,7 +48,7 @@ A CI runner starts empty every time. That shapes the whole job:
 | `hmz` and the agent's CLI are installed | nothing is | installs both, every run |
 | the CLI is signed in | it is not | signs it in from a secret |
 | the official flowverse is fetched | nothing is | names the flow by its repository |
-| `hmz` keeps a price list for `cost` | there is none | bounds the run by time and tokens |
+| `hmz` keeps a price list for `cost` | there is none | fetches it before the first turn |
 | `/epics` reads a run back | there is no prompt | traces the run from a script |
 | a stopped run can be picked up | nothing of a last run is kept | never uses `--resume` |
 
@@ -100,7 +100,7 @@ jobs:
           hmz exec \
             -f 'git+https://github.com/humanfia/flowverse@main#ralph_loop' \
             -a agent=claude/claude-opus-5:high \
-            -b duration=45m,output_tokens=2m \
+            -b duration=45m,cost=20 \
             "$(cat TASK.md)"
 
       - name: Trace the run                         # ⑥
@@ -134,8 +134,10 @@ jobs:
    environment of its own whose `bin` is put on the `PATH`. Kimi Code and DeepSeek Harness
    also need the `hmz[all]` extra: see [Installation](/user/installation).
 5. **Run the loop.** The same `hmz exec` line you ran by hand, with the CLI signed in from a
-   secret. `-b duration=45m,output_tokens=2m` stops it at whichever comes first, and the step
-   still exits 0: a [Ralph loop](/flows/ralph-loop) usually ends this way.
+   secret. `-b duration=45m,cost=20` stops it at 45 minutes or $20, whichever comes first,
+   and the step still exits 0: a [Ralph loop](/flows/ralph-loop) usually ends this way. A
+   fresh runner has no price list, so a run with a `cost` limit fetches one before its first
+   turn (at most 20 s). The `duration` still bounds the run if the model has no price.
 6. **Trace the run.** `if: always()` traces a run that failed too, which is the one you most
    want to read. `continue-on-error` keeps a failed trace from failing the job.
 7. **Upload the trace** as an artifact named `trace`, kept with the job.
@@ -314,9 +316,10 @@ A `2` fails the job in seconds rather than after forty minutes.
 - **Every turn fails, and the step is still green.** The CLI is not signed in. Nothing catches
   that before the run, and a loop such as Ralph loop goes on past failed turns and can still
   exit 0. Read the log of the first run by hand.
-- **`nobody lists a price for …, so cost=… cannot stop what it spends`.** A fresh runner has no
-  price list, so a `cost` limit never fills. Bound the run with `duration` or
-  `output_tokens`, as the workflow does.
+- **`nobody lists a price for …, so cost=… cannot stop what it spends`.** The model is not on
+  the price list, or the runner could not fetch the list (no network, or `HUMANIZE_PRICES=off`),
+  so the `cost` limit never fills. Keep a `duration` or `output_tokens` limit beside it, as the
+  workflow does.
 - **`--resume` is refused with status 2.** The runs a flow picks up from are kept on the
   machine that ran them, and a runner starts empty every night. Leave `--resume` off in CI.
 - **The job is killed before the loop ends.** `timeout-minutes` is below the run's

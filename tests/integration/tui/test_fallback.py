@@ -19,10 +19,10 @@ from hmz.coganchor import fallbacks
 from hmz.coganchor.backends import Model
 from hmz.tui import Humanize
 from hmz.tui.pick import (
-    _ADD,
+    _ACT_ADD,
+    _ACT_SAVE,
+    _ACT_SEARCH,
     _DONE,
-    _SAVE,
-    _SEARCH,
     _TAKES_AWAY,
     Confirms,
     Failing,
@@ -111,7 +111,7 @@ async def test_the_menu_is_the_steps_between_places() -> None:
 
         # Adding one above the steps, saving below everything.
         assert rows(app) == ["claude/claude-opus-5"]
-        assert bar(app) == [_ADD, _SEARCH, _SAVE]
+        assert bar(app) == [_ACT_ADD, _ACT_SEARCH, _ACT_SAVE]
         listing = app.screen.query_one("#choices", OptionList)
         assert "falls back to codex/gpt-5.6-sol" in str(
             listing.get_option("=claude/claude-opus-5").prompt
@@ -130,7 +130,7 @@ async def test_an_empty_menu_opens_on_the_row_that_writes_one_down() -> None:
 
         # The row that writes one down, which is where to start, and the cursor on it.
         assert rows(app) == []
-        assert bar(app) == [_ADD, _SEARCH, _SAVE]
+        assert bar(app) == [_ACT_ADD, _ACT_SEARCH, _ACT_SAVE]
         # The focus is on the button that writes the first one down.
         assert app.screen.focused is app.screen.query_one("#act-add")
         assert "no fallback rules configured yet" in _under(app)
@@ -144,7 +144,7 @@ async def test_a_step_is_one_form_of_two_places_and_is_held_until_the_menu_is_sa
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
-        await onto(app, driver, _ADD)
+        await onto(app, driver, _ACT_ADD)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Failing), driver)
         # The two places, and how it is tried again, and nothing else.
@@ -161,7 +161,7 @@ async def test_a_step_is_one_form_of_two_places_and_is_held_until_the_menu_is_sa
 
         # Said, and nothing on disk until the menu is saved.
         assert rows(app) == ["claude/claude-opus-5"]
-        assert bar(app) == [_ADD, _SEARCH, _SAVE]
+        assert bar(app) == [_ACT_ADD, _ACT_SEARCH, _ACT_SAVE]
         assert under(app) == "claude/claude-opus-5"
         assert fallbacks.falls() == []
 
@@ -179,7 +179,7 @@ async def test_a_place_is_not_offered_as_where_it_falls_back_to() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
-        await onto(app, driver, _ADD)
+        await onto(app, driver, _ACT_ADD)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Failing), driver)
         await _place(app, driver, "claude/claude-opus-5")
@@ -198,7 +198,7 @@ async def test_a_step_that_says_nothing_is_refused_where_it_was_written() -> Non
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
-        await onto(app, driver, _ADD)
+        await onto(app, driver, _ACT_ADD)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Failing), driver)
         await _place(app, driver, "claude/claude-opus-5")
@@ -281,7 +281,7 @@ async def test_the_key_that_used_to_take_a_step_away_takes_nothing_away() -> Non
 
         assert "press d again" not in _under(app)
         assert rows(app) == ["claude/claude-opus-5"]
-        assert bar(app) == [_ADD, _SEARCH, _SAVE]
+        assert bar(app) == [_ACT_ADD, _ACT_SEARCH, _ACT_SAVE]
 
 
 @pytest.mark.timeout(90)
@@ -367,7 +367,7 @@ async def test_a_step_added_for_a_place_that_has_one_starts_from_it() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
-        await onto(app, driver, _ADD)
+        await onto(app, driver, _ACT_ADD)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Failing), driver)
         await _place(app, driver, "claude/claude-opus-5")
