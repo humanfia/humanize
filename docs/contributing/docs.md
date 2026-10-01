@@ -28,10 +28,14 @@ pnpm check:anchors   # fails on a dead #fragment
 pnpm check:legible   # fails on a diagram's word drawn under 11px on a phone
 ```
 
-`check:legible` plays every scene on the Flows and Features pages, and on any other page, through in Chromium, at phone and tablet
-widths, moving and held still, and measures every word it draws. The first run wants the
-browser: `pnpm exec playwright install chromium`. `--page flows/rlar --width 390` looks at one
-page, and `--overlap` also lists words drawn over each other, for you to look at.
+`check:legible` takes every scene on the Flows and Features pages, and on any other page,
+through in Chromium, at phone and tablet widths, moving and held still, and measures every word
+it draws. A moving scene is not played on a clock but held at one moment of its timeline after
+another, so a busy machine gets the same answer as an idle one. A word may be drawn small while
+it pops in, for under 0.3s of the scene's time, but never where the scene comes to rest: where a
+chapter ends or a step lands. The first run wants the browser:
+`pnpm exec playwright install chromium`. `--page flows/rlar --width 390` looks at one page, and
+`--overlap` also lists words drawn over each other, for you to look at.
 
 ## Where a page goes
 
@@ -209,10 +213,11 @@ Add a Vue component only where a control settles a real question, not as decorat
   `beat-1`… labels into the chapters under the picture: one short line each, so the words are
   always on the page. Move the world with the camera from `camera.ts`, put sparks and light
   trails on the canvas from `fx.ts`, keep a second layout for phone width with `useNarrow`,
-  and take GSAP from `motion()` rather than importing it bare. A screen that holds links or controls sets `interactive`, so it is a group rather
-  than a picture to a screen reader. Never tween the `x`, `y` or `scale` of an SVG element
-  placed by a `transform` attribute: GSAP replaces the attribute. Place it with an outer `<g>`,
-  and move an inner one.
+  and take GSAP from `motion()` rather than importing it bare. The toolkit also lists the scene
+  for `check:legible` (`probe.ts`), which fails a scene it cannot hold still. A screen that
+  holds links or controls sets `interactive`, so it is a group rather than a picture to a
+  screen reader. Never tween the `x`, `y` or `scale` of an SVG element placed by a `transform`
+  attribute: GSAP replaces the attribute. Place it with an outer `<g>`, and move an inner one.
 - **A feature page is short.** A title, one `hmz-tagline` line, the scene, three to five
   `hmz-facts` the motion cannot say, the per-backend badges, and three `hmz-paths` cards on to
   the guides. Whatever the scene shows is not written out again.

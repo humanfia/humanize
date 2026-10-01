@@ -67,9 +67,11 @@ jobs:
         run: pnpm check:anchors
 
       # A diagram's words are drawn at whatever size its camera and its viewBox leave them, and
-      # the build cannot see one shrink to a smudge on a phone. This plays every scene on the
+      # the build cannot see one shrink to a smudge on a phone. This takes every scene on the
       # Flows and Features pages through, at phone and tablet widths, moving and held still,
-      # and fails on a word drawn under 11px or a page that scrolls sideways.
+      # and fails on a word drawn under 11px or a page that scrolls sideways. It holds each
+      # scene at moment after moment of its timeline rather than playing it on a clock, so a
+      # slow runner gets the same answer as a fast one.
       - name: Install Chromium
         working-directory: docs
         run: pnpm exec playwright install --with-deps chromium

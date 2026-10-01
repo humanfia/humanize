@@ -3,15 +3,21 @@
 // playing and held still, and no page scrolls sideways.
 //
 // A diagram's labels are drawn at whatever size its camera and its viewBox leave them, so the
-// build cannot see one shrink to a smudge. This loads the built site in Chromium, plays every
-// scene through on a fake clock (so a 30-second scene takes a fraction of that), steps through
-// every moment under reduced motion, and at each frame measures every piece of text that can be
-// seen: its font size times every scale between it and the screen.
+// build cannot see one shrink to a smudge. This loads the built site in Chromium and, at each
+// moment it looks at, measures every piece of text that can be seen: its font size times every
+// scale between it and the screen.
+//
+// It never waits on a clock, so it says the same thing however busy the machine is. The page's
+// clock is stopped and moves only when this moves it; a playing scene is not played but held
+// still at one moment of its timeline after another (each scene lists itself for that: see
+// `theme/motion/probe.ts`), every few hundredths of a second from its start to its end; and
+// CSS animations, which the browser runs on a clock of its own, are held still the same way.
+// Under reduced motion it steps through every moment with the scene's own buttons.
 //
 //   pnpm build && pnpm check:legible
 //
 // The first run wants a browser: `pnpm exec playwright install chromium`.
-// `--page flows/rlar --width 390` narrows it down; `--report` prints every frame's offenders
+// `--page flows/rlar --width 390` narrows it down; `--report` prints every moment's offenders
 // rather than the worst of each; `--clipped` also lists words cut off at the edge of what
 // shows them, and `--overlap` words drawn over one another: a camera pushing in and a scene in
 // motion do both on purpose, so neither is a failure, only something to look at.
@@ -28,12 +34,16 @@ const DOCS = new URL('../', import.meta.url).pathname
 const BASE = '/humanize/'
 const SECTIONS = ['features', 'flows']
 const MIN = 11
-const STEP = 150 // ms between frames while a scene plays
+const HEIGHT = 844 // px: a phone's screen
+// A moving scene is looked at every STEP seconds of its own timeline.
+const STEP = 0.05
 // While a scene plays, a word that is small for only a moment -- popping in from half its size,
-// say -- is motion rather than a label: it fails once it has been too small for this many
-// frames in a row, which is 300ms. Held still, every frame counts.
-const HOLD = 3
-const LONGEST = 90_000 // ms: no scene loops slower than this
+// say -- is motion rather than a label: it fails once it has been too small for this long of
+// the scene's timeline, or at all where the scene comes to rest. Held still, every moment
+// counts.
+const HOLD = 0.3
+// The page's clock, stopped here.
+const EPOCH = Date.parse('2026-01-01T00:00:00Z')
 
 const { values: args } = parseArgs({
   options: {
@@ -82,7 +92,7 @@ async function pages() {
    In the page: every piece of text that can be seen, and how big it is drawn.
    ------------------------------------------------------------------------------------------ */
 
-function measure({ scope, min, clipped, overlap }) {
+function measure({ scope, skip, min, clipped, overlap }) {
   const roots = [...document.querySelectorAll(scope)]
   const out = []
   const boxes = []
@@ -140,6 +150,7 @@ function measure({ scope, min, clipped, overlap }) {
         if (!el.closest('svg') && !el.closest('.hmz-panel')) continue
       }
       if (el.closest('title, desc, .sr-only, .visually-hidden')) continue
+      if (skip && el.closest(skip)) continue
       const range = document.createRange()
       range.selectNodeContents(node)
       const rect = range.getBoundingClientRect()
@@ -184,46 +195,189 @@ function measure({ scope, min, clipped, overlap }) {
   return out
 }
 
+/** Every CSS animation paused `t` ms in, and every CSS transition at its end: the browser runs
+ *  both on a clock of its own, which the page's stopped one does not stop. */
+function hold(t) {
+  // Style now, so every transition the last change started is there to finish.
+  document.documentElement.getBoundingClientRect()
+  for (const a of document.getAnimations()) {
+    if (a instanceof CSSTransition) a.finish()
+    else {
+      a.pause()
+      a.currentTime = t
+    }
+  }
+}
+
+/** How long the page's CSS animations that move words take to come round, outside `skip`. */
+function cycle(skip) {
+  let longest = 0
+  for (const a of document.getAnimations()) {
+    const target = a.effect?.target
+    if (a instanceof CSSTransition || !target || a.effect.pseudoElement || target.closest(skip) || !target.textContent?.trim()) continue
+    const { delay, duration } = a.effect.getComputedTiming()
+    longest = Math.max(longest, (delay || 0) + (Number(duration) || 0))
+  }
+  return longest
+}
+
+/** Once the browser has drawn a frame: by then every ResizeObserver it owed is told. The stopped
+ *  clock holds back `requestAnimationFrame`, not this. */
+function drawn() {
+  return new Promise((resolve) => {
+    const seen = new ResizeObserver(() => {
+      seen.disconnect()
+      resolve()
+    })
+    seen.observe(document.documentElement)
+  })
+}
+
+/** The scene `el` as it lists itself in `window.__hmzScenes`. */
+function probe(el) {
+  return (window.__hmzScenes ?? []).find((one) => one.root() === el)
+}
+
+/** Whether the page has started: the app mounted, and every scene built and listed (under
+ *  reduced motion a flow's diagram has no timeline to list). */
+function ready(moving) {
+  if (!document.querySelector('#app')?.__vue_app__) return false
+  for (const el of document.querySelectorAll('.hmz-stage, .hmz-flow-player')) {
+    if (!moving && el.classList.contains('hmz-flow-player')) continue
+    if (!(window.__legible.probe(el)?.duration() > 0)) return false
+  }
+  return true
+}
+
+/** Look at each of `times`: a scene's timeline held there (seconds), or, with no scene, the
+ *  page's CSS animations (also seconds). */
+async function sweep({ scene, times, look }) {
+  const it = scene === undefined ? null : window.__legible.probe(document.querySelector(`[data-legible-scene="${scene}"]`))
+  const out = []
+  for (const t of times) {
+    if (it) await it.seek(t)
+    window.__legible.hold(it ? 0 : t * 1000)
+    out.push(window.__legible.measure(look))
+  }
+  return out
+}
+
+// What the page gets before any of its own scripts run.
+const PAGE = `window.__legible = { measure: ${measure}, hold: ${hold}, cycle: ${cycle}, drawn: ${drawn}, probe: ${probe}, ready: ${ready}, sweep: ${sweep} }`
+
 /* ------------------------------------------------------------------------------------------
    Driving a page.
    ------------------------------------------------------------------------------------------ */
 
 const SCENES = '.hmz-flow-player, .hmz-stage'
 
+/** Let the page catch up with what it was just asked to do: a frame drawn, so every observer
+ *  is told, and every font in, then the animation frames those asked for, on the stopped clock. */
+async function settle(page) {
+  for (let k = 0; k < 3; k += 1) {
+    await page.evaluate(async () => {
+      await window.__legible.drawn()
+      await document.fonts.ready
+    })
+    await page.clock.runFor(100)
+  }
+}
+
+/** Wait for the page to start, however long a busy machine takes to get it there. A page looked
+ *  at before is only the server's markup. */
+async function started(page, motion) {
+  for (let k = 0; k < 200; k += 1) {
+    if (await page.evaluate((moving) => window.__legible.ready(moving), motion !== 'reduce')) return settle(page)
+    await settle(page)
+  }
+  throw new Error('the page never started: its app did not mount, or a scene did not list itself in window.__hmzScenes')
+}
+
+/** Times from 0 to `end` every STEP, and `extra` among them, in order. */
+function grid(end, extra = []) {
+  const n = Math.floor(end / STEP + 1e-9)
+  const all = [...Array.from({ length: n + 1 }, (_, k) => Math.round(k * STEP * 1000) / 1000), ...extra.filter((t) => t >= 0 && t <= end)]
+  return [...new Set(all)].sort((a, b) => a - b)
+}
+
+/** What fails in a run of moments looked at in order: anything still too small HOLD seconds
+ *  after it first was, at every moment, or at a moment in `rest`. */
+function judge(times, samples, rest, name) {
+  const failed = []
+  let since = new Map()
+  times.forEach((t, k) => {
+    const next = new Map()
+    for (const item of samples[k]) {
+      const key = `${item.kind}|${item.where}|${item.text}`
+      const first = since.get(key) ?? t
+      next.set(key, first)
+      const still = rest.has(t)
+      const always = first === times[0] && k === times.length - 1
+      if (still || always || t - first >= HOLD - 1e-9) failed.push({ frame: `${name} ${t.toFixed(2)}s${still ? ' at rest' : ''}`, ...item })
+    }
+    since = next
+  })
+  return failed
+}
+
 async function check(browser, origin, path, width, motion) {
   const context = await browser.newContext({
-    viewport: { width, height: 844 },
+    viewport: { width, height: HEIGHT },
     reducedMotion: motion,
     colorScheme: 'light',
     deviceScaleFactor: 1,
   })
+  await context.addInitScript(PAGE)
   const page = await context.newPage()
-  await page.clock.install()
+  // Installed, the page's clock still runs at the wall clock's pace: stopped, it moves only
+  // when this moves it, so what the page has done by each look is the same every run.
+  await page.clock.install({ time: EPOCH })
+  await page.clock.pauseAt(EPOCH + 1000)
   const found = []
   const add = (frame, list) => {
     for (const item of list) found.push({ path, width, motion, frame, ...item })
   }
+  const opts = { min: MIN, clipped: args.clipped, overlap: args.overlap }
   // A scene that throws draws nothing, which would pass: a script error is a failure too.
   page.on('pageerror', (error) => add('page', [{ kind: 'error', text: String(error.message).slice(0, 120), px: 0, where: 'script' }]))
   try {
     await page.goto(`${origin}${BASE}${path}`, { waitUntil: 'load' })
-    await page.evaluate(() => document.fonts.ready)
-    await page.clock.runFor(1500)
-    // The whole page on the Flows and Features pages; elsewhere only its scenes.
-    if (SECTIONS.includes(path.split('/')[0])) add('page', await page.evaluate(measure, { scope: '.VPContent', min: MIN, clipped: args.clipped, overlap: args.overlap }))
+    await started(page, motion)
+    // The whole page on the Flows and Features pages, but its scenes, which are looked at one by
+    // one below; elsewhere only its scenes.
+    if (SECTIONS.includes(path.split('/')[0])) {
+      // Down the page a screen at a time, so every entrance plays -- the cards of a grid rising
+      // into place as they are scrolled to, say -- and then every one is over.
+      if (motion !== 'reduce') {
+        const tall = await page.evaluate(() => document.documentElement.scrollHeight)
+        for (let y = HEIGHT; y < tall; y += HEIGHT) {
+          await page.evaluate((y) => window.scrollTo(0, y), y)
+          await settle(page)
+        }
+        await page.clock.runFor(3000)
+      }
+      const look = { scope: '.VPContent', skip: SCENES, ...opts }
+      const end = motion === 'reduce' ? 0 : await page.evaluate((skip) => window.__legible.cycle(skip), SCENES)
+      const times = grid(end / 1000)
+      const samples = await page.evaluate((a) => window.__legible.sweep(a), { times, look })
+      for (const { frame, ...item } of judge(times, samples, new Set(), 'page')) add(frame, [item])
+    }
 
     const count = await page.locator(SCENES).count()
     for (let i = 0; i < count; i += 1) {
       const scene = page.locator(SCENES).nth(i)
       const player = await scene.evaluate((el) => el.classList.contains('hmz-flow-player'))
       await scene.scrollIntoViewIfNeeded()
-      await page.clock.runFor(600)
+      await settle(page)
       const name = `${player ? 'flow' : 'stage'}#${i}`
       await scene.evaluate((el, i) => el.setAttribute('data-legible-scene', String(i)), i)
-      const scope = `[data-legible-scene="${i}"]`
-      const look = async (frame) => add(`${name} ${frame}`, await page.evaluate(measure, { scope, min: MIN, clipped: args.clipped, overlap: args.overlap }))
+      const look = { scope: `[data-legible-scene="${i}"]`, ...opts }
+      const still = async (frame) => {
+        const [now] = await page.evaluate((a) => window.__legible.sweep(a), { times: [0], look })
+        add(`${name} ${frame}`, now)
+      }
       if (motion === 'reduce') {
-        await look('still')
+        await still('still')
         // A run too wide to read whole is drawn full size in a frame that scrolls: along it.
         const along = await scene.evaluate((el) => {
           const s = el.querySelector('.scroller')
@@ -234,70 +388,51 @@ async function check(browser, origin, path, width, motion) {
             const s = el.querySelector('.scroller')
             s.scrollLeft = k * s.clientWidth
           }, k)
-          await page.clock.runFor(100)
-          await look(`still, scrolled ${k}`)
+          await settle(page)
+          await still(`still, scrolled ${k}`)
         }
         if (player) {
           // Step through every moment, until the steps come round to the first one again.
           let last = -1
           for (let k = 1; k <= 60; k += 1) {
             await scene.getByRole('button', { name: 'the moment after' }).click()
-            await page.clock.runFor(300)
-            const at = await position(scene, true)
+            await settle(page)
+            const at = await scene.evaluate((el) => Number(el.querySelector('.scrub')?.value ?? 0))
             if (at < last) break
             last = at
-            await look(`step ${k}`)
+            await still(`step ${k}`)
           }
         } else {
           const chapters = scene.locator('.chapters button')
           const n = await chapters.count()
           for (let k = 0; k < n; k += 1) {
             await chapters.nth(k).click()
-            await page.clock.runFor(300)
-            await look(`chapter ${k + 1}`)
+            await settle(page)
+            await still(`chapter ${k + 1}`)
           }
         }
       } else {
-        // Play it through once, from the top, looking at every frame.
-        if (player) await scene.getByRole('button', { name: 'from the start' }).click()
-        else await scene.locator('.chapters button').first().click()
-        let last = -1
-        let wrapped = false
-        let runs = new Map()
-        for (let ms = 0; ms < LONGEST && !wrapped; ms += STEP) {
-          await page.clock.runFor(STEP)
-          const now = await page.evaluate(measure, { scope, min: MIN, clipped: args.clipped, overlap: args.overlap })
-          const next = new Map()
-          for (const item of now) {
-            const key = `${item.kind}|${item.where}|${item.text}`
-            const run = (runs.get(key) ?? 0) + 1
-            next.set(key, run)
-            if (run >= HOLD) add(`${name} ${(ms / 1000).toFixed(1)}s`, [item])
-          }
-          runs = next
-          const at = await position(scene, player)
-          if (at === null) break
-          if (at < last - 0.5) wrapped = true
-          last = at
+        // Its timeline, from the start to the end, held still at every STEP and wherever it
+        // comes to rest.
+        const plan = await scene.evaluate((el) => {
+          const it = window.__legible.probe(el)
+          return it ? { duration: it.duration(), settled: it.settled() } : null
+        })
+        if (!plan || !(plan.duration > 0)) {
+          add(name, [{ kind: 'error', text: 'the scene does not list itself in window.__hmzScenes', px: 0, where: 'probe' }])
+          continue
         }
+        // To the millisecond, and never past the end, which a duration like 14.3999… would round past.
+        const rest = plan.settled.map((t) => Math.min(Math.round(Math.max(t, 0) * 1000) / 1000, plan.duration))
+        const times = grid(plan.duration, rest)
+        const samples = await page.evaluate((a) => window.__legible.sweep(a), { scene: i, times, look })
+        for (const { frame, ...item } of judge(times, samples, new Set(rest), name)) add(frame, [item])
       }
     }
   } finally {
     await context.close()
   }
   return found
-}
-
-/** How far through its loop a scene is, as a number that falls when it starts again. */
-async function position(scene, player) {
-  return scene.evaluate((el, player) => {
-    if (player) return Number(el.querySelector('.scrub')?.value ?? 0) / 100
-    const on = [...el.querySelectorAll('.chapters li')].findIndex((li) => li.classList.contains('on'))
-    if (on < 0) return null
-    const fill = el.querySelectorAll('.chapters .fill')[on]
-    const m = fill ? new DOMMatrix(getComputedStyle(fill).transform) : null
-    return on + (m ? m.a : 0)
-  }, player)
 }
 
 async function main() {
