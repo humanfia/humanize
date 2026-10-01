@@ -856,7 +856,10 @@ class _AppServer:
             return self._answer(message, "")
 
     def pursue(
-        self, params: dict[str, Any], spends: Callable[[Usage], None] | None = None
+        self,
+        params: dict[str, Any],
+        spends: Callable[[Usage], None] | None = None,
+        heard: Callable[[Event], object] | None = None,
     ) -> str:
         """Starts a turn on a thread that has a goal, and reads until the goal is done with it.
 
@@ -876,12 +879,17 @@ class _AppServer:
           params: What to start the first turn with.
           spends: Told what each request of the goal cost as the server says it, which a
             goal spends as surely as a turn does, or None to tell nobody.
+          heard: Told what the agent says and reaches for as it does, as a turn says it, or
+            None to put that on stderr instead -- a goal runs for as long as it takes to be
+            met, and nothing above this yields while it does, so these are the only sign it
+            is running.
 
         Returns:
           The last thing the agent said, stripped.
 
         Raises:
-          subprocess.CalledProcessError: If the turn was refused, or the server stopped.
+          subprocess.CalledProcessError: If the turn was refused, a turn of the goal failed,
+            or the server stopped.
         """
         thread = str(params["threadId"])
         ident = next(self._pending)
@@ -899,22 +907,26 @@ class _AppServer:
             )
             idle = False
             said = ""
+            started: set[Any] = set()  # the items this goal has already shown
             while (
                 message := self._take(mailbox, _QUIET_SECONDS if idle else None)
             ) is not None:
                 if message.get("id") == ident and "method" not in message:
                     self._answer(message, said)
                 match message.get("method"):
-                    case "item/completed":
-                        item = message["params"]["item"]
-                        if item.get("type") == "agentMessage":
-                            said = item["text"]
-                            if not self._watched():
-                                # A goal runs for as long as it takes to be met, and nothing
-                                # above this yields while it does. So its own words are the
-                                # only sign it is running -- said whole, as each message of
-                                # it lands, which is how a turn is watched here too.
-                                say(said, sys.stderr)
+                    case "item/started" | "item/completed":
+                        for event in self._shown(
+                            message["method"],
+                            message.get("params") or {},
+                            started,
+                            None,
+                        ):
+                            if event.kind == "text":
+                                said = event.text
+                            if heard is not None:
+                                heard(event)
+                            else:
+                                say(event.text, sys.stderr)
                     case "thread/tokenUsage/updated" if spends is not None:
                         risen = self._rose(thread, message.get("params") or {})
                         if risen is not None:
@@ -925,12 +937,111 @@ class _AppServer:
                         pursuing = False
                     case "thread/status/changed":
                         idle = message["params"]["status"]["type"] == "idle"
+                    case "turn/completed":
+                        told: dict[str, Any] = message.get("params") or {}
+                        ended: dict[str, Any] = told.get("turn") or {}
+                        if ended.get("status") == "failed":
+                            # A turn of the goal that failed is the goal over: Codex carries
+                            # nothing on from it, and its thread falls into an error rather
+                            # than idle, which nothing here would otherwise stop waiting on.
+                            raise Failed(
+                                1,
+                                self._argv,
+                                said,
+                                json.dumps(ended.get("error") or "failed"),
+                            )
                     case _:  # every other method the server has is not this loop's
                         pass
                 if idle and not pursuing:
                     break
-            say(said, sys.stdout)  # where `codex exec` would have put the answer
             return said.strip()
+
+    def _shown(
+        self,
+        method: str,
+        told: Mapping[str, Any],
+        started: set[Any],
+        took: Callable[[str], str | None] | None,
+    ) -> Iterator[Event]:
+        """What one `item/started` or `item/completed` says the agent did, as events.
+
+        Read the same way for a turn and for a goal, which is turns of the model the server
+        starts itself: what the agent reaches for is shown either way.
+
+        Args:
+          method: Which of the two it is.
+          told: Its params.
+          started: The items already shown, by id, which this adds to.
+          took: The session's book of words put into the turn, or None for none.
+
+        Yields:
+          What it said: the agent's message as `text`, and the rest as a turn shows them.
+        """
+        item: dict[str, Any] = told.get("item") or {}
+        kind = str(item.get("type") or "")
+        done = method == "item/completed"
+        # Shown once apiece: as it starts, a thing worth showing being a thing
+        # worth watching run, and otherwise as it completes -- the server need not
+        # have started everything it finishes. An item that names itself with
+        # nothing is not the item shown before it, so it is shown rather than
+        # taken for one already seen.
+        marked = item.get("id")
+        twice = done and marked is not None and marked in started
+        if marked is not None:
+            started.add(marked)
+        if kind == "userMessage" and not done and took:
+            # A word put into this turn, come back around: the server says so
+            # once the model has it, under the name it was sent with.
+            # Everything else on a `userMessage` is the turn's own prompt,
+            # which nobody is waiting to hear about.
+            words = took(str(item.get("clientId") or ""))
+            if words is not None:
+                yield Event(kind="took", text=words)
+        elif kind == "agentMessage" and done:
+            yield Event(kind="text", text=str(item.get("text") or ""))
+        elif kind == "reasoning" and done:
+            # Reasoning is a list of parts rather than one text.
+            parts: list[Any] = item.get("content") or item.get("summary") or []
+            thought = " ".join(str(part) for part in parts)
+            if thought.strip():
+                yield Event(kind="reasoning", text=thought)
+        elif kind in _FLEET:
+            # An agent of its own rather than a tool it ran: both ends of it
+            # are said, since what is under this turn is a fleet and a fleet
+            # that never finished would read as one still working.
+            about = str(item.get(_ABOUT.get(kind, "")) or "")
+            yield Event(
+                kind="subagent-ends" if done else "subagent",
+                text=f"{_CALLED.get(kind, kind)} {about}".strip()[:120],
+                whose=str(marked or ""),
+            )
+        elif kind not in (*_TALKING, *_OURS) and not twice:
+            # Every other item is the agent reaching for something, and every
+            # one of them is shown: a turn spends its minutes here, and an
+            # item this has never heard of is still work being done rather
+            # than a silence to sit through.
+            named = item.get(_ABOUT.get(kind, ""))
+            if isinstance(named, list):
+                # One entry per file changed: the paths are the words.
+                listed = cast("list[Any]", named)
+                named = " ".join(
+                    str(cast("dict[str, Any]", part).get("path", part))
+                    if isinstance(part, dict)
+                    else str(part)
+                    for part in listed
+                )
+            about = str(named or "") or next(
+                (
+                    value
+                    for name, value in item.items()
+                    if name not in _NAMING and isinstance(value, str) and value.strip()
+                ),
+                "",
+            )
+            yield Event(
+                kind="tool",
+                text=f"{_CALLED.get(kind, kind)} {about}".strip()[:120],
+            )
 
     def turn(self, params: dict[str, Any], running: _Running) -> Iterator[Event]:
         """Runs one turn on a thread and says what the agent says as it says it.
@@ -981,84 +1092,12 @@ class _AppServer:
                         begun = True
                     match message.get("method"):
                         case "item/started" | "item/completed":
-                            item: dict[str, Any] = told.get("item") or {}
-                            kind = str(item.get("type") or "")
-                            done = message["method"] == "item/completed"
-                            # Shown once apiece: as it starts, a thing worth showing being a
-                            # thing worth watching run, and otherwise as it completes -- the
-                            # server need not have started everything it finishes. An item
-                            # that names itself with nothing is not the item shown before it,
-                            # so it is shown rather than taken for one already seen.
-                            marked = item.get("id")
-                            twice = done and marked is not None and marked in started
-                            if marked is not None:
-                                started.add(marked)
-                            if kind == "userMessage" and not done and running.took:
-                                # A word put into this turn, come back around: the server
-                                # says so once the model has it, under the name it was sent
-                                # with. Everything else on a `userMessage` is the turn's own
-                                # prompt, which nobody is waiting to hear about.
-                                words = running.took(str(item.get("clientId") or ""))
-                                if words is not None:
-                                    yield Event(kind="took", text=words)
-                            elif kind == "agentMessage" and done:
-                                said = str(item.get("text") or "")
-                                yield Event(kind="text", text=said)
-                            elif kind == "reasoning" and done:
-                                # Reasoning is a list of parts rather than one text.
-                                parts: list[Any] = (
-                                    item.get("content") or item.get("summary") or []
-                                )
-                                thought = " ".join(str(part) for part in parts)
-                                if thought.strip():
-                                    yield Event(kind="reasoning", text=thought)
-                            elif kind in _FLEET:
-                                # An agent of its own rather than a tool it ran: both ends of
-                                # it are said, since what is under this turn is a fleet and a
-                                # fleet that never finished would read as one still working.
-                                about = str(item.get(_ABOUT.get(kind, "")) or "")
-                                yield Event(
-                                    kind="subagent-ends" if done else "subagent",
-                                    text=f"{_CALLED.get(kind, kind)} {about}".strip()[
-                                        :120
-                                    ],
-                                    whose=str(marked or ""),
-                                )
-                            elif kind not in (*_TALKING, *_OURS) and not twice:
-                                # Every other item is the agent reaching for something, and
-                                # every one of them is shown: a turn spends its minutes here,
-                                # and an item this has never heard of is still work being done
-                                # rather than a silence to sit through.
-                                named = item.get(_ABOUT.get(kind, ""))
-                                if isinstance(named, list):
-                                    # One entry per file changed: the paths are the words.
-                                    listed = cast("list[Any]", named)
-                                    named = " ".join(
-                                        str(
-                                            cast("dict[str, Any]", part).get(
-                                                "path", part
-                                            )
-                                        )
-                                        if isinstance(part, dict)
-                                        else str(part)
-                                        for part in listed
-                                    )
-                                about = str(named or "") or next(
-                                    (
-                                        value
-                                        for name, value in item.items()
-                                        if name not in _NAMING
-                                        and isinstance(value, str)
-                                        and value.strip()
-                                    ),
-                                    "",
-                                )
-                                yield Event(
-                                    kind="tool",
-                                    text=f"{_CALLED.get(kind, kind)} {about}".strip()[
-                                        :120
-                                    ],
-                                )
+                            for event in self._shown(
+                                message["method"], told, started, running.took
+                            ):
+                                if event.kind == "text":
+                                    said = event.text
+                                yield event
                         case "thread/tokenUsage/updated":
                             if (risen := self._rose(thread, told)) is not None:
                                 costing = costing + risen
@@ -1945,16 +1984,30 @@ class CodexSession(SessionBase):
                 server.call(
                     "thread/goal/set", {"threadId": thread, "objective": objective}
                 )
-                answer = server.pursue(
-                    {
-                        "threadId": thread,
-                        "input": [{"type": "text", "text": objective}],
-                        "model": config.model,
-                        **_thinking(self.effort),
-                        **self._turned(server),
-                    },
-                    self._spends,
-                )
+                # Bracketed and said as a turn is, for whoever is watching: a goal is turns
+                # of the model the server starts itself, and they reach for things too.
+                watched = bool(self._agent._watchers)
+                if watched:
+                    self._heard(Event(kind="begins", text=objective))
+                try:
+                    answer = server.pursue(
+                        {
+                            "threadId": thread,
+                            "input": [{"type": "text", "text": objective}],
+                            "model": config.model,
+                            **_thinking(self.effort),
+                            **self._turned(server),
+                        },
+                        self._spends,
+                        self._heard if watched else None,
+                    )
+                    if watched:
+                        self._heard(Event(kind="result", text=answer))
+                    else:
+                        say(answer, sys.stdout)  # where `codex exec` would have put it
+                finally:
+                    if watched:
+                        self._heard(Event(kind="ends", text=""))
             finally:
                 server.give()
             self._adopt(thread)

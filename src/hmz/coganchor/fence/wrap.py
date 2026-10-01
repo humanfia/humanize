@@ -33,7 +33,7 @@ import socket
 import sys
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from hmz.coganchor.fence import Fence, Proxy
 
@@ -282,11 +282,26 @@ def _waited(pid: int) -> int:
         with contextlib.suppress(OSError):
             os.kill(pid, said)
 
-    with contextlib.suppress(OSError, ValueError):
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-    for said in (signal.SIGTERM, signal.SIGQUIT, signal.SIGHUP):
+    # Put back once the program is over, for a caller that goes on in this process.
+    was: dict[int, Any] = {}
+    for said, then in (
+        (signal.SIGINT, signal.SIG_IGN),
+        (signal.SIGTERM, passed),
+        (signal.SIGQUIT, passed),
+        (signal.SIGHUP, passed),
+    ):
         with contextlib.suppress(OSError, ValueError):
-            signal.signal(said, passed)
+            was[said] = signal.signal(said, then)
+    try:
+        return _reaped(pid)
+    finally:
+        for said, before in was.items():
+            with contextlib.suppress(OSError, ValueError):
+                signal.signal(said, signal.SIG_DFL if before is None else before)
+
+
+def _reaped(pid: int) -> int:
+    """Waits for the program, collecting every orphan as it goes; returns its wait status."""
     while True:
         try:
             # Any child rather than the program alone: an orphan handed to this subreaper is

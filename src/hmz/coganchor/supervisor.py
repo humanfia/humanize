@@ -158,6 +158,8 @@ class Supervisor:
         self._wake_write = -1
         self._signal_read = -1
         self._signal_write = -1
+        #: What this process did with each signal before it took them, to be put back.
+        self._handlers: dict[int, Any] = {}
         self._root_pid = 0
         self._exit_status = 1
         #: The descriptor every ``bind`` and ``listen`` of an agent whose network is cut is
@@ -244,12 +246,17 @@ class Supervisor:
         # A Python-level handler (rather than SIG_IGN) is required for
         # set_wakeup_fd to fire, and handlers reset to default across execve so
         # the agent keeps its own signal behaviour.
-        signal.signal(signal.SIGCHLD, _ignore)
-        signal.signal(signal.SIGINT, _ignore)
+        # Put back at teardown, for a caller that goes on in this process.
+        self._handlers = {
+            one: signal.signal(one, _ignore) for one in (signal.SIGCHLD, signal.SIGINT)
+        }
         signal.set_wakeup_fd(self._signal_write, warn_on_full_buffer=False)
 
     def _teardown(self) -> None:
         signal.set_wakeup_fd(-1)
+        for one, was in self._handlers.items():
+            signal.signal(one, signal.SIG_DFL if was is None else was)
+        self._handlers = {}
         if self._listens is not None:
             self._listens.stop()
         elif self._listener is not None:
