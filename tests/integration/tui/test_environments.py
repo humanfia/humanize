@@ -25,16 +25,17 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import (
+    _ACT_ADD,
+    _ACT_DOCKS,
+    _ACT_IMPORTS,
+    _ACT_SEARCH,
     _ADD,
     _BUDGET,
     _CHECKS,
     _CORRECTS,
     _DETECTS,
-    _DOCKS,
     _DONE,
-    _IMPORTS,
     _SAVE,
-    _SEARCH,
     _TAKES_AWAY,
     _UNSAVED,
     Configures,
@@ -56,6 +57,7 @@ from tests.integration.tui.test_app import (
     into_settings,
     nexts,
     onto,
+    picks,
     rows,
 )
 from tests.stubs import written
@@ -211,7 +213,7 @@ async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
         sheet = await _into_machines(app, driver)
 
         assert rows(app) == []
-        assert bar(app) == [_ADD, _DOCKS, _IMPORTS, _SEARCH]
+        assert bar(app) == [_ACT_ADD, _ACT_DOCKS, _ACT_IMPORTS, _ACT_SEARCH]
         assert sheet.focused is sheet.query_one("#act-add")
         assert "no machines saved yet" in _under(app)
         labels = [
@@ -231,7 +233,7 @@ async def test_an_ssh_host_is_added_on_one_form_and_asked_what_it_has(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _ADD, Hosting)
+        await _opens(app, driver, _ACT_ADD, Hosting)
         form = cast("Hosting", app.screen)
         assert form.under() == "host"
 
@@ -276,7 +278,7 @@ async def test_what_the_store_refuses_is_said_on_the_form_and_saves_nothing(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _ADD, Hosting)
+        await _opens(app, driver, _ACT_ADD, Hosting)
         form = cast("Hosting", app.screen)
         await driver.press(*"gpu", "enter")
         # Named after its host, but not over one saved already.
@@ -319,7 +321,7 @@ async def test_the_hosts_of_another_config_are_imported_and_theirs_is_never_writ
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _IMPORTS, Importing)
+        await _opens(app, driver, _ACT_IMPORTS, Importing)
         form = cast("Importing", app.screen)
         await until(lambda: form._read is not None, driver)
         assert form._typed_in["config"] == "~/.ssh/config"
@@ -363,7 +365,7 @@ async def test_a_host_switched_off_is_not_imported(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _IMPORTS, Importing)
+        await _opens(app, driver, _ACT_IMPORTS, Importing)
         form = cast("Importing", app.screen)
         await onto(app, driver, "config")
         await driver.press(*str(config), "enter")
@@ -415,7 +417,7 @@ async def test_a_docker_host_is_reached_every_way_a_daemon_is(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _DOCKS, Docking)
+        await _opens(app, driver, _ACT_DOCKS, Docking)
         form = cast("Docking", app.screen)
         if steps:
             await nexts(app, driver, "endpoint", steps)
@@ -450,7 +452,7 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _DOCKS, Docking)
+        await _opens(app, driver, _ACT_DOCKS, Docking)
         form = cast("Docking", app.screen)
         assert form._typed_in["name"] == "local"
 
@@ -501,7 +503,7 @@ async def test_what_a_daemon_cannot_be_given_is_refused_on_the_form(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _DOCKS, Docking)
+        await _opens(app, driver, _ACT_DOCKS, Docking)
         await _types(app, driver, held, said)
         await _done(app, driver)
 
@@ -733,7 +735,7 @@ async def test_a_role_is_put_on_a_host_nobody_saved(
         form = await _placing(app, driver)
         # Nothing saved for any backend, so it starts on the first `-e` takes.
         assert form._typed_in["backend"] == next(iter(EnvBackendKind)).value
-        await changes(app, driver, "backend", "right")
+        await picks(app, driver, "backend", "ssh")
         assert form._typed_in["backend"] == "ssh"
 
         await _opens(app, driver, "provider", Hosts)
@@ -816,7 +818,7 @@ async def test_a_config_under_a_home_nobody_has_is_said_rather_than_crashing(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _IMPORTS, Importing)
+        await _opens(app, driver, _ACT_IMPORTS, Importing)
         form = cast("Importing", app.screen)
         await until(lambda: form._read is not None, driver)
         await onto(app, driver, "config")
@@ -841,7 +843,7 @@ async def test_a_host_a_typed_one_is_saved_as_starts_off_and_says_why(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _IMPORTS, Importing)
+        await _opens(app, driver, _ACT_IMPORTS, Importing)
         form = cast("Importing", app.screen)
         await onto(app, driver, "config")
         await driver.press(*str(config), "enter")
@@ -859,7 +861,7 @@ async def test_an_option_whose_value_is_a_list_is_one_option(standins: Path) -> 
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _ADD, Hosting)
+        await _opens(app, driver, _ACT_ADD, Hosting)
         await driver.press(*"box", "enter")
         await _types(
             app, driver, "options", "Ciphers=aes128-ctr,aes256-ctr, Compression=yes"
@@ -906,7 +908,7 @@ async def test_a_tls_directory_under_a_home_nobody_has_is_refused_on_the_form(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _DOCKS, Docking)
+        await _opens(app, driver, _ACT_DOCKS, Docking)
         await nexts(app, driver, "endpoint", 2)
         await _types(app, driver, "address", "10.0.0.5:2376")
         await _types(app, driver, "tls_dir", "~nosuchuser9/certs")

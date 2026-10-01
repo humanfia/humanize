@@ -55,14 +55,13 @@ from hmz.flows import (
     EnvFileNotFound,
     EnvPermissionDenied,
     EnvUnavailable,
-    GitEnvMixin,
     RewindError,
     ScratchError,
     TempCloneBusy,
     WorktreeError,
 )
 
-from .spi import ENV_CAPABILITIES
+from .spi import ENV_CAPABILITIES, ENV_TOOLS
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -115,9 +114,6 @@ _CONNECTION = frozenset(
         errno.ENOTCONN,
     }
 )
-
-#: What a driver on a machine seen to have no `git` serves.
-_GITLESS = ENV_CAPABILITIES - {GitEnvMixin}
 
 #: Errnos that mean permission was refused.
 _REFUSED = frozenset({errno.EACCES, errno.EPERM, errno.EROFS})
@@ -653,8 +649,13 @@ class Machine(ABC):
     def placement(self, workdir: PurePosixPath) -> Placement:
         """Where an agent session working in a workdir on it is put."""
 
-    def has_git(self) -> bool | None:
-        """Whether `git` is on its PATH, as last seen; None before anything has looked."""
+    def has(self, tool: str) -> bool | None:
+        """Whether a program is on its PATH, as last seen; None before anything has looked.
+
+        Args:
+          tool: The program, one of :data:`~hmz.runtime.flowing.spi.ENV_TOOLS`'s.
+        """
+        del tool
         return None
 
     # --- what it takes asking
@@ -963,11 +964,14 @@ class MachineEnvDriver:
 
     @property
     def capabilities(self) -> frozenset[type]:
-        """Every environment mixin, less `GitEnvMixin` on a machine seen to have no git.
+        """Every environment mixin, less those whose program the machine was seen to lack.
 
-        Every backend serves all of them; that one is served by the machine's own git.
+        Every backend serves all of them; `GitEnvMixin` and `GitWorktreeEnvMixin` are served
+        by the machine's own `git`, and `BashEnvMixin` by its `bash` (:data:`ENV_TOOLS`).
         """
-        return _GITLESS if self._machine.has_git() is False else ENV_CAPABILITIES
+        machine = self._machine
+        lacking = {one for one, tool in ENV_TOOLS.items() if machine.has(tool) is False}
+        return ENV_CAPABILITIES - lacking
 
     @property
     def cpu_count(self) -> int:

@@ -27,6 +27,7 @@ import asyncio
 import contextlib
 import json
 import math
+import threading
 import time
 import weakref
 from pathlib import Path
@@ -305,6 +306,9 @@ class Runner:
         self._agents = _agent_drivers(agents_given, self._harness, self._harness_on)
         self._envs = _env_drivers(envs_given, declared)
         self._recorder: Recorder | None = None
+        #: Held while the price list is brought up to date for this run, which is done once.
+        self._pricing = threading.Lock()
+        self._priced = False
 
     # ------------------------------------------------------------------ what is checked
 
@@ -518,18 +522,30 @@ class Runner:
         """What is writing the run down, once it has started, or None before."""
         return self._recorder
 
-    def unreadable(self) -> str:
+    @property
+    def _capped(self) -> bool:
+        """Whether the run is held to a cost it could run out of."""
+        cost = self._budget.cost
+        return cost is not None and not math.isinf(cost)
+
+    def unreadable(self, stopped: Callable[[], bool] | None = None) -> str:
         """Which cap of the run nothing it drives can read, in words, or "" for none.
 
         A cost cap over an agent whose model nobody prices is a cap that cannot bite: its
         turns cost nothing anybody can count, which reads exactly like a cap that has not bitten
-        yet. Answered before the first turn rather than at the end of a run that never stopped.
+        yet. Answered before the first turn rather than at the end of a run that never stopped,
+        and of the price list as it stands once a stale or missing one has been asked for.
+
+        Args:
+          stopped: Asked while the list is waited for, so that a run stopped meanwhile is not
+            held up by it.
         """
         from hmz.coganchor.prices import price
 
-        cost = self._budget.cost
-        if cost is None or math.isinf(cost):
+        self._prices(stopped)
+        if not self._capped:
             return ""
+        cost = self._budget.cost or 0.0
         unpriced = sorted(
             {one.model for one in self._agents.values() if price(one.model) is None}
         )
@@ -539,6 +555,30 @@ class Runner:
             f"nobody lists a price for {', '.join(unpriced)}, so cost={cost:g} cannot "
             "stop what it spends"
         )
+
+    def _prices(self, stopped: Callable[[], bool] | None = None) -> None:
+        """Brings the price list up to date for this run, once, whichever way it was started.
+
+        A run is priced wherever it is started -- a command line, a tool, the interface -- so
+        the list is asked for here rather than by whichever of those happens to have a screen.
+        A run held to a cost cap waits for a stale or missing list before its first turn, held
+        to the fetch's own timeout, since a cap over turns nothing priced is a cap that never
+        bites; any other run has it fetched on a thread of its own, and what is kept serves it
+        meanwhile. Refused, like every fetch, by `HUMANIZE_PRICES=off`.
+
+        Args:
+          stopped: Asked while the list is waited for.
+        """
+        from hmz.coganchor import prices
+
+        with self._pricing:
+            if self._priced:
+                return
+            self._priced = True
+            if self._capped:
+                prices.ready(stopped=stopped)
+            else:
+                prices.refresh()
 
     def watch(self, listener: Listener) -> None:
         """Has everything every session of the run says reach `listener`.
@@ -597,6 +637,13 @@ class Runner:
 
         local: EnvDriver | None = None
         try:
+            # On a thread, since it may wait on a fetch: the loop is the flow's, and a cancel
+            # reaching it here lets go of the wait rather than sitting it out.
+            given_up = threading.Event()
+            try:
+                await asyncio.to_thread(self._prices, given_up.is_set)
+            finally:
+                given_up.set()
             for driver in self._envs.values():
                 await probe(driver)
             if self._harness_on is not None:

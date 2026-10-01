@@ -116,7 +116,7 @@ async def polish(
    an `int`; `ge` and `le` are pydantic's bounds, so `-p passes=9` is refused before anything
    runs; `description` is the line shown beside it on the form.
 4. **`Literal["correctness", "style", "tests"]`** is a choice. The command line accepts exactly
-   those words, and the form steps through them in the order written.
+   those words, and the form drops them under the row in the order written.
 5. **`commit: bool`** is a switch: `-p commit=true` on the command line, `on` or `off` on the
    form.
 6. **`@model_validator(mode="after")`** refuses a combination the flow cannot run, where it is
@@ -184,24 +184,25 @@ looked at tests (`focus=tests`), and a commit (`commit=true`).
 
 ```text
    passes  ·  what the agent does
-   ❯ 1. passes                            1 ↔          review passes after the work
-     2. focus                             correctness ↔ what each pass looks for
+   ❯ 1. passes                            1            review passes after the work
+     2. focus                             correctness ▾ what each pass looks for
 
    after  ·  what happens at the end
-     3. commit                            off ↔        commit when done
+     3. commit                            off ▾        commit when done
      4. message                                        the commit message; empty for the agent's own
 
         set                       all of the above
 ```
 
 The two headings are the `section`s, each row is a field with its value and its `description`,
-and `↔` marks a row the arrows step. **set** takes the form and goes on to the flow's agents.
+and `▾` marks a row whose values <kbd>enter</kbd> or a click drops under it to be picked
+from. **set** takes the form and goes on to the flow's agents.
 
 | Field type | On the form |
 | --- | --- |
-| `bool` | a switch, `on` or `off` |
-| `Literal[…]` | stepped through its values, in the order you wrote them |
-| `int`, `float` | written, or stepped up and down by one |
+| `bool` | a switch, `on` or `off`, picked from the two |
+| `Literal[…]` | picked from its values, in the order you wrote them |
+| `int`, `float` | written |
 | anything else | written |
 
 The arrows walk the params and step over the headings. What is set there is

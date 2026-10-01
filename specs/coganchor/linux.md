@@ -13,9 +13,11 @@ cwd and descriptors. It knows nothing of the anchor, the wire, or a target.
 @dataclass(frozen=True, slots=True)
 class Numbers:
     # This machine's number for each syscall a supervised session cares about: the ones that
-    # exec, exit, open, stat, access, read a link, change or make or remove a directory,
-    # unlink, rename, symlink, link, chmod, truncate, set times, connect, install a filter,
-    # reach another process by pidfd, and read or write its memory. One int field apiece.
+    # exec, exit, open, stat, statfs, access, read a link, change or make or remove a directory,
+    # unlink, rename, symlink, link, chmod, chown, mknod, truncate, set times, read or write or
+    # remove an extended attribute, take a handle or a tree, watch a path, connect, install a
+    # filter, reach another process by pidfd, and read or write its memory. One int field
+    # apiece.
     def trapped(self) -> frozenset[int]: ...
 
 @dataclass(frozen=True, slots=True)

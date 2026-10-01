@@ -547,6 +547,51 @@ def test_a_container_without_git_is_refused_before_the_flow_runs(
     assert _git_out(repo, "for-each-ref", "refs/hmz") == ""
 
 
+_BRANCHES = """
+from hmz.flows import AgentCollection, Env, EnvCollection, FilesEnvMixin, FlowParams
+from hmz.flows import GitWorktreeEnvMixin, ImageEnvMixin, flow
+
+
+class Repo(Env, FilesEnvMixin, GitWorktreeEnvMixin, ImageEnvMixin):
+    _image = "IMAGE"
+
+
+class Envs(EnvCollection):
+    repo: Repo
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams)
+async def branches(task, *, agents, envs, params, ctx):
+    repo = envs["repo"]
+    tree = await repo.derive_worktree(ref="HEAD~1")
+    await repo.write("seen.txt", await tree.read("file.txt"))
+"""
+
+
+@pytest.mark.timeout(300)
+@pytest.mark.parametrize(("image", "served"), [(IMAGE, False), ("python:3.12", True)])
+def test_a_worktree_is_added_only_in_a_container_that_has_git(
+    daemon: None, tmp_path: Path, image: str, *, served: bool
+) -> None:
+    _image(image)
+    flow = written(tmp_path / "flows", "branches", _BRANCHES.replace("IMAGE", image))
+    repo = tmp_path / "repo"
+    _two_commits(repo)
+
+    run = _hmz(flow, f"repo=docker@local{repo}", "go", tmp_path)
+    _, err = run.communicate(timeout=240)
+
+    if served:
+        assert run.returncode == 0, err
+        assert (repo / "seen.txt").read_text() == "first\n"
+        return
+    assert run.returncode == 2, err
+    assert "'repo' needs GitWorktreeEnvMixin" in err, err
+    assert "GitWorktreeEnvMixin needs git on the machine's PATH" in err, err
+    assert not (repo / "seen.txt").exists()
+    assert len(_git_out(repo, "worktree", "list").splitlines()) == 1
+
+
 def _git_out(cwd: Path, *argv: str) -> str:
     return subprocess.run(
         ["git", *argv], cwd=cwd, check=True, capture_output=True, text=True

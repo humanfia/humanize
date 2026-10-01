@@ -25,6 +25,7 @@ import pytest
 from hmz import home
 from hmz.flows import (
     AgentCollection,
+    BashEnvMixin,
     CapabilityMissing,
     Env,
     EnvBackendKind,
@@ -37,6 +38,7 @@ from hmz.flows import (
     FlowContext,
     FlowParams,
     GitEnvMixin,
+    GitWorktreeEnvMixin,
     RewindError,
     TempCloneBusy,
     WorktreeError,
@@ -746,6 +748,39 @@ async def test_a_machine_without_git_is_refused_a_role_that_needs_it(
     assert GitEnvMixin not in driver.capabilities
     with pytest.raises(CapabilityMissing, match="needs git on the machine's PATH"):
         await run_fake(_snapshots, envs={"repo": driver})
+    assert GitWorktreeEnvMixin not in driver.capabilities
+    with pytest.raises(
+        CapabilityMissing, match="GitWorktreeEnvMixin needs git on the machine's PATH"
+    ):
+        await run_fake(_branches, envs={"repo": driver})
+    assert BashEnvMixin not in driver.capabilities
+
+
+class _Tree(Env, GitWorktreeEnvMixin): ...
+
+
+class _Trees(EnvCollection):
+    repo: _Tree
+
+
+@flow(agents=AgentCollection, envs=_Trees, params=FlowParams)
+async def _branches(
+    task: str,
+    *,
+    agents: AgentCollection,
+    envs: _Trees,
+    params: FlowParams,
+    ctx: FlowContext,
+) -> str:
+    return str((await envs["repo"].derive_worktree()).workdir)
+
+
+async def test_a_machine_with_git_adds_a_worktree_for_a_role_that_declares_it(
+    repo: Path,
+) -> None:
+    added = Path(await run_fake(_branches, envs={"repo": _driver(repo)}))
+
+    assert (added / ".git").is_file()
 
 
 # ---------------------------------------------------------------------- temporary copies

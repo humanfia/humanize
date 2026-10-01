@@ -342,6 +342,9 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   role, and what the run spent -- holding no session past its close to count it; and
   MUST close every driver it was given however the run ends. A run stopped from outside, or
   by its budget, MUST be written down as stopped rather than failed.
+- A run under a finite cost cap MUST bring a missing or stale price list up to date before its
+  first turn, waiting no longer than the fetch's own timeout nor once the run is stopped, and
+  on the rules every fetch is held to; every other run MUST have it refreshed without waiting.
 - `read_line` MUST read the whole `hmz exec` line, MUST NOT load a flow to answer `--help`,
   MUST take every `-a`, `-e`, `-p` and `-b` as one list however they were broken up, and
   MUST refuse one that cannot be read as argparse refuses a line.

@@ -7,7 +7,8 @@ OpenLLMPrices, which is one JSON file of them, and kept under humanize's own hom
 
 Two rules hold this whole module up. **Nothing here may cost a prompt its responsiveness**:
 `price` and `cost` read what was already kept and never reach for the network, and fetching
-is asked for by whoever has time for it and runs on a thread of its own. And **a model
+is asked for by whoever has time for it: on a thread of its own, or -- by a run that a cost
+cap is to hold, before its first turn -- held to the fetch's own timeout. And **a model
 nobody lists reads as tokens alone**: the list covers a few dozen models and humanize drives
 whatever CLI you have, so answering nothing is the ordinary case rather than the broken one.
 A `$0.00` against a model nobody priced would be a lie about a bill.
@@ -29,11 +30,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz import home
+from hmz.coganchor import atomic
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
-__all__ = ["SOURCE", "Price", "cost", "money", "price", "refresh", "where"]
+__all__ = ["SOURCE", "Price", "cost", "money", "price", "ready", "refresh", "where"]
 
 #: The one JSON file OpenLLMPrices is over. There is no API beside it: the site itself reads
 #: this and nothing else, so this is the whole of the source rather than a scrape of a page.
@@ -49,8 +51,16 @@ WHENCE = "HUMANIZE_PRICES"
 #: is conditional, and an unchanged file comes back as three hundred and four bytes of nothing.
 STALE = 24 * 60 * 60.0
 
-#: How long the fetch is given before it is left for another day. Nobody is waiting on it.
+#: How long the fetch is given before it is left for another day -- and how long a run held
+#: to a cost waits for it before its first turn, which is the only time anybody waits on it.
 _WAITING = 20.0
+
+#: How often a run waiting on the fetch looks up to see whether it has been stopped.
+_GLANCE = 0.1
+
+#: How old a half-written copy beside the list must be before it is taken for one a process
+#: died writing rather than one being written now. Writing one takes milliseconds.
+_ABANDONED = 10 * 60.0
 
 #: The most that will be read from the source. It is two and a half megabytes today; this is
 #: the cap that says a redirect onto something else is not a file to parse.
@@ -107,6 +117,10 @@ _read_from: tuple[str, float] | None = None
 #: must not be asked again on every redraw of a screen.
 _fetching = False
 _tried = 0.0
+#: Set whenever no fetch is running, so that a caller who needs what one brings can wait on
+#: one somebody else already started rather than starting a second.
+_idle = threading.Event()
+_idle.set()
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,10 +239,11 @@ def money(dollars: float) -> str:
 def refresh(*, wait: bool = False) -> bool:
     """Fetches the list again, if what is kept has got old.
 
-    Asked for by whoever has the time for it -- the interface, as it opens -- and never by
-    the drawing of a figure. It runs on a thread of its own, it is conditional on the etag of
-    what is already here, and every way it can go wrong ends with what was kept still being
-    served: a price list that could stop a run would be worth less than no price list.
+    Asked for by whoever has the time for it -- the interface as it opens, a run as it
+    starts -- and never by the drawing of a figure. It runs on a thread of its own, it is
+    conditional on the etag of what is already here, and every way it can go wrong ends with
+    what was kept still being served: a price list that could stop a run would be worth less
+    than no price list.
 
     Args:
       wait: Whether to fetch on this thread instead of on one of its own. For a caller that
@@ -250,6 +265,7 @@ def refresh(*, wait: bool = False) -> bool:
             return False  # what is kept is new enough to go on serving
         _fetching = True
         _tried = now
+        _idle.clear()
     if wait:
         try:
             return _fetch(whence)
@@ -272,6 +288,34 @@ def _release() -> None:
     global _fetching  # noqa: PLW0603 -- one list per process, held beside it
     with _lock:
         _fetching = False
+        _idle.set()
+
+
+def ready(*, stopped: Callable[[], bool] | None = None) -> bool:
+    """Brings what is kept up to date before a run that a cost cap is to hold.
+
+    A cap in dollars can only stop what can be priced, and a machine that has only ever run
+    `hmz exec` has never opened the interface that fetches the list in the background -- so a
+    run that is about to be held to one asks for it here, before its first turn. Only where
+    what is kept is stale or missing, and on the rules :func:`refresh` keeps: refusable, and
+    tried at most once an hour in a process. The fetch is on a thread of its own, a fetch
+    already in the air is waited on rather than doubled, and the wait is held to the fetch's
+    own timeout by the clock -- one that outlasts it lands for the turns after the first.
+    Every way it goes wrong leaves what was kept serving, and none of them stops the run.
+
+    Args:
+      stopped: Asked as it waits, so that a run stopped in the meantime is not held up.
+
+    Returns:
+      Whether there is a list kept to price with now, however old.
+    """
+    if not _fresh() and _whence():
+        refresh()
+        until = time.monotonic() + _WAITING
+        while not _idle.wait(_GLANCE):
+            if time.monotonic() >= until or (stopped is not None and stopped()):
+                break
+    return bool(_index())
 
 
 def _whence() -> str:
@@ -302,6 +346,7 @@ def _fetch(whence: str) -> bool:
       Whether what is kept is now the source's.
     """
     kept = where()
+    _sweeps(kept)
     held = _held(kept)
     # The etag only where it belongs to the source being asked. Replayed at another, a 304
     # would date the first source's prices forward and go on serving them as this one's.
@@ -469,6 +514,10 @@ def _per_million(items: object) -> dict[str, float]:
 def _keep(kept: pathlib.Path, trimmed: dict[str, Any]) -> bool:
     """Writes what was fetched, whole or not at all.
 
+    Through :func:`hmz.coganchor.atomic.writes`: two humanize processes refresh this on their
+    own clocks, and a reader must never see half a file -- nor a writer find its copy beside
+    it already moved away by the other's.
+
     Args:
       kept: Where it goes.
       trimmed: What to write.
@@ -476,21 +525,33 @@ def _keep(kept: pathlib.Path, trimmed: dict[str, Any]) -> bool:
     Returns:
       Whether it landed.
     """
-    beside = kept.with_name(f"{kept.name}.{os.getpid()}")
     try:
         kept.parent.mkdir(parents=True, exist_ok=True)
-        beside.write_text(json.dumps(trimmed), encoding="utf-8")
-        # Replaced rather than written over: two humanize processes refresh this on their
-        # own clocks, and a reader must never see half a file.
-        beside.replace(kept)
+        atomic.writes(kept, json.dumps(trimmed))
     except OSError:
-        with contextlib.suppress(OSError):
-            beside.unlink()
         return False
     with _lock:
         global _read_from  # noqa: PLW0603 -- one list per process, held beside it
         _read_from = None  # so the next read picks this up rather than what it holds
     return True
+
+
+def _sweeps(kept: pathlib.Path) -> None:
+    """Takes away the copies a process died half way through writing beside the list.
+
+    A fetch runs on a thread nothing waits for, so a process that exits mid-write leaves its
+    copy behind: `.prices.json.<random>.new` as written now, and `prices.json.<pid>` as it
+    was written before. Only ones left long enough that nobody can still be writing them, and
+    only here, on the fetch's own thread -- reading a price stays one file read.
+    """
+    now = time.time()
+    for left in (
+        *kept.parent.glob(f".{kept.name}.*.new"),
+        *kept.parent.glob(f"{kept.name}.*"),
+    ):
+        with contextlib.suppress(OSError):
+            if now - left.stat().st_mtime > _ABANDONED:
+                left.unlink()
 
 
 def _held(kept: pathlib.Path) -> dict[str, Any]:

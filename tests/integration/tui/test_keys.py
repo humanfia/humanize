@@ -28,6 +28,9 @@ from hmz.coganchor.machines.store import SSHProvider
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.pick import (
+    _ACT_ADD,
+    _ACT_SAVE,
+    _ACT_SEARCH,
     _ADD,
     _DONE,
     _DOT,
@@ -193,24 +196,19 @@ async def test_the_menus_walked_into_say_each_of_their_keys_once(
         await into_agent(app, driver)
         once(app.screen)
 
-        # And on the row that is changed where it stands, where enter begins changing it.
+        # And on a row whose values are dropped under it, where enter drops them.
         await onto(app, driver, "effort")
         once(app.screen)
-        assert "enter change" in said(app.screen)
-
-        # While it is being changed the keys are about changing it and nothing else.
-        await driver.press("enter")
-        await driver.pause()
-        once(app.screen)
-        assert said(app.screen) == "←/→ change · enter keep · esc undo"
+        assert "enter choose" in said(app.screen)
+        assert "←/→" not in said(app.screen)
 
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_a_row_is_changed_only_once_enter_has_begun_on_it(
+async def test_a_row_is_changed_only_once_a_value_is_picked_for_it(
     _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
 ) -> None:
-    """Enter begins, the arrows change, enter keeps and esc puts back what it said before."""
+    """Enter drops its values, the arrows walk them, enter picks one and esc picks none."""
     app = Humanize()
     async with app.run_test() as driver:
         await into_flows(app, driver)
@@ -226,25 +224,22 @@ async def test_a_row_is_changed_only_once_enter_has_begun_on_it(
         assert sheet._effort == was
         assert not sheet._changed
 
-        # Begun, changed, and put back.
-        await driver.press("enter", "right")
-        await driver.pause()
-        assert sheet._editing == "effort"
-        assert sheet._effort != was
-        # The cursor stays on the row being changed.
+        # Dropped, walked, and nothing picked.
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Dropdown), driver)
         await driver.press("down")
         await driver.pause()
-        assert sheet.under() == "effort"
-        await driver.press("escape")
-        await driver.pause()
-        assert not sheet._editing
         assert sheet._effort == was
-        assert isinstance(app.screen, Agent)  # esc put the row back, and left nothing
+        await driver.press("escape")
+        await until(lambda: app.screen is sheet, driver)
+        assert sheet._effort == was
+        assert sheet.under() == "effort"
         assert not sheet._changed
 
-        # Begun, changed, and kept -- which is a change the menu is holding.
-        await changes(app, driver, "effort", "right")
-        assert sheet._effort != was
+        # Dropped, and another picked -- which is a change the menu is holding.
+        other = next(one for one in sheet._efforts() if one != was)
+        await picks(app, driver, "effort", other)
+        assert sheet._effort == other
         assert sheet._changed
 
 
@@ -258,7 +253,7 @@ async def test_esc_on_a_menu_holding_changes_asks_whether_to_save(
     async with app.run_test() as driver:
         await into_flows(app, driver)
         await into_agent(app, driver)
-        await changes(app, driver, "effort", "right")
+        await picks(app, driver, "effort", "max")
 
         # The chords that used to save save nothing.
         for key in ("shift+enter", "ctrl+j"):
@@ -313,7 +308,7 @@ async def test_a_search_is_a_box_above_the_list_and_says_what_the_keys_do_in_it(
         await driver.pause()
         seek = sheet.query_one("#seek", Input)
         assert not seek.display
-        assert _SEARCH in bar(app)
+        assert _ACT_SEARCH in bar(app)
         assert "/ search" in said(sheet)
 
         await driver.press("slash")
@@ -326,7 +321,7 @@ async def test_a_search_is_a_box_above_the_list_and_says_what_the_keys_do_in_it(
         # Nothing is called that, and the button that adds one is still there.
         assert rows(app) == []
         assert seek.value == "zzzz"
-        assert _ADD in bar(app)
+        assert _ACT_ADD in bar(app)
 
         await driver.press("escape")
         await driver.pause()
@@ -336,7 +331,7 @@ async def test_a_search_is_a_box_above_the_list_and_says_what_the_keys_do_in_it(
         assert not sheet._home
 
         # And the button starts one as the key does.
-        await acts(app, driver, _SEARCH)
+        await acts(app, driver, _ACT_SEARCH)
         await until(lambda: seek.has_focus, driver)
 
 
@@ -391,7 +386,7 @@ async def test_the_settings_menu_is_walked_into_and_its_rows_changed_from_a_list
         await until(lambda: not sheet._home, driver)
         once(sheet)
         assert rows(app) == ["reports", "sent", "details", "btw"]
-        assert "enter change" in said(sheet)
+        assert "enter choose" in said(sheet)
         await driver.press("right")
         await driver.pause()
         assert sheet._sentry is True
@@ -424,10 +419,10 @@ async def test_adding_is_the_first_button_of_every_page_that_is_a_list(
         await until(lambda: isinstance(app.screen, Adjusts), driver)
         await driver.pause()
 
-        assert bar(app)[0] == _ADD
+        assert bar(app)[0] == _ACT_ADD
         assert _ADD not in rows(app)
         # Saved from the last button where the page holds anything, and from none where not.
-        assert (bar(app)[-1] == _SAVE) is (page in (2, 4))
+        assert (bar(app)[-1] == _ACT_SAVE) is (page in (2, 4))
         if not rows(app):
             assert app.screen.focused is app.screen.query_one("#act-add")
 

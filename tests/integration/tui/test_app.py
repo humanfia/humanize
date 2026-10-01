@@ -28,6 +28,8 @@ from hmz.tui import Humanize
 from hmz.tui.app import _BY_NAME, _COMMANDS, _SAID, Editor, _where
 from hmz.tui.monitoring import Monitoring
 from hmz.tui.pick import (
+    _ACT_ADD,
+    _ACT_SAVE,
     _ADD,
     _AGAIN,
     _BUDGET,
@@ -161,12 +163,10 @@ async def onto(app: Humanize, driver: Pilot[None], held: str) -> None:
       app: The interface.
       driver: What is pumping it.
       held: The row, by its id -- or, on a page of `/settings`, one of the buttons under
-        its list, which tab walks the focus on to.
+        its list by its key, which tab walks the focus on to.
     """
-    from hmz.tui.pick import _APART_MARK
-
     if isinstance(app.screen, Adjusts) and held in bar(app):
-        button = app.screen.query_one(f"#act-{held.removeprefix(_APART_MARK)}")
+        button = app.screen.query_one(f"#act-{held}")
         for _ in range(len(bar(app)) + 3):
             if button.has_focus:
                 return
@@ -291,11 +291,9 @@ async def into_settings(app: Humanize, driver: Pilot[None], page: int = 0) -> No
 
 
 def bar(app: Humanize) -> list[str]:
-    """The buttons under the list of the settings page on top, by what each answers with."""
-    from hmz.tui.pick import _APART_MARK
-
+    """The buttons under the list of the settings page on top, by key, in the order they stand."""
     return [
-        f"{_APART_MARK}{(one.id or '').removeprefix('act-')}"
+        (one.id or "").removeprefix("act-")
         for one in app.screen.query("#actions Button")
         if one.display
     ]
@@ -307,12 +305,10 @@ async def acts(app: Humanize, driver: Pilot[None], held: str) -> None:
     Args:
       app: The interface.
       driver: What is pumping it.
-      held: The button, by what it answers with -- `_ADD`, `_SAVE` and the rest.
+      held: The button, by its key -- `_ACT_ADD`, `_ACT_SAVE` and the rest.
     """
-    from hmz.tui.pick import _APART_MARK
-
     assert held in bar(app), f"{held!r} is not one of {bar(app)}"
-    await driver.click(f"#act-{held.removeprefix(_APART_MARK)}")
+    await driver.click(f"#act-{held}")
     await driver.pause()
 
 
@@ -835,9 +831,7 @@ async def test_an_agent_set_up_under_a_running_flow_is_what_the_next_run_starts_
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
         await into_agent(app, driver)
-        await changes(
-            app, driver, "effort", "right"
-        )  # one harder than it was started at
+        await picks(app, driver, "effort", "max")  # harder than it was started at
         await keeps(app, driver)
         await keeps(app, driver)
         await until(lambda: "the next run starts on" in transcript(app), driver)
@@ -1359,8 +1353,8 @@ async def test_settings_is_one_menu_of_six_pages() -> None:
         assert sheet._tab == 5
         # What is done about the list is a button under it, and nothing on this page is
         # held, so there is nothing to save it from.
-        assert _ADD in bar(app)
-        assert _SAVE not in bar(app)
+        assert _ACT_ADD in bar(app)
+        assert _ACT_SAVE not in bar(app)
         assert _ADD not in rows(app)
 
         await driver.press("escape")
@@ -2080,7 +2074,7 @@ async def test_a_turn_reads_the_way_claude_code_renders_one() -> None:
         "codex": (Model("gpt-5.6-sol", ("xhigh",)),),
     },
 )
-async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_the_arrows_move(
+async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_is_picked(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
 ) -> None:
     """One sheet per agent, a row per thing it is, rather than a walk of a sheet apiece.
@@ -2088,6 +2082,8 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_the_arrows_m
     The CLI settles which models there are, so the models are opened from a row under it and
     are that CLI's own rather than every model there is.
     """
+    from hmz.tui.dropdown import Dropdown
+
     app = Humanize()
     async with app.run_test() as driver:
         # Walked into the way it is walked into: a flow, then what each of its agents is.
@@ -2114,9 +2110,10 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_the_arrows_m
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
 
-        # The effort is stepped where it stands, and starts on the hardest the model takes.
+        # The effort is picked from the ones the model takes, dropped under its row.
+        sheet = app.screen
         await onto(app, driver, "effort")
-        listing = app.screen.query_one("#choices", OptionList)
+        listing = sheet.query_one("#choices", OptionList)
 
         def effort() -> str:
             at = rows(app).index("effort")
@@ -2125,13 +2122,20 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_the_arrows_m
         # It opens on what the agent runs, which is not the hardest thing there is: that is
         # the one to reach for, and this is the one to spend before anybody asked for it.
         assert "high" in effort()
-        await driver.press("enter", "right")
-        await driver.pause()
-        assert "max" in effort()  # right is more, once enter has begun on it
-        await driver.press("left")
-        await driver.pause()
-        assert "high" in effort()  # and left is less
-        await driver.press("enter")
+        assert "▾" in effort()
+        # A click on the row drops them, hardest first, with the cursor on the one in force;
+        # a click on one takes it.
+        await driver.click("#choices", offset=(8, rows(app).index("effort")))
+        await until(lambda: isinstance(app.screen, Dropdown), driver)
+        values = app.screen.query_one(OptionList)
+        assert [str(one.id) for one in values.options] == ["=max", "=high", "=low"]
+        assert values.highlighted == 1
+        await driver.click(values, offset=(2, 1))
+        await until(lambda: app.screen is sheet, driver)
+        assert "max" in effort()
+        # And the keys do the same: enter drops, the arrows walk, enter takes.
+        await picks(app, driver, "effort", "high")
+        assert "high" in effort()
 
         await keeps(app, driver)  # out of the agent, holding it
         await keeps(app, driver)  # and out of the menu, saving the lot
@@ -2536,16 +2540,8 @@ async def test_a_turn_is_said_to_run_hard_and_said_to_run_wide_separately(
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
         listing = app.screen.query_one("#choices", OptionList)
-        # Claude's hardest is an effort like any other, reached along the same arrows.
-        await onto(app, driver, "effort")
-        await driver.press("enter")
-        for _ in range(3):
-            if "ultracode" in shown("effort"):
-                break
-            await driver.press("right")
-            await driver.pause()
-        await driver.press("enter")
-        await driver.pause()
+        # Claude's hardest is an effort like any other, picked from the same list.
+        await picks(app, driver, "effort", "ultracode")
         assert "ultracode" in shown("effort")
         assert "swarm" not in rows(app)  # nothing to turn on, so no row saying so
 
@@ -2566,9 +2562,9 @@ async def test_a_turn_is_said_to_run_hard_and_said_to_run_wide_separately(
         await until(lambda: "swarm" in rows(app), driver)
         assert "off" in shown("swarm")
 
-        await changes(app, driver, "swarm", "right")
+        await picks(app, driver, "swarm", "on")
         assert "on" in shown("swarm")
-        await changes(app, driver, "effort", "left")  # and still on at another effort
+        await picks(app, driver, "effort", "low")  # and still on at another effort
         assert "low" in shown("effort")
         assert "on" in shown("swarm")
 

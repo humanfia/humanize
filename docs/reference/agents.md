@@ -1224,7 +1224,8 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 
 ```text
 codex app-server [--strict-config] [--disable goals] [--enable|--disable <feature>]...
-  [--disable apps] [--enable use_legacy_landlock] [-c web_search="live"|"disabled"] --stdio
+  [--disable apps] [--enable use_legacy_landlock] [--disable shell_snapshot]
+  [-c web_search="live"|"disabled"] --stdio
   [-c <override>]... [-c mcp_servers.humanize.command=… -c mcp_servers.humanize.args=…]
 ```
 
@@ -1254,6 +1255,10 @@ effort, rung, approval, service tier, `outputSchema`); steering is `turn/steer`.
 - No hook table: Codex runs hooks only once trusted in the user's `config.toml`.
 - On another machine, a sandboxed rung whose fence is at least as narrow is sent
   `sandboxPolicy: externalSandbox` ([Remote execution](/reference/remote-execution#a-fence-on-both-machines)).
+- Supervised with its commands on another machine (any anchor but `native`), the server starts
+  with `--disable shell_snapshot` unless `features` names it: Codex writes its shell capture
+  into its own home and sources it from each command, which runs on the target, where that
+  home is not. Each command is a login shell on the target instead.
 - A `gateway` account appends `-c model_provider=humanize …` ([Providers › Gateways](/reference/providers#gateways)).
 
 ### Cursor Agent {#cursor-agent}
@@ -1364,9 +1369,11 @@ No fields of its own.
 - The stream reports its `task` tool as `SUBAGENT_START`/`SUBAGENT_STOP`; usage arrives on the
   closing result, and the running cost reads its session log.
 - Each start creates `~/.minimax.lock` beside its data directory, which a fence that reads but
-  does not write the home cannot grant. A fenced turn's supervisor answers that path from beside
-  the kept session directory, so a fenced `mcode` turn requires kept sessions: with
-  `HUMANIZE_SESSIONS=off` it cannot take the lock and fails.
+  does not write the home cannot grant. A fenced turn's supervisor answers that path from the
+  kept session directory (`sessions/mcode/minimax.lock`), shared by every agent of the run.
+  With `HUMANIZE_SESSIONS=off` the directory is still made and holds only that lock. On a
+  machine that cannot supervise a turn the path is not answered, and only a fence that
+  writes the home lets `mcode` start.
 - `config.yaml` and `auth/` are credential files, so an account holds its own settings.
 
 ### opencode and mimocode {#what-opencode-and-mimocode-add-to-a-bare-run}

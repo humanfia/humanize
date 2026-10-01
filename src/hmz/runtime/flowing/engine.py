@@ -53,7 +53,6 @@ from hmz.flows import (
     FlowDepthExceeded,
     FlowParams,
     FlowRuntimeError,
-    GitEnvMixin,
     HarnessMismatch,
     MissingRole,
     OutputTokensExceeded,
@@ -75,6 +74,7 @@ from .declaring import (
     env_roles,
 )
 from .journaling import FlowStateImpl, Journal, Past, digest
+from .spi import ENV_TOOLS
 from .viewing import (
     CALLING,
     AgentView,
@@ -646,11 +646,18 @@ def _serves_env(flow: FlowImpl, role: EnvRole, driver: EnvDriver) -> None:
     """
     lacking = role.capabilities - driver.capabilities
     if lacking:
-        why = (
-            ": GitEnvMixin needs git on the machine's PATH, and it has none"
-            if GitEnvMixin in lacking
-            else ""
+        # A mixin served with a program of the machine's says which, since installing it
+        # there is the whole of the fix.
+        unserved: dict[str, list[str]] = {}
+        for one in sorted(lacking, key=lambda one: one.__name__):
+            if (tool := ENV_TOOLS.get(one)) is not None:
+                unserved.setdefault(tool, []).append(one.__name__)
+        why = "; ".join(
+            f"{' and '.join(names)} {'needs' if len(names) == 1 else 'need'} {tool} "
+            "on the machine's PATH, and it has none"
+            for tool, names in unserved.items()
         )
+        why = f": {why}" if why else ""
         raise CapabilityMissing(
             f"{flow.ref}: {role.name!r} needs "
             f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
