@@ -298,6 +298,7 @@ def target(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, Any]:
 
     monkeypatch.setattr("hmz.coganchor.check", answered)
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     monkeypatch.setattr("hmz.coganchor.agents.base._FENCING", set[tuple[str, bool]]())
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
@@ -402,7 +403,7 @@ def test_an_agent_supervised_here_needs_landlock_here(
     target: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del target
-    monkeypatch.setattr("hmz.coganchor.fence.enforceable", _unable)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _unable)
     with pytest.raises(Unfenced, match="Landlock"):
         _agent(_of(ALL, READ, READ), AnchorConfig(target="ssh://box"))
     # A native CLI runs on the target alone, which is the target's to answer.

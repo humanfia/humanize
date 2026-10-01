@@ -56,3 +56,10 @@ def _asks_codex_nothing_of_its_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
     test's command line to this machine's kernel and to whichever test asked first.
     """
     monkeypatch.setattr("hmz.coganchor.agents.codex._landlocked", lambda: False)
+    # And knows none of the features it is switched off by name only where it knows them.
+    monkeypatch.setattr("hmz.coganchor.agents.codex._offered", _knows_none)
+
+
+def _knows_none(feature: str) -> bool:
+    del feature
+    return False

@@ -662,10 +662,11 @@ where humanize keeps them.
 hmz internal fence --policy JSON [--] COMMAND [ARGS...]
 ```
 
-Runs `COMMAND` inside a [fence](/reference/agents#the-fence): Landlock for paths; where the
-network is cut, a seccomp filter admitting only TCP and Unix sockets and a loopback proxy
-(`HTTPS_PROXY` and related, `NO_PROXY` emptied) passing only the fence's hosts; `TMPDIR` set to
-the fence's scratch directory.
+Runs `COMMAND` inside a [fence](/reference/agents#the-fence): on Linux, Landlock for paths and,
+where the network is cut, a seccomp filter admitting only TCP and Unix sockets; on macOS, the
+whole fence as one Seatbelt profile applied by `/usr/bin/sandbox-exec`. Where the network is
+cut, a loopback proxy (`HTTPS_PROXY` and related, `NO_PROXY` emptied) passing only the fence's
+hosts; `TMPDIR` set to the fence's scratch directory.
 
 | Option | Meaning |
 | --- | --- |
@@ -675,7 +676,7 @@ the fence's scratch directory.
 | --- | --- |
 | the program's | it ran |
 | `2` | no `--policy`; no program (`no program given; try `hmz internal fence --policy=... -- claude``) |
-| `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP); the program never ran (`hmz internal fence: <why>`) |
+| `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP; on macOS, a process already inside a sandbox); the program never ran (`hmz internal fence: <why>`) |
 
 ### `hmz internal hook` {#hmz-internal-hook}
 

@@ -165,6 +165,7 @@ def test_a_fence_is_held_from_outside_with_its_sign_in_to_write(
     from dataclasses import replace
 
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.delenv("CURSOR_CONFIG_DIR", raising=False)
@@ -249,6 +250,7 @@ def test_a_fence_that_cuts_the_network_is_refused(
     from hmz.coganchor.agents import Unfenced
 
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     local, user, system = scopes
     offline = Fence.of(
         local=local,

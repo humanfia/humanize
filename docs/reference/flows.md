@@ -460,9 +460,11 @@ allows reading a scope, `ALL` reading and writing, `NONE` neither. Independently
 the CLI may:
 
 - read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/proc`,
-  `/sys`, its own programs and install trees, and the Python running humanize;
-- write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU nodes), its own
-  state and sign-in directories, the directory its sessions are kept in, and a private scratch
+  `/sys` (on macOS `/System` and `/private/var/select` instead of `/lib*`, `/proc` and
+  `/sys`), its own programs and install trees, and the Python running humanize;
+- write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU nodes; on macOS
+  `/dev/ttys*`), its own state and sign-in directories (on macOS also the login keychain,
+  `~/Library/Keychains`), the directory its sessions are kept in, and a private scratch
   directory that is its `TMPDIR`. `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `npm_config_cache`,
   `PIP_CACHE_DIR` and `GOCACHE` are pointed into that directory where the fence would not let
   them be written.
@@ -473,28 +475,32 @@ default permission is a real fence: the workdir and the minimum above are writab
 readable.
 
 A CLI that can enforce part of the fence itself is configured to. The rest is enforced from
-outside by `hmz internal fence`: Landlock for paths and TCP, a seccomp filter refusing every
-other socket family, a second filter that lets a socket listen on loopback only, and a
-loopback proxy passing only the listed hosts. A session is never run wider than its
+outside by `hmz internal fence`: on Linux, Landlock for paths and TCP, a seccomp filter
+refusing every other socket family and a second filter that lets a socket listen on loopback
+only; on macOS, a Seatbelt profile for paths and sockets; and on both, a loopback proxy passing
+only the listed hosts. A session is never run wider than its
 permission. Where neither the CLI nor the machine can hold the fence, the session is refused
 with [`HarnessSandboxed`](#harnesssandboxed) when it opens:
 
 | Cause | Refused where |
 | --- | --- |
-| no Landlock (macOS; Linux < 5.13) | any fence other than all four scopes `ALL` with `online` `ALL` |
+| no Landlock (Linux < 5.13), or macOS where humanize already runs inside a sandbox | any fence other than all four scopes `ALL` with `online` `ALL` |
 | Linux < 6.7 | `online` `NONE` |
 | wrapper cannot trace its children (a container's default seccomp profile; Yama `ptrace_scope` 2 or 3) | `online` `NONE` |
 
 Only `local`, `user`, `system` all `ALL` with `online` `ALL` fences nothing.
 
-With the network cut, a program may listen on loopback only (`127.0.0.0/8`, `::1`, IPv4
-loopback mapped into IPv6). A `bind` elsewhere, and a `listen` on a socket bound elsewhere,
-fail with `EACCES`; the wrapper performs the `listen` itself on the socket it checked. A
-process that makes itself undumpable (`ssh-agent`) cannot be checked and cannot listen.
+With the network cut on Linux, a program may listen on loopback only (`127.0.0.0/8`, `::1`,
+IPv4 loopback mapped into IPv6). A `bind` elsewhere, and a `listen` on a socket bound
+elsewhere, fail with `EACCES`; the wrapper performs the `listen` itself on the socket it
+checked. A process that makes itself undumpable (`ssh-agent`) cannot be checked and cannot
+listen. On macOS, Seatbelt cannot tell loopback from every address when a socket is bound, so
+a program may listen on any address; it still connects to nothing but the proxy.
 
-Two gaps remain, both in the kernel: Landlock does not govern connecting to a Unix socket (a
-docker daemon's or a session bus's is reachable), and with the network cut the proxy's port is
-reachable by number on any address.
+Gaps remain, all in the kernel: neither Landlock nor Seatbelt governs connecting to a Unix
+socket (a docker daemon's or a session bus's is reachable; on macOS so is a system service
+over Mach), on Linux with the network cut the proxy's port is reachable by number on any
+address, and on macOS a program may listen on any address, as above.
 
 When the work is on another machine (a `docker` or `ssh` environment) the fence is held on
 both: the CLI here inside this machine's Landlock with the environment's mirror as its
@@ -508,7 +514,7 @@ docker's default seccomp profile can hold `online` `ALL` but not `NONE`. See
 | CLI | Filesystem | Network |
 | --- | --- | --- |
 | `claude` | external; its own sandbox covers only its Bash tool and is not used | external; `WebSearch`, `WebFetch` refused by rule |
-| `codex` | external | external; web search and ChatGPT apps off natively; at `local` `READ` with `online` `ALL` its `read-only` sandbox is told to leave commands the network |
+| `codex` | external; on macOS its own sandbox, which cannot start inside the fence, is told the fence holds its commands | external; web search, ChatGPT apps and the system proxy off natively; at `local` `READ` with `online` `ALL` its `read-only` sandbox is told to leave commands the network |
 | `cursor-agent` | external; its own sandbox covers only shell commands and needs a user namespace | `NONE` refused: its web tools run on Cursor's servers |
 | `mcode` | external; no sandbox of its own | `NONE` refused: its web search runs on MiniMax's service |
 | `opencode`, `mimo` | external; file tools also refuse outside the fence | external; web tools removed offline |
@@ -520,7 +526,7 @@ docker's default seccomp profile can hold `online` `ALL` but not `NONE`. See
 | `dsh` | external | external |
 | `acp` | external, plus the `state` declared for it | external, to the `hosts` declared for it; `NONE` with none declared refused |
 
-"External" is Landlock plus the loopback proxy.
+"External" is Landlock (Seatbelt on macOS) plus the loopback proxy.
 
 **The rung.**
 

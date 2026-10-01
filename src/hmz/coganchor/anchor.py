@@ -748,9 +748,9 @@ class _Walls:
     def __init__(self, fence: Fence, mirror: str) -> None:
         import tempfile
 
-        from hmz.coganchor.fence import ALL, READ, Proxy, abroad, enforceable
+        from hmz.coganchor.fence import ALL, READ, Proxy, abroad, landlocked
 
-        if not enforceable(net=not fence.online):
+        if not landlocked(net=not fence.online):
             raise PermissionError(
                 "this machine cannot fence the agent: it needs Landlock"
                 + ("" if fence.online else " ABI 4 and seccomp")

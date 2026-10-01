@@ -258,6 +258,15 @@ _LANDLOCK = "use_legacy_landlock"
 #: switched off for a fence that cuts the network, as the web search is.
 _APPS = "apps"
 
+#: The feature that has Codex take its proxy from the system's own settings -- on a Mac, the
+#: network panel's -- rather than from `HTTPS_PROXY`. Under development and off by default on
+#: codex-cli 0.154.0, but a `config.toml` may turn it on, and a Codex that has it on reaches
+#: past the proxy a fence that cuts the network hands it in the environment: on 0.154.0 every
+#: request of a turn so started went straight to `chatgpt.com`, was refused by the fence, and
+#: was retried until the turn timed out. Switched off for such a fence, where this Codex has it
+#: at all: one that does not know the name refuses to start (:func:`_offered`).
+_SYSTEM_PROXY = "respect_system_proxy"
+
 #: The feature that has Codex capture its shell's start-up state once per thread and source
 #: it before every command, rather than start each one as a login shell. On by default on
 #: codex-cli 0.153.4, which writes the capture into its own home and then checks it by running
@@ -296,13 +305,20 @@ _SANDBOXED = ("read-only", "workspace-write")
 
 
 def _abroad(config: AgentConfig, sandbox: object) -> bool:
-    """Whether a rung's sandbox is held by the anchor's fence rather than by Codex.
+    """Whether a rung's sandbox is held by the fence rather than by Codex.
 
     Where the agent's turns land on another machine and its fence -- held there by the
     anchor, on both machines -- is at least as narrow as the rung: nothing of the workdir,
     the home or the system written at `read-only`, nothing of the home or the system at
     `workspace-write`. A fence wider than the rung, or none, leaves the rung to Codex's own
     sandbox, which is what it always was.
+
+    And on a Mac wherever a fence is held around Codex here, at a rung with a sandbox: the
+    fence is Seatbelt, and Codex's own sandbox is Seatbelt too, which cannot be applied inside
+    another -- on codex-cli 0.154.0 every command of a `read-only` thread inside a fence
+    answered `sandbox-exec: sandbox_apply: Operation not permitted` and never ran. What is
+    held there is the fence, which is the permission; a rung narrower than it, which a flow's
+    permission never draws, is not held beyond it.
 
     Args:
       config: What the agent runs at.
@@ -316,9 +332,11 @@ def _abroad(config: AgentConfig, sandbox: object) -> bool:
     from hmz.coganchor.fence import ALL
 
     fence = config.fence
-    if config.machine is None or fence is None or fence.open:
+    if fence is None or fence.open or sandbox not in _SANDBOXED:
         return False
-    if sandbox not in _SANDBOXED or len(fence.scopes) != 3:  # noqa: PLR2004
+    if config.machine is None:
+        return sys.platform == "darwin"
+    if len(fence.scopes) != 3:  # noqa: PLR2004
         return False
     local, user, system = fence.scopes
     written = (local, user, system) if sandbox == "read-only" else (user, system)
@@ -360,6 +378,38 @@ def _landlocked() -> bool:
             return False
 
     return not runs() and runs("--enable", _LANDLOCK)
+
+
+@functools.cache
+def _offered(feature: str) -> bool:
+    """Whether this machine's Codex has a feature by that name, as `codex features list` says.
+
+    Asked once per process and feature, for a feature switched off whatever the flow said, so
+    that a Codex too old to know it is not started with a name it refuses.
+
+    Args:
+      feature: The feature's name.
+
+    Returns:
+      Whether a line of that command's output starts with the name; False where it cannot be
+      run.
+    """
+    from hmz.coganchor.backends import elsewhere
+
+    try:
+        listed = subprocess.run(
+            [elsewhere("codex") or "codex", "features", "list"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return listed.returncode == 0 and any(
+        line.split()[:1] == [feature] for line in listed.stdout.splitlines()
+    )
 
 
 #: What each kind of token is called in the totals the server states. Cached input is counted
@@ -1920,8 +1970,9 @@ class CodexSession(SessionBase):
         """What a turn of this session tells the server the agent may do.
 
         The rung's settings less those only a thread takes (:func:`turning`), and one more
-        where the turn lands on another machine whose fence holds the rung -- the sandbox
-        left to that fence (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
+        where the turn lands on another machine whose fence holds the rung, or on a Mac where
+        a fence is held around Codex at all -- the sandbox left to that fence
+        (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
         fence it is held to grants the network. Codex's
         `read-only` sandbox cuts a command's network as well as its writes, which is narrower
         than a permission that reads its workdir and reaches the web: so such a turn is sent
@@ -2289,11 +2340,14 @@ class CodexAgent(AgentBase):
             # list` is where the names and the defaults come from, and nothing is said here
             # for a feature nobody named -- so an agent configured with none of them starts
             # a server at exactly the defaults that command prints.
-            if not (offline and name == _APPS):
+            if not (offline and name in (_APPS, _SYSTEM_PROXY)):
                 argv += ["--enable" if on else "--disable", name]
         if offline:
             # Off whatever the flow said of it, for the reason the web search is below.
             argv += ["--disable", _APPS]
+            # And this, so that the proxy the fence hands it is the one it goes through.
+            if _offered(_SYSTEM_PROXY):
+                argv += ["--disable", _SYSTEM_PROXY]
         sandboxed = _PERMITTED.get(self.config.permission, {}).get("sandbox")
         if (
             self.config.machine is None

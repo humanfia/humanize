@@ -756,16 +756,22 @@ async def fenced(task, *, agents, envs, params, ctx):
     return await worker.run(task, session=session)
 '''
 
-#: The line of a process that is the fence's wrapper, as `/proc/<pid>/cmdline` spells it.
+#: The line of a process that is the fence's wrapper, as `/proc/<pid>/cmdline` or `ps` spells it.
 WRAPPER = "hmz internal fence"
 
 #: A script that writes every process from itself up to the test's own, one command line a line:
 #: the shell the agent runs it in, the CLI, and whatever the CLI was started under -- and not what
-#: the test was, which may have been run inside a fence of its own.
+#: the test was, which may have been run inside a fence of its own. Read out of `/proc` where
+#: there is one, and out of `ps` on a Mac, which has none.
 ANCESTRY = """p=$$
 while [ "$p" -gt 1 ] && [ "$p" != TEST ]; do
-  tr '\\0' ' ' < /proc/$p/cmdline; echo
-  p=$(awk '/^PPid:/ {print $2}' /proc/$p/status)
+  if [ -r /proc/$p/cmdline ]; then
+    tr '\\0' ' ' < /proc/$p/cmdline; echo
+    p=$(awk '/^PPid:/ {print $2}' /proc/$p/status)
+  else
+    ps -o command= -p "$p"
+    p=$(ps -o ppid= -p "$p" | tr -d ' ')
+  fi
 done
 """
 

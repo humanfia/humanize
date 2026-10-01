@@ -414,7 +414,10 @@ Under a flow the rung is derived from the role's `Permission` by
 - **Codex `read-only`** under a fence, or where bubblewrap cannot get a user namespace, starts
   the app server with `--enable use_legacy_landlock` (asked once per process by running
   `codex sandbox … -- true`). Where the fence leaves the network on, each `read-only` turn is
-  sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`.
+  sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`. On macOS, where Codex's
+  own Seatbelt sandbox cannot start inside the fence's, each `read-only` or `workspace-write`
+  turn under a fence is sent `sandboxPolicy: {"type": "externalSandbox", "networkAccess":
+  "enabled"|"restricted"}` instead, the fence holding the rung.
 - `online` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
 <small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
@@ -481,9 +484,10 @@ command it runs. A flow sets one on every session from the role's `Permission`
   `/dev/dri`, `/dev/kfd`.
 
 The agent widens the fence where it spawns a turn (`agent.fenced()`): its CLI's state and
-sign-in directories and its session directory to write; the account's directory; the hosts
-its model and sign-in are at under the account ([Network hosts](#network-hosts)); the skills it
-carries; its programs and their install trees to read.
+sign-in directories and its session directory to write, and on macOS `~/Library/Keychains`,
+where Claude Code keeps its sign-in and rewrites it as it refreshes; the account's directory;
+the hosts its model and sign-in are at under the account ([Network hosts](#network-hosts)); the
+skills it carries; its programs and their install trees to read.
 
 Both a flow's fence and the agent's widening read the hosts from the same environment,
 `providers.composed(provider, profile)`: this process's own, less the variables the account
@@ -499,10 +503,17 @@ the turn:
 
 | Mechanism | Holds |
 | --- | --- |
-| Landlock | paths, and TCP `connect`/`bind` by port (ABI >= 4 where the network is cut) |
-| seccomp filter | every non-TCP socket family refused |
-| seccomp user notification + `pidfd_getfd` | with `online=False`, every `bind` and `listen` stops for the wrapper, which allows loopback only (`EACCES` otherwise) |
+| Landlock (Linux) | paths, and TCP `connect`/`bind` by port (ABI >= 4 where the network is cut) |
+| seccomp filter (Linux) | every non-TCP socket family refused |
+| seccomp user notification + `pidfd_getfd` (Linux) | with `online=False`, every `bind` and `listen` stops for the wrapper, which allows loopback only (`EACCES` otherwise) |
+| Seatbelt (macOS) | paths (as given and as resolved, `/tmp` being `/private/tmp`); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
 | proxy on loopback | with `online=False`, the only way out: handed to the CLI as `HTTPS_PROXY` and related variables, passing only `hosts` (ports 443 and 80 for a host without a port) |
+
+The minimum granted whatever the scopes is `LINUX_SYSTEM` and `LINUX_DEVICES` on Linux, and
+`DARWIN_SYSTEM` (`/usr`, `/bin`, `/sbin`, `/System`, `/private/var/select`,
+`/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and
+`DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
+pseudo-terminals `/dev/ttys*` writable.
 
 No built-in backend enforces any part natively: every driver's `natively` returns the whole
 fence, for these reasons:
@@ -510,7 +521,7 @@ fence, for these reasons:
 | Backend | Why its own confinement is not used |
 | --- | --- |
 | `agy` | `--sandbox` confines commands only (its file tools run outside it), cannot start without unprivileged user namespaces, and its network lists are desktop-app settings |
-| `codex` | its sandbox holds the commands its agent runs, not Codex's own process, MCP servers or hooks; `online=False` also sends `-c web_search="disabled"` and `--disable apps` |
+| `codex` | its sandbox holds the commands its agent runs, not Codex's own process, MCP servers or hooks; `online=False` also sends `-c web_search="disabled"`, `--disable apps`, and `--disable respect_system_proxy` where `codex features list` names it |
 | `cursor-agent` | `cursorsandbox` wraps shell commands only and needs a user namespace; `$XDG_CONFIG_HOME/cursor` (else `~/.config/cursor`) is granted to write |
 | `dsh` | the bundle has no confining shell executor; the runtime the SDK launches is wrapped, its composition file and native module cache (`PKG_NATIVE_CACHE_PATH`) put in the fence's `tmp` |
 | `grok` | its sandbox profiles write `/tmp` and `/var/tmp`, block only commands' network, and fail without user namespaces on 1.0.24 |
@@ -526,7 +537,8 @@ fence, for these reasons:
 
 | Condition | Message |
 | --- | --- |
-| this machine has no Landlock (macOS, Linux < 5.13, or not in the `lsm=` list) | `<Agent> cannot be held to its permission on this machine: it does not enforce it natively, and fencing it from outside needs Landlock (Linux 5.13 or later, with landlock in its lsm= list)` |
+| this machine has no Landlock (Linux < 5.13, or not in the `lsm=` list) | `<Agent> cannot be held to its permission on this machine: it does not enforce it natively, and fencing it from outside needs Landlock (Linux 5.13 or later, with landlock in its lsm= list)` |
+| macOS, where `sandbox-exec` cannot apply a profile (humanize itself already runs inside a sandbox) | `… needs Seatbelt, which a process already inside a sandbox cannot apply` |
 | `online=False` and no Landlock ABI 4, no seccomp notification, or `pidfd_getfd` refused (a container's default seccomp profile, Yama `ptrace_scope` >= 2) | `… needs Landlock ABI 4 (Linux 6.7 or later) and seccomp to cut the network` |
 | a fence drawn path by path on an agent whose `machine` is set | `<Agent>: a fence drawn path by path cannot be held on another machine` |
 | a harness on another machine | `<Agent>: a fence cannot hold a harness that runs on another machine` |
@@ -539,8 +551,10 @@ Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `online` `N
 declared hosts is refused `HarnessSandboxed`, naming what to declare. For anchored agents, what
 each machine holds is in [Remote execution › A fence on both machines](/reference/remote-execution#a-fence-on-both-machines).
 
-Two gaps are the kernel's: Landlock does not govern connecting to a Unix socket, and with the
-network cut the proxy's port is reachable on any address, by number.
+Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket (on
+macOS, nor asking a system service over Mach); on Linux with the network cut the proxy's port
+is reachable on any address, by number; and on macOS with the network cut a program may listen
+on any address and port, Seatbelt telling neither apart.
 
 ### Network hosts {#network-hosts}
 
@@ -1233,7 +1247,8 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 
 ```text
 codex app-server [--strict-config] [--disable goals] [--enable|--disable <feature>]...
-  [--disable apps] [--enable use_legacy_landlock] [--disable shell_snapshot]
+  [--disable apps] [--disable respect_system_proxy] [--enable use_legacy_landlock]
+  [--disable shell_snapshot]
   [-c web_search="live"|"disabled"] --stdio
   [-c <override>]... [-c mcp_servers.humanize.command=… -c mcp_servers.humanize.args=…]
 ```

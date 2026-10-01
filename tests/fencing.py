@@ -40,6 +40,7 @@ def standing_in(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
 
 
 def policies(log: Path) -> list[dict[str, Any]]:

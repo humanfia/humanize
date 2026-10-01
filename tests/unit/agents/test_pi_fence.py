@@ -29,6 +29,7 @@ def _able(*, net: bool) -> bool:
 def home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """A home of the test's own, on a machine taken to be one that can fence a process."""
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("PI_CODING_AGENT_DIR", raising=False)
     return tmp_path / "home"

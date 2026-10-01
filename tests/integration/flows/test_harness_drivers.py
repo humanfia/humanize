@@ -904,7 +904,7 @@ async def test_a_session_this_machine_cannot_fence_is_refused_as_sandboxed(
         return False
 
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", unable)
-    with pytest.raises(HarnessSandboxed, match="Landlock"):
+    with pytest.raises(HarnessSandboxed, match=r"Landlock|Seatbelt"):
         await _open(claude, work)
 
 

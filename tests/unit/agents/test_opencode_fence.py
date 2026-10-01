@@ -40,6 +40,7 @@ def _able(*, net: bool) -> bool:
 def home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """A machine that can fence a process, with a home of the test's own."""
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))
     return home

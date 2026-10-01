@@ -31,3 +31,18 @@ def _keeps_no_session(monkeypatch: pytest.MonkeyPatch) -> None:
     The tests about keeping them take it back for themselves.
     """
     monkeypatch.setenv(KEEPING, "off")
+
+
+@pytest.fixture(autouse=True)
+def _asks_codex_nothing_of_its_features(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Takes Codex to know none of the features it is switched off by name only if it knows.
+
+    Rather than asking whatever `codex` is on `PATH`: a unit test calls `hmz` and nothing else,
+    and the answer is cached for the process besides.
+    """
+    monkeypatch.setattr("hmz.coganchor.agents.codex._offered", _knows_none)
+
+
+def _knows_none(feature: str) -> bool:
+    del feature
+    return False

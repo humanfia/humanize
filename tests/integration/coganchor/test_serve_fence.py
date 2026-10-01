@@ -193,7 +193,7 @@ def test_a_target_that_cannot_fence_refuses_the_command(
 
     assert isinstance(error, OSError)
     assert error.errno == errno.EPERM
-    assert "Landlock ABI 4" in str(error)
+    assert "Landlock ABI 4" in str(error) or "Seatbelt" in str(error)
     assert not ran.exists()
     assert fencing.policies(log) == []
 

@@ -71,6 +71,7 @@ def test_a_fenced_turn_is_spawned_inside_the_wrapper(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
     argv = _agent(_fence(tmp_path, system=NONE, online=False)).spawned(["qwen"])

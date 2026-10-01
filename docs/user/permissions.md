@@ -31,9 +31,10 @@ it, however it tried.
 
 ## Before you start
 
-- **Linux with Landlock**: a kernel of 5.13 or newer, booted with it. A kernel of 6.7 or newer
-  for a role that may not reach the network. On macOS, a role with any limit is refused; see
-  [Pitfalls](#pitfalls).
+- **Linux with Landlock, or macOS**: on Linux, a kernel of 5.13 or newer, booted with it, and
+  6.7 or newer for a role that may not reach the network. On macOS, any version: humanize
+  uses the Seatbelt sandbox built into it. See [Pitfalls](#pitfalls) for where a role is
+  refused.
 - The flow's page, which says what its roles are granted. Most say nothing, and run at the
   default below.
 
@@ -165,18 +166,21 @@ Every grant below everything is enforced on the agent's process and on every com
 Where a CLI can hold part of a grant itself, it is told to. humanize holds the rest from
 outside:
 
-- **`local`, `user` and `system`** are held by Landlock, a Linux kernel feature. An agent
-  cannot write outside what its grant lets it write, or read outside what it lets it read.
+- **`local`, `user` and `system`** are held by Landlock, a Linux kernel feature, or on macOS
+  by Seatbelt, the sandbox macOS is built with. An agent cannot write outside what its grant
+  lets it write, or read outside what it lets it read.
 - **`online` of `NONE`** cuts the network. The agent can still reach the hosts its model and
   its login are at, and nothing else: no web search, no package index, no host a command
-  names. Nothing from outside reaches it either: a program it runs may serve on this
-  machine's loopback address and on no other.
+  names. On Linux nothing from outside reaches it either: a program it runs may serve on this
+  machine's loopback address and on no other. Seatbelt cannot tell one address from another
+  when a program starts to serve, so on macOS a program it runs may serve on any address,
+  while it still reaches nothing but its model.
 
 | Backend | `local`, `user`, `system` | `online` of `NONE` |
 | --- | --- | --- |
-| every CLI | <Badge type="tip" text="held by Landlock" /> | <Badge type="tip" text="cut but for its model" /> |
-| `cursor-agent`, `mcode` | <Badge type="tip" text="held by Landlock" /> | <Badge type="danger" text="refused" /> |
-| a CLI added over ACP | <Badge type="tip" text="held by Landlock" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
+| every CLI | <Badge type="tip" text="held by Landlock or Seatbelt" /> | <Badge type="tip" text="cut but for its model" /> |
+| `cursor-agent`, `mcode` | <Badge type="tip" text="held by Landlock or Seatbelt" /> | <Badge type="danger" text="refused" /> |
+| a CLI added over ACP | <Badge type="tip" text="held by Landlock or Seatbelt" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
 
 A role whose `local` is `READ` or `NONE` also runs in its CLI's read-only mode, where the CLI
 has one (every CLI but `dsh`, `mcode` and CLIs added over the Agent Client Protocol: those run
@@ -239,16 +243,18 @@ there and ends with its own exit status.
 humanize never runs an agent with more than its grant. A role is refused before it starts
 (`HarnessSandboxed`) when:
 
-- **this machine has no Landlock:** macOS, or a Linux kernel older than 5.13 or booted
-  without it. A kernel older than 6.7 cannot cut the network, so `online` of `NONE` is
-  refused there. So is a machine where humanize may not look into the programs it starts
+- **this machine cannot fence:** a Linux kernel older than 5.13 or booted without Landlock,
+  or a Mac where humanize itself runs inside another sandbox, which cannot start one of its
+  own. A kernel older than 6.7 cannot cut the network, so `online` of `NONE` is refused
+  there. So is a Linux machine where humanize may not look into the programs it starts
   (inside a container with its default seccomp profile, or with Yama's `ptrace_scope` at 2
   or 3): it could not keep what they listen on to this machine.
 - **the CLI would reach the web around the cut:** `cursor-agent` or `mcode` with `online` of
   `NONE`.
-- **the work lands on another machine that has no Landlock:** a [container](/user/containers)
+- **the work lands on another machine that cannot fence:** a [container](/user/containers)
   or an ssh host whose kernel is too old, or a container whose seccomp profile refuses
-  Landlock. Docker's own default profile allows it.
+  Landlock. Docker's own default profile allows it. An ssh host that is a Mac fences with
+  Seatbelt.
 
 Only a grant of `ALL` everywhere is enforced by nothing, because there is nothing to hold.
 :::

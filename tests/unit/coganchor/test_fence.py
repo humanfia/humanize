@@ -81,7 +81,7 @@ def test_the_minimum_is_granted_whatever_the_scopes(
         "/usr/lib/libc.so",
         "/etc/ssl/certs/ca.pem",
         "/etc/resolv.conf",
-        "/proc",
+        "/System/Library" if sys.platform == "darwin" else "/proc",
     ):
         assert fence.allows(path), path
     for path in DEVICES:
@@ -328,6 +328,7 @@ def enforceable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     its state in before spawning it.
     """
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
 
@@ -372,6 +373,21 @@ def test_a_fenced_turn_is_spawned_inside_the_wrapper(tmp_path: Path) -> None:
     # What the agent needs besides its scopes: its state, and its sessions' directory.
     assert policy.allows(Path("~/.claude/settings.json").expanduser(), write=True)
     assert policy.allows(agent.keeps / "claude", write=True)
+
+
+@pytest.mark.usefixtures("enforceable")
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_on_a_mac_the_login_keychain_a_sign_in_is_kept_in_is_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, platform: str
+) -> None:
+    monkeypatch.setattr(sys, "platform", platform)
+    keychains = Path("~/Library/Keychains").expanduser()
+
+    policy = _policy(_agent(_fence(tmp_path)).spawned(["claude", "--print"]))
+
+    assert policy.allows(keychains / "login.keychain-db", write=True) is (
+        platform == "darwin"
+    )
 
 
 @pytest.mark.usefixtures("enforceable")
@@ -429,6 +445,13 @@ def test_a_cli_that_cuts_its_own_network_leaves_the_paths_to_the_wrapper(
     assert _policy(argv).online
 
 
+@pytest.fixture
+def linux(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Takes this machine to be Linux, whose Landlock a test then says what it can do."""
+    monkeypatch.setattr(sys, "platform", "linux")
+
+
+@pytest.mark.usefixtures("linux")
 def test_without_landlock_a_fenced_agent_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -437,6 +460,7 @@ def test_without_landlock_a_fenced_agent_is_refused(
         _agent(_fence(tmp_path, online=True))
 
 
+@pytest.mark.usefixtures("linux")
 def test_a_kernel_that_cannot_cut_the_network_refuses_only_a_cut_network(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -446,6 +470,31 @@ def test_a_kernel_that_cannot_cut_the_network_refuses_only_a_cut_network(
         _agent(_fence(tmp_path, online=False))
 
 
+def test_on_a_mac_seatbelt_fences_the_filesystem_and_the_network_alike(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.coganchor.darwin import seatbelt
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(seatbelt, "available", lambda: True)
+    monkeypatch.setattr(landlock, "available", lambda net=False: False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    _agent(_fence(tmp_path, online=True))
+    _agent(_fence(tmp_path, online=False))
+
+
+def test_a_mac_that_cannot_apply_seatbelt_refuses_a_fenced_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.coganchor.darwin import seatbelt
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(seatbelt, "available", lambda: False)
+    with pytest.raises(Unfenced, match="Seatbelt"):
+        _agent(_fence(tmp_path, online=True))
+
+
+@pytest.mark.usefixtures("linux")
 def test_without_landlock_a_cli_that_enforces_everything_itself_is_still_served(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -458,6 +507,7 @@ def test_without_landlock_a_cli_that_enforces_everything_itself_is_still_served(
     _agent(_fence(tmp_path))
 
 
+@pytest.mark.usefixtures("linux")
 def test_a_config_refused_its_fence_leaves_the_agent_as_it_was(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

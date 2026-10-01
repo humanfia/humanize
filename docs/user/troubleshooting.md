@@ -763,12 +763,14 @@ says yes.
 **Symptom.** A role is refused before its first turn (`HarnessSandboxed`).
 
 **Cause.** The role's [permission](/user/permissions) is narrower than everything, and this
-machine cannot hold it: macOS, or a Linux kernel older than 5.13 or booted without Landlock.
-Cutting the network needs Linux 6.7 or later. A `cursor-agent` or `mcode` role whose `online`
+machine cannot hold it: a Linux kernel older than 5.13 or booted without Landlock, or a Mac
+where humanize itself runs inside another sandbox (an agent's own, say), which cannot start
+Seatbelt again. Cutting the network needs Linux 6.7 or later. A `cursor-agent` or `mcode` role whose `online`
 is `NONE` is refused on any machine, since its web search runs on its vendor's servers.
 
-**Fix.** Run humanize on a Linux machine with Landlock, or give that role a CLI and a
-permission this machine can hold. The message says what is needed.
+**Fix.** Run humanize on a Linux machine with Landlock, or on a Mac outside any other
+sandbox, or give that role a CLI and a permission this machine can hold. The message says
+what is needed.
 
 **Verify.** The role's first turn starts.
 
@@ -905,8 +907,10 @@ says `builder's harness runs on its environment's machine (env)`.
 agent whose CLI runs here.
 
 **Cause.** The role's permission is narrower than everything, and the machine the work lands on
-cannot hold it: a kernel older than 5.13 or without Landlock, a Mac, or a container whose
-seccomp profile refuses Landlock. Cutting the network needs Linux 6.7 or later there.
+cannot hold it: a kernel older than 5.13 or without Landlock, or a container whose seccomp
+profile refuses Landlock. Cutting the network needs Linux 6.7 or later there. A Mac target
+fences with Seatbelt, but an agent supervised here (its CLI runs here, its work there) needs
+Landlock on this machine too.
 
 **Fix.** Run the CLI here with `-H local`, move the work to a machine with Landlock, or copy
 the flow and grant the role everything. Docker's default seccomp profile allows Landlock.

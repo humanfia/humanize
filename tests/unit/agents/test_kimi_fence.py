@@ -43,6 +43,7 @@ def _able(*, net: bool) -> bool:
 @pytest.fixture(autouse=True)
 def _enforceable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setattr("hmz.coganchor.fence.landlocked", _able)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setattr(driver, "_AppServer", _Started)
 

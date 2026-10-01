@@ -638,7 +638,8 @@ what crosses is its levels, not its paths.
   home, generated settings) is granted on both machines.
 - The target reports what it can hold at the handshake: `fence.fs` is Landlock ABI >= 1;
   `fence.net` is Landlock ABI >= 4 (Linux 6.7), a loadable seccomp user-notification filter,
-  and `pidfd_getfd` permitted with Yama `ptrace_scope` < 2. A target of a build before fences
+  and `pidfd_getfd` permitted with Yama `ptrace_scope` < 2. A macOS target reports both as
+  whether `sandbox-exec` can apply a profile there. A target of a build before fences
   reports nothing and is treated as unable.
 
 | Where | Error | Message |
@@ -647,10 +648,10 @@ what crosses is its levels, not its paths.
 | agent construction | `Unfenced` | `<Agent>: a fence cannot hold a harness that runs on another machine` |
 | agent construction | `Unfenced` | `<Agent>: an agent whose own connections are sent to the target cannot have its network cut here` |
 | agent construction, supervised | `Unfenced` | `<Agent> cannot be held to its permission: it is supervised on this machine, which has no Landlock[ ABI 4 and seccomp to cut the network]` |
-| first turn, supervised | `Unfenced` | `<id>: <target> cannot fence the commands the agent runs there: it needs Landlock (Linux 5.13 or later, not refused by a container's seccomp profile)[, at ABI 4 (Linux 6.7) with seccomp, to cut the network]; grant the agent everything, or run it where it can be fenced` |
+| first turn, supervised | `Unfenced` | `<id>: <target> cannot fence the commands the agent runs there: it needs Seatbelt on a Mac, or Landlock (Linux 5.13 or later, not refused by a container's seccomp profile)[, at ABI 4 (Linux 6.7) with seccomp, to cut the network]; grant the agent everything, or run it where it can be fenced` |
 | anchor start, supervised | `PermissionError` | `this machine cannot fence the agent: it needs Landlock[ ABI 4 and seccomp]` |
 | native turn | `PermissionError` | `the target cannot fence the CLI: it needs Landlock[ ABI 4 and seccomp]` |
-| a fenced command on the target | `PermissionError` | `this machine cannot fence a command: it needs Landlock[ ABI 4 and seccomp]` |
+| a fenced command on the target | `PermissionError` | `this machine cannot fence a command: it needs Landlock[ ABI 4 and seccomp]`; on a macOS target, `… it needs Seatbelt, which a process already inside a sandbox cannot apply` |
 
 Under a flow, `Unfenced` becomes `HarnessSandboxed`. Docker's default seccomp profile permits
 Landlock but not the seccomp listener or `pidfd_getfd`, so a container under it holds a fence
@@ -727,7 +728,7 @@ from hmz.coganchor.anchor import NotInstalled
 | The harness machine, supervised or afar | Linux on x86-64 or aarch64, Python >= 3.12, ptrace and seccomp permitted. |
 | This machine, when the harness is elsewhere or the arrangement is native | none of the above; only what runs the three streams |
 | A target | a POSIX `/bin/sh` and Python >= 3.12; no root, compiler, kernel module or installed package |
-| A target of a fenced session | Linux with Landlock (ABI >= 1); ABI >= 4 (Linux 6.7), seccomp user notification and `pidfd_getfd` where the network is cut |
+| A target of a fenced session | Linux with Landlock (ABI >= 1); ABI >= 4 (Linux 6.7), seccomp user notification and `pidfd_getfd` where the network is cut. Or macOS, not itself inside a sandbox (Seatbelt) |
 | A native target | the CLI installed and on the login's `PATH` |
 | A harness machine elsewhere | an `ssh://` or `docker://` machine meeting the first row, with the CLI installed |
 | A third-machine harness | both machines able to reach this machine's broker port over IPv4 |

@@ -2256,8 +2256,10 @@ def test_a_read_only_codex_turn_keeps_the_network_its_permission_grants(
 
     So a turn at that rung whose fence grants the network is sent the same sandbox with the
     network left on -- `sandboxPolicy` being the one field a turn takes for it -- and a turn
-    whose fence cuts it, or that has no fence at all, is sent the rung as it stands.
+    whose fence cuts it, or that has no fence at all, is sent the rung as it stands. On
+    Linux: on a Mac a fenced turn's sandbox is the fence's (`test_codex_fence.py`).
     """
+    monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("CODEX_HOME", raising=False)
     fence = None if online is None else _codex_fence(tmp_path, online=online)
