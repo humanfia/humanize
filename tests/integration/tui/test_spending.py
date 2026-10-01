@@ -92,7 +92,7 @@ async def test_the_readout_the_boxes_and_the_sessions_say_one_bill(
         set_up(app, "flow")
         await driver.press(*"start")
         await driver.press("enter")
-        await until(lambda: (workspace / "said.txt").exists(), driver)
+        await until((workspace / "said.txt").exists, driver)
         # The log is read on a clock of its own, and the run ends with one more read of it.
         await until(lambda: ("read", MODEL) in app._monitor.totals, driver)
         assert app._monitor.totals[("read", MODEL)] == WHOLE
