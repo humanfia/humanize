@@ -861,6 +861,7 @@ class Host:
         envs: Mapping[str, Any] = said.get("envs") or {}
         params = said.get("params")
         resume = said.get("resume") or False
+        harness = str(said.get("harness") or "")
         with self._lock:
             if self._closed:
                 return _no("this host has closed")
@@ -872,6 +873,7 @@ class Host:
             number = self._runs + 1
         try:
             from hmz.runtime.flowing import open_outworlder
+            from hmz.runtime.flowing.specs import ADAPTIVE
 
             run = self._hmz.run(
                 flow,
@@ -881,7 +883,7 @@ class Host:
                 params=params,
                 budget=said.get("budget"),
                 resume=resume,
-                harness=str(said.get("harness") or "") or None,
+                harness=harness or None,
                 # Whoever is outside the run is every frontend here: asked on a thread of
                 # the run's own, and away while `/afk` says so.
                 outworlder=open_outworlder(
@@ -903,6 +905,9 @@ class Host:
                 "params": dict(params) if isinstance(params, dict) else {},  # pyright: ignore[reportUnknownArgumentType]
                 "budget": _json(run.budget),
                 "resume": str(resume) if resume else "",
+                # Where its agents' harnesses were put, as `-H` spells it: a frontend that
+                # arrives late has no other way to know what the run was started with.
+                "harness": harness or ADAPTIVE,
                 "began": time.monotonic(),
                 "at": time.time(),
             }

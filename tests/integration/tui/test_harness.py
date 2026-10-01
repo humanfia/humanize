@@ -172,6 +172,83 @@ async def test_a_standalone_harness_is_not_set_without_its_machine(
         assert "standalone → ssh@gpu-box/~/scratch" in _said(app)
 
 
+def _ran(
+    flow: str, *placed: tuple[str, str], harness: str = "adaptive", named: str = ""
+) -> None:
+    """Writes down a run of a flow here, as `hmz exec` or another interface would have.
+
+    Args:
+      flow: The flow.
+      placed: Each role that opened a session, and where its harness went.
+      harness: What `-H` said.
+      named: What the run named the flow, where not as the menu offers it.
+    """
+    from hmz.runtime.epic import Epic
+    from hmz.runtime.flowing import resolved
+
+    epic = Epic(named or flow, "go", ref=resolved(flow).ref, harness=harness)
+    for at, (role, went) in enumerate(placed):
+        epic.session(role, "claude", "", f"s{at}", harness=went)
+
+
+@pytest.mark.timeout(60)
+async def test_the_row_says_what_the_last_run_here_found_whoever_ran_it(
+    flows: Path, tmp_path: Path
+) -> None:
+    """Read off the last run's record, so an interface opened since, or `hmz exec`, says it."""
+    Settings(tmp_path).remember(
+        "local/placed",
+        {"worker": Runs("claude/m:high")},
+        {"repo": "docker@local/srv/repo"},
+        budget={"duration": "PT1H"},
+    )
+    _ran("local/placed", ("worker", "local"))
+    _ran(
+        "local/quiet", ("worker", "standalone:ssh://box")
+    )  # another flow's, not this one's
+    _ran("local/placed", ("worker", "env"))  # the last of this one's
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/placed")
+        assert "adaptive → env (last run)" in _said(app)
+        await driver.press("escape")
+        await until(lambda: not isinstance(app.screen, Flows), driver)
+
+        # And one whose last run worked only here says what adaptive comes to in general.
+        _ran("local/placed", ("worker", ""))
+        await _into(app, driver, "local/placed")
+        assert "adaptive → env where its CLI is installed, else local" in _said(app)
+
+
+@pytest.mark.timeout(60)
+async def test_the_row_turned_to_from_another_flow_reads_that_flow_s_last_run(
+    flows: Path, tmp_path: Path
+) -> None:
+    """Stepping from one flow to another on the menu reads the other's record, not nothing."""
+    Settings(tmp_path).remember(
+        "local/placed",
+        {"worker": Runs("claude/m:high")},
+        {"repo": "ssh@box/srv/repo"},
+        budget={"duration": "PT1H"},
+    )
+    # Named by its path, as `hmz exec` may name it: the same flow by its ref.
+    _ran(
+        "local/placed",
+        ("worker", "local"),
+        ("worker", "env"),
+        named=str(flows / "placed"),
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/quiet")
+        sheet = cast("Flows", app.screen)
+        sheet._chose("local/placed")
+        await until(lambda: sheet._flow == "local/placed", driver)
+        await driver.pause()
+        # The role's last session: where it went last is where it went.
+        assert "adaptive → env (last run)" in _said(app)
+
+
 @pytest.mark.timeout(60)
 async def test_its_machine_is_read_as_the_command_line_reads_it(flows: Path) -> None:
     """`ssh@gpu-box` with no directory is the login's home there, as `-H` takes it.

@@ -21,6 +21,7 @@ line and above its prompt is said here by the graph and the line under it.
 from __future__ import annotations
 
 import functools
+import itertools
 import time
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
@@ -297,6 +298,11 @@ class Placed(NamedTuple):
       needs: What the flow asks of the machine, in words: CPUs, memory, GPUs.
       image: What a container for it is started from, or "" for the provider's own.
       sessions: The sessions working in it, by key, in the order they opened.
+      harness: Where the run put its agents' harnesses, as `-H` spells it, or "" where the
+        run did not say.
+      harnesses: Where each of those sessions' harness went, in the same order, as the run
+        said it as the session opened: `local`, `env`, `standalone:<target>`, or "" for one
+        working here with nothing between.
     """
 
     key: str
@@ -310,11 +316,54 @@ class Placed(NamedTuple):
     needs: tuple[str, ...] = ()
     image: str = ""
     sessions: tuple[str, ...] = ()
+    harness: str = ""
+    harnesses: tuple[str, ...] = ()
 
 
 def _where(place: Placed) -> str:
     """Where an environment is, on one line: what kind of machine, which one, where on it."""
     return _DOT.join(part for part in (place.kind, place.target, place.workdir) if part)
+
+
+#: What `-H` calls a harness on this machine, which is where a session working here has one.
+_LOCAL = "local"
+
+
+def _harnessed(place: Placed) -> str:
+    """Where the harnesses of an environment's sessions went, said as its page says it.
+
+    As the run found it rather than as the environment's kind suggests: `-H` puts a harness
+    here, on the environment's machine or on one of its own, and adaptive may put two roles'
+    harnesses in two places. What `-H` was comes first, where the run said, and then what it
+    came to -- once where every session went the same way, and session by session where not.
+
+    Args:
+      place: The environment.
+
+    Returns:
+      The row, as `adaptive → env: on this environment's machine, with the CLI there`.
+    """
+    # By what each went as, a session working here being one whose harness is here too.
+    went: dict[str, list[str]] = {}
+    for key, where in itertools.zip_longest(
+        place.sessions, place.harnesses, fillvalue=""
+    ):
+        if key:
+            went.setdefault(where or _LOCAL, []).append(key)
+    set_to = f"{place.harness} → " if place.harness else ""
+    if len(went) > 1:
+        return set_to + _DOT.join(
+            f"{where} for {', '.join(keys)}" for where, keys in went.items()
+        )
+    where = next(iter(went), _LOCAL)
+    kind, _, on = where.partition(":")
+    said = {
+        _LOCAL: "on this machine; what it runs lands here"
+        if place.anchored
+        else "on this machine, in this workdir",
+        "env": "on this environment's machine, with the CLI installed there",
+    }.get(kind, f"on {on}, reaching this environment through the anchor")
+    return f"{set_to}{kind}: {said}"
 
 
 def place_key(placed: Mapping[str, Any]) -> str:
@@ -1069,12 +1118,7 @@ class Place(Sheet[str]):
             ("image", place.image),
             ("grants", ", ".join(place.grants) or "nothing beyond running in it"),
             ("needs", _DOT.join(place.needs)),
-            (
-                "harness",
-                "on this machine; what it runs lands here"
-                if place.anchored
-                else "on this machine, in this workdir",
-            ),
+            ("harness", _harnessed(place)),
             (
                 "status",
                 (

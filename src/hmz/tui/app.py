@@ -148,6 +148,8 @@ class _RunSeen:
       outworlders: Its `Outworlder` roles, likewise.
       agents: What each agent role runs, as `-a` spells it after `<role>=`.
       envs: What each environment role was given, as `-e` spells it after `<role>=`.
+      harness: Where its agents' harnesses were put, as `-H` spells it, or "" for a run
+        whose host did not say.
     """
 
     number: int
@@ -159,6 +161,7 @@ class _RunSeen:
     outworlders: tuple[str, ...] = ()
     agents: Mapping[str, str] = field(default_factory=dict[str, str])
     envs: Mapping[str, str] = field(default_factory=dict[str, str])
+    harness: str = ""
 
     @classmethod
     def of(cls, said: Mapping[str, Any]) -> _RunSeen:
@@ -173,6 +176,7 @@ class _RunSeen:
             tuple(said.get("outworlders") or ()),
             dict(said.get("agents") or {}),
             dict(said.get("envs") or {}),
+            str(said.get("harness") or ""),
         )
 
 
@@ -2716,8 +2720,11 @@ class Humanize(App[None]):
         for key, placed in list(self._placed.items()):
             known = place_key(placed)
             was = held.get(known)
+            went = str(placed.get("harness") or "")
             if was is not None:
-                held[known] = was._replace(sessions=(*was.sessions, key))
+                held[known] = was._replace(
+                    sessions=(*was.sessions, key), harnesses=(*was.harnesses, went)
+                )
                 continue
             role = str(placed.get("role") or "")
             of = declared.get(role)
@@ -2739,6 +2746,8 @@ class Humanize(App[None]):
                 needs=needs(of) if of is not None else (),
                 image=of.image if of is not None else "",
                 sessions=(key,),
+                harness=ran.harness if ran is not None else "",
+                harnesses=(went,),
             )
         return list(held.values())
 
@@ -3459,7 +3468,13 @@ class Humanize(App[None]):
                 envs=self._envs if holding else None,
                 budget=self._budget if holding else None,
                 harness=self._harness if holding else None,
-                harnessed=self._harnessed if holding else None,
+                # What the run going found, while it is a run of this flow: its record says
+                # nothing until each session's first turn, and the menu reads the record else.
+                harnessed=self._harnessed
+                if holding
+                and self._run is not None
+                and self._run.flow == self._flow_named
+                else None,
                 unavailable=frozenset(unavailable),
                 running=running,
                 # A flow that was named has been chosen, so what is left to answer is what
@@ -4330,7 +4345,11 @@ class Humanize(App[None]):
         if record["run"] == self._generation:
             self._seen[record["key"]] = seen
             if placed := record.get("env"):
-                self._placed[record["key"]] = dict(placed)
+                # With where its harness went, which is the environment's page to say.
+                self._placed[record["key"]] = {
+                    **placed,
+                    "harness": str(record.get("harness") or ""),
+                }
             self._harnessed_at(str(record.get("role") or ""), record.get("harness"))
         followed = self._followed.get(record["run"])
         if followed is None:
