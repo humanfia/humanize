@@ -95,7 +95,7 @@ const place = [
   '     [m]target            [/]this machine',
   '     [m]workdir           [/]/home/you/shop',
   '     [m]grants            [/]nothing beyond running in it[n]2[/]',
-  '     [m]harness           [/]on this machine, in this workdir[n]3[/]',
+  '     [m]harness           [/]adaptive → local: on this machine, in this workdir[n]3[/]',
   '     [m]status            [/]1 of 3 sessions working',
   '     [b]Sessions[/][n]4[/]',
   ' [b]❯[/]   [c]● actor · session 1 · claude/claude-opus-5-5:high[/]',
@@ -370,7 +370,7 @@ out:
 | `image` | What a container for it is started from, where the flow names one. |
 | `grants` | The capabilities the flow declared for the role: `Shell`, `Files`, `GitWorktree`, … or `nothing beyond running in it`. |
 | `needs` | What the flow asks of the machine: CPUs, memory, GPUs. |
-| `harness` | Where the agents working in it run. An ssh or docker environment is anchored: the agent runs on this machine and what it runs lands there. See [Remote execution](/user/remote-execution). |
+| `harness` | Where the run put the harnesses of the agents working in it: what `-H` was, then what that came to for its sessions, such as `adaptive → env: on this environment's machine, with the CLI installed there` or `local → local: on this machine; what it runs lands here`. Where sessions went different ways, each is named: `adaptive → env for builder/1 · local for reviewer/1`. See [Remote execution](/user/remote-execution). |
 | `status` | How many of its sessions are working now, such as `1 of 3 sessions working`. |
 | `Sessions` | Each session working in it. <kbd>enter</kbd> or a click on one reads it. |
 
@@ -385,7 +385,7 @@ The page stays live. <kbd>esc</kbd> goes back to the monitor.
 | `Set` | The flow's settings that differ from its defaults. |
 | `Also` | On the graph, handovers the arrows could not show. |
 | `Reading` | Where more than one interface or program reads the run: each by name, yours marked `you`. |
-| `Tokens` | Tokens and money per model, and the output tokens a second each is producing. |
+| `Tokens` | Tokens and money per model, and the output tokens a second each is producing. A row per model, in the order each was first spent on: rows do not swap as one model overtakes another. |
 | `Kinds` | Tokens by kind for the whole run. A `+` marks a floor, because some agent's CLI does not report that kind. See [Cost and rate](/user/tally). |
 
 ## The prompt
