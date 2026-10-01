@@ -245,6 +245,208 @@ def test_a_gpu_listed_under_every_name_and_vendor_is_one_gpu() -> None:
     assert gpus_listed(devices[:3]) == ("GPU-1ac8", "GPU-b2f7")
 
 
+#: This machine's daemon, as it lists its GPUs: two bound to the driver, by index and by UUID,
+#: of which only the first answers -- the second failed after its CDI specs were written.
+_HERE = {
+    "NCPU": 64,
+    "MemTotal": 256 << 30,
+    "DiscoveredDevices": [
+        {"Source": "cdi", "ID": "k8s.device-plugin.nvidia.com/gpu=GPU-1ac8"},
+        {"Source": "cdi", "ID": "k8s.device-plugin.nvidia.com/gpu=GPU-b2f7"},
+        {"Source": "cdi", "ID": "management.nvidia.com/gpu=all"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=0"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=1"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=GPU-1ac8"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=GPU-b2f7"},
+        {"Source": "cdi", "ID": "nvidia.com/gpu=all"},
+    ],
+}
+_ANSWERING = (("0", "GPU-1ac8"),)
+
+
+def test_only_a_gpu_that_answers_is_handed_out() -> None:
+    has = has_of(None, _HERE, _ANSWERING)
+
+    assert has.gpus == ("0",)
+    assert has.bound == 2
+    one = shared(Asked(gpus=1), has, [], where="docker@local", role="box")
+    assert one.gpus == ("0",)
+    with pytest.raises(
+        ResourceUnmet,
+        match=r"docker@local has 1 of 1 GPUs free, and 'box' asks for 2 "
+        r"\(1 of the 2 GPUs it lists are usable: 1 is bound but does not answer\)",
+    ):
+        shared(Asked(gpus=2), has, [], where="docker@local", role="box")
+
+
+def test_a_provider_naming_a_gpu_that_does_not_answer_has_not_got_it() -> None:
+    both = store.DockerProvider(name="box", gpus=("0", "1"))
+    second = store.DockerProvider(name="box", gpus=("1",))
+    by_uuid = store.DockerProvider(name="box", gpus=("GPU-1ac8", "GPU-b2f7"))
+
+    assert has_of(both, _HERE, _ANSWERING).gpus == ("0",)
+    assert has_of(by_uuid, _HERE, _ANSWERING).gpus == ("0",)
+    nothing = has_of(second, _HERE, _ANSWERING)
+    assert (nothing.gpus, nothing.bound) == ((), 1)
+    with pytest.raises(ResourceUnmet, match="1 is bound but does not answer"):
+        shared(Asked(gpus=1), nothing, [], where="docker@box", role="r")
+    # And nobody asked is nothing known to have failed: every GPU named is handed out.
+    assert has_of(both, _HERE).gpus == ("0", "1")
+
+
+def test_a_gpu_held_by_its_uuid_is_held_by_its_name_too() -> None:
+    has = has_of(None, _HERE, (("0", "GPU-1ac8"), ("1", "GPU-b2f7")))
+
+    assert has.gpus == ("0", "1")
+    share = shared(
+        Asked(gpus=1),
+        has,
+        [_held("old", gpus=("GPU-1ac8",))],
+        where="docker@x",
+        role="r",
+    )
+    assert share.gpus == ("1",)
+
+
+def test_a_gpu_failing_keeps_the_names_of_those_after_it() -> None:
+    """`nvidia-smi` numbers what answers; the specs keep the names they were written with."""
+    by_index = {
+        "DiscoveredDevices": [
+            {"Source": "cdi", "ID": "nvidia.com/gpu=0"},
+            {"Source": "cdi", "ID": "nvidia.com/gpu=1"},
+            {"Source": "cdi", "ID": "nvidia.com/gpu=all"},
+        ]
+    }
+    # The first failed: the container given `nvidia.com/gpu=1` is the one that answered.
+    second = (("1", "GPU-b2f7"),)
+
+    has = has_of(None, by_index, second)
+    assert has.gpus == ("1",)
+    # A container labelled with the second before the first failed holds it still.
+    with pytest.raises(ResourceUnmet, match="GPU 1 held by old"):
+        shared(Asked(gpus=1), has, [_held("old", gpus=("1",))], where="x", role="r")
+    first = store.DockerProvider(name="box", gpus=("0",))
+    assert has_of(first, by_index, second).gpus == ()
+
+
+def test_a_daemon_listing_no_gpu_hands_out_those_that_answer_by_uuid() -> None:
+    has = has_of(None, {"NCPU": 4}, (("0", "GPU-1ac8"),))
+
+    assert (has.gpus, has.bound) == (("GPU-1ac8",), 1)
+    assert has.known["0"] == "GPU-1ac8"
+    none = has_of(None, {"NCPU": 4}, ())
+    with pytest.raises(ResourceUnmet, match=r"\(no GPU of its host answers\)"):
+        shared(Asked(gpus=1), none, [], where="docker@x", role="r")
+
+
+def _answering_as(
+    monkeypatch: pytest.MonkeyPatch,
+    answers: dict[str, tuple[int, str] | None],
+) -> list[list[str]]:
+    """Every container asked, answering for each GPU it is given as `answers` says."""
+    import subprocess
+
+    from hmz.coganchor.machines import docker
+
+    asked: list[list[str]] = []
+
+    def run(argv: list[str], _: float | None) -> subprocess.CompletedProcess[str]:
+        asked.append(argv)
+        if "rm" in argv:
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        given = argv[argv.index("--device" if "--device" in argv else "--gpus") + 1]
+        said = answers[given]
+        if said is None:
+            raise OSError(110, "docker did not answer within 60s")
+        return subprocess.CompletedProcess(argv, said[0], said[1], "")
+
+    monkeypatch.setattr(docker, "_asked", run)
+    monkeypatch.setattr(docker, "_USABLE", {})
+    return asked
+
+
+def test_each_gpu_a_daemon_lists_is_asked_whether_it_answers_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.coganchor.machines import docker
+
+    asked = _answering_as(
+        monkeypatch,
+        {
+            "nvidia.com/gpu=0": (0, "0, GPU-1ac8\n"),
+            "nvidia.com/gpu=1": (6, "No devices were found\n"),
+        },
+    )
+    devices = cast("list[object]", _HERE["DiscoveredDevices"])
+
+    assert docker.gpus_usable("local", "img", devices) == (("0", "GPU-1ac8"),)
+    assert docker.gpus_usable("local", "img", devices) == (("0", "GPU-1ac8"),)
+    assert len(asked) == 2  # one container per GPU, and once
+    for argv in asked:
+        assert argv[argv.index("--entrypoint") + 1 : argv.index("img")] == [
+            "nvidia-smi"
+        ]
+        # Given the one GPU named and no other the runtime might add of its own.
+        assert argv[argv.index("--env") + 1] == "NVIDIA_VISIBLE_DEVICES=void"
+
+
+def test_a_container_seeing_more_than_its_gpu_says_nothing_and_is_asked_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.coganchor.machines import docker
+
+    every = (0, "0, GPU-1ac8\n1, GPU-b2f7\n")
+    asked = _answering_as(
+        monkeypatch, {"nvidia.com/gpu=0": every, "nvidia.com/gpu=1": every}
+    )
+    devices = cast("list[object]", _HERE["DiscoveredDevices"])
+
+    assert docker.gpus_usable("local", "img", devices) is None
+    assert docker.gpus_usable("local", "img", devices) is None
+    assert len(asked) == 4
+
+
+def test_a_gpu_that_hangs_is_one_that_does_not_answer_and_its_container_goes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.coganchor.machines import docker
+
+    asked = _answering_as(
+        monkeypatch,
+        {"nvidia.com/gpu=0": (0, "0, GPU-1ac8\n"), "nvidia.com/gpu=1": None},
+    )
+    devices = cast("list[object]", _HERE["DiscoveredDevices"])
+
+    assert docker.gpus_usable("local", "img", devices) == (("0", "GPU-1ac8"),)
+    (hung,) = [argv for argv in asked if "--force" in argv]
+    started = [argv for argv in asked if "run" in argv]
+    names = {argv[argv.index("--name") + 1] for argv in started}
+    assert hung[-1] in names
+
+
+@pytest.mark.parametrize(
+    ("answer", "usable"),
+    [
+        ((0, "0, GPU-1ac8\n1, GPU-b2f7\n"), (("0", "GPU-1ac8"), ("1", "GPU-b2f7"))),
+        ((6, "No devices were found\n"), ()),
+        ((127, "exec: nvidia-smi: not found\n"), None),
+        ((125, "could not select device driver with capabilities: [[gpu]]\n"), None),
+        ((0, "something else entirely\n"), None),
+        (None, None),
+    ],
+)
+def test_a_daemon_listing_none_is_asked_of_every_gpu_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+    answer: tuple[int, str] | None,
+    usable: tuple[tuple[str, str], ...] | None,
+) -> None:
+    from hmz.coganchor.machines import docker
+
+    _answering_as(monkeypatch, {"all": answer})
+
+    assert docker.gpus_usable("local", "img", []) == usable
+
+
 # ---------------------------------------------------------------------------- what -e names
 
 
