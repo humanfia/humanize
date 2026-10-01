@@ -1,9 +1,11 @@
-"""Which syscalls the supervisor stops for a path, and where each keeps the paths it names.
+"""Which syscalls the two tracers stop for a path, and where each keeps the paths it names.
 
-Whether every one of them really reaches the mirror by a name only the target has is
-`tests/system/coganchor/test_spellings.py`, which makes each call under a real supervisor.
-Here are the tables that decides from: a call left out of either is a call whose path is run
-exactly as the agent named it.
+The supervisor of an anchored session and the tracer of a turn run under a provider both read
+:data:`hmz.coganchor.pathcalls.PATHS`. Whether every call really reaches the file it is
+answered with is `tests/system/coganchor/test_spellings.py`, for the mirror by a name only the
+target has, and `tests/system/providers/test_redirect.py`, for a provider's credentials. Here
+are the tables both decide from: a call left out of them is a call whose path is run exactly as
+the agent named it.
 """
 
 from __future__ import annotations
@@ -17,8 +19,11 @@ from tests.supervising import WITHOUT_BINDINGS
 if WITHOUT_BINDINGS:
     pytest.skip(WITHOUT_BINDINGS, allow_module_level=True)
 
-from hmz.coganchor.handlers import _REDIRECTABLE, SyscallDispatcher
+from hmz.coganchor.handlers import SyscallDispatcher
 from hmz.coganchor.linux.syscalls import NR, TRAPPED_SYSCALLS
+from hmz.coganchor.pathcalls import LOOKS, MAKES, PATHS
+from hmz.coganchor.providers import redirect
+from hmz.coganchor.providers._trace import Tracing
 
 #: The calls the supervisor stops that name a path but are not answered from the table: what a
 #: process becomes is the exec bridge's to settle, and a socket's address is not a path here.
@@ -32,7 +37,7 @@ def test_every_call_that_is_stopped_has_a_handler() -> None:
 
 def test_every_call_that_is_stopped_says_where_its_paths_are() -> None:
     """So that a spelling of the mirror only the target has is settled for every one of them."""
-    tabled = {number for number in _REDIRECTABLE if number >= 0}
+    tabled = {number for number in PATHS if number >= 0}
     assert tabled == TRAPPED_SYSCALLS - NOT_TABLED
 
 
@@ -73,4 +78,22 @@ def test_a_call_s_path_is_read_from_the_argument_its_manual_page_puts_it_in(
     number = getattr(NR, name)
     if number < 0:
         pytest.skip(f"{name.lower()} is not a call this architecture has")
-    assert _REDIRECTABLE[number] == where
+    assert PATHS[number] == where
+
+
+def test_a_turn_under_a_provider_stops_every_call_the_supervisor_does_for_a_path() -> (
+    None
+):
+    """One table, so that the two cannot drift apart again: the second used to lag behind."""
+    tracing = Tracing(redirect.read(["/house/.claude=/store/mine/home"]))
+    try:
+        trapped = {number for number in tracing.trapped() if number >= 0}
+    finally:
+        tracing.close()
+    assert trapped == TRAPPED_SYSCALLS - NOT_TABLED
+
+
+def test_the_lookups_and_the_makers_are_calls_that_name_a_path() -> None:
+    assert set(LOOKS) <= set(PATHS)
+    assert set(MAKES) <= set(PATHS)
+    assert not LOOKS & MAKES

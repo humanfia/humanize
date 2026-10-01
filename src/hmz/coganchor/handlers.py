@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Literal
 
 from hmz.coganchor.linux import procfs
 from hmz.coganchor.linux.syscalls import ARCH, NR, syscall_name
+from hmz.coganchor.pathcalls import LOOKS, MAKES, PATHS
 from hmz.coganchor.policy import parents
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle only matters for typing
@@ -75,25 +76,6 @@ _OPEN_HOW_FLAGS = 8
 _OPEN_HOW_RESOLVE = 16
 _RESOLVE_CONFINED = 0x08 | 0x10
 
-#: The calls among those below that make what they name, and so need somewhere to make it --
-#: an `open` among them only where it asks to create, which :func:`_creates` reads.
-_MAKES = frozenset(
-    {
-        NR.CREAT,
-        NR.MKDIR,
-        NR.MKDIRAT,
-        NR.SYMLINK,
-        NR.SYMLINKAT,
-        NR.LINK,
-        NR.LINKAT,
-        NR.RENAME,
-        NR.RENAMEAT,
-        NR.RENAMEAT2,
-        NR.MKNOD,
-        NR.MKNODAT,
-    }
-)
-
 
 def _creates(pid: int, registers: Registers) -> bool:
     """Whether a stopped syscall may make something at a path it names.
@@ -106,7 +88,7 @@ def _creates(pid: int, registers: Registers) -> bool:
       True for a call that creates, links or renames, and an `open` asking to create.
     """
     number = registers.syscall_number
-    if number in _MAKES:
+    if number in MAKES:
         return True
     if number == NR.OPEN:
         return bool(registers.arg(1) & O_CREAT)
@@ -121,110 +103,10 @@ def _creates(pid: int, registers: Registers) -> bool:
     return False
 
 
-#: Where each syscall keeps the paths it names, as ``(descriptor argument, path
-#: argument)`` pairs -- the descriptor being ``None`` for a call that has none and
-#: resolves against the process's own directory.  Read off the manual pages, one
-#: line per call: every call the supervisor stops that names a path, so that a
-#: spelling of the mirror only the target has -- a Mac's ``/private/tmp``, the
-#: workspace's own path for a harness elsewhere -- is settled whichever call it is
-#: handed to.  :mod:`hmz.coganchor.providers._trace`, which redirects a turn run under
-#: a provider without being anchored, keeps a table of its own of the calls that
-#: read or write a file's contents, and it is that table's calls this one began as.
-#:
-#: ``execve`` is deliberately absent: what a process becomes is the exec bridge's
-#: business, and a redirected path is a credential rather than a program.  Its
-#: spelling is settled by the handler, which knows whether it runs here at all.
-_REDIRECTABLE: dict[int, tuple[tuple[int | None, int], ...]] = {
-    NR.OPEN: ((None, 0),),
-    NR.CREAT: ((None, 0),),
-    NR.STAT: ((None, 0),),
-    NR.LSTAT: ((None, 0),),
-    NR.ACCESS: ((None, 0),),
-    NR.READLINK: ((None, 0),),
-    NR.CHDIR: ((None, 0),),
-    NR.STATFS: ((None, 0),),
-    NR.GETXATTR: ((None, 0),),
-    NR.LGETXATTR: ((None, 0),),
-    NR.LISTXATTR: ((None, 0),),
-    NR.LLISTXATTR: ((None, 0),),
-    NR.SETXATTR: ((None, 0),),
-    NR.LSETXATTR: ((None, 0),),
-    NR.REMOVEXATTR: ((None, 0),),
-    NR.LREMOVEXATTR: ((None, 0),),
-    NR.MKDIR: ((None, 0),),
-    NR.RMDIR: ((None, 0),),
-    NR.UNLINK: ((None, 0),),
-    NR.CHMOD: ((None, 0),),
-    NR.CHOWN: ((None, 0),),
-    NR.LCHOWN: ((None, 0),),
-    NR.MKNOD: ((None, 0),),
-    NR.TRUNCATE: ((None, 0),),
-    NR.UTIMES: ((None, 0),),
-    NR.UTIME: ((None, 0),),
-    # The descriptor first, here, and the path after it: `inotify_add_watch(fd, path,
-    # mask)` resolves the path as `open` would, against the process's own directory.
-    NR.INOTIFY_ADD_WATCH: ((None, 1),),
-    # The link itself, not what it says: what a symlink points at is text the
-    # kernel does not resolve here, and rewriting it would answer a question
-    # nobody asked.
-    NR.SYMLINK: ((None, 1),),
-    NR.LINK: ((None, 0), (None, 1)),
-    NR.RENAME: ((None, 0), (None, 1)),
-    NR.OPENAT: ((0, 1),),
-    NR.OPENAT2: ((0, 1),),
-    NR.NEWFSTATAT: ((0, 1),),
-    NR.STATX: ((0, 1),),
-    NR.FACCESSAT: ((0, 1),),
-    NR.FACCESSAT2: ((0, 1),),
-    NR.READLINKAT: ((0, 1),),
-    NR.NAME_TO_HANDLE_AT: ((0, 1),),
-    NR.OPEN_TREE: ((0, 1),),
-    NR.MKDIRAT: ((0, 1),),
-    NR.MKNODAT: ((0, 1),),
-    NR.UNLINKAT: ((0, 1),),
-    NR.FCHMODAT: ((0, 1),),
-    NR.FCHMODAT2: ((0, 1),),
-    NR.FCHOWNAT: ((0, 1),),
-    NR.UTIMENSAT: ((0, 1),),
-    NR.FUTIMESAT: ((0, 1),),
-    # `fanotify_mark(fd, flags, mask, dirfd, path)`, the mask one register wide on every
-    # architecture a tracee is watched on. A null path marks the descriptor itself.
-    NR.FANOTIFY_MARK: ((3, 4),),
-    NR.SYMLINKAT: ((1, 2),),
-    NR.RENAMEAT: ((0, 1), (2, 3)),
-    NR.RENAMEAT2: ((0, 1), (2, 3)),
-    NR.LINKAT: ((0, 1), (2, 3)),
-}
-
-#: The calls among those that only look a path up, and so need of the mirror only that the
-#: path is there, as the target has it, before they run.
-_LOOKS = frozenset(
-    {
-        NR.STAT,
-        NR.LSTAT,
-        NR.ACCESS,
-        NR.READLINK,
-        NR.NEWFSTATAT,
-        NR.STATX,
-        NR.FACCESSAT,
-        NR.FACCESSAT2,
-        NR.READLINKAT,
-        NR.STATFS,
-        NR.GETXATTR,
-        NR.LGETXATTR,
-        NR.LISTXATTR,
-        NR.LLISTXATTR,
-        NR.NAME_TO_HANDLE_AT,
-        NR.OPEN_TREE,
-        NR.INOTIFY_ADD_WATCH,
-        NR.FANOTIFY_MARK,
-    }
-)
-
-#: The calls among those that change what of a file the target is never sent -- its owner and
-#: its extended attributes -- and so are the mirror's alone. Each needs the file's contents
-#: there first: a placeholder is replaced whole when they are fetched, and what had been set
-#: on it would go with it.
+#: The calls among :data:`~hmz.coganchor.pathcalls.PATHS` that change what of a file the
+#: target is never sent -- its owner and its extended attributes -- and so are the mirror's
+#: alone. Each needs the file's contents there first: a placeholder is replaced whole when
+#: they are fetched, and what had been set on it would go with it.
 _KEEPS = frozenset(
     {
         NR.SETXATTR,
@@ -272,11 +154,10 @@ class SyscallDispatcher:
         #: one is a lookup after the first time rather than a call on every open.
         self._made: set[str] = set()
         self._table: dict[int, Callable[[Tracee, Registers], Action]] = {
-            number: self._peeking(*_REDIRECTABLE[number][0]) for number in _LOOKS
+            number: self._peeking(*PATHS[number][0]) for number in LOOKS
         }
         self._table |= {
-            number: self._peeking(*_REDIRECTABLE[number][0], whole=True)
-            for number in _KEEPS
+            number: self._peeking(*PATHS[number][0], whole=True) for number in _KEEPS
         }
         self._table |= {
             NR.EXECVE: self._execve,
@@ -359,7 +240,7 @@ class SyscallDispatcher:
         the failure to give the syscall when an answer could not be planted.
         """
         router = self._sup.router
-        arguments = _REDIRECTABLE.get(registers.syscall_number, ())
+        arguments = PATHS.get(registers.syscall_number, ())
         if not arguments or (not router.redirects and not router.settles):
             # A session that answers nothing, against a target that spells everything one
             # way, reads no path out of a tracee twice.  Asked in that order so that a

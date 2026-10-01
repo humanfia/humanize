@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 from hmz.coganchor.linux import procfs, ptrace
 from hmz.coganchor.linux.syscalls import NR
+from hmz.coganchor.pathcalls import LOOKS, MAKES, PATHS
 from hmz.coganchor.policy import parents
 
 from ._staging import Staging
@@ -76,55 +77,20 @@ _MAGICAL = re.compile(
     rb"\A/proc/(?:self|thread-self|[0-9]+)/(?:fd/[0-9]|cwd|exe|root|task/)"
 )
 
-#: Where each trapped syscall keeps the paths it names, as `(descriptor argument, path
-#: argument)` pairs -- the descriptor being None for a call that has none and resolves against
-#: the process's own directory. Read off the manual pages, one line per call.
-_PATHS: dict[int, tuple[tuple[int | None, int], ...]] = {
-    NR.OPEN: ((None, 0),),
-    NR.CREAT: ((None, 0),),
-    NR.STAT: ((None, 0),),
-    NR.LSTAT: ((None, 0),),
-    NR.ACCESS: ((None, 0),),
-    NR.READLINK: ((None, 0),),
-    NR.CHDIR: ((None, 0),),
-    NR.MKDIR: ((None, 0),),
-    NR.RMDIR: ((None, 0),),
-    NR.UNLINK: ((None, 0),),
-    NR.CHMOD: ((None, 0),),
-    NR.TRUNCATE: ((None, 0),),
-    NR.UTIMES: ((None, 0),),
-    # The link itself, not what it says: what a symlink points at is text the kernel does not
-    # resolve here, and rewriting it would be answering a question nobody asked.
-    NR.SYMLINK: ((None, 1),),
-    NR.LINK: ((None, 0), (None, 1)),
-    NR.RENAME: ((None, 0), (None, 1)),
-    NR.OPENAT: ((0, 1),),
-    NR.OPENAT2: ((0, 1),),
-    NR.NEWFSTATAT: ((0, 1),),
-    NR.STATX: ((0, 1),),
-    NR.FACCESSAT: ((0, 1),),
-    NR.FACCESSAT2: ((0, 1),),
-    NR.READLINKAT: ((0, 1),),
-    NR.MKDIRAT: ((0, 1),),
-    NR.UNLINKAT: ((0, 1),),
-    NR.FCHMODAT: ((0, 1),),
-    NR.UTIMENSAT: ((0, 1),),
-    NR.SYMLINKAT: ((1, 2),),
-    NR.RENAMEAT: ((0, 1), (2, 3)),
-    NR.RENAMEAT2: ((0, 1), (2, 3)),
-    NR.LINKAT: ((0, 1), (2, 3)),
-}
-
-#: Which of those only ask about a path, and so can be answered with a copy of what is there.
-#: Said this way round on purpose: a call nobody has thought about is one that changes things,
-#: and a call that changes things must reach the provider's own file. Adding a syscall to the
-#: table above and forgetting this one costs a read of a disk, which is what the table above
-#: did before there was a copy at all; the other way round would write a refreshed token into
-#: a directory that is thrown away when the turn ends.
+#: Which of the calls :data:`~hmz.coganchor.pathcalls.PATHS` names only ask about a path in a
+#: way a copy of what is there answers as well as the file does. Said this way round on
+#: purpose: a call nobody has thought about is one that changes things, and a call that changes
+#: things must reach the provider's own file. Adding a syscall to that table and forgetting this
+#: one costs a read of a disk, which is what every call did before there was a copy at all; the
+#: other way round would write a refreshed token into a directory that is thrown away when the
+#: turn ends.
 #:
 #: `readlink` is one of them, and is safe to be: what is copied is a regular file, so the copy
 #: answers `EINVAL` exactly as the file it was made from would. `chdir` is another, and never
-#: reaches a copy: a directory is not something there is a copy of.
+#: reaches a copy: a directory is not something there is a copy of. The rest of the lookups in
+#: :data:`~hmz.coganchor.pathcalls.LOOKS` are not: a copy keeps no extended attributes, lives
+#: on another filesystem, and a watch on it would watch a file nothing but this run writes. Those
+#: are given the provider's own file, which they leave as it is.
 _READS = frozenset(
     {
         NR.STAT,
@@ -140,6 +106,9 @@ _READS = frozenset(
     }
 )
 
+#: The lookups a copy cannot answer for the file it was made from, which are given the file.
+_UNCOPIED = LOOKS - _READS
+
 #: What an `open` has to ask for to be one that changes things: anything but reading. A file
 #: opened for writing is one about to be written whether or not it ever is, and one created,
 #: truncated or appended to is changed by the call itself.
@@ -147,23 +116,6 @@ _WRITING = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND
 
 #: Where `struct open_how` keeps the flags, which is the front of it.
 _OPEN_HOW_FLAGS = 0
-
-#: The calls that make what they name without an `open`'s flags to say so, and so need
-#: somewhere to make it: where a session is kept is made as the first of these reaches it.
-_MAKES = frozenset(
-    {
-        NR.CREAT,
-        NR.MKDIR,
-        NR.MKDIRAT,
-        NR.SYMLINK,
-        NR.SYMLINKAT,
-        NR.LINK,
-        NR.LINKAT,
-        NR.RENAME,
-        NR.RENAMEAT,
-        NR.RENAMEAT2,
-    }
-)
 
 
 class Tracing:
@@ -207,7 +159,7 @@ class Tracing:
 
     def trapped(self) -> list[int]:
         """The syscalls the filter has to stop, which is every one that names a path."""
-        return sorted(_PATHS)
+        return sorted(PATHS)
 
     def close(self) -> None:
         """Takes away the copies this run was answering reads with."""
@@ -237,20 +189,31 @@ class Tracing:
             with contextlib.suppress(OSError):
                 os.kill(pid, said)
 
-        with contextlib.suppress(OSError, ValueError):
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-        for said in (signal.SIGTERM, signal.SIGQUIT, signal.SIGHUP):
+        # Put back once the program is over, for a caller that goes on in this process --
+        # which `hmz internal cred` called from the CLI's own `main` is.
+        was: dict[int, Any] = {}
+        for said, then in (
+            (signal.SIGINT, signal.SIG_IGN),
+            (signal.SIGTERM, passed),
+            (signal.SIGQUIT, passed),
+            (signal.SIGHUP, passed),
+        ):
             with contextlib.suppress(OSError, ValueError):
-                signal.signal(said, passed)
-        _try(ptrace.cont, pid)
-        while self._watching:
-            try:
-                got, status = os.waitpid(-1, ptrace.WALL)
-            except ChildProcessError:
-                break
-            except InterruptedError:  # pragma: no cover -- retried by the loop
-                continue
-            self._stopped(got, status)
+                was[said] = signal.signal(said, then)
+        try:
+            _try(ptrace.cont, pid)
+            while self._watching:
+                try:
+                    got, status = os.waitpid(-1, ptrace.WALL)
+                except ChildProcessError:
+                    break
+                except InterruptedError:  # pragma: no cover -- retried by the loop
+                    continue
+                self._stopped(got, status)
+        finally:
+            for said, before in was.items():
+                with contextlib.suppress(OSError, ValueError):
+                    signal.signal(said, signal.SIG_DFL if before is None else before)
         return self._status
 
     def _stopped(self, pid: int, status: int) -> None:
@@ -303,7 +266,7 @@ class Tracing:
         # is none of them at nearly every stop: what the call is about to do costs a lookup
         # and a register, and a stop that answers nothing must not pay for either.
         changes: bool | None = None
-        for descriptor, argument in _PATHS.get(registers.syscall_number, ()):
+        for descriptor, argument in PATHS.get(registers.syscall_number, ()):
             raw = self._peek.cstring(pid, registers.arg(argument))
             # An empty path names the descriptor itself rather than a file, and a path that
             # is the program's own is the whole of what a stop usually is.
@@ -339,7 +302,7 @@ class Tracing:
                     parents(instead, self._made)
             elif changes:
                 self._staging.wrote(instead)
-            else:
+            elif registers.syscall_number not in _UNCOPIED:
                 instead = self._staging.reading(instead) or instead
             if self._confined(pid, registers):
                 self._cancel(pid, registers)
@@ -364,7 +327,7 @@ class Tracing:
           True for one that creates, links or renames, and an `open` asking to create.
         """
         number = registers.syscall_number
-        if number in _MAKES:
+        if number in MAKES:
             return True
         if number == NR.OPEN:
             return bool(registers.arg(1) & os.O_CREAT)
@@ -386,12 +349,12 @@ class Tracing:
           registers: Its registers at the stop.
 
         Returns:
-          True for a call to answer with the provider's own file, which is every one that
-          writes, creates, renames, unlinks or touches -- and an `open` that asked for
-          anything but reading. False for one to answer with the copy in memory.
+          True for a call that writes, creates, renames, unlinks or touches -- and an `open`
+          that asked for anything but reading -- which is answered with the provider's own
+          file and drops the copy of it. False for one that leaves the file as it is.
         """
         number = registers.syscall_number
-        if number in _READS:
+        if number in _READS or number in LOOKS:
             return False
         if number == NR.OPEN:
             return bool(registers.arg(1) & _WRITING)
