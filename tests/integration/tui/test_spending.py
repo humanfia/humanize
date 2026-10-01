@@ -30,16 +30,33 @@ MODEL = "claude-haiku-4-5"
 
 #: A `claude` that answers in two requests, each a message of two blocks -- its thinking and
 #: then its words -- written to its transcript and said on stdout a block at a time, as the
-#: real one does, every block carrying the whole usage of its request.
+#: real one does, every block carrying the whole usage of its request and the time it was
+#: written down at.
+#:
+#: Carried on, it is a conversation an earlier run held rather than a new one: it answers
+#: under that conversation's id, and its transcript has that run's turn in it already, an
+#: hour old, which this run did not spend.
 BLOCKS = """
-import json, os, pathlib, sys
+import datetime, json, os, pathlib, sys
 
+CARRIED = False
 MODEL = "claude-haiku-4-5"
+
+def now(back=0.0):
+    moment = datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=back)
+    return moment.isoformat(timespec="milliseconds")[:-6] + "Z"
+
 flags = dict(zip(sys.argv, sys.argv[1:]))
-ident = flags["--session-id"]
+ident = "carried-on" if CARRIED else flags["--session-id"]
 under = pathlib.Path(os.environ["CLAUDE_CONFIG_DIR"]) / "projects" / "-a-project"
 under.mkdir(parents=True, exist_ok=True)
 log = under / (ident + ".jsonl")
+if CARRIED and not log.exists():
+    earlier = {"type": "assistant", "timestamp": now(3600), "message": {
+        "id": "msg_earlier", "model": MODEL, "content": [{"type": "text", "text": "old"}],
+        "usage": {"input_tokens": 5, "output_tokens": 5000,
+                  "cache_read_input_tokens": 90000}}}
+    log.write_text(json.dumps(earlier) + "\\n")
 print(json.dumps({"type": "system", "session_id": ident}), flush=True)
 for line in sys.stdin:
     total = {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0}
@@ -51,7 +68,7 @@ for line in sys.stdin:
         total["cacheReadInputTokens"] += 1000
         for block in ({"type": "thinking", "thinking": "hmm"},
                       {"type": "text", "text": "done"}):
-            said = {"type": "assistant", "message": {
+            said = {"type": "assistant", "timestamp": now(), "message": {
                 "id": "msg_" + ident + str(number), "model": MODEL,
                 "content": [block], "usage": usage}}
             with log.open("a") as stream:
@@ -65,14 +82,23 @@ for line in sys.stdin:
 WHOLE = 2 * 2 + 300 + 40 + 2 * 1000
 
 
-@pytest.fixture
-def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hosting: None) -> Path:
-    """Puts the fake `claude` on PATH, gives it a home of its own and works beside it."""
+@pytest.fixture(params=[False, True], ids=["opened", "carried-on"])
+def workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    hosting: None,
+    request: pytest.FixtureRequest,
+) -> Path:
+    """Puts the fake `claude` on PATH, gives it a home of its own and works beside it.
+
+    Once with a conversation of its own, and once carrying on one an earlier run held.
+    """
     del hosting
     binaries = tmp_path / "bin"
     binaries.mkdir()
     fake = binaries / "claude"
-    fake.write_text(f"#!{sys.executable}\n{BLOCKS}")
+    script = BLOCKS.replace("CARRIED = False", f"CARRIED = {request.param}")
+    fake.write_text(f"#!{sys.executable}\n{script}")
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -85,7 +111,11 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hosting: None) ->
 async def test_the_readout_the_boxes_and_the_sessions_say_one_bill(
     workspace: Path,
 ) -> None:
-    """A log written a block at a time is read as the requests it is, not the rows."""
+    """A log written a block at a time is read as the requests it is, not the rows.
+
+    And only for what this run spent: a conversation carried on has an earlier run's turns
+    in its log, which no box of this run has in it.
+    """
     written(workspace, "flow", ONE)
     app = Humanize()
     async with app.run_test() as driver:

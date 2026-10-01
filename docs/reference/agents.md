@@ -993,6 +993,9 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
   `dsh`, `kimi` and `mcode`; for the rest it moves as each turn lands. Each model request is
   counted once: Claude's rows sharing a message id (one per content block, each with the whole
   usage) and Codex's `token_count` rows with an unmoved `total_token_usage` are one request.
+  Only rows the log timestamps at or after the moment the run opened that session count: a
+  conversation carried on from an earlier run, or forked from another, keeps that one's rows,
+  and a row with no timestamp is counted.
   What is shown per model is the higher of what the logs and the backends say, never the sum.
 
 <small>Defined in [`src/hmz/coganchor/agents/event.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/event.py) (`Usage`, `KINDS`), [`src/hmz/coganchor/agents/allowance.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/allowance.py), [`src/hmz/coganchor/prices.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/prices.py), [`src/hmz/tui/tally.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/tui/tally.py).</small>

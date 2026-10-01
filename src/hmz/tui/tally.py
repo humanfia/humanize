@@ -17,6 +17,7 @@ import json
 import threading
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -37,6 +38,10 @@ __all__ = ["Seen", "Tally", "reported"]
 #: before it said again and nothing more: two threads, or one thread after it has been cut
 #: back, can come to the same total over different requests.
 _EVERYWHERE = frozenset({"claude"})
+
+#: Past this, a time a log wrote down as a number is in milliseconds rather than seconds:
+#: a hundred billion seconds is three thousand years off, and as many milliseconds 1973.
+_MILLISECONDS = 1e11
 
 #: How often the logs are looked at. Often enough that a turn's spending shows while the turn
 #: is still running, and cheap because only what has been appended since is ever read.
@@ -174,9 +179,9 @@ def _spent(
             str(message.get("model") or "") or None,
             int(sum(broken.values())),
             broken,
-            # The request rather than the message, as the trace of a run names one, and the
-            # message where a row does not say the request.
-            str(row.get("requestId") or message.get("id") or "") or None,
+            # The message, which every row of it carries and every copy of it keeps, and the
+            # request where a row names no message.
+            str(message.get("id") or row.get("requestId") or "") or None,
         )
     if backend == "dsh":
         if row.get("type") != "assistant/message":
@@ -223,6 +228,59 @@ def _spent(
     return None, int(sum(broken.values())), broken, None
 
 
+def _moment(said: object) -> float | None:
+    """A time a log wrote down, in seconds since the epoch, however that log spells it.
+
+    Args:
+      said: What the row says: an ISO 8601 string, or a count of milliseconds -- or of
+        seconds, for a count too small to be milliseconds of any year a log was written in.
+
+    Returns:
+      The moment, or None for a row that says none or says it in a way not read here. A
+      time that names no zone is read as UTC, which is what every one of these logs writes.
+    """
+    try:
+        if isinstance(said, bool):
+            return None
+        if isinstance(said, int | float):
+            return said / 1000 if said > _MILLISECONDS else float(said)
+        if isinstance(said, str) and said:
+            moment = datetime.fromisoformat(said)
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=UTC)
+            return moment.timestamp()
+    except (ValueError, OverflowError, OSError):
+        # A time nobody could have meant: the row is counted as one nobody can place, and
+        # the thread reading the logs goes on reading them.
+        return None
+    return None
+
+
+def _written(backend: str, row: dict[str, Any]) -> float | None:
+    """When one row of a log says the request in it came back, as that backend writes it.
+
+    What tells a row of this run from a row of the conversation it was picked up from. A
+    session carried on from one an earlier run held has that one's rows in its log, and a
+    fork may write the conversation it was cut from out again -- Claude and pi each copy
+    every row as it was, its time included -- and those are tokens somebody else spent.
+
+    Args:
+      backend: Whose log the row came out of.
+      row: The row, as read.
+
+    Returns:
+      The moment, or None where the row does not say -- which is counted, a row nobody can
+      place being more likely this run's than not.
+    """
+    if backend == "dsh":
+        return _moment(row.get("time"))
+    if backend == "mcode":
+        said: dict[str, Any] = row.get("message") or {}
+        return _moment(said.get("timestamp") or row.get("timestamp"))
+    envelope: dict[str, Any] = row.get("envelope") or {}
+    return _moment(row.get("timestamp") or envelope.get("timestamp"))
+
+
 @dataclass
 class Seen:
     """One session of a run, as what is said about it says it: whose it is and its logs.
@@ -241,6 +299,9 @@ class Seen:
         than added to, since the logs are read on a thread of their own.
       kept: The directory its logs are under, laid out as its CLI lays out its home, or ""
         for the CLI's own home.
+      since: When the run opened it, in seconds since the epoch. A row its log wrote down
+        before then is not this run's spending: a conversation carried on from an earlier
+        run, or cut from another one, comes with that one's rows.
     """
 
     id: str
@@ -249,6 +310,7 @@ class Seen:
     counts: frozenset[str] = frozenset()
     idents: frozenset[str] = frozenset()
     kept: str = ""
+    since: float = 0.0
 
 
 @dataclass
@@ -338,7 +400,7 @@ class Tally:
             for ident in sorted(seen.idents):
                 for pattern in profile.logged(ident):
                     for path in sorted(home.glob(pattern)):
-                        opened |= self._take(path, profile.name, seen.model)
+                        opened |= self._take(path, profile.name, seen.model, seen.since)
             if opened and seen.id not in self._reading:
                 # Said once a log has been read rather than when the run started: what this
                 # reads is beside what the driver says, and only a log that is actually being
@@ -358,13 +420,15 @@ class Tally:
                 "read", model, sum(broken.values()), kinds=kinds or None
             )
 
-    def _take(self, path: Path, backend: str, model: str) -> bool:
+    def _take(self, path: Path, backend: str, model: str, since: float) -> bool:
         """Reads one log on from wherever this last left it.
 
         Args:
           path: The log.
           backend: Whose it is, which is how its rows are read.
           model: What to count a row against when the row does not say for itself.
+          since: When the run opened the session the log is of, before which a row is
+            somebody else's spending.
 
         Returns:
           Whether the log was there to be read, which is what says this backend's own
@@ -387,9 +451,8 @@ class Tally:
                 continue
             if not isinstance(loaded, dict):
                 continue
-            named, tokens, broken, request = _spent(
-                backend, cast("dict[str, Any]", loaded)
-            )
+            row = cast("dict[str, Any]", loaded)
+            named, tokens, broken, request = _spent(backend, row)
             if tokens <= 0:
                 continue
             counted = Counter({kind: int(count) for kind, count in broken.items()})
@@ -408,5 +471,9 @@ class Tally:
                 if request == reading.last:
                     continue  # the row before said again
                 reading.last = request
+            # After the request is noted rather than before: a row of an earlier run is still
+            # the one a row of this run may be saying again.
+            if (when := _written(backend, row)) is not None and when < since:
+                continue  # an earlier run's, or the conversation this one was cut from
             reading.spent.setdefault(named or model, Counter()).update(counted)
         return True
