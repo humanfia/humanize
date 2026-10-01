@@ -754,6 +754,9 @@ another, and `pursue` answers with the last.
   CronCreate,CronDelete,CronList,Workflow`; `dsh` mounts no goal service.
 - A budget and `interrupt` do not end a goal; `agent.stop()` does, and so does `cut` on a
   backend whose transport it puts down.
+- A goal is watched as a turn is: what each of its turns says and reaches for reaches the
+  agent's watchers as it happens (on `codex`, bracketed by one `begins` and one `ends` for the
+  whole goal), and on stderr where nothing is watching.
 - Under a flow, `/goal <objective>` as the prompt of a role typed with `GoalCommandAgentMixin`.
 
 ### Loops {#loops}
@@ -990,7 +993,13 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
   `https://openllmprices.com/data/prices.json`, refreshed after 24 h; `HUMANIZE_PRICES`
   points elsewhere or turns fetching off with `off`) and return `None` for an unlisted model.
 - The TUI's running cost reads the CLIs' own logs as they are written, for `claude`, `codex`,
-  `dsh`, `kimi` and `mcode`; for the rest it moves as each turn lands.
+  `dsh`, `kimi` and `mcode`; for the rest it moves as each turn lands. Each model request is
+  counted once: Claude's rows sharing a message id (one per content block, each with the whole
+  usage) and Codex's `token_count` rows with an unmoved `total_token_usage` are one request.
+  Only rows the log timestamps at or after the moment the run opened that session count: a
+  conversation carried on from an earlier run, or forked from another, keeps that one's rows,
+  and a row with no timestamp is counted.
+  What is shown per model is the higher of what the logs and the backends say, never the sum.
 
 <small>Defined in [`src/hmz/coganchor/agents/event.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/event.py) (`Usage`, `KINDS`), [`src/hmz/coganchor/agents/allowance.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/allowance.py), [`src/hmz/coganchor/prices.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/prices.py), [`src/hmz/tui/tally.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/tui/tally.py).</small>
 

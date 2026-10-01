@@ -27,6 +27,7 @@ from hmz.flows import (
     FlowParams,
     NotificationHookParams,
     NotificationHookResult,
+    Session,
     SessionEndHookParams,
     SessionEndHookResult,
     SessionError,
@@ -272,6 +273,13 @@ async def test_a_session_the_flow_still_holds_stays_open() -> None:
     assert after == [False, True, True]
 
 
+async def _turned(agent: Agent, env: Env) -> Session:
+    """A session that has taken a turn, which is what a fork is cut from."""
+    session = await agent.spawn(env=env)
+    await agent.run("z", session=session)
+    return session
+
+
 async def test_a_fork_outlives_the_session_it_was_cut_from() -> None:
     @flow(agents=Solo, envs=Place, params=Rounds)
     async def forking(
@@ -289,7 +297,7 @@ async def test_a_fork_outlives_the_session_it_was_cut_from() -> None:
         said = await agent.run("b", session=child)
         await asyncio.sleep(0)
         closed.append(cut.closed)
-        orphan = await agent.fork(await agent.spawn(env=env), env=env)
+        orphan = await agent.fork(await _turned(agent, env), env=env)
         await asyncio.sleep(0)
         again = await agent.run("c", session=orphan)
         return closed, said, again, _handle(child).closed

@@ -610,6 +610,7 @@ async def test_a_session_is_its_agent_s_alone() -> None:
             await a.run("x", session=object())  # pyright: ignore[reportArgumentType]
         with pytest.raises(TypeError):
             await a.spawn(env=object())  # pyright: ignore[reportArgumentType]
+        await a.run("x", session=session)
         forked = await a.fork(session, env=envs["env"])
         assert await a.run("in the fork", session=forked) == "ok"
 
@@ -672,6 +673,7 @@ async def test_a_harness_that_cannot_fork_says_so() -> None:
     ) -> None:
         agent = agents["agent"]
         session = await agent.spawn(env=envs["env"])
+        await agent.run("x", session=session)
         await agent.fork(session, env=envs["env"])
 
     with pytest.raises(UnsupportedOperation):
