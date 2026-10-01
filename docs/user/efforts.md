@@ -99,11 +99,15 @@ per choice, and the effort is the last of them:
      1. cli         claude ▸                          coding agent CLI to use
      2. account     as local ▸                        account to run as          ①
      3. model       claude-haiku-4-5-20251001 ▸       model to use               ②
-   ❯ 4. effort      low ↔                             reasoning effort           ③
-
-        save                      this agent
-
-   ←/→ change · enter keep · esc undo                                            ④
+   ❯ 4. effort      low ▾                             reasoning effort           ③
+                    ╭─ effort ─────────────╮
+        save        │ ultracode            │
+                    │ max                  │
+                    │ xhigh                │
+                    │ high                 │
+   enter choose · es│ medium               │                                     ④
+                    │ low ✔                │
+                    ╰──────────────────────╯
 ```
 
 ### What each part means
@@ -113,11 +117,10 @@ per choice, and the effort is the last of them:
 2. **`model`** lists, for each model, the efforts it takes, so you can see a model's ladder
    before you pick it:
    `claude-haiku-4-5-20251001 ultracode, max, xhigh, high, medium, low`.
-3. **`↔`** marks a row you change where it stands rather than open. <kbd>enter</kbd> starts
-   changing it; <kbd>→</kbd> steps one rung harder and <kbd>←</kbd> one easier, wrapping round
-   at either end.
-4. **The key line** while you change it: <kbd>enter</kbd> keeps the new effort, and
-   <kbd>esc</kbd> puts back the one you started with.
+3. **`▾`** marks a row whose values drop under it. <kbd>enter</kbd> or a click shows the
+   model's whole ladder, hardest first, with `✔` on the effort in force.
+4. **The list**: <kbd>↑</kbd> <kbd>↓</kbd> and <kbd>enter</kbd>, or a click, pick an effort;
+   <kbd>esc</kbd> or a click off the list keeps the one you had.
 
 Choose **save** on the sheet, then **save** on the flow. The line above the prompt then reads
 `assistant · claude/claude-haiku-4-5-20251001:low`.
@@ -176,7 +179,7 @@ hmz exec -f ralph_loop -b cost=5 \
 
 `auto` is not the bottom rung. pi's `off`, DeepSeek Harness's `off` and Qwen Code's `none` ask
 the model not to think at all; `auto` asks nothing. On the agent sheet, a model with no rungs
-shows no effort to step through, and runs as `auto`.
+shows no effort to pick, and runs as `auto`.
 
 ### Kimi's swarm mode
 

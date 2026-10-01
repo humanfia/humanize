@@ -31,7 +31,6 @@ from rich.markup import escape
 from textual import events, on, work
 from textual.binding import Binding
 from textual.containers import Horizontal
-from textual.geometry import Offset
 from textual.message import Message
 from textual.widgets import Button, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
@@ -40,34 +39,29 @@ from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs, read_back, written
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
 
-from .dropdown import Dropdown, Value, anchor
+from .dropdown import Dropdown, Value
 from .pick import (
     _ACCOUNTS,
-    _ADD,
-    _APART,
+    _ACT_SAVE,
+    _ACT_SEARCH,
     _APART_MARK,
     _DIRECTORY,
-    _DOCKS,
     _DOT,
     _EVERYWHERE,
     _FALLBACK,
     _FIRST,
-    _IMPORTS,
-    _INDENT,
     _INFORCE,
     _LABEL,
     _MACHINES,
     _NO,
-    _ON_APART,
-    _SAVE,
-    _SEARCH,
     _SHEET,
-    _SPEAKS,
     _VERSES,
     _YES,
+    Action,
     Adjusted,
     Agent,
     Body,
+    Drop,
     Fallbacks,
     Flowverses,
     Key,
@@ -77,6 +71,7 @@ from .pick import (
     _hmz,
     _many,
     _shortly,
+    switched,
 )
 from .selecting import Choices
 
@@ -172,14 +167,10 @@ _NEXT_RUN = "takes effect on next flow run"
 _NEXT_LAUNCH = "takes effect on next launch"
 _NEXT_BTW = "takes effect on next /btw"
 
-#: The buttons under the list, in the order they stand. Each is one of the rows a page puts
-#: above its list, drawn as a button rather than a row: a page shows the ones it has.
-_BAR = (_ADD, _SPEAKS, _DOCKS, _IMPORTS, _SEARCH, _SAVE)
 
-
-def _act(held: str) -> str:
-    """The id of the button one of those is drawn as."""
-    return f"act-{held.removeprefix(_APART_MARK)}"
+def _act(key: str) -> str:
+    """The id of the button an action is drawn as."""
+    return f"act-{key}"
 
 
 class _Setting(NamedTuple):
@@ -369,8 +360,8 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         self._only = only and page is not None
         #: The row each page's cursor was last on, by id, for when it is gone back into.
         self._cursors: dict[int, str] = {}
-        #: The buttons the page being drawn asks for: `(id, label, what it does)` apiece.
-        self._bar: list[tuple[str, str, str]] = []
+        #: What the page being drawn does about its list, which the buttons under it are.
+        self._acts: list[Action] = []
         #: The keys the page last said it had, before where the focus is was said as well.
         self._page_keys: tuple[Key, ...] = ()
         #: How wide the names of the first two pages' rows are, where their values start.
@@ -399,16 +390,12 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             yield Choices(id="choices")
             yield Label(id="tuning")
             with Horizontal(id="actions"):
-                for held in _BAR:
-                    if held == _SAVE:
-                        # Saving at the far end, set apart from what is done to the list.
-                        yield Static(classes="spacer")
-                    yield Button(
-                        _ON_APART[held],
-                        id=_act(held),
-                        variant="primary" if held == _SAVE else "default",
-                        compact=True,
-                    )
+                # Saving at the far end, set apart from what is done to the list; the rest
+                # are put in front of it as the pages ask for them -- see :meth:`_shows_bar`.
+                yield Static(classes="spacer")
+                yield Button(
+                    "Save", id=_act(_ACT_SAVE), variant="primary", compact=True
+                )
             yield Label(id="keys")
 
     def _ask(self) -> None:
@@ -431,10 +418,9 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         if any(not one.disabled for one in listing.options):
             listing.focus()
             return
-        for held in _BAR:
-            button = self.query_one(f"#{_act(held)}", Button)
-            if button.display and not button.disabled:
-                button.focus()
+        for one in self._acts:
+            if one.able():
+                self.query_one(f"#{_act(one.key)}", Button).focus()
                 return
         listing.focus()
 
@@ -530,7 +516,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         if action == "across":
             return not typing
         if action == "search":
-            return not typing and any(held == _SEARCH for held, _, _ in self._bar)
+            return not typing and self._acting(_ACT_SEARCH) is not None
         if action == "up":
             return not typing
         return super().check_action(action, parameters)
@@ -636,7 +622,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
 
     def _fill(self) -> None:
         """Puts up the screen of pages, or the page that is open, and the bar under it."""
-        self._bar = []
+        self._acts = self._actions()
         self._draws_top()
         self.query_one("#about", Label).update(
             _HOME_ABOUT
@@ -762,13 +748,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         listing.highlighted = at
         self._drawn = at
         self.query_one("#tuning", Label).update("")
-        self._bar.append(
-            (
-                _SAVE,
-                "save",
-                "save all changes" if self._holding() else "nothing to save yet",
-            )
-        )
         self._footed(Key("enter", "open"), Key("esc", "close"))
 
     def _settings(self) -> list[_Setting]:
@@ -903,7 +882,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         listing.highlighted = held.index(landing)
         self._was = landing
         self._drawn = listing.highlighted
-        self._saving(here=False)
         said = self._said
         if (
             not said
@@ -916,7 +894,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             f"[$text-muted]{said}[/]" if said else ""
         )
         kind = next((one.kind for one in rows if one.held == landing), _READ)
-        does = {_SWITCH: "change", _PICK: "choose", _SAYS: "read"}.get(kind)
+        does = {_SWITCH: "choose", _PICK: "choose", _SAYS: "read"}.get(kind)
         self._footed(*((Key("enter", does),) if does else ()), Key("esc", "back"))
 
     def _row(
@@ -950,97 +928,75 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         )
         return f" {named}{pad}{said}"
 
-    def _lands(self, atop: Sequence[str], items: Sequence[str]) -> str:
+    def _lands(self, items: Sequence[str]) -> str:
         """Lands the cursor as a page does, and the focus with it on something just added.
 
         Something added from a button is what somebody wants to look at next, so the focus
         goes back to the list it landed on rather than staying on the button that made it.
 
         Args:
-          atop: What a page would put above its list, which is the bar here.
           items: The things listed, by id.
 
         Returns:
           The id of the row the cursor goes on.
         """
         aimed = self._aim
-        landing = super()._lands(atop, items)
+        landing = super()._lands(items)
         if aimed and landing == aimed:
             self.call_after_refresh(self.query_one("#choices", OptionList).focus)
         return landing
 
-    def _atop(self, rows: Sequence[tuple[str, str, str]], *, here: str) -> list[Option]:
-        """Takes what a page would put above its list as the buttons under it instead.
+    def _actions(self) -> list[Action]:
+        """What the screen of pages, or the page open, does about its list, in the order it stands.
 
-        Args:
-          rows: One `(id, what it is called, the line about it)` apiece.
-          here: Where the cursor is, which a button has no use for.
-
-        Returns:
-          Nothing to put above the list.
+        Saving on the screen of pages and on every page that holds anything, and nothing else
+        on the first two pages, whose rows are each a setting of their own.
         """
-        del here
-        self._bar.extend(rows)
-        return []
+        if self._home:
+            return [self._saves_all()]
+        return {
+            _ACCOUNTS: self._account_actions,
+            _MACHINES: self._machine_actions,
+            _FALLBACK: self._step_actions,
+            _VERSES: self._verse_actions,
+        }.get(self._tab, lambda: [self._saves_all()])()
 
-    def _saving(self, *, here: bool) -> Option:
-        """Takes the row a page is saved from as the button that saves, at the end of the bar.
-
-        Args:
-          here: Where the cursor is, which a button has no use for.
-
-        Returns:
-          A row that :meth:`_put` leaves off the list.
-        """
-        del here
-        self._bar.append(
-            (
-                _SAVE,
-                "save",
-                "save all changes" if self._holding() else "nothing to save yet",
-            )
-        )
-        return Option("", id=f"={_SAVE}")
-
-    def _put(self, listing: OptionList, rows: list[Option], landing: str) -> None:
-        """Puts the things listed up, and none of the rows about them, which are buttons.
-
-        The headings a list is grouped under are drawn in the list's own left margin, and the
-        cursor lands on the first thing listed where what it was to land on is a button.
-
-        Args:
-          listing: The list.
-          rows: The rows, as the page built them.
-          landing: The id of the row the cursor goes on.
-        """
-        kept: list[Option] = []
-        for one in rows:
-            held = str(one.id or "").removeprefix("=")
-            if held in _APART:
-                continue
-            if one.disabled and one.id is None and str(one.prompt):
-                one = Option(f" {str(one.prompt).removeprefix(_INDENT)}", disabled=True)  # noqa: PLW2901
-            kept.append(one)
-        listing.set_options(kept)
-        listing.highlighted = next(
-            (at for at, one in enumerate(kept) if one.id == f"={landing}"),
-            next((at for at, one in enumerate(kept) if not one.disabled), None),
-        )
+    def _acting(self, key: str) -> Action | None:
+        """The action of the page drawn that a button is, by its key, or None for none."""
+        return next((one for one in self._acts if one.key == key), None)
 
     def _shows_bar(self) -> None:
-        """Shows the buttons this page asked for, as it words them, and hides the rest."""
-        asked = {held: (label, about) for held, label, about in self._bar}
-        for held in _BAR:
-            button = self.query_one(f"#{_act(held)}", Button)
-            if held not in asked:
-                button.display = False
-                continue
-            label, about = asked[held]
+        """Draws the actions the page said it has, as buttons in its order, and hides the rest.
+
+        A button is made the first time a page asks for its action and kept after, the save
+        button already standing at the far end: a bar made again on every keystroke would be
+        one that lost the focus of whoever was walking along it.
+        """
+        bar = self.query_one("#actions", Horizontal)
+        spacer = bar.query_one(".spacer")
+        wanted = {_act(one.key) for one in self._acts}
+        for button in bar.query(Button):
+            button.display = button.id in wanted
+        # Put in the page's order only where they are not in it already: this is drawn on
+        # every keystroke, and a bar laid out again for nothing is a bar redrawn for nothing.
+        order = [_act(one.key) for one in self._acts if one.key != _ACT_SAVE]
+        standing = [one.id for one in bar.query(Button) if one.id in order]
+        for one in self._acts:
+            found = bar.query(f"#{_act(one.key)}")
+            button = (
+                found.first(Button)
+                if found
+                else Button(one.label, id=_act(one.key), compact=True)
+            )
+            if not found:
+                bar.mount(button, before=spacer)
+            elif one.key != _ACT_SAVE and standing != order:
+                bar.move_child(button, before=spacer)
             button.display = True
-            button.label = label[:1].upper() + label[1:]
-            button.tooltip = about or None
-            button.disabled = held == _SAVE and not self._holding()
-        self.query_one("#actions", Horizontal).display = bool(asked)
+            button.label = one.label[:1].upper() + one.label[1:]
+            button.tooltip = one.about or None
+            button.disabled = not one.able()
+        bar.display = bool(self._acts)
         focus = self.focused
         if isinstance(focus, Button) and (not focus.display or focus.disabled):
             self.query_one("#choices", OptionList).focus()
@@ -1057,9 +1013,10 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         if isinstance(focus, Input):
             keys = (Key("enter", "to list"), Key("esc", "clear"))
         elif isinstance(focus, Button):
-            held = f"{_APART_MARK}{(focus.id or '').removeprefix('act-')}"
+            act = self._acting((focus.id or "").removeprefix("act-"))
             keys = (
-                Key("enter", _ON_APART.get(held, "press")),
+                # What the button does, in its first word: `add`, `import`, `save`.
+                Key("enter", act.label.split()[0].rstrip("…") if act else "press"),
                 Key("←/→", "move"),
                 Key("tab", "list"),
                 back,
@@ -1069,13 +1026,13 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                 *(one for one in keys if one.key == "enter"),
                 *(
                     (Key("/", "search"),)
-                    if any(held == _SEARCH for held, _, _ in self._bar)
+                    if self._acting(_ACT_SEARCH) is not None
                     else ()
                 ),
                 *(
                     (Key("tab", "actions"),)
                     # A save button with nothing to save cannot be tabbed to.
-                    if any(held != _SAVE or self._holding() for held, _, _ in self._bar)
+                    if any(one.able() for one in self._acts)
                     else ()
                 ),
                 back,
@@ -1112,26 +1069,23 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
 
     @on(Button.Pressed, "#actions Button")
     def _acted(self, event: Button.Pressed) -> None:
-        """Does what the button pressed is for.
+        """Does what the button pressed is for, as the page said.
 
         Args:
           event: The press.
         """
         event.stop()
-        self._takes(f"{_APART_MARK}{(event.button.id or '').removeprefix('act-')}")
+        act = self._acting((event.button.id or "").removeprefix("act-"))
+        if act is not None and act.able():
+            act.does()
 
     def _takes(self, held: str) -> None:
-        """Does what one row or button is for, which each page says for itself.
+        """Does what one row is for, which each page says for itself.
 
         Args:
-          held: The row or the button, by the id it answers with.
+          held: The row, by the id it answers with.
         """
-        if held == _SAVE:
-            if self._holding():
-                self.applied()
-        elif held == _SEARCH:
-            self.action_search()
-        elif self._tab == _ACCOUNTS:
+        if self._tab == _ACCOUNTS:
             self._took_account(held)
         elif self._tab == _MACHINES:
             self._took_machine(held)
@@ -1145,14 +1099,50 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._fill()
         elif held == _BTW:
             self._chooses_btw()
-        elif held in _MEANS:
-            self._switches(held)
 
-    def _dropped_at(self) -> Offset:
-        """Where the value of the row under the cursor starts, which its list drops under."""
-        return anchor(self.query_one("#choices", OptionList)) + Offset(
-            self._values_at, 0
+    def drops(self, row: str) -> bool:
+        """Whether a row is a switch of the first two pages, whose two values drop under it.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for a switch.
+        """
+        return (
+            not self._home and self._tab in (_EVERYWHERE, _DIRECTORY) and row in _MEANS
         )
+
+    def dropping(self, row: str) -> Drop:
+        """A switch's two values, what each means, and which it is held at.
+
+        Args:
+          row: The switch, by id.
+
+        Returns:
+          The list, opening on the answer it is not, so that enter twice turns it round.
+        """
+        now = self._switched(row)
+        named = next(one.named for one in self._settings() if one.held == row)
+        return switched(named, _word(now) if now is not None else "", _MEANS[row])
+
+    def dropped(self, row: str, picked: str) -> None:
+        """Holds a switch at the value picked.
+
+        Args:
+          row: The switch, by id.
+          picked: `on` or `off`.
+        """
+        on_ = picked == _YES
+        if row == _SENTRY:
+            self._sentry = on_
+        elif row == _DETAILS:
+            self._details = on_
+        elif row == _PROFILES:
+            self._profile = on_
+        else:
+            self._forget = on_
+        self._said = ""
 
     def _switched(self, held: str) -> bool | None:
         """What one switch is held at now."""
@@ -1162,51 +1152,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             _PROFILES: self._profile,
             _FORGET: self._forget,
         }[held]
-
-    @work
-    async def _switches(self, held: str) -> None:
-        """Asks whether a switch is on or off, from the two dropped under it, and holds it.
-
-        The list opens on the answer it is not, so that enter twice turns it round.
-
-        Args:
-          held: The switch, by id.
-        """
-        if self.opening():
-            return
-        now = self._switched(held)
-        yes, no = _MEANS[held]
-        named = next(one.named for one in self._settings() if one.held == held)
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        try:
-            picked = await showing.push_screen_wait(
-                Dropdown(
-                    named,
-                    [Value(_YES, _YES, yes), Value(_NO, _NO, no)],
-                    _word(now) if now is not None else "",
-                    at=self._dropped_at(),
-                    cursor=_NO if now else _YES,
-                )
-            )
-        finally:
-            self.opened()
-        if picked is None or (now is not None and picked == _word(now)):
-            return
-        on_ = picked == _YES
-        if held == _SENTRY:
-            self._sentry = on_
-        elif held == _DETAILS:
-            self._details = on_
-        elif held == _PROFILES:
-            self._profile = on_
-        else:
-            self._forget = on_
-        self._said = ""
-        self.changed()
-        self._fill()
 
     @work
     async def _chooses_btw(self) -> None:
@@ -1227,7 +1172,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                 values.append(Value(self._btw, self._btw, "chosen"))
             values.append(Value(_ANOTHER, "another…", "set one up"))
             picked = await showing.push_screen_wait(
-                Dropdown("/btw agent", values, self._btw, at=self._dropped_at())
+                Dropdown("/btw agent", values, self._btw, at=self.dropped_at())
             )
             if picked == _ANOTHER:
                 chosen = await showing.push_screen_wait(

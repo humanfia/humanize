@@ -246,7 +246,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
                                                                     <span class="btn"> Save </span>
 
-  <b>enter</b> change   <b>esc</b> back</pre>
+  <b>enter</b> choose   <b>esc</b> back</pre>
 
 </Term>
 
@@ -806,7 +806,7 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
 
 <pre><span class="p b">Environment for box</span>
 
-  <span class="d">1.</span> backend  <span class="a">ssh ↔</span>                   <span class="m">a machine reached over ssh</span>
+  <span class="d">1.</span> backend  <span class="a">ssh ▾</span>                   <span class="m">a machine reached over ssh</span>
   <span class="d">2.</span> host     <span class="a">gpu ▸</span>                   <span class="m">from ~/.ssh/config · working directory: ~/work</span>
   <span class="d">3.</span> workdir  <span class="a">~/work</span>                  <span class="m">leave blank to use saved default: ~/work</span>
   <span class="d">4.</span> as -e    <span class="a">ssh@gpu</span>                 <span class="m">full -e spec: typing one sets the rows above</span>
@@ -817,8 +817,9 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
 
 </Term>
 
-- `backend` is every backend `-e` takes. It starts on the first one anything is saved for, and
-  the cursor on the first thing still to answer.
+- `backend` is every backend `-e` takes, dropped under the row by <kbd>enter</kbd> or a click,
+  each with what it is. It starts on the first one anything is saved for, and the cursor on the
+  first thing still to answer.
 - `host` (`daemon` for a docker backend, once `-e` takes one) opens the providers of that
   backend saved here, with `add an
   ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `unsaved

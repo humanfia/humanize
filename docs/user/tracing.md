@@ -140,7 +140,7 @@ agents ran, what started it, and how long it took.
   │   clear saved settings here, across 0 flows                                                  │
 
                                                                                           Save   ③
-  enter change   tab actions   esc back
+  enter choose   tab actions   esc back
 ```
 
 1. **`Profiling`**: <kbd>enter</kbd> on the row drops its two values, `on` (profile what runs

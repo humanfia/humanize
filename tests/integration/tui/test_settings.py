@@ -350,7 +350,7 @@ async def test_the_settings_menu_turns_the_reporting_off(
     """One page for what is true of this machine, one for what this directory is set up as."""
     from hmz.runtime.kept import Runs
     from hmz.tui import Humanize
-    from hmz.tui.pick import _SAVE, Confirms
+    from hmz.tui.pick import _ACT_SAVE, Confirms
     from hmz.tui.settings import Adjusts
     from tests.integration.tui.test_app import bar, ids, into_settings, onto, picks
 
@@ -365,7 +365,7 @@ async def test_the_settings_menu_turns_the_reporting_off(
         listing = sheet.query_one("#choices", OptionList)
         assert ids(app) == ["reports", "sent", "details", "btw"]
         # Saved from the bar under the list rather than from a row of it.
-        assert _SAVE in bar(app)
+        assert _ACT_SAVE in bar(app)
         assert "● on" in str(listing.get_option_at_index(0).prompt)
 
         await picks(app, driver, "reports", "off")
@@ -401,7 +401,7 @@ async def test_a_value_is_picked_from_the_list_dropped_under_it_with_the_mouse(
     """A click drops the values, a click picks one, and the save button lands it."""
     from hmz.tui import Humanize
     from hmz.tui.dropdown import Dropdown
-    from hmz.tui.pick import _SAVE
+    from hmz.tui.pick import _ACT_SAVE
     from hmz.tui.settings import Adjusts
     from tests.integration.tui.test_app import acts, into_settings
 
@@ -438,7 +438,7 @@ async def test_a_value_is_picked_from_the_list_dropped_under_it_with_the_mouse(
         # Held, and not yet written down.
         assert not Settings(tmp_path).details
 
-        await acts(app, driver, _SAVE)
+        await acts(app, driver, _ACT_SAVE)
         await until(lambda: not isinstance(app.screen, Adjusts), driver)
 
     assert Settings(tmp_path).details
