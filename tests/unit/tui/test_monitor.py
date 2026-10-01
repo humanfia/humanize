@@ -125,6 +125,17 @@ def test_what_each_node_spent_is_kept_by_agent_and_by_session() -> None:
     ]
 
 
+def test_the_bill_keeps_its_order_as_one_model_overtakes_another() -> None:
+    """In the order each model was first spent on, however the spending goes after."""
+    monitor = Monitor()
+    monitor.spend("actor", 100, model="small")
+    monitor.spend("reviewer", 50, model="big")
+    monitor.spend("reviewer", 5000, model="big")
+    monitor.spend("critic", 10, model="late")
+
+    assert [one.model for one in monitor.spending()] == ["small", "big", "late"]
+
+
 def test_the_list_puts_what_is_working_first_and_moves_nothing_else() -> None:
     """Stable, so a row moves only when what it is about starts or stops."""
     nodes = [(False, "a"), (True, "b"), (False, "c"), (True, "d")]
