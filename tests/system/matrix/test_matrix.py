@@ -1777,6 +1777,48 @@ def test_harness_placement(cell: Cell, daemon: None) -> None:
     assert [one.harness for one in run.sessions] == ["local"], run.sessions
 
 
+#: What the agent is asked, so that where its shell started is written down where it started.
+WHERE = (
+    "Use your shell tool to run exactly this one command in your working directory, then "
+    "reply with exactly one word, DONE: pwd > where.txt"
+)
+
+
+@feature(timeout=1200)
+def test_workdir(home_kept_here: Path, cell: Cell, daemon: None, ssh_box: Box) -> None:
+    """An agent given an environment starts its shell in that environment's workdir.
+
+    A container, with humanize's home where the default one is, and a host over ssh: the
+    command the agent runs first writes where it was run into the workdir, which is only
+    there if it ran there.
+    """
+    del home_kept_here, daemon
+    boxed = cell.root / "box"
+    boxed.mkdir()
+    ran = cell.exec(
+        cell.flow("boxed", BOXED),
+        WHERE,
+        envs=[f"box=docker@local{boxed}"],
+        harness="local",
+        timeout=600,
+    )
+    landed = boxed / "where.txt"
+    assert landed.is_file(), f"the agent's shell was not in {boxed}\n{ran}"
+    assert landed.read_text().strip() == str(boxed), ran
+
+    there = cell.root / "far"
+    ssh_box.run(f"mkdir -p {there}")
+    ran = cell.exec(
+        cell.flow("remote", REMOTE),
+        WHERE,
+        envs=[f"box=ssh@{ssh_box.alias}{there}"],
+        harness="local",
+        timeout=600,
+    )
+    said = ssh_box.run(f"cat {there}/where.txt 2>/dev/null || echo missing")
+    assert said.strip() == str(there), f"the agent's shell said {said!r}\n{ran}"
+
+
 FENCED_BOX = '''"""One turn at the default permission in a container, and what it kept."""
 
 import json

@@ -291,6 +291,13 @@ loaded into it from here. Pull that one too with `docker pull docker:dind`. Its 
 are not this machine's, so the row can tell a workdir that was mounted there from one that
 was not.
 
+`test_workdir` takes both, a container and an `sshd`, and asks the agent to write `pwd` into
+the directory its shell started in, which has to be the environment's workdir. It runs with
+humanize's home under `~/.cache/humanize` rather than the suite's temporary directory
+(`home_kept_here`): a container's mirrors are kept under that home, and only a home inside a
+directory kept on this machine, as the default `~/.humanize` is, can show a mirror taken for
+one of them.
+
 `test_frontends_tui` drives two `hmz` interfaces in a tmux of its own, and skips without
 `tmux`. `test_settings_accounts` fills the accounts form in with the `dsh` gateway account in
 `~/.humanize/providers`, read and never written, and takes the new account off disk after.

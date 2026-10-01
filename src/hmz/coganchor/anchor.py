@@ -565,7 +565,12 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
 
     target, workspace, export = config.mount()
     agent = statepaths.resolve(list(command))
-    shadow_root = os.path.abspath(config.shadow) if config.shadow else workspace
+    # By the name the kernel has for it, through any symlink on the way there: where a
+    # process is, is read back as that name, and a command started in a mirror named
+    # otherwise would land outside it -- in the target's home, not the workdir. The name it
+    # was given is the other name it answers to, which a driver told the CLI to work at.
+    named = os.path.abspath(config.shadow or workspace)
+    shadow_root = os.path.realpath(named)
     # Where the agent itself starts: the mirror of the directory it was told to work in,
     # which is the workspace unless a session asked for one inside it.
     started_in = shadow_root
@@ -580,7 +585,14 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     )
     router = Router(
         layouts=(Layout.create(shadow_root, workspace),),
-        aliases=_aliases(target, shadow_root, workspace),
+        aliases=tuple(
+            dict.fromkeys(
+                (
+                    *_aliases(target, shadow_root, workspace),
+                    *_aliases(target, shadow_root, named, linked=True),
+                )
+            )
+        ),
         local_paths=tuple(
             agent.local_paths
             + [os.path.abspath(path) for path in config.local_paths]
@@ -674,7 +686,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
 
 
 def _aliases(
-    target: Target, shadow_root: str, workspace: str
+    target: Target, shadow_root: str, workspace: str, *, linked: bool = False
 ) -> tuple[tuple[str, str], ...]:
     """The other name the agent may reach its mirror by, as `(name, mirror)`, if it has one.
 
@@ -687,10 +699,16 @@ def _aliases(
     is some other directory of the same name. Nothing for a mirror nested in its workspace,
     or the other way about, where one name for both could only be answered in circles.
 
+    Or, `linked`, the name the mirror was given where a symlink on the way there makes it
+    another name than the kernel's -- a mirror under a home whose `~/.cache` is a link
+    elsewhere -- which is the name a driver told the CLI to work at, whatever the target.
+
     Args:
       target: Where the work lands.
       shadow_root: The mirror, as this machine names it.
-      workspace: The workspace, as the target names it.
+      workspace: The workspace, as the target names it; or, `linked`, the mirror as it
+        was named.
+      linked: Whether `workspace` is the mirror's own other name.
 
     Returns:
       The alias, or nothing.
@@ -698,7 +716,7 @@ def _aliases(
     from hmz.coganchor.proto import path_within
 
     if (
-        target.scheme != "peer"
+        (target.scheme != "peer" and not linked)
         or path_within(shadow_root, workspace) is not None
         or path_within(workspace, shadow_root) is not None
     ):

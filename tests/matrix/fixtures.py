@@ -1,6 +1,8 @@
 """The fixtures of the regression matrix: `cell`, and `billed` for a row run once.
 
-`billed` is the part of `cell` a row run once, which has no cell, still needs.
+`billed` is the part of `cell` a row run once, which has no cell, still needs. And
+`home_kept_here`, humanize's home where the default one is, which a row about an agent's
+mirror asks for before its cell -- and so does `tests/system/flows/test_workdirs.py`.
 
 A plain module rather than a conftest, as every subsystem's fixtures here are -- see
 `tests/tiers.py` -- and taken back by name in `tests/system/matrix/conftest.py`, the only
@@ -10,7 +12,9 @@ directory whose tests ask for it.
 from __future__ import annotations
 
 import contextlib
+import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -20,9 +24,9 @@ from tests.matrix import grid, places
 from tests.matrix.cells import Cell, spent
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator, Iterator
 
-__all__ = ["billed", "cell"]
+__all__ = ["billed", "cell", "home_kept_here"]
 
 #: The unit prices this machine last fetched, which a cell's home is given a copy of: the
 #: suite fetches nothing, and a cost cap over prices nobody has is a cap nothing reads.
@@ -101,3 +105,27 @@ def cell(
 
         holding.callback(billed)
         yield held
+
+
+@pytest.fixture
+def home_kept_here(monkeypatch: pytest.MonkeyPatch) -> Generator[Path]:
+    """Humanize's home inside a directory every agent keeps on this machine, as the default is.
+
+    `~/.humanize` is one of those, and a container's mirrors are kept under humanize's home:
+    the suite's own home under the system's temporary directory is the one place a mirror
+    swallowed by a directory kept here could not be seen. `~/.cache/humanize` is another, and
+    on many a machine `~/.cache` is a link to somewhere else, which a mirror under it has to
+    be found through as well. Asked for before `cell`, so that an account the cell borrows is
+    borrowed into this home, and taken away with it.
+    """
+    from hmz.coganchor.statepaths import COMMON_STATE_PATHS
+
+    kept = Path(os.path.expanduser("~/.cache/humanize"))  # noqa: PTH111
+    assert "~/.cache/humanize" in COMMON_STATE_PATHS
+    kept.mkdir(parents=True, exist_ok=True)
+    home = Path(tempfile.mkdtemp(prefix="matrix-", dir=kept))
+    monkeypatch.setenv("HUMANIZE_HOME", str(home))
+    try:
+        yield home
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
