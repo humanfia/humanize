@@ -44,7 +44,7 @@ H/
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
 │   └── mirrors/<container>/<digest>/
-├── harness/                            workdir of a standalone harness on docker's default here
+├── harness/                            workdir of a harness an affinity puts on a docker daemon here
 ├── epics/<ws>/<stamp>-<hex6>/          one run
 ├── sessions/<cli>/                     sessions of agents no run drives
 ├── daemons/<name>-<sha256[:12]>/       the runs host of one workspace
@@ -278,8 +278,9 @@ never removed by humanize.
 
 ### `H/harness/`
 
-The default workdir of `-H standalone:docker@local`
-([Harness placement](/reference/flows#harness-placement)); created by the run.
+The workdir of a harness an affinity puts on a docker runtime whose daemon is on this machine
+and that was saved without a workdir ([Harness placement](/reference/flows#harness-placement));
+created by the run.
 
 ## Runs
 

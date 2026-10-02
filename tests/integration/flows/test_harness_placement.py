@@ -37,9 +37,7 @@ def _asked(
         PurePosixPath(tmp_path),
         AnchoredConfig(anchor=anchor),
     )
-    driver = open_agent(
-        AgentSpec("coder", HarnessKind.CLAUDE, "", "m", "", "claude"), "env"
-    )
+    driver = open_agent(AgentSpec("coder", HarnessKind.CLAUDE, "", "m", "", "claude"))
 
     def named(self: HarnessDriver) -> str:
         del self
@@ -65,4 +63,4 @@ def test_a_cli_the_machine_has_not_is_missing_there(
     kind, why = said
     assert kind is HarnessNotInstalled
     assert "is not installed on ssh@stand-in" in why
-    assert "-H local" in why
+    assert "put local in the affinity" in why

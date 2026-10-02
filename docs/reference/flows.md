@@ -1,7 +1,7 @@
 # Flows
 
 The flow API: the module `hmz.flows`, the command-line specs that fill a flow's roles
-(`-a`, `-e`, `-p`, `-b`, `-H`), how a flow is found, loaded, called, resumed and tested, and
+(`-a`, `-e`, `-p`, `-b`), how a flow is found, loaded, called, resumed and tested, and
 every exception it raises. Guides: [Writing a flow](/weaver/writing-a-flow),
 [Loops](/weaver/loops).
 
@@ -586,7 +586,7 @@ async def spawn(self, *, env: Env) -> Session
 
 Opens a session working in `env`'s workdir, on `env`'s machine. Starts no CLI: the CLI is
 started by the first turn. Where the session's harness runs is settled here; see
-[`-H`](#harness-placement).
+[Harness placement](#harness-placement).
 
 | Condition | Raises |
 | --- | --- |
@@ -790,7 +790,7 @@ The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.
   `on_permission_request` or `on_ask_user` on Codex (whose app server is restarted between
   turns for it) and Kimi Code.
 - A session opened while any of `on_pre_tool_use`, `on_permission_request`, `on_ask_user` is
-  hung keeps its harness on this machine under `-H adaptive`; see
+  hung keeps its harness on this machine where its runtime has no affinity; see
   [Harness placement](#harness-placement).
 
 ### `HookKind` {#hookkind}
@@ -1455,7 +1455,7 @@ Read [Security](/user/security) before running any.
 
 ```sh
 hmz exec -f <flow> [-a <role>=<spec>[,…]]… [-e <role>=<spec>[,…]]… [-p <key>=<value>[,…]]…
-         [-b <key>=<value>[,…]]… [-H <where>] [--resume] [--json] <task>
+         [-b <key>=<value>[,…]]… [--resume] [--json] <task>
 ```
 
 `-a`, `-e`, `-p` and `-b` may each be repeated; every occurrence is a comma list. A comma
@@ -1557,25 +1557,23 @@ Keys `duration`, `cost`, `output_tokens`, `graceful`, each at most once across a
 | no limit set | `-b: Value error, a budget sets at least one of duration, cost, output_tokens` |
 | no `-b` for a flow that needs one | `<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
 
-### `-H`: harness placement {#harness-placement}
+### Harness placement {#harness-placement}
 
 <span id="h-harness"></span>Where each agent's **harness** (its CLI and the process
-supervising it) runs, relative to the machine its environment's work is on. Given once; the
-last `-H` wins. Stored per flow in the [settings](/reference/settings) as written, `""` for
-`adaptive`.
+supervising it) runs, relative to the machine its environment's work is on. Not said on the
+command line: it is the `affinity` of the saved [runtime](/reference/machines#runtimes) the
+work is on, an ordered list whose next entry is tried only where the one before has no room.
 
-| Value | Harness of a session whose work is **here** | Harness of a session whose work is **on another machine** (`ssh`, `docker`) |
-| --- | --- | --- |
-| `adaptive` (default) | here | on the environment's machine, natively, if all hold: no `on_pre_tool_use`/`on_permission_request` hook hung when the session opens (an `on_ask_user` hook does not keep it here); the CLI is on that machine's `PATH`; for a fenced session, that machine can hold the fence. Otherwise here, anchored to the machine. |
-| `local` | here | here, anchored to the machine (turns' tools land there) |
-| `env` | here | on the environment's machine, natively; refused where the CLI is missing or the fence cannot be held |
-| `standalone:<machine>` | on `<machine>`, acting on the work through the anchor | on `<machine>`, acting on the work through the anchor; only for a role whose permission is every scope `ALL` |
+| Work | Harness |
+| --- | --- |
+| here | here |
+| on a machine nobody saved, or a runtime with no affinity | on the environment's machine, natively, if all hold: no `on_pre_tool_use`/`on_permission_request` hook hung when the session opens (an `on_ask_user` hook does not keep it here); the CLI is on that machine's `PATH`; for a fenced session, that machine can hold the fence. Otherwise here, anchored to the machine. |
+| on a runtime with an affinity | the first entry with room: `local` here, anchored to the machine (always room); `self` natively on the machine (no room where the CLI is missing or the fence cannot be held); `ssh:<name>` / `docker:<name>` on that runtime, acting on the work through the anchor (no room where it cannot be opened or reached, has no share left, or the role's permission is anything but every scope `ALL`) |
 
-`<machine>` is written as `-e` writes a spec after `<role>=`: `ssh@gpu-box/~/scratch`,
-`docker@gpubox/srv/scratch`, or the bare name of a saved runtime (ssh first, then
-docker). A missing workdir defaults to the provider's own, else `~` for `ssh`, else
-`$HUMANIZE_HOME/harness` for `docker@local`. The standalone machine is opened as an
-environment of its own, probed before the flow is called, and closed with the run.
+The affinity is the one of the runtime actually opened for the work; a runtime a harness is
+put on is opened as an environment of its own (its workdir, else `~` over ssh, else
+`$HUMANIZE_HOME/harness` for a daemon here), probed before the flow is called and closed with
+the run, and its own affinity is never walked.
 
 **Probing.** Placement is settled once per agent role and machine. "The CLI is there" is
 asked by running `/bin/sh -c 'command -v -- "$1" || command -v -- "$2" || exit 69'` with the
@@ -1583,23 +1581,23 @@ CLI's program and its basename down the same connection a native turn uses (300 
 stopped with the run). Whether the machine can hold a fence is asked once per kind of fence
 (network cut or not) in the anchor handshake.
 
-| Condition | Refusal |
+| Condition | Refusal an entry is passed by with |
 | --- | --- |
-| `-H` not one of the four | `-H '<v>': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
-| `standalone:` naming this machine | `-H '<v>': a standalone harness runs on another machine; -H local runs it on this one` |
-| `standalone:` spec invalid | `-H '<v>': <why>`, e.g. `'bogus' is not a backend; one of ssh, docker`, `no runtime is saved as '<name>'; …` ([CLI](/reference/cli#choosing-where-the-harness-runs)) |
-| `standalone`: role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
-| `env`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>@<provider>: <install hint> there, or run its harness here with -H local` |
-| `env`: fence not holdable | `HarnessSandboxed`: `<backend>@<provider> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local` |
-| `env`: machine did not answer | `HarnessUnrecoverable`: `<backend>@<provider> did not say within 300s whether <cli> is there` (or `could not be asked whether <cli> is there: <reason>`) |
+| a runtime entry, role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
+| a runtime entry that cannot be opened, reached or given a container | the runtime's `EnvUnavailable`, `EnvConnectionError` or `ResourceUnmet` |
+| `self`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>@<provider>: <install hint> there, or put local in the affinity of the runtime it is on` |
+| `self`: fence not holdable | `HarnessSandboxed`: `<backend>@<provider> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or put local in the affinity of the runtime it is on` |
 
-The `env` and `standalone` refusals are checked for every agent against every environment
-(the workspace included) once the environments are probed, before the flow is called, so a
-run refuses as a line to correct rather than failing at a session; a session opened later
-(a callee's, under a narrower permission) is still refused as it opens. Under `adaptive`
-those conditions fall back to "here" instead of refusing. Where each session's
-harness went is recorded in the epic (`opened.harness`: `local`, `env`,
-`standalone:<target>`), for sessions whose work was on another machine.
+Where no entry has room, the last refusal is raised, of its type, as `<backend>@<provider>:
+nowhere its affinity (<entries>) names has room for <cli>'s harness; the last: <refusal>`. A
+machine that did not answer under `self` raises `HarnessUnrecoverable` (`<backend>@<provider>
+did not say within 300s whether <cli> is there`, or `could not be asked whether <cli> is
+there: <reason>`) rather than being passed by. Every affinity is walked for every agent
+against every environment (the workspace included) once the environments are probed, before
+the flow is called, so a run refuses as a line to correct rather than failing at a session; a
+session opened later (a callee's, under a narrower permission) is still refused as it opens.
+Where each session's harness went is recorded in the epic (`opened.harness`: `local`, `self`,
+`<backend>:<name>`), for sessions whose work was on another machine.
 
 ### Command-line refusals {#command-line-refusals}
 

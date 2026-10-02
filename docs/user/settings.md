@@ -741,6 +741,7 @@ answered, or why it could not be reached.
 | proxy jump | The host it is reached through (`ProxyJump`). |
 | options | Anything else ssh is told, `KEYWORD=VALUE` with a comma between two: `ServerAliveInterval=15, Compression=yes`. A setting with a row of its own is refused here. |
 | workdir | Where it works when `-e` names no directory: `/abs/path`, or `~/path` under the login's home. |
+| harness runs on | Where the CLI of an agent working on it runs, tried in order, the next only when one has no room: `self` (on this host), `local` (here), or another saved runtime as `ssh:<name>` or `docker:<name>`, a comma between two: `self, local`. Blank is on the host where its CLI is installed, else here. See [Where the agent runs](/user/remote-execution#where-the-agent-runs). |
 
 Whatever is set is passed to `ssh` ahead of your own config, so what is written here wins.
 
@@ -751,7 +752,7 @@ Whatever is set is passed to `ssh` ahead of your own config, so what is written 
 - `from` is your own config. Type another file's path over it to read that one instead; its
   hosts are then saved with that file named, and `ssh` is told to read it for them.
 - A host already saved starts switched off and says `already imported`; switched on, it is
-  imported again, keeping its workdir. One you typed in by hand is never written over.
+  imported again, keeping its workdir and where its harness runs. One you typed in by hand is never written over.
 - An imported host is saved under its `Host` and keeps pointing at it, so `ssh` resolves it
   through the config every time: editing the config edits the host. Nothing here writes to the
   config.
@@ -775,7 +776,9 @@ what it may hand out last, over detect and done](/demo/docker-form.png)
 
 Then `name`, `image` (what a container starts from when the flow names none), `OCI runtime`
 (`nvidia`; blank for the daemon's own), `run args` (anything else `docker run` is told),
-`max containers` (how many containers it may run together), `workdir`, and what it may hand out:
+`max containers` (how many containers it may run together), `workdir`, `harness runs on` (as
+for an ssh host: `docker:spare, local` puts each agent's CLI in a container on `spare` while it
+has room, and here once it has none), and what it may hand out:
 
 | Row | Takes | Blank is |
 | --- | --- | --- |

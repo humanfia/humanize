@@ -81,11 +81,11 @@ of the flowverse flow it shadows.
 | `envs` | `{role: str}` | each environment role's [`-e`](/reference/flows#e-environments) spec after `<role>=` | any non-string value makes the mapping read as absent |
 | `params` | mapping | the params, as JSON | validated through the flow's current params model; a failure reads as not set up |
 | `budget` | `{duration, cost, output_tokens, graceful}` | the budget as `Budget.model_dump_json` writes it (`duration` ISO 8601, `cost` `"Infinity"` for unlimited) | validated as a `Budget`; a failure reads as absent |
-| `harness` | `str` | the [`-H`](/reference/flows#harness-placement) value; not written for `adaptive` | a non-string reads as `adaptive` |
 
 **Writing.** Saving `/flow` replaces the flow's whole entry and sets `flow`. `agents` is always
-written; `envs`, `params`, `budget` and `harness` are written as given, carried over from the
-file where the caller passes none, and an empty value erases the key (`harness: ""` → absent).
+written; `envs`, `params` and `budget` are written as given, carried over from the
+file where the caller passes none, and an empty value erases the key. A `harness` key an older
+humanize wrote is dropped at the next save.
 
 **Reading.** When the TUI starts a flow without opening `/flow` (a `$flow` line, the default
 flow), it uses the remembered setup only if it is complete: the remembered agent roles equal
@@ -101,7 +101,7 @@ arguments.
 | Missing, unreadable, invalid YAML, not a mapping | read as empty; never prevents a start |
 | Unknown keys | kept at the top level and in a workspace entry; a flow's entry is replaced whole when `/flow` is saved |
 | Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace's `profile`, or one workspace removed); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is written over with what this writer holds plus the change. |
-| Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params`, `budget` and `harness` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
+| Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params` and `budget` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
 | Write failure | ignored: the change is held in memory by that writer and not written |
 
 ## `/settings` rows

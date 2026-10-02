@@ -744,115 +744,54 @@ async def _page(app: Humanize, driver: Pilot[None], where: dict[str, Any]) -> st
 
 @pytest.mark.timeout(60)
 @pytest.mark.parametrize(
-    ("harness", "went", "where", "says"),
+    ("went", "where", "says"),
     [
         (
-            "adaptive",
-            "env",
+            "self",
             _DOCKER,
-            "adaptive → env: on this environment's machine, with the CLI installed there",
+            "self: on this environment's machine, with the CLI installed there",
         ),
+        ("local", _DOCKER, "local: on this machine; what it runs lands here"),
         (
-            "local",
-            "local",
+            "ssh:box",
             _DOCKER,
-            "local → local: on this machine; what it runs lands here",
+            "ssh:box: on a runtime of its own, reaching this environment through the anchor",
         ),
-        (
-            "env",
-            "env",
-            _DOCKER,
-            "env → env: on this environment's machine, with the CLI installed there",
-        ),
-        (
-            "standalone:ssh@box/~/h",
-            "standalone:ssh://box",
-            _DOCKER,
-            (
-                "standalone:ssh@box/~/h → standalone: on ssh://box, reaching this "
-                "environment through the anchor"
-            ),
-        ),
-        (
-            "standalone:docker@local",
-            "standalone:docker://local",
-            {**_HERE, "anchored": True},
-            (
-                "standalone:docker@local → standalone: on docker://local, reaching this "
-                "environment through the anchor"
-            ),
-        ),
-        (
-            "adaptive",
-            "",
-            _HERE,
-            "adaptive → local: on this machine, in this workdir",
-        ),
+        ("", _HERE, "local: on this machine, in this workdir"),
     ],
 )
 async def test_an_environment_s_page_says_where_the_run_put_its_harnesses(
-    harness: str, went: str, where: dict[str, Any], says: str
+    went: str, where: dict[str, Any], says: str
 ) -> None:
-    """As `-H` said and as the session found it, not as the environment's kind hints."""
+    """As the session found it, not as the environment's kind hints."""
     app = Humanize()
     async with app.run_test(size=(160, 40)) as driver:
-        began = started(1, flow="placed", roles=["builder"], harness=harness)
+        began = started(1, flow="placed", roles=["builder"])
         told(app, began, running(began))
         told(app, opened("builder/1", run=1, env=where, harness=went))
         told(app, event("builder/1", "begins", run=1))
         await driver.pause()
 
-        assert says in await _page(app, driver, where)
+        said = await _page(app, driver, where)
+        assert says in said
+        assert "→" not in said
 
 
 @pytest.mark.timeout(60)
 async def test_sessions_whose_harnesses_went_two_ways_are_said_one_by_one() -> None:
-    """Adaptive may put one role's harness on the machine and another's here."""
+    """One role's harness may go to the machine and another's stay here."""
     app = Humanize()
     async with app.run_test(size=(160, 40)) as driver:
         began = started(1, flow="placed", roles=["builder", "reviewer"])
         told(app, began, running(began))
-        told(app, opened("builder/1", run=1, env=_DOCKER, harness="env"))
+        told(app, opened("builder/1", run=1, env=_DOCKER, harness="self"))
         told(app, opened("reviewer/1", run=1, env=_DOCKER, harness="local"))
         told(app, event("builder/1", "begins", run=1))
         await driver.pause()
 
-        assert "adaptive → env for builder/1 · local for reviewer/1" in await _page(
+        assert "self for builder/1 · local for reviewer/1" in await _page(
             app, driver, _DOCKER
         )
-
-
-@pytest.mark.timeout(60)
-async def test_a_frontend_arriving_late_reads_the_run_s_harness_off_its_snapshot() -> (
-    None
-):
-    """Its `started` was dropped from what is kept: the `run` snapshot still says `-H`."""
-    app = Humanize()
-    async with app.run_test(size=(160, 40)) as driver:
-        told(app, running(started(3, flow="placed", roles=["builder"], harness="env")))
-        told(app, opened("builder/1", run=3, env=_DOCKER, harness="env"))
-        told(app, event("builder/1", "begins", run=3))
-        await driver.pause()
-
-        assert app._run is not None
-        assert app._run.harness == "env"
-        assert "env → env: on this" in await _page(app, driver, _DOCKER)
-
-
-@pytest.mark.timeout(60)
-async def test_a_host_that_does_not_say_the_run_s_harness_is_not_guessed_at() -> None:
-    """Where the run does not say what `-H` was, the page says only where each went."""
-    app = Humanize()
-    async with app.run_test(size=(160, 40)) as driver:
-        began = started(1, flow="placed", roles=["builder"], harness=None)
-        told(app, began, running(began))
-        told(app, opened("builder/1", run=1, env=_DOCKER, harness="local"))
-        told(app, event("builder/1", "begins", run=1))
-        await driver.pause()
-
-        said = await _page(app, driver, _DOCKER)
-        assert "local: on this machine; what it runs lands here" in said
-        assert "→" not in said
 
 
 @pytest.mark.timeout(60)

@@ -48,26 +48,24 @@ class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, reso
                                # snapshots, placement, close
 class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, role)
 
-# specs.py -- what -a, -e, -p, -b and -H say
+# specs.py -- what -a, -e, -p and -b say
 @dataclass(frozen=True, slots=True)
 class AgentSpec: ...  # role, harness, provider, model, effort, cli
 @dataclass(frozen=True, slots=True)
 class EnvSpec: ...  # role, backend, provider (a saved runtime's name, a host, or
                     # `local` for docker's default here), workdir
-ADAPTIVE, LOCAL, ENV, STANDALONE = "adaptive", "local", "env", "standalone"
-HARNESS_MODES = (ADAPTIVE, LOCAL, ENV, STANDALONE)
-@dataclass(frozen=True, slots=True)
-class HarnessSpec: ...  # mode, on (the EnvSpec a standalone harness's machine is, else None)
 def parse_agents(values: Sequence[str]) -> list[AgentSpec]: ...
 def parse_envs(values: Sequence[str]) -> list[EnvSpec]: ...
 def parse_params(values: Sequence[str]) -> dict[str, str]: ...
 def parse_budget(values: Sequence[str]) -> Budget: ...
 def parse_duration(text: str) -> timedelta: ...
-def parse_harness(value: str) -> HarnessSpec: ...
 
 # harnesses.py -- the agent drivers
-def open_agent(spec: AgentSpec, harness: str = ADAPTIVE,
-               on: EnvDriver | None = None) -> HarnessDriver: ...
+def open_agent(spec: AgentSpec, harbors: Harbors | None = None) -> HarnessDriver: ...
+
+# affinity.py -- where a harness runs
+def affinity_of(runtime: Runtime | None) -> tuple[str, ...]: ...  # its own, () for none
+class Harbors:  # one run's: affinity(placement), async machine(entry), async close()
 
 # engine.py -- defining, loading and running flows
 DEPTH = 64
@@ -439,17 +437,31 @@ def under() -> Path: ...
 
 ### Where the harness runs
 
-- A driver MUST put each session's harness where its `-H` says, settled once per machine a role
-  works on: `local` here -- spawned directly for work here, anchored to the machine otherwise;
-  `env` natively on the environment's machine, refused with `HarnessNotInstalled` naming the
-  machine where its CLI is not there; `adaptive` as `env` where the machine has the CLI and can
-  hold its fence and no hook that gates the CLI is hung, and as `local` otherwise;
-  `standalone:<env>` on that machine, opened as an environment of its own and probed and closed
-  with the run's, acting on the work through the anchor. Work on this machine MUST have its
-  harness here in every mode but `standalone`.
+- A driver MUST put each session's harness where the affinity of the runtime its work is on
+  says, settled once per machine a role works on. The affinity MUST be the one of the runtime
+  actually opened for the work, read off where the session is placed, and MUST be the only one
+  walked: a runtime a harness is put on MUST NOT have its own affinity, nor anything it would
+  fall back to, walked for it.
+- Work on this machine MUST have its harness here. Work on a machine that is no saved runtime,
+  or on one with no affinity, MUST have its harness natively on that machine where it has the
+  CLI and can hold its fence and no hook that gates the CLI is hung, and here otherwise.
+- An affinity's entries MUST be tried in order, the next only where the one before has no
+  room: `local` here, anchored to the machine, which always has room; `self` natively on the
+  runtime's own machine, without room where its CLI is not there (`HarnessNotInstalled`) or it
+  cannot hold the session's fence (`HarnessSandboxed`); `<backend>:<name>` on that runtime,
+  opened as an environment of its own -- in its workdir, else the login's home over ssh, else
+  a directory humanize keeps for a daemon on this machine -- probed and closed with the run's,
+  acting on the work through the anchor, and without room where it cannot be opened or
+  reached, has no share left (`ResourceUnmet`), or the role is fenced at all, which a harness
+  on another machine cannot be held to. Where no entry has room, the last refusal MUST be
+  raised, naming the affinity; a machine that cannot be asked MUST raise as it is.
+- Before the flow is called, the affinity of every machine of the run MUST be walked for every
+  agent, opening and probing every runtime a harness goes to, and one with no room anywhere
+  MUST refuse the run.
 - The machine MUST be asked whether it has the CLI down the road a native turn takes, one
   question at a time, and a run stopped while it asks MUST take the asking down with it; where
-  the harness went MUST be written down with each session whose work is elsewhere.
+  the harness went -- `local`, `self`, or `<backend>:<name>` -- MUST be written down with each
+  session whose work is elsewhere.
 
 ### Fakes
 

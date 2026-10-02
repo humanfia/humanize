@@ -275,7 +275,7 @@ So such a file is never copied somewhere it could refresh on its own:
 | Where the turn runs | What it refreshes |
 | --- | --- |
 | This machine, or a supervised anchor | the account's own file: a write is always answered with it, never with a copy |
-| A native anchor (`-H env`) | a copy on the target, sent only while **no other turn is using the file**, and no other turn may until it is back; when the turn ends, the refreshed copy is written back over the account's file, unless that file changed meanwhile |
+| A native anchor (`self` in an affinity, or the default where the CLI is there) | a copy on the target, sent only while **no other turn is using the file**, and no other turn may until it is back; when the turn ends, the refreshed copy is written back over the account's file, unless that file changed meanwhile |
 | The machine's own sign-in (no `@account`) | never sent anywhere: a CLI on another machine uses that machine's own sign-in |
 
 A file holding `refresh_token`, `refreshToken` or a `"refresh":` key counts as one. Each turn
@@ -285,7 +285,7 @@ a session open until the run ends; the turn that finds it held the other way is 
 `… this account signs in with a token that refreshes itself, and another turn is using it …`
 (native) or `… and a copy of it is out on another machine for a turn there …` (here), which
 is the `contended` fault, tried three times a second apart. Run every role of that account with
-`-H local`, give the native one an account signed in with a key, or sign the CLI in on the host
+its harness here (`local` first in the runtime's affinity), give the native one an account signed in with a key, or sign the CLI in on the host
 and use no `@account` there. A filesystem that cannot lock a directory (some NFS) logs
 `cannot hold … for this turn` and runs the turn unheld.
 

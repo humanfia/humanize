@@ -219,44 +219,33 @@ params.
 
 **Verify.** The line gets past the check.
 
-### `-H 'somewhere': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]`
+### `hmz exec: error: unrecognized arguments: -H …`
 
 **Symptom.** `hmz exec` prints its usage, then this.
 
-**Cause.** `-H` says where each agent's CLI runs, and takes one of four words. A bare
-`standalone` is refused the same way, since it needs a machine.
+**Cause.** `hmz exec` takes no `-H`: where each agent's CLI runs is not said on the line. It
+is the affinity of the runtime the work is on, saved with the host or the daemon.
 
-**Fix.** Write one of them: `-H adaptive` (the default), `-H local`, `-H env`, or
-`-H standalone:ssh@gpu-box`. See [Where the agent
+**Fix.** Drop `-H`. For `-H local`, save the host or daemon with `local` in its `harness runs
+on` row on [the runtimes page](/user/settings#runtimes); for `-H env`, with `self`; for
+`-H standalone:…`, with that other saved runtime, as `ssh:gpu-box`. See [Where the agent
 runs](/user/remote-execution#where-the-agent-runs).
 
 **Verify.** The usage line is gone.
 
-### `-H 'standalone:local@/tmp': a standalone harness runs on another machine; -H local runs it on this one`
+### `build-box: 'somewhere' is not where a harness runs: self, local or <ssh|docker>:<runtime name>`
 
-**Symptom.** `hmz exec` prints its usage, then this.
+**Symptom.** Saving a host or a daemon on the runtimes page, or `Hmz().runtimes.new(…)`, is
+refused with this, or with `… is in its affinity twice` or `… its affinity names itself; self
+is its own machine`.
 
-**Cause.** A standalone harness is one on a third machine, and the line named this one.
+**Cause.** Its affinity, the `harness runs on` row, holds an entry that is none of `self`,
+`local` and `<backend>:<name>`, names one twice, or names the runtime itself.
 
-**Fix.** Use `-H local`, or name another machine after `standalone:`, as `-e` would name it.
+**Fix.** Write each entry as one of those, apart by commas, as `self, docker:gpubox, local`.
+For the runtime itself, write `self`.
 
-**Verify.** The usage line is gone.
-
-### `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker`
-
-**Symptom.** `hmz exec` prints its usage, then this, or
-`no runtime is saved as '<name>'` for a bare name, or
-`docker@gpubox is not saved with a workdir of its own` for a docker daemon.
-
-**Cause.** What follows `standalone:` is a machine: `ssh@<host>[/<workdir>]`,
-`docker@<provider>[/<workdir>]`, or the name of a runtime saved on the
-[runtimes page](/user/settings#runtimes). A docker daemon nobody saved needs its
-directory said.
-
-**Fix.** Write it as one of those, such as `-H standalone:ssh@gpu-box` or
-`-H standalone:docker@gpubox/srv/scratch`, or save the machine first.
-
-**Verify.** The usage line is gone.
+**Verify.** It saves.
 
 ### `ralph_loop has no run to resume here: none saved any progress` {#ralph-loop-has-no-run-here-to-pick-up-none-got-as-far-as-writing-anything-down}
 
@@ -595,7 +584,8 @@ another machine, sign its CLI in there instead.
 `(contended: …)` once its three tries are spent.
 
 **Cause.** The role's `@account` is a login that renews itself, and the CLI of one of the turns
-using it runs on another machine (`-H env`, or `adaptive` that went there). Two copies renewing
+using it runs on another machine (`self` in the runtime's affinity, or no affinity and the
+CLI there). Two copies renewing
 apart get the login revoked, so a copy goes to another machine only while no other turn is
 using the account, and comes back renewed before any other turn may use it again. Turns on this
 machine share the one file and run side by side.
@@ -603,7 +593,8 @@ machine share the one file and run side by side.
 **Fix.** One of:
 
 - give the roles that run at the same time an account each, or an account signed in with a key;
-- run every role of that account with `-H local`, where every turn uses the one file in place;
+- put `local` first in the affinity of the runtime those roles work on, where every turn uses
+  the one file in place;
 - sign the CLI in on that machine and drop the `@account`.
 
 **Verify.** The next turn starts. See
@@ -673,7 +664,7 @@ machine: a parent you may not write, or a file where a directory should be. No a
 refused, and signing in again changes nothing.
 
 **Fix.** Use a workdir whose path you can create here, or run the CLI on that machine with
-`-H env`. See [The path is taken here too](/user/remote-execution#the-path-is-taken-here-too).
+`self` in the affinity of the runtime the work is on. See [The path is taken here too](/user/remote-execution#the-path-is-taken-here-too).
 
 **Verify.** The turn starts.
 
@@ -885,26 +876,26 @@ so: list its GPUs there.
 
 **Verify.** `ssh build-box git --version` prints a version.
 
-### `claude is not installed on ssh@build-box: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local`
+### `ssh@build-box: nowhere its affinity (self) names has room for claude's harness; the last: claude is not installed on ssh@build-box: …`
 
-**Symptom.** `hmz exec` refuses the run with this under `-H env`, before the flow starts, with
-exit status 2.
+**Symptom.** `hmz exec` refuses the run with this before the flow starts, with exit status 2.
+The message ends `… there, or put local in the affinity of the runtime it is on`.
 
-**Cause.** `-H env` runs the agent's CLI on the environment's machine, and that machine does not
-have it on the `PATH` its shell gives a command. `adaptive`, the default, would have run it
-here instead.
+**Cause.** The host's affinity puts the agent's CLI on the host (`self`) and nowhere after it,
+and the host does not have it on the `PATH` its shell gives a command. With no affinity it
+would have run here instead.
 
-**Fix.** Install the CLI there, and sign it in there, with the line the message gives; or run
-it here with `-H local`, or leave `-H` off.
+**Fix.** Install the CLI there, and sign it in there, with the line the message gives; or add
+`local` after `self` in the host's affinity, or clear it.
 
 **Verify.** `ssh build-box command -v claude` prints a path, and the transcript at the prompt
-says `builder's harness runs on its environment's machine (env)`.
+says `builder's harness runs on its environment's machine`.
 
-### `ssh@build-box cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local`
+### `… cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or put local in the affinity of the runtime it is on`
 
-**Symptom.** `hmz exec` refuses the run with this under `-H env`, before the flow starts.
-`… cannot fence the commands the agent runs there: it needs Landlock …` is the same, for an
-agent whose CLI runs here.
+**Symptom.** `hmz exec` refuses the run with this, after `nowhere its affinity (self) names has
+room …`, before the flow starts. `… cannot fence the commands the agent runs there: it needs
+Landlock …` is the same, for an agent whose CLI runs here.
 
 **Cause.** The role's permission is narrower than everything, and the machine the work lands on
 cannot hold it: a kernel older than 5.13 or without Landlock, or a container whose seccomp
@@ -912,20 +903,22 @@ profile refuses Landlock. Cutting the network needs Linux 6.7 or later there. A 
 fences with Seatbelt, but an agent supervised here (its CLI runs here, its work there) needs
 Landlock on this machine too.
 
-**Fix.** Run the CLI here with `-H local`, move the work to a machine with Landlock, or copy
-the flow and grant the role everything. Docker's default seccomp profile allows Landlock.
+**Fix.** Add `local` after `self` in the runtime's affinity, move the work to a machine with
+Landlock, or copy the flow and grant the role everything. Docker's default seccomp profile
+allows Landlock.
 
 **Verify.** The role's first turn starts.
 
 ### `… a fence cannot hold a harness that runs on another machine`
 
-**Symptom.** `hmz exec` refuses the run with this under `-H standalone:…`, before the flow
-starts, with exit status 2.
+**Symptom.** `hmz exec` refuses the run with this, after `nowhere its affinity (ssh:gpu-box)
+names has room …`, before the flow starts, with exit status 2.
 
-**Cause.** A standalone harness runs on a third machine, where humanize cannot hold a
-permission narrower than everything. Only a role granted `ALL` in every scope can run that way.
+**Cause.** The affinity of the runtime the work is on puts the CLI on another runtime, where
+humanize cannot hold a permission narrower than everything. Only a role granted `ALL` in every
+scope can run that way; any other passes it by, and nothing came after it.
 
-**Fix.** Use `-H local` or `-H env` for this flow, or copy the flow and grant the role
+**Fix.** Add `local` or `self` after it in the affinity, or copy the flow and grant the role
 everything.
 
 **Verify.** The run starts.
@@ -1055,8 +1048,8 @@ a copy's contents with the target's. So it will not take a directory holding oth
 one copying another target (`… mirrors ssh://a, not ssh://b. …`).
 
 **Fix.** Use a path that is free on this machine, or an empty directory. Pass `--force` only if
-you mean the directory to be overwritten. `-H env` runs the CLI on the target and needs no copy
-here. See [Remote execution](/user/remote-execution).
+you mean the directory to be overwritten. `self` in the runtime's affinity runs the CLI on the target and
+needs no copy here. See [Remote execution](/user/remote-execution).
 
 **Verify.** The agent starts.
 

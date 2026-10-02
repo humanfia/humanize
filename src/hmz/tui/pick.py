@@ -81,7 +81,7 @@ from .monitor import thousands
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Generator, Mapping, Sequence
 
     from pydantic.fields import FieldInfo
     from textual.app import App, ComposeResult
@@ -126,7 +126,6 @@ __all__ = [
     "Falls",
     "Flows",
     "Flowverses",
-    "Harnessing",
     "Held",
     "Holds",
     "Leaves",
@@ -141,7 +140,6 @@ __all__ = [
     "budget_of",
     "called",
     "declared_of",
-    "harnessing",
     "named_as",
     "opens_on",
     "params_model",
@@ -219,10 +217,6 @@ _DETECTS = f"{_APART_MARK}detects"
 #: run is allowed to cost is not one of them.
 _BUDGET = f"{_APART_MARK}budget"
 
-#: And the one below it, which sets where the agents' harnesses run: a setting of the run,
-#: as the budget is, rather than of any one role.
-_HARNESS = f"{_APART_MARK}harness"
-
 #: What the row that takes a sheet's subject away answers with, on each of the submenus that
 #: has one. Where every row of a list opens onto what it is, taking one away belongs in there
 #: with everything else about it rather than on a key of the list -- so three sheets grew the
@@ -243,7 +237,6 @@ _APART = frozenset(
         _DONE,
         _TAKES_AWAY,
         _BUDGET,
-        _HARNESS,
         _UNSAVED,
         _DETECTS,
     }
@@ -263,7 +256,6 @@ _ON_APART = {
     _DONE: "done",
     _TAKES_AWAY: "remove",
     _BUDGET: "set",
-    _HARNESS: "set",
     _UNSAVED: "type a host",
     _DETECTS: "detect",
 }
@@ -1483,7 +1475,6 @@ class Chosen(NamedTuple):
         and one that was left at its defaults.
       budget: What a run of it may spend, or None for none -- which only a flow humanize
         ships may be run with.
-      harness: Where its agents' harnesses run, as `-H` spells it, or "" for adaptive.
     """
 
     flow: str
@@ -1491,7 +1482,6 @@ class Chosen(NamedTuple):
     envs: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     params: BaseModel | None = None
     budget: Budget | None = None
-    harness: str = ""
 
 
 class Declared(NamedTuple):
@@ -1849,66 +1839,6 @@ def budget_of(flow: str) -> Budget | None:
         return None
 
 
-def harnessing(held: str, envs: Iterable[str], ran: Mapping[str, str]) -> str:
-    """Where a run of this flow puts its agents' harnesses, said the way a row about it says it.
-
-    What it was set to, and what that comes to: where the work is on this machine every
-    harness is here whatever was set, and where it is not, what adaptive came to is a thing
-    only the machine could say -- so it is said as the last run found it, where there was one.
-
-    Args:
-      held: What was set, as `-H` spells it, or "" for adaptive.
-      envs: Where each environment role is, as `-e` spells one after `<role>=`.
-      ran: Where each role's harness went the last time this flow ran here, by role.
-
-    Returns:
-      The setting and what it resolves to, as `adaptive → env`.
-    """
-    from hmz.runtime.flowing.specs import ADAPTIVE, LOCAL, STANDALONE
-
-    mode = held or ADAPTIVE
-    if mode.startswith(f"{STANDALONE}:"):
-        return f"{STANDALONE} → {mode.partition(':')[2]}"
-    if not any(spec.partition("@")[0] in (_SSH, _DOCKER) for spec in envs):
-        return f"{mode} → {LOCAL}: the work is on this machine"
-    went = sorted(set(ran.values()))
-    if mode == ADAPTIVE and went:
-        return f"{mode} → {', '.join(went)} (last run)"
-    return {
-        ADAPTIVE: f"{mode} → env where its CLI is installed, else local",
-        LOCAL: f"{mode} → here, anchored to the environment",
-    }.get(mode, f"{mode} → on the environment's machine")
-
-
-def last_harnessed(flow: str) -> dict[str, str]:
-    """Where each role's harness went the last time a flow ran here, as its epic says it.
-
-    Read off the run's own record rather than kept by whichever interface watched it, so that
-    a run `hmz exec` made, or one made before this interface was opened, says it too.
-
-    Args:
-      flow: The flow, by its canonical ref or as it was named when it ran.
-
-    Returns:
-      Where each role's harness went, by role, for a role whose work was on another machine;
-      empty where the flow never ran here, or its last run worked only here.
-    """
-    from hmz.runtime.flowing import resolved
-
-    if not flow:
-        return {}
-    # By its canonical ref as well as by name: `hmz exec` may have named it another way.
-    ref = ""
-    with contextlib.suppress(Exception):  # a flow that will not load has only its name
-        ref = resolved(flow).ref
-    epics = _hmz().epics
-    for epic in reversed(epics.all()):
-        ran = epics.read(epic)
-        if ran is not None and (ran.flow == flow or (ref and ran.ref == ref)):
-            return {one.agent: one.harness for one in ran.sessions if one.harness}
-    return {}
-
-
 def settled(
     runs: Mapping[str, Runs],
     roles: Sequence[AgentRole],
@@ -1980,27 +1910,6 @@ def _model(runs: Runs) -> str:
     return parted(runs.spec.partition("/")[2])[0]
 
 
-def _standing_on(spec: str) -> str:
-    """What is wrong with the machine a standalone harness was said to run on, or "".
-
-    Read the way `-H` reads what follows `standalone:`, so that what the menu takes is what a
-    command line would.
-
-    Args:
-      spec: The machine, as `-e` spells one after `<role>=`, or a saved one's name.
-
-    Returns:
-      Why it is not one, in words, or "" for a machine that reads.
-    """
-    from hmz.runtime.flowing import SpecError, parse_harness
-
-    try:
-        parse_harness(f"standalone:{spec}")
-    except SpecError as why:
-        return str(why)
-    return ""
-
-
 def placed(role: str, spec: str) -> str:
     """What is wrong with where an environment role was said to be, or "" for nothing.
 
@@ -2067,9 +1976,9 @@ class Flows(Drafts[Chosen]):
 
     Choosing a flow asks what that flow itself takes -- its params -- where it takes anything,
     and then opens its roles: a row per agent role somebody chooses an agent for, a row per
-    environment role somebody says the place of, what a run of it may spend, where its agents'
-    harnesses run, and saving. The roles the runtime fills -- whoever is at this prompt, the
-    workspace a run starts in -- are not rows: nobody chooses them.
+    environment role somebody says the place of, what a run of it may spend, and saving. The
+    roles the runtime fills -- whoever is at this prompt, the workspace a run starts in -- are
+    not rows: nobody chooses them.
 
     Nothing is applied by walking in or back out. What the menu holds is a draft of the whole
     of it, and it lands together from the save row or when saving is confirmed on the way out.
@@ -2093,8 +2002,6 @@ class Flows(Drafts[Chosen]):
         unavailable: frozenset[str] = frozenset(),
         running: bool = False,
         inside: bool = False,
-        harness: str | None = None,
-        harnessed: Mapping[str, str] | None = None,
     ) -> None:
         """Initializes the menu on what is set up now.
 
@@ -2112,9 +2019,6 @@ class Flows(Drafts[Chosen]):
           inside: Whether to open inside the flow's roles rather than on the flows, for a
             menu opened already naming one -- a flow that was named has been chosen, so what
             is left to answer is what drives it.
-          harness: Where its agents' harnesses run here, as `-H` spells it, or None to read
-            what this workspace last said for it.
-          harnessed: Where each role's harness went the last time it ran, by role.
         """
         super().__init__()
         self._agents = dict(agents)
@@ -2140,13 +2044,6 @@ class Flows(Drafts[Chosen]):
             self._envs = self._placed(flow)
             self._params = params_of(flow, self._held(flow).get("params") or {})
             self._budget = budget_of(flow)
-        #: Where its agents' harnesses run, as `-H` spells it: "" for adaptive.
-        self._harness = (
-            harness if harness is not None else _hmz().settings.harness(flow)
-        )
-        #: Where each role's harness went the last time the flow in force ran here: as the
-        #: run going says it while there is one, and as the last run's record says it else.
-        self._harnessed = dict(harnessed) if harnessed else last_harnessed(flow)
         #: Every flow there is, read once: this is redrawn on every keystroke, and reading it
         #: means importing each flow to see what it holds. Cleared when a flowverse is
         #: fetched or taken away, which is when the list is something else.
@@ -2615,9 +2512,8 @@ class Flows(Drafts[Chosen]):
         # roles: the agents, then the environments.
         count = len(roles) + len(places)
         self._counting = len(str(max(count, 1)))
-        # One row past the roles for what a run may spend, one for where its harnesses run,
-        # and one past those for saving.
-        at = min(listing.highlighted or 0, count + 2)
+        # One row past the roles for what a run may spend, and one past that for saving.
+        at = min(listing.highlighted or 0, count + 1)
         rows = [
             Option(
                 self._row(
@@ -2658,22 +2554,7 @@ class Flows(Drafts[Chosen]):
                 id=f"={_BUDGET}",
             )
         )
-        rows.append(
-            Option(
-                self._apart(
-                    "harness",
-                    harnessing(
-                        self._harness,
-                        (self._envs.get(place, "") for place in places),
-                        self._harnessed,
-                    ),
-                    here=at == count + 1,
-                    air="",
-                ),
-                id=f"={_HARNESS}",
-            )
-        )
-        rows.append(self._saves("flow and roles", here=at == count + 2))
+        rows.append(self._saves("flow and roles", here=at == count + 1))
         listing.set_options(rows)
         listing.highlighted = at
         self._drawn = listing.highlighted
@@ -2753,28 +2634,6 @@ class Flows(Drafts[Chosen]):
         )
         if isinstance(spends, Budgeted):
             self._budget = spends.budget()
-            self.changed()
-        self._fill()
-
-    @work
-    async def _harnessing(self) -> None:
-        """Asks where the agents' harnesses run, from the row below the budget.
-
-        A row of the run for the reason the budget is one: it is the same answer for every
-        role, and a setting of whoever runs the flow here rather than of the flow.
-        """
-        if self.opening():
-            return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        try:
-            said = await showing.push_screen_wait(Harnessing(self._flow, self._harness))
-        finally:
-            self.opened()
-        if said is not None and said != self._harness:
-            self._harness = said
             self.changed()
         self._fill()
 
@@ -2905,9 +2764,6 @@ class Flows(Drafts[Chosen]):
         if held == _BUDGET:
             self._budgets()
             return
-        if held == _HARNESS:
-            self._harnessing()
-            return
         if held.startswith("@"):
             self._placing(held[1:])
             return
@@ -2937,10 +2793,6 @@ class Flows(Drafts[Chosen]):
             self._envs = self._placed(name)
             self._params = params_of(name, self._held(name).get("params") or {})
             self._budget = budget_of(name)
-            self._harness = _hmz().settings.harness(name)
-            # What the last run of the flow in force found says nothing of this one; what
-            # the last run of this one found does.
-            self._harnessed = last_harnessed(name)
             self.changed()
         # On to what the flow itself takes, where it takes anything, and then to its roles:
         # things about one flow, asked in the order they depend on nothing.
@@ -3032,7 +2884,6 @@ class Flows(Drafts[Chosen]):
                 dict(self._envs),
                 self._params,
                 self._budget,
-                self._harness,
             )
         )
 
@@ -8034,6 +7885,19 @@ _ALIAS, _HOST, _USER, _PORT, _KEY, _JUMP, _OPTIONS, _WORKDIR = (
 )
 
 
+#: The row of either form a harness's runtimes are written on, and what it says.
+_AFFINITY = "affinity"
+_AFFINITY_ABOUT = (
+    "where an agent's harness runs, in order, the next only when one has no room: "
+    "self, local, ssh:<name>, docker:<name>; blank for its CLI here, else local"
+)
+
+
+def _affinity(typed: str) -> list[str]:
+    """A runtime's affinity, as its row has it written: entries apart by commas."""
+    return [one.strip() for one in typed.split(",") if one.strip()]
+
+
 class Hosting(Form["Runtime"]):
     """An ssh host, on one form: what reaches it, what it is called, where it works.
 
@@ -8069,6 +7933,7 @@ class Hosting(Form["Runtime"]):
             _JUMP: one.proxy_jump,
             _OPTIONS: ", ".join(f"{key}={value}" for key, value in one.options.items()),
             _WORKDIR: one.workdir,
+            _AFFINITY: ", ".join(one.affinity),
         }
 
     def _names(self) -> None:
@@ -8131,6 +7996,7 @@ class Hosting(Form["Runtime"]):
                     "workdir",
                     "default working directory when -e specifies none: /abs or ~/path",
                 ),
+                Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT),
             ]
         )
         return rows
@@ -8204,6 +8070,7 @@ class Hosting(Form["Runtime"]):
             "proxy_jump": typed.get(_JUMP, ""),
             "options": _options(typed.get(_OPTIONS, "")),
             "workdir": typed.get(_WORKDIR, ""),
+            "affinity": _affinity(typed.get(_AFFINITY, "")),
         }
         if self._one is not None:
             fields |= {
@@ -8314,6 +8181,7 @@ class Docking(Form["Runtime"]):
             _GPUS: ", ".join(one.gpus),
             _AT_ONCE: str(one.max_containers) if one.max_containers else "",
             _WORKDIR: one.workdir,
+            _AFFINITY: ", ".join(one.affinity),
         }
         for kind, (spelled, row) in _REACHED.items():
             if one.endpoint.startswith(spelled):
@@ -8443,6 +8311,7 @@ class Docking(Form["Runtime"]):
                     "workdir",
                     "default working directory when -e specifies no directory",
                 ),
+                Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT),
                 Question(_CPUS, "cpus", "max CPUs; blank to use all host CPUs"),
                 Question(_MEMORY, "memory", "e.g. 64G; blank to use all host memory"),
                 Question(
@@ -8667,6 +8536,7 @@ class Docking(Form["Runtime"]):
             "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
             "max_containers": int(most or 0),
             "workdir": typed.get(_WORKDIR, ""),
+            "affinity": _affinity(typed.get(_AFFINITY, "")),
             "gpu_memory": self._one.gpu_memory if self._one is not None else 0,
         }
 
@@ -9106,29 +8976,20 @@ class Unsaved(Form[str]):
         self.dismiss(said)
 
 
-def _spelled(
-    role: str, spec: str, *, harness: bool = False
-) -> tuple[str, str, str] | None:
+def _spelled(role: str, spec: str) -> tuple[str, str, str] | None:
     """What an `-e` spec comes to -- its backend, its machine, its directory -- read as `-e` is.
 
     Args:
       role: The role it is for.
       spec: What follows `<role>=`.
-      harness: Whether it is the machine a standalone harness runs on, read as `-H` reads
-        what follows `standalone:` -- a directory left off being the login's home over ssh.
 
     Returns:
       The three, or None for a spec that does not read.
     """
-    from hmz.runtime.flowing import SpecError, parse_envs, parse_harness
+    from hmz.runtime.flowing import SpecError, parse_envs
 
     try:
-        if harness:
-            one = parse_harness(f"standalone:{spec}").on
-            if one is None:
-                return None
-        else:
-            (one,) = parse_envs([f"{role}={spec}"])
+        (one,) = parse_envs([f"{role}={spec}"])
     except (SpecError, ValueError):
         return None
     # A directory the spec leaves out is its runtime's, followed rather than copied: `-e`
@@ -9162,30 +9023,22 @@ class Placing(Form[str]):
     have to take it apart to say it here.
     """
 
-    def __init__(self, role: str, spec: str = "", *, harness: bool = False) -> None:
+    def __init__(self, role: str, spec: str = "") -> None:
         """Initializes the form on where the role is now.
 
         Args:
           role: The environment role.
           spec: Where it is now, as `-e` spells it after `<role>=`, or "" for nowhere yet --
             which starts on the first backend anything is saved for.
-          harness: Whether this is the machine a standalone harness runs on rather than an
-            environment role: read as `-H` reads what follows `standalone:`, which takes no
-            `local` and fills in a directory left off as the command line does.
         """
         from hmz.flows import EnvBackendKind
 
         super().__init__()
         self._role = role
-        self._harness = harness
         self._local = EnvBackendKind.LOCAL.value
-        self._kinds = [
-            kind.value
-            for kind in EnvBackendKind
-            if not harness or kind is not EnvBackendKind.LOCAL
-        ]
+        self._kinds = [kind.value for kind in EnvBackendKind]
         envs = _hmz().runtimes
-        read = _spelled(role, spec, harness=harness) if spec else None
+        read = _spelled(role, spec) if spec else None
         # One that does not read is kept as it was written, for somebody to correct.
         raw = spec if read is None else ""
         if read is None:
@@ -9281,7 +9134,6 @@ class Placing(Form[str]):
                     needed=not provider,
                 )
             )
-        filled = self._filled_in()
         rows.append(
             Question(
                 _WORKDIR,
@@ -9290,38 +9142,14 @@ class Placing(Form[str]):
                 if backend == self._local
                 else f"leave blank to use saved default: {saved}"
                 if saved
-                else f"leave blank for {filled}"
-                if filled
                 else "remote working directory: /path or ~/path under home",
-                needed=not typed.get(_WORKDIR, "").strip() and not saved and not filled,
+                needed=not typed.get(_WORKDIR, "").strip() and not saved,
             )
         )
         rows.append(
-            Question(
-                _SPELLED,
-                "as -H" if self._harness else "as -e",
-                "what follows standalone: in -H; typing one sets the rows above"
-                if self._harness
-                else "full -e spec: typing one sets the rows above",
-            )
+            Question(_SPELLED, "as -e", "full -e spec: typing one sets the rows above")
         )
         return rows
-
-    def _filled_in(self) -> str:
-        """Where a standalone harness's machine left without a directory works, or "".
-
-        What `-H` fills in for one that says none and was saved with none: the login's home
-        over ssh, and on docker's default here a directory humanize keeps. An environment
-        role is filled in with nothing.
-        """
-        if not self._harness:
-            return ""
-        backend = self._typed_in.get(_BACKEND, "")
-        if backend == _SSH:
-            return "the login's home"
-        if backend == _DOCKER and self._typed_in.get(_PROVIDER, "").strip() == "local":
-            return "a directory humanize keeps"
-        return ""
 
     def choices(self, held: str) -> Sequence[str]:
         """Every backend `-e` takes."""
@@ -9428,11 +9256,7 @@ class Placing(Form[str]):
         if _SPELLED in self._fresh:
             self._spells()  # something above it moved, pasted in or walked off
             return
-        read = _spelled(
-            self._role,
-            self._typed_in.get(_SPELLED, "").strip(),
-            harness=self._harness,
-        )
+        read = _spelled(self._role, self._typed_in.get(_SPELLED, "").strip())
         if read is None:
             return  # kept as written, and said what is wrong with it once it is answered
         self._reads_in(read)
@@ -9447,17 +9271,10 @@ class Placing(Form[str]):
 
     def _ask(self) -> None:
         """Says which role this is, and lands on the first thing still to be answered."""
-        self.query_one("#asked", Label).update(
-            escape(
-                "Machine for the standalone harness"
-                if self._harness
-                else f"Environment for {self._role}"
-            )
-        )
+        self.query_one("#asked", Label).update(escape(f"Environment for {self._role}"))
         self.query_one("#about", Label).update(
-            "The machine and working directory for "
-            + ("the harness. " if self._harness else "this environment role. ")
-            + "Choosing a machine saved on the runtimes page of /settings by "
+            "The machine and working directory for this environment role. "
+            "Choosing a machine saved on the runtimes page of /settings by "
             "name includes its saved working directory."
         )
         self._fill()
@@ -9481,163 +9298,7 @@ class Placing(Form[str]):
                 else "specify an environment"
             )
         elif spec:
-            self._wrong = (
-                _standing_on(spec) if self._harness else placed(self._role, spec)
-            )
-        if self._wrong:
-            self._fill()
-            return
-        self.dismiss(spec)
-
-
-#: The rows of the form where the harnesses run is set on: the mode, and the machine a
-#: standalone one runs on.
-_WHERE, _STANDS_ON = "where", "on"
-
-#: What each mode does, said beside its row and beside it on the list it is picked from.
-_HARNESS_ABOUT = {
-    "adaptive": "on the env's machine where its CLI is installed, else here",
-    "local": "here, reaching the env through the anchor",
-    "env": "on the env's machine; refused where its CLI is missing",
-    "standalone": "on a machine of its own, reaching the env through the anchor",
-}
-
-
-class Harnessing(Form[str]):
-    """Where a flow's agents have their harnesses run: here, on the env, or on a third machine.
-
-    Two rows at most, in the order they depend on each other: the mode, picked from the ones
-    `-H` names, and -- for a harness on a machine of its own -- which machine, chosen on
-    the form an environment role is placed on, since that is exactly what it is. Answered as
-    `-H` spells it, so that what the menu holds is what a command line would say.
-    """
-
-    def __init__(self, flow: str, spec: str = "") -> None:
-        """Initializes the form on where the harnesses run now.
-
-        Args:
-          flow: The flow they are the agents of.
-          spec: Where they run now, as `-H` spells it, or "" for adaptive.
-        """
-        from hmz.runtime.flowing.specs import ADAPTIVE, HARNESS_MODES
-
-        super().__init__()
-        self._flow = flow
-        self._modes = HARNESS_MODES
-        mode, _, on = (spec or ADAPTIVE).partition(":")
-        self._typed_in[_WHERE] = mode if mode in HARNESS_MODES else ADAPTIVE
-        self._typed_in[_STANDS_ON] = on
-
-    def _standalone(self) -> bool:
-        """Whether the mode picked is a harness on a machine of its own."""
-        return self._typed_in.get(_WHERE) == self._modes[-1]
-
-    def _composed(self) -> str:
-        """The rows, as `-H` spells them, or "" where they say too little."""
-        mode = self._typed_in.get(_WHERE, "")
-        if not self._standalone():
-            return mode
-        on = self._typed_in.get(_STANDS_ON, "").strip()
-        return f"{mode}:{on}" if on else ""
-
-    def asked(self) -> list[Question]:
-        """The mode, and the machine where it is one of its own."""
-        mode = self._typed_in.get(_WHERE, "")
-        rows = [Question(_WHERE, "harness", _HARNESS_ABOUT.get(mode, ""), _STEPS)]
-        if self._standalone():
-            on = self._typed_in.get(_STANDS_ON, "")
-            rows.append(
-                Question(
-                    _STANDS_ON,
-                    "machine",
-                    "as -e names one" if on else "choose the machine it runs on",
-                    _OPENS_ONTO,
-                    needed=not on,
-                )
-            )
-        return rows
-
-    def choices(self, held: str) -> Sequence[str]:
-        """Every mode `-H` takes."""
-        return self._modes if held == _WHERE else ()
-
-    def means(self, held: str, value: str) -> str:
-        """What each mode does, on the list it is picked from.
-
-        Args:
-          held: The row.
-          value: The mode.
-
-        Returns:
-          A few words.
-        """
-        del held
-        return _HARNESS_ABOUT.get(value, "")
-
-    def opens(self, held: str) -> None:
-        """Opens the machine a standalone harness runs on.
-
-        Args:
-          held: The row, which is the machine's.
-        """
-        if held == _STANDS_ON:
-            self._chooses()
-
-    @work
-    async def _chooses(self) -> None:
-        """Asks which machine, as an environment role is asked where it is."""
-        if self.opening():
-            return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        try:
-            chosen = await showing.push_screen_wait(
-                Placing("harness", self._typed_in.get(_STANDS_ON, ""), harness=True)
-            )
-        finally:
-            self.opened()
-        if chosen:
-            self._typed_in[_STANDS_ON] = chosen
-            self._wrong = ""
-            self.changed()
-            self.kept(_STANDS_ON)
-        self._fill()
-
-    def done_about(self) -> str:
-        """What answering it does: holds where they run until the flow is saved."""
-        spec = self._composed()
-        return f"runs them {spec} when the flow is saved" if spec else ""
-
-    def _ask(self) -> None:
-        """Says what a harness is, and where each mode puts it."""
-        self.query_one("#asked", Label).update(
-            escape(f"Where the harness runs for {self._flow}")
-        )
-        self.query_one("#about", Label).update(
-            "The harness is each agent's CLI and what supervises it. Here, it reaches an "
-            "environment on another machine through the anchor; on the environment's "
-            "machine, it runs the CLI installed there; on a machine of its own, it reaches "
-            "the environment from that one. Adaptive runs it on the environment's machine "
-            "wherever the CLI is installed there."
-        )
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
-
-    def action_done(self) -> None:
-        """Answers with where they run, read as `-H` reads it."""
-        from hmz.runtime.flowing import SpecError, parse_harness
-
-        spec = self._composed()
-        self._wrong = ""
-        if not spec:
-            self._wrong = "choose the machine a standalone harness runs on"
-        else:
-            try:
-                parse_harness(spec)
-            except SpecError as why:
-                self._wrong = str(why)
+            self._wrong = placed(self._role, spec)
         if self._wrong:
             self._fill()
             return

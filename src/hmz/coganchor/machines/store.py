@@ -39,13 +39,16 @@ if TYPE_CHECKING:
 __all__ = [
     "BACKENDS",
     "DOCKER",
+    "HERE",
     "IMPORTED",
+    "SELF",
     "SSH",
     "TYPED",
     "DockerRuntime",
     "Runtime",
     "SSHRuntime",
     "add",
+    "affine",
     "daemon_of",
     "find",
     "imports",
@@ -61,6 +64,12 @@ __all__ = [
 SSH = "ssh"
 DOCKER = "docker"
 BACKENDS = (SSH, DOCKER)
+
+#: The two places a harness may be put that are not a runtime of their own, as an affinity
+#: names them: natively on the machine of the runtime the work is on, and on this machine,
+#: anchored to it.
+SELF = "self"
+HERE = "local"
 
 #: How a runtime was made: typed in field by field, or read off an ssh config.
 TYPED = "typed"
@@ -140,6 +149,51 @@ def _named(name: str) -> str:
     return name
 
 
+def affine(entry: str) -> tuple[str, str] | None:
+    """One entry of an affinity, read: the runtime it names, if it names one.
+
+    Args:
+      entry: As an affinity holds it: `self`, `local`, or `<backend>:<name>`.
+
+    Returns:
+      `(backend, name)` for a runtime, None for one of the two places that are not one.
+
+    Raises:
+      ValueError: For anything else.
+    """
+    if entry in (SELF, HERE):
+        return None
+    backend, colon, name = entry.partition(":")
+    if not colon or backend not in BACKENDS or not _NAMED.match(name):
+        raise ValueError(
+            f"{entry!r} is not where a harness runs: {SELF}, {HERE} or "
+            f"<{'|'.join(BACKENDS)}>:<runtime name>"
+        )
+    return backend, name
+
+
+def _affinity(runtime: Runtime) -> None:
+    """Refuses an affinity that is not one.
+
+    An entry that does not read, one named twice, or the runtime itself -- which is its own
+    machine, and so :data:`SELF` rather than a runtime the harness is put on beside it.
+
+    Raises:
+      ValueError: For one of those.
+    """
+    for at, entry in enumerate(runtime.affinity):
+        try:
+            named = affine(entry)
+        except ValueError as why:
+            raise ValueError(f"{runtime.name}: {why}") from None
+        if entry in runtime.affinity[:at]:
+            raise ValueError(f"{runtime.name}: {entry} is in its affinity twice")
+        if named == (runtime.backend, runtime.name):
+            raise ValueError(
+                f"{runtime.name}: its affinity names itself; {SELF} is its own machine"
+            )
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SSHRuntime:
     """A host reached over ssh, and everything `ssh` is to be told to reach it.
@@ -163,6 +217,8 @@ class SSHRuntime:
         `ssh` is told to read it instead (`-F`).
       workdir: Where an `-e` naming it with no workdir works.
       made: How it was made: :data:`TYPED` or :data:`IMPORTED`.
+      affinity: Where the harness of an agent working on it runs, in the order tried: the
+        next only where the one before has no room. See :func:`affine` for an entry.
     """
 
     backend: ClassVar[str] = SSH
@@ -178,9 +234,11 @@ class SSHRuntime:
     config: str = ""
     workdir: str = ""
     made: str = TYPED
+    affinity: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _named(self.name)
+        _affinity(self)
         if not self.host and not self.alias:
             raise ValueError(
                 f"{self.name}: an ssh host requires a hostname or an alias"
@@ -288,6 +346,8 @@ class DockerRuntime:
       max_containers: How many containers it may run at once, or 0 for no limit.
       workdir: Where an `-e` naming it with no workdir works.
       made: How it was made, which is :data:`TYPED`.
+      affinity: Where the harness of an agent working on it runs, in the order tried: the
+        next only where the one before has no room. See :func:`affine` for an entry.
     """
 
     backend: ClassVar[str] = DOCKER
@@ -305,9 +365,11 @@ class DockerRuntime:
     max_containers: int = 0
     workdir: str = ""
     made: str = TYPED
+    affinity: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _named(self.name)
+        _affinity(self)
         _endpoint(self.endpoint)
         if self.tls_dir and not self.endpoint.startswith("tcp://"):
             raise ValueError(f"{self.name}: TLS certificates require a tcp:// endpoint")
@@ -756,6 +818,7 @@ def imports(
                 else "",
                 workdir=already.workdir if already is not None else "",
                 made=IMPORTED,
+                affinity=already.affinity if already is not None else (),
             )
         except ValueError:
             if names is not None:

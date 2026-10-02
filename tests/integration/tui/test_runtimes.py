@@ -957,6 +957,36 @@ async def test_correcting_one_row_of_a_daemon_changes_nothing_else(
 
 
 @pytest.mark.timeout(60)
+async def test_where_a_harness_runs_is_written_on_the_runtime_in_order(
+    standins: Path,
+) -> None:
+    """One row of entries apart by commas, kept in the order written; one wrong is said."""
+    del standins
+    store.add(DockerRuntime(name="a"))
+    store.add(DockerRuntime(name="b"))
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await onto(app, driver, "docker/a")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await _opens(app, driver, _CORRECTS, Docking)
+        assert "harness runs on" in _drawn(app)
+        await _types(app, driver, "affinity", "docker:a")
+        await _done(app, driver)
+        assert isinstance(app.screen, Docking)
+        assert "its affinity names itself" in _under(app)
+
+        await _types(app, driver, "affinity", "docker:b, local")
+        await _done(app, driver)
+        await until(lambda: app.screen is sheet, driver)
+
+    assert store.find("docker", "a") == DockerRuntime(
+        name="a", affinity=("docker:b", "local")
+    )
+
+
+@pytest.mark.timeout(60)
 async def test_a_tls_directory_under_a_home_nobody_has_is_refused_on_the_form(
     standins: Path,
 ) -> None:

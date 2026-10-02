@@ -1,18 +1,18 @@
 """Where an agent's shell starts on a container, for each place its CLI can run.
 
 An agent given an environment works in that environment's workdir: the first command it runs
-there is run in the workdir, whether its CLI is here under a supervisor (`-H local`) or the
-image's own (`-H env`). Asked of a real CLI, because the CLI is what decides where a command
-it runs starts -- and asked to write `pwd` into the directory it ran in, which is only in the
-workdir if that is where it ran.
+there is run in the workdir, whether its CLI is here under a supervisor (`local` in its
+runtime's affinity) or the image's own (`self`). Asked of a real CLI, because the CLI is what
+decides where a command it runs starts -- and asked to write `pwd` into the directory it ran
+in, which is only in the workdir if that is where it ran.
 
 Here with humanize's home where the default one is (`home_kept_here`): a container's mirrors
 are kept under it, and a home in the system's temporary directory is the one place a mirror
 answered as a directory kept here could not be seen.
 
-`-H env` needs the CLI in the image and a sign-in there, so the image is built out of the CLI
+`self` needs the CLI in the image and a sign-in there, so the image is built out of the CLI
 installed here and the turn is run as this machine's account at a gateway, which an anchored
-turn sends in for its length. The third place, `-H standalone`, takes a CLI signed in on a
+turn sends in for its length. The third place, another runtime, takes a CLI signed in on a
 machine of its own -- no account is sent there -- so it is shown with a stand-in for the CLI
 in `tests/system/coganchor/test_topologies.py` instead.
 
@@ -140,12 +140,16 @@ def account(cli: str, home_kept_here: Path) -> Iterator[str]:
         yield place.spec(provider=name)
 
 
-@pytest.mark.parametrize("harness", ["local", "env"])
+@pytest.mark.parametrize("harness", ["local", "self"])
 @pytest.mark.parametrize("cli", CLIS)
 def test_an_agents_shell_starts_in_its_environments_workdir(
     cli: str, harness: str, account: str, daemon: None, tmp_path: Path
 ) -> None:
+    from hmz.coganchor.machines import store
+
     del daemon
+    # A docker runtime of the daemon here, saying where an agent's harness on it runs.
+    store.add(store.DockerRuntime(name="box", affinity=(harness,)))
     flow = written(
         tmp_path / "flows", "boxed", FLOW.format(image=_image(cli, tmp_path))
     )
@@ -162,9 +166,7 @@ def test_an_agents_shell_starts_in_its_environments_workdir(
             "-a",
             f"worker={account}",
             "-e",
-            f"box=docker@local{workdir}",
-            "-H",
-            harness,
+            f"box=docker@box{workdir}",
             "-b",
             "duration=10m",
             ASKED,

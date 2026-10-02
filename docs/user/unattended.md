@@ -49,7 +49,6 @@ answer at once:
 | `-b` | what the run may spend | every flow but `chat` |
 | `-p` | the flow's own [params](/weaver/flow-settings), where you want other than the defaults | when you want them |
 | `-e` | where an environment role is, for a flow that works on [another machine](/user/remote-execution) | when the flow has one |
-| `-H` | where each agent's CLI runs, for work on another machine: [Where the agent runs](/user/remote-execution#where-the-agent-runs) | no: `adaptive` |
 | `--resume` | carry on the last run of this flow here, rather than start over | no |
 | `--json` | write the run to stdout as one JSON object per line | no |
 | the task | what the flow is to do | always |
@@ -316,8 +315,9 @@ hmz exec -f humanize1:rlcr -p max=9,plan_file=docs/plan.md \
 ```
 
 A flow that works on another machine takes it with `-e`, as `role=local@/abs/path`,
-`role=ssh@[user@]host[:port]/path` or `role=docker@<daemon>/path`, and `-H` says where each
-agent's CLI runs while it works there. Most flows have no such role. See [Remote
+`role=ssh@[user@]host[:port]/path` or `role=docker@<daemon>/path`; where each agent's CLI
+runs while it works there is the [affinity](/user/remote-execution#where-the-agent-runs) of the
+host or daemon saved under that name. Most flows have no such role. See [Remote
 execution](/user/remote-execution).
 
 ### Stop it, and pick it up again
@@ -370,5 +370,5 @@ More in [Troubleshooting](/user/troubleshooting).
 - [humanize in CI](/user/ci): the same line in a scheduled job that opens a pull request
 - [Picking a run up](/user/resuming): `--resume`, and what carries over
 - [Tracing a run](/user/tracing): what the run did, as a timeline
-- [Remote execution](/user/remote-execution): `-e` and `-H`
+- [Remote execution](/user/remote-execution): `-e`, and where the agent runs
 - [CLI reference](/reference/cli): every flag of `hmz exec`, and every refusal

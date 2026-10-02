@@ -1,7 +1,8 @@
-"""Where a driver puts each session's harness, as `-H` says to: settled as a session opens.
+"""Where a driver puts each session's harness, as the affinity of its runtime says to.
 
 Nothing is reached: what the environment's machine would answer about its CLI is answered here
-instead, and what is checked is what the session's machine comes to for each answer.
+instead, the runtimes an affinity names are machines held in hand, and what is checked is what
+the session's machine comes to for each answer.
 """
 
 from __future__ import annotations
@@ -15,27 +16,31 @@ from hmz.coganchor import AnchorConfig
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.flows import (
     EnvBackendKind,
+    EnvConnectionError,
     HarnessKind,
     HarnessNotInstalled,
     HarnessSandboxed,
+    HarnessUnrecoverable,
     HookKind,
     Permission,
     PermissionKind,
+    ResourceUnmet,
 )
 from hmz.runtime.epic import harnessed
+from hmz.runtime.flowing.affinity import Harbors
 from hmz.runtime.flowing.harnesses import HarnessDriver, open_agent
 from hmz.runtime.flowing.specs import AgentSpec
 from hmz.runtime.flowing.spi import Placement
 
 if TYPE_CHECKING:
     from hmz.coganchor.machines import MachineConfig
-    from hmz.flows import HarnessError
+    from hmz.flows import EnvError, HarnessError
     from hmz.runtime.flowing.spi import EnvDriver
 
 #: A container the work is in, as a docker environment places a session in it.
 _WORK = Placement(
     EnvBackendKind.DOCKER,
-    "local",
+    "work",
     PurePosixPath("/srv/repo"),
     AnchoredConfig(
         anchor=AnchorConfig(
@@ -47,9 +52,17 @@ _WORK = Placement(
 #: A directory here, as the workspace places one.
 _HERE = Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/tmp"))
 
+#: A role granted everything, which nothing fences.
+_OPEN = Permission(
+    local=PermissionKind.ALL,
+    user=PermissionKind.ALL,
+    system=PermissionKind.ALL,
+    online=PermissionKind.ALL,
+)
+
 
 class _Machine:
-    """A standalone harness's machine, as the environment it was opened as places one."""
+    """A runtime an affinity names, as the environment it was opened as places one."""
 
     def placement(self) -> Placement:
         return Placement(
@@ -60,13 +73,34 @@ class _Machine:
         )
 
 
+class _Harbors(Harbors):
+    """A run's harness runtimes, with the work's affinity and each runtime's answer in hand."""
+
+    def __init__(
+        self,
+        affinity: tuple[str, ...],
+        machines: dict[str, EnvError | ResourceUnmet | None] | None = None,
+    ) -> None:
+        super().__init__()
+        self._said = affinity
+        self._machines = machines or {}
+        self.opened: list[str] = []
+
+    def affinity(self, placement: Placement) -> tuple[str, ...]:
+        return self._said if placement.provider == "work" else ()
+
+    async def machine(self, entry: str) -> EnvDriver | EnvError | ResourceUnmet:
+        self.opened.append(entry)
+        said = self._machines.get(entry)
+        return cast("EnvDriver", _Machine()) if said is None else said
+
+
 def _driver(
-    mode: str,
     monkeypatch: pytest.MonkeyPatch,
     answer: tuple[type[HarnessError], str] | None = None,
-    on: object = None,
+    harbors: Harbors | None = None,
 ) -> tuple[HarnessDriver, list[str]]:
-    """A Claude Code driver told `-H mode`, and the machines it asked about its CLI."""
+    """A Claude Code driver of a run with these harness runtimes, and whom it asked of its CLI."""
     asked: list[str] = []
 
     async def has_cli(
@@ -78,7 +112,7 @@ def _driver(
 
     monkeypatch.setattr(HarnessDriver, "_has_cli", has_cli)
     spec = AgentSpec("coder", HarnessKind.CLAUDE, "", "m", "", "claude")
-    return open_agent(spec, mode, cast("EnvDriver | None", on)), asked
+    return open_agent(spec, harbors), asked
 
 
 async def _placed(
@@ -86,31 +120,37 @@ async def _placed(
     placement: Placement,
     *,
     hung: frozenset[HookKind] = frozenset(),
+    permission: Permission = _OPEN,
 ) -> MachineConfig | None:
     """Where the driver puts a session working there."""
-    return await driver._harnessed(placement, driver._config, "/tmp", hung=hung)
+    config = driver._configured(permission, placement, hung)
+    return await driver._harnessed(placement, config, hung=hung)
 
 
-async def test_adaptive_runs_the_cli_the_environment_has(
+_MISSING = (HarnessNotInstalled, "claude is not installed on it")
+
+
+# ------------------------------------------------------------------------ no affinity
+
+
+async def test_with_no_affinity_the_cli_the_environment_has_runs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    driver, asked = _driver("adaptive", monkeypatch)
+    driver, asked = _driver(monkeypatch)
     machine = await _placed(driver, _WORK)
     assert isinstance(machine, AnchoredConfig)
     assert machine.anchor.native
     assert machine.anchor.shadow is None  # a native turn has no mirror here
-    assert harnessed(machine) == "env"
+    assert harnessed(machine) == "self"
     # Asked once per machine, however many sessions go there.
     await _placed(driver, _WORK)
     assert asked == ["docker://work"]
 
 
-async def test_adaptive_keeps_the_harness_here_where_the_environment_has_no_cli(
+async def test_with_no_affinity_the_harness_stays_here_where_the_cli_is_not_there(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    driver, _ = _driver(
-        "adaptive", monkeypatch, (HarnessNotInstalled, "claude is not installed")
-    )
+    driver, _ = _driver(monkeypatch, _MISSING, _Harbors(()))
     machine = await _placed(driver, _WORK)
     assert machine == _WORK.machine
     assert harnessed(machine) == "local"
@@ -119,57 +159,97 @@ async def test_adaptive_keeps_the_harness_here_where_the_environment_has_no_cli(
 @pytest.mark.parametrize(
     "hook", [HookKind.PRE_TOOL_USE, HookKind.PERMISSION_REQUEST], ids=str
 )
-async def test_adaptive_keeps_a_gated_session_here(
+async def test_with_no_affinity_a_gated_session_stays_here(
     hook: HookKind, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A hook that decides whether a tool runs is only a watcher on another machine."""
-    driver, asked = _driver("adaptive", monkeypatch)
+    driver, asked = _driver(monkeypatch)
     hung = frozenset({hook, HookKind.ASK_USER})
     assert await _placed(driver, _WORK, hung=hung) == _WORK.machine
     assert asked == []
 
 
-async def test_adaptive_takes_a_question_to_the_environment(
+async def test_with_no_affinity_a_question_goes_to_the_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A question the agent asks comes back down the CLI's stream from wherever it runs."""
-    driver, asked = _driver("adaptive", monkeypatch)
+    driver, asked = _driver(monkeypatch)
     machine = await _placed(driver, _WORK, hung=frozenset({HookKind.ASK_USER}))
-    assert harnessed(machine) == "env"
+    assert harnessed(machine) == "self"
     assert asked == ["docker://work"]
 
 
-async def test_env_refuses_an_environment_without_the_cli(
+@pytest.mark.parametrize("affinity", [(), ("self",), ("docker:b", "self")])
+async def test_work_here_has_its_harness_here(
+    affinity: tuple[str, ...], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harbors = _Harbors(affinity)
+    driver, asked = _driver(monkeypatch, harbors=harbors)
+    assert await _placed(driver, _HERE) is None
+    assert (asked, harbors.opened) == ([], [])
+
+
+# --------------------------------------------------------------------------- affinity
+
+
+async def test_the_first_entry_with_room_is_taken_and_nothing_after_it_is_asked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harbors = _Harbors(("local", "self", "docker:b"))
+    driver, asked = _driver(monkeypatch, harbors=harbors)
+    assert await _placed(driver, _WORK) == _WORK.machine
+    assert (asked, harbors.opened) == ([], [])
+
+
+async def test_self_runs_the_cli_the_environment_has(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    driver, asked = _driver(monkeypatch, harbors=_Harbors(("self", "local")))
+    machine = await _placed(driver, _WORK)
+    assert harnessed(machine) == "self"
+    assert asked == ["docker://work"]
+
+
+@pytest.mark.parametrize(
+    "hook", [HookKind.PRE_TOOL_USE, HookKind.PERMISSION_REQUEST], ids=str
+)
+async def test_self_said_outright_is_not_kept_here_by_a_gate(
+    hook: HookKind, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    driver, _ = _driver(monkeypatch, harbors=_Harbors(("self",)))
+    machine = await _placed(driver, _WORK, hung=frozenset({hook}))
+    assert harnessed(machine) == "self"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [_MISSING, (HarnessSandboxed, "it cannot fence the agent")],
+    ids=["missing", "unfenceable"],
+)
+async def test_self_without_room_gives_way_to_the_next(
+    answer: tuple[type[HarnessError], str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    driver, _ = _driver(monkeypatch, answer, _Harbors(("self", "local")))
+    assert await _placed(driver, _WORK) == _WORK.machine
+
+
+async def test_self_that_cannot_be_asked_is_refused_rather_than_passed_over(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     driver, _ = _driver(
-        "env", monkeypatch, (HarnessNotInstalled, "claude is not installed on it")
+        monkeypatch,
+        (HarnessUnrecoverable, "work did not say"),
+        _Harbors(("self", "local")),
     )
-    with pytest.raises(HarnessNotInstalled, match="not installed on it"):
+    with pytest.raises(HarnessUnrecoverable, match="work did not say"):
         await _placed(driver, _WORK)
 
 
-async def test_local_asks_nothing_and_keeps_the_harness_here(
+async def test_a_runtime_puts_the_harness_on_a_machine_of_its_own(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    driver, asked = _driver("local", monkeypatch)
-    assert await _placed(driver, _WORK) == _WORK.machine
-    assert asked == []
-
-
-@pytest.mark.parametrize("mode", ["adaptive", "env", "local"])
-async def test_work_here_has_its_harness_here(
-    mode: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    driver, asked = _driver(mode, monkeypatch)
-    assert await _placed(driver, _HERE) is None
-    assert asked == []
-
-
-async def test_standalone_puts_the_harness_on_its_own_machine(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    driver, asked = _driver("standalone", monkeypatch, on=_Machine())
+    harbors = _Harbors(("ssh:box", "local"))
+    driver, asked = _driver(monkeypatch, harbors=harbors)
     machine = await _placed(driver, _WORK)
     assert isinstance(machine, AnchoredConfig)
     assert (machine.anchor.target, machine.anchor.harness) == (
@@ -177,33 +257,53 @@ async def test_standalone_puts_the_harness_on_its_own_machine(
         "ssh://box",
     )
     assert machine.anchor.shadow is None  # that machine keeps a mirror of its own
-    assert harnessed(machine) == "standalone:ssh://box"
-    assert asked == []
+    assert (asked, harbors.opened) == ([], ["ssh:box"])
 
-    # And work here is served to it from here.
-    here = await _placed(driver, _HERE)
-    assert isinstance(here, AnchoredConfig)
-    assert (here.anchor.target, here.anchor.harness) == ("local", "ssh://box")
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        ResourceUnmet("docker@b runs 0 of the 0 containers it may"),
+        EnvConnectionError("could not connect to docker@b"),
+    ],
+    ids=["full", "unreachable"],
+)
+async def test_a_runtime_without_room_gives_way_to_the_next(
+    refusal: EnvError | ResourceUnmet, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harbors = _Harbors(("docker:b", "self", "local"), {"docker:b": refusal})
+    driver, asked = _driver(monkeypatch, _MISSING, harbors)
+    assert await _placed(driver, _WORK) == _WORK.machine
+    assert (asked, harbors.opened) == (["docker://work"], ["docker:b"])
+
+
+async def test_a_role_held_to_a_fence_cannot_have_its_harness_on_another_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fence is drawn around this machine's paths; a harness elsewhere is not in them."""
+    driver, _ = _driver(monkeypatch, harbors=_Harbors(("ssh:box", "local")))
+    assert await _placed(driver, _WORK, permission=Permission()) == _WORK.machine
+
+
+async def test_with_no_room_anywhere_the_last_refusal_is_raised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harbors = _Harbors(
+        ("self", "docker:b"), {"docker:b": ResourceUnmet("docker@b is full")}
+    )
+    driver, _ = _driver(monkeypatch, _MISSING, harbors)
+    with pytest.raises(ResourceUnmet, match=r"self, docker:b.*docker@b is full"):
+        await _placed(driver, _WORK)
 
 
 # ------------------------------------------------------------------------ before the run
 
-#: A role granted everything, which nothing fences.
-_OPEN = Permission(
-    local=PermissionKind.ALL,
-    user=PermissionKind.ALL,
-    system=PermissionKind.ALL,
-    online=PermissionKind.ALL,
-)
 
-
-async def test_env_refuses_before_the_run_a_machine_without_the_cli(
+async def test_an_affinity_with_no_room_is_refused_before_the_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Asked of every machine the run has, and remembered for the sessions that go there."""
-    driver, asked = _driver(
-        "env", monkeypatch, (HarnessNotInstalled, "claude is not installed on it")
-    )
+    driver, asked = _driver(monkeypatch, _MISSING, _Harbors(("self",)))
     with pytest.raises(HarnessNotInstalled, match="not installed on it"):
         await driver.placeable([_HERE, _WORK], _OPEN)
     with pytest.raises(HarnessNotInstalled):
@@ -211,34 +311,30 @@ async def test_env_refuses_before_the_run_a_machine_without_the_cli(
     assert asked == ["docker://work"]
 
 
-async def test_env_lets_a_machine_with_the_cli_through(
+async def test_the_runtimes_an_affinity_takes_are_opened_before_the_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    driver, asked = _driver("env", monkeypatch)
+    harbors = _Harbors(("docker:b", "ssh:box"), {"docker:b": ResourceUnmet("full")})
+    driver, _ = _driver(monkeypatch, harbors=harbors)
     await driver.placeable([_HERE, _WORK], _OPEN)
-    assert asked == ["docker://work"]
+    assert harbors.opened == ["docker:b", "ssh:box"]
 
 
-@pytest.mark.parametrize("mode", ["adaptive", "local"])
-async def test_adaptive_and_local_are_asked_nothing_before_the_run(
-    mode: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Either puts a harness wherever it can go, so nothing refuses it up front."""
-    driver, asked = _driver(
-        mode, monkeypatch, (HarnessNotInstalled, "claude is not installed on it")
-    )
-    await driver.placeable([_HERE, _WORK], Permission())
-    assert asked == []
-
-
-async def test_standalone_refuses_before_the_run_a_role_it_would_have_to_fence(
+async def test_a_fenced_role_is_refused_before_the_run_where_only_a_runtime_is_left(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A fence is drawn around this machine's paths; a harness elsewhere is not in them."""
-    driver, asked = _driver("standalone", monkeypatch, on=_Machine())
+    driver, _ = _driver(monkeypatch, harbors=_Harbors(("ssh:box",)))
     with pytest.raises(
         HarnessSandboxed, match="a fence cannot hold a harness that runs on another"
     ):
-        await driver.placeable([_HERE], Permission())
+        await driver.placeable([_HERE, _WORK], Permission())
     await driver.placeable([_HERE, _WORK], _OPEN)
+
+
+async def test_with_no_affinity_nothing_is_asked_before_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Its harness goes wherever it can, so nothing refuses it up front."""
+    driver, asked = _driver(monkeypatch, _MISSING, _Harbors(()))
+    await driver.placeable([_HERE, _WORK], Permission())
     assert asked == []

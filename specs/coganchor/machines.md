@@ -132,6 +132,8 @@ class Mapped:
 SSH = "ssh"
 DOCKER = "docker"
 BACKENDS = (SSH, DOCKER)
+SELF = "self"  # an affinity's entry for a harness natively on the runtime's own machine
+HERE = "local"  # and for one on this machine, anchored to it
 TYPED = "typed"
 IMPORTED = "imported"
 
@@ -149,6 +151,7 @@ class SSHRuntime:
     config: str = ""  # the ssh config it was imported from, where not the user's own
     workdir: str = ""
     made: str = TYPED
+    affinity: tuple[str, ...] = ()  # where a harness of work on it runs, in the order tried
     @property
     def at(self) -> Path: ...
     def destination(self) -> str: ...
@@ -173,6 +176,7 @@ class DockerRuntime:
     max_containers: int = 0
     workdir: str = ""
     made: str = TYPED
+    affinity: tuple[str, ...] = ()
     @property
     def at(self) -> Path: ...
     def daemon(self) -> Endpoint: ...
@@ -180,6 +184,7 @@ class DockerRuntime:
 
 type Runtime = SSHRuntime | DockerRuntime
 
+def affine(entry: str) -> tuple[str, str] | None: ...  # (backend, name), None for self/local
 def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint: ...
 def under() -> Path: ...
 def where(backend: str, name: str) -> Path: ...
@@ -277,7 +282,10 @@ def hosts(
 - A runtime MUST be refused where it is made, not where it is used: an ssh runtime with
   neither a host nor an alias, a word `ssh` would read as an option, a setting it has a field
   for given as an option, a value of more than one line; a docker runtime with an endpoint
-  that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount.
+  that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount;
+  and either with an affinity entry that is none of `self`, `local` and `<backend>:<name>`, one
+  named twice, or one naming the runtime itself, which is `self`. An entry naming a runtime
+  nobody saved MUST NOT be refused there: it is one with no room where it is used.
   `add` and `write` MUST refuse a config file or certificates under a home there is none of,
   and one written down before its home went MUST still be listed.
 - `add` MUST refuse a name already taken and `write` MUST replace what was there; `new` MUST
@@ -291,4 +299,4 @@ def hosts(
   dialled with everything that runtime says.
 - `aliases` MUST follow every `Include` as ssh does and MUST NOT list a pattern; what a host
   resolves to MUST be asked of `ssh -G`. `imports` MUST leave a runtime already there unless
-  told to update it, and MUST keep the workdir of one it updates.
+  told to update it, and MUST keep the workdir and the affinity of one it updates.
