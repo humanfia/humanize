@@ -116,7 +116,7 @@ straight into the one named, and the word is offered as you type it:
 | [**Settings**](#settings-page) | `settings` | whether humanize reports what goes wrong, whether the screen [shows the working](#details), and which agent `/btw` talks to |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, whether its runs are profiled, and forgetting it |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
-| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts and docker daemons |
+| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons and docker swarms |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
 
@@ -206,7 +206,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
      <span class="m">what agents sign in as, per CLI</span>
    ────────────────────────────────────────────────────────────────────────
    ▦  <b>Runtimes</b>                                                0 machines
-     <span class="m">ssh hosts and docker daemons a flow's roles run on</span>
+     <span class="m">ssh hosts, docker daemons and swarms a flow's roles run on</span>
    ────────────────────────────────────────────────────────────────────────
    ↻  <b>Fallback</b>                                                   0 rules
      <span class="m">where a turn goes when an agent fails</span>
@@ -661,7 +661,8 @@ See [SDK › Accounts](/reference/sdk#accounts).
 
 A **runtime** is a machine a flow's [environment
 roles](/user/remote-execution) can be put on, saved under a name: an ssh host with everything
-`ssh` has to be told to reach it, or a docker daemon with what it may hand out. Save one here,
+`ssh` has to be told to reach it, a docker daemon with what it may hand out, or a docker swarm
+with where its tasks may go and what they may reserve all told. Save one here,
 then choose it for a role at [`/flow`](#choosing-one-for-a-role), or name it after the `@` of
 `-e`:
 
@@ -671,7 +672,7 @@ hmz exec -f onbox -e box=ssh@gpu -b duration=1h "run the benchmarks"
 
 `ssh@gpu` with no directory works where `gpu` was saved to work. Reach for one when a machine
 needs more than its name to be reached (a login, a port, a key, a jump host), or when it is a
-docker daemon.
+docker daemon or a swarm.
 
 ### Try it {#runtimes-try-it}
 
@@ -680,8 +681,9 @@ Type `/settings runtimes`:
 <Term title="/settings · Runtimes">
 
 <pre>  <span class="m">/settings ›</span> <span class="p b">Runtimes</span>
-  <span class="m">Runtimes: saved ssh hosts, and docker daemons with the resources each may hand
-  out, used by name as flow environments in -e and /flow. Changes take effect immediately.</span>
+  <span class="m">Runtimes: saved ssh hosts, docker daemons with the resources each may hand out,
+  and docker swarms with what their tasks may reserve, used by name as flow environments in
+  -e and /flow. Changes take effect immediately.</span>
 
   <span class="p">╭──────────────────────────────────────────────────────────────────────────────────╮</span>
     <span class="p">ssh</span>
@@ -693,7 +695,7 @@ Type `/settings runtimes`:
     <b>local</b>                     <span class="m">local · 16 CPUs, 64G, GPUs 0</span>
   <span class="p">╰──────────────────────────────────────────────────────────────────────────────────╯</span>
 
-   <span class="btn"> Add an ssh host </span>  <span class="btn"> Add a docker host </span>  <span class="btn"> Import ~/.ssh/config </span>  <span class="btn"> Search… </span>
+   <span class="btn"> Add an ssh host </span>  <span class="btn"> Add a docker host </span>  <span class="btn"> Add a docker swarm </span>  <span class="btn"> Import ~/.ssh/config </span>  <span class="btn"> Search… </span>
 
   <b>enter</b> open   <b>/</b> search   <b>tab</b> actions   <b>esc</b> back</pre>
 
@@ -783,6 +785,27 @@ runtime is saved to hand out (more CPUs than it has, a GPU it does not have or t
 answer, an OCI runtime it does not offer), the line under the list says so in yellow when it is
 checked.
 
+### A docker swarm
+
+**Add a docker swarm** opens the docker host's form for a swarm's manager: the same
+`endpoint` rows, `local` being the swarm this machine manages, then `name`, `image` (every
+node a task may land on pulls it) and `run args` (anything else `docker service create` is
+told). No `OCI runtime` and no `gpus`: a service is told neither. In their place, where a
+task may go:
+
+| Row | Takes | Blank is |
+| --- | --- | --- |
+| constraints | placement constraints, a comma apart: `node.labels.gpu==true, node.role!=manager` | anywhere |
+| max tasks | how many tasks it may run together | no limit |
+| nodes | `HOSTNAME=SSH-HOST`, a comma apart: a node's host name and the ssh host saved here, or the `[user@]host[:port]`, that reaches it | each node at `ssh://` its address |
+| workdir | where it works when `-e` names no directory, at the same path on every node | none |
+| gpu resource | the generic resource its nodes advertise GPUs as: `NVIDIA-GPU` | no GPUs |
+| cpus, memory | what all of its tasks together may reserve | no quota |
+
+**`detect`** writes in the CPUs and memory of the nodes that may take a task, all told. A
+check says which those are -- `12 nodes: node01, node02, … and 4 more` -- and, in yellow, a
+quota more than they have or a GPU resource none of them advertises.
+
 ### On one runtime
 
 <kbd>enter</kbd> on a runtime opens what can be done to it, all of it at once:
@@ -790,8 +813,8 @@ checked.
 | On the menu | What it does |
 | --- | --- |
 | **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
-| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Either is given 30 seconds, in the background: the row says `checking…` until it answers. |
-| **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing. |
+| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A swarm's manager is asked which of its nodes may take a task, and what those have. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Each is given 30 seconds, in the background: the row says `checking…` until it answers. |
+| **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing, and so is a swarm whose manager or one of whose nodes it reached. |
 
 ### Choosing one for a role {#choosing-one-for-a-role}
 

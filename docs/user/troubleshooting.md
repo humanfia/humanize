@@ -242,7 +242,7 @@ runs](/user/remote-execution#where-the-agent-runs).
 
 **Verify.** The usage line is gone.
 
-### `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker`
+### `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker, swarm`
 
 **Symptom.** `hmz exec` prints its usage, then this, or
 `no runtime is saved as '<name>'` for a bare name, or

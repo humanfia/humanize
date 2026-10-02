@@ -3,9 +3,10 @@
 :func:`open_env` makes the driver for an `-e`, and :func:`local_env` the one for the workspace
 a run was started in, which is what fills a `LocalEnv` role. Both are
 :class:`~hmz.runtime.flowing.environing.MachineEnvDriver`, over this machine, over a host
-reached with ssh, or over a container of its own on a docker daemon, and all serve every
-environment capability. None touches the network: an ssh host is reached, and a container
-started, the first time something is asked of it, and :func:`probe` is how to ask before
+reached with ssh, over a container of its own on a docker daemon, or over one a docker swarm
+placed on whichever of its nodes had room, and all serve every environment capability. None
+touches the network: an ssh host is reached, and a container started or a swarm's service
+created, the first time something is asked of it, and :func:`probe` is how to ask before
 anything else -- which the ways in do for every environment a run is given, so that
 `available` and the resources a machine has are known, and a container has taken its share of
 its runtime, before a flow's requirements are checked against them.
@@ -45,7 +46,9 @@ def open_env(
         `ssh@host/~/path` for one on a host `ssh` reaches -- a saved ssh runtime by its
         name, and otherwise `[user@]host[:port]` or an alias of the ssh config -- or
         `docker@name/abs/path` for a container of its own on the daemon a saved docker
-        runtime names, `docker@local/...` on docker's default here.
+        runtime names, `docker@local/...` on docker's default here -- or `swarm@name/abs/path`
+        for a task of its own on the swarm a saved swarm runtime names, `swarm@local/...` on
+        the swarm this machine manages.
       role: What the environment is for, as its flow declares it: a container is started
         from its image and given its resources. None asks for nothing.
       traced: Whether a harness is to run there, supervising its agent: a container is
@@ -56,11 +59,13 @@ def open_env(
 
     Raises:
       EnvUnavailable: If the workdir is known not to exist -- which for this machine is
-        looked at now -- the host is no ssh destination, or no docker runtime is written
-        down under that name.
+        looked at now -- the host is no ssh destination, or no docker or swarm runtime is
+        written down under that name.
     """
     if spec.backend is EnvBackendKind.DOCKER:
         return _docker_env(spec, role, traced=traced)
+    if spec.backend is EnvBackendKind.SWARM:
+        return _swarm_env(spec, role, traced=traced)
     if spec.backend is EnvBackendKind.SSH:
         from hmz.coganchor.machines import store
 
@@ -124,6 +129,59 @@ def _docker_env(
             )
         workdir = PurePosixPath(Path(str(workdir)).expanduser())
     machine = DockerMachine(
+        spec.provider,
+        workdir,
+        stored=stored,
+        role=role,
+        named=spec.role,
+        traced=traced,
+    )
+    return MachineEnvDriver(machine, workdir)
+
+
+def _swarm_env(
+    spec: EnvSpec, role: EnvRole | None, *, traced: bool = False
+) -> EnvDriver:
+    """The driver for a task of its own on a swarm runtime's swarm.
+
+    Raises:
+      EnvUnavailable: If no swarm runtime is written down under that name -- `local` being
+        the swarm this machine manages where none is -- or the workdir is not absolute, or
+        under the home of this machine's user where the manager is this machine.
+    """
+    from hmz.coganchor.machines import store
+
+    from .environing_swarm import LOCAL, SwarmMachine
+
+    stored = store.find(store.SWARM, spec.provider)
+    if stored is not None and not isinstance(stored, store.SwarmRuntime):
+        stored = None
+    if stored is None and spec.provider != LOCAL:
+        if _unreadable(spec.provider, store.SWARM):
+            raise EnvUnavailable(
+                f"the docker swarm {spec.provider!r} cannot be read; fix or "
+                f"remove it: {store.where(store.SWARM, spec.provider)}"
+            )
+        raise EnvUnavailable(
+            f"docker swarm {spec.provider!r} not found: add one, or use the "
+            f"swarm this machine manages, swarm@{LOCAL}"
+        )
+    workdir = tidy_workdir(spec.workdir)
+    if not workdir.is_absolute():
+        # Under the home of this machine's user, where the manager is this machine -- whose
+        # nodes are then taken to share it; anywhere else, nobody here knows whose it is.
+        from hmz.coganchor.transport import Endpoint
+
+        try:
+            here = (stored.daemon() if stored is not None else Endpoint()).here
+        except ValueError:
+            here = False
+        if not here:
+            raise EnvUnavailable(
+                f"{workdir} is on a remote docker swarm, so it must be an absolute path"
+            )
+        workdir = PurePosixPath(Path(str(workdir)).expanduser())
+    machine = SwarmMachine(
         spec.provider,
         workdir,
         stored=stored,

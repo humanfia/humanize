@@ -291,6 +291,10 @@ loaded into it from here. Pull that one too with `docker pull docker:dind`. Its 
 are not this machine's, so the row can tell a workdir that was mounted there from one that
 was not.
 
+`test_swarm_env` puts it in the task of a service on the docker swarm this machine manages,
+saved as a runtime pinned to this node, and skips where this machine is no manager of an active
+swarm: `docker swarm init` makes it one.
+
 `test_workdir` takes both, a container and an `sshd`, and asks the agent to write `pwd` into
 the directory its shell started in, which has to be the environment's workdir. It runs with
 humanize's home under `~/.cache/humanize` rather than the suite's temporary directory

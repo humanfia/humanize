@@ -91,6 +91,66 @@ def gpus_usable(
     seconds: float | None = None,
     fresh: bool = False,  # ask even where an answer is kept
 ) -> tuple[tuple[str, str], ...] | None: ...  # (name, uuid) of each GPU that answers
+def whose(
+    endpoint: Endpoint, image: str, workspace: str, told: Callable[[], Mapping[str, Any]]
+) -> str: ...  # uid:gid a container given the workspace runs as
+def bound(workspace: str) -> str: ...  # the `--mount` giving it at its own path
+
+# swarm.py -- a container as the one task of a service, on whichever node of a swarm
+class Unplaced(RuntimeError): ...  # no node took the task; the scheduler's words
+
+@dataclass(frozen=True, kw_only=True)
+class SwarmConfig(MachineConfig):
+    image: str = "python:3.12"
+    workspace: str              # absolute, as every node it may land on names it
+    endpoint: str = "local"     # a manager, as `transport.Endpoint.parse` reads one
+    name: str | None = None     # of the service
+    user: str | None = None     # uid:gid, or None for the workspace's owner
+    cpus: float | None = None   # reserved, and the limit
+    memory: int | None = None   # bytes, likewise
+    generic: tuple[tuple[str, int], ...] = ()  # generic resources reserved: (kind, count)
+    constraints: tuple[str, ...] = ()           # each as `--constraint` takes it
+    nodes: Mapping[str, str] = field(default_factory=dict[str, str])  # host name -> endpoint
+    traced: bool = False        # CAP_SYS_PTRACE
+    run_args: tuple[str, ...] = ()  # what else `docker service create` is told
+    env: Mapping[str, str] = field(default_factory=dict[str, str])
+    labels: Mapping[str, str] = field(default_factory=dict[str, str])
+    placing: float = 30.0       # seconds a task may wait for a node with room
+    starting: float = 600.0     # seconds it may take to run once it has one
+    @property
+    def capabilities(self) -> frozenset[str]: ...
+    def create(self) -> Swarm: ...
+
+@dataclass(frozen=True, slots=True)
+class Node:
+    id: str
+    hostname: str
+    address: str
+    ready: bool       # ready, and neither drained nor paused
+    cpus: float
+    memory: int
+    resources: Mapping[str, int]  # generic resources it advertises, by kind
+
+@dataclass(frozen=True, slots=True)
+class Placed:
+    node: Node
+    container: str
+    daemon: Endpoint  # the daemon holding the container, as this machine reaches it
+
+class Swarm(MachineBase):
+    placed: Placed | None
+    def __init__(self, config: SwarmConfig) -> None: ...
+    def start(self) -> AnchorConfig: ...
+    def stop(self) -> None: ...
+
+def swarm_of(told: Mapping[str, Any], where: str) -> str: ...  # the manager's node id
+def nodes(endpoint: str = "local", seconds: float | None = None) -> list[Node]: ...
+def services(
+    endpoint: str = "local",
+    labels: Mapping[str, str] | None = None,
+    *,
+    seconds: float | None = None,
+) -> list[Allocation]: ...
 
 # mapped.py -- the workspace on that machine, as a flow's own Python reaches it
 @dataclass(frozen=True, slots=True)
@@ -131,7 +191,8 @@ class Mapped:
 # store.py -- the runtimes: the machines an environment may be put on, under names
 SSH = "ssh"
 DOCKER = "docker"
-BACKENDS = (SSH, DOCKER)
+SWARM = "swarm"
+BACKENDS = (SSH, DOCKER, SWARM)
 TYPED = "typed"
 IMPORTED = "imported"
 
@@ -178,9 +239,31 @@ class DockerRuntime:
     def daemon(self) -> Endpoint: ...
     def held(self) -> dict[str, Any]: ...
 
-type Runtime = SSHRuntime | DockerRuntime
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SwarmRuntime:
+    backend: ClassVar[str] = SWARM
+    name: str
+    endpoint: str = "local"  # a manager, spelled as a docker runtime's endpoint is
+    tls_dir: str = ""
+    image: str = ""
+    run_args: tuple[str, ...] = ()  # what else `docker service create` is told
+    cpus: float = 0.0  # what its tasks may reserve all told; 0 for what the nodes have
+    memory: int = 0
+    gpu_resource: str = ""  # the generic resource its nodes advertise GPUs as
+    constraints: tuple[str, ...] = ()  # <attribute>==<value> or <attribute>!=<value>
+    max_tasks: int = 0
+    nodes: Mapping[str, str] = {}  # node host name -> ssh runtime name or [user@]host[:port]
+    workdir: str = ""
+    made: str = TYPED
+    @property
+    def at(self) -> Path: ...
+    def daemon(self) -> Endpoint: ...
+    def held(self) -> dict[str, Any]: ...
+
+type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime
 
 def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint: ...
+def node_of(via: str) -> str: ...  # ssh:<name> for a saved ssh runtime, else ssh://<via>
 def under() -> Path: ...
 def where(backend: str, name: str) -> Path: ...
 def new(backend: str, name: str, **fields: Any) -> Runtime: ...
@@ -251,6 +334,24 @@ def hosts(
   `OSError` rather than answer for a daemon it could not ask or that did not answer within
   `seconds`, and MUST read a label holding no number as saying nothing. `info` MUST raise
   `OSError` the same way, saying what the daemon said.
+- A swarm's task MUST be the one replica of a service that is never restarted, created on the
+  manager its endpoint names -- refused with `OSError` where that daemon manages no active
+  swarm -- with the image, the workspace mounted at its own path, the user, the variables and
+  the labels a container of one daemon is given, and with what it reserves of its node as its
+  limits too. It MUST run as the calling user where the manager is this machine's, and as
+  whoever owns the workspace on the manager's host otherwise, unless its setting says who.
+- `start` MUST wait for the task to run: a task pending for want of a node MUST raise
+  `Unplaced` with the scheduler's words at once where no node that may take a task has as much
+  as it reserves, and once `placing` is over otherwise; one its node refused for want of the
+  workspace MUST raise `FileNotFoundError`, and one that failed, or did not run within
+  `starting`, `RuntimeError`. Whatever it raises, its service MUST be removed.
+- The container of a running task MUST be reached through the daemon its setting names for the
+  node's host, else the manager's own where the task landed on the manager, else over
+  `ssh://<the node's address>`; and the anchor `start` answers with MUST name that daemon and
+  that container. `stop` MUST remove the service, and only the one it created.
+- `services` MUST read the labels back for every one of humanize's services on a swarm, as
+  `allocations` does for containers, and `nodes` MUST say every node, ready only where it may
+  be given a task; both MUST raise `OSError` for a manager they could not ask.
 - `Mapped` MUST reach the machine down the same road a turn takes, and MUST take a path either
   as the machine names it or relative to the workspace.
 - `Mapped.run` MUST answer with the exit status and everything written on both streams, MUST
@@ -261,7 +362,8 @@ def hosts(
 
 ### Runtimes
 
-- A runtime is a machine saved under a name -- an ssh host or a docker daemon -- that a flow's
+- A runtime is a machine saved under a name -- an ssh host, a docker daemon or a docker swarm --
+  that a flow's
   environment is put on when an `-e` names it. It MUST NOT be anything a flow sees: a flow's
   environments stay `Env`s whatever runtime they were put on.
 - One runtime MUST be one directory under `~/.humanize/runtimes/<backend>/<name>/`,
@@ -277,7 +379,9 @@ def hosts(
 - A runtime MUST be refused where it is made, not where it is used: an ssh runtime with
   neither a host nor an alias, a word `ssh` would read as an option, a setting it has a field
   for given as an option, a value of more than one line; a docker runtime with an endpoint
-  that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount.
+  that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount;
+  a swarm runtime with the same, or a constraint that compares nothing, a generic resource of
+  no single word, or a node reached by neither a runtime's name nor an ssh destination.
   `add` and `write` MUST refuse a config file or certificates under a home there is none of,
   and one written down before its home went MUST still be listed.
 - `add` MUST refuse a name already taken and `write` MUST replace what was there; `new` MUST
@@ -288,7 +392,9 @@ def hosts(
   file holds.
 - `daemon_of` MUST be the one place a runtime's endpoint becomes an `Endpoint`, whose `docker`
   is the one place it becomes a command line; a daemon behind a saved ssh runtime MUST be
-  dialled with everything that runtime says.
+  dialled with everything that runtime says. A swarm's node named in its `nodes` MUST be
+  reached as the saved ssh runtime of that name says where there is one, and as an ssh
+  destination otherwise.
 - `aliases` MUST follow every `Include` as ssh does and MUST NOT list a pattern; what a host
   resolves to MUST be asked of `ssh -G`. `imports` MUST leave a runtime already there unless
   told to update it, and MUST keep the workdir of one it updates.

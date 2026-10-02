@@ -19,6 +19,7 @@ from .docker import (
     info,
 )
 from .mapped import Mapped, Ran
+from .swarm import Swarm, SwarmConfig
 
 __all__ = [
     "Allocation",
@@ -30,6 +31,8 @@ __all__ = [
     "MachineConfig",
     "Mapped",
     "Ran",
+    "Swarm",
+    "SwarmConfig",
     "allocations",
     "gpus_listed",
     "gpus_usable",

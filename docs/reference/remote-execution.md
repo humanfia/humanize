@@ -315,7 +315,7 @@ mirror nested in the workspace or the other way round.
 | anything else, `standalone:` with nothing after it, `env:x` | `-H 'bogus': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:local@…` | `-H 'standalone:local@/tmp': a standalone harness runs on another machine; -H local runs it on this one` |
 | a bare name nothing is saved under | `-H 'standalone:bogus': no runtime is saved as 'bogus'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
-| an unknown backend | `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker` |
+| an unknown backend | `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker, swarm` |
 | a docker runtime nobody saved, with no workdir | `-H 'standalone:docker@gpubox': docker@gpubox is not saved with a workdir of its own; expected standalone:docker@gpubox/<workdir>` |
 | `ssh@` with no host | `-H 'standalone:ssh@': ssh needs a host, as in ssh@host/workdir` |
 

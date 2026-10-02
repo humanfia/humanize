@@ -139,7 +139,9 @@ _PAGES = (
     _Page("Settings", "⚙", "this machine: error reports, details, and the /btw agent"),
     _Page("Workspace", "⌂", "this directory: its flow, profiling, and forgetting it"),
     _Page("Accounts", "◉", "what agents sign in as, per CLI"),
-    _Page("Runtimes", "▦", "ssh hosts and docker daemons a flow's roles run on"),
+    _Page(
+        "Runtimes", "▦", "ssh hosts, docker daemons and swarms a flow's roles run on"
+    ),
     _Page("Fallback", "↻", "where a turn goes when an agent fails"),
     _Page("Flowverses", "⑂", "where flows come from"),
 )
