@@ -1,8 +1,9 @@
 # Contributing
 
 Pull requests are welcome. This page gets a checkout of humanize ready to change: installed,
-checked the way CI checks it, and with the rules every change is held to. For a large change,
-open an [issue](https://github.com/humanfia/humanize/issues) first.
+checked the way CI checks it, and with the rules every change is held to. Bugs and feature
+requests go through the [issue forms](https://github.com/humanfia/humanize/issues/new/choose);
+for a large change, open a feature request first.
 
 ::: tip First time here?
 [Your first patch](/contributing/tutorials/first-patch) takes one small change from clone to

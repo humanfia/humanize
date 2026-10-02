@@ -1153,7 +1153,7 @@ when the flow runs.
 
 - Turn on [details](/user/settings#details) to see everything the agents do, and press
   <kbd>←</kbd> for [the monitor](/user/monitor) to see which one is doing what.
-- [Export the run](/user/export) from `/epics` and attach the archive to an issue, with the
-  output of `hmz --version`. Credentials are struck out, but your task and the agents'
+- [Export the run](/user/export) from `/epics` and attach the archive to a
+  [bug report](https://github.com/humanfia/humanize/issues/new?template=bug_report.yml), with
+  the output of `hmz --version`. Credentials are struck out, but your task and the agents'
   transcripts are in it.
-- Ask in [issues](https://github.com/humanfia/humanize/issues).

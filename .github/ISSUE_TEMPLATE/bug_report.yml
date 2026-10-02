@@ -1,0 +1,85 @@
+name: Bug report
+description: Report something humanize does wrong
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report. Search the
+        [existing issues](https://github.com/humanfia/humanize/issues) first, in case it is
+        already known.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected to happen, and what happened instead.
+      placeholder: Tell us what you see.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran, and the flow if one was involved, so we can see it too.
+      placeholder: |
+        1. hmz exec -f chat -a assistant=claude/claude-opus-5:high "..."
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What `hmz --version` prints.
+      placeholder: hmz 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows (WSL)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: agents
+    attributes:
+      label: Coding agents involved
+      description: Which coding-agent CLIs the run drove, if any.
+      multiple: true
+      options:
+        - claude
+        - codex
+        - agy
+        - dsh
+        - grok
+        - kimi
+        - pi
+        - qwen
+        - opencode
+        - mimo
+        - cursor-agent
+        - mcode
+        - None
+  - type: input
+    id: flow
+    attributes:
+      label: Flow
+      description: The flow that was running, if any.
+      placeholder: chat
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any relevant output. It is rendered as code, so no backticks are needed.
+      render: shell
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might help, such as screenshots or how you installed hmz.
