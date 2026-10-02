@@ -8,7 +8,7 @@ import { withBase } from 'vitepress'
 
 # Two accounts of one CLI
 
-<p class="hmz-tagline">Each agent runs as an account of its own. When one fails, the conversation moves on.</p>
+<p class="hmz-tagline">Each agent runs as an account of its own. When one fails, the turn moves on.</p>
 
 <HmzAccounts />
 
@@ -19,10 +19,9 @@ import { withBase } from 'vitepress'
 - **A subscription, a key or a gateway.** Two agents of one CLI can run as two of them at once.
 - **One key, several CLIs.** An Anthropic key works in Claude Code, pi, opencode and mimocode. A
   subscription stays in its CLI.
-- **Chains end.** One that loops stops the second time round. None falls back to this machine's
-  own sign-in.
-- **No account left?** The next [place](/user/settings#fallback) takes over: another CLI or
-  model, in a new conversation.
+- **Tried again first.** A turn that failed is retried at its place as often as you said.
+- **Then the chain.** The next [place](/user/settings#fallback) takes over, and the one after it
+  if that fails too: another account, CLI or model, in a new conversation.
 
 </div>
 
@@ -33,7 +32,7 @@ import { withBase } from 'vitepress'
   </a>
   <a :href="withBase('/user/settings#fallback')">
     <strong>Set the chain</strong>
-    <span>The accounts to fall back to, the next place, and the waits.</span>
+    <span>The waits, then the places to fall back to, in order.</span>
   </a>
   <a :href="withBase('/reference/providers')">
     <strong>Every way in</strong>

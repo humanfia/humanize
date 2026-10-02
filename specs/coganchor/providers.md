@@ -1,10 +1,9 @@
 # `coganchor/providers`
 
 Which account a coding agent runs as, kept apart from which CLI it is: a named set of
-credentials for one backend, the chain of accounts a turn carries on under when one fails, and
-running a CLI with its own credential paths answered by that account's -- and its session paths
-by the directory humanize keeps its sessions in. It does not say how
-many times a failed turn is tried before the chain moves on, which is `hmz.coganchor.fallbacks`.
+credentials for one backend, and running a CLI with its own credential paths answered by that
+account's -- and its session paths by the directory humanize keeps its sessions in. It does not
+say where a failed turn goes or how many times it is tried, which is `hmz.coganchor.fallbacks`.
 
 ## API
 
@@ -21,7 +20,6 @@ class Provider:
     env: Mapping[str, str] = field(default_factory=dict)
     args: tuple[str, ...] = ()
     made: str = ""
-    fallback: str = ""
     @property
     def at(self) -> Path: ...
     def swaps(self) -> tuple[tuple[str, str], ...]: ...
@@ -51,12 +49,6 @@ def remove(cli: str, name: str) -> bool: ...
 def serves(one: Provider) -> tuple[str, ...]: ...
 
 def copies(one: Provider, cli: str, name: str = "") -> Provider: ...
-
-def alone(cli: str) -> Path: ...
-
-def chain(provider: Provider) -> list[Provider]: ...
-
-def points(cli: str, name: str, at: str) -> bool: ...
 
 def env_of(said: str) -> dict[str, str]: ...
 
@@ -131,12 +123,11 @@ def failed(status: int) -> int: ...
 - `serves` MUST answer nothing for an account that cannot travel whole; `copies` MUST write
   under the same name, over one already there, and MUST raise `ValueError` where that backend
   could not be run as this account.
-- Where a turn goes when an account fails MUST be said on the account; `chain` MUST start
-  there, MUST end at an account that is not there or one already walked, and MUST never be
-  empty. `points` MUST raise `ValueError` for a fallback naming itself or an account that is
-  not there. A chain MAY begin at `LOCAL` and MUST NOT end there.
-- `add` MUST replace what it holds rather than merge it, MUST keep the fallback an account
-  already had, and MUST leave credentials a login left behind alone; `ready` MUST make every
+- An account MUST NOT say where a turn goes when it fails; a `fallback` an older humanize wrote
+  into `provider.json` MUST be read past, the account loading as though it were not there, and
+  MUST be gone the next time the account is written.
+- `add` MUST replace what it holds rather than merge it, and MUST leave credentials a login left
+  behind alone; `ready` MUST make every
   place a credential will land before anything writes one.
 - A turn under an account MUST run with that account's variables and with the backend's own
   credential paths answered by the account's, and the CLI MUST NOT be asked to cooperate or be

@@ -381,7 +381,7 @@ def test_every_level_of_the_store_is_this_users_own(
 def test_two_writing_at_once_do_not_take_each_others_files_away(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """One `hmz` saving in a menu while another points a chain from a script.
+    """One `hmz` saving in a menu while another corrects the same account from a script.
 
     Both write the same account, and each writes beside it and moves it into place. Beside it
     under one fixed name, the second finds its own half-written file already moved away --
@@ -391,14 +391,12 @@ def test_two_writing_at_once_do_not_take_each_others_files_away(
 
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "held"))
     store.add("claude", "mine", env={"ANTHROPIC_API_KEY": "not-a-key"})
-    store.add("claude", "spare", env={"ANTHROPIC_API_KEY": "not-a-key-either"})
     went: list[BaseException] = []
 
     def writes(policy: str) -> None:
         try:
-            for _ in range(40):
+            for _ in range(80):
                 store.add("claude", "mine", way=policy, env={"ANTHROPIC_API_KEY": "k"})
-                store.points("claude", "mine", "spare")
         except BaseException as up:  # noqa: BLE001 -- the thread's, to be raised on the main one
             went.append(up)
 
@@ -413,7 +411,6 @@ def test_two_writing_at_once_do_not_take_each_others_files_away(
     assert (
         found is not None
     )  # and what is on disk is one whole account, not half of two
-    assert found.fallback == "spare"
     assert found.way in ("key", "gateway")
     # And nothing is left lying beside it: every write took its own file with it.
     assert sorted(one.name for one in found.at.iterdir()) == [
@@ -424,15 +421,14 @@ def test_two_writing_at_once_do_not_take_each_others_files_away(
     ]
 
 
-@pytest.mark.parametrize("said", ["1e400", "Infinity", "NaN", "4", "null"])
-def test_a_fallback_written_by_hand_is_read_past_rather_than_losing_the_account(
+@pytest.mark.parametrize("said", ['"spare"', "1e400", "Infinity", "NaN", "4", "null"])
+def test_a_fallback_an_older_humanize_wrote_is_read_past_and_dropped(
     said: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A file edited by somebody is a file to read past rather than one to raise about.
+    """An account no longer says where a turn goes when it fails; a file that still does loads.
 
-    An account is a name, and a fallback is the name of another: anything else in that field
-    is somebody's editing, and one hand-edited file must not take out every account of that
-    backend.
+    Whatever is in that field -- the name of another account, as an older humanize wrote it,
+    or somebody's editing -- is read past, and gone the next time the account is written.
     """
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "held"))
     provider = store.add("claude", "mine", env={"ANTHROPIC_API_KEY": "not-a-key"})
@@ -443,5 +439,7 @@ def test_a_fallback_written_by_hand_is_read_past_rather_than_losing_the_account(
     found = store.find("claude", "mine")
 
     assert found is not None
-    assert found.fallback == ""
+    assert not hasattr(found, "fallback")
     assert [one.name for one in store.providers("claude")] == ["mine"]
+    store.add("claude", "mine", env={"ANTHROPIC_API_KEY": "not-a-key"})
+    assert "fallback" not in json.loads((provider.at / "provider.json").read_text())

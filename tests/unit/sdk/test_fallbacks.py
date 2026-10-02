@@ -3,7 +3,7 @@
 The store itself is `hmz.coganchor.fallbacks`'s, and it is checked where a turn is watched
 walking one: `tests/integration/agents/test_agent_fallback.py` for what a step may say and
 what a chain comes to, and `tests/integration/agents/test_fallback.py` for how many times over
-a failed turn is taken again before the step happens. It was also
+a failed turn is taken again before the chain is walked. It was also
 `tests/test_fallback_command.py`'s, which was the `hmz fallback` line; that line and its tests
 went together, so anything it alone covered is covered by nothing now rather than elsewhere.
 
@@ -15,8 +15,11 @@ whichever way in wrote them.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
+from hmz import home
 from hmz.sdk import Hmz
 
 
@@ -67,7 +70,7 @@ def test_a_place_nothing_is_written_against_says_nothing_rather_than_missing() -
     written = Hmz().fallbacks.tried("claude/opus")
 
     assert written.spec == "claude/opus"
-    assert written.to == ""
+    assert written.to == ()
     assert written.tries == 0
     assert written.timeout == 0.0
 
@@ -79,22 +82,130 @@ def test_a_place_that_falls_back_nowhere_is_a_chain_of_itself_alone() -> None:
 def test_a_step_written_from_here_is_the_chain_and_the_listing_a_line_walks() -> None:
     held = Hmz().fallbacks
 
-    step = held.points("claude/opus", "codex/gpt")
+    step = held.points("claude/opus", ["codex/gpt"])
 
     assert step.spec == "claude/opus"
-    assert step.to == "codex/gpt"
+    assert step.to == ("codex/gpt",)
     assert held.chain("claude/opus") == ["claude/opus", "codex/gpt"]
     assert [one.spec for one in held.all()] == ["claude/opus"]
 
 
+def test_a_chain_is_walked_in_the_order_it_was_written() -> None:
+    held = Hmz().fallbacks
+
+    step = held.points("claude/opus", ["codex/gpt", "agy/pro", "kimi/k2"])
+
+    assert step.to == ("codex/gpt", "agy/pro", "kimi/k2")
+    assert held.chain("claude/opus") == [
+        "claude/opus",
+        "codex/gpt",
+        "agy/pro",
+        "kimi/k2",
+    ]
+
+
+def test_a_place_that_is_only_somebody_else_s_fallback_has_no_chain_of_its_own() -> (
+    None
+):
+    """Started there directly, nothing written against the main one is walked."""
+    held = Hmz().fallbacks
+    held.points("claude/opus", ["codex/gpt", "agy/pro"])
+
+    assert held.chain("codex/gpt") == ["codex/gpt"]
+    assert held.chain("agy/pro") == ["agy/pro"]
+
+
+def test_a_chain_is_not_spliced_onto_the_chains_of_the_places_on_it() -> None:
+    """A place on a chain that heads a chain of its own does not lend it to this one."""
+    held = Hmz().fallbacks
+    held.points("claude/opus", ["codex/gpt"])
+    held.points("codex/gpt", ["agy/pro"])
+
+    assert held.chain("claude/opus") == ["claude/opus", "codex/gpt"]
+    assert held.chain("codex/gpt") == ["codex/gpt", "agy/pro"]
+
+
+def test_a_chain_naming_a_place_twice_is_refused() -> None:
+    with pytest.raises(ValueError, match="already one of the places"):
+        Hmz().fallbacks.points("claude/opus", ["codex/gpt", "codex/gpt"])
+
+
+def test_a_chain_coming_back_to_its_own_place_is_refused() -> None:
+    with pytest.raises(ValueError, match="cannot fall back to itself"):
+        Hmz().fallbacks.points("claude/opus", ["codex/gpt", "claude/opus"])
+
+
+def test_a_chain_naming_something_that_is_not_a_place_is_refused_whole() -> None:
+    held = Hmz().fallbacks
+
+    with pytest.raises(ValueError, match="is not a place"):
+        held.points("claude/opus", ["codex/gpt", "definitely-not-a-backend/whatever"])
+
+    assert held.all() == []
+
+
+def test_one_place_given_as_a_string_is_a_chain_of_one() -> None:
+    """Which is how a step was written before a place could fall back along several."""
+    held = Hmz().fallbacks
+
+    assert held.points("claude/opus", "codex/gpt").to == ("codex/gpt",)
+    assert held.points("claude/opus", "").to == ()
+
+
+def test_a_step_an_older_humanize_wrote_with_one_place_is_read_as_a_chain_of_one() -> (
+    None
+):
+    home().mkdir(parents=True, exist_ok=True)
+    (home() / "fallbacks.json").write_text(
+        json.dumps([{"spec": "claude/opus", "to": "codex/gpt", "tries": 0}]),
+        encoding="utf-8",
+    )
+
+    held = Hmz().fallbacks
+
+    assert held.chain("claude/opus") == ["claude/opus", "codex/gpt"]
+    # And it is written back as the list it now is the next time it is written at all.
+    held.retrying("claude/opus", 2, held.default, 0.0)
+    written = json.loads((home() / "fallbacks.json").read_text(encoding="utf-8"))
+    assert written[0]["to"] == ["codex/gpt"]
+
+
+def test_what_a_hand_edited_chain_cannot_mean_is_dropped_and_the_rest_kept() -> None:
+    home().mkdir(parents=True, exist_ok=True)
+    (home() / "fallbacks.json").write_text(
+        json.dumps(
+            [
+                {
+                    "spec": "claude/opus",
+                    "to": [
+                        "codex/gpt",
+                        "claude/opus",
+                        "definitely-not-a-backend/whatever",
+                        7,
+                        "codex/gpt",
+                        "agy/pro",
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert Hmz().fallbacks.chain("claude/opus") == [
+        "claude/opus",
+        "codex/gpt",
+        "agy/pro",
+    ]
+
+
 def test_a_step_that_would_point_at_itself_is_refused() -> None:
     with pytest.raises(ValueError, match="cannot fall back to itself"):
-        Hmz().fallbacks.points("claude/opus", "claude/opus")
+        Hmz().fallbacks.points("claude/opus", ["claude/opus"])
 
 
 def test_a_step_from_a_place_that_is_not_one_is_refused() -> None:
     with pytest.raises(ValueError, match="is not a place"):
-        Hmz().fallbacks.points("definitely-not-a-backend/whatever", "codex/gpt")
+        Hmz().fallbacks.points("definitely-not-a-backend/whatever", ["codex/gpt"])
 
 
 def test_how_a_failed_turn_is_taken_again_is_written_on_the_same_row_as_the_step() -> (
@@ -102,7 +213,7 @@ def test_how_a_failed_turn_is_taken_again_is_written_on_the_same_row_as_the_step
 ):
     """Both are answers to the one thing that happened, so one row holds them."""
     held = Hmz().fallbacks
-    held.points("claude/opus", "codex/gpt")
+    held.points("claude/opus", ["codex/gpt"])
 
     step = held.retrying("claude/opus", 3, "linear", 30.0)
 
@@ -110,7 +221,7 @@ def test_how_a_failed_turn_is_taken_again_is_written_on_the_same_row_as_the_step
     assert step.policy == "linear"
     assert step.timeout == 30.0
     # And writing the one did not forget the other.
-    assert step.to == "codex/gpt"
+    assert step.to == ("codex/gpt",)
     assert [one.spec for one in held.all()] == ["claude/opus"]
 
 
@@ -121,7 +232,7 @@ def test_trying_again_by_a_wait_that_is_not_one_is_refused() -> None:
 
 def test_a_step_taken_away_is_a_place_that_falls_back_nowhere_again() -> None:
     held = Hmz().fallbacks
-    held.points("claude/opus", "codex/gpt")
+    held.points("claude/opus", ["codex/gpt"])
 
     assert held.clear("claude/opus")
 
@@ -129,3 +240,28 @@ def test_a_step_taken_away_is_a_place_that_falls_back_nowhere_again() -> None:
     assert held.all() == []
     # And there is nothing left to take away a second time.
     assert not held.clear("claude/opus")
+
+
+def test_steps_an_older_humanize_linked_one_to_the_next_read_as_the_chain_they_made() -> (
+    None
+):
+    """Such a file walked from one row to the next; read as the chain, it still reaches all."""
+    home().mkdir(parents=True, exist_ok=True)
+    (home() / "fallbacks.json").write_text(
+        json.dumps(
+            [
+                {"spec": "claude/opus", "to": "codex/gpt"},
+                {"spec": "codex/gpt", "to": "agy/pro"},
+                {"spec": "agy/pro", "to": "claude/opus"},
+                {"spec": "kimi/k2", "to": ["codex/gpt"]},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    held = Hmz().fallbacks
+
+    assert held.chain("claude/opus") == ["claude/opus", "codex/gpt", "agy/pro"]
+    assert held.chain("codex/gpt") == ["codex/gpt", "agy/pro", "claude/opus"]
+    # A chain written as a list is one somebody wrote whole, and is not walked on from.
+    assert held.chain("kimi/k2") == ["kimi/k2", "codex/gpt"]

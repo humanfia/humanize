@@ -1,14 +1,9 @@
 """Where a turn goes when the place taking it cannot take it at all.
 
-The layer between an agent and an account, and it is neither of them. An account has a chain of its
-own -- `hmz.coganchor.providers` -- and it is the right one for what it is for: a subscription that
-ran out falls to a key of the same backend, the conversation carries on because the conversation is
-the backend's and is named by an id, and the same agent goes on running.
-
-This is the other half. A model that has been retired, a CLI that will not start, a region
-that has gone dark, a rate limit on the whole of an account rather than one request: none of
-those is answered by another account of the same backend. What answers it is another place to
-run -- another CLI, another account, another model -- and the turn is taken there.
+A model that has been retired, a CLI that will not start, a region that has gone dark, a rate
+limit on the whole of an account rather than one request: none of those is answered by trying
+the same place again. What answers it is another place to run -- another CLI, another account,
+another model -- and the turn is taken there.
 
 A place is three things and no more: the CLI, the account it runs as, and the model it runs.
 `claude@work/claude-opus-5` to `codex@key/gpt-5.6-sol`, which is a step from one to another.
@@ -16,6 +11,13 @@ It is not a step between agents. How hard an agent thinks, what it may reach for
 flow's skills it carries and what it is called are what that agent *is*, settled where it was
 made, and they come across the step unchanged: what failed was the place, so the place is what
 moves.
+
+A place falls back along a chain rather than to one other place: `claude@work/claude-opus-5`
+to `codex@key/gpt-5.6-sol` and then to `gemini/gemini-3-pro`, each tried when the one before it
+has failed too. The chain is the place's own and is only ever started from it. A turn begun at
+a place that is somebody else's fallback but has no chain written against it has nowhere to go,
+and a place reached as a stand-in carries on along the chain it was reached by -- never along
+one of its own, which would be two chains spliced together that nobody wrote down.
 
 Trying again is written down here too, for the same reason. A turn fails for two kinds of
 reason and only one of them is worth another go -- a gateway that answered 503, a socket that
@@ -26,9 +28,8 @@ goes once those tries are spent.
 
 What is lost across such a step is the conversation, and nothing here pretends otherwise: no
 backend can be handed another backend's session id, so the turn that moves is taken in a new
-session at the place it moved to. Which is why this is the second thing tried and not the
-first: the account chain is walked to its end inside the conversation that was running, and
-only a turn with nowhere left to go under its own backend leaves it.
+session at the place it moved to. Which is why the tries come first: they are taken inside
+the conversation that was running, and only a turn with no tries left leaves it.
 """
 
 from __future__ import annotations
@@ -43,7 +44,7 @@ from hmz import home
 from hmz.coganchor import atomic, backends
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 
 __all__ = [
     "ANSWERS",
@@ -141,14 +142,13 @@ class Answer:
     A place says how many times over a failed turn is taken again and how long to wait between
     them, and that is the right thing for a place to say -- but it is one answer, and what
     stopped the turn is not one question. A rate limit wants a long wait and then another
-    account; a credential that was refused wants no wait at all and the same account chain; a
-    model that has been retired wants neither, no account of that CLI having it either. Retried
-    the same way, three of those are a flow that makes no progress and one is a flow that
-    hammers a service which has just told it to stop.
+    place; a credential that was refused wants no wait at all; a model that has been retired
+    wants no wait either, the next call naming the same model. Retried the same way, three of
+    those are a flow that makes no progress and one is a flow that hammers a service which has
+    just told it to stop.
 
     So the place says the shape and this says what the failure does to it: how few goes it is
-    worth, how long the shortest of them waits, whether the account chain answers it at all,
-    and what to tell whoever is watching.
+    worth, how long the shortest of them waits, and what to tell whoever is watching.
 
     Attributes:
       fault: The kind, as `hmz.coganchor.backends.FAULTS` names them, and "" for the one nobody
@@ -164,9 +164,6 @@ class Answer:
         asked for it, and a row that shortened one would be this file overruling somebody --
         in the one direction that hammers whatever has just failed.
       least: The shortest any of those waits may be, however short both policies made it.
-      accounts: Whether another account of this backend answers it. False for the failures no
-        account answers -- a model that is gone, a CLI that is not installed -- whose turn
-        goes straight to the chain of places rather than round every account first.
       reopen: Whether whatever was holding the conversation open is let go of before the next
         go. The conversation is the backend's own and is named by an id, so a new transport
         resumes it: what was lost was the socket and not the session.
@@ -181,7 +178,6 @@ class Answer:
     held: bool = False
     policy: str = ""
     least: float = 0.0
-    accounts: bool = True
     reopen: bool = False
     fix: str = ""
 
@@ -192,7 +188,7 @@ class Answer:
 ANSWERS: tuple[Answer, ...] = (
     # Waited out first and then walked away from, in that order: the service has said the
     # account is spending too fast, so the next call under the same account is the same
-    # answer -- and the account after it is not rate-limited at all.
+    # answer -- and the place after it is not rate-limited at all.
     Answer(
         "throttled",
         "is rate-limited",
@@ -208,10 +204,10 @@ ANSWERS: tuple[Answer, ...] = (
         held=True,
         fix="that account needs signing in again",
     ),
-    # The model rather than the credential, so the account chain is still worth walking --
-    # what an account may name is that account's, and the next one on the chain has a
-    # catalogue of its own. Not waited out: the list of what this account runs will not have
-    # changed by the next call, and it is the list rather than the moment that is wrong.
+    # The model rather than the credential: what an account may name is that account's, and
+    # the next place on the chain has a catalogue of its own. Not waited out: the list of what
+    # this account runs will not have changed by the next call, and it is the list rather than
+    # the moment that is wrong.
     # What a person does about it is said by the turn that failed, which is the only place
     # that knows which id was named and what humanize was last told this account runs.
     Answer(
@@ -220,13 +216,12 @@ ANSWERS: tuple[Answer, ...] = (
         held=True,
         fix="that model is not this account's to name; ask it what it runs and name one of those",
     ),
-    # And neither waited out nor walked round: every account of this CLI is offered the same
-    # catalogue, so the model that is gone is gone under all of them.
+    # Not waited out either: every account of this CLI is offered the same catalogue, so the
+    # model that is gone is gone at the next call too.
     Answer(
         "retired",
         "has no such model",
         held=True,
-        accounts=False,
         fix="the model is gone or was never this account's; another place is what answers it",
     ),
     # Two turns at one local store, which is nobody's account and nothing to walk to. It
@@ -265,30 +260,26 @@ ANSWERS: tuple[Answer, ...] = (
         "missing",
         "is not installed here",
         held=True,
-        accounts=False,
         fix="",
     ),
     # This machine's filesystem, and nobody's account: the copy of another machine's work a
     # harness here works in has a path that cannot be made here. The next go is the same
-    # path, and so is every account's.
+    # path.
     Answer(
         "unmirrored",
         "could not keep its copy of the work here",
         held=True,
-        accounts=False,
         fix="that path cannot be made here; use a workdir whose path you can create here, "
         "or run the harness on that machine with -H env",
     ),
     # The machine rather than anything a turn named. A CLI that confines its own tool calls
     # asks the kernel for the confinement, and a kernel that has just said no says no to the
-    # next go and to every account of it: an unprivileged container is not somewhere
-    # bubblewrap works under a different key. What answers it is the machine, the CLI asked
-    # for no sandbox, or another place.
+    # next go: an unprivileged container is not somewhere bubblewrap works under a different
+    # key. What answers it is the machine, the CLI asked for no sandbox, or another place.
     Answer(
         "sandboxed",
         "could not start its sandbox",
         held=True,
-        accounts=False,
         fix="this machine will not let it sandbox itself; run it without one, or somewhere it can",
     ),
 )
@@ -302,7 +293,7 @@ def answers(fault: str) -> Answer:
 
     Returns:
       Its row, or the one a failure nobody classified gets: no goes beyond the ones the place
-      asked for, the place's own wait, and the account chain after them -- which is what every
+      asked for, the place's own wait, and the place's chain after them -- which is what every
       failed turn got before there was a taxonomy to read one by. So whoever is recovering a
       turn reads a row rather than a row and a special case.
     """
@@ -317,8 +308,10 @@ class Falls:
       spec: The place, as `CLI[@ACCOUNT]/MODEL` -- three things and no more, because those
         are what a turn can fail for having named. How hard the agent thinks and what it may
         reach for are what that agent is rather than where it runs.
-      to: The place that takes the turn instead, in the same spelling, or "" for one that
-        falls back nowhere -- which is a turn that fails as a turn has always failed.
+      to: The places that take the turn instead, in the same spelling and in the order they
+        are tried -- each when every one before it has failed too -- or none at all for a
+        place that falls back nowhere, which is a turn that fails as a turn has always failed.
+        Never this place and never one place twice.
       tries: How many times over a failed turn is tried again here before the step is taken.
         Zero is the first try and no more, which is what a turn has always had.
       policy: How long to wait between those tries, as :data:`POLICIES` names them.
@@ -326,7 +319,7 @@ class Falls:
     """
 
     spec: str
-    to: str = ""
+    to: tuple[str, ...] = ()
     tries: int = 0
     policy: str = DEFAULT
     timeout: float = 0.0
@@ -402,21 +395,32 @@ def falls() -> list[Falls]:
         return []
     if not isinstance(held, list):
         return []
+    rows = [
+        cast("dict[str, Any]", one)
+        for one in cast("list[object]", held)
+        if isinstance(one, dict)
+    ]
+    # The steps an older humanize wrote, one place to the next, which it walked from one row
+    # to the row of the place it named. Read as the chain they came to, so that a file written
+    # before chains were lists still reaches every place it reached -- and is written back as
+    # one the next time anything is.
+    linked = {
+        reads(str(one.get("spec") or "")): reads(one["to"])
+        for one in rows
+        if isinstance(one.get("to"), str)
+    }
     found: list[Falls] = []
     seen: set[str] = set()
-    for said_ in cast("list[object]", held):
-        if not isinstance(said_, dict):
-            continue
-        one = cast("dict[str, Any]", said_)
+    for one in rows:
         # Read back through the same reading that wrote them: a file edited by hand holds
         # whatever somebody typed, and a step naming a CLI there is none of is a step that
         # could only fail the turn it was asked about.
-        said, at_ = reads(str(one.get("spec") or "")), reads(str(one.get("to") or ""))
-        if not said or said == at_ or said in seen:
+        said = reads(str(one.get("spec") or ""))
+        if not said or said in seen:
             continue
         step = Falls(
             said,
-            at_,
+            _onwards(said, one.get("to"), linked),
             tries=_counted(one.get("tries")),
             policy=str(one.get("policy") or DEFAULT),
             timeout=_seconds(one.get("timeout")),
@@ -442,31 +446,44 @@ def tried(said: str) -> Falls:
     return next((one for one in falls() if one.spec == from_), Falls(from_))
 
 
-def points(said: str, at: str) -> Falls:
+def points(said: str, to: Sequence[str]) -> Falls:
     """Says where one place's turns go when it cannot take them, and writes it down.
 
     Args:
       said: The place that fails, as `CLI[@ACCOUNT]/MODEL`.
-      at: The place that takes the turn instead, or "" to say it falls back nowhere -- which
-        is a turn that fails as a turn has always failed.
+      to: The places that take the turn instead, in the order they are tried, or none at all
+        to say it falls back nowhere -- which is a turn that fails as a turn has always
+        failed. A single string is one place rather than a list of its letters, and an empty
+        one is none -- which is how this was called when a place fell back to one other.
 
     Returns:
-      The step as it now stands, whose `to` is "" for one that was taken away.
+      The step as it now stands, whose `to` is empty for one that was taken away.
 
     Raises:
-      ValueError: If either cannot be read as a place, or if the two are the same one. A step
-        that pointed at itself would be a turn that could never run out of places to go, and
-        it is refused where it is written rather than found by the turn that needed it.
+      ValueError: If any of them cannot be read as a place, if one of the places it falls
+        back to is this place, or if one is named twice. A chain that came back to itself
+        would be a turn that could never run out of places to go, and one naming a place
+        twice is a place tried twice for nothing; each is refused where it is written rather
+        than found by the turn that needed it.
     """
+    if isinstance(to, str):
+        to = [to] if to.strip() else []
     from_ = reads(said)
     if not from_:
         raise ValueError(f"{said!r} is not a place: expected CLI[@ACCOUNT]/MODEL")
-    to = reads(at) if at.strip() else ""
-    if at.strip() and not to:
-        raise ValueError(f"{at!r} is not a place: expected CLI[@ACCOUNT]/MODEL")
-    if to == from_:
-        raise ValueError(f"{from_} cannot fall back to itself")
-    return _keeps(replace(tried(from_), spec=from_, to=to))
+    onwards: list[str] = []
+    for at in to:
+        one = reads(at)
+        if not one:
+            raise ValueError(f"{at!r} is not a place: expected CLI[@ACCOUNT]/MODEL")
+        if one == from_:
+            raise ValueError(f"{from_} cannot fall back to itself")
+        if one in onwards:
+            raise ValueError(
+                f"{one} is already one of the places {from_} falls back to"
+            )
+        onwards.append(one)
+    return _keeps(replace(tried(from_), spec=from_, to=tuple(onwards)))
 
 
 def retrying(said: str, tries: int, policy: str, timeout: float) -> Falls:
@@ -542,22 +559,14 @@ def chain(said: str) -> list[str]:
     Returns:
       The specs, in the order they are tried. The first is always this place, whether or not
       anything was written down about it, so that whoever is walking one walks a list rather
-      than a list and a special case.
-
-    Note:
-      A chain that comes round on itself ends at the second sight of a place, and one whose
-      next step names a place nothing answers to ends there: either would otherwise be a run
-      that never stopped. Read whole rather than a step at a time, because a step at a time
-      is what a loop is made of.
+      than a list and a special case; the rest are the chain written against it, and only
+      against it. A place that is nobody's main -- however many chains it is a step of --
+      is a chain of one, and the places after this one are never walked on to their own
+      chains: the chain is the one somebody wrote down, read whole, and a list read whole
+      is one that cannot come round on itself.
     """
     from_ = reads(said) or said.strip()
-    walked = [from_]
-    seen = {from_}
-    steps = {one.spec: one.to for one in falls()}
-    while (nowhere := steps.get(walked[-1], "")) and nowhere not in seen:
-        seen.add(nowhere)
-        walked.append(nowhere)
-    return walked
+    return [from_, *tried(from_).to]
 
 
 def named(policy: str) -> Policy | None:
@@ -616,6 +625,40 @@ def _fibonacci(over: int) -> int:
     return held
 
 
+def _onwards(said: str, to: object, linked: dict[str, str]) -> tuple[str, ...]:
+    """The places one place falls back to, as they were written down.
+
+    A list, in the order they are tried -- or a single string, which is how a step was written
+    before a place could fall back along more than one: the place it names, and then each place
+    the older steps went on to from there, which is the chain such a file always meant. Whatever
+    of it cannot be read as a place, names this place, or names one a second time is dropped
+    rather than the whole step: a file edited by hand holds whatever somebody typed, and the
+    places that are readable are still where somebody meant the turn to go.
+
+    Args:
+      said: The place it is written against, already read.
+      to: What was written as where it goes.
+      linked: Every step written as a single string, by the place it was written against.
+
+    Returns:
+      The places, readable, distinct and none of them this one.
+    """
+    if isinstance(to, str):
+        held: list[object] = [reads(to)]
+        # Walked until it comes round or runs out, and only through steps of the same older
+        # spelling: a chain written as a list is a chain somebody wrote whole.
+        while (after := linked.get(cast("str", held[-1]), "")) and after not in held:
+            held.append(after)
+    else:
+        held = cast("list[object]", to) if isinstance(to, list) else []
+    onwards: list[str] = []
+    for one in held:
+        at = reads(one) if isinstance(one, str) else ""
+        if at and at != said and at not in onwards:
+            onwards.append(at)
+    return tuple(onwards)
+
+
 def _counted(said: object) -> int:
     """One count as it was written down, and none at all for anything that is not one."""
     try:
@@ -672,7 +715,7 @@ def _writes(steps: Iterable[Falls]) -> None:
             [
                 {
                     "spec": one.spec,
-                    "to": one.to,
+                    "to": list(one.to),
                     "tries": one.tries,
                     "policy": one.policy,
                     "timeout": one.timeout,

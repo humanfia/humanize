@@ -10,7 +10,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | Store | File | Scope | Edited on `/settings` page | Reference |
 | --- | --- | --- | --- | --- |
 | settings | `H/settings.yaml` | this machine, and per workspace | Settings, Workspace (and `/flow`) | this page |
-| accounts | `H/providers/<cli>/<name>/provider.json`, `H/local/<cli>.json`, `H/acp.json` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
+| accounts | `H/providers/<cli>/<name>/provider.json`, `H/acp.json` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
 | environment providers | `H/env-providers/{ssh,docker}/<name>/provider.json` | this machine | Environments | [Machines](/reference/machines#environment-providers) |
 | fallbacks | `H/fallbacks.json` | this machine | Fallback | [Files](/reference/files#h-fallbacks-json) |
 | flowverses | `H/flowverses/<name>/` (git clones) | this machine | Flowverses | [Flows](/reference/flows#flowverses) |
