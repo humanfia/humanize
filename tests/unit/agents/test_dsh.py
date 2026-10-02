@@ -855,27 +855,20 @@ def test_an_ordinary_failure_is_still_one_to_take_again() -> None:
     assert not isinstance(raised.value, Unrecoverable)
 
 
-def test_a_turn_that_outgrew_the_model_is_taken_once_under_every_account(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_a_turn_that_outgrew_the_model_is_taken_once_wherever_its_chain_goes() -> None:
     """The loop the report was about, from the outside: one failure, and one turn.
 
     A place that says a turn at it is worth taking again would otherwise take this one again
-    on every rung of its chain of accounts, each try failing on the same words.
+    on every try it asked for and then at every place of its chain, each failing on the same
+    words.
     """
-    from hmz.coganchor import fallbacks, providers
+    from hmz.coganchor import fallbacks
 
-    tried_again = providers.Provider("dsh", providers.LOCAL, way="", fallback="second")
-    second = providers.Provider("dsh", "second", way="")
-
-    def chain(account: providers.Provider) -> list[providers.Provider]:
-        return [account, second]
-
-    monkeypatch.setattr(providers, "chain", chain)
-    fallbacks.retrying(DshAgent(configured()).spec, 3, "none", 0.0)
+    spec = DshAgent(configured()).spec
+    fallbacks.retrying(spec, 3, "none", 0.0)
+    fallbacks.points(spec, [f"{spec}-other"])
     Harness.next_scripts.extend([failing(_OVERFLOWED)] for _ in range(8))
     agent = DshAgent(configured())
-    monkeypatch.setattr(agent, "node", lambda: tried_again)
 
     with pytest.raises(Unrecoverable):
         agent("work")

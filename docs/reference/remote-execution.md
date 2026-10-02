@@ -321,7 +321,7 @@ affinity := [<entry>, ...]
   output goes to a socket (opencode's, Claude Code's stdin) is run with that output lost.
 - An affinity is checked when the runtime is made: an entry that is none of the above, one
   named twice, or one naming the runtime itself is a `ValueError`
-  (`<name>: '<entry>' is not where a harness runs: self, local or <ssh|docker>:<runtime name>`,
+  (`<name>: '<entry>' is not where a harness runs: self, local or <ssh|docker|swarm>:<runtime name>`,
   `<name>: <entry> is in its affinity twice`, `<name>: its affinity names itself; self is its
   own machine`). An entry naming a runtime nobody saved is accepted, and has no room.
 

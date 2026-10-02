@@ -17,7 +17,7 @@ import pytest
 
 from hmz import home
 from hmz.coganchor.machines import AnchoredConfig, store
-from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime
+from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime, SwarmRuntime
 from hmz.coganchor.transport import Endpoint, Target, ssh_flags
 from hmz.flows import EnvBackendKind, EnvUnavailable
 from hmz.runtime.flowing.environing import MachineEnvDriver
@@ -108,6 +108,74 @@ def test_a_docker_runtime_is_read_back_as_it_was_written_down() -> None:
         ("0", "1"),
     )
     assert read.held()["gpus"] == ["0", "1"]
+
+
+def test_a_swarm_runtime_is_read_back_as_it_was_written_down() -> None:
+    written = store.write(
+        store.new(
+            "swarm",
+            "cluster",
+            endpoint="ssh://me@manager:2222",
+            image="python:3.12",
+            run_args=["--no-resolve-image"],
+            cpus=32,
+            memory=1 << 36,
+            gpu_resource="NVIDIA-GPU",
+            constraints=["node.labels.gpu==true", "node.role != manager"],
+            max_tasks=8,
+            nodes={"worker1": "gpu1", "worker2": "me@10.0.0.7:2222"},
+            workdir="/srv/shared",
+        )
+    )
+
+    read = store.find("swarm", "cluster")
+    assert read == written
+    assert isinstance(read, SwarmRuntime)
+    assert (read.cpus, read.constraints, read.max_tasks) == (
+        32.0,
+        ("node.labels.gpu==true", "node.role != manager"),
+        8,
+    )
+    assert read.held()["nodes"] == {"worker1": "gpu1", "worker2": "me@10.0.0.7:2222"}
+    assert read.held()["backend"] == "swarm"
+    assert read.at == store.under() / "swarm" / "cluster"
+
+
+@pytest.mark.parametrize(
+    ("fields", "said"),
+    [
+        ({"endpoint": "ftp://x"}, "is not a docker endpoint"),
+        ({"tls_dir": "/certs"}, "TLS certificates require a tcp:// endpoint"),
+        ({"cpus": -1}, "CPUs cannot be negative"),
+        ({"max_tasks": -1}, "tasks cannot be negative"),
+        ({"gpu_resource": "NVIDIA GPU"}, "invalid generic resource"),
+        ({"constraints": ["node.labels.gpu"]}, "invalid constraint"),
+        ({"constraints": ["==x"]}, "invalid constraint"),
+        ({"nodes": {"-x": "h"}}, "invalid node host name"),
+        ({"nodes": {"w": "me@-oProxyCommand=x"}}, "neither a saved ssh host"),
+        ({"nodes": ["w"]}, "nodes cannot be"),
+        ({"runtime": "nvidia"}, "unknown swarm host setting 'runtime'"),
+        ({"made": "imported"}, "made must be typed for a docker swarm"),
+    ],
+)
+def test_what_no_swarm_runtime_could_be_is_refused(
+    fields: dict[str, object], said: str
+) -> None:
+    with pytest.raises(ValueError, match=said):
+        store.new("swarm", "mine", **fields)
+
+
+def test_a_swarm_node_is_reached_as_a_saved_ssh_host_says_or_as_its_destination() -> (
+    None
+):
+    store.add(SSHRuntime(name="gpu1", host="10.0.0.2", user="me", port=2222))
+
+    assert store.node_of("gpu1") == "ssh:gpu1"
+    assert store.node_of("gpu2") == "ssh://gpu2"
+    assert store.node_of("me@gpu3:22") == "ssh://me@gpu3:22"
+    assert str(store.daemon_of(store.node_of("gpu1"))) == "ssh://me@10.0.0.2:2222"
+    with pytest.raises(ValueError, match="neither a saved ssh host"):
+        store.node_of("-oProxyCommand=x")
 
 
 def test_every_level_is_this_users_alone() -> None:
@@ -321,6 +389,9 @@ def test_an_affinity_is_kept_in_order_and_read_back() -> None:
     held = json.loads((home() / "runtimes/docker/a/runtime.json").read_text())
     assert held["affinity"] == ["docker:b", "self", "ssh:gpu", "local"]
     assert store.affine("docker:b") == ("docker", "b")
+    assert store.affine("swarm:cluster") == ("swarm", "cluster")
+    swarm = store.new("swarm", "cluster", affinity=["swarm:other", "docker:a", "local"])
+    assert swarm.affinity == ("swarm:other", "docker:a", "local")
     assert store.affine("self") is None
     assert store.affine("local") is None
 
@@ -336,6 +407,7 @@ def test_an_affinity_is_kept_in_order_and_read_back() -> None:
         ("docker", ["docker:b", "docker:b"], "docker:b is in its affinity twice"),
         ("docker", ["docker:mine"], "its affinity names itself"),
         ("ssh", ["ssh:mine"], "its affinity names itself"),
+        ("swarm", ["swarm:mine"], "its affinity names itself"),
         ("ssh", "self", "affinity cannot be 'self'"),
     ],
 )
@@ -588,6 +660,29 @@ def test_an_e_naming_a_stored_runtime_that_cannot_be_read_is_refused() -> None:
     (spec,) = parse_envs(["box=ssh@gpu/srv"])
     with pytest.raises(EnvUnavailable, match="'gpu' cannot be read"):
         open_env(spec)
+
+
+def test_an_e_naming_a_swarm_nobody_saved_is_refused_unless_it_is_the_one_here() -> (
+    None
+):
+    (named,) = parse_envs(["box=swarm@ghost/srv"])
+    with pytest.raises(EnvUnavailable, match="docker swarm 'ghost' not found"):
+        open_env(named)
+
+    (here,) = parse_envs(["box=swarm@local/srv"])
+    driver = open_env(here)
+    assert isinstance(driver, MachineEnvDriver)
+    assert driver.backend is EnvBackendKind.SWARM
+    assert driver.provider == "local"
+
+
+def test_an_e_naming_a_swarm_elsewhere_with_a_workdir_under_home_is_refused() -> None:
+    store.add(SwarmRuntime(name="far", endpoint="ssh://manager"))
+
+    (spec,) = parse_envs(["box=swarm@far/~/proj"])
+    with pytest.raises(EnvUnavailable, match="remote docker swarm"):
+        open_env(spec)
+    assert parse_envs(["box=swarm@local/~/proj"])[0].provider == "local"
 
 
 def test_an_e_with_no_workdir_takes_the_one_its_runtime_was_given() -> None:

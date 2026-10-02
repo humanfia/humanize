@@ -232,6 +232,14 @@ def test_an_effort_is_only_what_is_spelled_as_one(
             EnvSpec("box", EnvBackendKind.DOCKER, "local", PurePosixPath("/tmp/x")),
         ),
         (
+            "box=swarm@cluster/srv/x",
+            EnvSpec("box", EnvBackendKind.SWARM, "cluster", PurePosixPath("/srv/x")),
+        ),
+        (
+            "box=swarm@local/tmp/x",
+            EnvSpec("box", EnvBackendKind.SWARM, "local", PurePosixPath("/tmp/x")),
+        ),
+        (
             " spaced = local@/tmp/x ",
             EnvSpec("spaced", EnvBackendKind.LOCAL, "", PurePosixPath("/tmp/x")),
         ),
@@ -262,6 +270,8 @@ def test_a_workdir_may_hold_commas_where_no_key_follows() -> None:
         ("repo=docker@/x", "docker needs a host"),
         ("repo=docker/x", "docker needs a host"),
         ("repo=docker@local", "expected"),
+        ("repo=swarm@/x", "swarm needs a host, as in swarm@local/workdir"),
+        ("repo=swarm@local", "expected"),
         ("repo=podman@local/x", "not a backend"),
         ("repo=ssh@/x", "needs a host"),
         ("repo=ssh/x", "needs a host"),
@@ -290,6 +300,7 @@ def test_an_environment_role_given_twice_is_refused() -> None:
         "repo=ssh@me@h/~/x",
         "repo=local@/",
         "repo=docker@gpubox/srv/x",
+        "repo=swarm@cluster/srv/x",
     ],
 )
 def test_an_environment_is_written_back_as_it_is_read(written: str) -> None:

@@ -15,7 +15,7 @@ provider's directory. Two agents of one CLI can therefore run as two accounts at
 | --- | --- |
 | Name | `<cli>/<name>`, e.g. `claude/work`. `<cli>` is the backend's name (any [alias](/reference/agents#backends) is accepted and normalised). |
 | `<name>` | `[A-Za-z0-9][A-Za-z0-9._-]*` |
-| The machine's own account | `<cli>/` with the empty name, `providers.LOCAL == ""`. Exists for every backend; humanize keeps no credentials for it, and turns under it are the CLI as already signed in. Only its fallback can be set. |
+| The machine's own account | `<cli>/` with the empty name, `providers.LOCAL == ""`. Exists for every backend; humanize keeps no credentials for it, and turns under it are the CLI as already signed in. Nothing about it can be set. |
 | Chosen with | `-a ROLE=CLI@NAME/MODEL:EFFORT`; `AgentConfig.provider="NAME"`; an agent's sheet in the TUI ([TUI](/reference/tui)) |
 | Which CLIs | every built-in backend, and every [ACP CLI](/reference/agents#a-cli-of-your-own) added on this machine (which has only the `env` way) |
 
@@ -39,7 +39,6 @@ $HUMANIZE_HOME/                         default ~/.humanize
 │   ├── home/…                          credential files under the CLI's home
 │   ├── user/…                          credential files under the user's home (~/…)
 │   └── config/…                        credential files under $XDG_CONFIG_HOME
-├── local/<cli>.json                    the machine's own account: its fallback only
 └── models/<cli>.json                   the machine's own account's catalogue
 ```
 
@@ -60,7 +59,6 @@ $HUMANIZE_HOME/                         default ~/.humanize
 | `env` | object of strings | variables a turn under it is given |
 | `args` | array of strings | arguments appended to the backend's command line |
 | `made` | string | UTC time made, `YYYY-MM-DDTHH:MM:SSZ` |
-| `fallback` | string | the account of the same backend a failing turn carries on under; `""` for none. A non-string reads as `""`. |
 
 ```json
 {
@@ -69,12 +67,12 @@ $HUMANIZE_HOME/                         default ~/.humanize
   "way": "key",
   "env": {"ANTHROPIC_API_KEY": "sk-ant-…"},
   "args": [],
-  "made": "2026-09-30T05:49:08Z",
-  "fallback": ""
+  "made": "2026-09-30T05:49:08Z"
 }
 ```
 
-`local/<cli>.json` holds `{"fallback": "<name>"}` and nothing else.
+A `fallback` key written by an older version is ignored, and dropped the next time the account
+is written. So is `local/<cli>.json`, which held only that.
 
 ### `models.json`
 
@@ -185,11 +183,11 @@ order, then `env` for every backend but `dsh`.
 | `login.make(cli, name, way, answers=None)` | Fills unanswered questions from `fixed`; keeps answers whose `Asked.keep` is true (all of them for `env`) and are non-empty; adds `sets`; fills `args`; writes the account with `add`. |
 | `login.asked(way, given)` | The variables still to be answered: neither given nor `fixed`. |
 | `login.sign_in(provider, way, answers=None)` | Runs `argv` (filled) under the provider's credential paths (`hmz internal cred`), environment `os.environ` plus the provider's `env`, writing `answers[way.stdin] + "\n"` to stdin where `stdin` is set. Returns the exit status: `0` for a way with no `argv`, `127` for a CLI not installed. |
-| `add(cli, name, way="env", env=None, args=())` | Writes `provider.json`, replacing `way`, `env`, `args` and `made`; keeps the existing `fallback`; leaves credential files in place; makes every credential parent directory. |
+| `add(cli, name, way="env", env=None, args=())` | Writes `provider.json`, replacing `way`, `env`, `args` and `made`; leaves credential files in place; makes every credential parent directory. |
 | `ready(provider)` | Makes every credential parent directory (`0700`). |
 | `remove(cli, name) -> bool` | Deletes the account directory. |
 
-The machine's own account cannot be made, signed in or removed; only its fallback can be set.
+The machine's own account cannot be made, signed in or removed.
 
 <small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Way`, `Asked`, `PROFILES`), [`src/hmz/coganchor/providers/login.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/login.py).</small>
 
@@ -449,7 +447,7 @@ A credential is the vendor's, so an account made for one backend can often run a
 | --- | --- |
 | `serves(one) -> tuple[str, ...]` | The other backends `one` could be copied to: those for which `backends.serves(one.env, backend)` is not `None`, whether or not a copy exists. |
 | `backends.serves(env, backend)` | `env` renamed to what `backend` reads, each variable matched by any [alike](#variables-taken-away) name in `backend`'s `accounts()`; `None` if `env` is empty or any variable has no name there. |
-| `copies(one, cli, name="")` | Writes the renamed `env` as an account of `cli` under `name` (default `one.name`), overwriting one there. Its `way` is the first `cli` way with no `argv` whose kept asks and sets are exactly those variables, else `env`. Its `fallback` is kept from an existing account of that name. |
+| `copies(one, cli, name="")` | Writes the renamed `env` as an account of `cli` under `name` (default `one.name`), overwriting one there. Its `way` is the first `cli` way with no `argv` whose kept asks and sets are exactly those variables, else `env`. |
 
 - A login account holds files, not variables, so it copies nowhere.
 - `copies` of an account `cli` cannot run raises `ValueError: claude/work cannot be used with codex`.
@@ -458,33 +456,12 @@ A credential is the vendor's, so an account made for one backend can often run a
 
 The TUI's account form offers an `also for <cli>` row per backend in `serves()`.
 
-## Failover: the account chain
+## When an account fails
 
-Each account names the account of the same backend a failing turn carries on under
-(`fallback`). Following those names from the agent's account is the chain.
-
-| Call | Behaviour |
-| --- | --- |
-| `points(cli, name, at) -> bool` | Sets `name`'s fallback to `at` (`""` for none). Returns `False` if `name` does not exist. `name` may be `""`, the machine's own account, whose fallback is written to `local/<cli>.json`. |
-| `chain(provider) -> list[Provider]` | `provider`, then each fallback in turn; stops at a name that does not exist or at the second sight of an account. Never empty. |
-| `agent.walks()` | `chain(agent.node())`: from the account the agent is on now. |
-
-| Refused by `points` | `ValueError` |
-| --- | --- |
-| pointing at itself | `work cannot fail over to itself` |
-| an account that does not exist | `claude account 'nobody' not found` |
-
-- `at=""` is always the end of the chain; nothing can fall back *to* the machine's own account.
-  A chain may start there: an agent given no account starts on it.
-- The conversation continues across the chain: the session id is the backend's, and the next
-  account resumes it. Whatever held the session open (a Claude process, a Codex app server, a
-  DeepSeek Harness runtime, a Kimi daemon) is closed and reopened under the new account. The
-  agent stays on the account it moved to for later turns.
-- A failure whose kind no account answers (`retired`, `missing`, `sandboxed`) skips the chain.
-  Retries before the chain, and places after it, are
-  [Agents › When a turn fails](/reference/agents#retries).
-
-<small>Defined in [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py) (`points`, `chain`), [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py).</small>
+An account does not name another to carry on under. Where a failed turn goes is a
+[fallback chain](/user/settings#fallback) written against a *place* (`CLI[@ACCOUNT]/MODEL`), so
+moving to another account of the same CLI is a place on that chain, taken in a new
+conversation. See [Agents › When a turn fails](/reference/agents#retries).
 
 ## Placement of the account
 
@@ -518,7 +495,7 @@ from hmz.coganchor.providers import login
 
 | `providers.` | |
 | --- | --- |
-| `Provider(cli, name, way="env", env={}, args=(), made="", fallback="")` | one account; `.at`, `.swaps()`, `.command(argv)`, `.held()` |
+| `Provider(cli, name, way="env", env={}, args=(), made="")` | one account; `.at`, `.swaps()`, `.command(argv)`, `.held()` |
 | `LOCAL` | `""` |
 | `ENV` | the `env` way |
 | `ways(cli)` | the backend's ways, `env` last (not for `dsh`) |
@@ -532,8 +509,6 @@ from hmz.coganchor.providers import login
 | `env_of(text)` | parse `NAME=VALUE` lines |
 | `filled(text, answers)` | substitute `{VARIABLE}` |
 | `serves(one)`, `copies(one, cli, name="")` | alike accounts |
-| `points(cli, name, at)`, `chain(one)` | failover |
-| `alone(cli)` | `$HUMANIZE_HOME/local/<cli>.json` |
 
 | `login.` | |
 | --- | --- |
@@ -546,7 +521,6 @@ from hmz.coganchor.providers import login
 | --- | --- |
 | `agent.provider` | `Provider \| None`; `None` for the machine's own account |
 | `agent.node()` | the account it is on now, never `None` |
-| `agent.walks()` | the chain from there |
 | `agent.environment()` | `provider.env` |
 | `agent.hushed()` | `hushes() - provider.env` |
 
@@ -555,12 +529,11 @@ used by the TUI; see [SDK](/reference/sdk):
 
 | `Hmz().accounts.` | |
 | --- | --- |
-| `all(cli="")`, `find(cli, name)`, `where(cli, name)`, `local(cli)` | listing and locating |
+| `all(cli="")`, `find(cli, name)`, `where(cli, name)` | listing and locating |
 | `ways(cli)`, `way(cli, name)`, `asks(way, given)` | the ways in |
 | `write(cli, name, way="", env=None, args=())` | write an account as given, running nothing |
 | `make(cli, name, way, answers=None)`, `sign_in(provider, way, answers=None)` | make from answers; run the way's command |
 | `serves(one)`, `copies(one, cli, name="")` | alike accounts |
-| `points(cli, name, at)`, `chain(one)` | failover |
 | `remove(cli, name)` | delete |
 | `env(text)`, `environ(provider)` | `env_of`, `environ` |
 | `models(cli, provider="")`, `asked(cli, provider="")`, `stale(cli, provider="")`, `ask(cli, provider="", seconds=None)` | the account's model catalogue |

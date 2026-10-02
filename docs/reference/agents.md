@@ -1075,8 +1075,8 @@ missing account; it never falls back to the machine's own.
 
 ## When a turn fails {#retries}
 
-Before a failure reaches the caller, three things are tried in order: retries at the same
-place, the account chain, and a fallback place.
+Before a failure reaches the caller, two things are tried in order: retries at the same
+place, in the same conversation, and then each place of the fallback chain, in order.
 
 ### Retries
 
@@ -1095,19 +1095,19 @@ the Fallback page of `/settings`. Nothing is retried by default.
 
 Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
 
-| Fault | Tries (floor) | Wait | Account chain | Transport reopened | Fix |
-| --- | --- | --- | --- | --- | --- |
-| `throttled` | 1 | at least 30 s | yes | no | this account has spent its quota; another one, or a wait, is what answers it |
-| `refused` | none | — | yes | no | that account needs signing in again |
-| `unlisted` | none | — | yes | no | that model is not this account's to name; ask it what it runs and name one of those |
-| `retired` | none | — | no | no | the model is gone or was never this account's; another place is what answers it |
-| `contended` | 3 | constant | yes | no | two turns of it are sharing one database |
-| `dropped` | 1 | the place's | yes | yes | |
-| `killed` | 1 | constant | yes | yes | the machine it runs on may be out of memory |
-| `missing` | none | — | no | no | |
-| `sandboxed` | none | — | no | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |
-| `unmirrored` | none | — | no | no | that path cannot be made here; use a workdir whose path you can create here, or run the harness on that machine with -H env |
-| unclassified | the place's | the place's | yes | no | |
+| Fault | Tries (floor) | Wait | Transport reopened | Fix |
+| --- | --- | --- | --- | --- |
+| `throttled` | 1 | at least 30 s | no | this account has spent its quota; another one, or a wait, is what answers it |
+| `refused` | none | — | no | that account needs signing in again |
+| `unlisted` | none | — | no | that model is not this account's to name; ask it what it runs and name one of those |
+| `retired` | none | — | no | the model is gone or was never this account's; another place is what answers it |
+| `contended` | 3 | constant | no | two turns of it are sharing one database |
+| `dropped` | 1 | the place's | yes | |
+| `killed` | 1 | constant | yes | the machine it runs on may be out of memory |
+| `missing` | none | — | no | |
+| `sandboxed` | none | — | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |
+| `unmirrored` | none | — | no | that path cannot be made here; use a workdir whose path you can create here, or put self in the affinity of the runtime the work is on |
+| unclassified | the place's | the place's | no | |
 
 `Unrecoverable` is never retried or carried.
 
@@ -1117,19 +1117,20 @@ Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
 | an unknown policy | `'<p>' is not a retry policy: none, constant, linear, exponential, exponential-jitter, fibonacci` |
 | negative or infinite numbers | `tries and seconds are counts, not debts or infinities` |
 | a place falling back to itself | `<place> cannot fall back to itself` |
+| a place named twice on one chain | `<place> is already one of the places <spec> falls back to` |
 
-### Account chain
+### Fallback chain {#when-the-place-has-nowhere-left-to-run}
 
-The agent's account and each account it names as its fallback, walked within the same
-conversation. See [Providers › Failover](/reference/providers#failover-the-account-chain).
-
-### Fallback place {#when-the-place-has-nowhere-left-to-run}
-
-`Hmz().fallbacks.points(place, other)` writes where a place's turns go once its chain is spent.
-`agent.stands_in()` returns the stand-in agent, built once and kept. The turn is taken in a new
-session at the other place, by an agent configured as this one (effort, rung, skills); settings
-that were measurements of the old model (`of_model` fields, e.g. Codex `overrides`) are dropped
-when the model changes. A chain of places stops at the second sight of a place.
+`Hmz().fallbacks.points(place, [other, another])` writes the places a place's turns go to once
+its retries are spent, in order. `fallbacks.chain(place)` is `[place, *to]` for a place a rule is
+written against, and `[place]` for any other, including one that is only on somebody else's
+chain. `agent.stands_in()` returns the stand-in at the next place, built once and kept; a
+stand-in holds the rest of the chain it was reached by and carries on along it, never along a
+rule of its own place. Each stand-in is retried as its own place's rule says. The turn is taken
+in a new session at the other place, by an agent configured as this one (effort, rung, skills);
+settings that were measurements of the old model (`of_model` fields, e.g. Codex `overrides`) are
+dropped when the model changes. An account names no fallback of its own: another account of the
+same CLI is a place on the chain.
 
 <small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`src/hmz/coganchor/standin.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/standin.py).</small>
 
@@ -1646,7 +1647,7 @@ class AgentBase:
     def watch(listener: Callable[[AgentBase, SessionBase | None, Event], None])
     def asked(question) -> str | None; def prompted() -> str | None
     def stands_in() -> AgentBase | None
-    def node() -> Provider; def walks() -> tuple[Provider, ...]
+    def node() -> Provider
     def environment() -> Mapping[str, str]; def hushed() -> frozenset[str]
     def fenced() -> Fence | None; def natively(fence: Fence) -> Fence
 

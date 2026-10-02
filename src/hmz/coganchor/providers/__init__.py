@@ -10,11 +10,9 @@ Which is what lets one flow drive two agents of the same CLI as two different ac
 same time: two Claude Codes, one on an Anthropic subscription and one on somebody's gateway,
 each refreshing its own token and neither able to see the other's.
 
-An account also says which account to carry on under when it is the one that goes down. Each naming
-the next is a chain -- subscription, then key, then gateway -- walked inside the session that was
-running, so a run does not end on the minute one vendor did. How many times over a turn is tried
-before that chain moves on is not written here: that is a thing about the place a turn runs at
-rather than about the credentials it runs with, and `hmz.coganchor.fallbacks` is where it is said.
+Where a turn goes when the account it runs as goes down is not written here: that is a thing about
+the place a turn runs at -- the CLI, the account and the model together -- rather than about the
+credentials it runs with, and `hmz.coganchor.fallbacks` is where it is said.
 """
 
 from __future__ import annotations
@@ -24,8 +22,6 @@ from .store import (
     LOCAL,
     Provider,
     add,
-    alone,
-    chain,
     composed,
     copies,
     env_of,
@@ -33,7 +29,6 @@ from .store import (
     filled,
     find,
     hushed,
-    points,
     providers,
     ready,
     remove,
@@ -47,8 +42,6 @@ __all__ = [
     "LOCAL",
     "Provider",
     "add",
-    "alone",
-    "chain",
     "composed",
     "copies",
     "env_of",
@@ -56,7 +49,6 @@ __all__ = [
     "filled",
     "find",
     "hushed",
-    "points",
     "providers",
     "ready",
     "remove",

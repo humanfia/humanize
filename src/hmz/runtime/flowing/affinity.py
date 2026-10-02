@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Harbors", "affinity_of"]
 
+
 def affinity_of(runtime: Runtime | None) -> tuple[str, ...]:
     """The affinity a session on a runtime is put by: its own, or none for no runtime.
 

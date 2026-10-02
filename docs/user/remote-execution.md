@@ -278,7 +278,9 @@ A docker daemon is saved on the same page with **Add a docker host**, and named 
 `-e box=docker@<name>/…`: see
 [Containers](/user/containers#example-a-daemon-saved-under-a-name).
 Its `endpoint` may be a saved ssh host, the daemon on that host, reached with everything the
-host says.
+host says. A docker swarm is saved there too, with **Add a docker swarm** -- the same form for
+one of its managers, with where its tasks may go in place of GPU ids -- and named with
+`-e box=swarm@<name>/…`, or `swarm@local/…` for the swarm this machine manages.
 
 ## Where the agent runs {#where-the-agent-runs}
 
@@ -453,7 +455,7 @@ status 2.
 | `cannot keep the local copy of the work at …` on the first turn | The path cannot be created here. Use one you can create, or put `self` in the host's affinity. |
 | `… nowhere its affinity (self) names has room …: claude is not installed on ssh@build-box: …` | `self` and no CLI on the host's `PATH`. Install it there, or add `local` to the affinity. |
 | `… nowhere its affinity (docker:gpubox) names has room …: a fence cannot hold a harness that runs on another machine` | A runtime in the affinity for a role not granted everything. Add `local` after it. |
-| `build-box: 'somewhere' is not where a harness runs: self, local or <ssh\|docker>:<runtime name>` | Saving the host refused an affinity entry. Spell each as one of those. |
+| `build-box: 'somewhere' is not where a harness runs: self, local or <ssh\|docker\|swarm>:<runtime name>` | Saving the host refused an affinity entry. Spell each as one of those. |
 
 More, with what causes each, are in [Troubleshooting](/user/troubleshooting).
 

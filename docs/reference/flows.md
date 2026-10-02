@@ -867,7 +867,7 @@ a caller passes it under.
 ## Environment roles {#where-each-agent-works}
 
 An environment is a working directory on a machine: this one, one reached with `ssh`, or a
-container of its own on a docker daemon.
+container of its own on a docker daemon or on whichever node of a docker swarm has room.
 
 ### `EnvCollection` {#envcollection}
 
@@ -894,9 +894,9 @@ class Env(Protocol):
 
 | Member | Value |
 | --- | --- |
-| `workdir` | Where commands run and relative paths resolve: absolute, or `~/…` under the ssh login's home. For `docker`, a directory of the daemon's host, mounted at the same path in the container. |
-| `backend` | `local`, `ssh` or `docker`. |
-| `provider` | `""` for `local`; the ssh destination or saved runtime name for `ssh`; the docker runtime name (`local` for docker's default here) for `docker`. |
+| `workdir` | Where commands run and relative paths resolve: absolute, or `~/…` under the ssh login's home. For `docker`, a directory of the daemon's host, mounted at the same path in the container; for `swarm`, one of the node the task landed on, likewise. |
+| `backend` | `local`, `ssh`, `docker` or `swarm`. |
+| `provider` | `""` for `local`; the ssh destination or saved runtime name for `ssh`; the docker runtime name (`local` for docker's default here) for `docker`; the swarm runtime name (`local` for the swarm this machine manages) for `swarm`. |
 | `available` | Whether the machine was reachable and the workdir existed, as last probed. |
 | `role` | The key it fills. |
 | `derive_subdir(subdir=…)` | An environment at a directory under this workdir, created if missing, same role and grant. `ValueError` for an absolute `subdir` or one that climbs out; `EnvError` if it cannot be made. |
@@ -917,7 +917,9 @@ environment on this machine; an environment on another machine raises `Capabilit
 ### `EnvBackendKind` {#envbackendkind}
 
 `class EnvBackendKind(StrEnum)`: `LOCAL = "local"` (this machine), `SSH = "ssh"` (a host
-`ssh` reaches), `DOCKER = "docker"` (a container of its own on a docker runtime's daemon).
+`ssh` reaches), `DOCKER = "docker"` (a container of its own on a docker runtime's daemon),
+`SWARM = "swarm"` (a container of its own as the one task of a service on a swarm runtime's
+swarm, on whichever node it was placed).
 
 ### What an environment can do {#what-an-environment-can-do}
 
@@ -941,7 +943,7 @@ and tuples of strings match.
 | `CPUEnvMixin` | `_cpu_count: int` | `1` | Minimum logical CPUs. |
 | `MemoryEnvMixin` | `_memory: int` | `0` | Minimum memory, bytes. |
 | `GPUEnvMixin` | `_gpu_count: int`, `_gpu_memory: int` | `1`, `0` | Minimum GPUs; minimum memory per GPU, bytes. |
-| `ImageEnvMixin` | `_image: str` | `""` | Image a `docker` environment's container starts from: `""` for the provider's image, else `python:3.12-slim`. Needs `/bin/sh` and Python ≥ 3.12; no sshd. Ignored for `local` and `ssh`. |
+| `ImageEnvMixin` | `_image: str` | `""` | Image a `docker` or `swarm` environment's container starts from: `""` for the provider's image, else `python:3.12-slim`. Needs `/bin/sh` and Python ≥ 3.12; no sshd. Ignored for `local` and `ssh`. |
 
 An attribute is read only where its mixin is among the type's bases. For `local` and `ssh`, a
 machine with less than declared is refused before anything runs with
@@ -954,6 +956,12 @@ agent starts, the request is held against what the provider may still hand out; 
 cannot, the run is refused with `ResourceUnmet`, naming what is free and which container holds
 the rest ([how](/reference/machines#docker-environments)). Everything derived from a `docker`
 environment is in the same container.
+
+For `swarm` the amounts are what the task reserves of its node, and its limits too; GPUs are
+reserved as the runtime's generic resource. A runtime without that much left, or a task no
+node of the swarm takes, is refused with `ResourceUnmet` the same way
+([how](/reference/machines#swarm-environments)). Everything derived from a `swarm`
+environment is in the task's container.
 
 ### Worktrees, copies and scratch directories {#worktrees-copies-and-scratch-directories}
 
@@ -1506,15 +1514,17 @@ file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every refusal bel
 | `ssh@<host>/abs/path` | a directory on a host: a saved runtime's name, else a destination `ssh` resolves (`host`, `user@host`, an alias) |
 | `ssh@<host>/~/path` | under the login's home there (the leading `/` before `~` is dropped) |
 | `docker@<provider>/abs/path` | a container of its own on a saved docker runtime's daemon (`local`: docker's default here); the path is on the daemon's host and is mounted at the same path |
-| `ssh@<name>`, `docker@<name>` | the workdir the saved runtime was saved with |
+| `swarm@<provider>/abs/path` | a container of its own as the one task of a service on a saved swarm runtime's swarm (`local`: the swarm this machine manages), on whichever node has room; the path is on that node and is mounted at the same path |
+| `ssh@<name>`, `docker@<name>`, `swarm@<name>` | the workdir the saved runtime was saved with |
 
 | Input | Message |
 | --- | --- |
 | no `/workdir` and no saved runtime workdir, or not `<role>=…` | `-e '<item>': expected <role>=<backend>[@<provider>]/<workdir>` |
 | role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
-| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker` |
+| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm` |
 | `ssh` without host | `-e '<item>': ssh needs a host, as in ssh@host/workdir` |
 | `docker` without provider | `-e '<item>': docker needs a host, as in docker@local/workdir` |
+| `swarm` without provider | `-e '<item>': swarm needs a host, as in swarm@local/workdir` |
 | `local` with provider | `-e '<item>': local takes no host, as in local@/workdir` |
 | role twice | `-e: the role '<role>' is given twice` |
 | role not declared | `<flow> has no environment role '<role>'; available roles are …` |

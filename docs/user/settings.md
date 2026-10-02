@@ -24,7 +24,7 @@ const notice = [
   {
     label: 'notice',
     lines: [
-      '[y]●[/] [dim]claude is rate-limited (this account has spent its quota; another one, or a wait, is what answers it); carrying on as work[/]',
+      '[y]●[/] [dim]claude is rate-limited (this account has spent its quota; another one, or a wait, is what answers it); carrying on as claude@key/claude-opus-5-5[/]',
     ],
   },
 ]
@@ -116,7 +116,7 @@ straight into the one named, and the word is offered as you type it:
 | [**Settings**](#settings-page) | `settings` | whether humanize reports what goes wrong, whether the screen [shows the working](#details), and which agent `/btw` talks to |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, whether its runs are profiled, and forgetting it |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
-| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts and docker daemons |
+| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons and docker swarms |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
 
@@ -178,9 +178,9 @@ change is held, and the transcript says it again once saved:
 
 | Change | Takes hold |
 | --- | --- |
-| error reports, details, fallback steps | at once |
+| error reports, details, fallback rules | at once |
 | profiling | from the next flow run |
-| correcting an account, what it fails over to, taking it away | from the next agent session: a session already running keeps the account it started with |
+| correcting an account, taking it away | from the next agent session: a session already running keeps the account it started with |
 | forget | from the next launch: the interface open now keeps what it opened with |
 
 ## Example: turn Details on
@@ -206,7 +206,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
      <span class="m">what agents sign in as, per CLI</span>
    ────────────────────────────────────────────────────────────────────────
    ▦  <b>Runtimes</b>                                                0 machines
-     <span class="m">ssh hosts and docker daemons a flow's roles run on</span>
+     <span class="m">ssh hosts, docker daemons and swarms a flow's roles run on</span>
    ────────────────────────────────────────────────────────────────────────
    ↻  <b>Fallback</b>                                                   0 rules
      <span class="m">where a turn goes when an agent fails</span>
@@ -581,17 +581,15 @@ be done with the account](/demo/accounts.gif)
 | --- | --- |
 | **edit settings** | Asks its way's questions again, on the same form it was made on. Secrets are never shown back: leave one blank to keep it, or type a new one. |
 | **sign in again** | Runs its login again. It owns the terminal while it does. |
-| **fails over to** | The account a turn carries on as when this one fails. The list it opens has `add an account` at the top, for when the one you want is not there yet. |
 | **remove** | The account and its credentials. |
 
-Making an account and signing one in happen at once. Correcting, failing over and taking away
-are held until you [save the menu](#saving), and while one is held its row says `from the next
+Making an account and signing one in happen at once. Correcting and taking away are held
+until you [save the menu](#saving), and while one is held its row says `from the next
 agent session`: an agent picks the change up when it next opens a session, and a session
 already running keeps the account it started with.
 
 Under a CLI that has accounts, the last row is `as local`: the CLI as you signed it in
-yourself. humanize keeps no credentials for it, so the only thing it offers is **fails over
-to**.
+yourself. humanize keeps no credentials for it, so its menu offers nothing and says why.
 
 ### One account, several CLIs
 
@@ -625,16 +623,11 @@ the model you want is missing, or when a failed turn says the list is out of dat
 
 ### When an account fails
 
-Each account can name another account of the same CLI to carry on as: **fails over to**, on
-its menu. A turn that fails on one walks that chain and keeps its conversation.
-
-```text
-claude/subscription ──fails over──▶ claude/key ──fails over──▶ claude/gateway
-```
-
-`as local` can start a chain, but nothing fails over *to* it. How many times a failed turn is
-tried again first, and moving on to another CLI or another model, are set on the
-[Fallback](#fallback) page.
+An account does not say where a failed turn goes. That is said on the [Fallback](#fallback)
+page, against a *place*: a CLI, an account and a model together. To carry on under another
+account of the same CLI, write a rule from `claude@subscription/claude-opus-5` to
+`claude@key/claude-opus-5`. A `fallback` key an older humanize wrote into an account's
+`provider.json` is ignored, and dropped the next time the account is saved.
 
 ### Good to know {#accounts-good-to-know}
 
@@ -658,7 +651,6 @@ shared = accounts.make("claude", "shared", accounts.way("claude", "key"), {
 
 accounts.serves(shared)                     # ('pi', 'opencode', 'mimo')
 accounts.copies(shared, "pi")               # pi/shared, holding the same key
-accounts.points("claude", "work", "shared")  # work fails over to shared
 ```
 
 `make` writes an account down. For a way that runs a login, `sign_in(account, way)` runs it.
@@ -669,7 +661,8 @@ See [SDK › Accounts](/reference/sdk#accounts).
 
 A **runtime** is a machine a flow's [environment
 roles](/user/remote-execution) can be put on, saved under a name: an ssh host with everything
-`ssh` has to be told to reach it, or a docker daemon with what it may hand out. Save one here,
+`ssh` has to be told to reach it, a docker daemon with what it may hand out, or a docker swarm
+with where its tasks may go and what they may reserve all told. Save one here,
 then choose it for a role at [`/flow`](#choosing-one-for-a-role), or name it after the `@` of
 `-e`:
 
@@ -679,7 +672,7 @@ hmz exec -f onbox -e box=ssh@gpu -b duration=1h "run the benchmarks"
 
 `ssh@gpu` with no directory works where `gpu` was saved to work. Reach for one when a machine
 needs more than its name to be reached (a login, a port, a key, a jump host), or when it is a
-docker daemon.
+docker daemon or a swarm.
 
 ### Try it {#runtimes-try-it}
 
@@ -688,8 +681,9 @@ Type `/settings runtimes`:
 <Term title="/settings · Runtimes">
 
 <pre>  <span class="m">/settings ›</span> <span class="p b">Runtimes</span>
-  <span class="m">Runtimes: saved ssh hosts, and docker daemons with the resources each may hand
-  out, used by name as flow environments in -e and /flow. Changes take effect immediately.</span>
+  <span class="m">Runtimes: saved ssh hosts, docker daemons with the resources each may hand out,
+  and docker swarms with what their tasks may reserve, used by name as flow environments in
+  -e and /flow. Changes take effect immediately.</span>
 
   <span class="p">╭──────────────────────────────────────────────────────────────────────────────────╮</span>
     <span class="p">ssh</span>
@@ -701,7 +695,7 @@ Type `/settings runtimes`:
     <b>local</b>                     <span class="m">local · 16 CPUs, 64G, GPUs 0</span>
   <span class="p">╰──────────────────────────────────────────────────────────────────────────────────╯</span>
 
-   <span class="btn"> Add an ssh host </span>  <span class="btn"> Add a docker host </span>  <span class="btn"> Import ~/.ssh/config </span>  <span class="btn"> Search… </span>
+   <span class="btn"> Add an ssh host </span>  <span class="btn"> Add a docker host </span>  <span class="btn"> Add a docker swarm </span>  <span class="btn"> Import ~/.ssh/config </span>  <span class="btn"> Search… </span>
 
   <b>enter</b> open   <b>/</b> search   <b>tab</b> actions   <b>esc</b> back</pre>
 
@@ -794,6 +788,27 @@ runtime is saved to hand out (more CPUs than it has, a GPU it does not have or t
 answer, an OCI runtime it does not offer), the line under the list says so in yellow when it is
 checked.
 
+### A docker swarm
+
+**Add a docker swarm** opens the docker host's form for a swarm's manager: the same
+`endpoint` rows, `local` being the swarm this machine manages, then `name`, `image` (every
+node a task may land on pulls it) and `run args` (anything else `docker service create` is
+told). No `OCI runtime` and no `gpus`: a service is told neither. In their place, where a
+task may go:
+
+| Row | Takes | Blank is |
+| --- | --- | --- |
+| constraints | placement constraints, a comma apart: `node.labels.gpu==true, node.role!=manager` | anywhere |
+| max tasks | how many tasks it may run together | no limit |
+| nodes | `HOSTNAME=SSH-HOST`, a comma apart: a node's host name and the ssh host saved here, or the `[user@]host[:port]`, that reaches it | each node at `ssh://` its address |
+| workdir | where it works when `-e` names no directory, at the same path on every node | none |
+| gpu resource | the generic resource its nodes advertise GPUs as: `NVIDIA-GPU` | no GPUs |
+| cpus, memory | what all of its tasks together may reserve | no quota |
+
+**`detect`** writes in the CPUs and memory of the nodes that may take a task, all told. A
+check says which those are -- `12 nodes: node01, node02, … and 4 more` -- and, in yellow, a
+quota more than they have or a GPU resource none of them advertises.
+
 ### On one runtime
 
 <kbd>enter</kbd> on a runtime opens what can be done to it, all of it at once:
@@ -801,8 +816,8 @@ checked.
 | On the menu | What it does |
 | --- | --- |
 | **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
-| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Either is given 30 seconds, in the background: the row says `checking…` until it answers. |
-| **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing. |
+| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A swarm's manager is asked which of its nodes may take a task, and what those have. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Each is given 30 seconds, in the background: the row says `checking…` until it answers. |
+| **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing, and so is a swarm whose manager or one of whose nodes it reached. |
 
 ### Choosing one for a role {#choosing-one-for-a-role}
 
@@ -852,29 +867,37 @@ account is rate-limited), the Fallback page sends it somewhere else: another CLI
 account, or another model. Each of those places is written `CLI[@ACCOUNT]/MODEL`, for example
 `claude@work/claude-opus-5-5`.
 
-It is the second of two fallbacks, and the one that costs the conversation:
+A rule is written against one place, its **main** place, and names a **chain**: the places a
+turn moves to, in order, each tried when the one before it has failed too.
 
-| | Another account of the same CLI | Another place |
+| | Trying again | The chain |
 | --- | --- | --- |
-| **Set on** | [Accounts](#when-an-account-fails), as **fails over to** | Fallback, as a step |
-| **Answers** | a subscription used up, a key refused | a model retired, a CLI missing, a whole account throttled |
+| **Set on** | the rule, as `tries`, `policy`, `for` | the rule, as `falls back to` and `then` |
+| **Answers** | a dropped connection, a busy store, a short rate limit | a model retired, a CLI missing, a whole account throttled or refused |
 | **The conversation** | carries on where it was | starts over, in a new session at the new place |
-| **Tried** | first | once no account of that CLI is left to try |
+| **Tried** | first | once the tries are spent |
 
 ### Try it {#fallback-try-it}
 
-Here you make a turn that fails on Claude Opus try twice more, then carry on in Codex.
+Here you make a turn that fails on Claude Opus try twice more, then carry on in Codex, and
+then in DeepSeek if Codex fails too.
 
 1. Type `/settings fallback`. With no rules yet the focus is on **Add fallback rule**; press
-   <kbd>enter</kbd>. One form opens: the place that fails, where it falls back to, and how it
-   is tried again first.
+   <kbd>enter</kbd>. One form opens: the place that fails, the places it falls back to, and
+   how it is tried again first.
 2. <kbd>enter</kbd> on `fails on` opens every place there is in one list: each installed CLI, as
    each of its accounts, at each model it runs. `search…` at its top narrows it by any of the
    three (`opus`, `work`, `codex`). Choose one, and the cursor moves to `falls back to`.
-3. <kbd>enter</kbd> there and choose the place that takes its turns. The place that fails is
-   not offered, and `nowhere` is, first.
-4. Pick `tries`, `policy` or `for` from the list each drops under it if you want a failed
+3. <kbd>enter</kbd> there and choose the first place that takes its turns. The place that
+   fails is not offered, and `nowhere` is, first.
+4. A `then` row now follows it, showing `+ add`. <kbd>enter</kbd> on it and choose the next
+   place. Add as many as you like; each is tried in turn.
+5. Pick `tries`, `policy` or `for` from the list each drops under it if you want a failed
    turn tried again here first, then <kbd>enter</kbd> on `done`.
+
+To change the chain, <kbd>enter</kbd> on any of its rows. Choosing `nowhere` takes that place
+off; choosing a place already further along swaps the two, which is how you reorder it. A
+place can be on the chain only once.
 
 The form, just before `done`:
 
@@ -886,9 +909,11 @@ The form, just before `done`:
 
      <span class="d">1.</span> fails on       <span class="a">claude/claude-opus-5-5 ▸</span>   <span class="m">the agent whose turns cannot run</span> <span class="n">1</span>
      <span class="d">2.</span> falls back to  <span class="a">codex/gpt-5.6-sol ▸</span>        <span class="m">fallback agent for failed turns</span> <span class="n">2</span>
-     <span class="d">3.</span> tries          <span class="a">2 ▾</span>                        <span class="m">how many times to retry</span> <span class="n">3</span>
-     <span class="d">4.</span> policy         <span class="a">linear ▾</span>                   <span class="m">one second longer each time: 1s, 2s, 3s</span>
-     <span class="d">5.</span> for            <span class="a">no limit ▾</span>                 <span class="m">maximum time to keep retrying</span>
+     <span class="d">3.</span> then           <span class="a">dsh/deepseek-v4-flash ▸</span>    <span class="m">if that fails too</span>
+     <span class="d">4.</span> then           <span class="a">+ add ▸</span>                    <span class="m">add an agent to try after the ones above</span>
+     <span class="d">5.</span> tries          <span class="a">2 ▾</span>                        <span class="m">how many times to retry</span> <span class="n">3</span>
+     <span class="d">6.</span> policy         <span class="a">linear ▾</span>                   <span class="m">one second longer each time: 1s, 2s, 3s</span>
+     <span class="d">7.</span> for            <span class="a">no limit ▾</span>                 <span class="m">maximum time to keep retrying</span>
 
    <span class="p">❯</span>    <span class="p">done</span>                      <span class="m">applies this fallback rule when /settings is saved</span> <span class="n">4</span>
 
@@ -901,11 +926,12 @@ And the page once it is added, before it is saved:
 <Term title="/settings › Fallback">
 
 <pre>  <span class="m">/settings ›</span> <span class="p b">Fallback</span>                                  <span class="y">● unsaved changes</span> <span class="n">5</span>
-  <span class="m">Where a turn falls back when an agent fails. An agent is a CLI, an
-  account and a model. Saved rules apply from the next failed turn.</span>
+  <span class="m">Where a turn falls back when an agent fails, tried in order. An agent
+  is a CLI, an account and a model. A chain starts only from the agent it is
+  written for. Saved rules apply from the next failed turn.</span>
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
-  <span class="sel"> <b>claude/claude-opus-5-5</b> ✔  2 retries, linear · falls back to codex/gpt-5.6-sol </span> <span class="n">6</span>
+  <span class="sel"> <b>claude/claude-opus-5-5</b> ✔  2 retries, linear · falls back to codex/gpt-5.6-sol, then dsh/deepseek-v4-flash </span> <span class="n">6</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
      <span class="btn"> Add fallback rule </span>  <span class="btn"> Search… </span>                         <span class="btn"> Save </span>
@@ -918,8 +944,9 @@ What to look at, by number:
 
 1. **`fails on`** is written `CLI[@ACCOUNT]/MODEL`: one place a turn can run. With no `@`, it
    is the CLI as you signed it in.
-2. **`falls back to`** is where the turn goes next, in a new conversation. `nowhere` is the
-   first choice, for a rule that only retries.
+2. **`falls back to`** and each **`then`** are the chain: where the turn goes next, in a new
+   conversation, in order. `nowhere` is the first choice, for a rule that only retries, and on
+   a row of the chain it takes that place off.
 3. **`tries`, `policy`, `for`** retry here before moving on. `none` moves on at once. See
    [Trying again](#trying-again).
 4. **`done`** says when the rule applies: when `/settings` is saved.
@@ -934,17 +961,24 @@ What to look at, by number:
 reads it:
 
 ```text
-claude/claude-opus-5-5 2 retries, linear · falls back to codex/gpt-5.6-sol
+claude/claude-opus-5-5 2 retries, linear · falls back to codex/gpt-5.6-sol, then dsh/deepseek-v4-flash
 ```
 
-Steps chain. A second rule from `codex/gpt-5.6-sol` to `dsh/deepseek-v4-flash` means a turn
-that fails at `claude/claude-opus-5-5` is tried twice more there, then moves to
+So a turn that fails at `claude/claude-opus-5-5` is tried twice more there, then moves to
 `codex/gpt-5.6-sol`, and if it fails there too, on to `dsh/deepseek-v4-flash`.
+
+**A chain starts only from its main place.** An agent configured at `codex/gpt-5.6-sol` that
+fails has no fallback from this rule: that place is only on somebody else's chain. And a
+place reached as a stand-in carries on along the chain it was reached by, never along its own:
+if `codex/gpt-5.6-sol` heads a rule of its own too, a turn that came to it from Claude still
+goes on to `dsh/deepseek-v4-flash`. Each place on the chain is tried again as its own rule
+says, if it has one; where the turn goes after it is always the main place's chain.
 
 ### Trying again
 
-`tries`, `policy` and `for`, on a step's form, set how a failed turn is retried at this place
-before it moves on. <kbd>enter</kbd> or a click on each drops its values under it; pick
+`tries`, `policy` and `for`, on a rule's form, set how a failed turn is retried at this place
+before it moves on. They belong to the place, so they also apply when the place is reached as
+a stand-in on another rule's chain. <kbd>enter</kbd> or a click on each drops its values under it; pick
 one, then choose **done**:
 
 | Setting | Choices | What it is |
@@ -976,29 +1010,30 @@ exited. Each kind gets its own answer:
 
 | What happened | Tried again here | Then goes to |
 | --- | --- | --- |
-| **Too many requests**: 429, a quota spent, `RESOURCE_EXHAUSTED`, `overloaded` | at least once, after 30 s or more | account → place |
-| **Credentials refused**: 401, an expired login, a revoked key | never | account → place |
-| **Model refused** for this account: `key not allowed to access model` | never | account → place |
-| **No such model**: 404, a retired model | never | **place** |
-| **CLI not installed** | never | **place** |
-| **Sandbox would not start**: `bwrap: setting up uid map: Permission denied` | never | **place** |
-| **Its own store was busy**: opencode's `database is locked` | at least 3 times, 1 s apart | account → place |
-| **Lost the connection**: `ECONNRESET`, 502, 503, a timeout | at least once, in the same conversation | account → place |
-| **Killed**: out of memory, `SIGKILL` | at least once, after 1 s | account → place |
-| **Anything else** | as the step says | account → place |
+| **Too many requests**: 429, a quota spent, `RESOURCE_EXHAUSTED`, `overloaded` | at least once, after 30 s or more | next place |
+| **Credentials refused**: 401, an expired login, a revoked key | never | next place |
+| **Model refused** for this account: `key not allowed to access model` | never | next place |
+| **No such model**: 404, a retired model | never | next place |
+| **CLI not installed** | never | next place |
+| **Sandbox would not start**: `bwrap: setting up uid map: Permission denied` | never | next place |
+| **Its own store was busy**: opencode's `database is locked` | at least 3 times, 1 s apart | next place |
+| **Lost the connection**: `ECONNRESET`, 502, 503, a timeout | at least once, in the same conversation | next place |
+| **Killed**: out of memory, `SIGKILL` | at least once, after 1 s | next place |
+| **Anything else** | as the rule says | next place |
 
-"At least" because a step that asks for more tries gets them; "never" holds whatever the
-step asks. **account** is the next [account](#accounts) of the same CLI, in the same
-conversation. **place** is the next place on the chain, in a new conversation, once no account
-is left or none would help. An agent that has moved to another account stays there for its
-later turns. If there is nowhere left, the turn fails as it would with no step written.
+"At least" because a rule that asks for more tries gets them; "never" holds whatever the
+rule asks. **next place** is the next place on the chain, in a new conversation. A later turn
+starts at the main place again, and one that fails there too carries on in the conversation the
+place it moved to already holds. If there is nowhere left, the turn fails as it
+would with no rule written. To carry on under another account of the same CLI, put that
+account's place on the chain.
 
 Each move shows in the transcript as it happens, even with [details](#details) off, so a run
 that is recovering does not look hung:
 
 ```
 claude is rate-limited (this account has spent its quota; another one, or a wait, is what answers it); trying again in 30s (1 of 1)
-claude is rate-limited (this account has spent its quota; another one, or a wait, is what answers it); carrying on as work
+claude is rate-limited (this account has spent its quota; another one, or a wait, is what answers it); carrying on as claude@key/claude-opus-5-5
 ```
 
 Where there is something to do about it, the line says so in brackets: an account that needs
@@ -1030,9 +1065,12 @@ are left behind when it moves to another.
 - **Carry the conversation.** The next place starts a new conversation and reads the
   repository, not the history. That conversation is then kept for the rest of the run, so a
   loop that moved is one conversation there, not a new one every round.
-- **Go round in circles.** A chain stops at the first place it has already visited, and a
-  place cannot fall back to itself.
-- **Fork.** A place has one next place. Writing a new step for it replaces the old one.
+- **Go round in circles.** A chain is the list written on one rule, walked once: a place
+  cannot be on its own chain, nor on one chain twice, and reaching a place never splices its
+  own rule's chain onto this one.
+- **Start a chain from the middle.** A turn begun at a place that is only on somebody else's
+  chain has no fallback from that chain.
+- **Fork.** A place has one chain. Writing a new rule for it replaces the old one.
 - **Drop a setting quietly.** If the next CLI cannot be told something this agent was told,
   such as web search off, or cannot take the flow's callbacks, the turn fails where it is
   rather than move.
@@ -1046,11 +1084,11 @@ The steps you save at the prompt are the ones `Hmz().fallbacks` reads and writes
 from hmz.sdk import Hmz
 
 falls = Hmz().fallbacks
-falls.points("claude@work/claude-opus-5-5", "codex/gpt-5.6-sol")
-falls.points("codex/gpt-5.6-sol", "dsh/deepseek-v4-flash")
+falls.points("claude@work/claude-opus-5-5", ["codex/gpt-5.6-sol", "dsh/deepseek-v4-flash"])
 falls.retrying("claude@work/claude-opus-5-5", 2, "linear", 0)  # tries, policy, timeout in s
 falls.chain("claude@work/claude-opus-5-5")
 # ['claude@work/claude-opus-5-5', 'codex/gpt-5.6-sol', 'dsh/deepseek-v4-flash']
+falls.chain("codex/gpt-5.6-sol")  # ['codex/gpt-5.6-sol']: not a main place
 falls.clear("claude@work/claude-opus-5-5")
 ```
 
@@ -1135,7 +1173,7 @@ for the next agent session, forgetting for the next launch. The table in
 - [Providers reference](/reference/providers): every way in, every field, and adding a CLI
 - [Remote execution](/user/remote-execution): what an environment on another machine is, and
   what it needs there
-- [Accounts, drawn](/features/accounts): the account chain and its waits, step by step
+- [Accounts, drawn](/features/accounts): trying again, then a chain of places, step by step
 - [Unattended runs](/user/unattended): where a place to fall back to earns its keep
 - [TUI › /settings](/reference/tui#what-humanize-remembers): the menu, row by row
 

@@ -17,7 +17,7 @@ import json
 import os
 import re
 import shutil
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -32,13 +32,10 @@ __all__ = [
     "LOCAL",
     "Provider",
     "add",
-    "alone",
-    "chain",
     "composed",
     "copies",
     "find",
     "hushed",
-    "points",
     "providers",
     "serves",
     "ways",
@@ -58,12 +55,6 @@ _HELD = "provider.json"
 #: configured with no account uses, in `AgentConfig.provider` and in `Runs.provider`. So it is
 #: an account here too, and the one thing every backend has whether or not anybody made one.
 LOCAL = ""
-
-#: Where what is written down about it is kept: one file per backend under humanize's own
-#: home, beside the catalogue that machine's own sign-in answers with. Not under `providers/`,
-#: which is the tree of accounts humanize made -- taking every one of those away must not
-#: leave a stray file behind, and the account nobody made is not one of them.
-_ALONE = "local"
 
 #: The way in that every backend has, whatever else it offers: variables of your own. Every
 #: one of these CLIs reads a key out of the environment under some name of its own -- pi has
@@ -109,15 +100,10 @@ class Provider:
       env: What a turn run under it is given on top of the environment it inherits.
       args: What to add to the backend's own command line for such a turn.
       made: When it was made, as the moment written down.
-      fallback: The account a turn carries on under when this one has failed, by name, or ""
-        for one that is the end of the line. A property of the account rather than of the
-        agent: it is the account that goes down, and whichever agent was running under one
-        when it did is the agent that needs somewhere else to run. Each account naming its
-        own means a run walks a chain -- subscription, then key, then gateway -- rather than
-        having one place to go however many accounts there are. How many times over a turn
-        under one is tried before the chain moves on is not written here: that is a thing
-        about the place a turn runs at rather than about the credentials it runs with, and
-        `hmz.coganchor.fallbacks` is where it is said.
+
+    Where a turn goes when an account fails is not written here: that is a thing about the
+    place a turn runs at -- the CLI, the account and the model together -- rather than about
+    the credentials it runs with, and `hmz.coganchor.fallbacks` is where it is said.
     """
 
     cli: str
@@ -126,7 +112,6 @@ class Provider:
     env: Mapping[str, str] = field(default_factory=dict[str, str])
     args: tuple[str, ...] = ()
     made: str = ""
-    fallback: str = ""
 
     @property
     def at(self) -> Path:
@@ -195,7 +180,6 @@ class Provider:
             "env": dict(self.env),
             "args": list(self.args),
             "made": self.made,
-            "fallback": self.fallback,
         }
 
 
@@ -350,7 +334,7 @@ def find(cli: str, name: str) -> Provider | None:
       It, or None where there is no such account -- including for a name no account could
       have, since nothing can be kept under one. Never None for :data:`LOCAL`, which is an
       account of every backend there is: it is the CLI as whoever is at this machine runs it,
-      and what is written down about it is only what it does when it fails.
+      and nothing is written down about it.
     """
     profile = backends.named(cli)
     if profile is None:
@@ -360,138 +344,10 @@ def find(cli: str, name: str) -> Provider | None:
         # nothing will ever read back.
         return None
     if name == LOCAL:
-        return _alone(profile.name)
+        return Provider(cli=profile.name, name=LOCAL, way="")
     if not _NAMED.match(name):
         return None
     return _read(profile.name, under() / profile.name / name)
-
-
-def alone(cli: str) -> Path:
-    """Where what is written down about the account this machine is signed into is kept.
-
-    Args:
-      cli: The backend, by the name it is called here.
-
-    Returns:
-      The file, whether or not anything has been written to it.
-    """
-    return home() / _ALONE / f"{cli}.json"
-
-
-def _alone(cli: str) -> Provider:
-    """The account this machine is already signed into, as one.
-
-    Args:
-      cli: The backend, by the name it is called here.
-
-    Returns:
-      It, with nothing but what it does when it fails: no way in, since nobody signed it in
-      here; no variables, since it is the CLI as it is already run; and no credentials of its
-      own, since the ones it reads are the CLI's. Zeros where nothing has been written down,
-      which is an account that is tried once and is the end of its own chain.
-    """
-    try:
-        said = json.loads(alone(cli).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        said = {}
-    held = cast("dict[str, Any]", said) if isinstance(said, dict) else {}
-    return Provider(
-        cli=cli,
-        name=LOCAL,
-        way="",
-        # A name, and never anything else: a fallback edited by hand into a number or a mark
-        # names nobody, so it is the end of its own chain until somebody says otherwise.
-        fallback=str(held.get("fallback") or "")
-        if isinstance(held.get("fallback"), str)
-        else "",
-    )
-
-
-def chain(provider: Provider) -> list[Provider]:
-    """The accounts a turn under this one walks, in the order it walks them.
-
-    Each account names the one to carry on under when it has failed, so what a turn has is a
-    chain rather than a second place: a subscription that runs out falls to a key, and a key
-    that is refused falls to a gateway. A run walks it to the end and stops there.
-
-    Args:
-      provider: Where the turn starts, which is the account its agent was configured with --
-        or the one this machine is already signed into, for an agent configured with none.
-
-    Returns:
-      That account first, then whatever it falls back to, and so on. An account naming one
-      that is not there ends the chain, as does one naming an account already in it: a loop
-      is a chain that would be walked forever, and stopping at the second sight of an account
-      is what makes a run that ends. Never empty: there is always the account it starts at.
-    """
-    walked = [provider]
-    seen = {provider.name}
-    while walked[-1].fallback:
-        instead = find(walked[-1].cli, walked[-1].fallback)
-        if instead is None or instead.name in seen:
-            break
-        seen.add(instead.name)
-        walked.append(instead)
-    return walked
-
-
-def points(cli: str, name: str, at: str) -> bool:
-    """Says which account a turn under this one carries on under when it fails.
-
-    Args:
-      cli: The backend it is for.
-      name: Which account, or :data:`LOCAL` for the one this machine is already signed into
-        -- which is where the chain of an agent nobody gave an account begins.
-      at: What the account to fall back to is called, or "" for the end of the line.
-
-    Returns:
-      Whether there was an account of that name to say it of.
-
-    Raises:
-      ValueError: If it would point at itself, or at an account of that backend that is not
-        there -- either is a chain that goes nowhere, said where it was written rather than
-        found on the turn that needed it.
-
-    Note:
-      A chain may begin at the account this machine is signed into and MUST NOT end there: ""
-      in this position is the end of the line, and an agent that is to try that account is an
-      agent given no account, which is where its chain starts anyway.
-    """
-    found = find(cli, name)
-    if found is None:
-        return False
-    if at:
-        if at == name:
-            raise ValueError(f"{name} cannot fail over to itself")
-        if find(cli, at) is None:
-            raise ValueError(f"{found.cli} account {at!r} not found")
-    _write(replace(found, fallback=at))
-    return True
-
-
-def _write(provider: Provider) -> None:
-    """Writes one account down again, whole, where it is kept.
-
-    Args:
-      provider: The account. The one this machine is signed into is written to its own file
-        under humanize's home rather than into the tree of accounts humanize made: it has no
-        directory, having no credentials of its own to keep in one.
-    """
-    if not provider.name:
-        at = alone(provider.cli)
-        _kept(at.parent)
-        _writes(
-            at,
-            json.dumps(
-                {"fallback": provider.fallback},
-                indent=2,
-            )
-            + "\n",
-        )
-        return
-    at = provider.at
-    _kept(at)
-    _writes(at / _HELD, json.dumps(provider.held(), indent=2) + "\n")
 
 
 def _writes(at: Path, said: str) -> None:
@@ -504,8 +360,8 @@ def _writes(at: Path, said: str) -> None:
     Note:
       Written beside and then moved into place, so that a file read while it is being written
       is the old one or the new one and never half of each -- and beside it under a name
-      nothing else will pick, because two `hmz` at once (a menu saving while a script points
-      a chain) writing one fixed `.new` is one of them finding its own file already moved
+      nothing else will pick, because two `hmz` at once (a menu saving while a script copies
+      an account) writing one fixed `.new` is one of them finding its own file already moved
       away. It is `0600` before anything is written into it, which is what these hold: a
       key, a token, or an endpoint somebody pays for. A file that was readable for the moment
       between being written and being chmodded was readable.
@@ -543,10 +399,6 @@ def add(
     at = where(cli, name)
     profile = backends.named(cli)
     assert profile is not None  # noqa: S101 -- `where` has already refused anything else
-    # What it does when it fails is not part of what it was made with: an account corrected --
-    # a key retyped, a gateway moved -- is the same account, and the chain and the tries
-    # somebody wrote against it are theirs rather than this line's to forget.
-    already = find(profile.name, name)
     provider = Provider(
         cli=profile.name,
         name=name,
@@ -554,7 +406,6 @@ def add(
         env=dict(env or {}),
         args=tuple(args),
         made=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        fallback=already.fallback if already is not None else "",
     )
     # The directory before the file: a login run under this provider writes into it, and
     # 0700 is what every one of these CLIs keeps its own credential directory at. A level at
@@ -659,12 +510,10 @@ def _read(cli: str, at: Path) -> Provider | None:
         args=tuple(str(one) for one in cast("list[Any]", args))
         if isinstance(args, list)
         else (),
+        # And nothing else: a `fallback` an older humanize wrote here named the account to
+        # carry on under, which accounts no longer say, so it is read past and gone the next
+        # time the account is written down.
         made=str(held.get("made") or ""),
-        # A name, and never anything else: a fallback edited by hand into a number or a mark
-        # names nobody, so it is the end of its own chain until somebody says otherwise.
-        fallback=str(held.get("fallback") or "")
-        if isinstance(held.get("fallback"), str)
-        else "",
     )
 
 

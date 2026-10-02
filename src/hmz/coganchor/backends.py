@@ -284,8 +284,8 @@ SIGNS: tuple[Sign, ...] = (
     # that has gone.
     Sign("unlisted", r"is not supported when using"),
     # The credential rather than the request. Another try with the same one is the same
-    # answer, so the tries here are worth none at all and the account chain is the whole of
-    # the answer -- with a word to say that the one it left needs signing in again.
+    # answer, so the tries here are worth none at all and the next place is the whole of the
+    # answer -- with a word to say that the account it left needs signing in again.
     Sign("refused", r"\b40[13]\b"),
     Sign("refused", r"unauthori[sz]ed|unauthenticated"),
     Sign("refused", r"authentication (is )?(required|failed|error)"),
@@ -301,7 +301,7 @@ SIGNS: tuple[Sign, ...] = (
     Sign("refused", r"token (was |has been )?revoked"),
     Sign("refused", r"forbidden"),
     # A model that is gone, or one this account was never entitled to. No other account of
-    # this CLI has it either, so this is the one failure an account chain cannot answer.
+    # this CLI has it either, so what answers it is a place that names another model.
     Sign("retired", r"\b404\b"),
     Sign("retired", r"model[ _-]?not[ _-]?found"),
     Sign("retired", r"(unknown|unsupported|invalid|no such) model"),

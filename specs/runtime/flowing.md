@@ -53,7 +53,7 @@ class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, rol
 class AgentSpec: ...  # role, harness, provider, model, effort, cli
 @dataclass(frozen=True, slots=True)
 class EnvSpec: ...  # role, backend, provider (a saved runtime's name, a host, or
-                    # `local` for docker's default here), workdir
+                    # `local` for docker's default or the swarm here), workdir
 def parse_agents(values: Sequence[str]) -> list[AgentSpec]: ...
 def parse_envs(values: Sequence[str]) -> list[EnvSpec]: ...
 def parse_params(values: Sequence[str]) -> dict[str, str]: ...
@@ -158,7 +158,7 @@ class EnvRole:
     memory: int
     gpu_count: int
     gpu_memory: int
-    image: str  # a docker env's, or "" for its provider's
+    image: str  # a docker or swarm env's, or "" for its provider's
     grant: Grant
     resources: bool
 @dataclass(frozen=True, slots=True, eq=False)
@@ -434,6 +434,35 @@ def under() -> Path: ...
   own, or the container's own CLI driven natively.
 - Its container MUST be taken down when the environment is closed, and one whose process on
   this host has gone MUST be taken down by the next run on its provider.
+
+### Swarm environments
+
+- A `swarm` environment MUST be the one task of a service of its own per environment a run is
+  given, on the swarm whose manager its provider names -- `local` being the swarm this machine
+  manages where no provider is written down under that name -- never restarted, and everything
+  derived from it MUST be in that task's container. It MUST be created from the role's
+  `_image`, else the provider's, else `python:3.12-slim`, with the workdir -- a directory of
+  whichever node it lands on, at the same path on every one it may -- mounted at its own path,
+  and with nothing needed in the image but what a docker environment needs.
+- It MUST reserve exactly the CPUs and memory its role declares and be limited to them, and as
+  many of its provider's GPU generic resource as the role declares GPUs, none where it declares
+  none; it MUST be placed under its provider's constraints and created with its arguments, and
+  labelled as a docker environment's container is; its driver MUST report what it reserved.
+- Before any agent starts, what the role asks MUST be held against what its provider may hand
+  out -- its task limit, and the CPUs and memory it was written down with where it was -- less
+  what that provider's services hold, and a role asking for GPUs of a provider naming no GPU
+  resource MUST be refused; what is short MUST raise `ResourceUnmet` saying how much is free
+  and which service holds the rest, and no two runs on this machine MUST work it out for one
+  provider at once. A task no node takes for want of room MUST raise `ResourceUnmet` with the
+  scheduler's words -- at once where no node that may take a task could ever hold it, and
+  once a bounded wait is over otherwise -- and its service MUST be removed. A manager that
+  manages no active swarm, and a node without the workdir, MUST raise `EnvUnavailable`.
+- An agent working in one MUST be anchored to its container by `docker exec` against the daemon
+  of the node it landed on: the one its provider names for that node's host where it names one,
+  else the manager's own where it landed on the manager, else that node's over ssh to its
+  address; everything downstream of that MUST be as it is for a docker environment.
+- Its service MUST be removed when the environment is closed, and one whose process on this
+  host has gone MUST be removed by the next run on its provider.
 
 ### Where the harness runs
 

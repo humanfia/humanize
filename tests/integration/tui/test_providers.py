@@ -29,7 +29,6 @@ from hmz.tui.pick import (
     _ACT_SPEAKS,
     _ADD,
     _DONE,
-    _SEARCH,
     _TAKES_AWAY,
     Account,
     Accounts,
@@ -83,9 +82,8 @@ def _drawn(app: Humanize) -> str:
 async def _doing(app: Humanize, driver: Pilot[None], held: str) -> None:
     """Opens what there is to do with the account under the cursor, and picks one of them.
 
-    Which is what enter on an account is now: four questions about it -- correct it, sign it
-    in again, what it fails over to, be rid of it -- rather than four letter keys on the
-    list of accounts.
+    Which is what enter on an account is now: three questions about it -- correct it, sign it
+    in again, be rid of it -- rather than three letter keys on the list of accounts.
 
     Args:
       app: The interface.
@@ -756,134 +754,6 @@ async def test_a_secret_left_blank_while_correcting_keeps_the_one_it_has() -> No
 
 
 @pytest.mark.timeout(60)
-async def test_what_one_fails_over_to_is_chosen_and_held_until_the_menu_is_saved() -> (
-    None
-):
-    """A name rather than a mark: each account names the next, so a turn walks a chain."""
-    from hmz.tui.pick import Falls
-
-    providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
-    providers.add("codex", "spare", way="key", env={"OPENAI_API_KEY": "s"})
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
-        await until(
-            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
-        )
-
-        await _doing(app, driver, "falls")
-        await until(lambda: isinstance(app.screen, Falls), driver)
-        listing = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(listing.options), driver)
-        # A row to make one, then the end of the line, then that CLI's own other accounts
-        # -- never itself -- and the cursor on the one in force.
-        assert rows(app) == [_ADD, "", "work"]
-        assert under(app) == ""
-
-        await driver.press("down", "enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
-        assert "fails over to work" in _drawn(app)
-        held = providers.find("codex", "spare")
-        assert held is not None
-        assert not held.fallback  # said, and held until the menu is saved
-
-        await keeps(app, driver)
-        await until(lambda: not isinstance(app.screen, Providers), driver)
-
-    chained = providers.find("codex", "spare")
-    assert chained is not None
-    assert chained.fallback == "work"
-
-
-@pytest.mark.timeout(60)
-@unittest.mock.patch("hmz.coganchor.providers.login.sign_in", return_value=0)
-async def test_an_account_to_fail_over_to_can_be_made_where_it_is_asked_for(
-    signed_in: unittest.mock.MagicMock,
-) -> None:
-    """Somebody who finds out there is no other account finds out on this sheet.
-
-    Signing it in is codex's own `login`, which is no program of this repository's: stood in
-    for, as every other account made here has it, so that what is tested is this sheet and
-    not whether codex is installed.
-    """
-    from hmz.tui.pick import Falls
-
-    providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
-        await until(lambda: "codex/work" in ids(app), driver)
-        await onto(app, driver, "codex/work")
-        await _doing(app, driver, "falls")
-        await until(lambda: isinstance(app.screen, Falls), driver)
-        await until(lambda: "has no other account" in _under(app), driver)
-
-        await onto(app, driver, _ADD)
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Signing), driver)
-        await _chooses(app, driver, "way", "key")
-        await _writes(app, driver, "name", *"spare")
-        await _writes(app, driver, "OPENAI_API_KEY", *"sk-spare")
-        await _answers(app, driver)
-
-        # Made, and chosen: back on the page, holding the chain at it.
-        await until(lambda: isinstance(app.screen, Providers), driver)
-        await until(lambda: "codex/spare" in ids(app), driver)
-        assert "fails over to spare" in _drawn(app)
-        await keeps(app, driver)
-
-    chained = providers.find("codex", "work")
-    assert chained is not None
-    assert chained.fallback == "spare"
-    signed_in.assert_called_once()
-
-
-@pytest.mark.timeout(60)
-async def test_a_chain_pointed_at_an_account_the_same_save_takes_away_goes_nowhere() -> (
-    None
-):
-    """Both are held until the menu is saved, so one save can hold a chain and its end.
-
-    The account being taken away is still on disk while the sheet is open, so it is still
-    offered -- and `points` would write a chain at something that is about to stop existing.
-    """
-    from hmz.tui.pick import Falls
-
-    providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
-    providers.add("codex", "spare", way="key", env={"OPENAI_API_KEY": "s"})
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
-        listing = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(listing.options), driver)
-        assert [one for one in rows(app) if "/" in one][:2] == [
-            "codex/spare",
-            "codex/work",
-        ]
-        assert under(app) == "codex/spare"
-
-        # `spare`, held to be taken away when this menu is saved.
-        await _doing(app, driver, _TAKES_AWAY)
-        await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("down")  # onto `work`
-        await _doing(app, driver, "falls")
-        await until(lambda: isinstance(app.screen, Falls), driver)
-        await until(
-            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
-        )
-        await driver.press("down", "enter")  # at `spare`, which is on its way out
-        await until(lambda: isinstance(app.screen, Providers), driver)
-
-        await keeps(app, driver)
-        await until(lambda: not isinstance(app.screen, Providers), driver)
-
-    assert providers.find("codex", "spare") is None
-    left = providers.find("codex", "work")
-    assert left is not None
-    assert left.fallback == ""  # rather than a chain at an account that is not there
-
-
-@pytest.mark.timeout(60)
 async def test_taking_an_account_away_says_what_went_with_it() -> None:
     """Credentials are what is going, and a line that said less would be understating it."""
     _account()
@@ -1031,9 +901,7 @@ def test_what_an_agent_runs_as_is_kept_and_read_back(tmp_path: Path) -> None:
 
 @pytest.mark.timeout(60)
 async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> None:
-    """It is what an agent nobody gave an account runs as, so it is where a chain begins."""
-    from hmz.tui.pick import Falls
-
+    """It is what an agent nobody gave an account runs as, read beside the ones made."""
     providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
     app = Humanize()
     async with app.run_test() as driver:
@@ -1058,36 +926,38 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
 
         # Correcting it, signing it in and taking it away are not offered at all, with the
         # reason said where they would have been: humanize did not make that account and
-        # keeps nothing for it.
+        # keeps nothing for it. And where a turn under it goes when it fails is not an
+        # account's to say at all, so there is no row left.
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Account), driver)
+        await until(lambda: "keeps no credentials for it" in _under(app), driver)
+        assert [
+            str(one.id or "").removeprefix("=")
+            for one in app.screen.query_one("#choices", OptionList).options
+            if one.id and not str(one.id).startswith("=\x1e")
+        ] == []
+        assert "remove it" in _under(app)
+        await driver.press("escape")
+        await until(lambda: isinstance(app.screen, Providers), driver)
+
+
+@pytest.mark.timeout(60)
+async def test_an_account_offers_nothing_about_where_a_failed_turn_goes() -> None:
+    """That is the fallback page's, between places; an account no longer fails over."""
+    providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        await until(lambda: "codex/work" in ids(app), driver)
+        await onto(app, driver, "codex/work")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Account), driver)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
-        assert [
-            str(one.id or "").removeprefix("=")
-            for one in app.screen.query_one("#choices", OptionList).options
-        ] == ["falls"]
-        assert "keeps no credentials for it" in _under(app)
-        assert "remove it" in _under(app)
-        await driver.press("escape")
-        await until(lambda: isinstance(app.screen, Providers), driver)
 
-        # What it does take is what it fails over to.
-        await _doing(app, driver, "falls")
-        await until(lambda: isinstance(app.screen, Falls), driver)
-        listed = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(listed.options), driver)
-        assert rows(app) == [_ADD, "", "work"]
-
-        await driver.press("down", "enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
-        await keeps(app, driver)
-        await until(lambda: not isinstance(app.screen, Providers), driver)
-
-    held = providers.find("codex", providers.LOCAL)
-    assert held is not None
-    assert held.fallback == "work"
+        assert "falls" not in ids(app)
+        assert "fails over" not in _drawn(app)
 
 
 @pytest.mark.timeout(60)
@@ -1341,52 +1211,3 @@ async def test_variables_typed_for_one_way_are_not_written_down_for_another() ->
     made = providers.find("claude", "key")
     assert made is not None
     assert dict(made.env) == {"ANTHROPIC_API_KEY": "sk-only"}
-
-
-@pytest.mark.timeout(60)
-async def test_a_search_for_the_end_of_the_line_lands_on_it() -> None:
-    """`nowhere` answers with nothing, which a search must still be able to land on."""
-    from hmz.tui.pick import Falls
-
-    providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
-        await until(lambda: "codex/work" in ids(app), driver)
-        await onto(app, driver, "codex/work")
-        await _doing(app, driver, "falls")
-        await until(lambda: isinstance(app.screen, Falls), driver)
-        await until(lambda: _SEARCH in ids(app), driver)
-        await onto(app, driver, _SEARCH)
-        await driver.press("enter", *"nowh")
-        await driver.pause()
-
-        assert under(app) == ""
-
-
-@pytest.mark.timeout(60)
-@unittest.mock.patch("hmz.coganchor.providers.login.sign_in", return_value=1)
-async def test_an_account_to_fail_over_to_whose_login_failed_says_so(
-    signed_in: unittest.mock.MagicMock,
-) -> None:
-    """Written down, and not chosen: a login that exited badly is one to look at first."""
-    from hmz.tui.pick import Falls
-
-    del signed_in
-    providers.add("claude", "work", way="key", env={"ANTHROPIC_API_KEY": "k"})
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
-        await until(lambda: "claude/work" in ids(app), driver)
-        await onto(app, driver, "claude/work")
-        await _doing(app, driver, "falls")
-        await until(lambda: isinstance(app.screen, Falls), driver)
-        await onto(app, driver, _ADD)
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Signing), driver)
-        await _writes(app, driver, "name", *"sub")
-        await _answers(app, driver)
-
-        await until(lambda: isinstance(app.screen, Falls), driver)
-        await until(lambda: "sign-in failed with exit code 1" in _under(app), driver)
-        assert "sub" in rows(app)

@@ -1330,34 +1330,43 @@ def test_named_account(cell: Cell) -> None:
 
 @feature()
 def test_fallback(cell: Cell) -> None:
-    """A place that cannot take a turn at all hands it to the place written after it.
+    """A place that cannot take a turn at all hands it along its chain, in order.
 
-    The place that fails is a CLI of this machine's own that will not start -- one of the
+    The places that fail are CLIs of this machine's own that will not start -- one of the
     failures the fallbacks are for, and the one every column can be handed the same way. A
     model nobody serves is not: Claude Code runs an id it has never heard of on its default
-    model rather than refusing it, so there is no failing to fall back from.
+    model rather than refusing it, so there is no failing to fall back from. Two of them, so
+    that the chain is walked past a stand-in that fails too, onto the column's own CLI.
     """
     from hmz.coganchor import backends
 
     word = _word()
-    broken = cell.root / "bin" / "hmz-matrix-broken"
-    broken.parent.mkdir()
-    broken.write_text("#!/bin/sh\necho 'this CLI will not start' >&2\nexit 3\n")
-    broken.chmod(0o755)
-    added = backends.remember("", [str(broken)])
+    (cell.root / "bin").mkdir()
+    added: list[str] = []
+    for name in ("hmz-matrix-broken", "hmz-matrix-broken-too"):
+        broken = cell.root / "bin" / name
+        broken.write_text("#!/bin/sh\necho 'this CLI will not start' >&2\nexit 3\n")
+        broken.chmod(0o755)
+        added.append(backends.remember("", [str(broken)]))
     fallbacks, place = cell.hmz.fallbacks, cell.place
     good = fallbacks.spec(cell.cli, place.model, place.provider)
-    fallbacks.points(fallbacks.spec(added, "m"), good)
+    then = fallbacks.spec(added[1], "m")
+    fallbacks.points(fallbacks.spec(added[0], "m"), [then, good])
 
     ran = cell.exec(
         _one(cell),
         f"Reply with exactly one word, {word}, and nothing else.",
-        agents=[f"worker={added}/m:{backends.written(place.effort)}"],
+        agents=[f"worker={added[0]}/m:{backends.written(place.effort)}"],
     )
 
-    assert any(f"carrying on as {good}" in one for one in ran.said("notice")), (
-        f"nothing said the turn moved to {good}\n{ran}"
-    )
+    # Onto the second place first, and from there onto the third: in the order written.
+    moved = [
+        at
+        for one in ran.said("notice")
+        for at in (then, good)
+        if f"carrying on as {at}" in one
+    ]
+    assert moved == [then, good], f"the turn did not move to {then}, then {good}\n{ran}"
     # Answered there -- the stream goes on naming the agent as the one it was asked of. Not
     # held to the word: what a model makes of being told to say one is the model's --
     # grok-4.7 has answered "I won't output a forced exact token" -- and every other row
@@ -1711,6 +1720,42 @@ def test_docker_env(cell: Cell, daemon: None) -> None:
         cell.flow("boxed", BOXED),
         CONTAINED,
         envs=[f"box=docker@local{there}"],
+        timeout=600,
+    )
+
+    seen = _contained(cell, ran)
+    assert (there / "proof.txt").read_text().strip() == seen["hostname"], (
+        "the workdir is mounted where it is, and the proof is not in it"
+    )
+
+
+@feature(timeout=900)
+def test_swarm_env(cell: Cell, daemon: None) -> None:
+    """An agent given the task a docker swarm placed works inside its container.
+
+    `-e box=swarm@here/<dir>`: the swarm this machine manages, saved pinned to this node -- a
+    swarm of more nodes would put the task where the directory is not. The same three proofs
+    as a container of one daemon's, from a container the swarm's scheduler started.
+    """
+    del daemon
+    said = subprocess.run(
+        ["docker", "info", "--format", "{{json .Swarm}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    swarm = cast("dict[str, Any]", json.loads(said.stdout or "{}"))
+    if swarm.get("LocalNodeState") != "active" or not swarm.get("ControlAvailable"):
+        pytest.skip("needs this machine to be a manager of an active docker swarm")
+    there = cell.root / "box"
+    there.mkdir()
+    envs = cell.hmz.runtimes
+    envs.add(envs.new("swarm", "here", constraints=[f"node.id=={swarm['NodeID']}"]))
+
+    ran = cell.exec(
+        cell.flow("boxed", BOXED),
+        CONTAINED,
+        envs=[f"box=swarm@here{there}"],
         timeout=600,
     )
 

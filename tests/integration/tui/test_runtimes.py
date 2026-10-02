@@ -1,10 +1,12 @@
 """The runtimes a flow's environments go on: saved on `/settings`, and chosen on `/flow`.
 
-An ssh host or a docker daemon is saved as a runtime on the runtimes page of `/settings` --
-typed in on one form, or imported from an ssh config -- and checked as it lands. What reaches
-a machine is a stand-in here: `ssh` answers `-G` as ssh does and runs what it is told on this
-machine, and `docker` answers `info` with what a machine with two GPUs said. Both are the ones
-`tests/integration/machines` writes, so the page is checked against what the store is.
+An ssh host, a docker daemon or a docker swarm is saved as a runtime on the runtimes page of
+`/settings` -- typed in on one form, or imported from an ssh config -- and checked as it
+lands. What reaches a machine is a stand-in here: `ssh` answers `-G` as ssh does and runs
+what it is told on this machine, and `docker` answers `info` with what a machine with two
+GPUs said. Both are the ones `tests/integration/machines` writes, so the page is checked
+against what the store is. A swarm's manager is asked through the runtimes' own check, stood
+in for with what a swarm of twelve nodes would say.
 """
 
 from __future__ import annotations
@@ -19,8 +21,9 @@ from textual.widgets import Button, Label, OptionList
 
 from hmz.coganchor.backends import Model
 from hmz.coganchor.machines import store
-from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime
+from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime, SwarmRuntime
 from hmz.flows import EnvBackendKind
+from hmz.runtime.doing.runtimes import Checked, Runtimes
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
@@ -29,6 +32,7 @@ from hmz.tui.pick import (
     _ACT_DOCKS,
     _ACT_IMPORTS,
     _ACT_SEARCH,
+    _ACT_SWARMS,
     _ADD,
     _BUDGET,
     _CHECKS,
@@ -46,7 +50,9 @@ from hmz.tui.pick import (
     Importing,
     Machine,
     Placing,
+    Swarming,
     Unsaved,
+    _machine_line,
 )
 from hmz.tui.settings import Adjusts
 from tests.integration.machines.test_runtimes import _DOCKER, _INFO, _SSH
@@ -206,14 +212,20 @@ async def _into_machines(app: Humanize, driver: Pilot[None]) -> Adjusts:
 async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
     standins: Path,
 ) -> None:
-    """Adding either kind and importing, under the list; no save button, nothing held."""
+    """Adding each kind and importing, under the list; no save button, nothing held."""
     del standins
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
 
         assert rows(app) == []
-        assert bar(app) == [_ACT_ADD, _ACT_DOCKS, _ACT_IMPORTS, _ACT_SEARCH]
+        assert bar(app) == [
+            _ACT_ADD,
+            _ACT_DOCKS,
+            _ACT_SWARMS,
+            _ACT_IMPORTS,
+            _ACT_SEARCH,
+        ]
         assert sheet.focused is sheet.query_one("#act-add")
         assert "no machines saved yet" in _under(app)
         labels = [
@@ -223,6 +235,7 @@ async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
         ]
         assert "Add an ssh host" in labels
         assert "Add a docker host" in labels
+        assert "Add a docker swarm" in labels
 
 
 @pytest.mark.timeout(60)
@@ -653,6 +666,227 @@ async def test_a_machine_is_corrected_and_taken_away_from_its_own_menu(
         assert _SAVE not in ids(app)
 
 
+# ------------------------------------------------------------ docker swarms
+
+
+#: The nodes of the stand-in swarm that may take a task: more than a line names.
+NODES = tuple(f"node{at:02}" for at in range(1, 13))
+
+
+@pytest.fixture
+def swarmed(standins: Path, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """A swarm's manager that answers as one of twelve nodes of 64 CPUs and 512G apiece would.
+
+    Stood in for at the runtimes' own check, which is what the page asks a runtime through: an
+    ssh host and a docker daemon are asked as they always are.
+
+    Returns:
+      The swarms checked, as `backend/name`, in the order they were.
+    """
+    del standins
+    checked: list[str] = []
+    asks = Runtimes.check
+
+    def answers(self: Runtimes, runtime: store.Runtime, seconds: float = 30) -> Checked:
+        if not isinstance(runtime, SwarmRuntime):
+            return asks(self, runtime, seconds)
+        checked.append(f"{runtime.backend}/{runtime.name}")
+        cpus, memory = 64.0 * len(NODES), (512 << 30) * len(NODES)
+        return Checked(
+            reached=True,
+            cpus=cpus,
+            memory=memory,
+            version="29.4.3",
+            nodes=NODES,
+            short=(f"it is to hand out {runtime.cpus:g} CPUs and has {cpus:g}",)
+            if runtime.cpus > cpus
+            else (),
+        )
+
+    monkeypatch.setattr(Runtimes, "check", answers)
+    return checked
+
+
+@pytest.mark.timeout(60)
+async def test_a_docker_swarm_is_added_on_its_own_form_and_asked_what_its_nodes_have(
+    swarmed: list[str],
+) -> None:
+    """A docker host's form, less what a service is never told, and with where tasks go."""
+    store.add(SSHRuntime(name="gpu", host="gpu.example"))
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await _opens(app, driver, _ACT_SWARMS, Swarming)
+        form = cast("Swarming", app.screen)
+        assert form._typed_in["name"] == "local"
+        assert rows(app)[:4] == ["endpoint", "name", "affinity", "image"]
+        assert {"runtime", "gpus", "max_containers"}.isdisjoint(rows(app))
+        assert {"constraints", "max_tasks", "nodes", "gpu_resource"} <= set(rows(app))
+
+        await _types(
+            app, driver, "constraints", "node.labels.gpu==true, node.role!=manager"
+        )
+        await _types(app, driver, "max_tasks", "4")
+        await _types(app, driver, "nodes", "node01=gpu, node02=me@10.0.0.9:2200")
+        await _types(app, driver, "gpu_resource", "NVIDIA-GPU")
+        await _types(app, driver, "cpus", "32")
+        await _types(app, driver, "memory", "128G")
+        assert "adds swarm/local and checks its nodes" in _drawn(app)
+        await _done(app, driver)
+
+        await until(lambda: app.screen is sheet, driver)
+        await until(lambda: "answers" in _under(app), driver)
+        said = _under(app)
+        assert "swarm/local answers: swarm 29.4.3" in said
+        assert "12 nodes: node01, node02" in said
+        assert "node08 and 4 more" in said
+        assert "768 CPUs, 6T all told" in said
+        assert "lacks configured resources" not in said
+        assert "swarm/local" in ids(app)
+        assert "32 CPUs, 128G" in _drawn(app)
+
+    assert swarmed == ["swarm/local"]
+    saved = store.find("swarm", "local")
+    assert saved is not None
+    # Its row, which the page wraps: where tasks go and what they reserve, not its nodes.
+    assert _machine_line(saved) == (
+        "local · on node.labels.gpu==true, node.role!=manager · 32 CPUs, 128G"
+        " · GPUs as NVIDIA-GPU · max 4 tasks"
+    )
+    assert saved == SwarmRuntime(
+        name="local",
+        constraints=("node.labels.gpu==true", "node.role!=manager"),
+        max_tasks=4,
+        nodes={"node01": "gpu", "node02": "me@10.0.0.9:2200"},
+        gpu_resource="NVIDIA-GPU",
+        cpus=32.0,
+        memory=128 << 30,
+    )
+
+
+@pytest.mark.timeout(60)
+async def test_detect_writes_in_what_a_swarm_s_nodes_have_all_told(
+    swarmed: list[str],
+) -> None:
+    del swarmed
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await _opens(app, driver, _ACT_SWARMS, Swarming)
+        form = cast("Swarming", app.screen)
+
+        await onto(app, driver, _DETECTS)
+        await driver.press("enter")
+        await until(lambda: form._typed_in.get("cpus") == "768", driver)
+        assert form._typed_in["memory"] == "6T"
+        assert form.under() == "cpus"
+        await driver.press(*"16", "enter")
+        assert form.under() == "memory"
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.parametrize(
+    ("held", "said", "why"),
+    [
+        ("constraints", "gpu", "invalid constraint 'gpu'"),
+        ("max_tasks", "two", "max tasks: 'two' must be a number"),
+        ("nodes", "node01", "nodes: 'node01' is not HOSTNAME=SSH-HOST"),
+        ("nodes", "node01=me@", "neither a saved ssh host"),
+        ("gpu_resource", "NVIDIA GPU", "invalid generic resource"),
+        ("memory", "64", "must be a number and unit"),
+    ],
+)
+async def test_what_a_swarm_cannot_be_given_is_refused_on_the_form(
+    swarmed: list[str], held: str, said: str, why: str
+) -> None:
+    del swarmed
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await _opens(app, driver, _ACT_SWARMS, Swarming)
+        await _types(app, driver, held, said)
+        await _done(app, driver)
+
+        assert isinstance(app.screen, Swarming)
+        assert why in _under(app)
+    assert store.runtimes() == []
+
+
+@pytest.mark.timeout(60)
+async def test_a_swarm_is_corrected_and_stranded_by_the_ssh_host_it_is_reached_through(
+    swarmed: list[str],
+) -> None:
+    """Every row it was saved with read back, and the host its node goes through is said."""
+    store.add(SSHRuntime(name="gpu", host="gpu.example"))
+    store.add(
+        SwarmRuntime(
+            name="cluster",
+            endpoint="ssh://me@manager",
+            memory=10**9,
+            constraints=("node.labels.gpu==true",),
+            nodes={"node01": "gpu"},
+            max_tasks=2,
+        )
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await onto(app, driver, "swarm/cluster")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await _opens(app, driver, _CORRECTS, Swarming)
+        form = cast("Swarming", app.screen)
+        assert "name" not in rows(app)
+        assert form._typed_in["endpoint"] == "ssh address"
+        assert form._typed_in["address"] == "me@manager"
+        await _types(app, driver, "image", "python:3.12")
+        assert "updates swarm/cluster" in _drawn(app)
+        await _done(app, driver)
+        await until(lambda: app.screen is sheet, driver)
+        await until(lambda: "answers" in _under(app), driver)
+        assert "swarm/cluster updated" in "\n".join(sheet._told)
+
+        await onto(app, driver, "ssh/gpu")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await onto(app, driver, _TAKES_AWAY)
+        await driver.press("enter")
+        await until(lambda: app.screen is sheet, driver)
+        assert "cluster reached a swarm through this host" in _under(app)
+
+    assert swarmed == ["swarm/cluster"]
+    assert store.find("swarm", "cluster") == SwarmRuntime(
+        name="cluster",
+        endpoint="ssh://me@manager",
+        image="python:3.12",
+        memory=10**9,
+        constraints=("node.labels.gpu==true",),
+        nodes={"node01": "gpu"},
+        max_tasks=2,
+    )
+
+
+@pytest.mark.timeout(60)
+async def test_what_a_swarm_is_saved_to_reserve_and_its_nodes_have_not_got_is_said(
+    swarmed: list[str],
+) -> None:
+    del swarmed
+    store.add(SwarmRuntime(name="cluster", cpus=1024))
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await onto(app, driver, "swarm/cluster")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        assert "check the swarm's nodes against its quota" in _drawn(app)
+        await onto(app, driver, _CHECKS)
+        await driver.press("enter")
+        await until(lambda: "lacks configured resources" in _under(app), driver)
+
+        assert "[yellow]" in _under(app)
+        assert "1024 CPUs and has 768" in _under(app)
+
+
 # ------------------------------------------------------------ the role picker on /flow
 
 
@@ -723,6 +957,39 @@ async def test_a_role_is_put_on_a_saved_host_and_remembered_as_e_spells_it(
 
     assert app._envs == {"box": "ssh@box"}
     assert Settings(tmp_path).envs("placed") == {"box": "ssh@box"}
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_a_role_is_put_on_a_saved_swarm_as_on_a_docker_host(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+    placed: Path,
+    tmp_path: Path,
+) -> None:
+    """The one backend anything is saved for, its swarms to choose from, and `swarm@` spelled."""
+    del placed
+    store.add(SwarmRuntime(name="cluster", workdir="/srv/work"))
+    app = Humanize()
+    async with app.run_test() as driver:
+        form = await _placing(app, driver)
+        assert form._typed_in["backend"] == "swarm"
+        assert form.under() == "provider"
+        assert "swarm" in _drawn(app)
+
+        await _opens(app, driver, "provider", Hosts)
+        assert rows(app)[0] == _ADD
+        assert "cluster" in rows(app)
+        await onto(app, driver, "cluster")
+        await driver.press("enter")
+        await until(lambda: app.screen is form, driver)
+
+        assert form._typed_in["workdir"] == "/srv/work"
+        assert form._typed_in["spelled"] == "swarm@cluster"
+        await _done(app, driver)
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        await _saves(app, driver)
+
+    assert Settings(tmp_path).envs("placed") == {"box": "swarm@cluster"}
 
 
 @pytest.mark.timeout(60)

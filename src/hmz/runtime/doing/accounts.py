@@ -82,12 +82,6 @@ class Accounts:
 
         return providers.where(cli, name)
 
-    def local(self, cli: str) -> Path:
-        """Where the account this machine is already signed into keeps what is written of it."""
-        from hmz.coganchor.providers import store
-
-        return store.alone(cli)
-
     def write(
         self,
         cli: str,
@@ -197,31 +191,6 @@ class Accounts:
         from hmz.coganchor import providers
 
         return providers.copies(one, cli, name)
-
-    def chain(self, one: Provider) -> list[Provider]:
-        """Every account a turn under this one would carry on under, this one first."""
-        from hmz.coganchor import providers
-
-        return providers.chain(one)
-
-    def points(self, cli: str, name: str, at: str) -> bool:
-        """Says which account a turn under one carries on under when it fails.
-
-        Args:
-          cli: The backend they are both of.
-          name: The account it is written on, or "" for the one this machine is signed into.
-          at: The account to carry on under, or "" for the end of the line.
-
-        Returns:
-          Whether there was an account to write it on.
-
-        Raises:
-          ValueError: If the account named is not one of that backend's, or is the account
-            itself, or would make a chain that comes round on itself.
-        """
-        from hmz.coganchor import providers
-
-        return providers.points(cli, name, at)
 
     def remove(self, cli: str, name: str) -> bool:
         """Takes an account away, credentials and all.
