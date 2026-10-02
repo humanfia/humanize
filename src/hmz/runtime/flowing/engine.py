@@ -118,6 +118,7 @@ __all__ = [
     "define_flow",
     "full_view",
     "load_flow",
+    "meets",
     "new_outworlder",
     "run_flow",
     "running",
@@ -634,7 +635,7 @@ def _narrowed(
         if refusal is not None:
             raise refusal[0](f"{flow.ref}: {role.name!r} {refusal[1]}")
     if role.resources:
-        _meets(role, driver, flow)
+        meets(role, driver, flow)
     return EnvView(driver, role.grant, node, role.name, chain)
 
 
@@ -665,7 +666,7 @@ def _serves_env(flow: FlowImpl, role: EnvRole, driver: EnvDriver) -> None:
         )
 
 
-def _meets(role: EnvRole, driver: EnvDriver, flow: FlowImpl) -> None:
+def meets(role: EnvRole, driver: EnvDriver, flow: FlowImpl) -> None:
     """Refuses a machine smaller than a role asks for.
 
     Raises:
@@ -1729,7 +1730,7 @@ async def run_flow(
         if driver is not None:
             _serves_env(impl, role, driver)
             if role.resources:
-                _meets(role, driver, impl)
+                meets(role, driver, impl)
     said = impl.params_of(params)
     loop = asyncio.get_running_loop()
     if recorder is not None:

@@ -204,6 +204,7 @@ left alone and not read.
 | `name`, `host`, `user`, `identity_file`, `proxy_jump`, `alias`, `config`, `workdir` | `str` |
 | `port` | `int` |
 | `options` | `{str: str}` |
+| `fallback` | `[str]`, each `<backend>:<name>` |
 | `made` | `"typed"` or `"imported"` |
 
 `docker/<name>/runtime.json`:
@@ -213,7 +214,7 @@ left alone and not read.
 | `backend` | `"docker"` |
 | `name`, `tls_dir`, `image`, `runtime`, `workdir` | `str` |
 | `endpoint` | `local`, `unix://…`, `tcp://…`, `ssh://…`, `ssh:<ssh runtime>`, `context:<name>` |
-| `run_args`, `gpus` | `[str]` |
+| `run_args`, `gpus`, `fallback` | `[str]` |
 | `cpus` | `float` |
 | `memory`, `gpu_memory`, `max_containers` | `int` |
 | `made` | `"typed"` |
@@ -228,7 +229,7 @@ sized and started, so two runs never allocate from one runtime at once. Never de
 | `backend` | `"swarm"` |
 | `name`, `tls_dir`, `image`, `gpu_resource`, `workdir` | `str` |
 | `endpoint` | a swarm manager, as a docker runtime's `endpoint` |
-| `run_args`, `constraints` | `[str]` |
+| `run_args`, `constraints`, `fallback` | `[str]` |
 | `cpus` | `float` |
 | `memory`, `max_tasks` | `int` |
 | `nodes` | `{str: str}`: a node's host name to a saved ssh runtime's name or `[user@]host[:port]` |

@@ -125,8 +125,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   own or another file, switched on per host and saved already or not, never writing to it --
   and per runtime correcting it, checking it and taking it away, its affinity -- where the
   harness of work on it runs, in order -- written on its form as `self`, `local` and
-  `<backend>:<name>`; MUST ask one what it has when
-  it is made or corrected on that page and when it is checked, an import asking none -- an ssh
+  `<backend>:<name>`, and the saved runtimes it falls back to, in order; MUST ask one what it
+  has when it is made or corrected on that page and when it is checked, an import asking none -- an ssh
   host its home, CPUs, memory and GPUs, a docker daemon its CPUs, memory, GPUs and OCI runtimes,
   a swarm which of its nodes may take a task and what those have all told, and each what it is
   saved to hand out that it has not got -- off the drawing path, saying why where it

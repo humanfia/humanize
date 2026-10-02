@@ -59,6 +59,7 @@ def test_an_ssh_runtime_is_read_back_as_it_was_written_down() -> None:
             proxy_jump="jump@bastion:22",
             options={"ServerAliveInterval": "5"},
             workdir="~/proj",
+            fallback=("docker:box", "ssh:gpu2"),
         )
     )
 
@@ -76,6 +77,7 @@ def test_an_ssh_runtime_is_read_back_as_it_was_written_down() -> None:
         "alias": "",
         "config": "",
         "workdir": "~/proj",
+        "fallback": ["docker:box", "ssh:gpu2"],
         "made": "typed",
         "affinity": [],
     }
@@ -96,18 +98,21 @@ def test_a_docker_runtime_is_read_back_as_it_was_written_down() -> None:
             gpus=["0", "1"],
             gpu_memory=80 << 30,
             max_containers=4,
+            fallback=["ssh:gpu"],
         )
     )
 
     read = store.find("docker", "box")
     assert read == written
     assert isinstance(read, DockerRuntime)
-    assert (read.cpus, read.run_args, read.gpus) == (
+    assert (read.cpus, read.run_args, read.gpus, read.fallback) == (
         8.0,
         ("--shm-size", "1g"),
         ("0", "1"),
+        ("ssh:gpu",),
     )
     assert read.held()["gpus"] == ["0", "1"]
+    assert read.held()["fallback"] == ["ssh:gpu"]
 
 
 def test_a_swarm_runtime_is_read_back_as_it_was_written_down() -> None:
@@ -320,6 +325,18 @@ def test_one_is_taken_away_whole() -> None:
         ({"host": "h", "options": {"SetEnv": 'A="b"'}}, "SetEnv .* newlines or quotes"),
         ({"host": "h", "workdir": "relative/path"}, "must be absolute or under"),
         ({"host": "h", "made": "guessed"}, "typed or imported, not 'guessed'"),
+        (
+            {"host": "h", "fallback": ["gpu2"]},
+            "fallback 'gpu2' must be <backend>:<name>",
+        ),
+        (
+            {"host": "h", "fallback": ["vm:x"]},
+            "fallback 'vm:x' must be <backend>:<name>",
+        ),
+        ({"host": "h", "fallback": ["ssh:../x"]}, "must be <backend>:<name>"),
+        ({"host": "h", "fallback": ["ssh:mine"]}, "cannot fall back to itself"),
+        ({"host": "h", "fallback": ["ssh:a", "ssh:a"]}, "ssh:a is named twice"),
+        ({"host": "h", "fallback": "ssh:a"}, "fallback cannot be 'ssh:a'"),
     ],
 )
 def test_what_no_ssh_runtime_could_be_is_refused(
@@ -354,6 +371,8 @@ def test_what_no_ssh_runtime_could_be_is_refused(
         ({"memory": True}, "memory cannot be True"),
         ({"gpus": "0"}, "gpus cannot be '0'"),
         ({"host": "h"}, "unknown docker host setting 'host'"),
+        ({"fallback": ["docker:mine"]}, "cannot fall back to itself"),
+        ({"fallback": ["docker:"]}, "must be <backend>:<name>"),
     ],
 )
 def test_what_no_docker_runtime_could_be_is_refused(
@@ -698,3 +717,95 @@ def test_an_e_with_no_workdir_takes_the_one_its_runtime_was_given() -> None:
     for said in ("a=ssh@none", "a=ssh@ghost", "a=ssh"):
         with pytest.raises(EnvSpecError, match="expected"):
             parse_envs([said])
+
+
+# ------------------------------------------------------------------------- falling back
+
+
+def test_a_runtime_falls_back_to_its_own_list_and_no_further() -> None:
+    store.write(DockerRuntime(name="a", fallback=("docker:b", "ssh:gpu")))
+    store.write(DockerRuntime(name="b", fallback=("docker:c",)))
+
+    assert store.fallbacks("docker", "a") == (("docker", "b"), ("ssh", "gpu"))
+    assert store.fallbacks("docker", "b") == (("docker", "c"),)
+    assert store.fallbacks("docker", "c") == ()
+    assert store.fallbacks("ssh", "gpu") == ()
+    assert store.fallbacks("local", "") == ()
+
+
+def test_a_runtime_may_fall_back_to_one_of_another_backend_under_its_own_name() -> None:
+    assert SSHRuntime(name="x", host="h", fallback=("docker:x",)).fallback == (
+        "docker:x",
+    )
+
+
+def test_what_an_e_falls_back_to_works_where_its_runtime_says_or_where_it_was_told() -> (
+    None
+):
+    from hmz.runtime.flowing.specs import fallbacks
+
+    store.write(SSHRuntime(name="gpu2", host="h", workdir="~/elsewhere"))
+    store.write(DockerRuntime(name="box"))
+    store.write(
+        DockerRuntime(name="main", fallback=("ssh:gpu2", "docker:box", "docker:gone"))
+    )
+    (spec,) = parse_envs(["work=docker@main/srv/x"])
+
+    assert [str(one) for one in fallbacks(spec)] == [
+        "work=ssh@gpu2/~/elsewhere",
+        "work=docker@box/srv/x",
+        "work=docker@gone/srv/x",
+    ]
+
+
+@pytest.mark.parametrize(
+    "said", ["work=local@/srv/x", "work=ssh@me@h/srv/x", "work=docker@local/srv/x"]
+)
+def test_an_e_naming_no_saved_runtime_falls_back_to_nothing(said: str) -> None:
+    from hmz.runtime.flowing.specs import fallbacks
+
+    (spec,) = parse_envs([said])
+
+    assert fallbacks(spec) == []
+
+
+def test_an_import_updating_a_host_keeps_what_it_falls_back_to(tmp_path: Path) -> None:
+    config = tmp_path / "config"
+    config.write_text("Host gpu\n  HostName 10.0.0.2\n")
+    (made,) = store.imports(config)
+    store.write(
+        SSHRuntime(
+            name=made.name,
+            alias=made.alias,
+            config=made.config,
+            made=made.made,
+            fallback=("docker:box",),
+        )
+    )
+
+    (again,) = store.imports(config, update=True)
+
+    assert again.fallback == ("docker:box",)
+
+
+def test_the_sdk_writes_and_reads_a_fallback_list() -> None:
+    runtimes = Hmz().runtimes
+    runtimes.write(runtimes.new("docker", "a", fallback=["docker:b", "ssh:c"]))
+
+    found = runtimes.find("docker", "a")
+
+    assert found is not None
+    assert found.fallback == ("docker:b", "ssh:c")
+
+
+def test_a_swarm_falls_back_and_is_fallen_back_to_like_any_runtime() -> None:
+    from hmz.runtime.flowing.specs import fallbacks
+
+    store.write(store.SwarmRuntime(name="cluster", fallback=("docker:box",)))
+    store.write(DockerRuntime(name="main", fallback=("swarm:cluster",)))
+    (spec,) = parse_envs(["work=docker@main/srv/x"])
+
+    assert store.fallbacks("swarm", "cluster") == (("docker", "box"),)
+    assert [str(one) for one in fallbacks(spec)] == ["work=swarm@cluster/srv/x"]
+    with pytest.raises(ValueError, match="cannot fall back to itself"):
+        store.SwarmRuntime(name="cluster", fallback=("swarm:cluster",))

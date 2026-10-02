@@ -441,6 +441,7 @@ TUI on the Runtimes page of `/settings`.
   "alias": "",
   "config": "",
   "workdir": "~/project",
+  "fallback": ["docker:box", "ssh:gpu2"],
   "made": "typed",
   "affinity": ["self", "docker:gpubox", "local"]
 }
@@ -462,6 +463,7 @@ TUI on the Runtimes page of `/settings`.
 | `alias` | `str` | `""` | The `Host` of an ssh config it was imported from; the destination. |
 | `config` | `str` | `""` | The ssh config file, sent as `-F`, where it is not `~/.ssh/config`. |
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=ssh@NAME`: absolute, `~` or `~/…`. |
+| `fallback` | `tuple[str, ...]` | `()` | Saved runtimes, each `<backend>:<name>`, to move an environment to in order when this one cannot hold it: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | `typed` or `imported`. |
 | `affinity` | `tuple[str, ...]` | `()` | Where the harness of an agent working on it runs, in the order tried: `self`, `local`, `ssh:<name>`, `docker:<name>`. Empty: on it where its CLI is, else here. See [Remote execution › Affinity](/reference/remote-execution#affinity). |
 
@@ -490,6 +492,7 @@ Two runtimes at one host with different options use different ssh master connect
 | `gpu_memory` | `int` | `0` | Bytes per GPU; `0` for unsaid. |
 | `max_containers` | `int` | `0` | Containers at once; `0` for no limit. |
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=docker@NAME`. |
+| `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | Always `typed`. |
 | `affinity` | `tuple[str, ...]` | `()` | As for an ssh host. |
 
@@ -514,6 +517,7 @@ Two runtimes at one host with different options use different ssh master connect
 | `max_tasks` | `int` | `0` | Tasks at once; `0` for no limit. |
 | `nodes` | `Mapping[str, str]` | `{}` | How a node is reached, by its host name: a saved ssh runtime's name, or `[user@]host[:port]`. A node not named is reached through the manager where it is the manager, else over `ssh://<its address>`. |
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=swarm@NAME`; a directory every node it may land on has. |
+| `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | Always `typed`. |
 
 `daemon()` returns the manager's [`Endpoint`](#endpoints), as a docker daemon's does.
@@ -564,6 +568,9 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | a swarm constraint comparing nothing | `x: invalid constraint 'node.labels.gpu': expected <attribute>==<value> or <attribute>!=<value>` |
 | a swarm GPU resource of more than one word | `x: invalid generic resource 'NVIDIA GPU'` |
 | a swarm node's bad host name, or a value neither a name nor a destination | `x: invalid node host name '-n'`, `x: node gpu-1: '<value>' is neither a saved ssh host nor [user@]host[:port]` |
+| a fallback entry not `<backend>:<name>` | `x: fallback 'gpu2' must be <backend>:<name>, the backend one of ssh, docker, swarm` |
+| a fallback naming the runtime itself | `x: a runtime cannot fall back to itself` |
+| a fallback entry named twice | `x: fallback ssh:gpu2 is named twice` |
 | an affinity entry that is not `self`, `local` or `<backend>:<name>` | `x: 'here' is not where a harness runs: self, local or <ssh\|docker\|swarm>:<runtime name>` |
 | an affinity entry twice | `x: local is in its affinity twice` |
 | an affinity naming the runtime itself | `x: its affinity names itself; self is its own machine` |
@@ -579,9 +586,29 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 - `import_ssh(config=None, names=None, *, update=False)` writes one runtime per host, named
   after its `Host` with characters outside `[A-Za-z0-9._-]` replaced by `-`, holding
   `alias` (and `config` where not the default). An existing runtime is left alone unless
-  `update=True`, which rewrites an imported one and keeps its `workdir` and `affinity`; a typed one is never
+  `update=True`, which rewrites an imported one and keeps its `workdir`, `fallback` and `affinity`; a typed one is never
   overwritten. With `names`, a host the config lacks raises `ssh config has no host <names>`,
   and a host that cannot be imported raises `<alias> cannot be imported: <why>`.
+
+### Falling back {#falling-back}
+
+A runtime's `fallback` is where an environment goes when that runtime cannot hold it. It
+concerns the runtime alone: where an agent's harness runs is `-H`'s, whichever runtime the
+environment landed on.
+
+| Aspect | Rule |
+| --- | --- |
+| Entry | `<backend>:<name>` of a saved runtime, e.g. `ssh:gpu2`, `docker:box`, `swarm:cluster`; checked when written for its shape, never itself, never twice. Whether it exists is asked when it is tried. |
+| Walked when | an `-e` names this runtime (it is the *main*), and it cannot hold the role: opening it is refused (an [opening refusal](#resolution) such as a `~/…` workdir on a daemon elsewhere), probing it fails (`EnvUnavailable`, `EnvConnectionError`), its daemon has not got what the role asks left or is at `max_containers`, or its swarm has no node with room or is at `max_tasks` (`ResourceUnmet`), or its machine is short of a resource the role declares (`ResourceUnmet`) |
+| Order | the list's, until one holds the role; each refused environment is closed |
+| Transitivity | none: a runtime reached by fallback never walks its own list, and an `-e` naming a runtime that is only someone else's fallback walks nothing unless it has a list of its own |
+| Workdir | the fallback runtime's saved `workdir`, else the path the `-e` gave |
+| Unsaved specs | `local@…`, `ssh@user@host/…`, `docker@local/…` (no saved runtime `local`): no fallback |
+| Said | `hmz exec: <backend>:<A> cannot hold '<role>': <why>; using <backend>:<B>`, on stderr (a `notice` in the TUI) |
+| All refused | the last refusal's kind, naming every runtime tried and why: `ssh:a cannot hold 'box': …; ssh:b cannot hold 'box': …` |
+| Recorded | the epic's `envs` keeps the `-e` as given (what a picked-up run is given again, and what settings remember); `used` is where each role was put, written only where it differs |
+
+<small>Defined in [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`settle`), [`src/hmz/runtime/flowing/specs.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/specs.py) (`fallbacks`), [`src/hmz/runtime/runner.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/runner.py) (`Runner.used`).</small>
 
 ### Checking one
 

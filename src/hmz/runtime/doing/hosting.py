@@ -937,6 +937,7 @@ class Host:
         _closed_all(sides)
         run.watch(functools.partial(self._heard, current))
         run.opened(functools.partial(self._opened, current))
+        run.noticed(functools.partial(self._noticed, current))
         driving = threading.Thread(
             target=self._drives, args=(current,), daemon=True, name="humanize-run"
         )
@@ -1079,6 +1080,16 @@ class Host:
         return _ok()
 
     # ---------------------------------------------------------------- what opened
+
+    def _noticed(self, current: _Run, said: str) -> None:
+        """Says humanize's own word about the run where every frontend reads it.
+
+        An environment moved off the runtime its `-e` named, as `hmz exec` says it on its
+        stderr.
+        """
+        with self._lock:
+            if not self._closed:
+                self._record({"type": "notice", "run": current.number, "text": said})
 
     def _opened(
         self,

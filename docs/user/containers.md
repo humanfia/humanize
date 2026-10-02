@@ -119,9 +119,10 @@ page](/user/settings#runtimes). Choose **Add a docker host**:
       5. run args                   extra arguments for docker run
       6. max containers             max concurrent containers; blank for no limit
       7. workdir                    default working directory when -e specifies no directory
-      8. cpus            4          max CPUs; blank to use all host CPUs               ④
-   ❯  9. memory          8G         e.g. 64G; blank to use all host memory
-     10. gpus                       GPU IDs, e.g. 0, 1; blank to use all host GPUs
+      8. falls back to              runtimes to try in order if this one cannot: docker:box, ssh:gpu2
+      9. cpus            4          max CPUs; blank to use all host CPUs               ④
+   ❯ 10. memory          8G         e.g. 64G; blank to use all host memory
+     11. gpus                       GPU IDs, e.g. 0, 1; blank to use all host GPUs
          detect                    detect host resources and fill them in
          done                      adds docker/gpubox and detects host resources
 ```
@@ -338,6 +339,23 @@ ssh host, `ssh://`, `tcp://` or a context.
   set it as the runtime's GPU resource. With none set, a role asking for a GPU is refused.
 - **A task no node has room for is refused**, with the scheduler's own words, and its service
   removed: at once where no node could ever hold it, after 30 seconds of waiting otherwise.
+
+### Another daemon when this one is full
+
+A daemon at its `max containers`, or without the CPUs, memory or GPUs a role asks left free,
+cannot hold that role, and the run is refused. Fill in **falls back to** on its form with other
+saved runtimes, in the order to try them (`docker:spare, ssh:gpu2`), and the environment moves to
+the first of them that can hold it instead, in that runtime's own workdir where it has one:
+
+```text
+hmz exec: docker:gpubox cannot hold 'box': docker@gpubox runs 2 of the 2 containers it may; using docker:spare
+```
+
+A docker swarm falls back the same way, when no node has room for the task or it is at its
+`max tasks` (`swarm:cluster` names one in a list). Only the runtime `-e` named falls back: `docker:spare`'s own list is not walked, and
+`-e box=docker@spare/…` walks nothing unless `spare` has a list of its own. The epic keeps the
+`-e` as you gave it, and records under `used` where the role actually went. See
+[Machines › Falling back](/reference/machines#falling-back).
 
 ### A container of an agent's own
 

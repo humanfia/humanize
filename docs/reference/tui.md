@@ -1094,12 +1094,13 @@ never read.`
 | `proxy jump` | `jump host to connect through, if any` |
 | `options` | `additional ssh options: KEYWORD=VALUE, …` |
 | `workdir` | `default working directory when -e specifies none: /abs or ~/path` |
+| `falls back to` | `runtimes to try in order if this one cannot: docker:box, ssh:gpu2`. Entries apart by commas, saved as the runtime's [`fallback`](/reference/machines#falling-back); its row then ends `· falls back to <entries>`. |
 | `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>; blank for its CLI here, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
 | `done` | `adds ssh/<name>, and checks its resources` / `updates …` |
 
 Refusals: `an ssh host named <name> already exists; edit it from its row, or choose a
-different name`, `port: '<x>' must be a number`, `options: '<x>' is not KEYWORD=VALUE`, and an
-[affinity refused](/reference/machines#validation).
+different name`, `port: '<x>' must be a number`, `options: '<x>' is not KEYWORD=VALUE`, and a
+[fallback or affinity refused](/reference/machines#validation).
 
 #### docker host form {#docker-form}
 
@@ -1119,8 +1120,8 @@ it are limited to the resources configured here.`
 Then `name` (add), `image` (`default image, unless specified by the flow`), `OCI runtime` (`e.g.
 nvidia; blank for daemon default`), `run args` (`extra arguments for docker run`), `max
 containers` (`max concurrent containers; blank for no limit`), `workdir` (`default working
-directory when -e specifies no directory`), `harness runs on` (as on the [ssh host
-form](#ssh-form)), `cpus` (`max CPUs; blank to use all host CPUs`),
+directory when -e specifies no directory`), `falls back to` (as on the [ssh host
+form](#ssh-form)), `harness runs on` (likewise), `cpus` (`max CPUs; blank to use all host CPUs`),
 `memory` (`e.g. 64G; blank to use all host memory`), `gpus` (`GPU IDs, e.g. 0, 1; blank to use
 all host GPUs`), `detect` (`detect host resources and fill them in`: `detecting resources on <endpoint>…`, then `detected …: auto-filled` with the cursor on `cpus` -- `gpus` written with only those that answer, and a yellow `<n> of <m> GPUs answer; …` where one does not -- or red `the daemon did
 not respond: …`), `done` (`adds docker/<name> and detects host resources`).
@@ -1145,7 +1146,8 @@ arguments for docker service create`), `constraints` (`placement constraints, e.
 node.labels.gpu==true, …`, a comma apart), `max tasks` (`max concurrent tasks; blank for no
 limit`), `nodes` (`HOSTNAME=SSH-HOST, …; blank to reach each at ssh://its address`: a node's
 host name and the saved ssh host, or the `[user@]host[:port]`, that reaches it), `workdir`
-(`default working directory, on every node, when -e specifies none`), `gpu resource`
+(`default working directory, on every node, when -e specifies none`), `falls back to` (as
+on the ssh form), `gpu resource`
 (`generic resource nodes advertise GPUs as, e.g. NVIDIA-GPU`), `cpus` (`CPUs all tasks may
 reserve; blank for no quota`), `memory` (`e.g. 64G for all tasks; blank for no quota`),
 `detect` (as the docker host form's, writing in the CPUs and memory of the nodes that may take

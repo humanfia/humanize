@@ -211,6 +211,7 @@ class SSHRuntime:
     alias: str = ""  # the `Host` it was imported as
     config: str = ""  # the ssh config it was imported from, where not the user's own
     workdir: str = ""
+    fallback: tuple[str, ...] = ()  # each `<backend>:<name>`, tried in order
     made: str = TYPED
     affinity: tuple[str, ...] = ()  # where a harness of work on it runs, in the order tried
     @property
@@ -236,6 +237,7 @@ class DockerRuntime:
     gpu_memory: int = 0
     max_containers: int = 0
     workdir: str = ""
+    fallback: tuple[str, ...] = ()
     made: str = TYPED
     affinity: tuple[str, ...] = ()
     @property
@@ -258,6 +260,7 @@ class SwarmRuntime:
     max_tasks: int = 0
     nodes: Mapping[str, str] = {}  # node host name -> ssh runtime name or [user@]host[:port]
     workdir: str = ""
+    fallback: tuple[str, ...] = ()
     made: str = TYPED
     affinity: tuple[str, ...] = ()
     @property
@@ -275,6 +278,7 @@ def where(backend: str, name: str) -> Path: ...
 def new(backend: str, name: str, **fields: Any) -> Runtime: ...
 def runtimes(backend: str = "") -> list[Runtime]: ...
 def find(backend: str, name: str) -> Runtime | None: ...
+def fallbacks(backend: str, name: str) -> tuple[tuple[str, str], ...]: ...
 def add(runtime: Runtime) -> Runtime: ...
 def write(runtime: Runtime) -> Runtime: ...
 def remove(backend: str, name: str) -> bool: ...
@@ -389,9 +393,11 @@ def hosts(
   a swarm runtime with the same, or a constraint that compares nothing, a generic resource of
   no single word, or a node reached by neither a runtime's name nor an ssh destination;
   and any of them with an affinity entry that is none of `self`, `local` and
-  `<backend>:<name>`, one named twice, or one naming the runtime itself, which is `self`. An
-  entry naming a runtime nobody saved MUST NOT be refused there: it is one with no room where
-  it is used.
+  `<backend>:<name>`, one named twice, or one naming the runtime itself, which is `self`; or
+  with a fallback entry that is not `<backend>:<name>` of a backend there is and a name a
+  runtime may have, one named twice, or one naming the runtime itself. An entry of either
+  naming a runtime nobody saved MUST NOT be refused there: it is one with no room, or one that
+  cannot hold the role, where it is used.
   `add` and `write` MUST refuse a config file or certificates under a home there is none of,
   and one written down before its home went MUST still be listed.
 - `add` MUST refuse a name already taken and `write` MUST replace what was there; `new` MUST
@@ -407,4 +413,9 @@ def hosts(
   destination otherwise.
 - `aliases` MUST follow every `Include` as ssh does and MUST NOT list a pattern; what a host
   resolves to MUST be asked of `ssh -G`. `imports` MUST leave a runtime already there unless
-  told to update it, and MUST keep the workdir and the affinity of one it updates.
+  told to update it, and MUST keep the workdir, the fallback list and the affinity of one it
+  updates.
+- A runtime's fallback list MUST be the runtimes an environment an `-e` puts on it moves to,
+  in order, where it cannot hold it -- of any backend, whether or not they exist when the
+  list is written -- and `fallbacks` MUST answer with that runtime's own list and nothing
+  further: a runtime fallen back to is never walked on down its own.

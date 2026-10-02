@@ -7729,6 +7729,8 @@ def _machine_line(one: Runtime) -> str:
         ]
     if one.workdir:
         said.append(f"working directory: {one.workdir}")
+    if one.fallback:
+        said.append(f"falls back to {', '.join(one.fallback)}")
     return _DOT.join(said)
 
 
@@ -7882,6 +7884,23 @@ _ALIAS, _HOST, _USER, _PORT, _KEY, _JUMP, _OPTIONS, _WORKDIR = (
     "workdir",
 )
 
+#: The row of either form a runtime's fallback list is written on.
+_FALLEN_TO = "fallback"
+
+
+def _fallback_row() -> Question:
+    """The row a runtime's fallback list is written on, which both forms ask last."""
+    return Question(
+        _FALLEN_TO,
+        "falls back to",
+        "runtimes to try in order if this one cannot: docker:box, ssh:gpu2",
+    )
+
+
+def _fallback(said: str) -> list[str]:
+    """A fallback list as its row has it written: entries apart by commas, in order."""
+    return [one.strip() for one in said.split(",") if one.strip()]
+
 
 #: The row of either form a harness's runtimes are written on, and what it says.
 _AFFINITY = "affinity"
@@ -7932,6 +7951,7 @@ class Hosting(Form["Runtime"]):
             _JUMP: one.proxy_jump,
             _OPTIONS: ", ".join(f"{key}={value}" for key, value in one.options.items()),
             _WORKDIR: one.workdir,
+            _FALLEN_TO: ", ".join(one.fallback),
             _AFFINITY: ", ".join(one.affinity),
         }
 
@@ -7995,6 +8015,7 @@ class Hosting(Form["Runtime"]):
                     "workdir",
                     "default working directory when -e specifies none: /abs or ~/path",
                 ),
+                _fallback_row(),
                 Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT),
             ]
         )
@@ -8069,6 +8090,7 @@ class Hosting(Form["Runtime"]):
             "proxy_jump": typed.get(_JUMP, ""),
             "options": _options(typed.get(_OPTIONS, "")),
             "workdir": typed.get(_WORKDIR, ""),
+            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
             "affinity": _affinity(typed.get(_AFFINITY, "")),
         }
         if self._one is not None:
@@ -8196,6 +8218,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             _CPUS: f"{one.cpus:g}" if one.cpus else "",
             _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
             _WORKDIR: one.workdir,
+            _FALLEN_TO: ", ".join(one.fallback),
             _AFFINITY: ", ".join(one.affinity),
             **self._held(one),
         }
@@ -8544,6 +8567,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
             "cpus": _number(typed.get(_CPUS, ""), "cpus"),
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
             "workdir": typed.get(_WORKDIR, ""),
+            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
             "affinity": _affinity(typed.get(_AFFINITY, "")),
             **self._more(typed),
         }
@@ -8632,6 +8656,7 @@ class Docking(_Daemon["DockerRuntime"]):
                 "workdir",
                 "default working directory when -e specifies no directory",
             ),
+            _fallback_row(),
             Question(_CPUS, "cpus", "max CPUs; blank to use all host CPUs"),
             Question(_MEMORY, "memory", "e.g. 64G; blank to use all host memory"),
             Question(_GPUS, "gpus", "GPU IDs, e.g. 0, 1; blank to use all host GPUs"),
@@ -8746,6 +8771,7 @@ class Swarming(_Daemon["SwarmRuntime"]):
                 "workdir",
                 "default working directory, on every node, when -e specifies none",
             ),
+            _fallback_row(),
             Question(
                 _RESOURCE,
                 "gpu resource",

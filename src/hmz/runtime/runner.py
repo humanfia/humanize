@@ -10,7 +10,8 @@ what it declares is read (:mod:`hmz.runtime.flowing.finding`); what each role is
 checked against that declaration and opened as a driver
 (:func:`~hmz.runtime.flowing.harnesses.open_agent`,
 :func:`~hmz.runtime.flowing.environments.open_env`) -- which starts no CLI and reaches no
-machine; each environment given is probed, which does reach it, and each agent's harness is
+machine; each environment given is probed, which does reach it -- moved down the fallback list
+of the runtime its `-e` named where that runtime cannot hold it --, and each agent's harness is
 settled on those machines, as the affinity of the runtime each is says; and then the flow is
 run by
 :func:`~hmz.runtime.flowing.engine.run_flow`, written down as it goes into an epic that also
@@ -41,7 +42,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
 
     from hmz.coganchor.agents import AgentBase, SessionBase
-    from hmz.flows import Budget, FlowParams, Usage
+    from hmz.flows import Budget, EnvError, FlowParams, Usage
     from hmz.runtime.flowing import (
         AgentDriver,
         Declaration,
@@ -52,6 +53,7 @@ if TYPE_CHECKING:
         SessionHandle,
     )
     from hmz.runtime.flowing.affinity import Harbors
+    from hmz.runtime.flowing.declaring import EnvRole
     from hmz.runtime.flowing.harnesses import Listener
     from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
     from hmz.runtime.flowing.spi import Placement
@@ -259,6 +261,7 @@ class Runner:
         """
         from hmz.flows import Budget, FlowException
         from hmz.runtime.flowing import builtin, resolved
+        from hmz.runtime.flowing.specs import EnvSpec as Spec
 
         self._named = str(flow)
         self._workspace = Path(workspace) if workspace is not None else Path.cwd()
@@ -291,7 +294,15 @@ class Runner:
         #: is called, and closed with them.
         self._harbors = _harbors()
         self._agents = _agent_drivers(agents_given, self._harbors)
-        self._envs = _env_drivers(envs_given, declared)
+        self._envs, self._unopened = _env_drivers(envs_given, declared)
+        #: What each environment role given as an `-e` was given as, which is what its
+        #: runtime's fallback list is read off as it is probed.
+        self._asked = {
+            role: said for role, said in envs_given.items() if isinstance(said, Spec)
+        }
+        #: Where each environment role was put, as `-e` spells it: what it was given until
+        #: it is probed, and then the runtime that held it.
+        self._used = dict(self._places)
         self._recorder: Recorder | None = None
         #: Held while the price list is brought up to date for this run, which is done once.
         self._pricing = threading.Lock()
@@ -476,8 +487,21 @@ class Runner:
 
     @property
     def envs(self) -> dict[str, EnvDriver]:
-        """The driver each environment role was given, by role."""
+        """The driver each environment role was given, by role.
+
+        Once :meth:`arun` has probed them, the driver of the runtime that held each: a role
+        moved down its runtime's fallback list is the driver of the runtime it landed on.
+        """
         return dict(self._envs)
+
+    @property
+    def used(self) -> dict[str, str]:
+        """Where each environment role was put, by role, as `-e` spells it.
+
+        What it was given until :meth:`arun` has probed it, and then the runtime that held it
+        -- one its `-e` named, or one that runtime fell back to.
+        """
+        return dict(self._used)
 
     @property
     def params(self) -> FlowParams:
@@ -585,6 +609,7 @@ class Runner:
         outworlder: OutworlderDriver | None = None,
         opened: Opened | None = None,
         started: Callable[[Epic], None] | None = None,
+        noticed: Callable[[str], None] | None = None,
     ) -> Any:
         """Runs the flow to its return, on the loop this is awaited on.
 
@@ -594,14 +619,17 @@ class Runner:
             always away, which is what a command line is.
           opened: What is told of each session as it opens, or None.
           started: What is handed the epic the run is written into, once it is open.
+          noticed: What is told humanize's own word about the run, in a line: an
+            environment moved off the runtime its `-e` named, and why.
 
         Returns:
           What the flow returned.
 
         Raises:
-          Refused: If an environment cannot be reached, an agent's harness has nowhere
-            the affinity of one of them names with room, or the drivers do not meet what
-            the flow declares -- before the flow has been called.
+          Refused: If an environment cannot be reached -- nor any runtime its runtime falls
+            back to --, an agent's harness has nowhere the affinity of one of them names
+            with room, or the drivers do not meet what the flow declares -- before the flow
+            has been called.
           BaseException: Whatever the flow raised, as it raised it.
         """
         from hmz.flows import (
@@ -612,7 +640,7 @@ class Runner:
             ParamsError,
             RequirementError,
         )
-        from hmz.runtime.flowing import local_env, open_outworlder, probe, run_flow
+        from hmz.runtime.flowing import local_env, open_outworlder, run_flow
 
         from .epic import Epic
         from .settings import Settings
@@ -626,8 +654,7 @@ class Runner:
                 await asyncio.to_thread(self._prices, given_up.is_set)
             finally:
                 given_up.set()
-            for driver in self._envs.values():
-                await probe(driver)
+            await self._settled(noticed)
             local = local_env(self._workspace)
             await self._placeable(local)
         except BaseException as why:
@@ -644,6 +671,7 @@ class Runner:
             ref=impl.ref,
             agents=[_drove(role, spec) for role, spec in self._specs.items()],
             envs=[f"{role}={spec}" for role, spec in self._places.items()],
+            used=[f"{role}={spec}" for role, spec in self._used.items()],
             # Through JSON text rather than `mode="json"`, which leaves an infinite cost a
             # float: `Budget(cost=inf)` is written as the string it reads back from.
             params=json.loads(self._params.model_dump_json()),
@@ -693,6 +721,41 @@ class Runner:
         finally:
             _GOING.discard(self)
             await asyncio.shield(self._closed(local))
+
+    async def _settled(self, noticed: Callable[[str], None] | None) -> None:
+        """Probes every environment, each given as an `-e` falling back where it is not held.
+
+        Where its runtime cannot hold it -- the role's declared resources among what it is
+        held to -- an environment moves down that runtime's fallback list, and the driver and
+        the spec of the runtime that did hold it are the role's from then on: what the flow is
+        handed, what the epic says it ran on, and whose affinity says where a harness of work
+        there goes -- the runtime that held the role, never the one it was moved off.
+
+        Raises:
+          FlowException: Why one could not be held anywhere it was let go.
+        """
+        from hmz.runtime.flowing import probe
+        from hmz.runtime.flowing.engine import meets
+        from hmz.runtime.flowing.environments import settle
+
+        impl = self._impl
+        for name in list(self._places):
+            driver = self._envs.get(name) or self._unopened[name]
+            spec = self._asked.get(name)
+            if spec is None:
+                if not isinstance(driver, Exception):
+                    await probe(driver)
+                continue
+            role = self._declared.env(name)
+
+            def fits(driver: EnvDriver, role: EnvRole | None = role) -> None:
+                if role is not None and role.resources:
+                    meets(role, driver, impl)
+
+            held, self._envs[name] = await settle(
+                spec, driver, role, fits=fits, moved=noticed
+            )
+            self._used[name] = str(held).partition("=")[2]
 
     async def _placeable(self, local: EnvDriver) -> None:
         """Settles where each harness goes on every machine of the run, or refuses it.
@@ -957,25 +1020,36 @@ def _harbors() -> Harbors:
 
 def _env_drivers(
     given: Mapping[str, EnvSpec | EnvDriver], declared: Declaration
-) -> dict[str, EnvDriver]:
+) -> tuple[dict[str, EnvDriver], dict[str, EnvError]]:
     """A driver per environment role, made for each role given a spec as the role declares.
+
+    Returns:
+      The drivers, by role; and by role, why none could be made for a spec whose runtime
+      falls back to others -- a refusal like any other its runtime gives, which is the first
+      step down that list rather than the end of the run.
 
     Raises:
       Refused: For a spec whose machine is known not to have its workdir.
     """
-    from hmz.flows import FlowException
+    from hmz.flows import EnvError, FlowException
     from hmz.runtime.flowing.environments import open_env
-    from hmz.runtime.flowing.specs import EnvSpec
+    from hmz.runtime.flowing.specs import EnvSpec, fallbacks
 
-    try:
-        return {
-            role: open_env(said, declared.env(role))
-            if isinstance(said, EnvSpec)
-            else said
-            for role, said in given.items()
-        }
-    except FlowException as why:
-        raise Refused(str(why)) from why
+    drivers: dict[str, EnvDriver] = {}
+    unopened: dict[str, EnvError] = {}
+    for role, said in given.items():
+        if not isinstance(said, EnvSpec):
+            drivers[role] = said
+            continue
+        try:
+            drivers[role] = open_env(said, declared.env(role))
+        except EnvError as why:
+            if not fallbacks(said):
+                raise Refused(str(why)) from why
+            unopened[role] = why
+        except FlowException as why:
+            raise Refused(str(why)) from why
+    return drivers, unopened
 
 
 def _by_role(given: object) -> list[tuple[str, object]]:

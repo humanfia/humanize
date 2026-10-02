@@ -14,6 +14,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from hmz.coganchor.agents import AgentBase, SessionBase
@@ -48,6 +49,7 @@ class Run:
         self._task = task
         self._outworlder = outworlder
         self._opened: list[Opened] = []
+        self._noticed: list[Callable[[str], None]] = []
         self._epic: Path | None = None
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -141,6 +143,17 @@ class Run:
         """
         self._opened.append(callback)
 
+    def noticed(self, callback: Callable[[str], None]) -> None:
+        """Has humanize's own word about the run told to `callback`, a line at a time.
+
+        Which is an environment moved off the runtime its `-e` named, and why: said before
+        the flow is called, on the run's own loop.
+
+        Args:
+          callback: What to tell.
+        """
+        self._noticed.append(callback)
+
     @property
     def running(self) -> bool:
         """Whether the flow is still going, which is False before it is started."""
@@ -173,6 +186,7 @@ class Run:
             outworlder=self._outworlder,
             opened=self._told,
             started=self._began,
+            noticed=self._notices,
         )
 
     def _told(
@@ -184,6 +198,10 @@ class Run:
     ) -> None:
         for callback in tuple(self._opened):
             callback(role, agent, session, where)
+
+    def _notices(self, said: str) -> None:
+        for callback in tuple(self._noticed):
+            callback(said)
 
     def _began(self, epic: Epic) -> None:
         self._epic = epic.path
