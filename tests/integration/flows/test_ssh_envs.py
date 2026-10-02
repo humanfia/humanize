@@ -600,6 +600,8 @@ async def test_a_runtime_short_of_what_a_role_asks_falls_back_into_the_next_ones
     held, driver = await settle(spec, first, fits=fits, moved=told.append)
     try:
         assert (held.provider, held.workdir) == ("big", PurePosixPath(elsewhere))
+        # What an affinity is read off: the runtime that held it, not the one it left.
+        assert (driver.backend, driver.provider) == (EnvBackendKind.SSH, "big")
         assert driver.available
         assert not first.available  # closed, once it could not hold the role
         assert told == [

@@ -270,25 +270,16 @@ def test_a_param_is_read_as_the_flow_declared_it(
     assert _seen(tmp_path)["params"] == read
 
 
-@pytest.mark.parametrize(("said", "kept"), [([], "adaptive"), (["-H", "env"], "env")])
-def test_where_the_harnesses_run_is_written_down_with_the_run(
-    tmp_path: Path, here: Path, said: list[str], kept: str
+@pytest.mark.parametrize("flag", ["-H", "--harness"])
+def test_where_a_harness_runs_is_no_flag_of_the_line(
+    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str], flag: str
 ) -> None:
-    main(["exec", "-f", _flow(tmp_path), "-a", BUILDER, *said, *BUDGET, "task"])
-
-    ran = read(epics()[0])
-    assert ran is not None
-    assert ran.harness == kept
-
-
-def test_a_harness_that_is_nowhere_is_a_usage_error(
-    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+    """The runtime an environment is on says where its harnesses go, as its affinity."""
     with pytest.raises(SystemExit) as stopped:
-        main(["exec", "-f", _flow(tmp_path), "-H", "somewhere", *BUDGET, "task"])
+        main(["exec", "-f", _flow(tmp_path), flag, "local", *BUDGET, "task"])
 
     assert stopped.value.code == 2
-    assert "expected adaptive, local, env or standalone" in capsys.readouterr().err
+    assert "unrecognized arguments" in capsys.readouterr().err
     assert epics() == []
 
 

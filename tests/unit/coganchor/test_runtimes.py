@@ -8,6 +8,7 @@ that what is written down comes to exactly the `ssh` and `docker` command lines 
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import stat
 from pathlib import Path, PurePosixPath
@@ -78,6 +79,7 @@ def test_an_ssh_runtime_is_read_back_as_it_was_written_down() -> None:
         "workdir": "~/proj",
         "fallback": ["docker:box", "ssh:gpu2"],
         "made": "typed",
+        "affinity": [],
     }
 
 
@@ -394,6 +396,58 @@ def test_what_no_docker_runtime_could_be_is_refused(
 )
 def test_every_kind_of_endpoint_is_taken(endpoint: str) -> None:
     assert DockerRuntime(name="d", endpoint=endpoint).endpoint == endpoint
+
+
+def test_an_affinity_is_kept_in_order_and_read_back() -> None:
+    written = store.add(
+        store.new("docker", "a", affinity=["docker:b", "self", "ssh:gpu", "local"])
+    )
+
+    assert written.affinity == ("docker:b", "self", "ssh:gpu", "local")
+    assert store.find("docker", "a") == written
+    held = json.loads((home() / "runtimes/docker/a/runtime.json").read_text())
+    assert held["affinity"] == ["docker:b", "self", "ssh:gpu", "local"]
+    assert store.affine("docker:b") == ("docker", "b")
+    assert store.affine("swarm:cluster") == ("swarm", "cluster")
+    swarm = store.new("swarm", "cluster", affinity=["swarm:other", "docker:a", "local"])
+    assert swarm.affinity == ("swarm:other", "docker:a", "local")
+    assert store.affine("self") is None
+    assert store.affine("local") is None
+
+
+@pytest.mark.parametrize(
+    ("backend", "affinity", "said"),
+    [
+        ("docker", ["here"], "'here' is not where a harness runs"),
+        ("docker", ["ftp:box"], "'ftp:box' is not where a harness runs"),
+        ("docker", ["docker:"], "is not where a harness runs"),
+        ("docker", ["docker:../x"], "is not where a harness runs"),
+        ("docker", ["local", "local"], "local is in its affinity twice"),
+        ("docker", ["docker:b", "docker:b"], "docker:b is in its affinity twice"),
+        ("docker", ["docker:mine"], "its affinity names itself"),
+        ("ssh", ["ssh:mine"], "its affinity names itself"),
+        ("swarm", ["swarm:mine"], "its affinity names itself"),
+        ("ssh", "self", "affinity cannot be 'self'"),
+    ],
+)
+def test_an_affinity_that_is_not_one_is_refused(
+    backend: str, affinity: object, said: str
+) -> None:
+    fields: dict[str, object] = {"affinity": affinity}
+    if backend == "ssh":
+        fields["host"] = "h"
+    with pytest.raises(ValueError, match=said):
+        store.new(backend, "mine", **fields)
+
+
+def test_an_import_keeps_the_affinity_it_was_given() -> None:
+    config = home().parent / "ssh_config"
+    config.write_text("Host gpu\n  HostName 10.0.0.2\n")
+    (made,) = store.imports(config)
+    store.write(dataclasses.replace(made, affinity=("local",)))
+
+    (again,) = store.imports(config, update=True)
+    assert again.affinity == ("local",)
 
 
 def test_what_json_holds_is_read_as_the_field_holds_it() -> None:

@@ -36,7 +36,6 @@ class Settings:
     def flows(self) -> dict[str, Any]: ...
     def params(self, flow: str) -> dict[str, Any]: ...
     def budget(self, flow: str) -> dict[str, Any]: ...  # a Budget, as JSON
-    def harness(self, flow: str) -> str: ...  # as `-H` spells it, "" for adaptive
     def remember(
         self,
         flow: str,
@@ -44,7 +43,6 @@ class Settings:
         envs: Mapping[str, str] | None = None,
         params: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
-        harness: str | None = None,
     ) -> None: ...
     def forget(self, workspace: str = "") -> bool: ...
 
@@ -88,7 +86,7 @@ class Session(NamedTuple):
     parent: str = ""
     record: str = ""
     where: str = ""  # where it is kept: from the epic, or whole where it stayed at home
-    harness: str = ""  # where its harness ran, for work elsewhere: local, env, standalone:...
+    harness: str = ""  # where its harness ran, for work elsewhere: local, self, <backend>:<name>
 class Drove(NamedTuple):  # one agent role, and what it was given
     agent: str
     backend: str
@@ -123,7 +121,6 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}
     budget: dict[str, Any] | None = None
     picked_up: str = ""  # the epic it was picked up from
-    harness: str = ""  # where its harnesses were to run, as `-H` spells it
     @property
     def name(self) -> str: ...
 class Epic:  # a context manager, closed however the run ends
@@ -142,7 +139,6 @@ class Epic:  # a context manager, closed however the run ends
         resumable: bool = False,
         picked_up: Path | None = None,
         profile: bool = False,
-        harness: str = "",
     ) -> None: ...
     @property
     def path(self) -> Path: ...
@@ -187,7 +183,8 @@ class Sub(Epic):  # one flow another flow called, in a record beside that run's 
     ) -> None: ...
     def ended(self, kind: type[BaseException] | None = None, how: str = "") -> None: ...
 def called(agent: str, backend: str, provider: str, ident: str) -> str: ...
-def harnessed(machine: MachineConfig | None) -> str: ...  # local, env, standalone:<target>
+def harbor(target: str, runtime: str) -> None: ...  # which runtime a harness machine is
+def harnessed(machine: MachineConfig | None) -> str: ...  # local, self, <backend>:<name>
 def under(workspace: Path | str | None = None) -> Path: ...
 def epics(workspace: Path | str | None = None) -> list[Path]: ...
 def records(epic: Path) -> list[Path]: ...
@@ -228,7 +225,6 @@ class Line(NamedTuple):  # an `hmz exec` line, read
     budget: Budget | None = None
     resume: bool = False
     as_json: bool = False
-    harness: HarnessSpec | None = None
 def read_line(argv: list[str]) -> Line: ...
 class Runner:
     def __init__(
@@ -241,10 +237,9 @@ class Runner:
         budget: Budget | Mapping[str, Any] | None = None,
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
-        harness: str | HarnessSpec | None = None,
     ) -> None: ...
     flow: str; impl: FlowImpl; declaration: Declaration; agents: dict[str, AgentDriver]
-    envs: dict[str, EnvDriver]; params: FlowParams; budget: Budget; harness: HarnessSpec
+    envs: dict[str, EnvDriver]; params: FlowParams; budget: Budget
     picked_up: Path | None; workspace: Path; recorder: Recorder | None  # properties
     used: dict[str, str]  # where each environment role was put, as `-e` spells it
     def unreadable(self) -> str: ...
@@ -282,12 +277,11 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
 - MUST NOT name `cli`, `daemon`, `tui` or `sdk`, MUST restate no rule the layers under it
   carry out, and MUST load nothing until it is named. `telemetry` MUST name nothing above it.
 - `Settings` MUST answer what a workspace was last set up to run — the flow, what each of its
-  agent and environment roles was given, its params, what a run may spend, where its harnesses
-  run — and MUST answer what is not a workspace's at all.
+  agent and environment roles was given, its params, and what a run may spend — and MUST answer what is not a workspace's at all.
 - A setting that is a question somebody has to answer MUST have three answers — yes, no, and
   nobody asked — and reading one MUST NOT write it.
 - Two holders of the settings MUST NOT put back what the other has written; remembering a
-  flow's agents MUST leave its environments, params, budget and harness alone where they are not handed
+  flow's agents MUST leave its environments, params and budget alone where they are not handed
   in, an empty one MUST erase, and settings humanize did not write MUST read as nothing
   remembered.
 - Nothing MUST be reported where the question has not been answered yes, a run with nobody at

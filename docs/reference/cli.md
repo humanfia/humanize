@@ -102,8 +102,7 @@ with no interface. The run's [outworlder](#nobody-is-at-the-prompt) is always aw
 
 ```text
 usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
-                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [-H WHERE]
-                [--resume] [--json]
+                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [--resume] [--json]
                 task
 ```
 
@@ -116,7 +115,6 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | <span id="exec-envs"></span>`-e`, `--envs` | [`<env>`](#writing-an-environment) list | 0‥n, merged | none | One environment per environment role. |
 | <span id="exec-params"></span>`-p`, `--params` | [`<param>`](#writing-params) list | 0‥n, merged | the flow's defaults | Fields of the flow's `FlowParams`. |
 | <span id="exec-budget"></span>`-b`, `--budget` | [`<limit>`](#writing-a-budget) list | 0‥n, merged; **required** except for flows humanize ships | none | What the run may spend. |
-| <span id="exec-harness"></span>`-H`, `--harness` | [`<where>`](#choosing-where-the-harness-runs) | 0‥1 (a later one replaces an earlier) | `adaptive` | Where every agent's harness runs. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
@@ -148,10 +146,6 @@ workdir       = "/" , ? any text ? ;                       (* "/~" or "/~/…" i
 
 param         = key , "=" , ? any text ? ;
 limit         = ( "duration" | "cost" | "output_tokens" | "graceful" ) , "=" , ? value ? ;
-
-where         = "adaptive" | "local" | "env" | "standalone:" , machine ;
-machine       = ( "ssh" | "docker" | "swarm" ) , "@" , host , workdir?   (* as env, without "role=" *)
-              | name ;                                        (* a saved runtime *)
 ```
 
 #### Items {#items}
@@ -288,58 +282,24 @@ be enforced. The run starts, and stderr first carries:
 hmz exec: nobody lists a price for <model>[, <model>…], so cost=<n> cannot stop what it spends
 ```
 
-### Choosing where the harness runs (`-H`) {#choosing-where-the-harness-runs}
+### Where the harness runs {#choosing-where-the-harness-runs}
 
-```text
--H adaptive | local | env | standalone:<backend>@<provider>[/<workdir>] | standalone:<name>
-```
+The *harness* is an agent's CLI and its supervisor. Nothing on the line says where it runs:
+no option of `hmz exec` takes it. Work on this machine has its harness here; work
+on a saved [runtime](/reference/machines#runtimes) has it where that runtime's `affinity` says,
+in order (`self` on the runtime's own machine, `local` here, `ssh:<name>` / `docker:<name>` on
+another saved runtime); work on a machine nobody saved, or on a runtime with no affinity, has it
+on the environment's machine where the agent's CLI is installed there and can be fenced to the
+role's permission and no hook gating its tools is hung, and here otherwise.
 
-The *harness* is an agent's CLI and its supervisor. The mode applies to every agent of the
-run, and only to agents whose work is on another machine (an `ssh` or `docker` environment);
-work on this machine runs its harness here under every mode but `standalone`.
-
-| Mode | The harness runs |
-| --- | --- |
-| `adaptive` *(default)* | On the environment's machine where the agent's CLI is installed there and can be fenced to the role's permission; here otherwise, and here for a role that hangs a hook gating its tools (`PreToolUse`, `PermissionRequest`; an `AskUser` hook does not). Decided once per role and machine. |
-| `local` | Here, supervised, reaching the environment through the anchor. |
-| `env` | On the environment's machine, as the CLI installed there. Every agent's CLI is looked for on every environment's machine before the run: one without it refuses the run, naming the line that installs it. |
-| `standalone:<machine>` | On a machine of its own, reaching the environment through the anchor. The CLI must be installed there. Only for roles granted everything: a role whose permission fences anything refuses the run, since a fence cannot be held around a harness on another machine. |
-
-`<machine>` is read as follows:
-
-| Written | Read as |
-| --- | --- |
-| `ssh@<host>[/<workdir>]`, `docker@<provider>[/<workdir>]` | As `-e` reads it after `<role>=`. |
-| `<name>` (no `@` before the first `/`) | The saved ssh runtime of that name, else the saved docker runtime of that name, else the saved swarm runtime of that name, else the text as written. |
-| no `/<workdir>`, provider saved with one | That workdir. |
-| no `/<workdir>`, `ssh` | `/~` (the login's home). |
-| no `/<workdir>`, `docker@local` | `$HUMANIZE_HOME/harness`. |
-| no `/<workdir>`, any other docker runtime | Refused (no workdir). |
-
-| `-H` value | Error |
-| --- | --- |
-| not one of the forms | `-H '<value>': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
-| `standalone:` naming `local@…` | `-H '<value>': a standalone harness runs on another machine; -H local runs it on this one` |
-| `standalone:<name>`, nothing saved under it | `-H '<value>': no runtime is saved as '<name>'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
-| `standalone:` with an unknown backend | `-H '<value>': '<backend>' is not a backend; one of ssh, docker, swarm` |
-| `standalone:docker@<provider>`, not saved, no workdir | `-H '<value>': docker@<provider> is not saved with a workdir of its own; expected standalone:docker@<provider>/<workdir>` |
-| `standalone:ssh@` with no host | `-H '<value>': ssh needs a host, as in ssh@host/workdir` |
-
-Once the environments are probed, before the flow is called, each agent's harness is checked
-against where `-H` puts it (`hmz exec: error: <message>`, exit `2`):
-
-| Mode | Refused | Message |
-| --- | --- | --- |
-| `env` | an environment's machine without the agent's CLI | `<cli> is not installed on <backend>@<provider>: <install line> there, or run its harness here with -H local` |
-| `env` | an environment's machine that cannot hold the role's fence | `<backend>@<provider> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local` |
-| `env` | a machine that cannot be asked | `<backend>@<provider> could not be asked whether <cli> is there: <reason>` / `… did not say within 300s whether <cli> is there` |
-| `standalone` | a role not granted everything | `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
-
-A standalone machine is opened as an environment is — probed before the flow is called; a
-docker one is a container of its own, started from the provider's image and removed with the
-run. Where each session's harness went is recorded on the session in the epic as `local`,
-`env` or `standalone:<target>` ([Tracing › Epics](/reference/tracing#epics)), and in the
-daemon's [`opened`](/reference/daemon#history-records) record. Detail:
+Once the environments are probed, before the flow is called, every agent's harness is settled
+on every machine whose runtime has an affinity; an affinity with no room for it refuses the run
+(`hmz exec: error: <backend>@<provider>: nowhere its affinity (<entries>) names has room for
+<cli>'s harness; the last: <refusal>`, exit `2`). A runtime an affinity sends a harness to is
+opened as an environment is, probed before the flow is called and closed with the run. Where
+each session's harness went is recorded on the session in the epic as `local`, `self` or
+`<backend>:<name>` ([Tracing › Epics](/reference/tracing#epics)), and in the daemon's
+[`opened`](/reference/daemon#history-records) record. Detail:
 [Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs).
 
 ### Picking a run up (`--resume`) {#picking-a-run-up}
@@ -360,9 +320,9 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | Stage | Checks | On failure |
 | --- | --- | --- |
 | 1. argparse | Options, `-f` and `task` present. | Usage on stderr, `hmz exec: error: <why>`, exit `2`. |
-| 2. Spec parsing (`Hmz.read`) | Every `-a`, `-e`, `-p`, `-b`, `-H` against its grammar; duplicate roles and keys. | Same as 1. |
+| 2. Spec parsing (`Hmz.read`) | Every `-a`, `-e`, `-p`, `-b` against its grammar; duplicate roles and keys. | Same as 1. |
 | 3. Loading (`Hmz.run` → `Runner`) | Flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
-| 4. Opening (`Run.run`, before the flow is called) | Environments and a standalone harness machine reached and measured; each agent's harness checked against where `-H` puts it; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
+| 4. Opening (`Run.run`, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's affinity puts it, and the runtimes it goes to reached; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
 | 5. The flow | — | See [Exit statuses](#exit-statuses). |
 
 Nothing of an agent has started before stage 5. What a flow module does when imported (stage
@@ -396,7 +356,6 @@ Stage 1–2 messages are preceded by the usage block.
 | a `-b` key twice | `-b: duplicate key '<key>'` |
 | a `-b` value | `-b duration: '<v>' names a unit twice`, `-b duration: '<v>' is not a valid duration: must be finite and not negative`, `-b duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`, `-b cost: '<v>' is not a valid USD cost`, `-b output_tokens: '<v>' must be a whole number of tokens`, `-b output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`, `-b graceful: '<v>' must be true or false` |
 | a `-b` that limits nothing | `-b: Value error, a budget sets at least one of duration, cost, output_tokens` |
-| an `-H` | see [`-H`](#choosing-where-the-harness-runs) |
 | no such flow | `<ref>: no flow is called '<ref>', and it is not a path`; `<ref>: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet` |
 | a role the flow does not declare | `<flow> has no agent role '<role>'; available roles are '<a>', '<b>'` (`… environment role …` for `-e`; `none` where there are none) |
 | a role the runtime fills | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a`; `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
@@ -408,7 +367,7 @@ Stage 1–2 messages are preceded by the usage block.
 | no `-b`, flow not shipped with humanize | `<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
 | `--resume` | see [Picking a run up](#picking-a-run-up) |
 | an environment unreachable or smaller than declared | the reason, naming the role |
-| a harness `-H` puts where it cannot run | see [`-H`](#choosing-where-the-harness-runs) |
+| a harness with no room anywhere its runtime's affinity names | see [Where the harness runs](#choosing-where-the-harness-runs) |
 | a skill a role names that cannot be found or fetched | the reason, naming the skill |
 
 ### Output {#watching-a-run}

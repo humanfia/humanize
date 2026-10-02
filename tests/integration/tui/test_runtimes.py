@@ -719,7 +719,7 @@ async def test_a_docker_swarm_is_added_on_its_own_form_and_asked_what_its_nodes_
         await _opens(app, driver, _ACT_SWARMS, Swarming)
         form = cast("Swarming", app.screen)
         assert form._typed_in["name"] == "local"
-        assert rows(app)[:3] == ["endpoint", "name", "image"]
+        assert rows(app)[:4] == ["endpoint", "name", "affinity", "image"]
         assert {"runtime", "gpus", "max_containers"}.isdisjoint(rows(app))
         assert {"constraints", "max_tasks", "nodes", "gpu_resource"} <= set(rows(app))
 
@@ -1220,6 +1220,36 @@ async def test_correcting_one_row_of_a_daemon_changes_nothing_else(
 
     assert store.find("docker", "odd") == DockerRuntime(
         name="odd", memory=10**9, image="python:3.12"
+    )
+
+
+@pytest.mark.timeout(60)
+async def test_where_a_harness_runs_is_written_on_the_runtime_in_order(
+    standins: Path,
+) -> None:
+    """One row of entries apart by commas, kept in the order written; one wrong is said."""
+    del standins
+    store.add(DockerRuntime(name="a"))
+    store.add(DockerRuntime(name="b"))
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await onto(app, driver, "docker/a")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await _opens(app, driver, _CORRECTS, Docking)
+        assert "harness runs on" in _drawn(app)
+        await _types(app, driver, "affinity", "docker:a")
+        await _done(app, driver)
+        assert isinstance(app.screen, Docking)
+        assert "its affinity names itself" in _under(app)
+
+        await _types(app, driver, "affinity", "docker:b, local")
+        await _done(app, driver)
+        await until(lambda: app.screen is sheet, driver)
+
+    assert store.find("docker", "a") == DockerRuntime(
+        name="a", affinity=("docker:b", "local")
     )
 
 

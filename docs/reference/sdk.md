@@ -115,12 +115,12 @@ def run(
     budget: Budget | Mapping[str, Any] | None = None,
     resume: bool | str | os.PathLike[str] = False,
     outworlder: OutworlderDriver | None = None,
-    harness: str | HarnessSpec | None = None,
 ) -> Run
 ```
 
-Equivalent to `Run(self.runner(flow, agents=…, envs=…, params=…, budget=…, resume=…,
-harness=…), task, outworlder=outworlder)`. Nothing starts.
+Equivalent to `Run(self.runner(flow, agents=…, envs=…, params=…, budget=…, resume=…), task,
+outworlder=outworlder)`. Nothing starts. Where each agent's harness runs is not a parameter:
+it is the `affinity` of the [runtime](#runtimes) its work is on.
 
 | Parameter | Accepts | Default |
 | --- | --- | --- |
@@ -132,7 +132,6 @@ harness=…), task, outworlder=outworlder)`. Nothing starts.
 | `budget` | A [`Budget`](/reference/flows#what-a-run-may-spend), or a mapping validated by `Budget.model_validate` (`{"cost": 5}`, `{"duration": 3600}`, `{"duration": "PT1H"}`; `"1h"` is **not** accepted). `None`: `Budget(cost=inf)` for a flow shipped with humanize, else refused. | `None` |
 | `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
 | `outworlder` | The driver filling `Outworlder` roles (e.g. `fakes.FakeOutworlder`). `None`: always away, as under `hmz exec`. | `None` |
-| `harness` | An [`-H` spelling](/reference/cli#choosing-where-the-harness-runs) or a `HarnessSpec`. `None` or `""`: `adaptive`. | `None` |
 
 Raises [`Refused`](#refused) for everything [`hmz exec` refuses at stage
 3](/reference/cli#processing-order), in the same words, plus:
@@ -155,8 +154,7 @@ except Refused as why:
 ### `Hmz.runner` {#hmz-runner}
 
 ```python
-def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, resume=False,
-           harness=None) -> Runner
+def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, resume=False) -> Runner
 ```
 
 Parameters and refusals as [`run`](#hmz-run), without `task` and `outworlder`. Returns the
@@ -170,7 +168,7 @@ def read(self, argv: list[str]) -> Line
 ```
 
 Parses an `hmz exec` argument list (without `exec`) to a [`Line`](#line). Loads no flow. A
-line argparse rejects, or an `-a`/`-e`/`-p`/`-b`/`-H` that does not parse, prints usage and
+line argparse rejects, or an `-a`/`-e`/`-p`/`-b` that does not parse, prints usage and
 the error to stderr and raises `SystemExit(2)`; `--help` prints help and raises
 `SystemExit(0)`.
 
@@ -179,8 +177,7 @@ hmz = Hmz()
 line = hmz.read(["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high",
                  "-b", "duration=6h,cost=50", "fix the build"])
 run = hmz.run(line.flow, line.task, agents=line.agents, envs=line.envs,
-              params=line.params, budget=line.budget, resume=line.resume,
-              harness=line.harness)
+              params=line.params, budget=line.budget, resume=line.resume)
 ```
 
 ### `Hmz.exec` {#hmz-exec}
@@ -322,7 +319,7 @@ named by `-e <role>=ssh@<name>` and `-e <role>=docker@<name>`. `backend` is `"ss
 | `all(backend: str = "")` | `list[Runtime]` | By backend, then name. |
 | `find(backend, name)` | `Runtime \| None` | |
 | `where(backend, name)` | `Path` | Where it is kept. `ValueError`: bad backend or name. |
-| `new(backend, name, **fields)` | `Runtime` | Builds and validates one; saves nothing. `ValueError`: unknown field or bad value. `new(**p.held())` equals `p`. |
+| `new(backend, name, **fields)` | `Runtime` | Builds and validates one; saves nothing. `ValueError`: unknown field or bad value. `new(**p.held())` equals `p`. `affinity=["self", "docker:gpubox", "local"]` sets where the harness of work on it runs ([Remote execution › Affinity](/reference/remote-execution#affinity)). |
 | `add(runtime)` | `Runtime` | Saves a new one. `ValueError`: name taken. `OSError`. |
 | `write(runtime)` | `Runtime` | Saves, replacing any of that name. `OSError`. |
 | `remove(backend, name)` | `bool` | `ValueError`: bad backend or name. |
@@ -446,7 +443,7 @@ class Link:
     def start(self, flow: str | os.PathLike[str], task: str, *,
               agents: Mapping[str, Any] | None = None, envs: Mapping[str, Any] | None = None,
               params: Any = None, budget: Any = None,
-              resume: bool | str | os.PathLike[str] = False, harness: str = "") -> dict[str, Any]
+              resume: bool | str | os.PathLike[str] = False) -> dict[str, Any]
     def say(self, text: str, *, to: str = "") -> dict[str, Any]
     def answer(self, question: str, text: str) -> dict[str, Any]
     def stop(self) -> dict[str, Any]
@@ -472,7 +469,7 @@ in this process.
 | `heard(listener)` | Delivers every message, already-queued ones first, to `listener` on a thread of the link's own, in order. `RuntimeError` if a listener is already set. |
 | `__iter__` | Yields every message in order until `gone` or `close()`. `RuntimeError` if a listener is set. |
 | `asked(said, *, seconds=None)` | Sends one [request](/reference/daemon#requests) and waits (`seconds=None`: indefinitely; ignored in process). Returns the reply (`ok: true`). Raises [`Refused`](#refused) with the reply's `why`, or `TimeoutError("no answer to '<do>' in <s>s")`. |
-| `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). `harness`: `-H` spelling, `""` = adaptive. Reply carries `run`. |
+| `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). Reply carries `run`. |
 | `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board`, `aside` | The request of the same name. |
 | `close()` | Lets go of the host; runs continue. |
 
@@ -528,9 +525,8 @@ declaration order.
 | `budget` | `Budget \| None` | `None` | every `-b`, parsed |
 | `resume` | `bool` | `False` | `--resume` |
 | `as_json` | `bool` | `False` | `--json` |
-| `harness` | `HarnessSpec \| None` | `None` | `-H`, parsed |
 
-### `AgentSpec`, `EnvSpec`, `HarnessSpec` {#specs}
+### `AgentSpec`, `EnvSpec` {#specs}
 
 `hmz.runtime.flowing.specs`, frozen dataclasses. `str()` writes each back as its flag takes it.
 
@@ -538,7 +534,6 @@ declaration order.
 | --- | --- |
 | `AgentSpec` | `role: str`, `harness: HarnessKind` (`ACP` for an ACP CLI), `provider: str` (`""` = as local), `model: str`, `effort: str` (`""` = auto), `cli: str` |
 | `EnvSpec` | `role: str`, `backend: EnvBackendKind`, `provider: str`, `workdir: PurePosixPath` (`~/…` relative to home) |
-| `HarnessSpec` | `mode: str = "adaptive"` (`adaptive` `local` `env` `standalone`), `on: EnvSpec \| None = None` (role `harness`; set only for `standalone`) |
 
 ### Flow types {#flow-types}
 
@@ -577,7 +572,7 @@ them.
 
 | Type | Fields |
 | --- | --- |
-| `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`), `harness: str` (`-H` spelling; `""` = adaptive); property `name` |
+| `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`); property `name` |
 | `Drove` | `agent`, `backend`, `model`, `effort` (`""` = auto), `provider` (`""` = as local); property `spec` (`-a` spelling after `<role>=`) |
 | `Called` | `flow`, `task`, `record` (file in the epic), `began`, `ended`, `how`, `calls: tuple[Called, ...]` |
-| `Session` | `agent`, `backend`, `provider` (`local` = as local), `ident` (backend's id), `name`, `at`, `flow`, `parent` (forked-from id or `""`), `record`, `where` (kept-session path), `harness` (`local`, `env`, `standalone:<target>`, or `""` for work on this machine) |
+| `Session` | `agent`, `backend`, `provider` (`local` = as local), `ident` (backend's id), `name`, `at`, `flow`, `parent` (forked-from id or `""`), `record`, `where` (kept-session path), `harness` (`local`, `self`, the `<backend>:<name>` of a runtime an affinity sent it to, or `""` for work on this machine) |

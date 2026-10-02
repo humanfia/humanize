@@ -12,10 +12,6 @@ list::
 A comma separates two items only where what follows it -- spaces aside -- is a key and `=`,
 so a value may hold commas of its own -- `tags=a,b,c` is one param -- and may not hold
 `,<key>=`.
-
-And one flag said once, which is where the agents' harnesses run::
-
-    -H adaptive | local | env | standalone:ssh@gpu-box
 """
 
 from __future__ import annotations
@@ -42,8 +38,6 @@ __all__ = [
     "BudgetSpecError",
     "EnvSpec",
     "EnvSpecError",
-    "HarnessSpec",
-    "HarnessSpecError",
     "ParamSpecError",
     "SpecError",
     "fallbacks",
@@ -51,7 +45,6 @@ __all__ = [
     "parse_budget",
     "parse_duration",
     "parse_envs",
-    "parse_harness",
     "parse_params",
 ]
 
@@ -74,10 +67,6 @@ class ParamSpecError(SpecError):
 
 class BudgetSpecError(SpecError):
     """A `-b` that is not a budget."""
-
-
-class HarnessSpecError(SpecError):
-    """An `-H` that is not one of the places a harness may run."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -485,131 +474,3 @@ def parse_budget(values: Sequence[str]) -> Budget:
         raise BudgetSpecError(
             f"-b: {'; '.join(one['msg'] for one in error.errors())}"
         ) from error
-
-
-#: Where each agent's harness -- its CLI, and whatever supervises it -- runs, as `-H` says it.
-#: Adaptive: on the environment's own machine where the CLI is installed there, and here
-#: otherwise. Local: here, anchored to the environment. Env: on the environment's machine,
-#: refused where the CLI is not there. Standalone: on a machine of its own, named after it.
-ADAPTIVE, LOCAL, ENV, STANDALONE = "adaptive", "local", "env", "standalone"
-
-#: Every one of them, in the order a menu steps through them.
-HARNESS_MODES = (ADAPTIVE, LOCAL, ENV, STANDALONE)
-
-#: Why a standalone harness is not put on this machine.
-_HERE = f"a standalone harness runs on another machine; -H {LOCAL} runs it on this one"
-
-
-@dataclass(frozen=True, slots=True)
-class HarnessSpec:
-    """Where a run's agents have their harness run, as `-H` names it.
-
-    Attributes:
-      mode: One of :data:`HARNESS_MODES`.
-      on: The machine a standalone harness runs on, as `-e` names an environment -- its role
-        being `harness` -- or None for every other mode.
-    """
-
-    mode: str = ADAPTIVE
-    on: EnvSpec | None = None
-
-    def __str__(self) -> str:
-        """The spec written back as `-H` takes it."""
-        if self.on is None:
-            return self.mode
-        return f"{STANDALONE}:{str(self.on).partition('=')[2]}"
-
-
-def parse_harness(value: str) -> HarnessSpec:
-    """Reads an `-H`.
-
-    `standalone:<env>` names the machine the way `-e` does after `<role>=` --
-    `ssh@gpu-box/~/scratch`, `docker@gpubox/srv/scratch` -- or by the bare name of a
-    runtime saved: `standalone:gpu-box`. The directory is where that
-    machine is worked in, which a harness needs nothing of beyond somewhere to be; left off,
-    it is the runtime's own, else the login's home over ssh, else -- on docker's default
-    here -- a directory humanize keeps for it.
-
-    Args:
-      value: What `-H` was given.
-
-    Returns:
-      The spec.
-
-    Raises:
-      HarnessSpecError: For anything else, and for a standalone machine that is this one.
-    """
-    said = value.strip()
-    mode, colon, rest = said.partition(":")
-    if mode in (ADAPTIVE, LOCAL, ENV) and not colon:
-        return HarnessSpec(mode)
-    rest = rest.strip()
-    if mode != STANDALONE or not rest:
-        raise HarnessSpecError(
-            f"-H {said!r}: expected {ADAPTIVE}, {LOCAL}, {ENV} or "
-            f"{STANDALONE}:<backend>@<provider>[/<workdir>]"
-        )
-    machine = _machine_of(rest)
-    try:
-        (on,) = parse_envs([f"harness={machine}"])
-    except EnvSpecError as error:
-        raise HarnessSpecError(f"-H {said!r}: {_unread(machine, error)}") from error
-    if on.backend is EnvBackendKind.LOCAL:
-        raise HarnessSpecError(f"-H {said!r}: {_HERE}")
-    return HarnessSpec(STANDALONE, on)
-
-
-def _unread(machine: str, error: EnvSpecError) -> str:
-    """Why a standalone machine does not read, in `-H`'s words rather than `-e`'s.
-
-    `-e` says what an environment role is, `<role>=` and all; a standalone machine has no
-    role, and a name nobody saved is a name rather than a spec with its parts left off.
-    """
-    form = f"{STANDALONE}:<backend>@<provider>[/<workdir>] or {STANDALONE}:<saved name>"
-    backend, at, provider = (part.strip() for part in machine.partition("@"))
-    if not at:
-        return f"no runtime is saved as {machine!r}; expected {form}"
-    if backend not in {kind.value for kind in EnvBackendKind}:
-        backends = ", ".join(
-            kind.value for kind in EnvBackendKind if kind is not EnvBackendKind.LOCAL
-        )
-        return f"{backend!r} is not a backend; one of {backends}"
-    if backend == EnvBackendKind.LOCAL.value:
-        return _HERE
-    why = str(error).partition(": ")[2] or str(error)
-    if why.startswith("expected "):
-        # A daemon nobody saved, named without a directory: which directories its host
-        # has is nothing anybody here can say.
-        return (
-            f"{backend}@{provider} is not saved with a workdir of its own; expected "
-            f"{STANDALONE}:{backend}@{provider or '<provider>'}/<workdir>"
-        )
-    return why
-
-
-def _machine_of(said: str) -> str:
-    """A standalone machine as `-e` spells one, a bare name and a missing directory filled in."""
-    from hmz import home
-    from hmz.coganchor.machines import store
-
-    if "@" not in said.partition("/")[0]:
-        # A bare name, which is a runtime written down: ssh's first, as the
-        # machine a person is likelier to mean by a name alone.
-        found = (
-            store.find(store.SSH, said)
-            or store.find(store.DOCKER, said)
-            or store.find(store.SWARM, said)
-        )
-        if found is None:
-            return said
-        said = f"{found.backend}@{said}"
-    backend, _, rest = said.partition("@")
-    read = _ENV.fullmatch(f"harness={said}")
-    if "/" in rest or read is None or _workdir_of(read) is not None:
-        return said
-    if backend.strip() == EnvBackendKind.SSH.value:
-        return f"{said}/~"
-    # A directory of docker's host, which humanize keeps only where that host is this one:
-    # any other daemon's is a directory nobody here can say is there.
-    held = backend.strip() == EnvBackendKind.DOCKER.value and rest.strip() == "local"
-    return f"{said}{home() / 'harness'}" if held else said

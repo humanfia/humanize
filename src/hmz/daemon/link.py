@@ -158,7 +158,6 @@ class Link:
         params: Any = None,
         budget: Any = None,
         resume: bool | str | os.PathLike[str] = False,
-        harness: str = "",
     ) -> dict[str, Any]:
         """Starts a flow, which every frontend attached then reads.
 
@@ -170,7 +169,6 @@ class Link:
           params: The flow's params, as a mapping or its model, or None for its defaults.
           budget: What the run may spend, as a mapping or a `Budget`.
           resume: Whether to pick up the newest run of it, or the epic to pick up.
-          harness: Where each agent's harness runs, as `-H` spells it; "" for adaptive.
 
         Returns:
           The answer, with the run's number as `run`.
@@ -185,7 +183,6 @@ class Link:
                 "params": _plain(params),
                 "budget": _plain(budget),
                 "resume": resume if isinstance(resume, bool) else str(resume),
-                "harness": harness,
             }
         )
 

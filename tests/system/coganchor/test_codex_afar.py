@@ -8,8 +8,9 @@ Codex starts a shell in that `cwd`, and the harness's machine has no such direct
 real CLI can say it now starts them, and only a real anchor that the command then lands where
 the work is.
 
-As `-H standalone` has it: the harness in one container, the work in another, which needs a
-docker daemon and an image this suite builds out of the Codex installed here.
+As an affinity naming another runtime has it: the harness in one container, the work in
+another, which needs a docker daemon and an image this suite builds out of the Codex installed
+here.
 
 Costs tokens and needs network access, so it only runs with ``pytest --run-agents``.
 """
@@ -180,7 +181,7 @@ def _machine(
 def test_codex_with_its_harness_in_one_container_runs_commands_in_another(
     tmp_path: Path, containers: list[str]
 ) -> None:
-    """`-H standalone`: the harness in a container of its own, the work in another.
+    """A harness on a runtime of its own: the harness in one container, the work in another.
 
     Signed in as this machine's own Codex is, by handing the container that Codex's home
     itself -- mounted at the path it has here, so there is one `auth.json` and both read and
@@ -196,7 +197,7 @@ def test_codex_with_its_harness_in_one_container_runs_commands_in_another(
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     (workspace / "hello.txt").write_text("HELLO-FROM-THE-TARGET\n")
-    # Given what humanize gives the container of a standalone harness.
+    # Given what humanize gives the container of a harness on a runtime of its own.
     harness = _machine(
         containers, image, str(home), env=f"CODEX_HOME={home}", given=TRACING
     )

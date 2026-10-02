@@ -89,6 +89,7 @@ __all__ = [
     "Sub",
     "called",
     "epics",
+    "harbor",
     "harnessed",
     "logs",
     "opened",
@@ -180,8 +181,9 @@ class Session(NamedTuple):
         wherever its CLI keeps them. "" for a line that never said, which :func:`where` reads
         as the directory of links an epic written before sessions were kept holds.
       harness: Where its harness ran, for a session whose work was on another machine:
-        `local` here, `env` on that machine, `standalone:<target>` on one of its own. ""
-        for a session that worked here, where there was nowhere else for it to be.
+        `local` here, `self` natively on that machine, and `<backend>:<name>` on the runtime
+        of that name -- one an affinity sent it to. "" for a session that worked here, where
+        there was nowhere else for it to be.
     """
 
     agent: str
@@ -277,8 +279,6 @@ class Ran(NamedTuple):
       params: What the flow was set up with, as JSON.
       budget: What the run was allowed to spend, as JSON, or None where it said nothing.
       picked_up: The epic this run was picked up from, by name, or "".
-      harness: Where its agents' harnesses were to run, as `-H` says it, or "" for a run
-        that said nothing -- which is adaptive.
     """
 
     at: Path
@@ -298,7 +298,6 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     budget: dict[str, Any] | None = None
     picked_up: str = ""
-    harness: str = ""
 
     @property
     def name(self) -> str:
@@ -371,26 +370,42 @@ def _provider(agent: AgentBase) -> str:
     return at.name if at is not None else ""
 
 
+#: The runtime each machine a harness was put on in this process is, by the target reaching
+#: it: what a session's harness is written down as, rather than the road to it.
+_HARBORS: dict[str, str] = {}
+
+
+def harbor(target: str, runtime: str) -> None:
+    """Says which runtime a machine opened to hold harnesses is, for its sessions to say.
+
+    Args:
+      target: The target reaching it, as a session's anchor names where its harness is.
+      runtime: The runtime, as an affinity names one: `<backend>:<name>`.
+    """
+    _HARBORS[target] = runtime
+
+
 def harnessed(machine: MachineConfig | None) -> str:
-    """Where a session's harness runs, as it was settled, in the words `-H` has for it.
+    """Where a session's harness runs, as it was settled, in the words an affinity has for it.
 
     Args:
       machine: The machine its agent's turns land on, or None for this one.
 
     Returns:
-      `local` for a harness on this machine, `env` for the CLI the environment's machine
-      has, and `standalone:<target>` for a harness on a machine of its own.
+      `local` for a harness on this machine, `self` for the CLI the environment's machine
+      has, and `<backend>:<name>` for a harness on a runtime of its own -- or the target
+      reaching it, for one :func:`harbor` was told nothing of.
     """
     from hmz.coganchor.elsewhere import HERE
-    from hmz.coganchor.machines import AnchoredConfig
+    from hmz.coganchor.machines import AnchoredConfig, store
 
     if not isinstance(machine, AnchoredConfig):
-        return "local"
+        return store.HERE
     if machine.anchor.native:
-        return "env"
+        return store.SELF
     if machine.anchor.harness != HERE:
-        return f"standalone:{machine.anchor.harness}"
-    return "local"
+        return _HARBORS.get(machine.anchor.harness, machine.anchor.harness)
+    return store.HERE
 
 
 def _journal(epic: Path) -> Iterator[dict[str, Any]]:
@@ -506,7 +521,6 @@ class Epic:
         resumable: bool = False,
         picked_up: Path | None = None,
         profile: bool = False,
-        harness: str = "",
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
 
@@ -529,8 +543,6 @@ class Epic:
           profile: Whether to sample the programs the agents start while the run goes, so
             that what a turn spent its minutes on is in the run's trace beside the turn. A
             setting of the workspace, asked of it by whoever opens the epic.
-          harness: Where the agents' harnesses were to run, as `-H` says it, or "" for a
-            run that said nothing.
         """
         self._begin(
             home()
@@ -572,7 +584,6 @@ class Epic:
             ),
             params=dict(params or {}),
             **({"budget": dict(budget)} if budget is not None else {}),
-            **({"harness": harness} if harness else {}),
         )
 
     def _begin(self, at: Path, journal: str, workspace: Path, flow: str) -> None:
@@ -1076,7 +1087,6 @@ def read(epic: Path) -> Ran | None:
         params=cast("dict[str, Any]", params) if isinstance(params, dict) else {},
         budget=cast("dict[str, Any]", budget) if isinstance(budget, dict) else None,
         picked_up=str(began.get("picked_up") or ""),
-        harness=str(began.get("harness") or ""),
     )
 
 

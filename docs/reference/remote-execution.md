@@ -9,7 +9,7 @@ part of it runs, what crosses between machines, and what is refused. The layer i
 `hmz.coganchor.anchor` and its command line is `hmz internal anchor`. Where an agent's turns
 land is set per agent by [`machine=`](/reference/machines) and per flow session by its
 [environment](/reference/machines#where-a-flow-s-agents-work); where the harness runs is set per
-run by `-H` ([below](#where-the-harness-runs)).
+saved runtime by its affinity ([below](#where-the-harness-runs)).
 
 ## Terms
 
@@ -251,8 +251,9 @@ workspace   /srv/project (184 entries)
 
 ## Where the harness runs {#where-the-harness-runs}
 
-Placement is decided at two levels: `AnchorConfig.harness` for one anchor, and `-H` for every
-agent of a flow run, which the flow runtime turns into anchor settings per session.
+Placement is decided at two levels: `AnchorConfig.harness` for one anchor, and the affinity of
+the runtime a flow session works on, which the flow runtime turns into anchor settings per
+session.
 
 ### `AnchorConfig.harness`
 
@@ -284,42 +285,47 @@ created there. A `--local-path` or `--local-exec` under `workspace` is kept here
 name. Not for a
 mirror nested in the workspace or the other way round.
 
-### `-H`: placement for a flow run
+### Affinity: placement for a flow run {#affinity}
+
+Every saved [runtime](/reference/machines#runtimes) has an `affinity`: an ordered list of
+places for the harness of an agent whose work is on it.
 
 ```text
--H adaptive | local | env | standalone:<backend>@<provider>[/<workdir>] | standalone:<name>
+affinity := [<entry>, ...]
+<entry>  := self | local | ssh:<name> | docker:<name>
 ```
 
-| Mode | Work in a `local` environment | Work in an `ssh` or `docker` environment |
+| Entry | The harness | No room when |
 | --- | --- | --- |
-| `adaptive` (default) | spawned here | native on the environment's machine where the [conditions](#adaptive-resolution) hold; otherwise supervised here |
-| `local` | spawned here | supervised here, anchored to the environment's machine |
-| `env` | spawned here | native on the environment's machine; refused where the CLI is missing or the machine cannot hold the fence |
-| `standalone:<env>` | supervised on `<env>`'s machine, reaching this machine's workdir as a `local` target | supervised on `<env>`'s machine, reaching the environment's machine through the anchor |
+| `local` | supervised here, anchored to the environment's machine | never |
+| `self` | native on the environment's machine | the CLI is missing there (`HarnessNotInstalled`), or the machine cannot hold the session's fence (`HarnessSandboxed`) |
+| `ssh:<name>`, `docker:<name>` | supervised on that saved runtime's machine, reaching the environment's machine through the anchor | it cannot be opened or reached (`EnvError`), has no share left, its container limit among it (`ResourceUnmet`), or the role's `Permission` fences anything (`HarnessSandboxed`) |
 
-- `hmz exec` without `-H` runs `adaptive`. The TUI keeps a placement per flow per workspace in
-  its settings (`flows.<flow>.harness`, `""` for adaptive) and passes it to each run.
-- `standalone:<env>` names the machine as `-e` names one after `ROLE=`:
-  `standalone:ssh@gpu-box/~/scratch`, `standalone:docker@gpubox/srv/scratch`. A bare name is a
-  saved [runtime](/reference/machines#runtimes), looked up as ssh
-  first, then docker. A missing workdir becomes the provider's own, else `~` over ssh, else
-  `$HUMANIZE_HOME/harness` for `docker@local` (created by the run). The standalone machine is
-  opened, probed and closed as an environment of the run. A container for it is started with
-  `--cap-add SYS_PTRACE`: without it, docker's default seccomp profile refuses the
+- Entries are tried in order; the next only when the one before has no room. Where none has,
+  the last refusal is raised, of the same type, as `<backend>@<provider>: nowhere its affinity
+  (<entries>) names has room for <cli>'s harness; the last: <refusal>`. A machine that cannot
+  be asked (`HarnessUnrecoverable`) is raised as it is, not passed by.
+- Work in a `local` environment always has its harness here. Work on a machine that is no saved
+  runtime (`ssh@` a host nobody saved, `docker@local` with nothing saved as `local`), or on a
+  runtime with an empty affinity, is placed by the [default](#default-resolution).
+- The affinity read is the one of the runtime the session's placement names
+  (`store.find(placement.backend, placement.provider)`), the one actually opened. A runtime a
+  harness is put on is opened as it is: its own affinity is never walked.
+- A runtime entry is opened (`hmz.runtime.flowing.affinity.Harbors`) once per run, shared by
+  every role, as an environment of role `harness` with no resources asked, in its saved
+  workdir, else `~` over ssh, else `$HUMANIZE_HOME/harness` (created by the run) for a docker
+  daemon on this machine; any other daemon saved without a workdir has no room. It is probed
+  before the flow is called and closed with the run's environments. A container for it is
+  started with `--cap-add SYS_PTRACE`: without it, docker's default seccomp profile refuses the
   `pidfd_getfd` the supervisor borrows each command's descriptors with, and a command whose
   output goes to a socket (opencode's, Claude Code's stdin) is run with that output lost.
-- A standalone machine may not be this machine.
+- An affinity is checked when the runtime is made: an entry that is none of the above, one
+  named twice, or one naming the runtime itself is a `ValueError`
+  (`<name>: '<entry>' is not where a harness runs: self, local or <ssh|docker|swarm>:<runtime name>`,
+  `<name>: <entry> is in its affinity twice`, `<name>: its affinity names itself; self is its
+  own machine`). An entry naming a runtime nobody saved is accepted, and has no room.
 
-| `-H` value | `HarnessSpecError` (exit 2 from `hmz exec`) |
-| --- | --- |
-| anything else, `standalone:` with nothing after it, `env:x` | `-H 'bogus': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
-| `standalone:local@…` | `-H 'standalone:local@/tmp': a standalone harness runs on another machine; -H local runs it on this one` |
-| a bare name nothing is saved under | `-H 'standalone:bogus': no runtime is saved as 'bogus'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
-| an unknown backend | `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker, swarm` |
-| a docker runtime nobody saved, with no workdir | `-H 'standalone:docker@gpubox': docker@gpubox is not saved with a workdir of its own; expected standalone:docker@gpubox/<workdir>` |
-| `ssh@` with no host | `-H 'standalone:ssh@': ssh needs a host, as in ssh@host/workdir` |
-
-### Adaptive resolution {#adaptive-resolution}
+### Default resolution {#default-resolution}
 
 The decision is made in `HarnessDriver.open` (`hmz.runtime.flowing.harnesses`) for every session
 a role opens, before the session's agent is built. With the session's machine `M` (from its
@@ -327,18 +333,15 @@ environment), its fence, and the set `H` of hooks hung on the flow agent among `
 and `PermissionRequest` (an `AskUser` hook is not among them: a question comes back down the
 CLI's own stream wherever the CLI runs):
 
-1. `standalone:<env>`: the result is the work's anchor (for work here,
-   `AnchorConfig(target="local", workspace=<cwd>)`) with `harness` set to `<env>`'s target and
-   `shadow=None`. No probe is made. (If `<env>`'s own placement is not anchored, `M` is used
-   unchanged.)
-2. `M` is this machine, or the mode is `local`: `M` unchanged.
-3. `adaptive` and `H` is non-empty: `M` unchanged. The CLI's own hook table names a program on
-   this machine, so a gating hook is kept here.
+1. `M` is this machine: `M` unchanged.
+2. `M`'s runtime has an affinity: it is walked as [above](#affinity), `self` asking the
+   machine as step 4 does.
+3. `H` is non-empty: `M` unchanged. The CLI's own hook table names a program on this machine,
+   so a gating hook is kept here.
 4. Otherwise the machine is asked, once per role and target, whether the CLI is there; then,
    for a session with a non-open fence, once per role, target and `online` value, whether the
    machine can hold the fence.
-5. Both answers yes: `M` with `native=True` and `shadow=None`.
-6. Otherwise: `adaptive` returns `M` unchanged; `env` raises the refusal from step 4.
+5. Both answers yes: `M` with `native=True` and `shadow=None`. Otherwise `M` unchanged.
 
 | Probe | How | Result |
 | --- | --- | --- |
@@ -348,39 +351,43 @@ CLI's own stream wherever the CLI runs):
 Answers are cached on the role's driver for the rest of the run; concurrent sessions wait for
 one answer. The probes are asked one at a time.
 
-Under `env` and `standalone`, `Runner.arun` asks the same of every agent (`HarnessDriver.placeable`)
-against every environment, the workspace included, with the role's declared permission, once
-the environments are probed and before the flow is called; a refusal there is `Refused`, which
-`hmz exec` prints as `hmz exec: error: <message>` with exit 2, and the answers are kept for
-the sessions. A session opened later is still refused as it opens, raised from its `spawn`.
-Refusals (`<where>` is `<backend>@<provider>` of the environment, e.g. `ssh@gpu-box`):
+`Runner.arun` walks the affinity of every machine that has one for every agent
+(`HarnessDriver.placeable`), against every environment, the workspace included, with the role's
+declared permission, once the environments are probed and before the flow is called; a refusal
+there is `Refused`, which `hmz exec` prints as `hmz exec: error: <message>` with exit 2, and the
+answers are kept for the sessions. A session opened later is still refused as it opens, raised
+from its `spawn`. The refusals each entry is passed by with (`<where>` is
+`<backend>@<provider>` of the environment, e.g. `ssh@gpu-box`):
 
 | Error | Message | When |
 | --- | --- | --- |
-| `HarnessNotInstalled` | `<cli> is not installed on <where>: <install line> there, or run its harness here with -H local` | `env`, probe exit 69 |
-| `HarnessUnrecoverable` | `<where> could not be asked whether <cli> is there: <last stderr line \| exit status N>` | `env`, probe failed |
-| `HarnessUnrecoverable` | `<where> did not say within 300s whether <cli> is there` | `env`, probe timed out |
-| `HarnessUnrecoverable` | `<where> could not be asked whether it can fence: <error>` | `env`, handshake failed |
-| `HarnessSandboxed` | `<where> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local` | `env`, the machine cannot hold the fence |
+| `HarnessNotInstalled` | `<cli> is not installed on <where>: <install line> there, or put local in the affinity of the runtime it is on` | `self`, probe exit 69 |
+| `HarnessUnrecoverable` | `<where> could not be asked whether <cli> is there: <last stderr line \| exit status N>` | `self`, probe failed |
+| `HarnessUnrecoverable` | `<where> did not say within 300s whether <cli> is there` | `self`, probe timed out |
+| `HarnessUnrecoverable` | `<where> could not be asked whether it can fence: <error>` | `self`, handshake failed |
+| `HarnessSandboxed` | `<where> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or put local in the affinity of the runtime it is on` | `self`, the machine cannot hold the fence |
 | `HarnessNotInstalled` | `<cli> is not installed here: <install line>` | the harness is here and the CLI is not on this machine |
-| `HarnessSandboxed` | `<role>=<cli>[@<account>]/<model>:<effort>: <AgentClass>: a fence cannot hold a harness that runs on another machine` | `standalone`, and the role's `Permission` is anything but every scope `ALL` |
+| `HarnessSandboxed` | `<role>=<cli>[@<account>]/<model>:<effort>: <AgentClass>: a fence cannot hold a harness that runs on another machine` | a runtime entry, and the role's `Permission` is anything but every scope `ALL` |
+| `EnvUnavailable`, `EnvConnectionError`, `ResourceUnmet` | as the runtime's own environment would be refused | a runtime entry that cannot be opened, reached, or given a container |
 
 ### Recording
 
 The placement each session got is written with it: the epic's session record carries
-`harness` (`local`, `env`, or `standalone:<target>`; `""` for work on this machine), and so does
+`harness` (`local`, `self`, or the `<backend>:<name>` of the runtime an affinity sent it to;
+`""` for work on this machine), and so does
 the daemon's `opened` record. See [Tracing](/reference/tracing).
 
 ### Limitations
 
-- **A fence cannot follow a harness elsewhere.** A fence names this machine's paths. Under
-  `standalone`, and under an `AnchorConfig.harness` elsewhere, any non-open fence is refused;
+- **A fence cannot follow a harness elsewhere.** A fence names this machine's paths. On a
+  runtime an affinity names, and under an `AnchorConfig.harness` elsewhere, any non-open fence
+  is refused;
   a flow role must grant `local`, `user`, `system` and `online` all `ALL`. The default
   `Permission` (`local=ALL, user=READ, system=READ, online=ALL`) is refused.
 - **Accounts do not follow a harness elsewhere.** See [Where the account lives](#where-the-account-lives).
-- **Gating hooks keep `adaptive` here.** A role with a `PreToolUse` or `PermissionRequest`
-  hook hung is never placed natively by `adaptive`; `env` places it natively anyway. An
-  `AskUser` hook does not keep it here.
+- **Gating hooks keep the default here.** A role with a `PreToolUse` or `PermissionRequest`
+  hook hung is never placed natively by the default; `self` in an affinity places it natively
+  anyway. An `AskUser` hook does not keep it here.
   An anchored turn gets no hook table, so there `PreToolUse` is read off the CLI's stream and
   cannot stop a tool ([Agents › Refusing a tool](/reference/agents#refusing-a-tool)).
 - **Callbacks do not cross.** A native turn on a non-`local` target offered the flow's tool
@@ -392,7 +399,7 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
 - **Forks stay on one machine.** A fork into a session on another machine is refused with
   `UnsupportedOperation: <cli> cannot fork a session onto another machine`.
 
-<small>Defined in [`src/hmz/runtime/flowing/harnesses.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnesses.py) (`HarnessDriver._harnessed`, `_native_on`, `_has_cli`, `_fenceable`), [`src/hmz/runtime/flowing/specs.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/specs.py) (`parse_harness`), [`src/hmz/runtime/runner.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/runner.py), [`src/hmz/runtime/epic.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/epic.py) (`harnessed`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Where the harness runs).</small>
+<small>Defined in [`src/hmz/runtime/flowing/harnesses.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnesses.py) (`HarnessDriver._harnessed`, `_native_on`, `_has_cli`, `_fenceable`), [`src/hmz/runtime/flowing/affinity.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/affinity.py) (`Harbors`), [`src/hmz/runtime/runner.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/runner.py), [`src/hmz/runtime/epic.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/epic.py) (`harnessed`, `harbor`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Where the harness runs).</small>
 
 ## Supervised arrangement {#supervised-the-default}
 
@@ -750,8 +757,8 @@ from hmz.coganchor.anchor import NotInstalled
 - **A command's output may not reach the agent in a container.** The supervisor borrows each
   command's descriptors with `pidfd_getfd`, which docker's default seccomp profile refuses
   without `CAP_SYS_PTRACE`. A pipe or tty is opened again through `/proc` instead; a socket
-  cannot be, and is logged as `could not borrow fd <n> from pid <pid>`. humanize starts a
-  standalone harness's container with `--cap-add SYS_PTRACE`; one started otherwise needs it.
+  cannot be, and is logged as `could not borrow fd <n> from pid <pid>`. humanize starts the
+  container an affinity puts a harness in with `--cap-add SYS_PTRACE`; one started otherwise needs it.
 - **A path is read when its syscall stops.** A descriptor replaced by another thread in between
   resolves as it was.
 - **Native setup commands are bounded.** Each short command a native turn runs to set itself

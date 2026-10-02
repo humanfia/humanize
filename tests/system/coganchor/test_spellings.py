@@ -146,7 +146,7 @@ def _machine(made: list[str], *mounted: str, given: tuple[str, ...] = ()) -> str
 def test_a_workspace_named_by_its_own_path_is_reached_by_every_call_under_a_harness_afar(
     tmp_path: Path, containers: list[str], capfd: pytest.CaptureFixture[str]
 ) -> None:
-    """`-H standalone`: the harness in a container that has no such directory at all."""
+    """A harness on a runtime of its own: in a container that has no such directory at all."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     seed(workspace)
