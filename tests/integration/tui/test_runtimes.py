@@ -973,3 +973,56 @@ async def test_a_tls_directory_under_a_home_nobody_has_is_refused_on_the_form(
         assert isinstance(app.screen, Docking)
         assert "home directory does not exist" in _under(app)
     assert store.runtimes() == []
+
+
+@pytest.mark.timeout(60)
+async def test_what_a_daemon_falls_back_to_is_typed_in_order_and_kept_when_corrected(
+    standins: Path,
+) -> None:
+    """The list is one row, in the order typed; correcting anything else leaves it be."""
+    del standins
+    store.add(DockerRuntime(name="main"))
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await onto(app, driver, "docker/main")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await _opens(app, driver, _CORRECTS, Docking)
+        await _types(app, driver, "fallback", "docker:spare, ssh:gpu2")
+        await _done(app, driver)
+        await until(lambda: app.screen is sheet, driver)
+        assert "falls back to docker:spare," in _drawn(app)
+
+        await onto(app, driver, "docker/main")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await _opens(app, driver, _CORRECTS, Docking)
+        await _types(app, driver, "image", "python:3.12")
+        await _done(app, driver)
+        await until(lambda: app.screen is sheet, driver)
+
+    assert store.find("docker", "main") == DockerRuntime(
+        name="main", image="python:3.12", fallback=("docker:spare", "ssh:gpu2")
+    )
+
+
+@pytest.mark.timeout(60)
+async def test_a_host_that_would_fall_back_to_itself_is_refused_on_the_form(
+    standins: Path,
+) -> None:
+    del standins
+    store.add(SSHRuntime(name="gpu", host="gpu.example"))
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await onto(app, driver, "ssh/gpu")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await _opens(app, driver, _CORRECTS, Hosting)
+        await _types(app, driver, "fallback", "ssh:gpu")
+        await _done(app, driver)
+        assert isinstance(app.screen, Hosting)
+        assert "cannot fall back to itself" in _under(app)
+
+    assert store.find("ssh", "gpu") == SSHRuntime(name="gpu", host="gpu.example")

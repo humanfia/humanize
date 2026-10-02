@@ -124,7 +124,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   backend -- ssh hosts, and docker daemons with what each may hand out -- and offer making either
   on one form wherever one is asked for, importing the hosts an ssh config names -- the user's
   own or another file, switched on per host and saved already or not, never writing to it --
-  and per runtime correcting it, checking it and taking it away; MUST ask one what it has when
+  and per runtime correcting it, checking it and taking it away -- either form holding, in
+  order, the saved runtimes it falls back to; MUST ask one what it has when
   it is made or corrected on that page and when it is checked, an import asking none -- an ssh
   host its home, CPUs, memory and GPUs, a docker daemon its CPUs, memory, GPUs and OCI runtimes and
   what it is saved to hand out that it has not got -- off the drawing path, saying why where it

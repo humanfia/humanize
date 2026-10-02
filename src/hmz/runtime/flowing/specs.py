@@ -46,6 +46,7 @@ __all__ = [
     "HarnessSpecError",
     "ParamSpecError",
     "SpecError",
+    "fallbacks",
     "parse_agents",
     "parse_budget",
     "parse_duration",
@@ -267,6 +268,39 @@ def _workdir_of(read: re.Match[str]) -> str | None:
     if found is None or not found.workdir:
         return None
     return found.workdir if found.workdir.startswith("/") else f"/{found.workdir}"
+
+
+def fallbacks(spec: EnvSpec) -> list[EnvSpec]:
+    """What an environment moves to, in order, where the runtime its `-e` names cannot hold it.
+
+    The fallback list of the saved runtime it names, each entry a spec of its own for the same
+    role: in that runtime's saved workdir where it has one, and otherwise in the workdir given.
+    Only the runtime the `-e` names is read: one fallen back to is never walked on down its
+    own list. A spec naming no saved runtime -- `local@`, an ssh destination written out, docker's
+    default here -- falls back to nothing.
+
+    Args:
+      spec: The environment, as `-e` gave it.
+
+    Returns:
+      The specs to try after it, which are none where its runtime has no list.
+    """
+    from hmz.coganchor.machines import store
+
+    onward: list[EnvSpec] = []
+    for backend, name in store.fallbacks(str(spec.backend), spec.provider):
+        found = store.find(backend, name)
+        saved = found.workdir if found is not None else ""
+        try:
+            kind = EnvBackendKind(backend)
+        except ValueError:
+            continue  # a backend of the store's no environment is put on
+        onward.append(
+            EnvSpec(
+                spec.role, kind, name, PurePosixPath(saved) if saved else spec.workdir
+            )
+        )
+    return onward
 
 
 def parse_params(values: Sequence[str]) -> dict[str, str]:

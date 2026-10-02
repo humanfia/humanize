@@ -211,6 +211,7 @@ what your ssh config does not already say:
      6. proxy jump                                  jump host to connect through, if any
      7. options                                     additional ssh options: KEYWORD=VALUE, …
    ❯ 8. workdir        /home/me/build/myproject     default working directory when -e …       ③
+     9. falls back to                               runtimes to try in order if this one cannot…
         done                      adds ssh/build-box, and checks its resources
 ```
 
@@ -477,6 +478,11 @@ and the python.org installer put one, and says what it looked for if it finds no
   container of its own: see [Containers](/user/containers).
 - **A directory on this machine.** `-e box=local@/srv/project` puts the role somewhere other
   than the workspace, on this machine.
+- **Another host when this one is down.** Fill in **falls back to** on a saved host's form
+  (`ssh:build-2, docker:box`): where `-e box=ssh@build-box/…` cannot reach `build-box`, the
+  role goes to the first of those that it can, and the run says so —
+  `hmz exec: ssh:build-box cannot hold 'box': …; using ssh:build-2`. Where the agent's CLI
+  runs is still `-H`'s. See [Machines › Falling back](/reference/machines#falling-back).
 
 ## If it goes wrong {#when-it-refuses}
 

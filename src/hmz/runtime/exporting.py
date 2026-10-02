@@ -688,6 +688,7 @@ def _manifest(
             for one in ran.agents
         ],
         "envs": list(ran.envs),
+        "used": list(ran.used),
         "called": _called(tree(epic)),
         "sessions": list(said),
         "backends": {name: _cli(name) for name in named},

@@ -67,7 +67,8 @@ class Runtimes:
     """Every runtime there is, how to make one, and asking one what it has.
 
     A runtime is an ssh host or a docker daemon saved under a name: used as an environment
-    when an `-e` names it.
+    when an `-e` names it, and moved off down its `fallback` -- other runtimes, each
+    `<backend>:<name>` -- where it cannot hold one.
     """
 
     def all(self, backend: str = "") -> list[Runtime]:

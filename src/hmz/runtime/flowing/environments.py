@@ -8,7 +8,9 @@ environment capability. None touches the network: an ssh host is reached, and a 
 started, the first time something is asked of it, and :func:`probe` is how to ask before
 anything else -- which the ways in do for every environment a run is given, so that
 `available` and the resources a machine has are known, and a container has taken its share of
-its runtime, before a flow's requirements are checked against them.
+its runtime, before a flow's requirements are checked against them. :func:`settle` is that
+probe for an environment an `-e` named, moving it down the fallback list of the runtime it
+named where that runtime cannot hold it.
 
 What a driver derives lives under `envs/` in humanize's home on its machine;
 :mod:`hmz.runtime.flowing.environing` says how, and why there.
@@ -16,20 +18,24 @@ What a driver derives lives under `envs/` in humanize's home on its machine;
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import posixpath
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from hmz.flows import EnvBackendKind, EnvUnavailable
+from hmz.flows import EnvBackendKind, EnvError, EnvUnavailable, ResourceUnmet
 
 from .environing import MachineEnvDriver, tidy_workdir
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from .declaring import EnvRole
     from .specs import EnvSpec
     from .spi import EnvDriver
 
-__all__ = ["MachineEnvDriver", "local_env", "open_env", "probe"]
+__all__ = ["MachineEnvDriver", "local_env", "open_env", "probe", "settle"]
 
 
 def open_env(
@@ -187,3 +193,92 @@ async def probe(driver: EnvDriver) -> None:
     """
     if isinstance(driver, MachineEnvDriver):
         await driver.probe()
+
+
+def _fits(_driver: EnvDriver) -> None:
+    """Holds every environment: what :func:`settle` asks where nobody said otherwise."""
+
+
+async def settle(
+    spec: EnvSpec,
+    driver: EnvDriver | EnvError,
+    role: EnvRole | None = None,
+    *,
+    fits: Callable[[EnvDriver], None] = _fits,
+    moved: Callable[[str], None] | None = None,
+) -> tuple[EnvSpec, EnvDriver]:
+    """Probes the environment an `-e` named, falling back where its runtime cannot hold it.
+
+    A runtime cannot hold an environment it cannot be reached for, whose workdir it has not
+    got, or that it has not got what the role asks left to hand out for -- its container
+    limit among that -- and one `fits` refuses. Where the runtime the `-e` named has a
+    fallback list, the environment is moved to each runtime of it in turn until one holds it,
+    every driver refused on the way being closed; a runtime fallen back to is never walked on
+    down its own list.
+
+    Args:
+      spec: The environment, as `-e` gave it.
+      driver: The driver :func:`open_env` made for it, not yet probed -- or why it could not
+        make one, which is that runtime's refusal.
+      role: What the environment is for, which a driver made for a runtime fallen back to is
+        made for as well.
+      fits: What else is asked of a driver once it is probed: the role's declared resources,
+        held against what its machine has, raising `ResourceUnmet` for one short of them.
+      moved: What is told, in a line, that the environment was moved and why -- once it has
+        been, and never where the runtime named held it.
+
+    Returns:
+      The spec of the runtime that holds it and its driver, probed: `spec` and `driver`
+      themselves where nothing moved.
+
+    Raises:
+      EnvError: Why the runtime named could not hold it, where it has no fallback list; and
+        where every runtime of its list could not either, of the kind the last refusal was,
+        naming every runtime tried and why.
+      ResourceUnmet: Likewise.
+    """
+    from .specs import fallbacks
+
+    onward = fallbacks(spec)
+    refused: list[str] = []
+    last: EnvError | ResourceUnmet | None = None
+    for at, said in enumerate((spec, *onward)):
+        opened: EnvDriver | None = None
+        try:
+            opened = open_env(said, role) if at else _driven(driver)
+            await probe(opened)
+            fits(opened)
+        except (EnvError, ResourceUnmet) as why:
+            if not onward:
+                raise
+            refused.append(f"{_runtime(said)} cannot hold {spec.role!r}: {why}")
+            last = why
+            if opened is not None:
+                with contextlib.suppress(Exception):
+                    await opened.close()
+            continue
+        except BaseException:
+            # Stopped, or refused for what is no runtime's fault, partway down the list: a
+            # driver fallen back to is nobody else's to close, since nobody else has it.
+            if at and opened is not None:
+                with contextlib.suppress(Exception):
+                    await asyncio.shield(opened.close())
+            raise
+        if refused and moved is not None:
+            moved(f"{'; '.join(refused)}; using {_runtime(said)}")
+        return said, opened
+    if last is None:  # pragma: no cover -- the loop tries `spec` at the least
+        raise AssertionError(spec)
+    raise type(last)("; ".join(refused)) from last
+
+
+def _driven(driver: EnvDriver | EnvError) -> EnvDriver:
+    """The driver an `-e` was opened as, or the refusal opening it was, raised."""
+    if isinstance(driver, EnvError):
+        raise driver
+    return driver
+
+
+def _runtime(spec: EnvSpec) -> str:
+    """The runtime an environment is put on, as a fallback list names one."""
+    return f"{spec.backend}:{spec.provider}"

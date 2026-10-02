@@ -238,7 +238,13 @@ Roles the runtime fills — `LocalEnv` roles, which are the workspace — are ne
 parsing, every environment is opened and probed before the flow is called; an unreachable one,
 or one whose machine has fewer CPUs, GPUs or less memory than its role declares, is
 [refused](#what-is-refused-before-anything-runs). A `docker` environment's container is started
-then.
+then. Where the provider is a saved runtime with a
+[fallback list](/reference/machines#falling-back), such an environment moves down that list
+first, saying so on stderr:
+
+```text
+hmz exec: docker:a cannot hold 'box': <why>; using docker:b
+```
 
 ### Writing params (`-p`) {#writing-params}
 

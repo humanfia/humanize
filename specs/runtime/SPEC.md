@@ -119,6 +119,7 @@ class Ran(NamedTuple):
     resumable: bool = False
     ref: str = ""  # the flow's canonical ref
     envs: tuple[str, ...] = ()  # each `role=spec`, as `-e` spells one
+    used: tuple[str, ...] = ()  # where each was put, the same way: `envs` but for a fallback
     params: dict[str, Any] = {}
     budget: dict[str, Any] | None = None
     picked_up: str = ""  # the epic it was picked up from
@@ -135,6 +136,7 @@ class Epic:  # a context manager, closed however the run ends
         ref: str = "",
         agents: Sequence[Drove] = (),
         envs: Sequence[str] = (),
+        used: Sequence[str] | None = None,  # None for where each was given
         params: Mapping[str, Any] | None = None,
         budget: Mapping[str, Any] | None = None,
         resumable: bool = False,
@@ -244,6 +246,7 @@ class Runner:
     flow: str; impl: FlowImpl; declaration: Declaration; agents: dict[str, AgentDriver]
     envs: dict[str, EnvDriver]; params: FlowParams; budget: Budget; harness: HarnessSpec
     picked_up: Path | None; workspace: Path; recorder: Recorder | None  # properties
+    used: dict[str, str]  # where each environment role was put, as `-e` spells it
     def unreadable(self) -> str: ...
     def watch(self, listener: Listener) -> None: ...
     async def arun(
@@ -253,6 +256,7 @@ class Runner:
         outworlder: OutworlderDriver | None = None,
         opened: Callable[[str, AgentBase, SessionBase], None] | None = None,
         started: Callable[[Epic], None] | None = None,
+        noticed: Callable[[str], None] | None = None,
     ) -> Any: ...
     def run(self, task: str, *, outworlder: OutworlderDriver | None = None) -> Any: ...
 class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
@@ -328,13 +332,29 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   starts, for a flow that cannot be loaded; a role given that the flow does not declare, that
   the runtime fills -- an `Outworlder`, a `LocalEnv` -- or that is given twice; a required
   role left out; an agent that is not the harness its role names or whose harness does not
-  serve what its role asks; a spec no driver can be made for; params the flow does not take;
+  serve what its role asks; a spec no driver can be made for, unless the runtime it names
+  falls back to others; params the flow does not take;
   no budget, except for a flow humanize ships, which runs under `Budget(cost=inf)`; and a
   run to pick up that is not there, or of a flow that is not resumable. What the flow itself
   raises as it is imported MUST be refused with its reason. `arun` MUST raise `Refused` too
-  for an environment that cannot be reached or whose provider cannot hold what its role asks,
-  and for anything the engine refuses before the flow is called.
-- `arun` MUST probe every environment it was given before the flow is called, MUST run the
+  for an environment that cannot be reached or whose provider cannot hold what its role asks
+  -- nor any runtime that provider falls back to --, and for anything the engine refuses
+  before the flow is called.
+- `arun` MUST probe every environment it was given before the flow is called. Where an `-e`
+  names a saved runtime with a fallback list and that runtime cannot hold the role -- it cannot
+  be opened or reached or has not got the workdir, it has not got what the role asks left to
+  hand out or is at its container limit, or its machine is short of a resource the role
+  declares -- the
+  environment MUST move to each runtime of that list in turn, in the runtime's own saved
+  workdir where it has one and otherwise the one given, until one holds it, closing every
+  driver refused on the way; where none does, the last refusal MUST be raised naming every
+  runtime tried and why. Only the runtime the `-e` named MUST be walked: a runtime reached by
+  falling back MUST NOT walk its own list, an `-e` naming no saved runtime falls back to
+  nothing, and where an agent's harness is put MUST NOT be part of it. A move MUST be told to
+  `noticed` -- the runtime that could not hold the role, why, and the one used -- and from
+  then on the runtime that held it MUST be the role's: its driver in `envs`, its spec in
+  `used`, and the epic's `used` where that differs from `envs`, which MUST stay as given. `arun`
+  MUST run the
   flow over the drivers with the workspace as every `LocalEnv` role and whoever is outside
   the run as every `Outworlder` role -- nobody, away, where none was given -- MUST write the
   run down as it goes: each flow call a record under the one that made it, saying the task it

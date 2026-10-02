@@ -3,7 +3,8 @@
 A runtime is one machine something can be put on, named by what somebody called it rather than
 by how it is reached: an ssh host with the login, port, key and jump host it takes, or a docker
 daemon with the resources it may hand out. A flow's environment is put on one when an `-e` names
-it. One directory per runtime, under `~/.humanize/runtimes/<backend>/<name>/`, holding
+it, and moved down the runtimes it falls back to where it cannot be held there. One directory
+per runtime, under `~/.humanize/runtimes/<backend>/<name>/`, holding
 `runtime.json`.
 
 They were once kept under `~/.humanize/env-providers/`, each in a `provider.json`; the first
@@ -47,6 +48,7 @@ __all__ = [
     "SSHRuntime",
     "add",
     "daemon_of",
+    "fallbacks",
     "find",
     "imports",
     "new",
@@ -130,6 +132,32 @@ def _workdir(value: str) -> str:
     return value
 
 
+def _falls_back(backend: str, name: str, fallback: tuple[str, ...]) -> None:
+    """Refuses a fallback list that is not one: each a `<backend>:<name>` once, never itself.
+
+    Whether the runtimes it names are there is asked when one is fallen back to, not here: a
+    runtime taken away is one an environment cannot be held on, which is a refusal like any
+    other, and the list may well be written before the runtimes it names are.
+
+    Raises:
+      ValueError: For an entry that names no backend, or a name no runtime may have; for one
+        named twice; and for the runtime itself.
+    """
+    seen: set[str] = set()
+    for one in fallback:
+        kind, colon, called = one.partition(":")
+        if not colon or kind not in BACKENDS or not _NAMED.match(called):
+            raise ValueError(
+                f"{name}: fallback {one!r} must be <backend>:<name>, the backend "
+                f"one of {', '.join(BACKENDS)}"
+            )
+        if (kind, called) == (backend, name):
+            raise ValueError(f"{name}: a runtime cannot fall back to itself")
+        if one in seen:
+            raise ValueError(f"{name}: fallback {one} is named twice")
+        seen.add(one)
+
+
 def _named(name: str) -> str:
     if not _NAMED.match(name):
         raise ValueError(
@@ -162,6 +190,8 @@ class SSHRuntime:
       config: The ssh config file it was imported from, where that is not the user's own:
         `ssh` is told to read it instead (`-F`).
       workdir: Where an `-e` naming it with no workdir works.
+      fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
+        one cannot hold it -- each `<backend>:<name>`, as `ssh:gpu2` or `docker:box`.
       made: How it was made: :data:`TYPED` or :data:`IMPORTED`.
     """
 
@@ -177,6 +207,7 @@ class SSHRuntime:
     alias: str = ""
     config: str = ""
     workdir: str = ""
+    fallback: tuple[str, ...] = ()
     made: str = TYPED
 
     def __post_init__(self) -> None:
@@ -199,6 +230,7 @@ class SSHRuntime:
         _text(self.identity_file, "the identity file")
         _text(self.config, "the config file")
         _workdir(self.workdir)
+        _falls_back(SSH, self.name, self.fallback)
         if self.made not in (TYPED, IMPORTED):
             raise ValueError(
                 f"{self.name}: made must be {TYPED} or {IMPORTED}, not {self.made!r}"
@@ -287,6 +319,8 @@ class DockerRuntime:
       gpu_memory: How many bytes each of those GPUs has, or 0 for unsaid.
       max_containers: How many containers it may run at once, or 0 for no limit.
       workdir: Where an `-e` naming it with no workdir works.
+      fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
+        one cannot hold it -- each `<backend>:<name>`.
       made: How it was made, which is :data:`TYPED`.
     """
 
@@ -304,6 +338,7 @@ class DockerRuntime:
     gpu_memory: int = 0
     max_containers: int = 0
     workdir: str = ""
+    fallback: tuple[str, ...] = ()
     made: str = TYPED
 
     def __post_init__(self) -> None:
@@ -335,6 +370,7 @@ class DockerRuntime:
             if amount < 0:
                 raise ValueError(f"{self.name}: {what} cannot be negative: {amount}")
         _workdir(self.workdir)
+        _falls_back(DOCKER, self.name, self.fallback)
         if self.made != TYPED:
             raise ValueError(
                 f"{self.name}: made must be {TYPED} for a docker host, not {self.made!r}"
@@ -592,6 +628,26 @@ def find(backend: str, name: str) -> Runtime | None:
     return _read(backend, name)
 
 
+def fallbacks(backend: str, name: str) -> tuple[tuple[str, str], ...]:
+    """What the runtime of a backend called this falls back to, each as `(backend, name)`.
+
+    Its own list and nothing further: a runtime fallen back to is not walked on down its own,
+    which is what keeps a chain from going round in a circle, or on to somewhere nobody who
+    wrote the first list ever named.
+
+    Returns:
+      The runtimes, in the order they are to be tried; none for a runtime with no list, or
+      none under that name.
+    """
+    found = find(backend, name)
+    if found is None:
+        return ()
+    return tuple(
+        (kind, called)
+        for kind, _, called in (one.partition(":") for one in found.fallback)
+    )
+
+
 def _read(backend: str, name: str) -> Runtime | None:
     """One runtime read back, or None where nothing readable is there.
 
@@ -706,7 +762,8 @@ def imports(
       config: The config file, or None for the user's own.
       names: The hosts to import, by their `Host`, or None for every one.
       update: Whether to write over a runtime of that name an import made -- keeping the
-        workdir it was given -- rather than leave it be. One typed in is never written over.
+        workdir and the fallback it was given -- rather than leave it be. One typed in is
+        never written over.
 
     Returns:
       The runtimes written, in the order the config names them.
@@ -755,6 +812,7 @@ def imports(
                 if own and config
                 else "",
                 workdir=already.workdir if already is not None else "",
+                fallback=already.fallback if already is not None else (),
                 made=IMPORTED,
             )
         except ValueError:

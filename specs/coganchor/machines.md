@@ -148,6 +148,7 @@ class SSHRuntime:
     alias: str = ""  # the `Host` it was imported as
     config: str = ""  # the ssh config it was imported from, where not the user's own
     workdir: str = ""
+    fallback: tuple[str, ...] = ()  # each `<backend>:<name>`, tried in order
     made: str = TYPED
     @property
     def at(self) -> Path: ...
@@ -172,6 +173,7 @@ class DockerRuntime:
     gpu_memory: int = 0
     max_containers: int = 0
     workdir: str = ""
+    fallback: tuple[str, ...] = ()
     made: str = TYPED
     @property
     def at(self) -> Path: ...
@@ -186,6 +188,7 @@ def where(backend: str, name: str) -> Path: ...
 def new(backend: str, name: str, **fields: Any) -> Runtime: ...
 def runtimes(backend: str = "") -> list[Runtime]: ...
 def find(backend: str, name: str) -> Runtime | None: ...
+def fallbacks(backend: str, name: str) -> tuple[tuple[str, str], ...]: ...
 def add(runtime: Runtime) -> Runtime: ...
 def write(runtime: Runtime) -> Runtime: ...
 def remove(backend: str, name: str) -> bool: ...
@@ -277,7 +280,9 @@ def hosts(
 - A runtime MUST be refused where it is made, not where it is used: an ssh runtime with
   neither a host nor an alias, a word `ssh` would read as an option, a setting it has a field
   for given as an option, a value of more than one line; a docker runtime with an endpoint
-  that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount.
+  that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount;
+  and either with a fallback entry that is not `<backend>:<name>` of a backend there is and a
+  name a runtime may have, that names the runtime itself, or that is named twice.
   `add` and `write` MUST refuse a config file or certificates under a home there is none of,
   and one written down before its home went MUST still be listed.
 - `add` MUST refuse a name already taken and `write` MUST replace what was there; `new` MUST
@@ -291,4 +296,8 @@ def hosts(
   dialled with everything that runtime says.
 - `aliases` MUST follow every `Include` as ssh does and MUST NOT list a pattern; what a host
   resolves to MUST be asked of `ssh -G`. `imports` MUST leave a runtime already there unless
-  told to update it, and MUST keep the workdir of one it updates.
+  told to update it, and MUST keep the workdir and the fallback list of one it updates.
+- A runtime's fallback list MUST be the runtimes an environment an `-e` puts on it moves to,
+  in order, where it cannot hold it -- of any backend, whether or not they exist when the
+  list is written -- and `fallbacks` MUST answer with that runtime's own list and nothing
+  further: a runtime fallen back to is never walked on down its own.

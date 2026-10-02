@@ -200,6 +200,7 @@ left alone and not read.
 | `name`, `host`, `user`, `identity_file`, `proxy_jump`, `alias`, `config`, `workdir` | `str` |
 | `port` | `int` |
 | `options` | `{str: str}` |
+| `fallback` | `[str]`, each `<backend>:<name>` |
 | `made` | `"typed"` or `"imported"` |
 
 `docker/<name>/runtime.json`:
@@ -209,7 +210,7 @@ left alone and not read.
 | `backend` | `"docker"` |
 | `name`, `tls_dir`, `image`, `runtime`, `workdir` | `str` |
 | `endpoint` | `local`, `unix://…`, `tcp://…`, `ssh://…`, `ssh:<ssh runtime>`, `context:<name>` |
-| `run_args`, `gpus` | `[str]` |
+| `run_args`, `gpus`, `fallback` | `[str]` |
 | `cpus` | `float` |
 | `memory`, `gpu_memory`, `max_containers` | `int` |
 | `made` | `"typed"` |

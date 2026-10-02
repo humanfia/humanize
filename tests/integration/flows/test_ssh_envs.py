@@ -16,7 +16,7 @@ import asyncio
 import os
 import subprocess
 from pathlib import Path, PurePosixPath
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import psutil
 import pytest
@@ -36,6 +36,9 @@ from hmz.runtime.flowing.environing_ssh import SSHMachine
 from hmz.runtime.flowing.environments import open_env, probe
 from hmz.runtime.flowing.specs import parse_envs
 from tests.flows.contracts import check_env_driver
+
+if TYPE_CHECKING:
+    from hmz.runtime.flowing.spi import EnvDriver
 
 #: How long a command that is to be timed out is given first, so that it has started
 #: everything it starts on however loaded a machine: what it started is what is checked.
@@ -480,3 +483,169 @@ def test_a_flow_runs_on_a_stored_runtime_an_e_names(
 
     assert (workdir / "made.txt").read_text() == "hello\n"
     assert any(f"-p 2222 me@{host}" in line for line in _reached(tmp_path))
+
+
+# ------------------------------------------------------------------------- falling back
+
+
+def _exec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, env: str) -> Path:
+    """Runs the flow that writes its task down, given `env`, from a project of its own.
+
+    Returns:
+      The project, which the run's epic is kept under.
+    """
+    from hmz.cli import main
+    from tests.stubs import written
+
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+    monkeypatch.chdir(project)
+    flow = written(tmp_path / "flows", "writes", _WRITES)
+    main(["exec", "-f", str(flow), "-e", env, "-b", "cost=1", "hello"])
+    return project
+
+
+@pytest.mark.timeout(180)
+def test_a_run_falls_back_from_a_runtime_that_cannot_be_reached(
+    far: Path,
+    host: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from hmz.runtime.epic import epics, read
+
+    store.add(SSHRuntime(name="dead", host="nowhere-x", fallback=("ssh:alive",)))
+    store.add(SSHRuntime(name="alive", host=host))
+    workdir = tmp_path / "there"
+    workdir.mkdir()
+
+    project = _exec(tmp_path, monkeypatch, f"box=ssh@dead{workdir}")
+
+    assert (workdir / "made.txt").read_text() == "hello\n"
+    said = capsys.readouterr().err
+    assert "ssh:dead cannot hold 'box'" in said, said
+    assert "using ssh:alive" in said, said
+    (ran,) = [read(one) for one in epics(project)]
+    assert ran is not None
+    assert ran.envs == (f"box=ssh@dead{workdir}",)
+    assert ran.used == (f"box=ssh@alive{workdir}",)
+
+
+@pytest.mark.timeout(180)
+def test_a_runtime_fallen_back_to_does_not_fall_back_in_turn(
+    far: Path,
+    host: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store.add(SSHRuntime(name="first", host="nowhere-1", fallback=("ssh:second",)))
+    store.add(SSHRuntime(name="second", host="nowhere-2", fallback=("ssh:alive",)))
+    store.add(SSHRuntime(name="alive", host=host))
+    workdir = tmp_path / "there"
+    workdir.mkdir()
+
+    with pytest.raises(SystemExit) as refused:
+        _exec(tmp_path, monkeypatch, f"box=ssh@first{workdir}")
+
+    assert refused.value.code == 2
+    said = capsys.readouterr().err
+    assert "ssh:first cannot hold 'box'" in said, said
+    assert "ssh:second cannot hold 'box'" in said, said
+    assert "alive" not in said, said
+    assert not (workdir / "made.txt").exists()
+
+
+@pytest.mark.timeout(180)
+def test_an_e_naming_a_runtime_only_listed_as_a_fallback_walks_nothing(
+    far: Path,
+    host: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store.add(SSHRuntime(name="main", host=host, fallback=("ssh:spare",)))
+    store.add(SSHRuntime(name="spare", host="nowhere-x"))
+    workdir = tmp_path / "there"
+    workdir.mkdir()
+
+    with pytest.raises(SystemExit):
+        _exec(tmp_path, monkeypatch, f"box=ssh@spare{workdir}")
+
+    said = capsys.readouterr().err
+    assert "cannot hold" not in said, said
+    assert not (workdir / "made.txt").exists()
+
+
+@pytest.mark.timeout(120)
+async def test_a_runtime_short_of_what_a_role_asks_falls_back_into_the_next_ones_workdir(
+    far: Path, host: str, tmp_path: Path
+) -> None:
+    from hmz.flows import ResourceUnmet
+    from hmz.runtime.flowing.environments import settle
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    store.add(SSHRuntime(name="small", host=host, fallback=("ssh:big",)))
+    store.add(SSHRuntime(name="big", host=host, workdir=str(elsewhere)))
+    (spec,) = parse_envs([f"box=ssh@small{tmp_path}"])
+    first = open_env(spec)
+    told: list[str] = []
+
+    def fits(driver: EnvDriver) -> None:
+        if driver.provider == "small":
+            raise ResourceUnmet("'box' needs 64 CPUs")
+
+    held, driver = await settle(spec, first, fits=fits, moved=told.append)
+    try:
+        assert (held.provider, held.workdir) == ("big", PurePosixPath(elsewhere))
+        assert driver.available
+        assert not first.available  # closed, once it could not hold the role
+        assert told == [
+            "ssh:small cannot hold 'box': 'box' needs 64 CPUs; using ssh:big"
+        ]
+    finally:
+        await driver.close()
+
+
+@pytest.mark.timeout(120)
+async def test_a_runtime_with_no_fallback_list_refuses_as_it_always_has(
+    far: Path, tmp_path: Path
+) -> None:
+    from hmz.runtime.flowing.environments import settle
+
+    store.add(SSHRuntime(name="dead", host="nowhere-x"))
+    (spec,) = parse_envs([f"box=ssh@dead{tmp_path}"])
+    driver = open_env(spec)
+    try:
+        with pytest.raises(EnvError) as refused:
+            await settle(spec, driver)
+    finally:
+        await driver.close()
+
+    assert "cannot hold" not in str(refused.value)
+
+
+@pytest.mark.timeout(180)
+def test_a_runtime_that_refuses_the_workdir_as_it_is_opened_falls_back_too(
+    far: Path,
+    host: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store.add(
+        store.DockerRuntime(
+            name="remote", endpoint="tcp://10.0.0.3:2376", fallback=("ssh:alive",)
+        )
+    )
+    store.add(SSHRuntime(name="alive", host=host))
+    (far / "there").mkdir()
+
+    _exec(tmp_path, monkeypatch, "box=docker@remote/~/there")
+
+    assert (far / "there" / "made.txt").read_text() == "hello\n"
+    said = capsys.readouterr().err
+    assert "docker:remote cannot hold 'box'" in said, said
+    assert "must be an absolute path" in said, said

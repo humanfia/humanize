@@ -7921,6 +7921,8 @@ def _machine_line(one: Runtime) -> str:
         ]
     if one.workdir:
         said.append(f"working directory: {one.workdir}")
+    if one.fallback:
+        said.append(f"falls back to {', '.join(one.fallback)}")
     return _DOT.join(said)
 
 
@@ -8033,6 +8035,23 @@ _ALIAS, _HOST, _USER, _PORT, _KEY, _JUMP, _OPTIONS, _WORKDIR = (
     "workdir",
 )
 
+#: The row of either form a runtime's fallback list is written on.
+_FALLEN_TO = "fallback"
+
+
+def _fallback_row() -> Question:
+    """The row a runtime's fallback list is written on, which both forms ask last."""
+    return Question(
+        _FALLEN_TO,
+        "falls back to",
+        "runtimes to try in order if this one cannot: docker:box, ssh:gpu2",
+    )
+
+
+def _fallback(said: str) -> list[str]:
+    """A fallback list as its row is typed: entries split on commas and spaces, in order."""
+    return [one for one in re.split(r"[,\s]+", said) if one]
+
 
 class Hosting(Form["Runtime"]):
     """An ssh host, on one form: what reaches it, what it is called, where it works.
@@ -8069,6 +8088,7 @@ class Hosting(Form["Runtime"]):
             _JUMP: one.proxy_jump,
             _OPTIONS: ", ".join(f"{key}={value}" for key, value in one.options.items()),
             _WORKDIR: one.workdir,
+            _FALLEN_TO: ", ".join(one.fallback),
         }
 
     def _names(self) -> None:
@@ -8131,6 +8151,7 @@ class Hosting(Form["Runtime"]):
                     "workdir",
                     "default working directory when -e specifies none: /abs or ~/path",
                 ),
+                _fallback_row(),
             ]
         )
         return rows
@@ -8204,6 +8225,7 @@ class Hosting(Form["Runtime"]):
             "proxy_jump": typed.get(_JUMP, ""),
             "options": _options(typed.get(_OPTIONS, "")),
             "workdir": typed.get(_WORKDIR, ""),
+            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
         }
         if self._one is not None:
             fields |= {
@@ -8314,6 +8336,7 @@ class Docking(Form["Runtime"]):
             _GPUS: ", ".join(one.gpus),
             _AT_ONCE: str(one.max_containers) if one.max_containers else "",
             _WORKDIR: one.workdir,
+            _FALLEN_TO: ", ".join(one.fallback),
         }
         for kind, (spelled, row) in _REACHED.items():
             if one.endpoint.startswith(spelled):
@@ -8443,6 +8466,7 @@ class Docking(Form["Runtime"]):
                     "workdir",
                     "default working directory when -e specifies no directory",
                 ),
+                _fallback_row(),
                 Question(_CPUS, "cpus", "max CPUs; blank to use all host CPUs"),
                 Question(_MEMORY, "memory", "e.g. 64G; blank to use all host memory"),
                 Question(
@@ -8667,6 +8691,7 @@ class Docking(Form["Runtime"]):
             "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
             "max_containers": int(most or 0),
             "workdir": typed.get(_WORKDIR, ""),
+            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
             "gpu_memory": self._one.gpu_memory if self._one is not None else 0,
         }
 

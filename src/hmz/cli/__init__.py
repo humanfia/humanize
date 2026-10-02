@@ -167,6 +167,8 @@ def _executes(argv: list[str]) -> int:
             # go of the drivers it was given all the same.
             with _ending(running, ended):
                 running.watch(shown.heard)
+                # An environment moved off the runtime its `-e` named, said as it is.
+                running.noticed(lambda said: out.aside(f"hmz exec: {said}"))
                 # Said and then run, never asked: a command line has nobody to ask, so what
                 # it can do is say so plainly, on the stream that is not the answer.
                 if blind := running.unreadable():

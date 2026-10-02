@@ -271,6 +271,9 @@ class Ran(NamedTuple):
       ref: The flow's canonical ref, which is what a run is picked up by whatever it was
         named as; "" for a run written before there was one.
       envs: What it was given for each environment role, each as `-e` spells one.
+      used: Where each environment role was put, as `-e` spells it: what `envs` says, but
+        for a role moved down the fallback list of the runtime its `-e` named, which is the
+        runtime that held it.
       params: What the flow was set up with, as JSON.
       budget: What the run was allowed to spend, as JSON, or None where it said nothing.
       picked_up: The epic this run was picked up from, by name, or "".
@@ -291,6 +294,7 @@ class Ran(NamedTuple):
     resumable: bool = False
     ref: str = ""
     envs: tuple[str, ...] = ()
+    used: tuple[str, ...] = ()
     params: dict[str, Any] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     budget: dict[str, Any] | None = None
     picked_up: str = ""
@@ -496,6 +500,7 @@ class Epic:
         ref: str = "",
         agents: Sequence[Drove] = (),
         envs: Sequence[str] = (),
+        used: Sequence[str] | None = None,
         params: Mapping[str, Any] | None = None,
         budget: Mapping[str, Any] | None = None,
         resumable: bool = False,
@@ -513,6 +518,8 @@ class Epic:
           ref: The flow's canonical ref, which is what a run is picked up by.
           agents: What each agent role was given, in the order the flow declares them.
           envs: What each environment role was given, as `-e` spells one.
+          used: Where each was put, as `-e` spells it, or None for where it was given --
+            which is all that is written down where the two are one.
           params: What the flow was set up with, as JSON.
           budget: What the run may spend, as JSON, or None.
           resumable: Whether the flow says it can be picked up again, which is what makes
@@ -558,6 +565,11 @@ class Epic:
             **({"picked_up": picked_up.name} if picked_up is not None else {}),
             agents=[one._asdict() for one in agents],
             envs=list(envs),
+            **(
+                {"used": list(used)}
+                if used is not None and list(used) != list(envs)
+                else {}
+            ),
             params=dict(params or {}),
             **({"budget": dict(budget)} if budget is not None else {}),
             **({"harness": harness} if harness else {}),
@@ -1039,6 +1051,8 @@ def read(epic: Path) -> Ran | None:
             )
         )
     envs = began.get("envs")
+    envs = cast("list[Any]", envs if isinstance(envs, list) else [])
+    used = began.get("used")
     params = began.get("params")
     budget = began.get("budget")
     return Ran(
@@ -1054,9 +1068,10 @@ def read(epic: Path) -> Ran | None:
         called=tuple(_calls(events)),
         resumable=bool(began.get("resumable")),
         ref=str(began.get("ref") or ""),
-        envs=tuple(
+        envs=tuple(str(one) for one in envs),
+        used=tuple(
             str(one)
-            for one in cast("list[Any]", envs if isinstance(envs, list) else [])
+            for one in cast("list[Any]", used if isinstance(used, list) else envs)
         ),
         params=cast("dict[str, Any]", params) if isinstance(params, dict) else {},
         budget=cast("dict[str, Any]", budget) if isinstance(budget, dict) else None,
