@@ -39,8 +39,8 @@ Agents run with approvals bypassed, so start in a scratch repository. The
 
 ## Contributing
 
-Request features in the [wishlist](https://github.com/humanfia/humanize/issues/26), report bugs
-in the [issues](https://github.com/humanfia/humanize/issues), or open a pull request. See
+Report a bug or request a feature through the
+[issue forms](https://github.com/humanfia/humanize/issues/new/choose), or open a pull request. See
 [Contributing](https://docs.humanfia.ai/humanize/contributing/) for how to set up and check a
 change.
 
