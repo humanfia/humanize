@@ -1,9 +1,9 @@
 """The environments a flow's agents work in, and what a flow may ask of each.
 
 An environment is a working directory on a machine: this one, one reached over ssh, or a
-container started for it on a docker daemon. A flow declares the environments it needs as an
-:class:`EnvCollection`, one role apiece, and says what it will do in each by the mixins the
-role's type carries::
+container started for it on a docker daemon or a docker swarm. A flow declares the
+environments it needs as an :class:`EnvCollection`, one role apiece, and says what it will do
+in each by the mixins the role's type carries::
 
     class Repo(Env, ShellEnvMixin, FilesEnvMixin, GitWorktreeEnvMixin): ...
 
@@ -59,6 +59,9 @@ class EnvBackendKind(StrEnum):
     SSH = auto()
     #: A container of its own, on a docker daemon a runtime names.
     DOCKER = auto()
+    #: A container of its own, as the one task of a service on a docker swarm a runtime
+    #: names, on whichever node the swarm placed it.
+    SWARM = auto()
 
 
 class SequenceNotStr[T](Protocol):
@@ -97,7 +100,7 @@ class Env(Protocol):
 
     @property
     def provider(self) -> str:
-        """Which machine of that kind: the ssh host, the docker runtime, or "" for this one."""
+        """Which machine of that kind: the ssh host, the docker or swarm runtime, or "" here."""
         ...
 
     @property
@@ -193,10 +196,10 @@ class GPUEnvMixin(Protocol):
 class ImageEnvMixin(Protocol):
     """Declares what a container for the role is started from.
 
-    Said of a docker environment only: one on this machine or over ssh is the machine it is,
-    and the image says nothing of it. The image needs `/bin/sh` and a Python of at least
-    3.12, which is what reaches into it; nothing else of humanize is put there, an sshd least
-    of all.
+    Said of a docker or swarm environment only: one on this machine or over ssh is the
+    machine it is, and the image says nothing of it. The image needs `/bin/sh` and a Python
+    of at least 3.12, which is what reaches into it; nothing else of humanize is put there,
+    an sshd least of all.
 
     Attributes:
       _image: The image, as `docker run` takes it; "" for the provider's own, or

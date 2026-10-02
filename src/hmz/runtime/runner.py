@@ -151,7 +151,9 @@ def read_line(argv: list[str]) -> Line:
         "HOST the name of a saved ssh runtime or one ssh resolves; "
         "ROLE=docker@NAME/abs/path for a container of its own on the saved docker "
         "runtime NAME, or docker@local/abs/path on docker's default here; "
-        "ROLE=ssh@NAME or docker@NAME alone for a saved runtime's own workdir. "
+        "ROLE=swarm@NAME/abs/path for a task of its own on the saved swarm runtime NAME, "
+        "or swarm@local/abs/path on the swarm this machine manages; "
+        "ROLE=ssh@NAME, docker@NAME or swarm@NAME alone for a saved runtime's own workdir. "
         "A role the runtime fills -- the workspace -- is never named",
     )
     parser.add_argument(

@@ -743,24 +743,24 @@ older than 7 days; when an account never asked is chosen; on `check again`.
 
 | Row | Kind | About / values |
 | --- | --- | --- |
-| `backend` | ▾ `local` `ssh` `docker` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon`, beside each on the list too. Starts on the first of `ssh`, `docker` with a saved runtime, else `local`. Changing it clears host and workdir. |
-| `host` (ssh) · `daemon` (docker) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
+| `backend` | ▾ `local` `ssh` `docker` `swarm` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon` / `a container on whichever node of a docker swarm has room`, beside each on the list too. Starts on the first of `ssh`, `docker`, `swarm` with a saved runtime, else `local`. Changing it clears host and workdir. |
+| `host` (ssh) · `daemon` (docker) · `swarm` (swarm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
 | `workdir` | written | `absolute path on this machine` (local); `leave blank to use saved default: <dir>` (a runtime saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the runtime's workdir; while unchanged, the spec omits it. |
 | `as -e` | written | `full -e spec: typing one sets the rows above` |
 | `done` | | `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`. |
 
 The composed spec is read as [`-e`](/reference/cli#writing-an-environment) reads it and refused
 in its words (e.g. `-e 'box=ssh@somehost': expected <role>=<backend>[@<provider>]/<workdir>`
-where no workdir is given or saved). Partial answers: `fill in the <host|daemon|workdir> as
+where no workdir is given or saved). Partial answers: `fill in the <host|daemon|swarm|workdir> as
 well`, `specify an environment`. Reachability and size are checked when the run starts.
 
 #### Host picker {#host-picker}
 
 | Element | Value |
 | --- | --- |
-| Title | `Select the ssh host to use` / `Select the docker host to use` |
+| Title | `Select the ssh host to use` / `Select the docker host to use` / `Select the docker swarm to use` |
 | About | `Saved on the runtimes page of /settings; any host you add here is saved there.` |
-| Rows above the list | `add an ssh host` / `add a docker host` (the [runtime forms](#runtimes), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
+| Rows above the list | `add an ssh host` / `add a docker host` / `add a docker swarm` (the [runtime forms](#runtimes), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
 | Empty | `no ssh host is saved yet` |
 
 `unsaved host` opens **Unsaved ssh host** (`Connects using your ssh config with no extra
@@ -911,7 +911,7 @@ A screen of six pages. Storage keys are in [Settings](/reference/settings).
   │    what agents sign in as, per CLI                                       │
   │──────────────────────────────────────────────────────────────────────────│
   │ ▦  Runtimes                                                    1 machine │
-  │    ssh hosts and docker daemons a flow's roles run on                    │
+  │    ssh hosts, docker daemons and swarms a flow's roles run on            │
   │──────────────────────────────────────────────────────────────────────────│
   │ ↻  Fallback                                                      2 rules │
   │    where a turn goes when an agent fails                                 │
@@ -953,7 +953,7 @@ is held. Coming back out of a page puts the cursor on its card.
 | --- | --- | --- |
 | Settings, Workspace | Save | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
-| Runtimes | Add an ssh host · Add a docker host · Import ~/.ssh/config · Search… | name, backend, row text |
+| Runtimes | Add an ssh host · Add a docker host · Add a docker swarm · Import ~/.ssh/config · Search… | name, backend, row text |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
 | Flowverses | Add a flowverse · Search… | name, URL |
 
@@ -1083,25 +1083,27 @@ humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-
 
 ### Runtimes page {#runtimes}
 
-Intro: `Runtimes: saved ssh hosts, and docker daemons with the resources each may hand out,
-used by name as flow environments in -e and /flow. Changes take effect immediately.` Rows
-under `ssh` and `docker` headings. Empty: `no machines saved yet; a role can still name one
-directly`. `/settings environments`, the page's former name, still opens it. Storage and
-semantics: [Machines › Runtimes](/reference/machines#runtimes).
+Intro: `Runtimes: saved ssh hosts, docker daemons with the resources each may hand out, and
+docker swarms with what their tasks may reserve, used by name as flow environments in -e and
+/flow. Changes take effect immediately.` Rows under `ssh`, `docker` and `swarm` headings.
+Empty: `no machines saved yet; a role can still name one directly`. `/settings environments`,
+the page's former name, still opens it. Storage and semantics: [Machines ›
+Runtimes](/reference/machines#runtimes).
 
 | Row description | Format |
 | --- | --- |
 | ssh | `user@host[:port]` or `from ~/.ssh/config` / `…, from <config>`, then ` · key <path>`, ` · through <jump>`, ` · -o K=V, …` |
 | docker | `<endpoint> · <image> · OCI runtime <r> · <cpus> CPUs, <mem>, GPUs <ids>\|no limits · max <n> containers` |
-| both | ` · working directory: <dir>`; ` · checking…` while checked |
+| swarm | `<endpoint> · <image> · on <constraint>, … · <cpus> CPUs, <mem>\|no limits · GPUs as <resource> · max <n> tasks` -- not its nodes |
+| all | ` · working directory: <dir>`; ` · checking…` while checked |
 
 `enter` on a runtime opens `<backend>/<name>`:
 
 | Row | Description | Effect |
 | --- | --- | --- |
 | `edit` | `edit saved settings` | Its form, without `name`; checked after saving (`<backend>/<name> updated`). |
-| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …`; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
-| `remove` | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`. |
+| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits`; swarm: `check the swarm's nodes against its quota` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …` -- for a swarm `answers: swarm <version>; <n> nodes: <a>, <b>, … and <k> more; <cpus> CPUs, <mem> all told`, naming the first 8 of the nodes that may take a task; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
+| `remove` | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`, and `<names> reached a swarm through this host; edit them` for a swarm whose endpoint or one of whose nodes it was. |
 
 #### ssh host form {#ssh-form}
 
@@ -1151,6 +1153,34 @@ not respond: …`), `done` (`adds docker/<name> and detects host resources`).
 Refusals: `a docker host named <name> already exists; …`, `memory: '<x>' must be a number and
 unit, such as 64G or 512M`, `cpus: '<x>' is not a number`, `max containers: '<x>' must be a
 number`, `run args: …`, `tls: home directory does not exist for '<x>'`.
+
+#### docker swarm form {#swarm-form}
+
+Title `Add a docker swarm` / `Edit swarm/<name>`; intro `A docker swarm where flow environments
+run as services of one task, placed on whichever node has room. Reached through a manager's
+daemon: on this machine, over ssh, or at an address. Flows on it are limited to the quota
+configured here.`
+
+`endpoint` and the rows under it are the [docker host form](#docker-form)'s, a manager's
+daemon in place of a docker host's -- `local` being the swarm this machine manages -- and so is
+the default name, `swarm` where a docker host's is `docker`. Then `name` (add), `image`
+(`default image, unless specified by the flow; every node pulls it`), `run args` (`extra
+arguments for docker service create`), `constraints` (`placement constraints, e.g.
+node.labels.gpu==true, …`, a comma apart), `max tasks` (`max concurrent tasks; blank for no
+limit`), `nodes` (`HOSTNAME=SSH-HOST, …; blank to reach each at ssh://its address`: a node's
+host name and the saved ssh host, or the `[user@]host[:port]`, that reaches it), `workdir`
+(`default working directory, on every node, when -e specifies none`), `gpu resource`
+(`generic resource nodes advertise GPUs as, e.g. NVIDIA-GPU`), `cpus` (`CPUs all tasks may
+reserve; blank for no quota`), `memory` (`e.g. 64G for all tasks; blank for no quota`),
+`detect` (as the docker host form's, writing in the CPUs and memory of the nodes that may take
+a task all told), `done` (`adds swarm/<name> and checks its nodes`). No `OCI runtime` and no
+`gpus`: a service is told neither.
+
+Refusals: `a docker swarm named <name> already exists; …`, `max tasks: '<x>' must be a number`,
+`nodes: '<x>' is not HOSTNAME=SSH-HOST`, the store's own for a constraint that is not
+`<attribute>==<value>` or `<attribute>!=<value>`, a node's ssh host that is neither saved nor
+`[user@]host[:port]`, and a generic resource that is not one; and the docker host form's for
+memory, CPUs, run args and TLS.
 
 #### Import form {#import-form}
 

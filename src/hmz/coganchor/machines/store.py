@@ -1,10 +1,11 @@
 """The runtimes: the machines a flow's environments may be put on, written down under names.
 
 A runtime is one machine something can be put on, named by what somebody called it rather than
-by how it is reached: an ssh host with the login, port, key and jump host it takes, or a docker
-daemon with the resources it may hand out. A flow's environment is put on one when an `-e` names
-it. One directory per runtime, under `~/.humanize/runtimes/<backend>/<name>/`, holding
-`runtime.json`.
+by how it is reached: an ssh host with the login, port, key and jump host it takes, a docker
+daemon with the resources it may hand out, or a docker swarm whose manager schedules a task for
+each environment onto whichever of its nodes has room. A flow's environment is put on one
+when an `-e` names it. One directory per runtime, under
+`~/.humanize/runtimes/<backend>/<name>/`, holding `runtime.json`.
 
 They were once kept under `~/.humanize/env-providers/`, each in a `provider.json`; the first
 look for them moves that directory where they are kept now, and one still in a `provider.json`
@@ -41,15 +42,18 @@ __all__ = [
     "DOCKER",
     "IMPORTED",
     "SSH",
+    "SWARM",
     "TYPED",
     "DockerRuntime",
     "Runtime",
     "SSHRuntime",
+    "SwarmRuntime",
     "add",
     "daemon_of",
     "find",
     "imports",
     "new",
+    "node_of",
     "remove",
     "runtimes",
     "under",
@@ -60,7 +64,8 @@ __all__ = [
 #: The backends a runtime may be for, by the name `-e` gives each.
 SSH = "ssh"
 DOCKER = "docker"
-BACKENDS = (SSH, DOCKER)
+SWARM = "swarm"
+BACKENDS = (SSH, DOCKER, SWARM)
 
 #: How a runtime was made: typed in field by field, or read off an ssh config.
 TYPED = "typed"
@@ -97,6 +102,9 @@ _FIELDS = {
 
 #: The largest port there is.
 _PORT_MAX = 65535
+
+#: The fields a runtime holds as a mapping of one string to another.
+_MAPPINGS = ("options", "nodes")
 
 
 def _text(value: str, what: str) -> str:
@@ -358,8 +366,156 @@ class DockerRuntime:
         return {"backend": DOCKER, **_fields(self)}
 
 
+#: What a placement constraint is, as `docker service create --constraint` takes one: an
+#: attribute of a node, compared to a value.
+_CONSTRAINT = re.compile(r"[A-Za-z][A-Za-z0-9._/-]*\s*(==|!=)\s*\S.*\Z")
+
+#: What a generic resource is called, as a node advertises one: `NVIDIA-GPU`, `GPU`.
+_RESOURCE = re.compile(r"[A-Za-z][A-Za-z0-9._-]*\Z")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SwarmRuntime:
+    """A docker swarm a service may be created on, and what its tasks may hold of it.
+
+    Every environment on it is a service of one task, which the swarm's scheduler places on
+    whichever node has room for what the role reserves -- and which is then reached through
+    the docker daemon of that node: the manager's own where the task landed on the manager,
+    else over ssh to the node.
+
+    Attributes:
+      name: What it is called, which is what an environment on it names.
+      endpoint: Where a manager of the swarm is, spelled as :attr:`DockerRuntime.endpoint`
+        is: `local` for a swarm this machine manages, else the daemon of one that does.
+      tls_dir: For `tcp://`, the directory holding `ca.pem`, `cert.pem` and `key.pem`.
+      image: What a task is started from where the flow says nothing. Every node it may land
+        on has to be able to pull it.
+      run_args: What else `docker service create` is told.
+      cpus: How many CPUs its tasks may reserve all told, or 0 for as many as the swarm's
+        nodes have room for.
+      memory: How many bytes of memory, likewise.
+      gpu_resource: The generic resource its nodes advertise their GPUs as -- `NVIDIA-GPU` --
+        which a role asking for GPUs reserves that many of; "" where it hands out none.
+      constraints: Where its tasks may be placed, as `--constraint` takes each:
+        `node.labels.gpu==true`, `node.role!=manager`.
+      max_tasks: How many tasks it may run at once, or 0 for no limit.
+      nodes: How a node is reached, by its host name, where it is not `ssh://<its address>`:
+        the name of a saved ssh runtime, or an ssh destination `[user@]host[:port]`.
+      workdir: Where an `-e` naming it with no workdir works -- a directory every node it
+        may land on has, at the same path.
+      made: How it was made, which is :data:`TYPED`.
+    """
+
+    backend: ClassVar[str] = SWARM
+
+    name: str
+    endpoint: str = "local"
+    tls_dir: str = ""
+    image: str = ""
+    run_args: tuple[str, ...] = ()
+    cpus: float = 0.0
+    memory: int = 0
+    gpu_resource: str = ""
+    constraints: tuple[str, ...] = ()
+    max_tasks: int = 0
+    nodes: Mapping[str, str] = field(default_factory=dict[str, str], hash=False)
+    workdir: str = ""
+    made: str = TYPED
+
+    def __post_init__(self) -> None:
+        _named(self.name)
+        _endpoint(self.endpoint)
+        if self.tls_dir and not self.endpoint.startswith("tcp://"):
+            raise ValueError(f"{self.name}: TLS certificates require a tcp:// endpoint")
+        _text(self.tls_dir, "the TLS directory")
+        if self.image and not re.fullmatch(r"[^\s]+", self.image):
+            raise ValueError(f"{self.name}: invalid image {self.image!r}")
+        for said in self.run_args:
+            if set(said) & set("\n\r\0"):
+                raise ValueError(
+                    f"{self.name}: argument {said!r} cannot contain newlines"
+                )
+        for amount, what in (
+            (self.cpus, "CPUs"),
+            (self.memory, "memory"),
+            (self.max_tasks, "tasks"),
+        ):
+            if amount < 0:
+                raise ValueError(f"{self.name}: {what} cannot be negative: {amount}")
+        if self.gpu_resource and not _RESOURCE.match(self.gpu_resource):
+            raise ValueError(
+                f"{self.name}: invalid generic resource {self.gpu_resource!r}"
+            )
+        for constraint in self.constraints:
+            if not _CONSTRAINT.match(constraint) or set(constraint) & set("\n\r\0"):
+                raise ValueError(
+                    f"{self.name}: invalid constraint {constraint!r}: expected "
+                    "<attribute>==<value> or <attribute>!=<value>"
+                )
+        for node, via in self.nodes.items():
+            if not _WORD.match(node):
+                raise ValueError(f"{self.name}: invalid node host name {node!r}")
+            if not _NAMED.match(via) and not _destination(via):
+                raise ValueError(
+                    f"{self.name}: node {node}: {via!r} is neither a saved ssh host "
+                    "nor [user@]host[:port]"
+                )
+        _workdir(self.workdir)
+        if self.made != TYPED:
+            raise ValueError(
+                f"{self.name}: made must be {TYPED} for a docker swarm, not {self.made!r}"
+            )
+
+    @property
+    def at(self) -> Path:
+        """The directory it is kept in."""
+        return where(SWARM, self.name)
+
+    def daemon(self) -> Endpoint:
+        """The manager's daemon, as every `docker` for the swarm is pointed at it.
+
+        Raises:
+          ValueError: For `ssh:<name>` naming no stored ssh runtime.
+        """
+        return daemon_of(self.endpoint, self.tls_dir)
+
+    def held(self) -> dict[str, Any]:
+        """It as it is written down."""
+        return {"backend": SWARM, **_fields(self)}
+
+
+def node_of(via: str) -> str:
+    """The daemon endpoint a swarm node is reached by, as a runtime spells one.
+
+    Args:
+      via: As :attr:`SwarmRuntime.nodes` holds it: a saved ssh runtime's name, or an ssh
+        destination `[user@]host[:port]`.
+
+    Returns:
+      `ssh:<name>` for a saved ssh runtime that is there, else `ssh://<destination>` --
+      which :func:`daemon_of` reads.
+
+    Raises:
+      ValueError: For one that is neither.
+    """
+    if _NAMED.match(via) and find(SSH, via) is not None:
+        return f"ssh:{via}"
+    if not _destination(via):
+        raise ValueError(f"{via!r} is neither a saved ssh host nor [user@]host[:port]")
+    return f"ssh://{via}"
+
+
+def _destination(via: str) -> bool:
+    """Whether something is an ssh destination a docker endpoint may be: `[user@]host[:port]`."""
+    try:
+        _endpoint(f"ssh://{via}")
+    except ValueError:
+        return False
+    return True
+
+
 #: One runtime, of whichever backend.
-type Runtime = SSHRuntime | DockerRuntime
+type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime
 
 
 def _fields(runtime: Runtime) -> dict[str, Any]:
@@ -369,7 +525,7 @@ def _fields(runtime: Runtime) -> dict[str, Any]:
         value: object = getattr(runtime, one.name)
         if isinstance(value, tuple):
             value = [str(each) for each in cast("tuple[object, ...]", value)]
-        elif one.name == "options":
+        elif one.name in _MAPPINGS:
             value = dict(cast("Mapping[str, str]", value))
         held[one.name] = value
     return held
@@ -482,7 +638,7 @@ def where(backend: str, name: str) -> Path:
     """The directory one runtime is kept in.
 
     Args:
-      backend: :data:`SSH` or :data:`DOCKER`.
+      backend: :data:`SSH`, :data:`DOCKER` or :data:`SWARM`.
       name: What the runtime is called.
 
     Returns:
@@ -501,7 +657,7 @@ def new(backend: str, name: str, **fields: Any) -> Runtime:
     """One runtime, checked, and written nowhere.
 
     Args:
-      backend: :data:`SSH` or :data:`DOCKER`.
+      backend: :data:`SSH`, :data:`DOCKER` or :data:`SWARM`.
       name: What it is called.
       **fields: The rest of it, by field -- as :meth:`SSHRuntime.held` writes them, lists and
         numbers as JSON has them.
@@ -515,7 +671,9 @@ def new(backend: str, name: str, **fields: Any) -> Runtime:
     """
     if backend not in BACKENDS:
         raise ValueError(f"{backend!r} is not a runtime backend: {', '.join(BACKENDS)}")
-    kind: type[Runtime] = SSHRuntime if backend == SSH else DockerRuntime
+    kind: type[Runtime] = {SSH: SSHRuntime, DOCKER: DockerRuntime}.get(
+        backend, SwarmRuntime
+    )
     known = {one.name: one for one in dataclasses.fields(kind)}
     given: dict[str, Any] = {"name": name}
     for key, value in fields.items():
@@ -532,7 +690,7 @@ def _typed(key: str, default: object, value: object, name: str) -> object:
       ValueError: For one of another type.
     """
     wrong = ValueError(f"{name}: {key} cannot be {value!r}")
-    if key == "options":
+    if key in _MAPPINGS:
         if not isinstance(value, dict):
             raise wrong
         return {str(k): str(v) for k, v in cast("dict[Any, Any]", value).items()}
@@ -561,7 +719,7 @@ def runtimes(backend: str = "") -> list[Runtime]:
     """Every runtime there is, or every one of a backend.
 
     Args:
-      backend: :data:`SSH`, :data:`DOCKER`, or "" for both.
+      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM`, or "" for every one.
 
     Returns:
       One apiece, by backend and then by name. A directory holding nothing readable, or

@@ -94,7 +94,12 @@ if TYPE_CHECKING:
     # them being read as the other.
     from hmz.coganchor.fallbacks import Falls as Step
     from hmz.coganchor.machines.sshconfig import SSHHost
-    from hmz.coganchor.machines.store import DockerRuntime, Runtime, SSHRuntime
+    from hmz.coganchor.machines.store import (
+        DockerRuntime,
+        Runtime,
+        SSHRuntime,
+        SwarmRuntime,
+    )
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
     from hmz.runtime.epic import Ran
@@ -1869,7 +1874,7 @@ def harnessing(held: str, envs: Iterable[str], ran: Mapping[str, str]) -> str:
     mode = held or ADAPTIVE
     if mode.startswith(f"{STANDALONE}:"):
         return f"{STANDALONE} → {mode.partition(':')[2]}"
-    if not any(spec.partition("@")[0] in (_SSH, _DOCKER) for spec in envs):
+    if not any(spec.partition("@")[0] in _KINDS for spec in envs):
         return f"{mode} → {LOCAL}: the work is on this machine"
     went = sorted(set(ran.values()))
     if mode == ADAPTIVE and went:
@@ -3257,6 +3262,7 @@ class Action(NamedTuple):
 #: set apart, because a button is not a row of the list and its id cannot be taken for a name
 #: somebody chose.
 _ACT_ADD, _ACT_SPEAKS, _ACT_DOCKS, _ACT_IMPORTS = "add", "speaks", "docks", "imports"
+_ACT_SWARMS = "swarms"
 _ACT_SEARCH, _ACT_SAVE = "search", "save"
 
 
@@ -7720,11 +7726,21 @@ class Providers(Pages):
 
 # -------------------------------------------------------------------------------- runtimes
 
-#: The backends a runtime is saved for, as `-e` and the store name them.
-_SSH, _DOCKER = "ssh", "docker"
+#: The backends a runtime is saved for, as `-e` and the store name them. A swarm's is not
+#: `_SWARM`, which is the row an agent's turns are run as a fleet on: the same word, for
+#: another thing.
+_SSH, _DOCKER, _DOCKER_SWARM = "ssh", "docker", "swarm"
 
 #: What one runtime of each is called on the buttons that add one.
-_KINDS = {_SSH: "an ssh host", _DOCKER: "a docker host"}
+_KINDS = {
+    _SSH: "an ssh host",
+    _DOCKER: "a docker host",
+    _DOCKER_SWARM: "a docker swarm",
+}
+
+#: How many of a swarm's nodes a check names before it only counts the rest: a cluster's
+#: hundred names are no line anybody reads.
+_NAMED_NODES = 8
 
 #: The ssh config an import reads unless it is told another, as the row says it.
 _OWN_CONFIG = "~/.ssh/config"
@@ -7762,6 +7778,8 @@ class _Had(Protocol):
     def version(self) -> str: ...
     @property
     def short(self) -> tuple[str, ...]: ...
+    @property
+    def nodes(self) -> tuple[str, ...]: ...
 
 
 def _sized(amount: int, *, exact: bool = False) -> str:
@@ -7875,14 +7893,30 @@ def _config_named(config: str) -> str:
     return said if len(said) <= _LABEL else f"…/{_shortly(said)}"
 
 
-def _hands_out(one: DockerRuntime) -> str:
-    """What a docker daemon may hand out, as a row says it."""
+def _hands_out(cpus: float, memory: int, gpus: Sequence[str] = ()) -> str:
+    """What a docker daemon may hand out, or a swarm's tasks reserve, as a row says it."""
     held = [
-        *((f"{one.cpus:g} CPUs",) if one.cpus else ()),
-        *((_sized(one.memory),) if one.memory else ()),
-        *((f"GPUs {', '.join(one.gpus)}",) if one.gpus else ()),
+        *((f"{cpus:g} CPUs",) if cpus else ()),
+        *((_sized(memory),) if memory else ()),
+        *((f"GPUs {', '.join(gpus)}",) if gpus else ()),
     ]
     return ", ".join(held) or "no limits"
+
+
+def _swarm_line(one: SwarmRuntime) -> list[str]:
+    """What a row says about a swarm: its manager, where its tasks go, and what they may have.
+
+    Not its nodes: how each is reached is a thing for when one is, and a swarm of a hundred
+    is no row.
+    """
+    return [
+        one.endpoint,
+        *((one.image,) if one.image else ()),
+        *((f"on {', '.join(one.constraints)}",) if one.constraints else ()),
+        _hands_out(one.cpus, one.memory),
+        *((f"GPUs as {one.gpu_resource}",) if one.gpu_resource else ()),
+        *((f"max {one.max_tasks} tasks",) if one.max_tasks else ()),
+    ]
 
 
 def _machine_line(one: Runtime) -> str:
@@ -7906,13 +7940,15 @@ def _machine_line(one: Runtime) -> str:
             *((f"through {host.proxy_jump}",) if host.proxy_jump else ()),
             *((f"-o {', '.join(host.options)}",) if host.options else ()),
         ]
+    elif one.backend == _DOCKER_SWARM:
+        said = _swarm_line(cast("SwarmRuntime", one))
     else:
         daemon = cast("DockerRuntime", one)
         said = [
             daemon.endpoint,
             *((daemon.image,) if daemon.image else ()),
             *((f"OCI runtime {daemon.runtime}",) if daemon.runtime else ()),
-            _hands_out(daemon),
+            _hands_out(daemon.cpus, daemon.memory, daemon.gpus),
             *(
                 (f"max {daemon.max_containers} containers",)
                 if daemon.max_containers
@@ -7928,19 +7964,22 @@ def _answered(one: Runtime, said: _Had) -> str:
     """What to say once a runtime has been asked what it has, as markup.
 
     What it has, and in yellow what it was saved as handing out and has not got: a resource
-    the daemon does not have is a run refused later, so it is said now.
+    the daemon does not have is a run refused later, so it is said now. A swarm says it is
+    one, and which of its nodes may be given a task -- all told, for a swarm's.
     """
     named = f"{one.backend}/{one.name}"
     if not said.reached:
         return bad(escape(f"{named} could not be reached: {said.said}"))
+    swarm = one.backend == _DOCKER_SWARM
     lead = (
-        f": docker {said.version}"
+        f": {'swarm' if swarm else 'docker'} {said.version}"
         if said.version
         else f": home {said.home}"
         if said.home
         else ""
     )
-    line = escape(f"{named} answers{lead}; {_has(said)}")
+    has = f"{_nodes(said.nodes)}; {_has(said)} all told" if swarm else _has(said)
+    line = escape(f"{named} answers{lead}; {has}")
     if failed := _failed(said):
         line += "\n" + iffy(escape(failed))
     if said.short:
@@ -7948,6 +7987,38 @@ def _answered(one: Runtime, said: _Had) -> str:
             escape(f"lacks configured resources: {'; '.join(said.short)}")
         )
     return line
+
+
+def _nodes(names: Sequence[str]) -> str:
+    """A swarm's nodes that may take a task, as a line says them: counted, the first named.
+
+    Args:
+      names: Their host names.
+    """
+    if not names:
+        return "no node may take a task"
+    count = f"{len(names)} node{'' if len(names) == 1 else 's'}"
+    shown = ", ".join(names[:_NAMED_NODES])
+    more = len(names) - _NAMED_NODES
+    return f"{count}: {shown}" + (f" and {more} more" if more > 0 else "")
+
+
+def _through(one: Runtime, host: str) -> bool:
+    """Whether a runtime is reached through a saved ssh host, which taking that away strands.
+
+    A docker daemon is where its endpoint is `ssh:<host>`; a swarm is as well, and where one
+    of its nodes is reached through it.
+
+    Args:
+      one: The runtime.
+      host: The ssh host, by the name it is saved under.
+    """
+    if one.backend == _DOCKER_SWARM:
+        swarm = cast("SwarmRuntime", one)
+        return swarm.endpoint == f"ssh:{host}" or host in swarm.nodes.values()
+    return (
+        one.backend == _DOCKER and cast("DockerRuntime", one).endpoint == f"ssh:{host}"
+    )
 
 
 async def _checked(one: Runtime) -> _Had | str:
@@ -8003,12 +8074,18 @@ async def provided(host: App[None], backend: str) -> tuple[Runtime | None, str]:
 
     Args:
       host: The interface, which the form is pushed onto.
-      backend: `ssh` or `docker`.
+      backend: `ssh`, `docker` or `swarm`.
 
     Returns:
       The runtime, saved -- or None, and why not: "" for a form walked out of.
     """
-    form: Form[Runtime] = Hosting() if backend == _SSH else Docking()
+    form: Form[Runtime] = (
+        Hosting()
+        if backend == _SSH
+        else Swarming()
+        if backend == _DOCKER_SWARM
+        else Docking()
+    )
     one = await host.push_screen_wait(form)
     if one is None:
         return None, ""
@@ -8234,8 +8311,8 @@ class Hosting(Form["Runtime"]):
         self.dismiss(made)
 
 
-#: The rows of the form a docker daemon is written on, by the field or the part of its
-#: endpoint each answers.
+#: The rows of the forms a docker daemon and a docker swarm are written on, by the field or
+#: the part of its endpoint each answers.
 _ENDPOINT, _SOCKET, _ADDRESS, _TLS, _VIA, _CONTEXT = (
     "endpoint",
     "socket",
@@ -8252,6 +8329,12 @@ _IMAGE, _RUNTIME, _ARGS, _CPUS, _MEMORY, _GPUS, _AT_ONCE = (
     "memory",
     "gpus",
     "max_containers",
+)
+_CONSTRAINTS, _TASKS, _RESOURCE, _NODES = (
+    "constraints",
+    "max_tasks",
+    "gpu_resource",
+    "nodes",
 )
 
 #: The ways a docker daemon is reached, as its form steps through them, and what each is.
@@ -8274,26 +8357,39 @@ _REACHED = {
 }
 
 
-class Docking(Form["Runtime"]):
-    """A docker daemon, on one form: where it is, what it is called, what it may hand out.
+class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
+    """What is reached through a docker daemon, on one form: where, what it is, what it holds.
 
-    Where it is is a row stepped through the ways a daemon is reached, and the rows under it
-    are the one that way asks: a socket, an address, a saved ssh host, a context. What it may
-    hand out -- CPUs, memory, GPUs -- is each blank for all it has, and `detect` asks the
-    daemon and writes what it has in, for somebody to type less over.
+    The part a docker host and a docker swarm have in common, which is most of either: where
+    the daemon is is a row stepped through the ways one is reached, and the rows under it are
+    the one that way asks -- a socket, an address, a saved ssh host, a context. Then the name,
+    the image, what else docker is told, where it works, and how much of the CPUs and memory
+    it may have, each blank for all of it; `detect` asks the daemon and writes what it has in,
+    for somebody to type less over. What else each asks is its own form's to say.
 
     Correcting one asks the same, less the name it is saved under.
     """
 
-    def __init__(self, one: DockerRuntime | None = None) -> None:
-        """Initializes the form on a daemon, or on nothing for one being added.
+    #: The backend it is saved for.
+    BACKEND: ClassVar[str] = _DOCKER
+    #: What one is called on the form, after `a`.
+    KIND: ClassVar[str] = "docker host"
+    #: What the form says it is, under its title.
+    ABOUT: ClassVar[str] = ""
+    #: What answering it does besides saving it.
+    CHECKS: ClassVar[str] = "detects host resources"
+    #: The rows detecting writes into, in the order it walks through them.
+    DETECTED: ClassVar[tuple[str, ...]] = (_CPUS, _MEMORY)
+
+    def __init__(self, one: T | None = None) -> None:
+        """Initializes the form on one, or on nothing for one being added.
 
         Args:
-          one: The daemon being corrected, or None to add one.
+          one: The one being corrected, or None to add one.
         """
         super().__init__()
         self._one = one
-        self._taken = frozenset(each.name for each in _hmz().runtimes.all(_DOCKER))
+        self._taken = frozenset(each.name for each in _hmz().runtimes.all(self.BACKEND))
         #: What to say under the form, as markup: what detecting found, or that it is asking.
         self._noted = ""
         self._detecting = False
@@ -8307,18 +8403,39 @@ class Docking(Form["Runtime"]):
             _ENDPOINT: "local",
             _TLS: one.tls_dir,
             _IMAGE: one.image,
-            _RUNTIME: one.runtime,
             _ARGS: shlex.join(one.run_args),
             _CPUS: f"{one.cpus:g}" if one.cpus else "",
             _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
-            _GPUS: ", ".join(one.gpus),
-            _AT_ONCE: str(one.max_containers) if one.max_containers else "",
             _WORKDIR: one.workdir,
+            **self._held(one),
         }
         for kind, (spelled, row) in _REACHED.items():
             if one.endpoint.startswith(spelled):
                 self._typed_in |= {_ENDPOINT: kind, row: one.endpoint[len(spelled) :]}
                 break
+
+    def _held(self, one: T) -> dict[str, str]:
+        """What the rows only this form asks hold, for one being corrected.
+
+        Args:
+          one: The one.
+        """
+        raise NotImplementedError
+
+    def _holds(self) -> list[Question]:
+        """The rows under the name, what it may hand out last."""
+        raise NotImplementedError
+
+    def _more(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """What the rows only this form asks come to, as the store takes it.
+
+        Args:
+          typed: The rows, stripped.
+
+        Raises:
+          ValueError: For one that does not read.
+        """
+        raise NotImplementedError
 
     def _names(self) -> None:
         """Calls it after where it is, until somebody has typed a name of their own."""
@@ -8329,13 +8446,13 @@ class Docking(Form["Runtime"]):
         base = (
             kind
             if kind == "local"
-            else _called_after(typed.get(_ADDRESS, ""), _DOCKER)
+            else _called_after(typed.get(_ADDRESS, ""), self.BACKEND)
             if kind in ("tcp", "ssh address")
-            else typed.get(_VIA, "") or _DOCKER
+            else typed.get(_VIA, "") or self.BACKEND
             if kind == "saved ssh host"
-            else typed.get(_CONTEXT, "").strip() or _DOCKER
+            else typed.get(_CONTEXT, "").strip() or self.BACKEND
             if kind == "context"
-            else _DOCKER
+            else self.BACKEND
         )
         typed[_CALLED] = _unique(base, self._taken)
         self._fresh.add(_CALLED)
@@ -8422,34 +8539,7 @@ class Docking(Form["Runtime"]):
             )
         # What it may hand out last, over the row that asks the daemon what it has: what is
         # written in there is walked through and typed over, and then the form is done.
-        rows.extend(
-            [
-                Question(
-                    _IMAGE,
-                    "image",
-                    "default image, unless specified by the flow",
-                ),
-                Question(
-                    _RUNTIME, "OCI runtime", "e.g. nvidia; blank for daemon default"
-                ),
-                Question(_ARGS, "run args", "extra arguments for docker run"),
-                Question(
-                    _AT_ONCE,
-                    "max containers",
-                    "max concurrent containers; blank for no limit",
-                ),
-                Question(
-                    _WORKDIR,
-                    "workdir",
-                    "default working directory when -e specifies no directory",
-                ),
-                Question(_CPUS, "cpus", "max CPUs; blank to use all host CPUs"),
-                Question(_MEMORY, "memory", "e.g. 64G; blank to use all host memory"),
-                Question(
-                    _GPUS, "gpus", "GPU IDs, e.g. 0, 1; blank to use all host GPUs"
-                ),
-            ]
-        )
+        rows.extend(self._holds())
         return rows
 
     def choices(self, held: str) -> Sequence[str]:
@@ -8532,6 +8622,17 @@ class Docking(Form["Runtime"]):
         if held == _DETECTS:
             self._detects()
 
+    def _detected(self, said: _Had) -> dict[str, str]:
+        """What detecting writes into each row it fills, by the row: "" for nothing.
+
+        Args:
+          said: What the daemon has.
+        """
+        return {
+            _CPUS: f"{said.cpus:g}" if said.cpus else "",
+            _MEMORY: _sized(said.memory) if said.memory else "",
+        }
+
     @work
     async def _detects(self) -> None:
         """Asks the daemon what it has, off the loop, and writes it in to be typed over.
@@ -8545,8 +8646,8 @@ class Docking(Form["Runtime"]):
         envs = _hmz().runtimes
         try:
             probe = envs.new(
-                _DOCKER,
-                _DOCKER,
+                self.BACKEND,
+                self.BACKEND,
                 endpoint=self._endpoint(),
                 tls_dir=self._typed_in.get(_TLS, "").strip()
                 if self._typed_in.get(_ENDPOINT) == "tcp"
@@ -8569,13 +8670,7 @@ class Docking(Form["Runtime"]):
             )
             self._fill()
             return
-        for held, value in (
-            (_CPUS, f"{said.cpus:g}" if said.cpus else ""),
-            (_MEMORY, _sized(said.memory) if said.memory else ""),
-            # Those that answer, where it could say: a GPU listed but failed is one no
-            # container is handed, and one saved to be handed out is one a check says lacks.
-            (_GPUS, ", ".join(said.gpus if said.usable is None else said.usable)),
-        ):
+        for held, value in self._detected(said).items():
             if value:
                 self._typed_in[held] = value
                 self._fresh.add(held)
@@ -8598,7 +8693,7 @@ class Docking(Form["Runtime"]):
           row: The row, by id.
         """
         rows = [one.held for one in self.asked()]
-        detected = (_CPUS, _MEMORY, _GPUS)
+        detected = self.DETECTED
         if row in detected and row in rows:
             onward = [
                 at
@@ -8618,30 +8713,26 @@ class Docking(Form["Runtime"]):
         """What answering it does: saves it, and asks the daemon what it has."""
         name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
         doing = "updates" if self._one else "adds"
-        return f"{doing} docker/{name} and detects host resources"
+        return f"{doing} {self.BACKEND}/{name} and {self.CHECKS}"
 
     def _ask(self) -> None:
         """Says what is being added or corrected, and puts the questions up."""
         self.query_one("#asked", Label).update(
-            escape(f"Edit docker/{self._one.name}")
+            escape(f"Edit {self.BACKEND}/{self._one.name}")
             if self._one
-            else "Add a docker host"
+            else f"Add a {self.KIND}"
         )
-        self.query_one("#about", Label).update(
-            "A docker daemon where flow environments run in containers: on "
-            "this machine, over ssh, or at an address. Flows running on it are "
-            "limited to the resources configured here."
-        )
+        self.query_one("#about", Label).update(self.ABOUT)
         self._fill()
         self.query_one("#choices", OptionList).focus()
 
     def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
-        """Everything the form says of the daemon besides its name, as the store takes it.
+        """Everything the form says of it besides its name, as the store takes it.
 
         Raises:
           ValueError: For an amount that is not one, or run args that do not split.
         """
-        most, tls = typed.get(_AT_ONCE, ""), typed.get(_TLS, "")
+        tls = typed.get(_TLS, "")
         try:
             Path(tls).expanduser()
         except (
@@ -8650,8 +8741,6 @@ class Docking(Form["Runtime"]):
             raise ValueError(
                 f"tls: home directory does not exist for {tls!r}"
             ) from None
-        if most and not most.isdigit():
-            raise ValueError(f"max containers: {most!r} must be a number")
         try:
             argv = shlex.split(typed.get(_ARGS, ""))
         except ValueError as why:
@@ -8660,35 +8749,236 @@ class Docking(Form["Runtime"]):
             "endpoint": self._endpoint(),
             "tls_dir": tls if typed.get(_ENDPOINT) == "tcp" else "",
             "image": typed.get(_IMAGE, ""),
-            "runtime": typed.get(_RUNTIME, ""),
             "run_args": argv,
             "cpus": _number(typed.get(_CPUS, ""), "cpus"),
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
-            "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
-            "max_containers": int(most or 0),
             "workdir": typed.get(_WORKDIR, ""),
-            "gpu_memory": self._one.gpu_memory if self._one is not None else 0,
+            **self._more(typed),
         }
 
     def action_done(self) -> None:
-        """Answers with the daemon, once everything said of it reads."""
+        """Answers with it, once everything said of it reads."""
         envs = _hmz().runtimes
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         name = self._one.name if self._one is not None else typed.get(_CALLED, "")
-        if self._one is None and envs.find(_DOCKER, name) is not None:
+        if self._one is None and envs.find(self.BACKEND, name) is not None:
             self._wrong = (
-                f"a docker host named {name} already exists; edit it from its "
+                f"a {self.KIND} named {name} already exists; edit it from its "
                 "row, or choose a different name"
             )
             self._fill()
             return
         try:
-            made = envs.new(_DOCKER, name, **self._fields(typed))
+            made = envs.new(self.BACKEND, name, **self._fields(typed))
         except ValueError as why:
             self._wrong = str(why)
             self._fill()
             return
         self.dismiss(made)
+
+
+def _how_many(said: str, what: str) -> int:
+    """A count a form was given, or 0 for none.
+
+    Raises:
+      ValueError: For one that is not a whole number.
+    """
+    if said and not said.isdigit():
+        raise ValueError(f"{what}: {said!r} must be a number")
+    return int(said or 0)
+
+
+class Docking(_Daemon["DockerRuntime"]):
+    """A docker daemon, on one form: where it is, what it is called, what it may hand out.
+
+    Where it is is a row stepped through the ways a daemon is reached, and the rows under it
+    are the one that way asks: a socket, an address, a saved ssh host, a context. What it may
+    hand out -- CPUs, memory, GPUs -- is each blank for all it has, and `detect` asks the
+    daemon and writes what it has in, for somebody to type less over.
+
+    Correcting one asks the same, less the name it is saved under.
+    """
+
+    BACKEND: ClassVar[str] = _DOCKER
+    KIND: ClassVar[str] = "docker host"
+    ABOUT: ClassVar[str] = (
+        "A docker daemon where flow environments run in containers: on "
+        "this machine, over ssh, or at an address. Flows running on it are "
+        "limited to the resources configured here."
+    )
+    DETECTED: ClassVar[tuple[str, ...]] = (_CPUS, _MEMORY, _GPUS)
+
+    def _held(self, one: DockerRuntime) -> dict[str, str]:
+        """Its OCI runtime, its GPUs and how many containers it may run.
+
+        Args:
+          one: The daemon.
+        """
+        return {
+            _RUNTIME: one.runtime,
+            _GPUS: ", ".join(one.gpus),
+            _AT_ONCE: str(one.max_containers) if one.max_containers else "",
+        }
+
+    def _holds(self) -> list[Question]:
+        """The image, how a container is run, where it works, and what it may hand out."""
+        return [
+            Question(
+                _IMAGE,
+                "image",
+                "default image, unless specified by the flow",
+            ),
+            Question(_RUNTIME, "OCI runtime", "e.g. nvidia; blank for daemon default"),
+            Question(_ARGS, "run args", "extra arguments for docker run"),
+            Question(
+                _AT_ONCE,
+                "max containers",
+                "max concurrent containers; blank for no limit",
+            ),
+            Question(
+                _WORKDIR,
+                "workdir",
+                "default working directory when -e specifies no directory",
+            ),
+            Question(_CPUS, "cpus", "max CPUs; blank to use all host CPUs"),
+            Question(_MEMORY, "memory", "e.g. 64G; blank to use all host memory"),
+            Question(_GPUS, "gpus", "GPU IDs, e.g. 0, 1; blank to use all host GPUs"),
+        ]
+
+    def _detected(self, said: _Had) -> dict[str, str]:
+        """Its CPUs and memory, and the GPUs that answer.
+
+        Args:
+          said: What the daemon has.
+        """
+        # Those that answer, where it could say: a GPU listed but failed is one no container
+        # is handed, and one saved to be handed out is one a check says lacks.
+        return super()._detected(said) | {
+            _GPUS: ", ".join(said.gpus if said.usable is None else said.usable)
+        }
+
+    def _more(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """Its OCI runtime, its GPUs and how many containers it may run.
+
+        Raises:
+          ValueError: For a count that is not one.
+        """
+        return {
+            "runtime": typed.get(_RUNTIME, ""),
+            "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
+            "max_containers": _how_many(typed.get(_AT_ONCE, ""), "max containers"),
+            "gpu_memory": self._one.gpu_memory if self._one is not None else 0,
+        }
+
+
+def _pairs(said: str) -> dict[str, str]:
+    """A swarm's nodes as a form was given them: `HOSTNAME=SSH-HOST`, a comma apart.
+
+    Raises:
+      ValueError: For one that says no ssh host.
+    """
+    held: dict[str, str] = {}
+    for one in (part.strip() for part in said.split(",")):
+        if not one:
+            continue
+        node, _, via = one.partition("=")
+        if not node.strip() or not via.strip():
+            raise ValueError(f"nodes: {one!r} is not HOSTNAME=SSH-HOST")
+        held[node.strip()] = via.strip()
+    return held
+
+
+class Swarming(_Daemon["SwarmRuntime"]):
+    """A docker swarm, on one form: where its manager is, what its tasks may have, and where.
+
+    The manager is reached every way a docker daemon is, on the rows a docker host's form
+    has -- `local` being the swarm this machine manages. Under it, where a task may be put:
+    the constraints `docker service create` is told, and which generic resource the nodes
+    advertise their GPUs as. What all of its tasks together may reserve -- CPUs, memory -- is
+    a quota rather than a host's size, each blank for none, and `detect` writes in what the
+    nodes that may take a task have all told. No OCI runtime and no GPU ids: a service is
+    told neither.
+
+    The nodes row is for a node not reached at `ssh://<its address>`: its host name and the
+    saved ssh host or the destination that does reach it, which is how what a task does gets
+    to the node the swarm put it on.
+
+    Correcting one asks the same, less the name it is saved under.
+    """
+
+    BACKEND: ClassVar[str] = _DOCKER_SWARM
+    KIND: ClassVar[str] = "docker swarm"
+    ABOUT: ClassVar[str] = (
+        "A docker swarm where flow environments run as services of one task, "
+        "placed on whichever node has room. Reached through a manager's "
+        "daemon: on this machine, over ssh, or at an address. Flows on it are "
+        "limited to the quota configured here."
+    )
+    CHECKS: ClassVar[str] = "checks its nodes"
+
+    def _held(self, one: SwarmRuntime) -> dict[str, str]:
+        """Its constraints, GPU resource, nodes and how many tasks it may run.
+
+        Args:
+          one: The swarm.
+        """
+        return {
+            _CONSTRAINTS: ", ".join(one.constraints),
+            _TASKS: str(one.max_tasks) if one.max_tasks else "",
+            _RESOURCE: one.gpu_resource,
+            _NODES: ", ".join(f"{node}={via}" for node, via in one.nodes.items()),
+        }
+
+    def _holds(self) -> list[Question]:
+        """The image, where a task is put and reached, and what its tasks may reserve."""
+        return [
+            Question(
+                _IMAGE,
+                "image",
+                "default image, unless specified by the flow; every node pulls it",
+            ),
+            Question(_ARGS, "run args", "extra arguments for docker service create"),
+            Question(
+                _CONSTRAINTS,
+                "constraints",
+                "placement constraints, e.g. node.labels.gpu==true, …",
+            ),
+            Question(_TASKS, "max tasks", "max concurrent tasks; blank for no limit"),
+            Question(
+                _NODES,
+                "nodes",
+                "HOSTNAME=SSH-HOST, …; blank to reach each at ssh://its address",
+            ),
+            Question(
+                _WORKDIR,
+                "workdir",
+                "default working directory, on every node, when -e specifies none",
+            ),
+            Question(
+                _RESOURCE,
+                "gpu resource",
+                "generic resource nodes advertise GPUs as, e.g. NVIDIA-GPU",
+            ),
+            Question(_CPUS, "cpus", "CPUs all tasks may reserve; blank for no quota"),
+            Question(_MEMORY, "memory", "e.g. 64G for all tasks; blank for no quota"),
+        ]
+
+    def _more(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """Its constraints, GPU resource, nodes and how many tasks it may run.
+
+        Raises:
+          ValueError: For a count that is not one, or a node with no ssh host.
+        """
+        return {
+            "constraints": [
+                one.strip()
+                for one in typed.get(_CONSTRAINTS, "").split(",")
+                if one.strip()
+            ],
+            "max_tasks": _how_many(typed.get(_TASKS, ""), "max tasks"),
+            "gpu_resource": typed.get(_RESOURCE, ""),
+            "nodes": _pairs(typed.get(_NODES, "")),
+        }
 
 
 class Imported(NamedTuple):
@@ -8932,6 +9222,8 @@ class Machine(Picks):
                 "check",
                 "check host resources: home directory, CPUs, memory, and GPUs"
                 if self._one.backend == _SSH
+                else "check the swarm's nodes against its quota"
+                if self._one.backend == _DOCKER_SWARM
                 else "check daemon resources against its limits",
             ),
             (_TAKES_AWAY, "remove", "remove this host immediately"),
@@ -8967,6 +9259,7 @@ class Hosts(Picks):
         self.asked = {
             _SSH: "Select the ssh host to use",
             _DOCKER: "Select the docker host to use",
+            _DOCKER_SWARM: "Select the docker swarm to use",
         }.get(backend, f"Select the {backend} host to use")
         self.about = (
             "Saved on the runtimes page of /settings; any host you add here is "
@@ -9145,10 +9438,11 @@ _BACKENDS_ABOUT = {
     "local": "this machine",
     _SSH: "a machine reached over ssh",
     _DOCKER: "a container on a docker daemon",
+    _DOCKER_SWARM: "a container on whichever node of a docker swarm has room",
 }
 
 #: What the machine is called on the row it is chosen on.
-_ON_ROW = {_SSH: "host", _DOCKER: "daemon"}
+_ON_ROW = {_SSH: "host", _DOCKER: "daemon", _DOCKER_SWARM: "swarm"}
 
 
 class Placing(Form[str]):
@@ -9647,22 +9941,24 @@ class Harnessing(Form[str]):
 class Machines(Pages):
     """The runtimes page of `/settings`: every saved machine a flow's environments may go on.
 
-    What a role's machine is chosen out of on `/flow` -- ssh hosts, and docker daemons with
-    what each may hand out -- under a heading per backend, over the buttons that bring one in:
-    adding either on one form, and importing the hosts an ssh config names. Enter on one
-    opens what can be done to it: correcting it, checking it, taking it away.
+    What a role's machine is chosen out of on `/flow` -- ssh hosts, docker daemons with what
+    each may hand out, and docker swarms with what their tasks may reserve all told -- under a
+    heading per backend, over the buttons that bring one in: adding any of them on one form,
+    and importing the hosts an ssh config names. Enter on one opens what can be done to it:
+    correcting it, checking it, taking it away.
 
     Nothing here is held until the menu is saved, so the page has no button to save from. What
     is added or corrected is asked what it has as it lands -- `ssh` into the host, `docker
-    info` of the daemon -- and an import runs `ssh -G`: each is a command run, and something
-    that has already run is not a draft. Taking one away goes with them, as a flowverse's
-    does, on a page that holds nothing.
+    info` of the daemon, `docker node ls` of the swarm's manager -- and an import runs `ssh
+    -G`: each is a command run, and something that has already run is not a draft. Taking one
+    away goes with them, as a flowverse's does, on a page that holds nothing.
     """
 
     #: What the page says it is.
     MACHINES_ABOUT = (
-        "Runtimes: saved ssh hosts, and docker daemons with the resources each "
-        "may hand out, used by name as flow environments in -e and /flow. "
+        "Runtimes: saved ssh hosts, docker daemons with the resources each "
+        "may hand out, and docker swarms with what their tasks may reserve, "
+        "used by name as flow environments in -e and /flow. "
         "Changes take effect immediately."
     )
 
@@ -9683,7 +9979,7 @@ class Machines(Pages):
         return f"{one.backend}/{one.name}"
 
     def _machine_actions(self) -> list[Action]:
-        """What is done about the machines: adding either kind, importing, and searching.
+        """What is done about the machines: adding each kind, importing, and searching.
 
         No saving: nothing on this page is held.
         """
@@ -9699,6 +9995,12 @@ class Machines(Pages):
                 f"add {_KINDS[_DOCKER]}",
                 "a local or remote docker daemon",
                 lambda: self._adds_machine(_DOCKER),
+            ),
+            Action(
+                _ACT_SWARMS,
+                f"add {_KINDS[_DOCKER_SWARM]}",
+                "a docker swarm, through one of its managers",
+                lambda: self._adds_machine(_DOCKER_SWARM),
             ),
             Action(
                 _ACT_IMPORTS,
@@ -9791,7 +10093,7 @@ class Machines(Pages):
         """Asks for a runtime on the form that makes one, saves it, and asks what it has.
 
         Args:
-          backend: `ssh` or `docker`.
+          backend: `ssh`, `docker` or `swarm`.
         """
         if self.opening():
             return
@@ -9830,6 +10132,8 @@ class Machines(Pages):
         form: Form[Runtime] = (
             Hosting(cast("SSHRuntime", one))
             if one.backend == _SSH
+            else Swarming(cast("SwarmRuntime", one))
+            if one.backend == _DOCKER_SWARM
             else Docking(cast("DockerRuntime", one))
         )
         fixed = await showing.push_screen_wait(form)
@@ -9861,20 +10165,22 @@ class Machines(Pages):
             return
         self._told.append(f"[dim]{escape(keyed)} removed[/dim]")
         self._said = f"{escape(keyed)} removed"
-        # A docker daemon reached through the host that went is reached through nothing.
-        stranded = [
-            each.name
-            for each in self._saved_machines
-            if each.backend == _DOCKER
-            and one.backend == _SSH
-            and cast("DockerRuntime", each).endpoint == f"ssh:{one.name}"
-        ]
-        if stranded:
-            self._said += "\n" + iffy(
-                escape(
-                    f"{', '.join(stranded)} reached docker through this host; edit them"
-                )
-            )
+        # A docker daemon reached through the host that went is reached through nothing, and
+        # so is a swarm whose manager was, or one of whose nodes was.
+        if one.backend == _SSH:
+            for backend, what in ((_DOCKER, "docker"), (_DOCKER_SWARM, "a swarm")):
+                stranded = [
+                    each.name
+                    for each in self._saved_machines
+                    if each.backend == backend and _through(each, one.name)
+                ]
+                if stranded:
+                    self._said += "\n" + iffy(
+                        escape(
+                            f"{', '.join(stranded)} reached {what} through this host; "
+                            "edit them"
+                        )
+                    )
         self._was = ""
         self._read_machines()
         self._fill()

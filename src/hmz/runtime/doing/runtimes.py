@@ -1,12 +1,13 @@
 """The runtimes -- the machines a flow's environments may be put on -- and what each has.
 
-A runtime is an ssh host or a docker daemon written down under a name, which an
-`-e` then names instead of spelling out how it is reached. The store is
+A runtime is an ssh host, a docker daemon or a docker swarm written down under a name, which
+an `-e` then names instead of spelling out how it is reached. The store is
 :mod:`hmz.coganchor.machines.store` and reading an ssh config is
 :mod:`hmz.coganchor.machines.sshconfig`; both are reached from here, and so is asking one of
-them what it has -- which is the ssh probe a run itself makes, or the docker daemon's own
-`docker info` -- so that a runtime written down one way is one every way in offers a moment
-later, and checked the same way wherever it is checked from.
+them what it has -- which is the ssh probe a run itself makes, the docker daemon's own
+`docker info`, or a swarm manager's `docker info` and `docker node ls` -- so that a runtime
+written down one way is one every way in offers a moment later, and checked the same way
+wherever it is checked from.
 """
 
 from __future__ import annotations
@@ -23,7 +24,12 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from hmz.coganchor.machines.sshconfig import SSHHost
-    from hmz.coganchor.machines.store import DockerRuntime, Runtime, SSHRuntime
+    from hmz.coganchor.machines.store import (
+        DockerRuntime,
+        Runtime,
+        SSHRuntime,
+        SwarmRuntime,
+    )
 
 __all__ = ["Checked", "Runtimes"]
 
@@ -48,6 +54,8 @@ class Checked:
       runtimes: The OCI runtimes a docker daemon offers, its default first.
       version: The docker daemon's version.
       short: What the runtime was written down as handing out and it has not got.
+      nodes: A swarm's nodes that may be given a task -- ready, and not drained or paused --
+        each by its host name; `cpus` and `memory` are what those have all told.
     """
 
     reached: bool
@@ -61,13 +69,14 @@ class Checked:
     runtimes: tuple[str, ...] = ()
     version: str = ""
     short: tuple[str, ...] = ()
+    nodes: tuple[str, ...] = ()
 
 
 class Runtimes:
     """Every runtime there is, how to make one, and asking one what it has.
 
-    A runtime is an ssh host or a docker daemon saved under a name: used as an environment
-    when an `-e` names it.
+    A runtime is an ssh host, a docker daemon or a docker swarm saved under a name: used as an
+    environment when an `-e` names it.
     """
 
     def all(self, backend: str = "") -> list[Runtime]:
@@ -86,7 +95,7 @@ class Runtimes:
         """Where one is kept, whether or not it has been made.
 
         Raises:
-          ValueError: If the backend is not `ssh` or `docker`, or the name is not one a
+          ValueError: If the backend is not `ssh`, `docker` or `swarm`, or the name is not one a
             runtime may have -- which is what asks it of a name before it is made.
         """
         from hmz.coganchor.machines import store
@@ -97,7 +106,7 @@ class Runtimes:
         """One runtime, checked, and written nowhere.
 
         Args:
-          backend: `ssh` or `docker`.
+          backend: `ssh`, `docker` or `swarm`.
           name: What it is to be called.
           **fields: The rest of it, by field, as `held()` writes them.
 
@@ -202,7 +211,8 @@ class Runtimes:
         An ssh host is asked what a run asks one when it is first reached -- its home, CPUs,
         memory and GPUs -- down the road a run takes to it, with nobody to type a password;
         a docker daemon is asked `docker info`, and what it was written down as handing out
-        is held up against what it has.
+        is held up against what it has; a swarm's manager is asked `docker info`, whether it
+        manages an active swarm, and `docker node ls`, which of its nodes may take a task.
 
         Args:
           runtime: The runtime.
@@ -212,11 +222,13 @@ class Runtimes:
           What it said, or why it said nothing -- never raising, even for a runtime that
           can no longer be reached the way it was written down.
         """
-        from hmz.coganchor.machines.store import SSHRuntime
+        from hmz.coganchor.machines.store import SSHRuntime, SwarmRuntime
 
         try:
             if isinstance(runtime, SSHRuntime):
                 return _ssh(runtime, seconds)
+            if isinstance(runtime, SwarmRuntime):
+                return _swarm(runtime, seconds)
             return _docker(runtime, seconds)
         except (ValueError, OSError, RuntimeError) as error:
             return Checked(reached=False, said=str(error))
@@ -361,3 +373,55 @@ def _answering(
     """
     known = {id_ for pair in answered for id_ in pair}
     return tuple(one for one in gpus if one in known)
+
+
+def _swarm(saved: SwarmRuntime, seconds: float) -> Checked:
+    """A swarm, asked of its manager: whether it is one, and which of its nodes take a task.
+
+    `docker info` says whether the daemon is in a swarm and may manage it; `docker node ls`
+    and `docker node inspect` what each node is and has. What it was written down as handing
+    out is held up against what the nodes that may take a task have all told.
+    """
+    from hmz.coganchor.machines.swarm import nodes, swarm_of
+
+    began = time.monotonic()
+    daemon = saved.daemon()
+    status, out, err = _asked(daemon.docker("info", "--format", "{{json .}}"), seconds)
+    try:
+        said: object = json.loads(out) if out.strip() else {}
+    except ValueError:
+        said = {}
+    info = cast("dict[str, Any]", said) if isinstance(said, dict) else {}
+    errors = [str(one) for one in cast("list[Any]", info.get("ServerErrors") or [])]
+    if status or errors or not info.get("ServerVersion"):
+        return Checked(reached=False, said="; ".join(errors) or _last(err, status))
+    try:
+        swarm_of(info, str(daemon))
+        left = seconds - (time.monotonic() - began)
+        if left <= 0:
+            return Checked(reached=False, said=f"it did not answer within {seconds:g}s")
+        listed = nodes(str(daemon), left)
+    except OSError as error:
+        return Checked(reached=False, said=str(error))
+    ready = [one for one in listed if one.ready]
+    cpus = sum(one.cpus for one in ready)
+    memory = sum(one.memory for one in ready)
+    short: list[str] = []
+    if not ready:
+        short.append("none of its nodes may take a task")
+    if saved.cpus > cpus:
+        short.append(f"it is to hand out {saved.cpus:g} CPUs and has {cpus:g}")
+    if saved.memory > memory:
+        short.append(f"it is to hand out {saved.memory} bytes and has {memory}")
+    if saved.gpu_resource and not any(
+        saved.gpu_resource in one.resources for one in ready
+    ):
+        short.append(f"no node advertises {saved.gpu_resource}")
+    return Checked(
+        reached=True,
+        cpus=cpus,
+        memory=memory,
+        version=str(info.get("ServerVersion") or ""),
+        short=tuple(short),
+        nodes=tuple(one.hostname for one in ready),
+    )

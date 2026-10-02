@@ -18,7 +18,7 @@ machines) is [Remote execution](/reference/remote-execution).
 | **Machine** | A `MachineBase` made by `MachineConfig.create()`: brought up by `start()`, taken down by `stop()`. |
 | **Anchor** | The [`AnchorConfig`](/reference/remote-execution#anchorconfig) `start()` returns; every turn of the agent runs under it. |
 | **Environment** | A working directory on a machine that a flow role is given: a `LocalEnv`, or a role filled with `-e`. |
-| **Runtime** | An ssh host or a docker daemon saved under a name in `$HUMANIZE_HOME/runtimes/`, so that `-e` can name it and an environment is put on it. |
+| **Runtime** | An ssh host, a docker daemon or a docker swarm saved under a name in `$HUMANIZE_HOME/runtimes/`, so that `-e` can name it and an environment is put on it. |
 | **Endpoint** | The docker daemon a container is run on, spelled as `docker --host`/`--context` spell one. |
 | **Mirror** | The directory on the harness machine a supervised agent works in, reproducing the target's workspace. |
 | **Capability** | A word a machine setting, a machine or an anchor answers to (`remote`, `isolated`, …), or an environment mixin a driver serves. |
@@ -184,9 +184,9 @@ every other role is filled by `-e`.
 | Part | Rule |
 | --- | --- |
 | `ROLE` | A Python identifier; each role at most once per run. |
-| `BACKEND` | `local`, `ssh` or `docker`. |
-| `PROVIDER` | `local`: none. `ssh`: a saved ssh [runtime](#runtimes), else `[user@]host[:port]` or an alias of the ssh config. `docker`: a saved docker runtime, or `local` for docker's default here. May contain `@` (`user@host`). |
-| `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here). Omitted: the saved runtime's `workdir`, which then must be set. |
+| `BACKEND` | `local`, `ssh`, `docker` or `swarm`. |
+| `PROVIDER` | `local`: none. `ssh`: a saved ssh [runtime](#runtimes), else `[user@]host[:port]` or an alias of the ssh config. `docker`: a saved docker runtime, or `local` for docker's default here. `swarm`: a saved swarm runtime, or `local` for the swarm this machine manages. May contain `@` (`user@host`). |
+| `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here, swarm with a manager here). Omitted: the saved runtime's `workdir`, which then must be set. |
 
 Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 
@@ -194,9 +194,10 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | --- | --- |
 | not the shape above, or no workdir and none saved | `-e 'repo=ssh@nohost': expected <role>=<backend>[@<provider>]/<workdir>` |
 | role not an identifier | `-e '9r=local@/tmp': the role '9r' is not an identifier` |
-| unknown backend | `-e 'repo=bogus@x/y': 'bogus' is not a backend; one of local, ssh, docker` |
+| unknown backend | `-e 'repo=bogus@x/y': 'bogus' is not a backend; one of local, ssh, docker, swarm` |
 | `ssh` without a host | `-e 'repo=ssh/y': ssh needs a host, as in ssh@host/workdir` |
 | `docker` without a provider | `-e 'repo=docker/y': docker needs a host, as in docker@local/workdir` |
+| `swarm` without a provider | `-e 'repo=swarm/y': swarm needs a host, as in swarm@local/workdir` |
 | `local` with a provider | `-e 'repo=local@h/y': local takes no host, as in local@/workdir` |
 | a role given twice | `-e: the role 'repo' is given twice` |
 | an empty item | `-e '<value>': an item is empty` |
@@ -211,6 +212,8 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | `ssh@NAME/…`, `NAME` a saved ssh runtime | the runtime's host | `target=` `NAME`'s [target](#an-ssh-host), e.g. `ssh://me@10.0.0.2:2222?IdentityFile=~/.ssh/gpu&ProxyJump=me@bastion` |
 | `docker@NAME/…` | a new container on `NAME`'s daemon | `target="docker://humanize-NAME-ROLE-<8 hex>[@<endpoint>]"`, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<container>/` |
 | `docker@local/…` | a new container on docker's default here | the same, with provider `local` |
+| `swarm@NAME/…` | a new service of one task on `NAME`'s swarm, on whichever node has room | `target="docker://<container id>[@<the node's daemon>]"` once the task runs, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<service>/` |
+| `swarm@local/…` | a new service on the swarm this machine manages | the same, with provider `local` |
 
 Where the harness goes for such a session (supervised here, native on the machine, or on a
 third machine) is decided by the run's `-H`: see
@@ -225,6 +228,9 @@ A `local` environment's work always has its harness here unless `-H standalone:�
 | an unknown docker runtime | `docker host '<name>' not found: add one, or use the default docker@local` |
 | a saved docker runtime that cannot be read | `the docker host '<name>' cannot be read; fix or remove it: <dir>` |
 | `~/…` on a docker daemon elsewhere | `<workdir> is on a remote docker host, so it must be an absolute path` |
+| an unknown swarm runtime | `docker swarm '<name>' not found: add one, or use the swarm this machine manages, swarm@local` |
+| a saved swarm runtime that cannot be read | `the docker swarm '<name>' cannot be read; fix or remove it: <dir>` |
+| `~/…` on a swarm managed elsewhere | `<workdir> is on a remote docker swarm, so it must be an absolute path` |
 | a `~` workdir that climbs out of home | `<workdir> climbs out of the home directory it is under` |
 | a workdir neither absolute nor under `~` | `<workdir> is neither absolute nor under ~` |
 
@@ -240,6 +246,7 @@ shares that machine and its connection.
 | `local` | `LocalMachine` | processes here | CPUs (`sched_getaffinity`), memory, GPUs by `nvidia-smi`, `git` on `PATH` |
 | `ssh` | `SSHMachine` | the [serving half](/reference/remote-execution#bootstrapping-the-serving-half), bootstrapped over `ssh`, exporting `/` as `/` | one command (60 s) printing `home`, `state` (`${HUMANIZE_HOME:-$HOME/.humanize}`), CPUs, memory, `CUDA_VISIBLE_DEVICES`, `nvidia-smi` GPUs and whether `git` is on `PATH` |
 | `docker` | `DockerMachine` | the serving half over `docker exec -i` | the ssh probe, run in the container, after the container is started |
+| `swarm` | `SwarmMachine` | the serving half over `docker exec -i`, against the daemon of the node the task landed on | the ssh probe, run in the container, after the task is running |
 
 - Nothing connects until the run probes its environments, which it does before any agent
   starts (and for a standalone harness machine too).
@@ -254,8 +261,8 @@ shares that machine and its connection.
       worktrees/<ref>-<random>/          a worktree added with no dir of its own
   ```
 
-  `<digest>` is 12 hex digits of BLAKE2b over the absolute path or id. A docker environment's
-  derived directories are inside its container and go with it.
+  `<digest>` is 12 hex digits of BLAKE2b over the absolute path or id. A docker or swarm
+  environment's derived directories are inside its container and go with it.
 
 | Error | Meaning |
 | --- | --- |
@@ -339,6 +346,73 @@ by several machines the same uid can belong to different users.
 
 <small>Defined in [`src/hmz/runtime/flowing/environing_docker.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_docker.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_docker_env`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Docker environments).</small>
 
+### Swarm environments {#swarm-environments}
+
+`-e ROLE=swarm@RUNTIME/WORKDIR` gives the role one service of its own on a docker swarm: one
+replica, `--restart-condition none`, created on the swarm's manager when the run reaches its
+environments and removed (`docker service rm`) when the run closes it. The swarm's scheduler
+puts its task on whichever node has room for what the role reserves; once the task is running
+its container is reached like any other, so everything downstream -- mirrors, the native
+harness, files, derived environments -- is as for a [docker environment](#docker-environments).
+
+| Aspect | Rule |
+| --- | --- |
+| Name | `humanize-<provider>-<role>-<8 hex>`, the service's |
+| Image | the role's `_image`, else the runtime's `image`, else `python:3.12-slim`; every node it may land on must be able to pull it |
+| Workdir | a directory of the node the task lands on, bind-mounted at its own path: every node it may land on must have it at that path (a shared filesystem, or `constraints` keeping it where the directory is). The task runs as this user where the manager is this machine, else as the workdir's owner on the manager's host |
+| Reservations and limits | `--reserve-cpu`/`--limit-cpu` and `--reserve-memory`/`--limit-memory`, both exactly the role's `_cpu_count` and `_memory`; `--generic-resource <gpu_resource>=<_gpu_count>` for a role declaring GPUs; nothing the role does not declare |
+| Placement | `--constraint` for each of the runtime's `constraints` |
+| Arguments | the runtime's `run_args`; for the task of a `-H standalone:swarm@…` harness, `--cap-add SYS_PTRACE` (Engine 20.10 or newer). Services take no OCI `--runtime` |
+| Labels | on the service: those of a docker environment's container |
+| Reached | `docker exec` against: the daemon the runtime's `nodes` names for the node's host, else the manager's own where the task landed on the manager, else `ssh://<the node's address>` (docker's ssh transport, as this machine's `ssh` resolves it) |
+
+Allocation, done while holding an exclusive `flock` on
+`$HUMANIZE_HOME/runtimes/swarm/.<name>.lock` until the task runs:
+
+1. `docker info` of the manager: `Swarm.LocalNodeState` must be `active` and
+   `Swarm.ControlAvailable` true, else `EnvUnavailable`.
+2. `docker service ls`/`inspect` of services labelled `humanize.provider=<provider>`; those
+   labelled with this user's uid and this host whose `humanize.pid` no longer exists are
+   removed, with their mirrors.
+3. Against the runtime's `max_tasks`, and its `cpus` and `memory` where set, less what its
+   services hold, read off their labels. A role asking for GPUs of a runtime with no
+   `gpu_resource` is refused. Anything short raises `ResourceUnmet`:
+
+```text
+swarm@cluster runs 8 of the 8 tasks it may (one held by humanize-cluster-box-1a2b3c4d, pid 4242 on laptop; …)
+swarm@cluster has 2 of 32 CPUs free, and 'box' asks for 4 (8 CPUs held by …)
+swarm@cluster has 8 GiB of 64 GiB of memory free, and 'box' asks for 16 GiB (…)
+swarm@cluster hands out no GPUs, and 'box' asks for 1: say which generic resource its nodes advertise them as in the runtime's gpu_resource
+```
+
+4. `docker service create`, then the task is followed (`docker service ps`, `docker inspect
+   --type task`) until it runs. Left pending with `no suitable node`, it raises `ResourceUnmet`
+   at once where no ready, active node has as many CPUs, as much memory and as many of the
+   generic resource as it reserves, and after 30 s otherwise; either way the service is
+   removed first:
+
+```text
+swarm@cluster: no node of the swarm has 1000 CPUs: the most any of its 3 nodes that may take a task has is 64 CPUs and 270582939648 bytes (no suitable node (insufficient resources on 3 nodes))
+swarm@cluster: no node took it within 30s: no suitable node (insufficient resources on 3 nodes)
+```
+
+| Start failure | Error |
+| --- | --- |
+| the manager manages no active swarm | `EnvUnavailable: swarm@<p> is in no active swarm: its swarm is inactive`, or `swarm@<p> is a worker of its swarm, and only a manager can be asked` |
+| manager not answering | `EnvConnectionError: could not connect to swarm@<p>: …` |
+| service would not be created | `EnvUnavailable: swarm@<p>: could not create a service of <image> on <endpoint>: …` |
+| the node has no such workdir | `EnvUnavailable: swarm@<p>: no directory to give the task on the node it landed on: …` |
+| task failed, or not running within 600 s | `EnvUnavailable: swarm@<p>: the task of <service> is failed: …` |
+| the node's daemon not reachable | `EnvConnectionError: could not reach <p> over docker exec: …` |
+
+To remove humanize services by hand:
+
+```sh
+docker service rm $(docker service ls -q --filter label=humanize=$(id -u))
+```
+
+<small>Defined in [`src/hmz/runtime/flowing/environing_swarm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_swarm.py), [`src/hmz/coganchor/machines/swarm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/swarm.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_swarm_env`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Swarm environments).</small>
+
 ## Runtimes {#runtimes}
 
 A saved machine an environment may be put on: used as an environment when `-e` names it.
@@ -347,7 +421,7 @@ TUI on the Runtimes page of `/settings`.
 
 | Aspect | Rule |
 | --- | --- |
-| Location | `$HUMANIZE_HOME/runtimes/<backend>/<name>/runtime.json`, `<backend>` `ssh` or `docker` |
+| Location | `$HUMANIZE_HOME/runtimes/<backend>/<name>/runtime.json`, `<backend>` `ssh`, `docker` or `swarm` |
 | Name | `[A-Za-z0-9][A-Za-z0-9._-]*` |
 | Modes | every directory humanize creates on the way `0700`; `runtime.json` `0600`, written to a temporary file and renamed |
 | Format | JSON object: `backend`, `name`, then every field of the runtime (tuples as arrays) |
@@ -419,6 +493,45 @@ Two runtimes at one host with different options use different ssh master connect
 `daemon()` returns the [`Endpoint`](#endpoints): `tls_dir` becomes `?tls=<absolute dir>`, and
 `ssh:<name>` becomes `ssh://[user@]host[:port]` carrying every option of that ssh runtime.
 
+### A docker swarm {#a-docker-swarm}
+
+`hmz.coganchor.machines.store.SwarmRuntime`:
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `name` | `str` | required | The runtime's name. |
+| `endpoint` | `str` | `"local"` | A manager of the swarm, spelled as a [docker daemon's](#a-docker-daemon) `endpoint`: `local` for a swarm this machine manages. |
+| `tls_dir` | `str` | `""` | For `tcp://` only, as for a docker daemon. |
+| `image` | `str` | `""` | Default image; no whitespace. |
+| `run_args` | `tuple[str, ...]` | `()` | Extra `docker service create` arguments; no newlines. |
+| `cpus` | `float` | `0.0` | CPUs its tasks may reserve all told; `0` for whatever the nodes have room for. |
+| `memory` | `int` | `0` | Bytes, likewise. |
+| `gpu_resource` | `str` | `""` | The generic resource its nodes advertise GPUs as (`NVIDIA-GPU`); empty for none handed out. |
+| `constraints` | `tuple[str, ...]` | `()` | Placement constraints, each `<attribute>==<value>` or `<attribute>!=<value>`. |
+| `max_tasks` | `int` | `0` | Tasks at once; `0` for no limit. |
+| `nodes` | `Mapping[str, str]` | `{}` | How a node is reached, by its host name: a saved ssh runtime's name, or `[user@]host[:port]`. A node not named is reached through the manager where it is the manager, else over `ssh://<its address>`. |
+| `workdir` | `str` | `""` | Default workdir for `-e ROLE=swarm@NAME`; a directory every node it may land on has. |
+| `made` | `str` | `"typed"` | Always `typed`. |
+
+`daemon()` returns the manager's [`Endpoint`](#endpoints), as a docker daemon's does.
+`store.node_of(via)` is how a `nodes` value is reached: `ssh:<name>` for a saved ssh runtime of
+that name, else `ssh://<via>`.
+
+```json
+{
+  "backend": "swarm",
+  "name": "cluster",
+  "endpoint": "ssh:manager",
+  "image": "python:3.12-slim",
+  "cpus": 64.0,
+  "gpu_resource": "NVIDIA-GPU",
+  "constraints": ["node.labels.shared-fs==true"],
+  "max_tasks": 8,
+  "nodes": {"gpu-1": "gpu1", "gpu-2": "me@10.0.0.12"},
+  "workdir": "/shared/project"
+}
+```
+
 ### Validation
 
 `store.new(backend, name, **fields)` builds and checks one without writing it; `add` refuses
@@ -426,7 +539,7 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 
 | Input | Message |
 | --- | --- |
-| backend not `ssh` or `docker` | `'bogus' is not an environment backend: ssh, docker` |
+| backend not `ssh`, `docker` or `swarm` | `'bogus' is not a runtime backend: ssh, docker, swarm` |
 | bad name | `invalid runtime name '-x': must start with a letter or digit and contain only letters, digits, dots, dashes, and underscores` |
 | unknown field | `x: unknown ssh host setting 'bogus'` |
 | wrong type | `x: port cannot be '22'` |
@@ -444,7 +557,10 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | image with whitespace | `x: invalid image 'a b'` |
 | bad OCI runtime | `x: invalid OCI runtime '<value>'` |
 | bad or repeated GPU id | `x: invalid GPU id '<id>'`, `x: duplicate GPU specified` |
-| negative amount | `x: CPUs cannot be negative: -1.0` (also `memory`, `GPU memory`, `containers`) |
+| negative amount | `x: CPUs cannot be negative: -1.0` (also `memory`, `GPU memory`, `containers`, `tasks`) |
+| a swarm constraint comparing nothing | `x: invalid constraint 'node.labels.gpu': expected <attribute>==<value> or <attribute>!=<value>` |
+| a swarm GPU resource of more than one word | `x: invalid generic resource 'NVIDIA GPU'` |
+| a swarm node's bad host name, or a value neither a name nor a destination | `x: invalid node host name '-n'`, `x: node gpu-1: '<value>' is neither a saved ssh host nor [user@]host[:port]` |
 | `add` over an existing one | `ssh host 'gpu' already exists` |
 | `ssh:<name>` naming no ssh runtime (at `daemon()`) | `ssh:nobody: ssh host 'nobody' not found` |
 | a `config` or `tls_dir` under a `~user` with no home (at `write`) | `the config file '<value>': home directory not found` |
@@ -478,6 +594,14 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | `version` | — | the daemon's version |
 | `short` | — | `it is to hand out N CPUs and has M`, `it is to hand out N bytes and has M`, `it has no GPU <ids>`, `GPU <ids> does not answer` / `do not answer` (a saved GPU listed but not usable), `it has no OCI runtime <r>` |
 
+A docker swarm is checked through its manager: `docker info` (not reached, saying why, where
+the daemon is in no active swarm or is only a worker), then `docker node ls` and `docker node
+inspect`. `nodes` is the host names of the nodes that may take a task (ready, availability
+`active`); `cpus` and `memory` are what those have all told; `version` the manager's;
+`short` says `none of its nodes may take a task`, `it is to hand out N CPUs and has M`, `it is
+to hand out N bytes and has M`, and `no node advertises <gpu_resource>`. `gpus`, `usable` and
+`runtimes` are empty.
+
 The ssh check runs the environment probe down the same `ssh` a run uses, in a new session with
 no terminal and `SSH_ASKPASS_REQUIRE=never`, so a host that wants a password fails instead of
 waiting.
@@ -502,7 +626,10 @@ ResourceUnmet: <flow>: 'box' needs 4 CPUs, and the environment given has 2
 ```
 
 (also `bytes of memory`, `GPUs`, `bytes of memory per GPU`). A docker environment is sized
-to the declaration instead, and refused only when the runtime cannot hand it out.
+to the declaration instead, and refused only when the runtime cannot hand it out. A swarm
+environment reserves the declaration of its node, as its limit too -- GPUs as the runtime's
+`gpu_resource` -- and is refused when the runtime or the swarm cannot
+([how](#swarm-environments)).
 
 ## Capabilities {#capabilities}
 
@@ -512,10 +639,10 @@ Each setting answers `capabilities` without starting anything.
 
 | Word | Meaning | Said by |
 | --- | --- | --- |
-| `remote` | Work lands through an anchor, not as ordinary processes here. A `local:` target counts. | `AnchoredConfig`, `DockerConfig` |
-| `isolated` | The tools a command finds are the image's. | `DockerConfig` |
-| `managed` | Started for the agent and taken down with it. | `DockerConfig` |
-| `linux`, `darwin` | The platform. | `DockerConfig` promises `linux`; any machine after `observe()` |
+| `remote` | Work lands through an anchor, not as ordinary processes here. A `local:` target counts. | `AnchoredConfig`, `DockerConfig`, `SwarmConfig` |
+| `isolated` | The tools a command finds are the image's. | `DockerConfig`, `SwarmConfig` |
+| `managed` | Started for the agent and taken down with it. | `DockerConfig`, `SwarmConfig` |
+| `linux`, `darwin` | The platform. | `DockerConfig` and `SwarmConfig` promise `linux`; any machine after `observe()` |
 | `anchor:supervised` | The agent runs under a supervisor; files and commands are answered from the target. | the anchor |
 | `anchor:native-cli` | The target's own CLI runs there. | the anchor, `native=True` |
 | `anchor:afar` | Supervised, with the harness on another machine; always with `anchor:supervised`. | the anchor, harness elsewhere |
@@ -617,6 +744,17 @@ where the daemon lists none; `()` where none answers -- or `None` where nothing 
 asked; one answer per daemon is kept for `USABLE_FOR` (300 s), and `fresh=True` asks even
 so. A container that does not answer within `seconds` is removed (10 s).
 
+`hmz.coganchor.machines.swarm` has the same for a swarm: `services(endpoint="local",
+labels=None, *, seconds=None)` reads an `Allocation` (named after the service) off every
+service labelled `humanize`; `nodes(endpoint="local", seconds=None)` returns each node as
+`Node(id, hostname, address, ready, cpus, memory, resources)`, `resources` the generic resources
+it advertises by kind; and `swarm_of(info, where)` the manager's node id, or `OSError` where the
+daemon manages no active swarm. `SwarmConfig(image, workspace, endpoint, name, user, cpus,
+memory, generic, constraints, nodes, traced, run_args, env, labels, placing=30.0,
+starting=600.0).create()` is the `Swarm` machine a swarm environment starts: its `start()`
+raises `Unplaced` (a `RuntimeError`) for a task no node took, and sets `placed` to the
+`Placed(node, container, daemon)` it landed on.
+
 ## Writing a machine of your own {#writing-a-machine-of-your-own}
 
 | Type | Contract |
@@ -679,11 +817,11 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 ```python
 from hmz.coganchor.machines import (
     MachineConfig, MachineBase, AnchoredConfig, Anchored, DockerConfig, Docker,
-    Allocation, allocations, info, gpus_listed, Mapped, Ran,
+    SwarmConfig, Swarm, Allocation, allocations, info, gpus_listed, Mapped, Ran,
 )
 from hmz.coganchor.machines.store import (
-    SSHRuntime, DockerRuntime, new, add, write, find, runtimes, remove, where, under,
-    imports, daemon_of,
+    SSHRuntime, DockerRuntime, SwarmRuntime, new, add, write, find, runtimes, remove,
+    where, under, imports, daemon_of, node_of,
 )
 from hmz.coganchor.transport import Endpoint
 from hmz.coganchor.agents import anchored

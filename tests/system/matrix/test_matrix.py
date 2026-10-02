@@ -1721,6 +1721,42 @@ def test_docker_env(cell: Cell, daemon: None) -> None:
 
 
 @feature(timeout=900)
+def test_swarm_env(cell: Cell, daemon: None) -> None:
+    """An agent given the task a docker swarm placed works inside its container.
+
+    `-e box=swarm@here/<dir>`: the swarm this machine manages, saved pinned to this node -- a
+    swarm of more nodes would put the task where the directory is not. The same three proofs
+    as a container of one daemon's, from a container the swarm's scheduler started.
+    """
+    del daemon
+    said = subprocess.run(
+        ["docker", "info", "--format", "{{json .Swarm}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    swarm = cast("dict[str, Any]", json.loads(said.stdout or "{}"))
+    if swarm.get("LocalNodeState") != "active" or not swarm.get("ControlAvailable"):
+        pytest.skip("needs this machine to be a manager of an active docker swarm")
+    there = cell.root / "box"
+    there.mkdir()
+    envs = cell.hmz.runtimes
+    envs.add(envs.new("swarm", "here", constraints=[f"node.id=={swarm['NodeID']}"]))
+
+    ran = cell.exec(
+        cell.flow("boxed", BOXED),
+        CONTAINED,
+        envs=[f"box=swarm@here{there}"],
+        timeout=600,
+    )
+
+    seen = _contained(cell, ran)
+    assert (there / "proof.txt").read_text().strip() == seen["hostname"], (
+        "the workdir is mounted where it is, and the proof is not in it"
+    )
+
+
+@feature(timeout=900)
 def test_docker_env_remote(cell: Cell, docker_box: Docked) -> None:
     """An agent's container on a daemon elsewhere, reached through a saved ssh host.
 

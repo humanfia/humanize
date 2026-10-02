@@ -9,7 +9,7 @@ Mixin system is crucial to the flow system. It allows the flow to declare what i
 `hmz exec` should support these flags:
 
 - `-a|--agents <role>=<harness>@<provider>/<model>[:<effort>]`: specifying an agent spec; `<model>` may hold `/` and `:` of its own, so a trailing `:<effort>` is the effort only where it is spelled as one (words of letters joined by `-`, `_` or a space), and is the model's otherwise; no effort is `auto`;
-- `-e|--envs <role>=<backend>@<provider>/<workdir>`: specifying an env spec; for `ssh`, `<provider>` is the name of a runtime written down (`hmz.coganchor.machines.store`), or else a destination `ssh` itself resolves; for `docker`, it is the name of a docker runtime written down, or `local` for docker's default here, and `<workdir>` is a directory of the daemon's host, which the role's container of its own is given; `/<workdir>` may be left off for a provider written down with one;
+- `-e|--envs <role>=<backend>@<provider>/<workdir>`: specifying an env spec; for `ssh`, `<provider>` is the name of a runtime written down (`hmz.coganchor.machines.store`), or else a destination `ssh` itself resolves; for `docker`, it is the name of a docker runtime written down, or `local` for docker's default here, and `<workdir>` is a directory of the daemon's host, which the role's container of its own is given; for `swarm`, it is the name of a swarm runtime written down, or `local` for the swarm this machine manages, and `<workdir>` is a directory every node the role's task may land on has at that path; `/<workdir>` may be left off for a provider written down with one;
 - `-p|--params <key>=<value>`: specifying a flow param.
 
 All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)
@@ -24,6 +24,7 @@ class EnvBackendKind(StrEnum):
     LOCAL = auto()
     SSH = auto()
     DOCKER = auto()
+    SWARM = auto()
 
 class Env(Protocol):
     @property
@@ -82,8 +83,8 @@ class GPUEnvMixin:
 
 class ImageEnvMixin:
     _image: ClassVar[str] = ""
-    # What a docker env's container is started from: "" for the provider's image, else
-    # `python:3.12-slim`. Says nothing of an env that is not a container.
+    # What a docker or swarm env's container is started from: "" for the provider's image,
+    # else `python:3.12-slim`. Says nothing of an env that is not a container.
 
 class GitWorktreeEnvMixin:
     # Implemented with git, which the target machine must have on its PATH: a flow declaring it on a machine without is refused before it runs, with `CapabilityMissing`.
@@ -144,6 +145,10 @@ class Trainer(Env, ShellEnvMixin, FilesEnvMixin, GPUEnvMixin, ImageEnvMixin):
     _image = "nvcr.io/nvidia/pytorch:25.01-py3"
     _gpu_count = 1
 ```
+
+A `swarm` env is the same container, as the one task of a service the swarm's scheduler puts on
+whichever node has room for what the role declares -- reserved there, and the limit too. A
+runtime with nothing left for it, or a task no node takes in time, is `ResourceUnmet` as well.
 
 ## Agents
 
