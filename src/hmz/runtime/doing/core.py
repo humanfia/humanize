@@ -27,12 +27,12 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Profile
     from hmz.flows import Budget, FlowParams
     from hmz.runtime.doing.accounts import Accounts
-    from hmz.runtime.doing.environments import Environments
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
     from hmz.runtime.doing.hosting import Host
     from hmz.runtime.doing.running import Run
+    from hmz.runtime.doing.runtimes import Runtimes
     from hmz.runtime.flowing import AgentDriver, EnvDriver, OutworlderDriver
     from hmz.runtime.flowing.specs import AgentSpec, EnvSpec, HarnessSpec
     from hmz.runtime.runner import Line, Runner
@@ -58,7 +58,7 @@ class Hmz:
         self._settings: Settings | None = None
         self._flows: Flows | None = None
         self._accounts: Accounts | None = None
-        self._environments: Environments | None = None
+        self._runtimes: Runtimes | None = None
         self._fallbacks: Fallbacks | None = None
         self._epics: Epics | None = None
 
@@ -109,13 +109,13 @@ class Hmz:
         return self._accounts
 
     @property
-    def environments(self) -> Environments:
-        """The ssh hosts and docker daemons an environment may be put on, under names."""
-        if self._environments is None:
-            from hmz.runtime.doing.environments import Environments
+    def runtimes(self) -> Runtimes:
+        """The runtimes: the ssh hosts and docker daemons an environment may be put on, by name."""
+        if self._runtimes is None:
+            from hmz.runtime.doing.runtimes import Runtimes
 
-            self._environments = Environments()
-        return self._environments
+            self._runtimes = Runtimes()
+        return self._runtimes
 
     @property
     def fallbacks(self) -> Fallbacks:

@@ -10,7 +10,7 @@ end.
 <div class="ct-ways">
   <div class="ct-way">
     <p class="ct-name">A container per environment</p>
-    <p class="ct-type"><code>hmz exec … -e ROLE=docker@PROVIDER/…</code></p>
+    <p class="ct-type"><code>hmz exec … -e ROLE=docker@RUNTIME/…</code></p>
     <dl>
       <dt>agents run</dt><dd>here, with your sign-in, unless the image has their CLI (<a href="#where-the-agent-s-cli-runs"><code>-H</code></a>)</dd>
       <dt>commands run</dt><dd>in the container</dd>
@@ -105,8 +105,8 @@ different image, or a cap on what a run may take, save the daemon under a name f
 Say this machine has 64 CPUs and two GPUs, and a flow's container should get no more than four
 of those CPUs and 8 GB. Save the daemon with that allowance, then name it.
 
-**1. Save it.** `/settings environments` opens the [Environments
-page](/user/settings#environments). Choose **Add a docker host**:
+**1. Save it.** `/settings runtimes` opens the [Runtimes
+page](/user/settings#runtimes). Choose **Add a docker host**:
 
 ```text
    Add a docker host
@@ -115,7 +115,7 @@ page](/user/settings#environments). Choose **Add a docker host**:
       1. endpoint        local ▾    the default docker daemon on this machine          ①
       2. name            gpubox     name used in -e and /flow                          ②
       3. image                      default image, unless specified by the flow        ③
-      4. runtime                    e.g. nvidia; blank for daemon default
+      4. OCI runtime                e.g. nvidia; blank for daemon default
       5. run args                   extra arguments for docker run
       6. max containers             max concurrent containers; blank for no limit
       7. workdir                    default working directory when -e specifies no directory
@@ -131,8 +131,8 @@ page](/user/settings#environments). Choose **Add a docker host**:
 ```text
  docker
  gpubox                    local · 4 CPUs, 8G
- docker/gpubox answers: docker 29.4.3; 64 CPUs, 2015G, GPUs 0, 1; runtimes nvidia,  ⑤
- io.containerd.runc.v2, runc
+ docker/gpubox answers: docker 29.4.3; 64 CPUs, 2015G, GPUs 0, 1; OCI runtimes      ⑤
+ nvidia, io.containerd.runc.v2, runc
 ```
 
 **2. Name it in the environment role:**

@@ -94,7 +94,7 @@ if TYPE_CHECKING:
     # them being read as the other.
     from hmz.coganchor.fallbacks import Falls as Step
     from hmz.coganchor.machines.sshconfig import SSHHost
-    from hmz.coganchor.machines.store import DockerProvider, EnvProvider, SSHProvider
+    from hmz.coganchor.machines.store import DockerRuntime, Runtime, SSHRuntime
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
     from hmz.runtime.epic import Ran
@@ -7718,18 +7718,18 @@ class Providers(Pages):
             told.append(f"[dim]account changes take effect {self.NEXT_SESSION}[/dim]")
 
 
-# ---------------------------------------------------------------------------- environments
+# -------------------------------------------------------------------------------- runtimes
 
-#: The backends an environment provider is saved for, as `-e` and the store name them.
+#: The backends a runtime is saved for, as `-e` and the store name them.
 _SSH, _DOCKER = "ssh", "docker"
 
-#: What one provider of each is called on the buttons that add one.
+#: What one runtime of each is called on the buttons that add one.
 _KINDS = {_SSH: "an ssh host", _DOCKER: "a docker host"}
 
 #: The ssh config an import reads unless it is told another, as the row says it.
 _OWN_CONFIG = "~/.ssh/config"
 
-#: What checking one environment provider answers with, on its own menu.
+#: What checking one runtime answers with, on its own menu.
 _CHECKS = "checks"
 
 #: What memory is written as on a form: a number and a unit, in docker's units of 1024.
@@ -7738,7 +7738,7 @@ _UNITS = "KMGTP"
 
 
 class _Had(Protocol):
-    """What a provider said it has when it was checked, as the runtime answers it."""
+    """What a runtime said it has when it was checked, as the runtime answers it."""
 
     @property
     def reached(self) -> bool: ...
@@ -7854,9 +7854,9 @@ def _unique(base: str, taken: frozenset[str]) -> str:
 
 
 def _called_after(host: str, fallback: str) -> str:
-    """What a provider reached at a host is called until somebody says: the host's first label.
+    """What a runtime reached at a host is called until somebody says: the host's first label.
 
-    An address is called what it is, and anything a provider's name cannot hold is a dash.
+    An address is called what it is, and anything a runtime's name cannot hold is a dash.
     """
     host = host.rpartition("@")[2].partition(":")[0].strip()
     if not re.fullmatch(r"[\d.]+", host):
@@ -7875,7 +7875,7 @@ def _config_named(config: str) -> str:
     return said if len(said) <= _LABEL else f"…/{_shortly(said)}"
 
 
-def _hands_out(one: DockerProvider) -> str:
+def _hands_out(one: DockerRuntime) -> str:
     """What a docker daemon may hand out, as a row says it."""
     held = [
         *((f"{one.cpus:g} CPUs",) if one.cpus else ()),
@@ -7885,13 +7885,13 @@ def _hands_out(one: DockerProvider) -> str:
     return ", ".join(held) or "no limits"
 
 
-def _machine_line(one: EnvProvider) -> str:
-    """What a row says about one environment provider: how it is reached, and what it has.
+def _machine_line(one: Runtime) -> str:
+    """What a row says about one runtime: how it is reached, and what it has.
 
     A key by its path and never by what is in it, as everywhere here: `ssh` reads a key.
     """
     if one.backend == _SSH:
-        host = cast("SSHProvider", one)
+        host = cast("SSHRuntime", one)
         reach = host.login() + (f":{host.port}" if host.port else "")
         if host.alias:
             config = _config_named(host.config)
@@ -7907,11 +7907,11 @@ def _machine_line(one: EnvProvider) -> str:
             *((f"-o {', '.join(host.options)}",) if host.options else ()),
         ]
     else:
-        daemon = cast("DockerProvider", one)
+        daemon = cast("DockerRuntime", one)
         said = [
             daemon.endpoint,
             *((daemon.image,) if daemon.image else ()),
-            *((f"runtime {daemon.runtime}",) if daemon.runtime else ()),
+            *((f"OCI runtime {daemon.runtime}",) if daemon.runtime else ()),
             _hands_out(daemon),
             *(
                 (f"max {daemon.max_containers} containers",)
@@ -7924,8 +7924,8 @@ def _machine_line(one: EnvProvider) -> str:
     return _DOT.join(said)
 
 
-def _answered(one: EnvProvider, said: _Had) -> str:
-    """What to say once a provider has been asked what it has, as markup.
+def _answered(one: Runtime, said: _Had) -> str:
+    """What to say once a runtime has been asked what it has, as markup.
 
     What it has, and in yellow what it was saved as handing out and has not got: a resource
     the daemon does not have is a run refused later, so it is said now.
@@ -7950,8 +7950,8 @@ def _answered(one: EnvProvider, said: _Had) -> str:
     return line
 
 
-async def _checked(one: EnvProvider) -> _Had | str:
-    """Asks a provider what it has, off the loop: what it said, or why asking went wrong.
+async def _checked(one: Runtime) -> _Had | str:
+    """Asks a runtime what it has, off the loop: what it said, or why asking went wrong.
 
     Returns:
       What it has, or -- where asking raised rather than answering, as a TLS directory under
@@ -7959,7 +7959,7 @@ async def _checked(one: EnvProvider) -> _Had | str:
     """
     import asyncio
 
-    envs = _hmz().environments
+    envs = _hmz().runtimes
     try:
         return await asyncio.to_thread(envs.check, one)
     except (OSError, ValueError, RuntimeError) as why:
@@ -7983,21 +7983,21 @@ def _failed(said: _Had) -> str:
 
 
 def _has(said: _Had) -> str:
-    """What a provider said it has, as one line: its CPUs, memory, GPUs and runtimes."""
+    """What a runtime said it has, as one line: its CPUs, memory, GPUs and OCI runtimes."""
     has = [f"{said.cpus:g} CPUs", _sized(said.memory)]
     if said.gpus:
         gpus = f"GPUs {', '.join(said.gpus)}"
         has.append(
             f"{gpus}, {_sized(said.gpu_memory)} each" if said.gpu_memory else gpus
         )
-    runs = f"; runtimes {', '.join(said.runtimes)}" if said.runtimes else ""
+    runs = f"; OCI runtimes {', '.join(said.runtimes)}" if said.runtimes else ""
     return f"{', '.join(has)}{runs}"
 
 
-async def provided(host: App[None], backend: str) -> tuple[EnvProvider | None, str]:
-    """Asks for an environment provider on the one form that makes one, and saves it.
+async def provided(host: App[None], backend: str) -> tuple[Runtime | None, str]:
+    """Asks for a runtime on the one form that makes one, and saves it.
 
-    Here rather than beside either place that asks: the environments page of `/settings`,
+    Here rather than beside either place that asks: the runtimes page of `/settings`,
     and the list a role's machine is chosen from on `/flow` -- which is where somebody finds
     out the one they want is not saved yet.
 
@@ -8006,14 +8006,14 @@ async def provided(host: App[None], backend: str) -> tuple[EnvProvider | None, s
       backend: `ssh` or `docker`.
 
     Returns:
-      The provider, saved -- or None, and why not: "" for a form walked out of.
+      The runtime, saved -- or None, and why not: "" for a form walked out of.
     """
-    form: Form[EnvProvider] = Hosting() if backend == _SSH else Docking()
+    form: Form[Runtime] = Hosting() if backend == _SSH else Docking()
     one = await host.push_screen_wait(form)
     if one is None:
         return None, ""
     try:
-        return _hmz().environments.add(one), ""
+        return _hmz().runtimes.add(one), ""
     except (
         OSError,
         ValueError,
@@ -8034,7 +8034,7 @@ _ALIAS, _HOST, _USER, _PORT, _KEY, _JUMP, _OPTIONS, _WORKDIR = (
 )
 
 
-class Hosting(Form["EnvProvider"]):
+class Hosting(Form["Runtime"]):
     """An ssh host, on one form: what reaches it, what it is called, where it works.
 
     The host first, it being the one thing there is to type: the name is written in after it
@@ -8046,7 +8046,7 @@ class Hosting(Form["EnvProvider"]):
     config is asked its `Host` as well, which is what `ssh` resolves it through.
     """
 
-    def __init__(self, one: SSHProvider | None = None) -> None:
+    def __init__(self, one: SSHRuntime | None = None) -> None:
         """Initializes the form on a host, or on nothing for one being added.
 
         Args:
@@ -8055,7 +8055,7 @@ class Hosting(Form["EnvProvider"]):
         super().__init__()
         self._one = one
         #: What ssh hosts are saved as, read once: the name is written in per keystroke.
-        self._taken = frozenset(each.name for each in _hmz().environments.all(_SSH))
+        self._taken = frozenset(each.name for each in _hmz().runtimes.all(_SSH))
         if one is None:
             self._typed_in = {_HOST: ""}
             self._names()
@@ -8215,7 +8215,7 @@ class Hosting(Form["EnvProvider"]):
 
     def action_done(self) -> None:
         """Answers with the host, once `ssh` could be told everything it says."""
-        envs = _hmz().environments
+        envs = _hmz().runtimes
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         name = self._one.name if self._one is not None else typed.get(_CALLED, "")
         if self._one is None and envs.find(_SSH, name) is not None:
@@ -8274,7 +8274,7 @@ _REACHED = {
 }
 
 
-class Docking(Form["EnvProvider"]):
+class Docking(Form["Runtime"]):
     """A docker daemon, on one form: where it is, what it is called, what it may hand out.
 
     Where it is is a row stepped through the ways a daemon is reached, and the rows under it
@@ -8285,7 +8285,7 @@ class Docking(Form["EnvProvider"]):
     Correcting one asks the same, less the name it is saved under.
     """
 
-    def __init__(self, one: DockerProvider | None = None) -> None:
+    def __init__(self, one: DockerRuntime | None = None) -> None:
         """Initializes the form on a daemon, or on nothing for one being added.
 
         Args:
@@ -8293,12 +8293,12 @@ class Docking(Form["EnvProvider"]):
         """
         super().__init__()
         self._one = one
-        self._taken = frozenset(each.name for each in _hmz().environments.all(_DOCKER))
+        self._taken = frozenset(each.name for each in _hmz().runtimes.all(_DOCKER))
         #: What to say under the form, as markup: what detecting found, or that it is asking.
         self._noted = ""
         self._detecting = False
         #: The ssh hosts the `on` row has named, read once apiece: it is redrawn per key.
-        self._vias: dict[str, EnvProvider | None] = {}
+        self._vias: dict[str, Runtime | None] = {}
         if one is None:
             self._typed_in = {_ENDPOINT: "local"}
             self._names()
@@ -8340,15 +8340,15 @@ class Docking(Form["EnvProvider"]):
         typed[_CALLED] = _unique(base, self._taken)
         self._fresh.add(_CALLED)
 
-    def _via_host(self) -> EnvProvider | None:
+    def _via_host(self) -> Runtime | None:
         """The saved ssh host the `on` row names, or None where it names none."""
         via = self._typed_in.get(_VIA, "")
         if via not in self._vias:
-            self._vias[via] = _hmz().environments.find(_SSH, via) if via else None
+            self._vias[via] = _hmz().runtimes.find(_SSH, via) if via else None
         return self._vias[via]
 
     def _endpoint(self) -> str:
-        """Where the daemon is, spelled as a provider spells it."""
+        """Where the daemon is, spelled as a runtime spells it."""
         kind = self._typed_in.get(_ENDPOINT, "local")
         if kind not in _REACHED:
             return "local"
@@ -8429,7 +8429,9 @@ class Docking(Form["EnvProvider"]):
                     "image",
                     "default image, unless specified by the flow",
                 ),
-                Question(_RUNTIME, "runtime", "e.g. nvidia; blank for daemon default"),
+                Question(
+                    _RUNTIME, "OCI runtime", "e.g. nvidia; blank for daemon default"
+                ),
                 Question(_ARGS, "run args", "extra arguments for docker run"),
                 Question(
                     _AT_ONCE,
@@ -8540,7 +8542,7 @@ class Docking(Form["EnvProvider"]):
         """
         if self._detecting:
             return
-        envs = _hmz().environments
+        envs = _hmz().runtimes
         try:
             probe = envs.new(
                 _DOCKER,
@@ -8670,7 +8672,7 @@ class Docking(Form["EnvProvider"]):
 
     def action_done(self) -> None:
         """Answers with the daemon, once everything said of it reads."""
-        envs = _hmz().environments
+        envs = _hmz().runtimes
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         name = self._one.name if self._one is not None else typed.get(_CALLED, "")
         if self._one is None and envs.find(_DOCKER, name) is not None:
@@ -8732,7 +8734,7 @@ class Importing(Form[Imported]):
         self._read: str | None = None
         self._reading = False
         #: The ssh hosts saved already, by name: what an import would write over.
-        self._saved = {one.name: one for one in _hmz().environments.all(_SSH)}
+        self._saved = {one.name: one for one in _hmz().runtimes.all(_SSH)}
         #: Why a host starts switched off, by its `Host`, for the ones that do.
         self._off: dict[str, str] = {}
 
@@ -8857,7 +8859,7 @@ class Importing(Form[Imported]):
         said = self._typed_in.get(_CONFIG, "").strip()
         self._reading, self._wrong = True, ""
         self._fill()
-        envs = _hmz().environments
+        envs = _hmz().runtimes
         try:
             found = await asyncio.to_thread(envs.hosts, self._config())
         except (
@@ -8900,7 +8902,7 @@ class Importing(Form[Imported]):
 
 
 class Machine(Picks):
-    """What to do with one environment provider: correct it, check it, or take it away.
+    """What to do with one runtime: correct it, check it, or take it away.
 
     Its own menu, as an account's is: three questions about the one under the cursor, taking
     it away last. Each happens at once -- checking one runs `ssh` or `docker`, one corrected
@@ -8910,11 +8912,11 @@ class Machine(Picks):
 
     SEARCHES: ClassVar = False
 
-    def __init__(self, one: EnvProvider) -> None:
-        """Asks about one provider.
+    def __init__(self, one: Runtime) -> None:
+        """Asks about one runtime.
 
         Args:
-          one: The provider.
+          one: The runtime.
         """
         super().__init__()
         self._one = one
@@ -8937,9 +8939,9 @@ class Machine(Picks):
 
 
 class Hosts(Picks):
-    """Which saved provider of one backend a role's machine is -- or one more, added here.
+    """Which saved runtime of one backend a role's machine is -- or one more, added here.
 
-    The providers saved on the environments page of `/settings`, each with what reaches it.
+    The runtimes saved on the runtimes page of `/settings`, each with what reaches it.
     Adding one is the row above them, on the form that page opens, and it comes back chosen.
     For a role on ssh a host nobody saved is a row as well: `-e` takes any host `ssh`
     reaches, and saving one under a name is a convenience rather than a condition.
@@ -8953,7 +8955,7 @@ class Hosts(Picks):
         """Initializes the choosing.
 
         Args:
-          backend: The backend whose providers these are.
+          backend: The backend whose runtimes these are.
           current: The one chosen now, which the tick goes against.
           unsaved: Whether a host nobody saved may be named instead.
         """
@@ -8967,15 +8969,15 @@ class Hosts(Picks):
             _DOCKER: "Select the docker host to use",
         }.get(backend, f"Select the {backend} host to use")
         self.about = (
-            "Saved on the environments page of /settings; any host you add here is "
+            "Saved on the runtimes page of /settings; any host you add here is "
             "saved there."
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """Every provider of the backend saved here, each with what reaches it."""
+        """Every runtime of the backend saved here, each with what reaches it."""
         return [
             (one.name, one.name, _machine_line(one))
-            for one in _hmz().environments.all(self._backend)
+            for one in _hmz().runtimes.all(self._backend)
         ]
 
     def above(self) -> list[tuple[str, str, str]]:
@@ -9001,7 +9003,7 @@ class Hosts(Picks):
 
     @work
     async def _new(self) -> None:
-        """Adds a provider of this backend without leaving the question, and chooses it."""
+        """Adds a runtime of this backend without leaving the question, and chooses it."""
         if self.opening():
             return
         showing = cast(
@@ -9084,7 +9086,7 @@ class Unsaved(Form[str]):
         self.query_one("#asked", Label).update("Unsaved ssh host")
         self.query_one("#about", Label).update(
             "Connects using your ssh config with no extra settings. To save a "
-            "host with a name, go to the environments page of /settings."
+            "host with a name, go to the runtimes page of /settings."
         )
         self._fill()
         self.query_one("#choices", OptionList).focus()
@@ -9129,8 +9131,8 @@ def _spelled(
             (one,) = parse_envs([f"{role}={spec}"])
     except (SpecError, ValueError):
         return None
-    # A directory the spec leaves out is its provider's, followed rather than copied: `-e`
-    # fills it in from the provider, and a spec read back must not have it written in.
+    # A directory the spec leaves out is its runtime's, followed rather than copied: `-e`
+    # fills it in from the runtime, and a spec read back must not have it written in.
     kept = "/" in spec.partition("@")[2]
     return one.backend.value, one.provider, str(one.workdir) if kept else ""
 
@@ -9182,7 +9184,7 @@ class Placing(Form[str]):
             for kind in EnvBackendKind
             if not harness or kind is not EnvBackendKind.LOCAL
         ]
-        envs = _hmz().environments
+        envs = _hmz().runtimes
         read = _spelled(role, spec, harness=harness) if spec else None
         # One that does not read is kept as it was written, for somebody to correct.
         raw = spec if read is None else ""
@@ -9192,9 +9194,9 @@ class Placing(Form[str]):
                 self._kinds[0],
             )
             read = (backend, "", "")
-        #: The providers looked up by the rows, by backend and name, read once apiece: the
+        #: The runtimes looked up by the rows, by backend and name, read once apiece: the
         #: form is redrawn per keystroke, and which one the rows name is read off them.
-        self._finds: dict[tuple[str, str], EnvProvider | None] = {}
+        self._finds: dict[tuple[str, str], Runtime | None] = {}
         self._reads_in(read)
         if raw:
             self._typed_in[_SPELLED] = raw
@@ -9202,10 +9204,10 @@ class Placing(Form[str]):
             self._spells()
 
     def _reads_in(self, read: tuple[str, str, str]) -> None:
-        """Puts a backend, a machine and a directory in the rows, the provider's own if none.
+        """Puts a backend, a machine and a directory in the rows, the runtime's own if none.
 
         Args:
-          read: The three, the directory "" for the one the provider is saved with.
+          read: The three, the directory "" for the one the runtime is saved with.
         """
         self._typed_in |= dict(zip((_BACKEND, _PROVIDER, _WORKDIR), read, strict=True))
         self._fresh.discard(_WORKDIR)
@@ -9214,18 +9216,18 @@ class Placing(Form[str]):
             self._typed_in[_WORKDIR] = found.workdir
             self._fresh.add(_WORKDIR)
 
-    def _machine(self) -> EnvProvider | None:
-        """The provider the rows name, where one is saved under that name."""
+    def _machine(self) -> Runtime | None:
+        """The runtime the rows name, where one is saved under that name."""
         key = (self._typed_in.get(_BACKEND, ""), self._typed_in.get(_PROVIDER, ""))
         if key not in self._finds:
-            self._finds[key] = _hmz().environments.find(*key) if key[1] else None
+            self._finds[key] = _hmz().runtimes.find(*key) if key[1] else None
         return self._finds[key]
 
     def _composed(self) -> str:
         """The rows, as `-e` spells them after `<role>=`, or "" where they say too little.
 
-        Where the directory is still the one the provider is saved with, it is left out, so
-        that the role goes on working wherever that provider is saved to.
+        Where the directory is still the one the runtime is saved with, it is left out, so
+        that the role goes on working wherever that runtime is saved to.
         """
         backend, provider, workdir = (
             self._typed_in.get(one, "").strip()
@@ -9455,7 +9457,7 @@ class Placing(Form[str]):
         self.query_one("#about", Label).update(
             "The machine and working directory for "
             + ("the harness. " if self._harness else "this environment role. ")
-            + "Choosing a machine saved on the environments page of /settings by "
+            + "Choosing a machine saved on the runtimes page of /settings by "
             "name includes its saved working directory."
         )
         self._fill()
@@ -9643,7 +9645,7 @@ class Harnessing(Form[str]):
 
 
 class Machines(Pages):
-    """The environments page of `/settings`: every machine a flow's environments may go on.
+    """The runtimes page of `/settings`: every saved machine a flow's environments may go on.
 
     What a role's machine is chosen out of on `/flow` -- ssh hosts, and docker daemons with
     what each may hand out -- under a heading per backend, over the buttons that bring one in:
@@ -9659,26 +9661,25 @@ class Machines(Pages):
 
     #: What the page says it is.
     MACHINES_ABOUT = (
-        "Saved machines for flow environments, used by name in -e and /flow: "
-        "ssh hosts, and docker daemons with the resources each may hand out. "
-        "Changes take "
-        "effect immediately."
+        "Runtimes: saved ssh hosts, and docker daemons with the resources each "
+        "may hand out, used by name as flow environments in -e and /flow. "
+        "Changes take effect immediately."
     )
 
     def __init__(self) -> None:
         """Holds nothing until the page is first read."""
         super().__init__()
-        self._saved_machines: list[EnvProvider] = []
+        self._saved_machines: list[Runtime] = []
         #: The ones being asked what they have, as `backend/name`, which their rows say.
         self._checking: dict[str, object] = {}
 
     def _read_machines(self) -> None:
-        """Reads every provider off the disk, which is what the rows are drawn from."""
-        self._saved_machines = _hmz().environments.all()
+        """Reads every runtime off the disk, which is what the rows are drawn from."""
+        self._saved_machines = _hmz().runtimes.all()
 
     @staticmethod
-    def _machine_key(one: EnvProvider) -> str:
-        """One provider as it is keyed here: by its backend and its name."""
+    def _machine_key(one: Runtime) -> str:
+        """One runtime as it is keyed here: by its backend and its name."""
         return f"{one.backend}/{one.name}"
 
     def _machine_actions(self) -> list[Action]:
@@ -9709,7 +9710,7 @@ class Machines(Pages):
         ]
 
     def _fill_machines(self) -> None:
-        """Puts the providers up under a heading per backend."""
+        """Puts the runtimes up under a heading per backend."""
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
         lined = [(one, _machine_line(one)) for one in self._saved_machines]
@@ -9749,7 +9750,7 @@ class Machines(Pages):
         self._footed(Key("enter", "open"), Key("esc", "close"))
 
     def _took_machine(self, named: str) -> None:
-        """Opens what there is to do with the provider chosen.
+        """Opens what there is to do with the runtime chosen.
 
         Args:
           named: The row chosen, by its id.
@@ -9762,11 +9763,11 @@ class Machines(Pages):
             self._doing_machine(one)
 
     @work
-    async def _doing_machine(self, one: EnvProvider) -> None:
-        """Asks what to do with one provider, and does it.
+    async def _doing_machine(self, one: Runtime) -> None:
+        """Asks what to do with one runtime, and does it.
 
         Args:
-          one: The provider.
+          one: The runtime.
         """
         if self.opening():
             return
@@ -9787,7 +9788,7 @@ class Machines(Pages):
 
     @work
     async def _adds_machine(self, backend: str) -> None:
-        """Asks for a provider on the form that makes one, saves it, and asks what it has.
+        """Asks for a runtime on the form that makes one, saves it, and asks what it has.
 
         Args:
           backend: `ssh` or `docker`.
@@ -9816,26 +9817,26 @@ class Machines(Pages):
         self._checks(one)
 
     @work
-    async def _corrects_machine(self, one: EnvProvider) -> None:
-        """Asks what one provider is to say, starting from what it says, and saves it.
+    async def _corrects_machine(self, one: Runtime) -> None:
+        """Asks what one runtime is to say, starting from what it says, and saves it.
 
         Args:
-          one: The provider.
+          one: The runtime.
         """
         showing = cast(
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        form: Form[EnvProvider] = (
-            Hosting(cast("SSHProvider", one))
+        form: Form[Runtime] = (
+            Hosting(cast("SSHRuntime", one))
             if one.backend == _SSH
-            else Docking(cast("DockerProvider", one))
+            else Docking(cast("DockerRuntime", one))
         )
         fixed = await showing.push_screen_wait(form)
         if fixed is None or fixed == one:
             return  # walked out, or nothing changed
         try:
-            _hmz().environments.write(fixed)
+            _hmz().runtimes.write(fixed)
         except OSError as why:
             self._said = bad(escape(str(why)))
             self._fill()
@@ -9845,15 +9846,15 @@ class Machines(Pages):
         self._aim = self._machine_key(fixed)
         self._checks(fixed)
 
-    def _drops_machine(self, one: EnvProvider) -> None:
-        """Takes one provider away, and says what that leaves reaching nothing.
+    def _drops_machine(self, one: Runtime) -> None:
+        """Takes one runtime away, and says what that leaves reaching nothing.
 
         Args:
-          one: The provider.
+          one: The runtime.
         """
         keyed = self._machine_key(one)
         try:
-            _hmz().environments.remove(one.backend, one.name)
+            _hmz().runtimes.remove(one.backend, one.name)
         except (OSError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._fill()
@@ -9866,7 +9867,7 @@ class Machines(Pages):
             for each in self._saved_machines
             if each.backend == _DOCKER
             and one.backend == _SSH
-            and cast("DockerProvider", each).endpoint == f"ssh:{one.name}"
+            and cast("DockerRuntime", each).endpoint == f"ssh:{one.name}"
         ]
         if stranded:
             self._said += "\n" + iffy(
@@ -9893,7 +9894,7 @@ class Machines(Pages):
             self.opened()
         if chosen is None:
             return
-        envs = _hmz().environments
+        envs = _hmz().runtimes
         try:
             # The ones imported again first: the one that is refused -- a host somebody typed
             # in under that name -- is then refused before anything is written.
@@ -9926,15 +9927,15 @@ class Machines(Pages):
         self._fill()
 
     @work
-    async def _checks(self, one: EnvProvider) -> None:
-        """Asks one provider what it has, saying so while it does and after.
+    async def _checks(self, one: Runtime) -> None:
+        """Asks one runtime what it has, saying so while it does and after.
 
         In the background: it is `ssh` reaching a machine or `docker` reaching a daemon, and
         either may take the better part of a minute to give up -- a page that could not be
         read or left meanwhile would be a page that looked as though it had hung.
 
         Args:
-          one: The provider.
+          one: The runtime.
         """
         keyed = self._machine_key(one)
         # This one's own, so that the answer to one asked before it was corrected is not
@@ -9963,7 +9964,7 @@ class Adjusted(NamedTuple):
       profile: Whether a run in this directory is profiled as well as traced, or None where
         that was not touched.
       forget: Whether to forget what this workspace was set up to run.
-      told: What the pages that write for themselves -- the accounts, the environments, the
+      told: What the pages that write for themselves -- the accounts, the runtimes, the
         fallbacks and the flowverses -- did, as lines for the transcript.
       placed: The last thing that happened to the flowverses, or "" for nothing.
       btw: The agent `/btw` asks about a whole flow, as `cli@provider/model:effort` or "" for

@@ -23,7 +23,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | [SDK](/reference/sdk) | `hmz.sdk`: every exported class, method, parameter, return type and exception | `hmz.sdk` |
 | [Flows](/reference/flows) | The flow API: `@flow`, roles, params, budgets, context, errors, testing | `hmz.flows` |
 | [Agents](/reference/agents) | Coding-agent drivers below the flow API: backends, sessions, hooks, fences | `hmz.coganchor` |
-| [Machines](/reference/machines) | Environments: local, ssh, docker; environment providers | `hmz.coganchor` |
+| [Machines](/reference/machines) | Environments: local, ssh, docker; runtimes | `hmz.coganchor` |
 | [Providers](/reference/providers) | Accounts an agent runs as, ways in, fail-over | `hmz.coganchor` |
 | [Remote execution](/reference/remote-execution) | `hmz internal anchor`: harness placement, targets, mirrors | `hmz.coganchor` |
 | [Tracing](/reference/tracing) | Epics, journals, traces, profiling, export | `hmz.runtime` |

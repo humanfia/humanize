@@ -301,7 +301,7 @@ mirror nested in the workspace or the other way round.
   its settings (`flows.<flow>.harness`, `""` for adaptive) and passes it to each run.
 - `standalone:<env>` names the machine as `-e` names one after `ROLE=`:
   `standalone:ssh@gpu-box/~/scratch`, `standalone:docker@gpubox/srv/scratch`. A bare name is a
-  saved [environment provider](/reference/machines#environment-providers), looked up as ssh
+  saved [runtime](/reference/machines#runtimes), looked up as ssh
   first, then docker. A missing workdir becomes the provider's own, else `~` over ssh, else
   `$HUMANIZE_HOME/harness` for `docker@local` (created by the run). The standalone machine is
   opened, probed and closed as an environment of the run. A container for it is started with
@@ -314,9 +314,9 @@ mirror nested in the workspace or the other way round.
 | --- | --- |
 | anything else, `standalone:` with nothing after it, `env:x` | `-H 'bogus': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:local@…` | `-H 'standalone:local@/tmp': a standalone harness runs on another machine; -H local runs it on this one` |
-| a bare name nothing is saved under | `-H 'standalone:bogus': no environment provider is saved as 'bogus'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
+| a bare name nothing is saved under | `-H 'standalone:bogus': no runtime is saved as 'bogus'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
 | an unknown backend | `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker` |
-| a docker provider nobody saved, with no workdir | `-H 'standalone:docker@gpubox': docker@gpubox is not saved with a workdir of its own; expected standalone:docker@gpubox/<workdir>` |
+| a docker runtime nobody saved, with no workdir | `-H 'standalone:docker@gpubox': docker@gpubox is not saved with a workdir of its own; expected standalone:docker@gpubox/<workdir>` |
 | `ssh@` with no host | `-H 'standalone:ssh@': ssh needs a host, as in ssh@host/workdir` |
 
 ### Adaptive resolution {#adaptive-resolution}

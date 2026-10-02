@@ -24,7 +24,7 @@ from textual.widgets import Label, OptionList
 
 import hmz.tui.pick
 from hmz.coganchor.backends import Model
-from hmz.coganchor.machines.store import SSHProvider
+from hmz.coganchor.machines.store import SSHRuntime
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.pick import (
@@ -154,7 +154,7 @@ def test_the_keys_are_written_in_one_place() -> None:
         pytest.param(Docking, id="docking"),
         pytest.param(Importing, id="importing"),
         pytest.param(
-            partial(Machine, SSHProvider(name="gpu", host="gpu")), id="machine"
+            partial(Machine, SSHRuntime(name="gpu", host="gpu")), id="machine"
         ),
         pytest.param(partial(Hosts, "ssh", unsaved=True), id="hosts"),
         pytest.param(Unsaved, id="unsaved"),

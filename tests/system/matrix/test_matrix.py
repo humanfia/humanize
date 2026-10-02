@@ -1592,19 +1592,17 @@ def test_ssh_env(cell: Cell, ssh_box: Box) -> None:
 
 
 @feature(timeout=900)
-def test_ssh_provider(
-    cell: Cell, ssh_box: Box, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_ssh_runtime(cell: Cell, ssh_box: Box, monkeypatch: pytest.MonkeyPatch) -> None:
     """A saved ssh host, imported from an ssh config, is where `-e box=ssh@<name>` works.
 
     Imported from the config the box is named in, and given a workdir -- then named alone,
-    with nothing after it: the workdir is the provider's. And the `ssh` that knows the box is
+    with nothing after it: the workdir is the runtime's. And the `ssh` that knows the box is
     taken off `PATH` first, so that the only thing that can reach it is what was saved.
     """
     word = _word()
     there = cell.root / "box"
     ssh_box.run(f"mkdir -p {there} && printf %s {word} > {there}/marker.txt")
-    envs = cell.hmz.environments
+    envs = cell.hmz.runtimes
     (imported,) = envs.import_ssh(config=ssh_box.config, names=[ssh_box.alias])
     envs.write(dataclasses.replace(imported, workdir=str(there)))
     ssh_box.unlisted(monkeypatch)
@@ -1701,7 +1699,7 @@ def _contained(cell: Cell, ran: Exec) -> dict[str, Any]:
 def test_docker_env(cell: Cell, daemon: None) -> None:
     """An agent given a container of an image with no sshd works inside it.
 
-    `-e box=docker@local/<dir>`: docker's default here, no provider saved. The command runs in
+    `-e box=docker@local/<dir>`: docker's default here, no runtime saved. The command runs in
     the container, and says so three ways only a container can: its hostname, `/.dockerenv`,
     and the image's Debian rather than this machine's Ubuntu.
     """
@@ -1726,13 +1724,13 @@ def test_docker_env(cell: Cell, daemon: None) -> None:
 def test_docker_env_remote(cell: Cell, docker_box: Docked) -> None:
     """An agent's container on a daemon elsewhere, reached through a saved ssh host.
 
-    A docker provider whose endpoint is `ssh:<saved ssh host>`, and a daemon that is really
+    A docker runtime whose endpoint is `ssh:<saved ssh host>`, and a daemon that is really
     somewhere else: docker's own daemon in a container of this machine's, so its directories
     are not this machine's -- the workdir exists only there, and the proof lands only there.
     """
     there = f"/work/{cell.cli}-{secrets.token_hex(4)}"
     docker_box.run(f"mkdir -p {there}")
-    envs = cell.hmz.environments
+    envs = cell.hmz.runtimes
     envs.add(envs.new("ssh", "farhost", **docker_box.ssh()))
     envs.add(envs.new("docker", "far", endpoint="ssh:farhost", workdir=there))
 

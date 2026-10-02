@@ -1,18 +1,24 @@
-"""The machines a flow's environments may be put on, written down under names.
+"""The runtimes: the machines a flow's environments may be put on, written down under names.
 
-An environment provider is one machine an environment can be put on, named by what somebody
-called it rather than by how it is reached: an ssh host with the login, port, key and jump host
-it takes, or a docker daemon with the resources it may hand out. One directory per provider, under
-`~/.humanize/env-providers/<backend>/<name>/`, holding `provider.json`.
+A runtime is one machine something can be put on, named by what somebody called it rather than
+by how it is reached: an ssh host with the login, port, key and jump host it takes, or a docker
+daemon with the resources it may hand out. A flow's environment is put on one when an `-e` names
+it. One directory per runtime, under `~/.humanize/runtimes/<backend>/<name>/`, holding
+`runtime.json`.
+
+They were once kept under `~/.humanize/env-providers/`, each in a `provider.json`; the first
+look for them moves that directory where they are kept now, and one still in a `provider.json`
+is read from it until it is next written.
 
 Nothing here reaches a machine. What one is when it is asked is
-:mod:`hmz.runtime.doing.environments`'s, and reading the user's ssh config is
+:mod:`hmz.runtime.doing.runtimes`'s, and reading the user's ssh config is
 :mod:`hmz.coganchor.machines.sshconfig`'s; this is only the answer to "which ones are there, and
 what is in each".
 """
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import os
@@ -36,36 +42,40 @@ __all__ = [
     "IMPORTED",
     "SSH",
     "TYPED",
-    "DockerProvider",
-    "EnvProvider",
-    "SSHProvider",
+    "DockerRuntime",
+    "Runtime",
+    "SSHRuntime",
     "add",
     "daemon_of",
     "find",
     "imports",
     "new",
-    "providers",
     "remove",
+    "runtimes",
     "under",
     "where",
     "write",
 ]
 
-#: The backends a provider may be for, by the name `-e` gives each.
+#: The backends a runtime may be for, by the name `-e` gives each.
 SSH = "ssh"
 DOCKER = "docker"
 BACKENDS = (SSH, DOCKER)
 
-#: How a provider was made: typed in field by field, or read off an ssh config.
+#: How a runtime was made: typed in field by field, or read off an ssh config.
 TYPED = "typed"
 IMPORTED = "imported"
 
-#: What a provider may be called: one path component, holding nothing a shell or a filesystem
+#: What a runtime may be called: one path component, holding nothing a shell or a filesystem
 #: reads as something else, which cannot climb out of the directory it names.
 _NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 
-#: What the file a provider is written down in is called.
-_HELD = "provider.json"
+#: What the file a runtime is written down in is called.
+_HELD = "runtime.json"
+
+#: What it was called when a runtime was an environment provider, read where it is still all
+#: there is.
+_WAS = "provider.json"
 
 #: A host, a login or an ssh config alias: a word `ssh` takes as one, never read as an option.
 _WORD = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._%+-]*\Z")
@@ -76,7 +86,7 @@ _JUMP = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._%+@:,\[\]-]*\Z")
 #: An ssh_config keyword, as `-o` takes one.
 _KEYWORD = re.compile(r"[A-Za-z][A-Za-z0-9]*\Z")
 
-#: The options an ssh provider has a field for, which are set there rather than as options.
+#: The options an ssh runtime has a field for, which are set there rather than as options.
 _FIELDS = {
     "hostname": "host",
     "user": "user",
@@ -104,7 +114,7 @@ def _here(value: str, what: str) -> str:
     """A path on this machine with its `~` or `~user` expanded, or ValueError.
 
     `Path.expanduser` raises `RuntimeError` for a `~user` there is no such user for, which
-    would crash whatever reads the provider; that is a value it cannot take instead.
+    would crash whatever reads the runtime; that is a value it cannot take instead.
     """
     expanded = os.path.expanduser(value)  # noqa: PTH111 -- which raises for one
     if expanded.startswith("~"):
@@ -123,7 +133,7 @@ def _workdir(value: str) -> str:
 def _named(name: str) -> str:
     if not _NAMED.match(name):
         raise ValueError(
-            f"invalid environment provider name {name!r}: must start with a "
+            f"invalid runtime name {name!r}: must start with a "
             "letter or digit and contain only letters, digits, dots, dashes, "
             "and underscores"
         )
@@ -131,7 +141,7 @@ def _named(name: str) -> str:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class SSHProvider:
+class SSHRuntime:
     """A host reached over ssh, and everything `ssh` is to be told to reach it.
 
     Every field that is set is passed to `ssh`, on top of whatever the user's own config says
@@ -257,18 +267,18 @@ class SSHProvider:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class DockerProvider:
+class DockerRuntime:
     """A docker daemon a container may be started on, and what it may hand out.
 
     Attributes:
       name: What it is called, which is what an environment on it names.
       endpoint: Where the daemon is: `local` for whatever `docker` here reaches,
         `unix:///path.sock`, `tcp://host:port`, `ssh://[user@]host[:port]`,
-        `ssh:<name>` for the stored ssh provider of that name, or `context:<name>` for a
+        `ssh:<name>` for the stored ssh runtime of that name, or `context:<name>` for a
         docker context.
       tls_dir: For `tcp://`, the directory holding `ca.pem`, `cert.pem` and `key.pem`.
       image: What a container is started from where the flow says nothing.
-      runtime: The container runtime to start one under, e.g. `nvidia`, or "" for the
+      runtime: The OCI runtime to start a container under, e.g. `nvidia`, or "" for the
         daemon's default.
       run_args: What else `docker run` is told.
       cpus: How many CPUs it may hand out, or 0 for as many as it has.
@@ -305,7 +315,7 @@ class DockerProvider:
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
             raise ValueError(f"{self.name}: invalid image {self.image!r}")
         if self.runtime and not _WORD.match(self.runtime):
-            raise ValueError(f"{self.name}: invalid runtime {self.runtime!r}")
+            raise ValueError(f"{self.name}: invalid OCI runtime {self.runtime!r}")
         for said in self.run_args:
             if set(said) & set("\n\r\0"):
                 raise ValueError(
@@ -339,7 +349,7 @@ class DockerProvider:
         """The daemon this one is, as every `docker` for it is pointed at it.
 
         Raises:
-          ValueError: For `ssh:<name>` naming no stored ssh provider.
+          ValueError: For `ssh:<name>` naming no stored ssh runtime.
         """
         return daemon_of(self.endpoint, self.tls_dir)
 
@@ -348,15 +358,15 @@ class DockerProvider:
         return {"backend": DOCKER, **_fields(self)}
 
 
-#: One environment provider, of whichever backend.
-type EnvProvider = SSHProvider | DockerProvider
+#: One runtime, of whichever backend.
+type Runtime = SSHRuntime | DockerRuntime
 
 
-def _fields(provider: EnvProvider) -> dict[str, Any]:
+def _fields(runtime: Runtime) -> dict[str, Any]:
     """Every field of one, as JSON holds it."""
     held: dict[str, Any] = {}
-    for one in dataclasses.fields(provider):
-        value: object = getattr(provider, one.name)
+    for one in dataclasses.fields(runtime):
+        value: object = getattr(runtime, one.name)
         if isinstance(value, tuple):
             value = [str(each) for each in cast("tuple[object, ...]", value)]
         elif one.name == "options":
@@ -369,7 +379,7 @@ def _fields(provider: EnvProvider) -> dict[str, Any]:
 
 
 def _endpoint(endpoint: str) -> str:
-    """An endpoint as a provider spells it, checked: one `Endpoint` reads, or `ssh:<name>`.
+    """An endpoint as a runtime spells it, checked: one `Endpoint` reads, or `ssh:<name>`.
 
     Raises:
       ValueError: For one that is neither.
@@ -381,7 +391,7 @@ def _endpoint(endpoint: str) -> str:
             return endpoint
     elif endpoint.startswith("ssh://"):
         # A word ssh reads as a login or a host, never as an option, and nothing after it:
-        # what else a daemon's host needs is said by an ssh provider, `ssh:<name>`.
+        # what else a daemon's host needs is said by an ssh runtime, `ssh:<name>`.
         login, _, at = endpoint[len("ssh://") :].rpartition("@")
         host, _, port = at.partition(":")
         if (
@@ -414,15 +424,15 @@ def _endpoint(endpoint: str) -> str:
 
 
 def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
-    """The daemon an endpoint names, as a provider spells it, for `docker` to be pointed at.
+    """The daemon an endpoint names, as a runtime spells it, for `docker` to be pointed at.
 
-    What a provider adds to :class:`~hmz.coganchor.transport.Endpoint`, which is the one place
+    What a runtime adds to :class:`~hmz.coganchor.transport.Endpoint`, which is the one place
     an endpoint becomes a command line: its certificates beside it rather than in it, and
-    `ssh:<name>` for the stored ssh provider a daemon's host is reached as -- dialled with
-    everything that provider says.
+    `ssh:<name>` for the stored ssh runtime a daemon's host is reached as -- dialled with
+    everything that runtime says.
 
     Args:
-      endpoint: As :attr:`DockerProvider.endpoint` spells it.
+      endpoint: As :attr:`DockerRuntime.endpoint` spells it.
       tls_dir: For `tcp://`, the directory of its certificates, or "" for none.
 
     Returns:
@@ -430,7 +440,7 @@ def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
 
     Raises:
       ValueError: For an endpoint that is none of them, `ssh:<name>` naming no stored
-        ssh provider, or certificates under a home there is none of.
+        ssh runtime, or certificates under a home there is none of.
     """
     from hmz.coganchor.transport import Endpoint
 
@@ -446,7 +456,7 @@ def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
     found = find(SSH, name)
     if found is None:
         raise ValueError(f"{endpoint}: ssh host {name!r} not found")
-    found = cast("SSHProvider", found)
+    found = cast("SSHRuntime", found)
     port = f":{found.port}" if found.port else ""
     return Endpoint(host=f"ssh://{found.login()}{port}", options=found.settings())
 
@@ -455,52 +465,57 @@ def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
 
 
 def under() -> Path:
-    """Where every environment provider is kept, whether or not anything is."""
-    return home() / "env-providers"
+    """Where every runtime is kept, whether or not anything is.
+
+    Where they were kept when they were environment providers is moved here the first time
+    this is asked and nothing is here yet: in one rename, so that a second asking at the same
+    moment finds either all of them here or none moved.
+    """
+    at = home() / "runtimes"
+    if not at.exists():
+        with contextlib.suppress(OSError):  # nothing to move, or moved a moment ago
+            (home() / "env-providers").rename(at)
+    return at
 
 
 def where(backend: str, name: str) -> Path:
-    """The directory one provider is kept in.
+    """The directory one runtime is kept in.
 
     Args:
       backend: :data:`SSH` or :data:`DOCKER`.
-      name: What the provider is called.
+      name: What the runtime is called.
 
     Returns:
       The path, whether or not anything is there yet.
 
     Raises:
-      ValueError: If the backend is not one of them, or the name is not one a provider may
+      ValueError: If the backend is not one of them, or the name is not one a runtime may
         have.
     """
     if backend not in BACKENDS:
-        raise ValueError(
-            f"{backend!r} is not an environment backend: {', '.join(BACKENDS)}"
-        )
+        raise ValueError(f"{backend!r} is not a runtime backend: {', '.join(BACKENDS)}")
     return under() / backend / _named(name)
 
 
-def new(backend: str, name: str, **fields: Any) -> EnvProvider:
-    """One provider, checked, and written nowhere.
+def new(backend: str, name: str, **fields: Any) -> Runtime:
+    """One runtime, checked, and written nowhere.
 
     Args:
       backend: :data:`SSH` or :data:`DOCKER`.
       name: What it is called.
-      **fields: The rest of it, by field -- as :meth:`SSHProvider.held` writes them, lists and
+      **fields: The rest of it, by field -- as :meth:`SSHRuntime.held` writes them, lists and
         numbers as JSON has them.
 
     Returns:
       It.
 
     Raises:
-      ValueError: If it is not a provider of that backend: a field it has not got, or a
+      ValueError: If it is not a runtime of that backend: a field it has not got, or a
         value it cannot take.
     """
     if backend not in BACKENDS:
-        raise ValueError(
-            f"{backend!r} is not an environment backend: {', '.join(BACKENDS)}"
-        )
-    kind: type[EnvProvider] = SSHProvider if backend == SSH else DockerProvider
+        raise ValueError(f"{backend!r} is not a runtime backend: {', '.join(BACKENDS)}")
+    kind: type[Runtime] = SSHRuntime if backend == SSH else DockerRuntime
     known = {one.name: one for one in dataclasses.fields(kind)}
     given: dict[str, Any] = {"name": name}
     for key, value in fields.items():
@@ -542,17 +557,17 @@ def _typed(key: str, default: object, value: object, name: str) -> object:
     return value
 
 
-def providers(backend: str = "") -> list[EnvProvider]:
-    """Every provider there is, or every one of a backend.
+def runtimes(backend: str = "") -> list[Runtime]:
+    """Every runtime there is, or every one of a backend.
 
     Args:
       backend: :data:`SSH`, :data:`DOCKER`, or "" for both.
 
     Returns:
       One apiece, by backend and then by name. A directory holding nothing readable, or
-      under a name no provider could be made under, is not one and is left out.
+      under a name no runtime could be made under, is not one and is left out.
     """
-    held: list[EnvProvider] = []
+    held: list[Runtime] = []
     for kind in BACKENDS:
         if backend and kind != backend:
             continue
@@ -570,23 +585,23 @@ def providers(backend: str = "") -> list[EnvProvider]:
     return held
 
 
-def find(backend: str, name: str) -> EnvProvider | None:
-    """The provider of a backend called this, or None -- for a name none could have too."""
+def find(backend: str, name: str) -> Runtime | None:
+    """The runtime of a backend called this, or None -- for a name none could have too."""
     if backend not in BACKENDS or not _NAMED.match(name):
         return None
     return _read(backend, name)
 
 
-def _read(backend: str, name: str) -> EnvProvider | None:
-    """One provider read back, or None where nothing readable is there.
+def _read(backend: str, name: str) -> Runtime | None:
+    """One runtime read back, or None where nothing readable is there.
 
     The backend and the name are where it is kept, whatever the file says: the place is the
     answer, and the file only describes it.
     """
+    kept = under() / backend / name
     try:
-        said = json.loads(
-            (under() / backend / name / _HELD).read_text(encoding="utf-8")
-        )
+        held = kept / _HELD if (kept / _HELD).exists() else kept / _WAS
+        said = json.loads(held.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     if not isinstance(said, dict):
@@ -602,44 +617,45 @@ def _read(backend: str, name: str) -> EnvProvider | None:
         return None
 
 
-def add(provider: EnvProvider) -> EnvProvider:
-    """Writes a new provider down.
+def add(runtime: Runtime) -> Runtime:
+    """Writes a new runtime down.
 
     Raises:
       ValueError: If there is one of that backend under that name already, or it names a
         path under a home there is none of.
       OSError: If it cannot be written.
     """
-    if find(provider.backend, provider.name) is not None:
-        raise ValueError(f"{provider.backend} host {provider.name!r} already exists")
-    return write(provider)
+    if find(runtime.backend, runtime.name) is not None:
+        raise ValueError(f"{runtime.backend} host {runtime.name!r} already exists")
+    return write(runtime)
 
 
-def write(provider: EnvProvider) -> EnvProvider:
-    """Writes a provider down, whole, over whatever was under its name.
+def write(runtime: Runtime) -> Runtime:
+    """Writes a runtime down, whole, over whatever was under its name.
 
     Returns:
       It, as it is now written down.
 
     Raises:
       ValueError: If it names a config file or certificates under a home there is none of,
-        which would be a provider nothing could reach. Refused here rather than where it is
+        which would be a runtime nothing could reach. Refused here rather than where it is
         made, so that one written down while its home was there is still listed -- and
         checked, saying why -- once it has gone.
       OSError: If it cannot be written.
     """
-    if isinstance(provider, SSHProvider):
-        _here(provider.config, "the config file")
+    if isinstance(runtime, SSHRuntime):
+        _here(runtime.config, "the config file")
     else:
-        _here(provider.tls_dir, "the TLS directory")
-    at = where(provider.backend, provider.name)
+        _here(runtime.tls_dir, "the TLS directory")
+    at = where(runtime.backend, runtime.name)
     _kept(at)
-    _writes(at / _HELD, json.dumps(provider.held(), indent=2) + "\n")
-    return provider
+    _writes(at / _HELD, json.dumps(runtime.held(), indent=2) + "\n")
+    (at / _WAS).unlink(missing_ok=True)
+    return runtime
 
 
 def remove(backend: str, name: str) -> bool:
-    """Takes a provider away.
+    """Takes a runtime away.
 
     Returns:
       Whether there was one to take away.
@@ -679,25 +695,25 @@ def imports(
     names: Iterable[str] | None = None,
     *,
     update: bool = False,
-) -> list[SSHProvider]:
-    """Writes an ssh provider down for each host an ssh config names.
+) -> list[SSHRuntime]:
+    """Writes an ssh runtime down for each host an ssh config names.
 
-    Each is called after its `Host`, with anything no provider name may hold made a dash,
+    Each is called after its `Host`, with anything no runtime name may hold made a dash,
     and holds the alias rather than what it resolves to: `ssh` goes on reading the config
     for it, so the config goes on being what it says.
 
     Args:
       config: The config file, or None for the user's own.
       names: The hosts to import, by their `Host`, or None for every one.
-      update: Whether to write over a provider of that name an import made -- keeping the
+      update: Whether to write over a runtime of that name an import made -- keeping the
         workdir it was given -- rather than leave it be. One typed in is never written over.
 
     Returns:
-      The providers written, in the order the config names them.
+      The runtimes written, in the order the config names them.
 
     Raises:
       ValueError: If `names` names a host the config does not, or one that cannot be a
-        provider: under no name, under the name of another host named, or -- to be updated --
+        runtime: under no name, under the name of another host named, or -- to be updated --
         over one typed in.
       OSError: If one cannot be written.
     """
@@ -711,12 +727,12 @@ def imports(
         sshconfig.default().resolve()
     )
     # Every one made before any is written, so that one refused writes none of them.
-    making: list[SSHProvider] = []
+    making: list[SSHRuntime] = []
     seen: dict[str, str] = {}
     for alias in wanted:
         name = re.sub(r"[^A-Za-z0-9._-]", "-", alias).lstrip("._-")
         already = find(SSH, name) if name else None
-        # A provider somebody typed in is theirs, and an import does not write over it; nor
+        # A runtime somebody typed in is theirs, and an import does not write over it; nor
         # does a second host that would be called what the first one already is.
         if not name or name in seen:
             why = f"{seen[name]} is imported as {name}" if name else "it has no name"
@@ -732,7 +748,7 @@ def imports(
         if already is not None and not update:
             continue
         try:
-            provider = SSHProvider(
+            runtime = SSHRuntime(
                 name=name,
                 alias=alias,
                 config=str(Path(_here(str(config), "the config")).resolve())
@@ -744,6 +760,6 @@ def imports(
         except ValueError:
             if names is not None:
                 raise
-            continue  # a host ssh reads and a provider cannot hold, left where it is
-        making.append(provider)
-    return [cast("SSHProvider", write(provider)) for provider in making]
+            continue  # a host ssh reads and a runtime cannot hold, left where it is
+        making.append(runtime)
+    return [cast("SSHRuntime", write(runtime)) for runtime in making]

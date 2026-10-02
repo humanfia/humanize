@@ -8,7 +8,7 @@ in every container and on no host, the container's own hostname, its cgroup's li
 `nvidia-smi` sees in it -- and that the container is gone once the environment is closed.
 
 The daemon is reached as docker's default here, and again as a daemon elsewhere would be: over
-TCP through a port of the test's own, and over ssh through an ssh provider written down with
+TCP through a port of the test's own, and over ssh through an ssh runtime written down with
 everything an sshd of the test's own needs. Both are this machine's daemon, so the workdir is
 one path on both sides.
 
@@ -248,7 +248,7 @@ def _devices() -> list[object]:
 
 @pytest.fixture
 def gpubox(daemon: None) -> str:
-    """A provider handing out this machine's first two GPUs, or a skip where it has not two."""
+    """A runtime handing out this machine's first two GPUs, or a skip where it has not two."""
     devices = _devices()
     listed = gpus_listed(devices)
     if not {"0", "1"} <= set(listed):
@@ -257,7 +257,7 @@ def gpubox(daemon: None) -> str:
     if len(usable) < 2:
         pytest.skip(f"needs two GPUs that answer, and {len(usable)} of {listed} do")
     name = f"gpubox-{os.getpid()}"
-    store.write(store.DockerProvider(name=name, gpus=("0", "1")))
+    store.write(store.DockerRuntime(name=name, gpus=("0", "1")))
     return name
 
 
@@ -293,7 +293,7 @@ def failing(daemon: None) -> tuple[str, tuple[tuple[str, str], ...]]:
             f"{'nobody could ask which answer' if usable is None else usable} answer"
         )
     name = f"failing-{os.getpid()}"
-    store.write(store.DockerProvider(name=name))
+    store.write(store.DockerRuntime(name=name))
     return name, usable
 
 
@@ -474,7 +474,7 @@ async def waits(task, *, agents, envs, params, ctx):
 def test_a_run_terminated_mid_run_takes_its_container_down(
     daemon: None, tmp_path: Path, ending: signal.Signals
 ) -> None:
-    """Rather than leave it running until the next run on its provider finds it."""
+    """Rather than leave it running until the next run on its runtime finds it."""
     flow = written(tmp_path / "flows", "waits", _WAITS)
     work = tmp_path / "work"
     work.mkdir()
@@ -686,13 +686,13 @@ def _git_out(cwd: Path, *argv: str) -> str:
 
 
 @pytest.mark.timeout(300)
-@pytest.mark.parametrize("road", ["forwarded", "ssh_provider"])
+@pytest.mark.parametrize("road", ["forwarded", "ssh_runtime"])
 async def test_a_daemon_elsewhere_holds_the_container(
     road: str, request: pytest.FixtureRequest, tmp_path: Path
 ) -> None:
     endpoint = str(request.getfixturevalue(road))
     name = f"far-{road.replace('_', '-')}"
-    store.write(store.DockerProvider(name=name, endpoint=endpoint))
+    store.write(store.DockerRuntime(name=name, endpoint=endpoint))
     work = tmp_path / "work"
     work.mkdir()
     driver = _opened(f"slim=docker@{name}{work}", "slim")

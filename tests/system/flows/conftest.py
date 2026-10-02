@@ -11,7 +11,7 @@ humanize's home where the default one is.
 from __future__ import annotations
 
 from tests.flows.sshd import ssh_host
-from tests.machines.fixtures import daemon, forwarded, ssh_provider
+from tests.machines.fixtures import daemon, forwarded, ssh_runtime
 from tests.matrix.fixtures import home_kept_here
 
-__all__ = ["daemon", "forwarded", "home_kept_here", "ssh_host", "ssh_provider"]
+__all__ = ["daemon", "forwarded", "home_kept_here", "ssh_host", "ssh_runtime"]

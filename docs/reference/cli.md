@@ -151,7 +151,7 @@ limit         = ( "duration" | "cost" | "output_tokens" | "graceful" ) , "=" , ?
 
 where         = "adaptive" | "local" | "env" | "standalone:" , machine ;
 machine       = ( "ssh" | "docker" ) , "@" , host , workdir?   (* as env, without "role=" *)
-              | name ;                                        (* a saved environment provider *)
+              | name ;                                        (* a saved runtime *)
 ```
 
 #### Items {#items}
@@ -231,8 +231,8 @@ Parsed by the regex `(?P<role>[^=]*)=(?P<backend>[^@/]*)(?:@(?P<provider>[^/]*))
 | --- | --- |
 | `<role>` | A Python identifier. |
 | `<backend>` | `local`, `ssh` or `docker`. |
-| `<provider>` | `local`: must be empty (`local@/path`). `ssh`: required — the name of a saved ssh [environment provider](/reference/machines#environment-providers), else any destination `ssh` accepts (`host`, `user@host`, `host:port`, a config alias). `docker`: required — the name of a saved docker provider, or `local` for docker's default daemon here; any other name is refused when the environment is opened. |
-| `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home. Omitted: the saved provider's own workdir; a provider with none, or an unsaved host, is refused. For `docker`, a directory of the daemon's host, mounted into the container at the same path. |
+| `<provider>` | `local`: must be empty (`local@/path`). `ssh`: required — the name of a saved ssh [runtime](/reference/machines#runtimes), else any destination `ssh` accepts (`host`, `user@host`, `host:port`, a config alias). `docker`: required — the name of a saved docker runtime, or `local` for docker's default daemon here; any other name is refused when the environment is opened. |
+| `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home. Omitted: the saved runtime's own workdir; a provider with none, or an unsaved host, is refused. For `docker`, a directory of the daemon's host, mounted into the container at the same path. |
 
 Roles the runtime fills — `LocalEnv` roles, which are the workspace — are never given. After
 parsing, every environment is opened and probed before the flow is called; an unreachable one,
@@ -303,17 +303,17 @@ work on this machine runs its harness here under every mode but `standalone`.
 | Written | Read as |
 | --- | --- |
 | `ssh@<host>[/<workdir>]`, `docker@<provider>[/<workdir>]` | As `-e` reads it after `<role>=`. |
-| `<name>` (no `@` before the first `/`) | The saved ssh provider of that name, else the saved docker provider of that name, else the text as written. |
+| `<name>` (no `@` before the first `/`) | The saved ssh runtime of that name, else the saved docker runtime of that name, else the text as written. |
 | no `/<workdir>`, provider saved with one | That workdir. |
 | no `/<workdir>`, `ssh` | `/~` (the login's home). |
 | no `/<workdir>`, `docker@local` | `$HUMANIZE_HOME/harness`. |
-| no `/<workdir>`, any other docker provider | Refused (no workdir). |
+| no `/<workdir>`, any other docker runtime | Refused (no workdir). |
 
 | `-H` value | Error |
 | --- | --- |
 | not one of the forms | `-H '<value>': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:` naming `local@…` | `-H '<value>': a standalone harness runs on another machine; -H local runs it on this one` |
-| `standalone:<name>`, nothing saved under it | `-H '<value>': no environment provider is saved as '<name>'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
+| `standalone:<name>`, nothing saved under it | `-H '<value>': no runtime is saved as '<name>'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
 | `standalone:` with an unknown backend | `-H '<value>': '<backend>' is not a backend; one of ssh, docker` |
 | `standalone:docker@<provider>`, not saved, no workdir | `-H '<value>': docker@<provider> is not saved with a workdir of its own; expected standalone:docker@<provider>/<workdir>` |
 | `standalone:ssh@` with no host | `-H '<value>': ssh needs a host, as in ssh@host/workdir` |
@@ -392,7 +392,7 @@ Stage 1–2 messages are preceded by the usage block.
 | no such flow | `<ref>: no flow is called '<ref>', and it is not a path`; `<ref>: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet` |
 | a role the flow does not declare | `<flow> has no agent role '<role>'; available roles are '<a>', '<b>'` (`… environment role …` for `-e`; `none` where there are none) |
 | a role the runtime fills | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a`; `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
-| a required role unfilled | `<flow> needs an agent for '<role>'; specify each with -a ROLE=CLI/MODEL:EFFORT`; `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND@PROVIDER/WORKDIR` |
+| a required role unfilled | `<flow> needs an agent for '<role>'; specify each with -a ROLE=CLI/MODEL:EFFORT`; `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR` |
 | a role typed as one CLI given another | `<flow>: '<role>' requires <cli>, but got <cli>` |
 | a CLI lacking a capability the role needs | `<flow>: '<role>' needs <Mixin>[, <Mixin>…], which <cli> does not support` |
 | an effort off the ladder | `<role>=<spec>: <cli> cannot be asked to think at '<effort>'; expected one of <ladder>` |
@@ -759,7 +759,7 @@ is [Files](/reference/files).
 | `history.jsonl` | `hmz` | read and written: [prompt history](/reference/tui#history) |
 | `daemons/<project>-<digest>/` | `hmz` | the [host's](/reference/daemon#files) socket, record, lock and log |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
-| `providers/`, `env-providers/`, `fallbacks.json`, `acp.json`, `models/` | all | read when an agent or environment is opened |
+| `providers/`, `runtimes/`, `fallbacks.json`, `acp.json`, `models/` | all | read when an agent or environment is opened |
 | `flowverses/`; `~/.humanize/flows/` and `./.humanize/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 
 ## Python equivalents {#python-entry-points}

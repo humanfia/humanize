@@ -525,7 +525,7 @@ def _account() -> None:
 
 
 def _machines() -> None:
-    """Writes down the machines a demo of the environments page is about.
+    """Writes down the machines a demo of the runtimes page is about.
 
     Hosts at reserved-invalid names, a key named by a path nothing is at, and an ssh config
     of this container's own naming the one imported: nothing here reaches anything, and a key
@@ -537,7 +537,7 @@ def _machines() -> None:
     ssh.mkdir(mode=0o700, parents=True, exist_ok=True)
     (ssh / "config").write_text("Host gpu\n  HostName gpu.example.invalid\n  User me\n")
     store.add(
-        store.SSHProvider(
+        store.SSHRuntime(
             name="box",
             host="box.example.invalid",
             user="me",
@@ -547,11 +547,9 @@ def _machines() -> None:
         )
     )
     store.add(
-        store.SSHProvider(
-            name="gpu", alias="gpu", workdir="~/work", made=store.IMPORTED
-        )
+        store.SSHRuntime(name="gpu", alias="gpu", workdir="~/work", made=store.IMPORTED)
     )
-    store.add(store.DockerProvider(name="local", cpus=16, memory=64 << 30, gpus=("0",)))
+    store.add(store.DockerRuntime(name="local", cpus=16, memory=64 << 30, gpus=("0",)))
 
 
 def _settings() -> None:

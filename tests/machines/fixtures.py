@@ -10,7 +10,7 @@ those tests re-exports the fixtures to the tests that want them.
 
 The rest are the other roads to that same daemon, each made by the test and taken down with
 it: a TCP port forwarded to its socket, an sshd of the test's own on a loopback port -- reached
-by an `ssh` put first on `PATH`, or by an ssh provider written down with everything it takes --
+by an `ssh` put first on `PATH`, or by an ssh runtime written down with everything it takes --
 and a docker context kept in a configuration directory of the test's own. Nothing of the user's
 `~/.ssh` or `~/.docker` is read or written by any of them. And a `docker` of the test's own that
 writes down what it is asked, for the integration tests, which never reach a daemon at all.
@@ -225,18 +225,18 @@ def sshd(
 
 
 @pytest.fixture
-def ssh_provider(daemon: None, tmp_path: Path) -> Iterator[str]:
-    """`ssh:NAME`: this machine's daemon, behind an ssh provider written down under NAME.
+def ssh_runtime(daemon: None, tmp_path: Path) -> Iterator[str]:
+    """`ssh:NAME`: this machine's daemon, behind an ssh runtime written down under NAME.
 
     The same sshd of the test's own, and nothing put on `PATH`: everything `ssh` has to be told
-    to reach it -- the port, the key, the known hosts -- is the provider's, which is what a
+    to reach it -- the port, the key, the known hosts -- is the runtime's, which is what a
     daemon reached as `ssh:<provider>` has to be dialled with.
     """
     from hmz.coganchor.machines import store
 
     with _served(tmp_path) as served:
         store.write(
-            store.SSHProvider(
+            store.SSHRuntime(
                 name=SSH_ALIAS,
                 host="127.0.0.1",
                 port=served.port,

@@ -896,7 +896,7 @@ class Env(Protocol):
 | --- | --- |
 | `workdir` | Where commands run and relative paths resolve: absolute, or `~/…` under the ssh login's home. For `docker`, a directory of the daemon's host, mounted at the same path in the container. |
 | `backend` | `local`, `ssh` or `docker`. |
-| `provider` | `""` for `local`; the ssh destination or stored provider name for `ssh`; the docker provider name (`local` for docker's default here) for `docker`. |
+| `provider` | `""` for `local`; the ssh destination or saved runtime name for `ssh`; the docker runtime name (`local` for docker's default here) for `docker`. |
 | `available` | Whether the machine was reachable and the workdir existed, as last probed. |
 | `role` | The key it fills. |
 | `derive_subdir(subdir=…)` | An environment at a directory under this workdir, created if missing, same role and grant. `ValueError` for an absolute `subdir` or one that climbs out; `EnvError` if it cannot be made. |
@@ -917,7 +917,7 @@ environment on this machine; an environment on another machine raises `Capabilit
 ### `EnvBackendKind` {#envbackendkind}
 
 `class EnvBackendKind(StrEnum)`: `LOCAL = "local"` (this machine), `SSH = "ssh"` (a host
-`ssh` reaches), `DOCKER = "docker"` (a container of its own on a docker provider's daemon).
+`ssh` reaches), `DOCKER = "docker"` (a container of its own on a docker runtime's daemon).
 
 ### What an environment can do {#what-an-environment-can-do}
 
@@ -1503,14 +1503,14 @@ file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every refusal bel
 | Form | Is |
 | --- | --- |
 | `local@/abs/path` | a directory on this machine; `local` takes no provider |
-| `ssh@<host>/abs/path` | a directory on a host: a stored environment provider's name, else a destination `ssh` resolves (`host`, `user@host`, an alias) |
+| `ssh@<host>/abs/path` | a directory on a host: a saved runtime's name, else a destination `ssh` resolves (`host`, `user@host`, an alias) |
 | `ssh@<host>/~/path` | under the login's home there (the leading `/` before `~` is dropped) |
-| `docker@<provider>/abs/path` | a container of its own on a stored docker provider's daemon (`local`: docker's default here); the path is on the daemon's host and is mounted at the same path |
-| `ssh@<name>`, `docker@<name>` | the workdir the stored provider was saved with |
+| `docker@<provider>/abs/path` | a container of its own on a saved docker runtime's daemon (`local`: docker's default here); the path is on the daemon's host and is mounted at the same path |
+| `ssh@<name>`, `docker@<name>` | the workdir the saved runtime was saved with |
 
 | Input | Message |
 | --- | --- |
-| no `/workdir` and no stored provider workdir, or not `<role>=…` | `-e '<item>': expected <role>=<backend>[@<provider>]/<workdir>` |
+| no `/workdir` and no saved runtime workdir, or not `<role>=…` | `-e '<item>': expected <role>=<backend>[@<provider>]/<workdir>` |
 | role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
 | unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker` |
 | `ssh` without host | `-e '<item>': ssh needs a host, as in ssh@host/workdir` |
@@ -1519,7 +1519,7 @@ file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every refusal bel
 | role twice | `-e: the role '<role>' is given twice` |
 | role not declared | `<flow> has no environment role '<role>'; available roles are …` |
 | role is a `LocalEnv` | `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
-| required role missing | `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND@PROVIDER/WORKDIR` |
+| required role missing | `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR` |
 | machine unreachable, workdir missing, mixin unsupported, resources short | refused when the run probes every environment, before the flow is called |
 
 Machines and providers: [Machines](/reference/machines).
@@ -1572,7 +1572,7 @@ last `-H` wins. Stored per flow in the [settings](/reference/settings) as writte
 | `standalone:<machine>` | on `<machine>`, acting on the work through the anchor | on `<machine>`, acting on the work through the anchor; only for a role whose permission is every scope `ALL` |
 
 `<machine>` is written as `-e` writes a spec after `<role>=`: `ssh@gpu-box/~/scratch`,
-`docker@gpubox/srv/scratch`, or the bare name of a stored environment provider (ssh first, then
+`docker@gpubox/srv/scratch`, or the bare name of a saved runtime (ssh first, then
 docker). A missing workdir defaults to the provider's own, else `~` for `ssh`, else
 `$HUMANIZE_HOME/harness` for `docker@local`. The standalone machine is opened as an
 environment of its own, probed before the flow is called, and closed with the run.
@@ -1587,7 +1587,7 @@ stopped with the run). Whether the machine can hold a fence is asked once per ki
 | --- | --- |
 | `-H` not one of the four | `-H '<v>': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:` naming this machine | `-H '<v>': a standalone harness runs on another machine; -H local runs it on this one` |
-| `standalone:` spec invalid | `-H '<v>': <why>`, e.g. `'bogus' is not a backend; one of ssh, docker`, `no environment provider is saved as '<name>'; …` ([CLI](/reference/cli#choosing-where-the-harness-runs)) |
+| `standalone:` spec invalid | `-H '<v>': <why>`, e.g. `'bogus' is not a backend; one of ssh, docker`, `no runtime is saved as '<name>'; …` ([CLI](/reference/cli#choosing-where-the-harness-runs)) |
 | `standalone`: role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
 | `env`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>@<provider>: <install hint> there, or run its harness here with -H local` |
 | `env`: fence not holdable | `HarnessSandboxed`: `<backend>@<provider> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local` |
@@ -1675,7 +1675,7 @@ FlowException
 | <code id="missingrole">MissingRole</code> | `RequirementError` | a required role was not given |
 | <code id="capabilitymissing">CapabilityMissing</code> | `RequirementError` | an agent or environment lacks a declared mixin (including `GitEnvMixin` or `GitWorktreeEnvMixin` on a machine without git, `BashEnvMixin` on one without bash), a `LocalEnv` given another machine, an outworlder given for a role it cannot fill |
 | <code id="permissiontoonarrow">PermissionTooNarrow</code> | `RequirementError` | an agent's permission does not cover its role's |
-| <code id="resourceunmet">ResourceUnmet</code> | `RequirementError` | a machine has fewer CPUs/GPUs or less memory than declared, or a docker provider has not that much left |
+| <code id="resourceunmet">ResourceUnmet</code> | `RequirementError` | a machine has fewer CPUs/GPUs or less memory than declared, or a docker runtime has not that much left |
 | <code id="harnessmismatch">HarnessMismatch</code> | `RequirementError` | a harness-protocol role got another harness |
 | <code id="capabilitynotgranted">CapabilityNotGranted</code> | `FlowRuntimeError` | an operation the role did not declare; widening a grant with `derive`; `on_outworlder_run` on an outworlder not from `new()` |
 | <code id="paramserror">ParamsError</code> | `FlowRuntimeError`, `ValueError` | params do not validate |

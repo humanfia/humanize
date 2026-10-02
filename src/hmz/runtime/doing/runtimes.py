@@ -1,11 +1,11 @@
-"""The machines a flow's environments may be put on, and what each of them has.
+"""The runtimes -- the machines a flow's environments may be put on -- and what each has.
 
-An environment provider is an ssh host or a docker daemon written down under a name, which an
+A runtime is an ssh host or a docker daemon written down under a name, which an
 `-e` then names instead of spelling out how it is reached. The store is
 :mod:`hmz.coganchor.machines.store` and reading an ssh config is
 :mod:`hmz.coganchor.machines.sshconfig`; both are reached from here, and so is asking one of
 them what it has -- which is the ssh probe a run itself makes, or the docker daemon's own
-`docker info` -- so that a provider written down one way is one every way in offers a moment
+`docker info` -- so that a runtime written down one way is one every way in offers a moment
 later, and checked the same way wherever it is checked from.
 """
 
@@ -23,17 +23,17 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from hmz.coganchor.machines.sshconfig import SSHHost
-    from hmz.coganchor.machines.store import DockerProvider, EnvProvider, SSHProvider
+    from hmz.coganchor.machines.store import DockerRuntime, Runtime, SSHRuntime
 
-__all__ = ["Checked", "Environments"]
+__all__ = ["Checked", "Runtimes"]
 
-#: How long a provider is given to answer when it is checked.
+#: How long a runtime is given to answer when it is checked.
 CHECKING = 30.0
 
 
 @dataclass(frozen=True, slots=True)
 class Checked:
-    """What a provider said when it was asked what it has.
+    """What a runtime said when it was asked what it has.
 
     Attributes:
       reached: Whether it answered at all.
@@ -45,9 +45,9 @@ class Checked:
       usable: Those of `gpus` that answer, for a docker daemon whose host could be asked
         which do; None where nobody could ask.
       gpu_memory: The bytes the smallest of those GPUs has, or 0 where nothing said.
-      runtimes: The container runtimes a docker daemon offers, its default first.
+      runtimes: The OCI runtimes a docker daemon offers, its default first.
       version: The docker daemon's version.
-      short: What the provider was written down as handing out and it has not got.
+      short: What the runtime was written down as handing out and it has not got.
     """
 
     reached: bool
@@ -63,17 +63,21 @@ class Checked:
     short: tuple[str, ...] = ()
 
 
-class Environments:
-    """Every environment provider there is, how to make one, and asking one what it has."""
+class Runtimes:
+    """Every runtime there is, how to make one, and asking one what it has.
 
-    def all(self, backend: str = "") -> list[EnvProvider]:
-        """Every provider, or one backend's: by backend, then by name."""
+    A runtime is an ssh host or a docker daemon saved under a name: used as an environment
+    when an `-e` names it.
+    """
+
+    def all(self, backend: str = "") -> list[Runtime]:
+        """Every runtime, or one backend's: by backend, then by name."""
         from hmz.coganchor.machines import store
 
-        return store.providers(backend)
+        return store.runtimes(backend)
 
-    def find(self, backend: str, name: str) -> EnvProvider | None:
-        """The provider of that backend under that name, or None."""
+    def find(self, backend: str, name: str) -> Runtime | None:
+        """The runtime of that backend under that name, or None."""
         from hmz.coganchor.machines import store
 
         return store.find(backend, name)
@@ -83,14 +87,14 @@ class Environments:
 
         Raises:
           ValueError: If the backend is not `ssh` or `docker`, or the name is not one a
-            provider may have -- which is what asks it of a name before it is made.
+            runtime may have -- which is what asks it of a name before it is made.
         """
         from hmz.coganchor.machines import store
 
         return store.where(backend, name)
 
-    def new(self, backend: str, name: str, **fields: Any) -> EnvProvider:
-        """One provider, checked, and written nowhere.
+    def new(self, backend: str, name: str, **fields: Any) -> Runtime:
+        """One runtime, checked, and written nowhere.
 
         Args:
           backend: `ssh` or `docker`.
@@ -107,8 +111,8 @@ class Environments:
 
         return store.new(backend, name, **fields)
 
-    def add(self, provider: EnvProvider) -> EnvProvider:
-        """Writes a new provider down.
+    def add(self, runtime: Runtime) -> Runtime:
+        """Writes a new runtime down.
 
         Raises:
           ValueError: If there is one of that backend under that name already.
@@ -116,17 +120,17 @@ class Environments:
         """
         from hmz.coganchor.machines import store
 
-        return store.add(provider)
+        return store.add(runtime)
 
-    def write(self, provider: EnvProvider) -> EnvProvider:
-        """Writes a provider down, whole, over whatever was under its name.
+    def write(self, runtime: Runtime) -> Runtime:
+        """Writes a runtime down, whole, over whatever was under its name.
 
         Raises:
           OSError: If it cannot be written.
         """
         from hmz.coganchor.machines import store
 
-        return store.write(provider)
+        return store.write(runtime)
 
     def remove(self, backend: str, name: str) -> bool:
         """Takes one away, and says whether there was one.
@@ -157,8 +161,8 @@ class Environments:
         names: Iterable[str] | None = None,
         *,
         update: bool = False,
-    ) -> list[SSHProvider]:
-        """Writes an ssh provider down for each host an ssh config names.
+    ) -> list[SSHRuntime]:
+        """Writes an ssh runtime down for each host an ssh config names.
 
         Args:
           config: The config file, or None for the user's own.
@@ -176,8 +180,8 @@ class Environments:
 
         return store.imports(config, names, update=update)
 
-    def resolve(self, provider: SSHProvider) -> SSHHost:
-        """What `ssh` makes of an ssh provider -- machine, login, port, keys -- reaching nothing.
+    def resolve(self, runtime: SSHRuntime) -> SSHHost:
+        """What `ssh` makes of an ssh runtime -- machine, login, port, keys -- reaching nothing.
 
         Raises:
           OSError: If there is no `ssh`, or it cannot read the config it is told to.
@@ -185,15 +189,15 @@ class Environments:
         from hmz.coganchor.machines import sshconfig
         from hmz.coganchor.transport import ssh_flags
 
-        port = ("-p", str(provider.port)) if provider.port else ()
+        port = ("-p", str(runtime.port)) if runtime.port else ()
         return sshconfig.resolve(
-            provider.login(),
-            (*ssh_flags(provider.settings()), *port),
-            alias=provider.name,
+            runtime.login(),
+            (*ssh_flags(runtime.settings()), *port),
+            alias=runtime.name,
         )
 
-    def check(self, provider: EnvProvider, seconds: float = CHECKING) -> Checked:
-        """Asks a provider what it has, waiting at most so long for it to answer.
+    def check(self, runtime: Runtime, seconds: float = CHECKING) -> Checked:
+        """Asks a runtime what it has, waiting at most so long for it to answer.
 
         An ssh host is asked what a run asks one when it is first reached -- its home, CPUs,
         memory and GPUs -- down the road a run takes to it, with nobody to type a password;
@@ -201,19 +205,19 @@ class Environments:
         is held up against what it has.
 
         Args:
-          provider: The provider.
+          runtime: The runtime.
           seconds: How long it is given.
 
         Returns:
-          What it said, or why it said nothing -- never raising, even for a provider that
+          What it said, or why it said nothing -- never raising, even for a runtime that
           can no longer be reached the way it was written down.
         """
-        from hmz.coganchor.machines.store import SSHProvider
+        from hmz.coganchor.machines.store import SSHRuntime
 
         try:
-            if isinstance(provider, SSHProvider):
-                return _ssh(provider, seconds)
-            return _docker(provider, seconds)
+            if isinstance(runtime, SSHRuntime):
+                return _ssh(runtime, seconds)
+            return _docker(runtime, seconds)
         except (ValueError, OSError, RuntimeError) as error:
             return Checked(reached=False, said=str(error))
 
@@ -249,13 +253,13 @@ def _last(said: str, status: int) -> str:
     return lines[-1].strip() if lines else f"exit status {status}"
 
 
-def _ssh(provider: SSHProvider, seconds: float) -> Checked:
+def _ssh(runtime: SSHRuntime, seconds: float) -> Checked:
     """An ssh host, asked what a run asks it on the way in."""
     from hmz.coganchor.transport import Road, Target
     from hmz.flows import EnvConnectionError
     from hmz.runtime.flowing.environing_ssh import PROBE_SCRIPT, facts_of
 
-    road = Road.to(Target.parse(provider.target()))
+    road = Road.to(Target.parse(runtime.target()))
     status, out, err = _asked(road.line(["/bin/sh", "-c", PROBE_SCRIPT]), seconds)
     if status:
         return Checked(reached=False, said=_last(err, status))
@@ -274,18 +278,18 @@ def _ssh(provider: SSHProvider, seconds: float) -> Checked:
     )
 
 
-def _docker(provider: DockerProvider, seconds: float) -> Checked:
+def _docker(saved: DockerRuntime, seconds: float) -> Checked:
     """A docker daemon, asked `docker info`, and held up against what it was given.
 
     And, where it lists a GPU, which of them answer: a GPU that has failed since the daemon's
     CDI specs were written is listed still, and is handed to nobody -- asked of containers of
-    the provider's image, as a run asks before it hands one out.
+    the runtime's image, as a run asks before it hands one out.
     """
     from hmz.coganchor.machines import gpus_listed, gpus_usable
     from hmz.runtime.flowing.environing_docker import IMAGE
 
     began = time.monotonic()
-    asking = provider.daemon().docker("info", "--format", "{{json .}}")
+    asking = saved.daemon().docker("info", "--format", "{{json .}}")
     status, out, err = _asked(asking, seconds)
     try:
         said: object = json.loads(out) if out.strip() else {}
@@ -307,8 +311,8 @@ def _docker(provider: DockerProvider, seconds: float) -> Checked:
     left = seconds - (time.monotonic() - began)
     answered = (
         gpus_usable(
-            str(provider.daemon()),
-            provider.image or IMAGE,
+            str(saved.daemon()),
+            saved.image or IMAGE,
             devices,
             seconds=left,
             fresh=True,
@@ -319,21 +323,21 @@ def _docker(provider: DockerProvider, seconds: float) -> Checked:
     usable = None if answered is None else _answering(gpus, answered)
     cpus, memory = float(info.get("NCPU") or 0), int(info.get("MemTotal") or 0)
     short: list[str] = []
-    if provider.cpus > cpus:
-        short.append(f"it is to hand out {provider.cpus:g} CPUs and has {cpus:g}")
-    if provider.memory > memory:
-        short.append(f"it is to hand out {provider.memory} bytes and has {memory}")
-    if gpus and (missing := [one for one in provider.gpus if one not in gpus]):
+    if saved.cpus > cpus:
+        short.append(f"it is to hand out {saved.cpus:g} CPUs and has {cpus:g}")
+    if saved.memory > memory:
+        short.append(f"it is to hand out {saved.memory} bytes and has {memory}")
+    if gpus and (missing := [one for one in saved.gpus if one not in gpus]):
         short.append(f"it has no GPU {', '.join(missing)}")
     if usable is not None and (
-        failed := [one for one in provider.gpus if one in gpus and one not in usable]
+        failed := [one for one in saved.gpus if one in gpus and one not in usable]
     ):
         short.append(
             f"GPU {', '.join(failed)} "
             + ("does not answer" if len(failed) == 1 else "do not answer")
         )
-    if provider.runtime and provider.runtime not in runtimes:
-        short.append(f"it has no runtime {provider.runtime}")
+    if saved.runtime and saved.runtime not in runtimes:
+        short.append(f"it has no OCI runtime {saved.runtime}")
     return Checked(
         reached=True,
         cpus=cpus,

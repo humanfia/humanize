@@ -98,7 +98,7 @@ come from. It works with the keys and with the mouse alike.
 ```text
 /settings
 /settings accounts
-/settings environments
+/settings runtimes
 ```
 
 ![/settings opening on its six pages, then into Workspace: directory, default flow,
@@ -116,7 +116,7 @@ straight into the one named, and the word is offered as you type it:
 | [**Settings**](#settings-page) | `settings` | whether humanize reports what goes wrong, whether the screen [shows the working](#details), and which agent `/btw` talks to |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, whether its runs are profiled, and forgetting it |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
-| [**Environments**](#environments) | `environments` | the machines a flow's environments go on: ssh hosts and docker daemons |
+| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts and docker daemons |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
 
@@ -136,10 +136,10 @@ every value it can take under the row, the one in force ticked; <kbd>↑</kbd> <
 An on/off switch's list opens on the answer it is not, so <kbd>enter</kbd> twice turns it
 round. A row marked `▸` opens something.
 
-**A page that is a list** (Accounts, Environments, Fallback, Flowverses) is the list, under a
+**A page that is a list** (Accounts, Runtimes, Fallback, Flowverses) is the list, under a
 heading per group where it has groups, and under it the buttons for what is done about the
 list: `Add …` first, then anything else that brings one in, then `Search…`, and **Save** at the
-far end where the page holds anything until it is saved. Environments and Flowverses hold
+far end where the page holds anything until it is saved. Runtimes and Flowverses hold
 nothing, so they have no **Save**.
 
 <kbd>tab</kbd> moves from the list to the buttons, <kbd>←</kbd> <kbd>→</kbd> along them, and
@@ -172,7 +172,7 @@ six of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and it a
 something is changed, and `● unsaved changes` across the top says when something is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
-everything on the Environments and Flowverses pages. And a few that are saved cannot take hold
+everything on the Runtimes and Flowverses pages. And a few that are saved cannot take hold
 at once, because something already running started without them. The row says when while the
 change is held, and the transcript says it again once saved:
 
@@ -205,7 +205,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
    ◉  <b>Accounts</b>                                                0 accounts
      <span class="m">what agents sign in as, per CLI</span>
    ────────────────────────────────────────────────────────────────────────
-   ▦  <b>Environments</b>                                            0 machines
+   ▦  <b>Runtimes</b>                                                0 machines
      <span class="m">ssh hosts and docker daemons a flow's roles run on</span>
    ────────────────────────────────────────────────────────────────────────
    ↻  <b>Fallback</b>                                                   0 rules
@@ -665,9 +665,9 @@ accounts.points("claude", "work", "shared")  # work fails over to shared
 See [SDK › Accounts](/reference/sdk#accounts).
 :::
 
-## Environments
+## Runtimes
 
-An **environment provider** is a machine a flow's [environment
+A **runtime** is a machine a flow's [environment
 roles](/user/remote-execution) can be put on, saved under a name: an ssh host with everything
 `ssh` has to be told to reach it, or a docker daemon with what it may hand out. Save one here,
 then choose it for a role at [`/flow`](#choosing-one-for-a-role), or name it after the `@` of
@@ -681,15 +681,15 @@ hmz exec -f onbox -e box=ssh@gpu -b duration=1h "run the benchmarks"
 needs more than its name to be reached (a login, a port, a key, a jump host), or when it is a
 docker daemon.
 
-### Try it {#environments-try-it}
+### Try it {#runtimes-try-it}
 
-Type `/settings environments`:
+Type `/settings runtimes`:
 
-<Term title="/settings · Environments">
+<Term title="/settings · Runtimes">
 
-<pre>  <span class="m">/settings ›</span> <span class="p b">Environments</span>
-  <span class="m">Saved machines for flow environments, used by name in -e and /flow: ssh hosts,
-  and docker daemons with the resources each may hand out. Changes take effect immediately.</span>
+<pre>  <span class="m">/settings ›</span> <span class="p b">Runtimes</span>
+  <span class="m">Runtimes: saved ssh hosts, and docker daemons with the resources each may hand
+  out, used by name as flow environments in -e and /flow. Changes take effect immediately.</span>
 
   <span class="p">╭──────────────────────────────────────────────────────────────────────────────────╮</span>
     <span class="p">ssh</span>
@@ -722,9 +722,9 @@ Type `/settings environments`:
   and <kbd>enter</kbd> on `done`. From an empty page that is nine key presses and what you
   typed.
 
-![the Environments page of /settings: ssh hosts and a docker daemon under a heading each,
+![the Runtimes page of /settings: ssh hosts and a docker daemon under a heading each,
 enter opening what can be done to one, then the form a docker daemon is added
-on](/demo/environments.gif)
+on](/demo/runtimes.gif)
 
 Everything on this page happens as you ask, so it has no **Save**. What you add or correct
 is asked what it has as it lands, in the background, and the line under the list says what it
@@ -773,7 +773,7 @@ what it may hand out last, over detect and done](/demo/docker-form.png)
 | `ssh address` | `[user@]host[:port]` of any host ssh reaches | `ssh://me@box` |
 | `context` | a docker context's name | `context:remote` |
 
-Then `name`, `image` (what a container starts from when the flow names none), `runtime`
+Then `name`, `image` (what a container starts from when the flow names none), `OCI runtime`
 (`nvidia`; blank for the daemon's own), `run args` (anything else `docker run` is told),
 `max containers` (how many containers it may run together), `workdir`, and what it may hand out:
 
@@ -787,18 +787,18 @@ Then `name`, `image` (what a container starts from when the flow names none), `r
 less over; the first letter typed replaces what it wrote. Only the GPUs that answer are written
 in: a GPU that has failed since docker was set up for it is listed by the daemon still, and
 said in yellow (`1 of 2 GPUs answer; GPU 1 does not`). Where the daemon has less than a
-provider is saved to hand out (more CPUs than it has, a GPU it does not have or that does not
-answer, a runtime it does not offer), the line under the list says so in yellow when it is
+runtime is saved to hand out (more CPUs than it has, a GPU it does not have or that does not
+answer, an OCI runtime it does not offer), the line under the list says so in yellow when it is
 checked.
 
-### On one provider
+### On one runtime
 
-<kbd>enter</kbd> on a provider opens what can be done to it, all of it at once:
+<kbd>enter</kbd> on a runtime opens what can be done to it, all of it at once:
 
 | On the menu | What it does |
 | --- | --- |
 | **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
-| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the provider's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Either is given 30 seconds, in the background: the row says `checking…` until it answers. |
+| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Either is given 30 seconds, in the background: the row says `checking…` until it answers. |
 | **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing. |
 
 ### Choosing one for a role {#choosing-one-for-a-role}
@@ -823,12 +823,12 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
 - `backend` is every backend `-e` takes, dropped under the row by <kbd>enter</kbd> or a click,
   each with what it is. It starts on the first one anything is saved for, and the cursor on the
   first thing still to answer.
-- `host` (`daemon` for a docker backend, once `-e` takes one) opens the providers of that
+- `host` (`daemon` for a docker backend, once `-e` takes one) opens the runtimes of that
   backend saved here, with `add an
   ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `unsaved
   host`: any host `ssh` reaches, as you would type it, saved nowhere.
-- `workdir` starts from where the provider was saved to work. Left as it is, the spelling
-  leaves it out (`ssh@gpu`), so the role goes on following the provider when its workdir is
+- `workdir` starts from where the runtime was saved to work. Left as it is, the spelling
+  leaves it out (`ssh@gpu`), so the role goes on following the runtime when its workdir is
   corrected; type over it for another directory there (`ssh@gpu/~/other`).
 - `as -e` is all of it, as `-e` spells it. Type a whole spec there instead and the rows above
   take it apart; one `-e` would refuse is refused on `done`, in the words `-e` refuses it in.
@@ -837,9 +837,9 @@ What `done` holds is saved with the flow, from the `save` row of `/flow`, and it
 next `hmz` here opens on.
 
 ::: details From Python
-Every row of this page is a call on `Hmz().environments`: `new`, `add`, `write`, `remove`,
-`hosts`, `import_ssh` and `check`. See [Machines › Environment
-providers](/reference/machines#environment-providers).
+Every row of this page is a call on `Hmz().runtimes`: `new`, `add`, `write`, `remove`,
+`hosts`, `import_ssh` and `check`. See [Machines ›
+Runtimes](/reference/machines#runtimes).
 :::
 
 ## Fallback
@@ -1087,12 +1087,12 @@ Adding one, publishing your own and naming a flow by URL are in
 ### `hmz: /settings has no page '…'`
 
 The word after `/settings` names none of the six pages. The message lists the ones there are:
-`settings`, `workspace`, `accounts`, `environments`, `fallback` and `flowverses`. Type
+`settings`, `workspace`, `accounts`, `runtimes`, `fallback` and `flowverses`. Type
 `/settings ` with a space and pick one from the list offered.
 
 ### Save cannot be pressed
 
-Nothing is held to save. Making an account, signing one in, and everything on Environments and
+Nothing is held to save. Making an account, signing one in, and everything on Runtimes and
 Flowverses happened as you asked, so there is nothing left for **Save** to do.
 
 ### <kbd>esc</kbd> did not close the screen

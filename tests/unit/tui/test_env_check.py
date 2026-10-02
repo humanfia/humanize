@@ -1,4 +1,4 @@
-"""What the environments page says once a provider has been asked what it has.
+"""What the runtimes page says once a runtime has been asked what it has.
 
 A docker daemon lists every GPU its CDI specs were written for, which is every one the driver
 was bound to then; one that has failed since is listed still and handed to nobody. So what is
@@ -8,11 +8,11 @@ in is those that do.
 
 from __future__ import annotations
 
-from hmz.coganchor.machines.store import DockerProvider
-from hmz.runtime.doing.environments import Checked
+from hmz.coganchor.machines.store import DockerRuntime
+from hmz.runtime.doing.runtimes import Checked
 from hmz.tui.pick import _answered, _failed
 
-_HERE = DockerProvider(name="local")
+_HERE = DockerRuntime(name="local")
 
 
 def _checked(usable: tuple[str, ...] | None) -> Checked:

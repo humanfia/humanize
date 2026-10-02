@@ -244,7 +244,7 @@ Each command's line in the completion list:
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage runs in this directory` | |
 | `/resume` | `Resume the last run in this directory` | |
-| `/settings` | `Every setting: settings, workspace, accounts, environments, fallback, flowverses` | |
+| `/settings` | `Every setting: settings, workspace, accounts, runtimes, fallback, flowverses` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
@@ -272,7 +272,7 @@ Every message is red and prefixed `hmz: `.
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
-| `/settings <page>` | unknown page | `/settings has no page '<page>': choose settings, workspace, accounts, environments, fallback or flowverses` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose settings, workspace, accounts, runtimes, fallback or flowverses` |
 | `/btw` | no agent to ask | `/btw requires a coding agent` |
 | `/btw` | the session is gone | `/btw: no conversation found for <role>/<n>` |
 | `/btw <q>` | busy | `btw is still answering the last question` |
@@ -300,9 +300,10 @@ See [`/resume`](#carrying-the-last-one-on-outright).
 ### `/settings [page]` {#settings-command}
 
 Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
-`settings`, `workspace`, `accounts`, `environments`, `fallback`, `flowverses`, or the aliases
-`everywhere` (Settings) and `directory` (Workspace); case-insensitive; only the first word is
-read. Completion offers the six names, in that order, not the aliases.
+`settings`, `workspace`, `accounts`, `runtimes`, `fallback`, `flowverses`, or the aliases
+`everywhere` (Settings), `directory` (Workspace) and `environments` (Runtimes);
+case-insensitive; only the first word is read. Completion offers the six names, in that order,
+not the aliases.
 
 ### `/clear` {#clear-command}
 
@@ -594,7 +595,7 @@ own.
 | `/flow`, roles, agent sheet, params, budget, harness, environment form, unsaved host | everything | — |
 | `/settings` Settings, Workspace, Fallback | everything | — |
 | `/settings` Accounts | edit settings, fails over to, remove | add an account, sign in again, add a custom CLI |
-| `/settings` Environments, Flowverses; `/epics` | — | everything |
+| `/settings` Runtimes, Flowverses; `/epics` | — | everything |
 | Monitor board | — | everything |
 
 ### Save? box {#save-box}
@@ -737,14 +738,14 @@ older than 7 days; when an account never asked is chosen; on `check again`.
 | Element | Value |
 | --- | --- |
 | Title | `Environment for <role>` |
-| About | `The machine and working directory for this environment role. Choosing a machine saved on the environments page of /settings by name includes its saved working directory.` |
+| About | `The machine and working directory for this environment role. Choosing a machine saved on the runtimes page of /settings by name includes its saved working directory.` |
 | Opens on | the first row still needed |
 
 | Row | Kind | About / values |
 | --- | --- | --- |
-| `backend` | ▾ `local` `ssh` `docker` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon`, beside each on the list too. Starts on the first of `ssh`, `docker` with a saved provider, else `local`. Changing it clears host and workdir. |
-| `host` (ssh) · `daemon` (docker) | ▸ | Opens the [host picker](#host-picker). Shows the saved provider's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
-| `workdir` | written | `absolute path on this machine` (local); `leave blank to use saved default: <dir>` (a provider saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the provider's workdir; while unchanged, the spec omits it. |
+| `backend` | ▾ `local` `ssh` `docker` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon`, beside each on the list too. Starts on the first of `ssh`, `docker` with a saved runtime, else `local`. Changing it clears host and workdir. |
+| `host` (ssh) · `daemon` (docker) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
+| `workdir` | written | `absolute path on this machine` (local); `leave blank to use saved default: <dir>` (a runtime saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the runtime's workdir; while unchanged, the spec omits it. |
 | `as -e` | written | `full -e spec: typing one sets the rows above` |
 | `done` | | `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`. |
 
@@ -758,12 +759,12 @@ well`, `specify an environment`. Reachability and size are checked when the run 
 | Element | Value |
 | --- | --- |
 | Title | `Select the ssh host to use` / `Select the docker host to use` |
-| About | `Saved on the environments page of /settings; any host you add here is saved there.` |
-| Rows above the list | `add an ssh host` / `add a docker host` (the [provider forms](#environments), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
+| About | `Saved on the runtimes page of /settings; any host you add here is saved there.` |
+| Rows above the list | `add an ssh host` / `add a docker host` (the [runtime forms](#runtimes), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
 | Empty | `no ssh host is saved yet` |
 
 `unsaved host` opens **Unsaved ssh host** (`Connects using your ssh config with no extra
-settings. To save a host with a name, go to the environments page of /settings.`): one row
+settings. To save a host with a name, go to the runtimes page of /settings.`): one row
 `host   [user@]host[:port], or an alias in your ssh config`; `done` `assigns the role to this
 host without saving it`; errors `host is required`, `'<x>' is not a valid host: cannot contain
 spaces or slashes`.
@@ -909,7 +910,7 @@ A screen of six pages. Storage keys are in [Settings](/reference/settings).
   │ ◉  Accounts                                        3 accounts  ● unsaved │
   │    what agents sign in as, per CLI                                       │
   │──────────────────────────────────────────────────────────────────────────│
-  │ ▦  Environments                                                1 machine │
+  │ ▦  Runtimes                                                    1 machine │
   │    ssh hosts and docker daemons a flow's roles run on                    │
   │──────────────────────────────────────────────────────────────────────────│
   │ ↻  Fallback                                                      2 rules │
@@ -927,7 +928,7 @@ A screen of six pages. Storage keys are in [Settings](/reference/settings).
 | ⚙ Settings | `reports on\|off\|not set · details on\|off` | reports, details or btw agent changed |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | profiling changed, or forget on |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit, fail-over or removal held |
-| ▦ Environments | `<n> machine(s)` | never |
+| ▦ Runtimes | `<n> machine(s)` | never |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ⑂ Flowverses | `<n> flowverse(s)` (≥ 3) | never |
 
@@ -952,7 +953,7 @@ is held. Coming back out of a page puts the cursor on its card.
 | --- | --- | --- |
 | Settings, Workspace | Save | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
-| Environments | Add an ssh host · Add a docker host · Import ~/.ssh/config · Search… | name, backend, row text |
+| Runtimes | Add an ssh host · Add a docker host · Import ~/.ssh/config · Search… | name, backend, row text |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
 | Flowverses | Add a flowverse · Search… | name, URL |
 
@@ -971,7 +972,7 @@ in force.
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, fails over to, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Fallback rules | next failed turn | — |
-| Environments, Flowverses | at once | — |
+| Runtimes, Flowverses | at once | — |
 
 Leaving `/settings` writes a dim transcript line per change: first the pages' own (in the
 order done, including things done at once, even after a discard), then:
@@ -1080,21 +1081,21 @@ after the command's first word: `<name> added as a backend`; transcript ``<name>
 backend: `<command>` starts it``. Refusals: `command is required`, `<x> is already a backend
 humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-your-own).
 
-### Environments page {#environments}
+### Runtimes page {#runtimes}
 
-Intro: `Saved machines for flow environments, used by name in -e and /flow: ssh hosts, and
-docker daemons with the resources each may hand out. Changes take effect immediately.` Rows
+Intro: `Runtimes: saved ssh hosts, and docker daemons with the resources each may hand out,
+used by name as flow environments in -e and /flow. Changes take effect immediately.` Rows
 under `ssh` and `docker` headings. Empty: `no machines saved yet; a role can still name one
-directly`. Storage and semantics: [Machines › Environment
-providers](/reference/machines#environment-providers).
+directly`. `/settings environments`, the page's former name, still opens it. Storage and
+semantics: [Machines › Runtimes](/reference/machines#runtimes).
 
 | Row description | Format |
 | --- | --- |
 | ssh | `user@host[:port]` or `from ~/.ssh/config` / `…, from <config>`, then ` · key <path>`, ` · through <jump>`, ` · -o K=V, …` |
-| docker | `<endpoint> · <image> · runtime <r> · <cpus> CPUs, <mem>, GPUs <ids>\|no limits · max <n> containers` |
+| docker | `<endpoint> · <image> · OCI runtime <r> · <cpus> CPUs, <mem>, GPUs <ids>\|no limits · max <n> containers` |
 | both | ` · working directory: <dir>`; ` · checking…` while checked |
 
-`enter` on a provider opens `<backend>/<name>`:
+`enter` on a runtime opens `<backend>/<name>`:
 
 | Row | Description | Effect |
 | --- | --- | --- |
@@ -1139,7 +1140,7 @@ it are limited to the resources configured here.`
 | `ssh address` | `the daemon on any host via ssh` | `address` (`[user@]host[:port]`) | `ssh://…` | address's first label |
 | `context` | `an existing docker context` | `context` (`docker context name`) | `context:<name>` | the context |
 
-Then `name` (add), `image` (`default image, unless specified by the flow`), `runtime` (`e.g.
+Then `name` (add), `image` (`default image, unless specified by the flow`), `OCI runtime` (`e.g.
 nvidia; blank for daemon default`), `run args` (`extra arguments for docker run`), `max
 containers` (`max concurrent containers; blank for no limit`), `workdir` (`default working
 directory when -e specifies no directory`), `cpus` (`max CPUs; blank to use all host CPUs`),
@@ -1368,7 +1369,7 @@ environment is not in the run.`
 | Row | Value |
 | --- | --- |
 | `kind` | `LOCAL`, `SSH`, `DOCKER` |
-| `target` | the ssh host or docker provider, or `this machine` |
+| `target` | the ssh host or docker runtime, or `this machine` |
 | `workdir` | as the run reported it |
 | `set up as` | the role's `-e` spelling |
 | `image` | the image the flow declares for the role |

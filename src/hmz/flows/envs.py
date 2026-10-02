@@ -57,7 +57,7 @@ class EnvBackendKind(StrEnum):
     LOCAL = auto()
     #: A machine reached over ssh, by a host name `ssh` itself resolves.
     SSH = auto()
-    #: A container of its own, on a docker daemon an environment provider names.
+    #: A container of its own, on a docker daemon a runtime names.
     DOCKER = auto()
 
 
@@ -97,7 +97,7 @@ class Env(Protocol):
 
     @property
     def provider(self) -> str:
-        """Which machine of that kind: the ssh host, the docker provider, or "" for this one."""
+        """Which machine of that kind: the ssh host, the docker runtime, or "" for this one."""
         ...
 
     @property

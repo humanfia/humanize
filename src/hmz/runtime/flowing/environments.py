@@ -8,7 +8,7 @@ environment capability. None touches the network: an ssh host is reached, and a 
 started, the first time something is asked of it, and :func:`probe` is how to ask before
 anything else -- which the ways in do for every environment a run is given, so that
 `available` and the resources a machine has are known, and a container has taken its share of
-its provider, before a flow's requirements are checked against them.
+its runtime, before a flow's requirements are checked against them.
 
 What a driver derives lives under `envs/` in humanize's home on its machine;
 :mod:`hmz.runtime.flowing.environing` says how, and why there.
@@ -42,10 +42,10 @@ def open_env(
 
     Args:
       spec: The environment: `local@/abs/path` for a directory here, `ssh@host/abs/path` or
-        `ssh@host/~/path` for one on a host `ssh` reaches -- a stored ssh provider by its
+        `ssh@host/~/path` for one on a host `ssh` reaches -- a saved ssh runtime by its
         name, and otherwise `[user@]host[:port]` or an alias of the ssh config -- or
-        `docker@provider/abs/path` for a container of its own on the daemon a stored docker
-        provider names, `docker@local/...` on docker's default here.
+        `docker@name/abs/path` for a container of its own on the daemon a saved docker
+        runtime names, `docker@local/...` on docker's default here.
       role: What the environment is for, as its flow declares it: a container is started
         from its image and given its resources. None asks for nothing.
       traced: Whether a harness is to run there, supervising its agent: a container is
@@ -56,7 +56,7 @@ def open_env(
 
     Raises:
       EnvUnavailable: If the workdir is known not to exist -- which for this machine is
-        looked at now -- the host is no ssh destination, or no docker provider is written
+        looked at now -- the host is no ssh destination, or no docker runtime is written
         down under that name.
     """
     if spec.backend is EnvBackendKind.DOCKER:
@@ -66,7 +66,7 @@ def open_env(
 
         from .environing_ssh import SSHMachine
 
-        # A provider written down under that name is reached as it says; any other name is
+        # A runtime written down under that name is reached as it says; any other name is
         # the destination `ssh` is handed as it is.
         stored = store.find(store.SSH, spec.provider)
         if stored is None and _unreadable(spec.provider):
@@ -74,7 +74,7 @@ def open_env(
                 f"the ssh host {spec.provider!r} cannot be read; fix or remove "
                 f"it: {store.where(store.SSH, spec.provider)}"
             )
-        target = stored.target() if isinstance(stored, store.SSHProvider) else ""
+        target = stored.target() if isinstance(stored, store.SSHRuntime) else ""
         # One place, one name: what is derived from it is found by that name again.
         return MachineEnvDriver(
             SSHMachine(spec.provider, target), tidy_workdir(spec.workdir)
@@ -85,10 +85,10 @@ def open_env(
 def _docker_env(
     spec: EnvSpec, role: EnvRole | None, *, traced: bool = False
 ) -> EnvDriver:
-    """The driver for a container of its own on a docker provider's daemon.
+    """The driver for a container of its own on a docker runtime's daemon.
 
     Raises:
-      EnvUnavailable: If no docker provider is written down under that name -- `local` being
+      EnvUnavailable: If no docker runtime is written down under that name -- `local` being
         docker's default here where none is -- or the workdir is not a path of its host.
     """
     from hmz.coganchor.machines import store
@@ -96,7 +96,7 @@ def _docker_env(
     from .environing_docker import LOCAL, DockerMachine
 
     stored = store.find(store.DOCKER, spec.provider)
-    if stored is not None and not isinstance(stored, store.DockerProvider):
+    if stored is not None and not isinstance(stored, store.DockerRuntime):
         stored = None
     if stored is None and spec.provider != LOCAL:
         if _unreadable(spec.provider, store.DOCKER):
@@ -135,7 +135,7 @@ def _docker_env(
 
 
 def _unreadable(name: str, backend: str = "ssh") -> bool:
-    """Whether something is written down as the provider of that name, and cannot be read.
+    """Whether something is written down as the runtime of that name, and cannot be read.
 
     Which is not a name to hand `ssh` instead: whatever it would reach is not what was written
     down, and a run on it would be a run somewhere nobody meant.
@@ -145,7 +145,7 @@ def _unreadable(name: str, backend: str = "ssh") -> bool:
     try:
         return store.where(backend, name).exists()
     except ValueError:
-        return False  # a name no provider may have, which is a host
+        return False  # a name no runtime may have, which is a host
 
 
 def local_env(workdir: Path) -> EnvDriver:

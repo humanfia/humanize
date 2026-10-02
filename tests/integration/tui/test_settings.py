@@ -511,12 +511,12 @@ def test_settings_offers_its_pages_by_name() -> None:
         "settings",
         "workspace",
         "accounts",
-        "environments",
+        "runtimes",
         "fallback",
         "flowverses",
     ]
     assert offered("/settings ac", _COMMANDS) == ["accounts"]
-    assert offered("/settings env", _COMMANDS) == ["environments"]
+    assert offered("/settings run", _COMMANDS) == ["runtimes"]
     # Written out in full, so enter over the list sends the line.
     assert offered("/settings accounts", _COMMANDS) == []
     assert offered("/settings accounts x", _COMMANDS) == []
@@ -532,6 +532,7 @@ def test_settings_offers_its_pages_by_name() -> None:
         ("everywhere", 0),
         ("directory", 1),
         ("Accounts", 2),
+        ("runtimes", 3),
         ("environments", 3),
         ("fallback", 4),
     ],

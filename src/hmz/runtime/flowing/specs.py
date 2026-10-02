@@ -115,8 +115,8 @@ class EnvSpec:
     Attributes:
       role: The role it fills.
       backend: Which kind of machine.
-      provider: The ssh host -- the name of a stored provider, `host` or `user@host` --, the
-        docker provider -- the name of a stored one, or `local` for docker's default here --,
+      provider: The ssh host -- the name of a saved runtime, `host` or `user@host` --, the
+        docker runtime -- the name of a stored one, or `local` for docker's default here --,
         or "" for this machine.
       workdir: The directory there: absolute, or `~/...` under the home of whoever ssh
         logs in as. A docker one is a directory of the daemon's host.
@@ -204,9 +204,9 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
     `local@/home/me/repo` is a directory on this machine, and `local` takes no provider.
     `ssh@gpu-box/home/me/repo` is one on the host `gpu-box`, and `ssh@gpu-box/~/repo` one under
     the home directory there. `docker@gpubox/srv/repo` is one of the docker daemon's host that
-    the docker provider called `gpubox` hands a container of its own, and `docker@local/...` one
+    the docker runtime called `gpubox` hands a container of its own, and `docker@local/...` one
     of docker's default here. `ssh@gpu-box` or `docker@gpubox` alone is the workdir the
-    environment provider of that name was written down with.
+    runtime of that name was written down with.
 
     Args:
       values: What each `-e` was given.
@@ -257,7 +257,7 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
 
 
 def _workdir_of(read: re.Match[str]) -> str | None:
-    """The workdir the stored provider an `-e` names was written down with, as `/...`.
+    """The workdir the saved runtime an `-e` names was written down with, as `/...`.
 
     None where it names no provider, or one with no workdir of its own.
     """
@@ -486,10 +486,10 @@ def parse_harness(value: str) -> HarnessSpec:
     """Reads an `-H`.
 
     `standalone:<env>` names the machine the way `-e` does after `<role>=` --
-    `ssh@gpu-box/~/scratch`, `docker@gpubox/srv/scratch` -- or by the bare name of an
-    environment provider written down: `standalone:gpu-box`. The directory is where that
+    `ssh@gpu-box/~/scratch`, `docker@gpubox/srv/scratch` -- or by the bare name of a
+    runtime saved: `standalone:gpu-box`. The directory is where that
     machine is worked in, which a harness needs nothing of beyond somewhere to be; left off,
-    it is the provider's own, else the login's home over ssh, else -- on docker's default
+    it is the runtime's own, else the login's home over ssh, else -- on docker's default
     here -- a directory humanize keeps for it.
 
     Args:
@@ -530,7 +530,7 @@ def _unread(machine: str, error: EnvSpecError) -> str:
     form = f"{STANDALONE}:<backend>@<provider>[/<workdir>] or {STANDALONE}:<saved name>"
     backend, at, provider = (part.strip() for part in machine.partition("@"))
     if not at:
-        return f"no environment provider is saved as {machine!r}; expected {form}"
+        return f"no runtime is saved as {machine!r}; expected {form}"
     if backend not in {kind.value for kind in EnvBackendKind}:
         backends = ", ".join(
             kind.value for kind in EnvBackendKind if kind is not EnvBackendKind.LOCAL
@@ -555,7 +555,7 @@ def _machine_of(said: str) -> str:
     from hmz.coganchor.machines import store
 
     if "@" not in said.partition("/")[0]:
-        # A bare name, which is an environment provider written down: ssh's first, as the
+        # A bare name, which is a runtime written down: ssh's first, as the
         # machine a person is likelier to mean by a name alone.
         found = store.find(store.SSH, said) or store.find(store.DOCKER, said)
         if found is None:

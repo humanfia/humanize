@@ -19,8 +19,8 @@ from hmz.sdk import Hmz, Daemons, Refused, fakes
 ## Module {#module}
 
 ```python
-__all__ = ["Accounts", "Daemon", "Daemons", "Environments", "Epics", "Fallbacks", "Flows",
-           "Flowverses", "Hmz", "Host", "Link", "Refused", "Run", "fakes"]
+__all__ = ["Accounts", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses", "Hmz",
+           "Host", "Link", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
@@ -32,7 +32,7 @@ def __getattr__(name: str) -> object: ...
 | `Flows` | class | `hmz.runtime` | [Flows](#flows) |
 | `Flowverses` | class | `hmz.runtime` | [Flowverses](#flowverses) |
 | `Accounts` | class | `hmz.runtime` | [Accounts](#accounts) |
-| `Environments` | class | `hmz.runtime` | [Environments](#environments) |
+| `Runtimes` | class | `hmz.runtime` | [Runtimes](#runtimes) |
 | `Fallbacks` | class | `hmz.runtime` | [Fallbacks](#fallbacks) |
 | `Epics` | class | `hmz.runtime` | [Epics](#epics) |
 | `Host` | class | `hmz.runtime` | [Host](#host) |
@@ -73,7 +73,7 @@ nothing.
 | `flows` | [`Flows`](#flows) | |
 | `verses` | [`Flowverses`](#flowverses) | The same object as `flows.verses`. |
 | `accounts` | [`Accounts`](#accounts) | |
-| `environments` | [`Environments`](#environments) | |
+| `runtimes` | [`Runtimes`](#runtimes) | |
 | `fallbacks` | [`Fallbacks`](#fallbacks) | |
 | `epics` | [`Epics`](#epics) | Of this workspace. |
 
@@ -313,25 +313,25 @@ a backend. An account `name` of `""` is the machine's own login (*as local*).
 | `stale(cli, provider="")` | `bool` | Never asked, or asked longer ago than `hmz.coganchor.models.STALE` (one week). |
 | `ask(cli, provider="", seconds=None)` | `tuple[Model, ...]` | **Starts the backend** to list its models, and keeps the answer. `()` if it does not answer. |
 
-## `Environments` {#environments}
+## `Runtimes` {#runtimes}
 
-`Hmz().environments`: saved [environment providers](/reference/machines#environment-providers),
+`Hmz().runtimes`: saved [runtimes](/reference/machines#runtimes),
 named by `-e <role>=ssh@<name>` and `-e <role>=docker@<name>`. `backend` is `"ssh"` or
 `"docker"`.
 
 | Method | Returns | Behaviour |
 | --- | --- | --- |
-| `all(backend: str = "")` | `list[EnvProvider]` | By backend, then name. |
-| `find(backend, name)` | `EnvProvider \| None` | |
+| `all(backend: str = "")` | `list[Runtime]` | By backend, then name. |
+| `find(backend, name)` | `Runtime \| None` | |
 | `where(backend, name)` | `Path` | Where it is kept. `ValueError`: bad backend or name. |
-| `new(backend, name, **fields)` | `EnvProvider` | Builds and validates one; saves nothing. `ValueError`: unknown field or bad value. `new(**p.held())` equals `p`. |
-| `add(provider)` | `EnvProvider` | Saves a new one. `ValueError`: name taken. `OSError`. |
-| `write(provider)` | `EnvProvider` | Saves, replacing any of that name. `OSError`. |
+| `new(backend, name, **fields)` | `Runtime` | Builds and validates one; saves nothing. `ValueError`: unknown field or bad value. `new(**p.held())` equals `p`. |
+| `add(runtime)` | `Runtime` | Saves a new one. `ValueError`: name taken. `OSError`. |
+| `write(runtime)` | `Runtime` | Saves, replacing any of that name. `OSError`. |
 | `remove(backend, name)` | `bool` | `ValueError`: bad backend or name. |
 | `hosts(config: str \| PathLike \| None = None)` | `list[SSHHost]` | Every `Host` in an ssh config (default `~/.ssh/config`), as `ssh -G` resolves it. `OSError`: no `ssh`, unreadable config. |
-| `import_ssh(config=None, names=None, *, update=False)` | `list[SSHProvider]` | Saves one ssh provider per `Host` (or per name in `names`), named after it; existing ones kept unless `update`. `ValueError`: a name not in the config. |
-| `resolve(provider: SSHProvider)` | `SSHHost` | What `ssh -G` makes of it; reaches nothing. |
-| `check(provider, seconds: float = 30.0)` | `Checked` | **Reaches** it: an ssh host for home, CPUs, memory, GPUs; a docker daemon via `docker info`. Never raises. |
+| `import_ssh(config=None, names=None, *, update=False)` | `list[SSHRuntime]` | Saves one ssh runtime per `Host` (or per name in `names`), named after it; existing ones kept unless `update`. `ValueError`: a name not in the config. |
+| `resolve(runtime: SSHRuntime)` | `SSHHost` | What `ssh -G` makes of it; reaches nothing. |
+| `check(runtime, seconds: float = 30.0)` | `Checked` | **Reaches** it: an ssh host for home, CPUs, memory, GPUs; a docker daemon via `docker info`. Never raises. |
 
 ## `Fallbacks` {#fallbacks}
 
@@ -566,8 +566,8 @@ declaration order.
 
 | Type | Fields |
 | --- | --- |
-| `SSHProvider` | `name`, `host`, `user`, `port: int = 0`, `identity_file`, `proxy_jump`, `options: Mapping[str, str]`, `alias`, `config`, `workdir`, `made: str = "typed"` (`typed`/`imported`); property `at`; methods `destination()`, `login()`, `settings()`, `target()` (coganchor target), `held()`; `backend == "ssh"` |
-| `DockerProvider` | `name`, `endpoint: str = "local"`, `tls_dir`, `image`, `runtime`, `run_args: tuple[str, ...]`, `cpus: float`, `memory: int` (bytes), `gpus: tuple[str, ...]`, `gpu_memory: int`, `max_containers: int` (0 = no limit), `workdir`, `made`; property `at`; methods `daemon()` → `Endpoint` ([Machines](/reference/machines#a-docker-daemon)), `held()`; `backend == "docker"` |
+| `SSHRuntime` | `name`, `host`, `user`, `port: int = 0`, `identity_file`, `proxy_jump`, `options: Mapping[str, str]`, `alias`, `config`, `workdir`, `made: str = "typed"` (`typed`/`imported`); property `at`; methods `destination()`, `login()`, `settings()`, `target()` (coganchor target), `held()`; `backend == "ssh"` |
+| `DockerRuntime` | `name`, `endpoint: str = "local"`, `tls_dir`, `image`, `runtime`, `run_args: tuple[str, ...]`, `cpus: float`, `memory: int` (bytes), `gpus: tuple[str, ...]`, `gpu_memory: int`, `max_containers: int` (0 = no limit), `workdir`, `made`; property `at`; methods `daemon()` → `Endpoint` ([Machines](/reference/machines#a-docker-daemon)), `held()`; `backend == "docker"` |
 | `SSHHost` | `alias`, `host`, `user`, `port: int`, `identity_files: tuple[str, ...]`, `proxy_jump` |
 | `Checked` | `reached: bool`, `said: str`, `home: str`, `cpus: float`, `memory: int`, `gpus: tuple[str, ...]`, `gpu_memory: int`, `runtimes: tuple[str, ...]`, `version: str`, `short: tuple[str, ...]` (what it is saved to hand out and has not got) |
 

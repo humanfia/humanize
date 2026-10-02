@@ -34,9 +34,9 @@ H/
 │   ├── provider.json
 │   ├── models.json
 │   └── home/ user/ config/             credential files the CLI writes
-├── env-providers/
-│   ├── ssh/<name>/provider.json
-│   └── docker/<name>/provider.json, docker/.<name>.lock
+├── runtimes/                           was env-providers/; moved on first use
+│   ├── ssh/<name>/runtime.json
+│   └── docker/<name>/runtime.json, docker/.<name>.lock
 ├── flowverses/
 │   ├── official/  <name>/              git clones
 │   └── .pinned/<blake2b-8(url)>/<sha>/ checkouts of git+ refs
@@ -180,13 +180,19 @@ Removing an account deletes its directory.
 
 `{"fallback": "<account>"}` for the CLI's own sign-in (`@local`). `0600`, directory `0700`.
 
-### `H/env-providers/`
+### `H/runtimes/`
 
-[Environment providers](/reference/machines#environment-providers). Directories `0700`; each
-`provider.json` written to `.provider.json.<random>.new` (`0600` from creation), fsynced and
+[Runtimes](/reference/machines#runtimes). Directories `0700`; each
+`runtime.json` written to `.runtime.json.<random>.new` (`0600` from creation), fsynced and
 renamed. A file that does not validate is skipped.
 
-`ssh/<name>/provider.json`:
+Formerly `H/env-providers/`, each file `provider.json`. When `H/runtimes/` does not exist, the
+first look for it renames `H/env-providers/` to it in one step, locks and all; a
+`provider.json` left in a runtime's directory is read where there is no `runtime.json`, and
+removed when that runtime is next written. Where both directories exist, `H/env-providers/` is
+left alone and not read.
+
+`ssh/<name>/runtime.json`:
 
 | Field | Type |
 | --- | --- |
@@ -196,20 +202,20 @@ renamed. A file that does not validate is skipped.
 | `options` | `{str: str}` |
 | `made` | `"typed"` or `"imported"` |
 
-`docker/<name>/provider.json`:
+`docker/<name>/runtime.json`:
 
 | Field | Type |
 | --- | --- |
 | `backend` | `"docker"` |
 | `name`, `tls_dir`, `image`, `runtime`, `workdir` | `str` |
-| `endpoint` | `local`, `unix://…`, `tcp://…`, `ssh://…`, `ssh:<provider>`, `context:<name>` |
+| `endpoint` | `local`, `unix://…`, `tcp://…`, `ssh://…`, `ssh:<ssh runtime>`, `context:<name>` |
 | `run_args`, `gpus` | `[str]` |
 | `cpus` | `float` |
 | `memory`, `gpu_memory`, `max_containers` | `int` |
 | `made` | `"typed"` |
 
-`docker/.<name>.lock`: empty; held with `flock(LOCK_EX)` while containers of that provider are
-sized and started, so two runs never allocate from one provider at once. Never deleted.
+`docker/.<name>.lock`: empty; held with `flock(LOCK_EX)` while containers of that runtime are
+sized and started, so two runs never allocate from one runtime at once. Never deleted.
 
 ## Flows
 

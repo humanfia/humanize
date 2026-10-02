@@ -1,4 +1,4 @@
-"""Environment providers asked about, through stand-ins for `ssh` and `docker` on `PATH`.
+"""Runtimes asked about, through stand-ins for `ssh` and `docker` on `PATH`.
 
 What `ssh -G` says a host resolves to, what an ssh host and a docker daemon say they have when
 checked, and the `ssh` a docker daemon behind a stored ssh host is dialled through -- each read
@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.machines import store
-from hmz.coganchor.machines.store import DockerProvider, SSHProvider
+from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime
 from hmz.sdk import Hmz
 
 if TYPE_CHECKING:
@@ -127,7 +127,7 @@ def test_the_hosts_of_a_config_are_what_ssh_resolves_them_to(
     config = tmp_path / "config"
     config.write_text("Host gpu\n  HostName ignored-by-the-stand-in\nHost *\n")
 
-    (gpu,) = Hmz().environments.hosts(config)
+    (gpu,) = Hmz().runtimes.hosts(config)
 
     assert (gpu.alias, gpu.host, gpu.user, gpu.port) == ("gpu", "gpu.example", "me", 22)
     assert gpu.identity_files == ()  # only ssh's own, which nobody chose
@@ -135,12 +135,12 @@ def test_the_hosts_of_a_config_are_what_ssh_resolves_them_to(
     assert standins.read_text() == f"-G -F {config} -- gpu\n"
 
 
-def test_a_stored_provider_resolves_with_everything_it_says(standins: Path) -> None:
-    provider = SSHProvider(
+def test_a_stored_runtime_resolves_with_everything_it_says(standins: Path) -> None:
+    provider = SSHRuntime(
         name="gpu", host="box", user="root", port=2200, identity_file="/k"
     )
 
-    said = Hmz().environments.resolve(provider)
+    said = Hmz().runtimes.resolve(provider)
 
     assert (said.alias, said.host, said.user, said.port) == (
         "gpu",
@@ -152,18 +152,18 @@ def test_a_stored_provider_resolves_with_everything_it_says(standins: Path) -> N
 
 
 def test_one_key_of_ssh_s_own_named_for_a_host_is_one_chosen(standins: Path) -> None:
-    provider = SSHProvider(name="gpu", host="box", identity_file="~/.ssh/id_ed25519")
+    provider = SSHRuntime(name="gpu", host="box", identity_file="~/.ssh/id_ed25519")
 
-    assert Hmz().environments.resolve(provider).identity_files == ("~/.ssh/id_ed25519",)
+    assert Hmz().runtimes.resolve(provider).identity_files == ("~/.ssh/id_ed25519",)
 
 
 def test_a_config_ssh_cannot_read_is_an_error(standins: Path) -> None:
     with pytest.raises(OSError, match="no such config"):
-        Hmz().environments.resolve(SSHProvider(name="x", host="nowhere"))
+        Hmz().runtimes.resolve(SSHRuntime(name="x", host="nowhere"))
 
 
 def test_an_ssh_host_checked_says_what_a_run_would_learn(standins: Path) -> None:
-    checked = Hmz().environments.check(SSHProvider(name="here", host="here"))
+    checked = Hmz().runtimes.check(SSHRuntime(name="here", host="here"))
 
     assert checked.reached, checked.said
     assert checked.home == os.environ["HOME"]
@@ -175,15 +175,15 @@ def test_an_ssh_host_checked_says_what_a_run_would_learn(standins: Path) -> None
 
 
 def test_an_ssh_host_that_will_not_answer_says_why(standins: Path) -> None:
-    checked = Hmz().environments.check(SSHProvider(name="x", host="refusing"))
+    checked = Hmz().runtimes.check(SSHRuntime(name="x", host="refusing"))
 
     assert not checked.reached
     assert checked.said == "ssh: connect to host refusing port 22: Connection refused"
 
 
 def test_a_docker_daemon_checked_says_what_it_has(standins: Path) -> None:
-    checked = Hmz().environments.check(
-        DockerProvider(
+    checked = Hmz().runtimes.check(
+        DockerRuntime(
             name="box",
             endpoint="unix:///var/run/docker.sock",
             cpus=128,
@@ -203,7 +203,7 @@ def test_a_docker_daemon_checked_says_what_it_has(standins: Path) -> None:
     assert checked.short == (
         "it is to hand out 128 CPUs and has 64",
         "it has no GPU 2",
-        "it has no runtime kata",
+        "it has no OCI runtime kata",
     )
     asked = standins.read_text()
     assert asked.startswith(
@@ -217,15 +217,15 @@ def test_a_docker_that_says_something_else_is_not_reached(
 ) -> None:
     (tmp_path / "info.json").write_text(said)
 
-    checked = Hmz().environments.check(DockerProvider(name="box"))
+    checked = Hmz().runtimes.check(DockerRuntime(name="box"))
 
     assert not checked.reached
     assert checked.said
 
 
 def test_a_docker_daemon_that_is_not_there_says_why(standins: Path) -> None:
-    checked = Hmz().environments.check(
-        DockerProvider(name="box", endpoint="unix:///nowhere")
+    checked = Hmz().runtimes.check(
+        DockerRuntime(name="box", endpoint="unix:///nowhere")
     )
 
     assert not checked.reached
@@ -236,9 +236,9 @@ def test_a_docker_daemon_behind_a_stored_ssh_host_dials_it_as_it_says(
     standins: Path,
 ) -> None:
     store.add(
-        SSHProvider(name="gpu", host="box", identity_file="/k", options={"A": "b"})
+        SSHRuntime(name="gpu", host="box", identity_file="/k", options={"A": "b"})
     )
-    daemon = DockerProvider(name="far", endpoint="ssh:gpu").daemon()
+    daemon = DockerRuntime(name="far", endpoint="ssh:gpu").daemon()
     (path,) = [
         one.removeprefix("PATH=")
         for one in daemon.docker("ps")
@@ -259,7 +259,7 @@ def test_a_docker_daemon_behind_a_stored_ssh_host_dials_it_as_it_says(
     assert standins.read_text() == (
         "-o IdentityFile=/k -o A=b -o ConnectTimeout=30 -T -- box true\n"
     )
-    checked = Hmz().environments.check(DockerProvider(name="far", endpoint="ssh:gpu"))
+    checked = Hmz().runtimes.check(DockerRuntime(name="far", endpoint="ssh:gpu"))
     assert checked.reached, checked.said
     # Its GPUs asked after too, of a container each on the same daemon.
     (_, docker, *asked) = standins.read_text().splitlines()

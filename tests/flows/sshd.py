@@ -216,7 +216,7 @@ class Box:
       alias: What `ssh` and `-e box=ssh@<alias>/...` call it.
       container: The container's id.
       config: The ssh config naming `alias`, which the `ssh` first on `PATH` reads -- and
-        which is what an ssh provider is imported from.
+        which is what an ssh runtime is imported from.
     """
 
     alias: str
@@ -367,7 +367,7 @@ class Docked:
     known: Path
 
     def ssh(self) -> dict[str, Any]:
-        """Everything `ssh` has to be told to reach it, as an ssh provider's fields."""
+        """Everything `ssh` has to be told to reach it, as an ssh runtime's fields."""
         return {
             "host": "127.0.0.1",
             "port": self.port,
@@ -412,7 +412,7 @@ def docker_box(tmp_path: Path) -> Iterator[Docked]:
 
     Docker's daemon in a privileged container, with an sshd beside it, and `python:3.12-slim`
     loaded into it from this machine's daemon -- so nothing is fetched. Nothing is put on
-    `PATH`: whatever reaches it is told everything it needs, which is what an ssh provider is.
+    `PATH`: whatever reaches it is told everything it needs, which is what an ssh runtime is.
     """
     why = _built(DOCKED, _DIND, _DOCKED_RECIPE)
     if why:
