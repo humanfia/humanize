@@ -1,9 +1,9 @@
-"""The machines a flow's environments go on: saved on `/settings`, and chosen on `/flow`.
+"""The runtimes a flow's environments go on: saved on `/settings`, and chosen on `/flow`.
 
-An ssh host or a docker daemon is saved on the environments page of `/settings` -- typed in on
-one form, or imported from an ssh config -- and checked as it lands. What reaches a machine is
-a stand-in here: `ssh` answers `-G` as ssh does and runs what it is told on this machine, and
-`docker` answers `info` with what a machine with two GPUs said. Both are the ones
+An ssh host or a docker daemon is saved as a runtime on the runtimes page of `/settings` --
+typed in on one form, or imported from an ssh config -- and checked as it lands. What reaches
+a machine is a stand-in here: `ssh` answers `-G` as ssh does and runs what it is told on this
+machine, and `docker` answers `info` with what a machine with two GPUs said. Both are the ones
 `tests/integration/machines` writes, so the page is checked against what the store is.
 """
 
@@ -19,7 +19,7 @@ from textual.widgets import Button, Label, OptionList
 
 from hmz.coganchor.backends import Model
 from hmz.coganchor.machines import store
-from hmz.coganchor.machines.store import DockerProvider, SSHProvider
+from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime
 from hmz.flows import EnvBackendKind
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
@@ -49,7 +49,7 @@ from hmz.tui.pick import (
     Unsaved,
 )
 from hmz.tui.settings import Adjusts
-from tests.integration.machines.test_env_providers import _DOCKER, _INFO, _SSH
+from tests.integration.machines.test_runtimes import _DOCKER, _INFO, _SSH
 from tests.integration.tui.test_app import (
     bar,
     changes,
@@ -197,7 +197,7 @@ async def _done(app: Humanize, driver: Pilot[None]) -> None:
 
 
 async def _into_machines(app: Humanize, driver: Pilot[None]) -> Adjusts:
-    """Opens `/settings environments`, which is the page these are all about."""
+    """Opens `/settings runtimes`, which is the page these are all about."""
     await into_settings(app, driver, 3)
     return cast("Adjusts", app.screen)
 
@@ -251,7 +251,7 @@ async def test_an_ssh_host_is_added_on_one_form_and_asked_what_it_has(
         await until(lambda: app.screen is sheet, driver)
         await until(lambda: "answers" in _under(app), driver)
         saved = store.find("ssh", "gpu")
-        assert saved == SSHProvider(
+        assert saved == SSHRuntime(
             name="gpu",
             host="gpu.example",
             user="me",
@@ -274,7 +274,7 @@ async def test_what_the_store_refuses_is_said_on_the_form_and_saves_nothing(
     standins: Path,
 ) -> None:
     del standins
-    store.add(SSHProvider(name="gpu", host="elsewhere"))
+    store.add(SSHRuntime(name="gpu", host="elsewhere"))
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
@@ -303,7 +303,7 @@ async def test_what_the_store_refuses_is_said_on_the_form_and_saves_nothing(
         await _done(app, driver)
         assert "named gpu already exists" in _under(app)
 
-    assert [one.name for one in store.providers()] == ["gpu"]
+    assert [one.name for one in store.runtimes()] == ["gpu"]
 
 
 @pytest.mark.timeout(60)
@@ -314,9 +314,7 @@ async def test_the_hosts_of_another_config_are_imported_and_theirs_is_never_writ
     config = tmp_path / "work_ssh_config"
     config.write_text(CONFIG)
     store.write(
-        SSHProvider(
-            name="builder", alias="builder", config=str(config), made="imported"
-        )
+        SSHRuntime(name="builder", alias="builder", config=str(config), made="imported")
     )
     app = Humanize()
     async with app.run_test() as driver:
@@ -348,7 +346,7 @@ async def test_the_hosts_of_another_config_are_imported_and_theirs_is_never_writ
         assert "left builder" in _under(app)
         assert sheet.under() == "ssh/gpu"
 
-    assert store.find("ssh", "gpu") == SSHProvider(
+    assert store.find("ssh", "gpu") == SSHRuntime(
         name="gpu", alias="gpu", config=str(config.resolve()), made="imported"
     )
     assert not (tmp_path / "home" / ".ssh").exists()
@@ -382,7 +380,7 @@ async def test_a_host_switched_off_is_not_imported(
         await until(lambda: isinstance(app.screen, Adjusts), driver)
         assert "left gpu" in _under(app)
 
-    assert [one.name for one in store.providers()] == ["builder"]
+    assert [one.name for one in store.runtimes()] == ["builder"]
 
 
 @pytest.mark.timeout(60)
@@ -413,7 +411,7 @@ async def test_a_docker_host_is_reached_every_way_a_daemon_is(
     standins: Path, steps: int, rows_said: dict[str, str], endpoint: str, tls: str
 ) -> None:
     """Each way is a rung of one row, and the rows under it are what that way asks."""
-    store.add(SSHProvider(name="gpu", host="gpu.example"))
+    store.add(SSHRuntime(name="gpu", host="gpu.example"))
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
@@ -437,7 +435,7 @@ async def test_a_docker_host_is_reached_every_way_a_daemon_is(
         assert "docker 29.4.3" in _under(app)
 
     saved = store.find("docker", name)
-    assert isinstance(saved, DockerProvider)
+    assert isinstance(saved, DockerRuntime)
     assert (saved.endpoint, saved.tls_dir) == (endpoint, tls)
     asked = _asked(standins)
     assert "info --format" in asked
@@ -461,7 +459,7 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
         await until(lambda: form._typed_in.get("cpus") == "64", driver)
         assert form._typed_in["memory"] == "2015G"
         assert form._typed_in["gpus"] == "0, 1"
-        assert "runtimes nvidia" in _under(app)
+        assert "OCI runtimes nvidia" in _under(app)
         assert form.under() == "cpus"
 
         # The first letter replaces what it wrote, and enter walks on to the next of them.
@@ -478,7 +476,7 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
         assert "lacks configured resources" not in _under(app)
         assert "16 CPUs, 64G, GPUs 0" in _drawn(app)
 
-    assert store.find("docker", "local") == DockerProvider(
+    assert store.find("docker", "local") == DockerRuntime(
         name="local", cpus=16.0, memory=64 << 30, gpus=("0",)
     )
 
@@ -509,7 +507,7 @@ async def test_what_a_daemon_cannot_be_given_is_refused_on_the_form(
 
         assert isinstance(app.screen, Docking)
         assert why in _under(app)
-    assert store.providers() == []
+    assert store.runtimes() == []
 
 
 @pytest.mark.timeout(60)
@@ -517,7 +515,7 @@ async def test_what_a_daemon_is_saved_to_hand_out_and_has_not_got_is_said_in_yel
     standins: Path,
 ) -> None:
     del standins
-    store.add(DockerProvider(name="local", cpus=128, gpus=("0", "3")))
+    store.add(DockerRuntime(name="local", cpus=128, gpus=("0", "3")))
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
@@ -550,7 +548,7 @@ def failing(standins: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 async def test_a_check_says_which_gpus_answer_and_says_it_is_checking_meanwhile(
     failing: Path,
 ) -> None:
-    store.add(DockerProvider(name="local", gpus=("0", "1")))
+    store.add(DockerRuntime(name="local", gpus=("0", "1")))
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
@@ -596,7 +594,7 @@ async def test_a_host_that_cannot_be_reached_says_why_rather_than_hanging(
     standins: Path,
 ) -> None:
     del standins
-    store.add(SSHProvider(name="far", host="refusing"))
+    store.add(SSHRuntime(name="far", host="refusing"))
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
@@ -619,8 +617,8 @@ async def test_a_machine_is_corrected_and_taken_away_from_its_own_menu(
 ) -> None:
     """Each at once, which is why the page has no row to save from."""
     del standins
-    store.add(SSHProvider(name="gpu", host="gpu.example", workdir="~/a"))
-    store.add(DockerProvider(name="far", endpoint="ssh:gpu"))
+    store.add(SSHRuntime(name="gpu", host="gpu.example", workdir="~/a"))
+    store.add(DockerRuntime(name="far", endpoint="ssh:gpu"))
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
@@ -698,8 +696,8 @@ async def test_a_role_is_put_on_a_saved_host_and_remembered_as_e_spells_it(
 ) -> None:
     """Backend, host, workdir -- the host bringing its own, which is then followed."""
     del placed
-    store.add(SSHProvider(name="box", host="box.example", workdir="~/work"))
-    store.add(SSHProvider(name="gpu", host="gpu.example"))
+    store.add(SSHRuntime(name="box", host="box.example", workdir="~/work"))
+    store.add(SSHRuntime(name="gpu", host="gpu.example"))
     app = Humanize()
     async with app.run_test() as driver:
         form = await _placing(app, driver)
@@ -735,7 +733,7 @@ async def test_a_remembered_role_opens_as_it_was_and_the_workdir_is_its_own(
     tmp_path: Path,
 ) -> None:
     del placed
-    store.add(SSHProvider(name="box", host="box.example", workdir="~/work"))
+    store.add(SSHRuntime(name="box", host="box.example", workdir="~/work"))
     Settings(tmp_path).remember(
         "placed",
         {"builder": Runs("claude/claude-opus-5:max")},
@@ -764,7 +762,7 @@ async def test_a_role_that_follows_its_host_s_workdir_goes_on_following_it(
 ) -> None:
     """`ssh@box` opens on the host's own workdir, and done hands back `ssh@box` unchanged."""
     del placed
-    store.add(SSHProvider(name="box", host="box.example", workdir="~/work"))
+    store.add(SSHRuntime(name="box", host="box.example", workdir="~/work"))
     Settings(tmp_path).remember(
         "placed", {"builder": Runs("claude/claude-opus-5:max")}, envs={"box": "ssh@box"}
     )
@@ -822,7 +820,7 @@ async def test_a_host_added_from_the_role_is_saved_and_comes_back_chosen(
     placed: Path,
 ) -> None:
     del placed
-    store.add(SSHProvider(name="old", host="old.example"))
+    store.add(SSHRuntime(name="old", host="old.example"))
     app = Humanize()
     async with app.run_test() as driver:
         form = await _placing(app, driver)
@@ -835,7 +833,7 @@ async def test_a_host_added_from_the_role_is_saved_and_comes_back_chosen(
 
         assert form._typed_in["provider"] == "new"
         assert form._typed_in["spelled"] == "ssh@new"
-    assert store.find("ssh", "new") == SSHProvider(
+    assert store.find("ssh", "new") == SSHRuntime(
         name="new", host="new.example", workdir="~/w"
     )
 
@@ -897,7 +895,7 @@ async def test_a_host_a_typed_one_is_saved_as_starts_off_and_says_why(
     del standins
     config = tmp_path / "config"
     config.write_text(CONFIG)
-    store.add(SSHProvider(name="gpu", host="elsewhere"))
+    store.add(SSHRuntime(name="gpu", host="elsewhere"))
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
@@ -928,7 +926,7 @@ async def test_an_option_whose_value_is_a_list_is_one_option(standins: Path) -> 
         await until(lambda: app.screen is sheet, driver)
 
     saved = store.find("ssh", "box")
-    assert isinstance(saved, SSHProvider)
+    assert isinstance(saved, SSHRuntime)
     assert dict(saved.options) == {
         "Ciphers": "aes128-ctr,aes256-ctr",
         "Compression": "yes",
@@ -941,7 +939,7 @@ async def test_correcting_one_row_of_a_daemon_changes_nothing_else(
 ) -> None:
     """Memory saved as bytes that are no round number is read back as the very same bytes."""
     del standins
-    store.add(DockerProvider(name="odd", memory=10**9))
+    store.add(DockerRuntime(name="odd", memory=10**9))
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
@@ -953,7 +951,7 @@ async def test_correcting_one_row_of_a_daemon_changes_nothing_else(
         await _done(app, driver)
         await until(lambda: app.screen is sheet, driver)
 
-    assert store.find("docker", "odd") == DockerProvider(
+    assert store.find("docker", "odd") == DockerRuntime(
         name="odd", memory=10**9, image="python:3.12"
     )
 
@@ -974,4 +972,4 @@ async def test_a_tls_directory_under_a_home_nobody_has_is_refused_on_the_form(
 
         assert isinstance(app.screen, Docking)
         assert "home directory does not exist" in _under(app)
-    assert store.providers() == []
+    assert store.runtimes() == []

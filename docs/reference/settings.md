@@ -11,7 +11,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | --- | --- | --- | --- | --- |
 | settings | `H/settings.yaml` | this machine, and per workspace | Settings, Workspace (and `/flow`) | this page |
 | accounts | `H/providers/<cli>/<name>/provider.json`, `H/local/<cli>.json`, `H/acp.json` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
-| environment providers | `H/env-providers/{ssh,docker}/<name>/provider.json` | this machine | Environments | [Machines](/reference/machines#environment-providers) |
+| runtimes | `H/runtimes/{ssh,docker}/<name>/runtime.json` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
 | fallbacks | `H/fallbacks.json` | this machine | Fallback | [Files](/reference/files#h-fallbacks-json) |
 | flowverses | `H/flowverses/<name>/` (git clones) | this machine | Flowverses | [Flows](/reference/flows#flowverses) |
 
@@ -118,6 +118,7 @@ arguments.
 | Workspace | Forget | deletes `workspaces.<path>` | switch |
 
 Changes are held until saved (the save button, or the question asked on leaving). The pages
-Accounts, Environments, Fallback and Flowverses edit the other [stores](#stores).
-`/settings <page>` opens a page by name: `settings`, `workspace`, `accounts`, `environments`,
-`fallback`, `flowverses` (also `everywhere` for `settings`, `directory` for `workspace`).
+Accounts, Runtimes, Fallback and Flowverses edit the other [stores](#stores).
+`/settings <page>` opens a page by name: `settings`, `workspace`, `accounts`, `runtimes`,
+`fallback`, `flowverses` (also `everywhere` for `settings`, `directory` for `workspace`,
+`environments` for `runtimes`).

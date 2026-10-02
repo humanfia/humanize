@@ -99,7 +99,7 @@ async def test_a_home_relative_workdir_over_real_ssh(ssh_host: str) -> None:
         await driver.close()
 
 
-# ------------------------------------------------------------ a provider written down
+# ------------------------------------------------------------ a runtime written down
 
 
 @pytest.fixture
@@ -140,7 +140,7 @@ async def writes(task, *, agents, envs, params, ctx):
 def test_an_ssh_config_is_imported_and_what_it_names_is_checked(
     ssh_config: Path,
 ) -> None:
-    envs = Hmz().environments
+    envs = Hmz().runtimes
 
     (resolved,) = envs.hosts(ssh_config)
     (imported,) = envs.import_ssh(ssh_config)
@@ -158,13 +158,13 @@ def test_an_ssh_config_is_imported_and_what_it_names_is_checked(
 
 
 @pytest.mark.timeout(300)
-def test_a_flow_runs_end_to_end_on_a_provider_imported_from_a_config(
+def test_a_flow_runs_end_to_end_on_a_runtime_imported_from_a_config(
     ssh_config: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from hmz.cli import main
     from tests.stubs import written
 
-    Hmz().environments.import_ssh(ssh_config)
+    Hmz().runtimes.import_ssh(ssh_config)
     workdir = tmp_path / "there"
     workdir.mkdir()
     project = tmp_path / "project"
@@ -192,10 +192,10 @@ def test_a_flow_runs_end_to_end_on_a_provider_imported_from_a_config(
 def test_a_docker_daemon_behind_an_imported_host_is_dialled_through_it(
     ssh_config: Path,
 ) -> None:
-    """Docker's own ssh, told what the provider says by the `ssh` kept with it."""
+    """Docker's own ssh, told what the runtime says by the `ssh` kept with it."""
     if shutil.which("docker") is None:
         pytest.skip("needs docker on the far side, which is this machine")
-    envs = Hmz().environments
+    envs = Hmz().runtimes
     envs.import_ssh(ssh_config)
     here = envs.check(envs.new("docker", "here"))
     if not here.reached:

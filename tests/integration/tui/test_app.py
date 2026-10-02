@@ -1336,7 +1336,7 @@ async def test_settings_is_one_menu_of_six_pages() -> None:
             "settings",
             "workspace",
             "accounts",
-            "environments",
+            "runtimes",
             "fallback",
             "flowverses",
         ]

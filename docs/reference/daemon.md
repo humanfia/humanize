@@ -309,7 +309,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | --- | --- |
 | `role` | The environment role the session works in, `""` if unnamed. |
 | `kind` | `local`, `ssh` or `docker`. |
-| `target` | The ssh host or docker provider; `""` for local. |
+| `target` | The ssh host or docker runtime; `""` for local. |
 | `workdir` | The directory there. |
 | `anchored` | `true` where the agent reaches another machine (ssh and docker environments). |
 

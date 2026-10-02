@@ -104,15 +104,15 @@ def tools(argv: list[str]) -> int: ...
   and a line with no `-b` -- for every flow but `chat`, which runs under `Budget(cost=inf)` -- MUST
   each be a usage error before any agent has started, as MUST a flow that is not there or will not
   load, and `--resume` of a flow that cannot be picked up or has no run to pick up.
-- An `ssh` `<provider>` MUST be the environment provider written down under that name where there
+- An `ssh` `<provider>` MUST be the runtime written down under that name where there
   is one, reached as it says, and otherwise the destination `ssh` is handed; a `docker` one MUST
-  be the docker provider written down under that name, or `local` for docker's default here, and
+  be the docker runtime written down under that name, or `local` for docker's default here, and
   anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
   with one, and the run MUST record the workdir it took.
 - `-H` MUST say where every agent's harness runs, `adaptive` where the line says nothing, and
   MUST be recorded with the run; one that is none of `<where>`, or a standalone machine that is
   this one, MUST be a usage error before any agent has started. A `standalone:<name>` MUST be
-  the environment provider written down under that name, and a machine given no `/<workdir>`
+  the runtime written down under that name, and a machine given no `/<workdir>`
   and saved with none MUST be worked in at the login's home over ssh and, on docker's default
   here, at a directory humanize keeps. `env` where an environment's machine lacks an agent's
   CLI or cannot hold its role's fence, and `standalone` for a role whose permission fences

@@ -195,8 +195,8 @@ diff --git a/calc.py b/calc.py
 The same run, set up in `hmz` rather than on a command line, with the host saved once so that
 nothing about it has to be typed again.
 
-**1. Save the host.** `/settings environments` opens the [Environments
-page](/user/settings#environments). Choose **Add an ssh host**, type the host, and fill in only
+**1. Save the host.** `/settings runtimes` opens the [Runtimes
+page](/user/settings#runtimes). Choose **Add an ssh host**, type the host, and fill in only
 what your ssh config does not already say:
 
 ```text
@@ -275,7 +275,7 @@ A host that needs more than a name (a login, a port, a key, a jump host) is wort
 as in [step 1 above](#example-set-it-up-at-the-prompt). On one saved host, **check** reaches it
 again, **edit** reopens its form, and **remove** forgets it. Saved hosts are offered by name on
 the `host` row of every environment form at `/flow`. What each field means is in
-[Machines › Environment providers](/reference/machines#environment-providers).
+[Machines › Runtimes](/reference/machines#runtimes).
 
 A docker daemon is saved on the same page with **Add a docker host**, and named with
 `-e box=docker@<name>/…`: see
@@ -485,7 +485,7 @@ status 2.
 
 | You see | What to do |
 | --- | --- |
-| `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND@PROVIDER/WORKDIR` | Say where `box` is, with `-e` or at `/flow`. |
+| `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR` | Say where `box` is, with `-e` or at `/flow`. |
 | `ralph_loop has no environment role 'box'; available roles are none` | That flow only works in the directory you start it in. |
 | `onbox: 'workspace' is the workspace the run started in and cannot be set with -e` | Start `hmz` in that directory instead. |
 | `there is no ssh host build-box: …` | Nothing resolves the name. Check your ssh config. |
@@ -569,7 +569,7 @@ async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
   where the account lives in each
 - [CLI › Choosing where the harness runs](/reference/cli#choosing-where-the-harness-runs): `-H`
   exactly
-- [Machines › Environment providers](/reference/machines#environment-providers): every field of
+- [Machines › Runtimes](/reference/machines#runtimes): every field of
   a saved host
 - [humanize in CI](/user/ci): the same `-e` in a scheduled job
 

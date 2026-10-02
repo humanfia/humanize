@@ -148,8 +148,10 @@ def read_line(argv: list[str]) -> Line:
         metavar="ROLE=SPEC[,...]",
         help="where an environment role is: ROLE=local@/abs/path or "
         "ROLE=ssh@[user@]host[:port]/abs/path (ssh@host/~/path under the login's home), "
-        "HOST the name of a saved ssh environment provider or one ssh resolves; "
-        "ROLE=ssh@NAME alone for a saved one's own workdir. "
+        "HOST the name of a saved ssh runtime or one ssh resolves; "
+        "ROLE=docker@NAME/abs/path for a container of its own on the saved docker "
+        "runtime NAME, or docker@local/abs/path on docker's default here; "
+        "ROLE=ssh@NAME or docker@NAME alone for a saved runtime's own workdir. "
         "A role the runtime fills -- the workspace -- is never named",
     )
     parser.add_argument(
@@ -177,7 +179,7 @@ def read_line(argv: list[str]) -> Line:
         "own machine where its CLI is installed there and here otherwise, local here, env "
         "on the environment's machine (refused before the run where its CLI is not there), "
         "or standalone:ENV on a machine of its own named as -e names one (ssh@HOST, "
-        "docker@PROVIDER) or by a saved provider's name, only for roles granted everything: "
+        "docker@RUNTIME) or by a saved runtime's name, only for roles granted everything: "
         "a permission cannot be held around a harness on another machine",
     )
     parser.add_argument(
@@ -435,7 +437,7 @@ class Runner:
         ]:
             raise Refused(
                 f"{named} needs an environment for {_roles(missing)}; specify "
-                "each with -e ROLE=BACKEND@PROVIDER/WORKDIR"
+                "each with -e ROLE=BACKEND@RUNTIME/WORKDIR"
             )
         return drivers, specs
 

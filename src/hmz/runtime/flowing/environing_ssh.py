@@ -423,7 +423,7 @@ class SSHMachine(Machine):
 
         Args:
           provider: The ssh destination: `[user@]host[:port]`, or an alias of ssh's config
-            -- or, with a target, the name of the stored provider that target is.
+            -- or, with a target, the name of the saved runtime that target is.
           target: The coganchor target that reaches it, with whatever ssh is to be told on
             the way, or "" for `ssh://<provider>`.
 

@@ -52,7 +52,7 @@ class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, rol
 @dataclass(frozen=True, slots=True)
 class AgentSpec: ...  # role, harness, provider, model, effort, cli
 @dataclass(frozen=True, slots=True)
-class EnvSpec: ...  # role, backend, provider (a stored provider's name, a host, or
+class EnvSpec: ...  # role, backend, provider (a saved runtime's name, a host, or
                     # `local` for docker's default here), workdir
 ADAPTIVE, LOCAL, ENV, STANDALONE = "adaptive", "local", "env", "standalone"
 HARNESS_MODES = (ADAPTIVE, LOCAL, ENV, STANDALONE)

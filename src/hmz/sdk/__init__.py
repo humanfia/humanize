@@ -50,7 +50,6 @@ if TYPE_CHECKING:
     from hmz.daemon import Daemon, Link
     from hmz.runtime import (
         Accounts,
-        Environments,
         Epics,
         Fallbacks,
         Flows,
@@ -59,6 +58,7 @@ if TYPE_CHECKING:
         Host,
         Refused,
         Run,
+        Runtimes,
     )
     from hmz.runtime.flowing import fakes
     from hmz.sdk.daemons import Daemons
@@ -67,7 +67,6 @@ __all__ = [
     "Accounts",
     "Daemon",
     "Daemons",
-    "Environments",
     "Epics",
     "Fallbacks",
     "Flows",
@@ -77,6 +76,7 @@ __all__ = [
     "Link",
     "Refused",
     "Run",
+    "Runtimes",
     "fakes",
 ]
 
@@ -89,7 +89,6 @@ _WRITTEN = {
     "Accounts": "hmz.runtime",
     "Daemon": "hmz.daemon",
     "Daemons": "hmz.sdk.daemons",
-    "Environments": "hmz.runtime",
     "Epics": "hmz.runtime",
     "Fallbacks": "hmz.runtime",
     "Flows": "hmz.runtime",
@@ -99,6 +98,7 @@ _WRITTEN = {
     "Link": "hmz.daemon",
     "Refused": "hmz.runtime",
     "Run": "hmz.runtime",
+    "Runtimes": "hmz.runtime",
 }
 
 #: What is offered as a module rather than out of one: the fakes are a kit, used as one.

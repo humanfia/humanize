@@ -98,7 +98,7 @@ def asking_for_every_gpu(daemon: None) -> Iterator[str]:
 def test_cpu_and_memory_limits_are_the_kernels_and_are_labelled(
     daemon: None, tmp_path: Path
 ) -> None:
-    # A provider of this test's own, so another run sharing the daemon is not counted.
+    # A runtime of this test's own, so another run sharing the daemon is not counted.
     ours = {"humanize.provider": f"test-{uuid.uuid4().hex[:8]}"}
     machine = DockerConfig(
         image=IMAGE,

@@ -1,8 +1,8 @@
-"""An environment provider on disk: written down, read back, listed, reached, taken away.
+"""A runtime on disk: written down, read back, listed, reached, taken away.
 
 The store touches a filesystem and nothing else -- it reaches no machine and starts no process
--- so what is checked here is that a provider survives the round trip, that a listing is what
-can actually be used, that what no provider could be is refused before it is a directory, and
+-- so what is checked here is that a runtime survives the round trip, that a listing is what
+can actually be used, that what no runtime could be is refused before it is a directory, and
 that what is written down comes to exactly the `ssh` and `docker` command lines it says.
 """
 
@@ -16,7 +16,7 @@ import pytest
 
 from hmz import home
 from hmz.coganchor.machines import AnchoredConfig, store
-from hmz.coganchor.machines.store import DockerProvider, SSHProvider
+from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime
 from hmz.coganchor.transport import Endpoint, Target, ssh_flags
 from hmz.flows import EnvBackendKind, EnvUnavailable
 from hmz.runtime.flowing.environing import MachineEnvDriver
@@ -25,7 +25,7 @@ from hmz.runtime.flowing.environments import open_env
 from hmz.runtime.flowing.specs import EnvSpecError, parse_envs
 from hmz.sdk import Hmz
 
-#: Names a directory could hold and a provider may not have.
+#: Names a directory could hold and a runtime may not have.
 _NOT_NAMES = [
     "",
     ".",
@@ -47,9 +47,9 @@ def _mode(at: Path) -> int:
     return stat.S_IMODE(at.stat().st_mode)
 
 
-def test_an_ssh_provider_is_read_back_as_it_was_written_down() -> None:
+def test_an_ssh_runtime_is_read_back_as_it_was_written_down() -> None:
     written = store.add(
-        SSHProvider(
+        SSHRuntime(
             name="gpu",
             host="10.0.0.2",
             user="me",
@@ -62,7 +62,7 @@ def test_an_ssh_provider_is_read_back_as_it_was_written_down() -> None:
     )
 
     assert store.find("ssh", "gpu") == written
-    held = json.loads((home() / "env-providers/ssh/gpu/provider.json").read_text())
+    held = json.loads((home() / "runtimes/ssh/gpu/runtime.json").read_text())
     assert held == {
         "backend": "ssh",
         "name": "gpu",
@@ -79,7 +79,7 @@ def test_an_ssh_provider_is_read_back_as_it_was_written_down() -> None:
     }
 
 
-def test_a_docker_provider_is_read_back_as_it_was_written_down() -> None:
+def test_a_docker_runtime_is_read_back_as_it_was_written_down() -> None:
     written = store.write(
         store.new(
             "docker",
@@ -99,7 +99,7 @@ def test_a_docker_provider_is_read_back_as_it_was_written_down() -> None:
 
     read = store.find("docker", "box")
     assert read == written
-    assert isinstance(read, DockerProvider)
+    assert isinstance(read, DockerRuntime)
     assert (read.cpus, read.run_args, read.gpus) == (
         8.0,
         ("--shm-size", "1g"),
@@ -109,69 +109,97 @@ def test_a_docker_provider_is_read_back_as_it_was_written_down() -> None:
 
 
 def test_every_level_is_this_users_alone() -> None:
-    """What a provider says is where somebody's machines are, and how they are logged into."""
-    store.add(SSHProvider(name="gpu", host="gpu"))
+    """What a runtime says is where somebody's machines are, and how they are logged into."""
+    store.add(SSHRuntime(name="gpu", host="gpu"))
 
     for at in (home(), store.under(), store.under() / "ssh", store.where("ssh", "gpu")):
         assert _mode(at) == 0o700, at
-    assert _mode(store.where("ssh", "gpu") / "provider.json") == 0o600
+    assert _mode(store.where("ssh", "gpu") / "runtime.json") == 0o600
 
 
-def test_every_provider_is_listed_by_backend_and_then_by_name() -> None:
-    store.add(SSHProvider(name="second", host="b"))
-    store.add(DockerProvider(name="only"))
-    store.add(SSHProvider(name="first", host="a"))
+def test_every_runtime_is_listed_by_backend_and_then_by_name() -> None:
+    store.add(SSHRuntime(name="second", host="b"))
+    store.add(DockerRuntime(name="only"))
+    store.add(SSHRuntime(name="first", host="a"))
 
-    assert [(one.backend, one.name) for one in store.providers()] == [
+    assert [(one.backend, one.name) for one in store.runtimes()] == [
         ("ssh", "first"),
         ("ssh", "second"),
         ("docker", "only"),
     ]
-    assert [one.name for one in store.providers("docker")] == ["only"]
-    assert store.providers("nope") == []
+    assert [one.name for one in store.runtimes("docker")] == ["only"]
+    assert store.runtimes("nope") == []
 
 
 def test_nothing_is_listed_where_nothing_has_ever_been_written_down() -> None:
     assert not store.under().exists()
-    assert store.providers() == []
+    assert store.runtimes() == []
     assert store.find("ssh", "gpu") is None
 
 
-def test_a_directory_holding_nothing_usable_is_not_a_provider() -> None:
-    folder = store.add(SSHProvider(name="usable", host="h")).at.parent
+def test_what_was_kept_as_environment_providers_is_moved_and_read() -> None:
+    """The directory they were kept in moves in one piece, and an old file is read as it is."""
+    old = home() / "env-providers"
+    (old / "docker" / "foo").mkdir(parents=True)
+    (old / "docker" / "foo" / "provider.json").write_text(
+        json.dumps({"backend": "docker", "name": "foo", "cpus": 2})
+    )
+    (old / "docker" / ".foo.lock").write_text("")
+
+    assert store.runtimes() == [DockerRuntime(name="foo", cpus=2.0)]
+    assert not old.exists()
+    assert (home() / "runtimes" / "docker" / ".foo.lock").exists()
+    at = store.where("docker", "foo")
+    assert (at / "provider.json").exists()
+
+    store.write(DockerRuntime(name="foo", cpus=4))
+    assert sorted(one.name for one in at.iterdir()) == ["runtime.json"]
+    assert store.find("docker", "foo") == DockerRuntime(name="foo", cpus=4.0)
+
+
+def test_what_is_kept_now_is_not_written_over_by_what_was_kept_before() -> None:
+    store.add(SSHRuntime(name="new", host="h"))
+    (home() / "env-providers" / "ssh" / "old").mkdir(parents=True)
+
+    assert [one.name for one in store.runtimes()] == ["new"]
+    assert (home() / "env-providers").exists()
+
+
+def test_a_directory_holding_nothing_usable_is_not_a_runtime() -> None:
+    folder = store.add(SSHRuntime(name="usable", host="h")).at.parent
     for name, said in (
         ("broken", "{ not json"),
         ("listed", '["not", "a", "mapping"]'),
-        ("wrong", json.dumps({"host": "", "alias": ""})),  # neither: no provider
+        ("wrong", json.dumps({"host": "", "alias": ""})),  # neither: no runtime
         ("unknown", json.dumps({"host": "h", "colour": "red"})),
     ):
         (folder / name).mkdir()
-        (folder / name / "provider.json").write_text(said)
+        (folder / name / "runtime.json").write_text(said)
     (folder / "empty").mkdir()
     (folder / ".hidden").mkdir()
 
-    assert [one.name for one in store.providers()] == ["usable"]
+    assert [one.name for one in store.runtimes()] == ["usable"]
     for name in ("broken", "listed", "wrong", "unknown", "empty", ".hidden"):
         assert store.find("ssh", name) is None
 
 
-def test_where_a_provider_is_kept_is_what_it_is() -> None:
+def test_where_a_runtime_is_kept_is_what_it_is() -> None:
     """The place is the answer; the file only describes it, and may describe it wrongly."""
-    at = store.add(SSHProvider(name="mine", host="h")).at
-    (at / "provider.json").write_text(
+    at = store.add(SSHRuntime(name="mine", host="h")).at
+    (at / "runtime.json").write_text(
         json.dumps({"backend": "docker", "name": "other", "host": "there"})
     )
 
-    assert store.find("ssh", "mine") == SSHProvider(name="mine", host="there")
+    assert store.find("ssh", "mine") == SSHRuntime(name="mine", host="there")
 
 
 @pytest.mark.parametrize("name", _NOT_NAMES)
 def test_a_name_that_is_not_a_name_is_refused(name: str) -> None:
-    with pytest.raises(ValueError, match="invalid environment provider name"):
+    with pytest.raises(ValueError, match="invalid runtime name"):
         store.where("ssh", name)
-    with pytest.raises(ValueError, match="invalid environment provider name"):
-        SSHProvider(name=name, host="h")
-    with pytest.raises(ValueError, match="invalid environment provider name"):
+    with pytest.raises(ValueError, match="invalid runtime name"):
+        SSHRuntime(name=name, host="h")
+    with pytest.raises(ValueError, match="invalid runtime name"):
         store.remove("docker", name)
     assert store.find("ssh", name) is None
     assert not store.under().exists()
@@ -179,22 +207,22 @@ def test_a_name_that_is_not_a_name_is_refused(name: str) -> None:
 
 def test_a_backend_that_is_not_one_is_refused() -> None:
     for doing in (store.where, store.new, store.remove):
-        with pytest.raises(ValueError, match="not an environment backend"):
+        with pytest.raises(ValueError, match="not a runtime backend"):
             doing("local", "mine")
     assert store.find("local", "mine") is None
 
 
 def test_adding_one_already_there_is_refused_and_writing_one_replaces_it() -> None:
-    store.add(SSHProvider(name="gpu", host="a", workdir="/srv"))
+    store.add(SSHRuntime(name="gpu", host="a", workdir="/srv"))
 
     with pytest.raises(ValueError, match="ssh host 'gpu' already exists"):
-        store.add(SSHProvider(name="gpu", host="b"))
-    assert store.write(SSHProvider(name="gpu", host="b")) == store.find("ssh", "gpu")
-    assert store.find("ssh", "gpu") == SSHProvider(name="gpu", host="b")
+        store.add(SSHRuntime(name="gpu", host="b"))
+    assert store.write(SSHRuntime(name="gpu", host="b")) == store.find("ssh", "gpu")
+    assert store.find("ssh", "gpu") == SSHRuntime(name="gpu", host="b")
 
 
 def test_one_is_taken_away_whole() -> None:
-    at = store.add(SSHProvider(name="gpu", host="a")).at
+    at = store.add(SSHRuntime(name="gpu", host="a")).at
 
     assert store.remove("ssh", "gpu")
     assert not at.exists()
@@ -224,7 +252,7 @@ def test_one_is_taken_away_whole() -> None:
         ({"host": "h", "made": "guessed"}, "typed or imported, not 'guessed'"),
     ],
 )
-def test_what_no_ssh_provider_could_be_is_refused(
+def test_what_no_ssh_runtime_could_be_is_refused(
     fields: dict[str, object], said: str
 ) -> None:
     with pytest.raises(ValueError, match=said):
@@ -246,7 +274,7 @@ def test_what_no_ssh_provider_could_be_is_refused(
         ({"endpoint": "context:"}, "is not a docker endpoint"),
         ({"tls_dir": "/certs"}, "require a tcp:// endpoint"),
         ({"image": "two words"}, "invalid image"),
-        ({"runtime": "-x"}, "invalid runtime"),
+        ({"runtime": "-x"}, "invalid OCI runtime"),
         ({"gpus": ["0", "0"]}, "duplicate GPU"),
         ({"gpus": ["0,1"]}, "invalid GPU id"),
         ({"cpus": -1}, "CPUs cannot be negative"),
@@ -258,7 +286,7 @@ def test_what_no_ssh_provider_could_be_is_refused(
         ({"host": "h"}, "unknown docker host setting 'host'"),
     ],
 )
-def test_what_no_docker_provider_could_be_is_refused(
+def test_what_no_docker_runtime_could_be_is_refused(
     fields: dict[str, object], said: str
 ) -> None:
     with pytest.raises(ValueError, match=said):
@@ -278,20 +306,20 @@ def test_what_no_docker_provider_could_be_is_refused(
     ],
 )
 def test_every_kind_of_endpoint_is_taken(endpoint: str) -> None:
-    assert DockerProvider(name="d", endpoint=endpoint).endpoint == endpoint
+    assert DockerRuntime(name="d", endpoint=endpoint).endpoint == endpoint
 
 
 def test_what_json_holds_is_read_as_the_field_holds_it() -> None:
     made = store.new("ssh", "gpu", host="h", port=22.0, options={"A": 1})
 
-    assert made == SSHProvider(name="gpu", host="h", port=22, options={"A": "1"})
+    assert made == SSHRuntime(name="gpu", host="h", port=22, options={"A": "1"})
 
 
 # ----------------------------------------------------------------------- reaching one
 
 
 def test_what_is_written_down_is_what_ssh_is_told() -> None:
-    provider = SSHProvider(
+    provider = SSHRuntime(
         name="gpu",
         host="10.0.0.2",
         user="me",
@@ -325,8 +353,8 @@ def test_what_is_written_down_is_what_ssh_is_told() -> None:
 
 
 def test_an_imported_host_is_left_for_its_config_to_resolve() -> None:
-    plain = SSHProvider(name="gpu", alias="gpu-box")
-    elsewhere = SSHProvider(name="gpu", alias="gpu-box", config="/cfg", host="10.9.9.9")
+    plain = SSHRuntime(name="gpu", alias="gpu-box")
+    elsewhere = SSHRuntime(name="gpu", alias="gpu-box", config="/cfg", host="10.9.9.9")
 
     assert plain.target() == "ssh://gpu-box"
     assert plain.destination() == "gpu-box"
@@ -374,7 +402,7 @@ def test_an_ssh_target_with_what_is_no_option_is_refused(spec: str) -> None:
 def test_an_endpoint_is_what_docker_is_told(
     endpoint: str, args: tuple[str, ...]
 ) -> None:
-    daemon = DockerProvider(name="d", endpoint=endpoint).daemon()
+    daemon = DockerRuntime(name="d", endpoint=endpoint).daemon()
 
     assert daemon == Endpoint.parse(endpoint)
     said = daemon.docker("info")
@@ -403,19 +431,19 @@ def test_a_tls_daemon_is_told_where_its_certificates_are() -> None:
 
 
 def test_a_path_under_no_home_there_is_is_refused_where_it_is_written_down() -> None:
-    """A `~user` the machine has no user for is a provider nothing could reach."""
+    """A `~user` the machine has no user for is a runtime nothing could reach."""
     for provider in (
-        SSHProvider(name="s", host="h", config=f"{_NOBODY}/config"),
-        DockerProvider(name="d", endpoint="tcp://h:2376", tls_dir=f"{_NOBODY}/certs"),
+        SSHRuntime(name="s", host="h", config=f"{_NOBODY}/config"),
+        DockerRuntime(name="d", endpoint="tcp://h:2376", tls_dir=f"{_NOBODY}/certs"),
     ):
         with pytest.raises(ValueError, match="home directory not found"):
             store.add(provider)
         with pytest.raises(ValueError, match="home directory not found"):
             store.write(provider)
-    assert store.providers() == []
+    assert store.runtimes() == []
 
 
-def test_a_provider_whose_home_has_gone_is_listed_and_checked_without_raising() -> None:
+def test_a_runtime_whose_home_has_gone_is_listed_and_checked_without_raising() -> None:
     """One written down while its home was there: still listed, and asked, said why."""
     for backend, name, field, path in (
         ("docker", "d", "tls_dir", f"{_NOBODY}/certs"),
@@ -428,16 +456,16 @@ def test_a_provider_whose_home_has_gone_is_listed_and_checked_without_raising() 
             if backend == "docker"
             else {"host": "h"}
         )
-        (at / "provider.json").write_text(json.dumps({**held, field: path}))
+        (at / "runtime.json").write_text(json.dumps({**held, field: path}))
 
-    listed = store.providers()
+    listed = store.runtimes()
 
     assert [(one.backend, one.name) for one in listed] == [
         ("ssh", "s"),
         ("docker", "d"),
     ]
     for provider in listed:
-        checked = Hmz().environments.check(provider, seconds=5)
+        checked = Hmz().runtimes.check(provider, seconds=5)
 
         assert not checked.reached
         assert "home directory not found" in checked.said
@@ -446,8 +474,8 @@ def test_a_provider_whose_home_has_gone_is_listed_and_checked_without_raising() 
 
 
 def test_a_daemon_behind_a_stored_ssh_host_is_dialled_as_that_host_says() -> None:
-    store.add(SSHProvider(name="plain", host="gpu", user="me", port=2222))
-    store.add(SSHProvider(name="keyed", host="gpu", identity_file="~/.ssh/k"))
+    store.add(SSHRuntime(name="plain", host="gpu", user="me", port=2222))
+    store.add(SSHRuntime(name="keyed", host="gpu", identity_file="~/.ssh/k"))
 
     plain = store.daemon_of("ssh:plain")
     keyed = store.daemon_of("ssh:keyed")
@@ -472,8 +500,8 @@ def test_a_daemon_behind_a_stored_ssh_host_is_dialled_as_that_host_says() -> Non
 # ------------------------------------------------------------------------- what -e names
 
 
-def test_an_e_naming_a_stored_provider_reaches_it_as_it_says() -> None:
-    provider = SSHProvider(
+def test_an_e_naming_a_stored_runtime_reaches_it_as_it_says() -> None:
+    provider = SSHRuntime(
         name="gpu", host="10.0.0.2", user="me", options={"LogLevel": "ERROR"}
     )
     store.add(provider)
@@ -493,7 +521,7 @@ def test_an_e_naming_a_stored_provider_reaches_it_as_it_says() -> None:
     assert placement.machine.anchor.target == provider.target()
 
 
-def test_an_e_naming_no_stored_provider_is_the_host_ssh_is_handed() -> None:
+def test_an_e_naming_no_stored_runtime_is_the_host_ssh_is_handed() -> None:
     (spec,) = parse_envs(["box=ssh@me@gpu-box:22/srv"])
     driver = open_env(spec)
 
@@ -502,20 +530,20 @@ def test_an_e_naming_no_stored_provider_is_the_host_ssh_is_handed() -> None:
     assert driver._machine.target == "ssh://me@gpu-box:22"
 
 
-def test_an_e_naming_a_stored_provider_that_cannot_be_read_is_refused() -> None:
+def test_an_e_naming_a_stored_runtime_that_cannot_be_read_is_refused() -> None:
     """Rather than taken for a host of that name, which is somewhere nobody meant."""
-    at = store.add(SSHProvider(name="gpu", host="10.0.0.2")).at
-    (at / "provider.json").write_text("{ broken")
+    at = store.add(SSHRuntime(name="gpu", host="10.0.0.2")).at
+    (at / "runtime.json").write_text("{ broken")
 
     (spec,) = parse_envs(["box=ssh@gpu/srv"])
     with pytest.raises(EnvUnavailable, match="'gpu' cannot be read"):
         open_env(spec)
 
 
-def test_an_e_with_no_workdir_takes_the_one_its_provider_was_given() -> None:
-    store.add(SSHProvider(name="home", host="h", workdir="~/proj"))
-    store.add(SSHProvider(name="root", host="h", workdir="/srv/proj"))
-    store.add(SSHProvider(name="none", host="h"))
+def test_an_e_with_no_workdir_takes_the_one_its_runtime_was_given() -> None:
+    store.add(SSHRuntime(name="home", host="h", workdir="~/proj"))
+    store.add(SSHRuntime(name="root", host="h", workdir="/srv/proj"))
+    store.add(SSHRuntime(name="none", host="h"))
 
     assert parse_envs(["a=ssh@home", "b=ssh@root"]) == parse_envs(
         ["a=ssh@home/~/proj", "b=ssh@root/srv/proj"]

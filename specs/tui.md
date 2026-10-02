@@ -87,8 +87,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   this machine's own account as `as local`, models known runnable as the chosen account, and
   efforts that model takes -- and letting an account be made where one is asked for. An
   environment role MUST be set by its backend -- every one `-e` takes -- then, for a backend
-  that has them, a provider of it saved on the environments page, one made there and then, or
-  for ssh a host not saved, then its directory, starting from the one that provider is saved
+  that has them, a runtime of it saved on the runtimes page, one made there and then, or
+  for ssh a host not saved, then its directory, starting from the one that runtime is saved
   with; MUST come to what `-e` spells, refused as `-e` refuses it; and MUST take that spelling
   typed whole as well.
 - MUST be whoever is outside a run, once per outworlder: a question one puts MUST be shown on
@@ -120,13 +120,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST offer on the flowverses page of `/settings`, per place flows come from, what it holds,
   adding one, fetching it again and taking one away, against the same store the flows are read
   from, with any credential in a URL hidden.
-- MUST list on the environments page of `/settings` every environment provider under its
+- MUST list on the runtimes page of `/settings` every runtime under its
   backend -- ssh hosts, and docker daemons with what each may hand out -- and offer making either
   on one form wherever one is asked for, importing the hosts an ssh config names -- the user's
   own or another file, switched on per host and saved already or not, never writing to it --
-  and per provider correcting it, checking it and taking it away; MUST ask one what it has when
+  and per runtime correcting it, checking it and taking it away; MUST ask one what it has when
   it is made or corrected on that page and when it is checked, an import asking none -- an ssh
-  host its home, CPUs, memory and GPUs, a docker daemon its CPUs, memory, GPUs and runtimes and
+  host its home, CPUs, memory and GPUs, a docker daemon its CPUs, memory, GPUs and OCI runtimes and
   what it is saved to hand out that it has not got -- off the drawing path, saying why where it
   cannot be reached; MUST apply all of it at once, so that the page holds nothing; and MUST NOT
   read a key it names.
@@ -170,10 +170,11 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   and refusing, where enter was pressed, to edit a line the flow owns.
 - MUST make `/settings [page]` the one menu of every setting, a screen of its own in six pages
   -- settings for this machine (reporting, details, and the btw agent where there is one),
-  workspace for this directory, accounts, environments, fallback and flowverses -- opening on
+  workspace for this directory, accounts, runtimes, fallback and flowverses -- opening on
   those pages alone and going into one on `enter` or a click and back out on `esc`, or straight
-  into the one named `settings`, `workspace`, `accounts`, `environments`, `fallback` or
-  `flowverses`, offered as it is typed, or by its old name `everywhere` or `directory`, refusing
+  into the one named `settings`, `workspace`, `accounts`, `runtimes`, `fallback` or
+  `flowverses`, offered as it is typed, or by its old name `everywhere`, `directory` or
+  `environments`, refusing
   any other; forget this directory alone; keep what each page last said while another is read;
   and remember whether details are shown.
 - MUST apply each saved setting at once where it can, and otherwise say beside its row and in

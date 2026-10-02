@@ -274,7 +274,7 @@ refused a cut network: their web search runs on their vendor's own servers.
 :::
 
 ::: details The rows about other machines need docker
-`test_ssh_env` and `test_ssh_provider` run their agent on another machine: an `sshd` in a
+`test_ssh_env` and `test_ssh_runtime` run their agent on another machine: an `sshd` in a
 container, built from `python:3.12-slim` the first time it is asked for (`ssh_box` in
 `tests/flows/sshd.py`). Pull that image once with `docker pull python:3.12-slim`; without
 docker, or without the image, the rows skip and say so. A loopback `sshd` will not do here: an
@@ -286,7 +286,7 @@ on the file they were read from.
 agent's environment in a container of `python:3.12-slim` on docker's default here; the GPU row
 skips where that daemon lists no NVIDIA GPU by its CDI name. `test_docker_env_remote` puts it
 on a daemon somewhere else: docker's own daemon in a privileged container, `docker:dind` with
-an `sshd` added (`docker_box`), reached through a saved ssh provider, with `python:3.12-slim`
+an `sshd` added (`docker_box`), reached through a saved ssh runtime, with `python:3.12-slim`
 loaded into it from here. Pull that one too with `docker pull docker:dind`. Its directories
 are not this machine's, so the row can tell a workdir that was mounted there from one that
 was not.

@@ -1,7 +1,7 @@
 """A container of its own on a docker daemon, as an environment driver does its work in it.
 
 One container per environment a run is given: brought up from the image the role declares --
-else the provider's, else :data:`IMAGE` -- on the daemon a docker provider names, holding the
+else the runtime's, else :data:`IMAGE` -- on the daemon a docker runtime names, holding the
 workdir at the path it has on the daemon's host, and given exactly the CPUs, memory and GPUs
 the role declares as hard limits. Everything derived from that environment -- a subdirectory, a
 worktree, a temporary copy, a scratch directory -- is inside the same container; what is not
@@ -12,11 +12,11 @@ serving half is put in the container and started with `docker exec`, which is al
 needs besides `/bin/sh` and a Python -- no sshd -- and an agent working here is anchored to the
 same container, supervised on this machine with every command it runs landing in there.
 
-What a provider may hand out is shared between every run on this machine by a lock on the
-provider: what its running containers already hold is read off their labels, what the role
+What a runtime may hand out is shared between every run on this machine by a lock on the
+runtime: what its running containers already hold is read off their labels, what the role
 asks is checked against what is left, and the container that takes it is running -- labelled
 with what it took -- before the next run is let ask. A run that died without taking its
-containers down leaves them labelled with its host and pid, and the next run on that provider
+containers down leaves them labelled with its host and pid, and the next run on that runtime
 takes down any whose process is gone.
 """
 
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor import AnchorConfig
     from hmz.coganchor.machines import Allocation, Docker
-    from hmz.coganchor.machines.store import DockerProvider
+    from hmz.coganchor.machines.store import DockerRuntime
     from hmz.coganchor.transport import Endpoint
 
     from .declaring import EnvRole
@@ -73,14 +73,14 @@ __all__ = [
     "shared",
 ]
 
-#: What a container is started from where neither the role nor the provider says: small, and
+#: What a container is started from where neither the role nor the runtime says: small, and
 #: holding the `/bin/sh` and the Python the serving half needs.
 IMAGE = "python:3.12-slim"
 
-#: The provider docker's default here is named by, where no provider is written down under it.
+#: The runtime docker's default here is named by, where no runtime is written down under it.
 LOCAL = "local"
 
-#: What a container a harness runs in is started with besides what its provider says. The
+#: What a container a harness runs in is started with besides what its runtime says. The
 #: supervisor there borrows each command's descriptors from the agent with `pidfd_getfd`,
 #: which docker's default seccomp profile refuses a container not given `CAP_SYS_PTRACE`.
 #: One opened again through `/proc` stands in for a pipe or a tty, but not for a socket --
@@ -89,12 +89,12 @@ LOCAL = "local"
 #: processes are the harness's own.
 TRACING = ("--cap-add", "SYS_PTRACE")
 
-#: What a container is labelled with besides what it holds: the provider it was handed out
+#: What a container is labelled with besides what it holds: the runtime it was handed out
 #: by, the role it is for, and the host and process that brought it up -- which is what tells
 #: a container a run left behind when it died from one a run is still using.
 PROVIDER = "humanize.provider"
 
-#: How long a daemon is given to answer each question asked of it while its provider is held
+#: How long a daemon is given to answer each question asked of it while its runtime is held
 #: against every other run: one that has stopped answering must not hold them all.
 _ASKING = 60.0
 ROLE = "humanize.role"
@@ -124,7 +124,7 @@ class Asked:
 
 @dataclass(frozen=True, slots=True)
 class Has:
-    """What a provider may hand out, all told.
+    """What a runtime may hand out, all told.
 
     Attributes:
       cpus: CPUs.
@@ -168,14 +168,14 @@ class Share:
 
 
 def has_of(
-    provider: DockerProvider | None,
+    runtime: DockerRuntime | None,
     info: Mapping[str, Any],
     usable: Sequence[tuple[str, str]] | None = None,
 ) -> Has:
-    """What a provider may hand out: as written down, the daemon's own for what is 0.
+    """What a runtime may hand out: as written down, the daemon's own for what is 0.
 
     Args:
-      provider: The provider, or None for docker's default here, which may hand out all of
+      runtime: The runtime, or None for docker's default here, which may hand out all of
         what its daemon has.
       info: What `docker info` said of the daemon.
       usable: The GPUs of its host that answer, as
@@ -188,7 +188,7 @@ def has_of(
     memory = int(info.get("MemTotal") or 0)
     # NVIDIA's alone, being the one kind a container is handed a GPU of.
     devices = cast("list[Any]", info.get("DiscoveredDevices") or [])
-    named = provider.gpus if provider is not None and provider.gpus else ()
+    named = runtime.gpus if runtime is not None and runtime.gpus else ()
     named = named or gpus_listed(devices, CDI)
     if usable is not None and not named:
         # A daemon that lists none by name, but hands a container every GPU it is asked
@@ -196,14 +196,14 @@ def has_of(
         named = tuple(name for name, _ in usable)
     gpus, known = (named, {}) if usable is None else _answering(named, usable, devices)
     listed = None if usable is None else len(named)
-    if provider is None:
+    if runtime is None:
         return Has(cpus, memory, gpus, listed=listed, known=known)
     return Has(
-        provider.cpus or cpus,
-        provider.memory or memory,
+        runtime.cpus or cpus,
+        runtime.memory or memory,
         gpus,
-        provider.gpu_memory,
-        provider.max_containers,
+        runtime.gpu_memory,
+        runtime.max_containers,
         listed=listed,
         known=known,
     )
@@ -219,7 +219,7 @@ def _answering(
     that is the same GPU however `nvidia-smi` numbers them by then.
 
     Args:
-      named: The GPUs the provider may hand out, by name or by UUID.
+      named: The GPUs the runtime may hand out, by name or by UUID.
       usable: The GPUs that answer, as `(name, uuid)`.
       devices: `DiscoveredDevices`, as `docker info` says it.
 
@@ -257,7 +257,7 @@ def shared(
 
     Args:
       asked: What the role asks.
-      has: What the provider may hand out, all told.
+      has: What the runtime may hand out, all told.
       held: What each of its running containers already holds.
       where: The provider, as a message names it: `docker@<name>`.
       role: The role, as a message names it.
@@ -315,7 +315,7 @@ def shared(
                 if has.bound
                 else " (no GPU of its host answers)"
                 if has.listed is not None
-                else " (its daemon lists no GPU by name: say which in the provider's gpus)"
+                else " (its daemon lists no GPU by name: say which in the runtime's gpus)"
             )
         )
     if asked.gpus and asked.gpu_memory and 0 < has.gpu_memory < asked.gpu_memory:
@@ -371,9 +371,9 @@ def _bytes(amount: int) -> str:
 
 @contextlib.contextmanager
 def _held(provider: str) -> Generator[None]:
-    """Holds a provider against every other run on this machine asking it for a container.
+    """Holds a runtime against every other run on this machine asking it for a container.
 
-    A lock file beside the providers, one per provider, held while what is free is worked out
+    A lock file beside the runtimes, one per runtime, held while what is free is worked out
     and the container that takes its share is started, and let go of by the kernel however
     the process holding it ends.
     """
@@ -454,7 +454,7 @@ class DockerMachine(SSHMachine):
         provider: str,
         workdir: PurePosixPath,
         *,
-        stored: DockerProvider | None = None,
+        stored: DockerRuntime | None = None,
         role: EnvRole | None = None,
         named: str = "",
         traced: bool = False,
@@ -462,16 +462,16 @@ class DockerMachine(SSHMachine):
         """Initializes a machine whose container has not been started.
 
         Args:
-          provider: The docker provider's name, or :data:`LOCAL` for docker's default here.
+          provider: The docker runtime's name, or :data:`LOCAL` for docker's default here.
           workdir: The directory of the daemon's host the container holds, absolute.
-          stored: The provider as it is written down, or None for docker's default here.
+          stored: The runtime as it is written down, or None for docker's default here.
           role: What the container is for, whose image and resources it is started with;
             None asks for nothing.
           named: The role's name, where there is no role to read it off.
           traced: Whether a harness runs in it, which starts it with :data:`TRACING`.
 
         Raises:
-          EnvUnavailable: If the provider's endpoint cannot be reached as it is written.
+          EnvUnavailable: If the runtime's endpoint cannot be reached as it is written.
         """
         from hmz.coganchor.transport import Endpoint, Target
 
@@ -512,10 +512,10 @@ class DockerMachine(SSHMachine):
     # --- bringing it up
 
     def _brought_up(self) -> tuple[Docker, Share]:
-        """Works out its share and starts it, holding the provider while it does.
+        """Works out its share and starts it, holding the runtime while it does.
 
         Raises:
-          ResourceUnmet: If the provider has not got what the role asks left.
+          ResourceUnmet: If the runtime has not got what the role asks left.
           EnvUnavailable: If the container cannot be started there.
           EnvConnectionError: If the daemon cannot be asked.
         """

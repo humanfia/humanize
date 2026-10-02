@@ -245,12 +245,12 @@ runs](/user/remote-execution#where-the-agent-runs).
 ### `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker`
 
 **Symptom.** `hmz exec` prints its usage, then this, or
-`no environment provider is saved as '<name>'` for a bare name, or
+`no runtime is saved as '<name>'` for a bare name, or
 `docker@gpubox is not saved with a workdir of its own` for a docker daemon.
 
 **Cause.** What follows `standalone:` is a machine: `ssh@<host>[/<workdir>]`,
-`docker@<provider>[/<workdir>]`, or the name of an environment provider saved on the
-[Environments page](/user/settings#environments). A docker daemon nobody saved needs its
+`docker@<provider>[/<workdir>]`, or the name of a runtime saved on the
+[runtimes page](/user/settings#runtimes). A docker daemon nobody saved needs its
 directory said.
 
 **Fix.** Write it as one of those, such as `-H standalone:ssh@gpu-box` or
@@ -800,7 +800,7 @@ These come from an agent whose work lands on another machine: an `ssh@` or `dock
 environment given with `-e`, a container, or a [remote execution](/user/remote-execution)
 target.
 
-### `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND@PROVIDER/WORKDIR`
+### `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR`
 
 **Symptom.** `hmz exec` refuses the line before anything runs.
 
@@ -868,7 +868,7 @@ resource that is short (containers, CPUs, memory, GPUs) and which containers hol
 containers of humanize's already hold it.
 
 **Fix.** Wait for those runs to end, stop them, or give the daemon more to hand out on the
-[Environments page of `/settings`](/user/settings#environments). A daemon that names no GPU says
+[runtimes page of `/settings`](/user/settings#runtimes). A daemon that names no GPU says
 so: list its GPUs there.
 
 **Verify.** The line gets past the check.
@@ -1010,7 +1010,7 @@ not one humanize can read. A socket path and a `?tls=` directory must be absolut
 **Fix.** Write it in one of the forms the message lists. See
 [Endpoints](/reference/machines#endpoints).
 
-**Verify.** Saving the daemon on the Environments page of `/settings` checks it and succeeds.
+**Verify.** Saving the daemon on the runtimes page of `/settings` checks it and succeeds.
 
 ### `no directory to give the container on …`
 

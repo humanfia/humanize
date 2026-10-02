@@ -1,4 +1,4 @@
-"""The hosts an ssh config names, and importing them as environment providers.
+"""The hosts an ssh config names, and importing them as runtimes.
 
 Read off files the test writes, never the user's own `~/.ssh`: `HOME` is a directory of the
 test's, so that the one config read without being named is one it wrote. What a host resolves
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.machines import sshconfig, store
-from hmz.coganchor.machines.store import IMPORTED, SSHProvider
+from hmz.coganchor.machines.store import IMPORTED, SSHRuntime
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -106,7 +106,7 @@ def test_no_config_names_no_host(tmp_path: Path) -> None:
     assert sshconfig.aliases(tmp_path / "missing") == []
 
 
-def test_importing_writes_a_provider_per_host_naming_the_alias(
+def test_importing_writes_a_runtime_per_host_naming_the_alias(
     user_home: Path, tmp_path: Path
 ) -> None:
     (user_home / ".ssh" / "config").write_text("Host gpu builder\n")
@@ -117,15 +117,15 @@ def test_importing_writes_a_provider_per_host_naming_the_alias(
     theirs = store.imports(config)
 
     assert own == [
-        SSHProvider(name="gpu", alias="gpu", made=IMPORTED),
-        SSHProvider(name="builder", alias="builder", made=IMPORTED),
+        SSHRuntime(name="gpu", alias="gpu", made=IMPORTED),
+        SSHRuntime(name="builder", alias="builder", made=IMPORTED),
     ]
     assert theirs == [
-        SSHProvider(
+        SSHRuntime(
             name="elsewhere", alias="elsewhere", config=str(config), made=IMPORTED
         ),
     ]
-    assert [one.name for one in store.providers("ssh")] == [
+    assert [one.name for one in store.runtimes("ssh")] == [
         "builder",
         "elsewhere",
         "gpu",
@@ -146,7 +146,7 @@ def test_importing_leaves_one_already_there_unless_told_to_update(
         gpu, alias="elsewhere", workdir="/srv"
     )
     (updated,) = store.imports(config, ["gpu"], update=True)
-    assert updated == SSHProvider(
+    assert updated == SSHRuntime(
         name="gpu", alias="gpu", config=str(config), workdir="/srv", made=IMPORTED
     )
 
@@ -154,7 +154,7 @@ def test_importing_leaves_one_already_there_unless_told_to_update(
 def test_one_typed_in_is_never_written_over_by_an_import(tmp_path: Path) -> None:
     config = tmp_path / "config"
     config.write_text("Host gpu\nHost other\n")
-    typed = SSHProvider(name="gpu", host="10.0.0.2", user="me", port=2222)
+    typed = SSHRuntime(name="gpu", host="10.0.0.2", user="me", port=2222)
     store.add(typed)
 
     assert [one.name for one in store.imports(config, update=True)] == ["other"]
@@ -171,7 +171,7 @@ def test_two_hosts_one_name_are_not_both_imported(tmp_path: Path) -> None:
         ValueError, match="a-b cannot be imported: a\\+b is imported as a-b"
     ):
         store.imports(config, ["a+b", "a-b"])
-    assert store.providers() == []
+    assert store.runtimes() == []
     assert [one.alias for one in store.imports(config)] == ["a+b"]
 
 
@@ -196,4 +196,4 @@ def test_importing_a_host_the_config_does_not_name_is_refused(tmp_path: Path) ->
 
     with pytest.raises(ValueError, match="ssh config has no host ghost"):
         store.imports(config, ["gpu", "ghost"])
-    assert store.providers() == []
+    assert store.runtimes() == []

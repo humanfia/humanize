@@ -183,7 +183,7 @@ is read from the turn's environment to know which files to watch.
 | `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and lower-case forms; `NO_PROXY=`, `no_proxy=`; `NODE_USE_ENV_PROXY=1` | inside the fence, where `online` is `NONE` | `http://127.0.0.1:<proxy port>` |
 | `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH` (removed) | every `docker` command addressing a provider's own daemon | — |
 | `PATH` | `docker` commands to an `ssh://` daemon with ssh options | `$HUMANIZE_HOME/docker-ssh/<sha16>:$PATH` (a shim that removes itself) |
-| `SSH_ASKPASS_REQUIRE` | the `ssh` that checks an environment provider | `never` (fail rather than prompt) |
+| `SSH_ASKPASS_REQUIRE` | the `ssh` that checks a runtime | `never` (fail rather than prompt) |
 | `HOME`, `NVIDIA_VISIBLE_DEVICES`, and the provider's `env` | containers of `docker` environments | `HOME=/tmp`; `NVIDIA_VISIBLE_DEVICES=void` unless GPUs are handed out |
 | the variables an ACP agent asks for | commands an `acp` agent asks humanize to run | as asked |
 | `TEXTUAL_DISABLE_KITTY_KEY` | `hmz`'s own environment, direct iTerm2 only | `1` if unset |

@@ -51,7 +51,7 @@ With no flow running, type `/`:
   <span class="p">/exit</span>              <span class="p">Exit</span>
   <span class="p">/flow</span> <span class="m">[flow]</span>       <span class="p">Switch flow</span>
   <span class="p">/resume</span>            <span class="p">Resume the last run in this directory</span><span class="n">2</span>
-  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: settings, workspace, accounts, environments, fallback, flowverses</span>
+  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: settings, workspace, accounts, runtimes, fallback, flowverses</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="d">❯</span> /
 <span class="d">────────────────────────────────────────────────────────────</span>
@@ -97,7 +97,7 @@ What to look at, by number:
 | --- | --- |
 | `/` | every command that would do something now, with what it takes after its name and what it is for |
 | `/flow ` | every flow you can run here, by the name it is offered under |
-| `/settings ` | its six pages: `settings`, `workspace`, `accounts`, `environments`, `fallback`, `flowverses` |
+| `/settings ` | its six pages: `settings`, `workspace`, `accounts`, `runtimes`, `fallback`, `flowverses` |
 | `$` | the same flows, as `$name`. `$ralph_loop fix the build` starts that flow on that task. |
 
 The commands follow what is going on. `/stop` is listed while a flow runs and not once it is

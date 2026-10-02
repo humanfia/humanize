@@ -288,7 +288,7 @@ class Placed(NamedTuple):
       key: What it is known by: its role, and where it is.
       role: The environment role of the flow it fills, or "" where nothing said.
       kind: Which kind of machine: `local`, `ssh` or `docker`.
-      target: Which one of that kind -- the ssh host, the docker provider -- or "" for this
+      target: Which one of that kind -- the ssh host, the docker runtime -- or "" for this
         machine.
       workdir: Where on it the sessions work.
       given: What it was set up as, as `-e` spells it, or "" for one nobody set up here.

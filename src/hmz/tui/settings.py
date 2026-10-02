@@ -1,7 +1,7 @@
 """`/settings`: every setting humanize has, on a screen of its own, one level at a time.
 
 What opens is the six places settings are kept and nothing else -- this machine's own, this
-workspace's, the accounts, the environments, the fallbacks and the flowverses -- each a card
+workspace's, the accounts, the runtimes, the fallbacks and the flowverses -- each a card
 saying what is in it, as a phone's settings or VS Code's open on their categories. Enter or a
 click goes into one and esc or backspace comes back out, as k9s and ranger walk in and out of
 what they list; the line across the top says where you are, and its first word is a way back.
@@ -93,14 +93,18 @@ PAGES = (
     "settings",
     "workspace",
     "accounts",
-    "environments",
+    "runtimes",
     "fallback",
     "flowverses",
 )
 
-#: The words the first two were opened by before they were called what they are, still
-#: taken: a word somebody's fingers know is a word they will type.
-_ALIASES = {"everywhere": _EVERYWHERE, "directory": _DIRECTORY}
+#: The words pages were opened by before they were called what they are, still taken: a word
+#: somebody's fingers know is a word they will type.
+_ALIASES = {
+    "everywhere": _EVERYWHERE,
+    "directory": _DIRECTORY,
+    "environments": PAGES.index("runtimes"),
+}
 
 
 def page_of(said: str) -> int | None:
@@ -135,7 +139,7 @@ _PAGES = (
     _Page("Settings", "⚙", "this machine: error reports, details, and the /btw agent"),
     _Page("Workspace", "⌂", "this directory: its flow, profiling, and forgetting it"),
     _Page("Accounts", "◉", "what agents sign in as, per CLI"),
-    _Page("Environments", "▦", "ssh hosts and docker daemons a flow's roles run on"),
+    _Page("Runtimes", "▦", "ssh hosts and docker daemons a flow's roles run on"),
     _Page("Fallback", "↻", "where a turn goes when an agent fails"),
     _Page("Flowverses", "⑂", "where flows come from"),
 )
@@ -274,7 +278,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     """Every setting humanize has: `/settings`, six pages opened from one screen of them.
 
     Settings is what is true of this machine however many projects are driven from it; the
-    workspace is one directory's; the accounts, the environments, the fallbacks and the
+    workspace is one directory's; the accounts, the runtimes, the fallbacks and the
     flowverses are what agents run as, the machines their work goes on, where turns go when
     they cannot, and where flows come from. One menu because they are one question -- what
     does humanize remember -- and a command apiece was six things to learn the names of.

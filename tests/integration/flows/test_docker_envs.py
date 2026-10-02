@@ -5,7 +5,7 @@ it writes down every command line it is handed and runs what `docker exec` would
 machine instead of in a container. Everything else is what a real container is reached by --
 coganchor's zipapp put where the container keeps it, its serving half speaking the wire
 protocol over `docker exec`'s pipe -- so the whole driver contract runs through it, and so does
-what only this backend has: what a provider's running containers already hold, read off their
+what only this backend has: what a runtime's running containers already hold, read off their
 labels; a role asking for more than is left, refused before any agent starts; what a run that
 died left behind, taken down; and the container taken down when the environment closes.
 `tests/system/flows/test_docker_envs.py` runs all of it against a real daemon.
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from tests.machines.fixtures import Standin
 
 #: A flow whose one environment is a container asking for a GPU, two CPUs and a GiB, with an
-#: agent that would work in it -- and which is never reached where the provider cannot hold it.
+#: agent that would work in it -- and which is never reached where the runtime cannot hold it.
 _GPU = """
 from hmz.flows import (
     Agent, AgentCollection, CPUEnvMixin, Env, EnvCollection, FlowParams, GPUEnvMixin,
@@ -113,7 +113,7 @@ def _held(name: str, **labels: str) -> dict[str, Any]:
 
 @pytest.fixture
 def gpubox(standin: Standin) -> None:
-    """A provider handing out two GPUs, eight CPUs and 16 GiB of a daemon that lists them."""
+    """A runtime handing out two GPUs, eight CPUs and 16 GiB of a daemon that lists them."""
     standin.set(
         "STANDIN_DEVICES",
         json.dumps(
@@ -123,7 +123,7 @@ def gpubox(standin: Standin) -> None:
             ]
         ),
     )
-    store.add(store.DockerProvider(name="gpubox", gpus=("0", "1")))
+    store.add(store.DockerRuntime(name="gpubox", gpus=("0", "1")))
 
 
 @pytest.mark.timeout(120)
@@ -308,7 +308,7 @@ def test_what_a_run_that_died_left_behind_is_taken_down(
     assert _labels(started)["humanize.gpus"] == "0,1"
 
 
-def test_a_lock_per_provider_is_held_beside_the_providers(
+def test_a_lock_per_runtime_is_held_beside_the_runtimes(
     standin: Standin, gpubox: None, tmp_path: Path
 ) -> None:
     del standin
@@ -324,7 +324,7 @@ def test_a_lock_per_provider_is_held_beside_the_providers(
     ).run("go")
 
     assert (store.under() / "docker" / ".gpubox.lock").is_file()
-    assert [one.name for one in store.providers("docker")] == ["gpubox"]
+    assert [one.name for one in store.runtimes("docker")] == ["gpubox"]
 
 
 #: One agent at work in a container, which the flow never gets to where it is refused.
@@ -438,7 +438,7 @@ async def waits(task, *, agents, envs, params, ctx):
 def test_a_run_ended_by_a_terminate_or_a_hangup_takes_its_container_down(
     standin: Standin, tmp_path: Path, ending: signal.Signals
 ) -> None:
-    """Rather than leave it running until the next run on its provider finds it."""
+    """Rather than leave it running until the next run on its runtime finds it."""
     work = tmp_path / "work"
     work.mkdir()
     flow = written(tmp_path / "flows", "waits", _WAITS)

@@ -364,7 +364,7 @@ out:
 | Row | Shows |
 | --- | --- |
 | `kind` | `LOCAL`, `SSH` or `DOCKER`. |
-| `target` | The ssh host or the docker provider, or `this machine`. |
+| `target` | The ssh host or the docker runtime, or `this machine`. |
 | `workdir` | The directory its sessions work in. |
 | `set up as` | What it was given with `-e` or on `/flow`, where it was set up here. |
 | `image` | What a container for it is started from, where the flow names one. |

@@ -5,8 +5,8 @@ pageClass: hmz-feature
 # Machines
 
 Reference for where an agent's turns and a flow's environments land: the machine settings of
-`hmz.coganchor.machines`, the environments a flow run is given with `-e`, the environment
-providers saved under humanize's home, docker endpoints, resources, capabilities and mirrors.
+`hmz.coganchor.machines`, the environments a flow run is given with `-e`, the runtimes saved
+under humanize's home, docker endpoints, resources, capabilities and mirrors.
 How a turn reaches a machine once it is chosen (the anchor, the harness, the fence across
 machines) is [Remote execution](/reference/remote-execution).
 
@@ -18,7 +18,7 @@ machines) is [Remote execution](/reference/remote-execution).
 | **Machine** | A `MachineBase` made by `MachineConfig.create()`: brought up by `start()`, taken down by `stop()`. |
 | **Anchor** | The [`AnchorConfig`](/reference/remote-execution#anchorconfig) `start()` returns; every turn of the agent runs under it. |
 | **Environment** | A working directory on a machine that a flow role is given: a `LocalEnv`, or a role filled with `-e`. |
-| **Environment provider** | An ssh host or a docker daemon saved under a name in `$HUMANIZE_HOME/env-providers/`, so that `-e` can name it. |
+| **Runtime** | An ssh host or a docker daemon saved under a name in `$HUMANIZE_HOME/runtimes/`, so that `-e` can name it and an environment is put on it. |
 | **Endpoint** | The docker daemon a container is run on, spelled as `docker --host`/`--context` spell one. |
 | **Mirror** | The directory on the harness machine a supervised agent works in, reproducing the target's workspace. |
 | **Capability** | A word a machine setting, a machine or an anchor answers to (`remote`, `isolated`, …), or an environment mixin a driver serves. |
@@ -185,8 +185,8 @@ every other role is filled by `-e`.
 | --- | --- |
 | `ROLE` | A Python identifier; each role at most once per run. |
 | `BACKEND` | `local`, `ssh` or `docker`. |
-| `PROVIDER` | `local`: none. `ssh`: a saved ssh [environment provider](#environment-providers), else `[user@]host[:port]` or an alias of the ssh config. `docker`: a saved docker provider, or `local` for docker's default here. May contain `@` (`user@host`). |
-| `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here). Omitted: the saved provider's `workdir`, which then must be set. |
+| `PROVIDER` | `local`: none. `ssh`: a saved ssh [runtime](#runtimes), else `[user@]host[:port]` or an alias of the ssh config. `docker`: a saved docker runtime, or `local` for docker's default here. May contain `@` (`user@host`). |
+| `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here). Omitted: the saved runtime's `workdir`, which then must be set. |
 
 Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 
@@ -208,7 +208,7 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | `local@/srv/project` | this machine | none: `machine=None` |
 | `ssh@HOST/srv/project` | `HOST` over ssh | `AnchorConfig(target="ssh://HOST", workspace="/srv/project")` |
 | `ssh@HOST/~/project` | the same | `workspace` is `~` resolved to the login's home once the host has been reached; before that, `remote_path="~/project"` |
-| `ssh@NAME/…`, `NAME` a saved ssh provider | the provider's host | `target=` `NAME`'s [target](#an-ssh-host), e.g. `ssh://me@10.0.0.2:2222?IdentityFile=~/.ssh/gpu&ProxyJump=me@bastion` |
+| `ssh@NAME/…`, `NAME` a saved ssh runtime | the runtime's host | `target=` `NAME`'s [target](#an-ssh-host), e.g. `ssh://me@10.0.0.2:2222?IdentityFile=~/.ssh/gpu&ProxyJump=me@bastion` |
 | `docker@NAME/…` | a new container on `NAME`'s daemon | `target="docker://humanize-NAME-ROLE-<8 hex>[@<endpoint>]"`, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<container>/` |
 | `docker@local/…` | a new container on docker's default here | the same, with provider `local` |
 
@@ -221,9 +221,9 @@ A `local` environment's work always has its harness here unless `-H standalone:�
 | --- | --- |
 | `local` workdir not a directory | `there is no directory <path> on this machine` |
 | ssh destination not a destination | `'<provider>' is not an ssh host, as [user@]host[:port]` |
-| a saved ssh provider that cannot be read | `the ssh host '<name>' cannot be read; fix or remove it: <dir>` |
-| an unknown docker provider | `docker host '<name>' not found: add one, or use the default docker@local` |
-| a saved docker provider that cannot be read | `the docker host '<name>' cannot be read; fix or remove it: <dir>` |
+| a saved ssh runtime that cannot be read | `the ssh host '<name>' cannot be read; fix or remove it: <dir>` |
+| an unknown docker runtime | `docker host '<name>' not found: add one, or use the default docker@local` |
+| a saved docker runtime that cannot be read | `the docker host '<name>' cannot be read; fix or remove it: <dir>` |
 | `~/…` on a docker daemon elsewhere | `<workdir> is on a remote docker host, so it must be an absolute path` |
 | a `~` workdir that climbs out of home | `<workdir> climbs out of the home directory it is under` |
 | a workdir neither absolute nor under `~` | `<workdir> is neither absolute nor under ~` |
@@ -269,28 +269,28 @@ shares that machine and its connection.
 
 ### Docker environments {#docker-environments}
 
-`-e ROLE=docker@PROVIDER/WORKDIR` gives the role one container of its own, started when the run
+`-e ROLE=docker@RUNTIME/WORKDIR` gives the role one container of its own, started when the run
 reaches its environments and removed when the run closes it.
 
 | Aspect | Rule |
 | --- | --- |
 | Name | `humanize-<provider>-<role>-<8 hex>` |
-| Image | the role's `_image` (`ImageEnvMixin`), else the provider's `image`, else `python:3.12-slim` |
+| Image | the role's `_image` (`ImageEnvMixin`), else the runtime's `image`, else `python:3.12-slim` |
 | Workdir | a directory of the daemon's host, bind-mounted at its own path; what is written there outlives the container |
 | Limits | exactly the role's `_cpu_count`, `_memory` and `_gpu_count` as hard limits; nothing the role does not declare is limited; no GPU unless `GPUEnvMixin` is declared |
-| Runtime and arguments | the provider's `runtime` and `run_args`; for the container of a `-H standalone:docker@…` harness, `--cap-add SYS_PTRACE` before them |
+| OCI runtime and arguments | the runtime's `runtime` (OCI runtime) and `run_args`; for the container of a `-H standalone:docker@…` harness, `--cap-add SYS_PTRACE` before them |
 | Labels | `humanize.provider`, `humanize.role`, `humanize.host` (this host's name), `humanize.pid` (this process), plus `humanize=<uid>`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` |
 | Agents | anchored to the container over `docker exec`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex>`, or native in the container per `-H` |
 | Derived environments | inside the same container |
 
 Allocation, done while holding an exclusive `flock` on
-`$HUMANIZE_HOME/env-providers/docker/.<provider>.lock` until the container is up and labelled:
+`$HUMANIZE_HOME/runtimes/docker/.<name>.lock` until the container is up and labelled:
 
 1. `docker info` and `docker ps`/`inspect` of containers labelled `humanize.provider=<provider>`
    (60 s per question).
 2. Containers labelled with this user's uid and this host whose `humanize.pid` no longer exists
    are removed (`docker rm --force`), with their mirrors.
-3. What the provider may hand out is its saved `cpus`, `memory`, `gpus` (each `0`/empty meaning
+3. What the runtime may hand out is its saved `cpus`, `memory`, `gpus` (each `0`/empty meaning
    the daemon's own `NCPU`, `MemTotal` and CDI-listed NVIDIA GPUs), `gpu_memory` and
    `max_containers`; what running containers hold is subtracted, read off their labels.
 4. For a role asking for a GPU, the daemon's host is asked which GPUs answer: `nvidia-smi
@@ -301,7 +301,7 @@ Allocation, done while holding an exclusive `flock` on
    bound to, and the CDI specs list, but that has failed since is never handed out; a container
    seeing more than the one GPU it was given is no answer. A GPU is handed out by the CDI name
    it answered under -- `nvidia-smi` renumbers the GPUs after one that fails, the specs do not
-   -- or by its UUID where the daemon lists none. A provider's `gpus` may name either. A
+   -- or by its UUID where the daemon lists none. A runtime's `gpus` may name either. A
    container labelled with a GPU's UUID holds it as surely as one labelled with its name. A GPU
    whose container does not answer in time, while another does, does not answer, and its
    container is removed. Where nothing could be asked -- no `nvidia-smi` put in the container,
@@ -314,7 +314,7 @@ docker@gpubox runs 4 of the 4 containers it may (one held by humanize-gpubox-box
 docker@gpubox has 2 of 16 CPUs free, and 'box' asks for 4 (8 CPUs held by …)
 docker@gpubox has 8 GiB of 64 GiB of memory free, and 'box' asks for 16 GiB (…)
 docker@gpubox has 0 of 2 GPUs free, and 'box' asks for 1 (GPU 0 held by humanize-gpubox-box-1a2b3c4d, pid 4242 on gpubox; GPU 1 held by …)
-docker@gpubox has 0 of 0 GPUs free, and 'box' asks for 1 (its daemon lists no GPU by name: say which in the provider's gpus)
+docker@gpubox has 0 of 0 GPUs free, and 'box' asks for 1 (its daemon lists no GPU by name: say which in the runtime's gpus)
 docker@gpubox has 0 of 0 GPUs free, and 'box' asks for 1 (no GPU of its host answers)
 docker@gpubox has 1 of 1 GPUs free, and 'box' asks for 2 (1 of the 2 GPUs it lists are usable: 1 is bound but does not answer)
 docker@gpubox's GPUs have 24 GiB each, and 'box' asks for 40 GiB
@@ -327,7 +327,7 @@ docker@gpubox's GPUs have 24 GiB each, and 'box' asks for 40 GiB
 | container would not start | `EnvUnavailable: docker@<p>: could not start a container of <image> on <endpoint>: …` |
 | workdir missing on the daemon's host | `EnvUnavailable: docker@<p> has no <path> to run a container: …` |
 
-A run killed outright leaves its container; the next run on that provider from the same user
+A run killed outright leaves its container; the next run on that runtime from the same user
 and host removes it. To remove humanize containers by hand:
 
 ```sh
@@ -339,19 +339,20 @@ by several machines the same uid can belong to different users.
 
 <small>Defined in [`src/hmz/runtime/flowing/environing_docker.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_docker.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_docker_env`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Docker environments).</small>
 
-## Environment providers {#environment-providers}
+## Runtimes {#runtimes}
 
-A saved machine an environment may be put on. Managed from Python with
-`Hmz().environments` (`hmz.runtime.doing.environments.Environments`) and in the TUI on the
-Environments page of `/settings`.
+A saved machine an environment may be put on: used as an environment when `-e` names it.
+Managed from Python with `Hmz().runtimes` (`hmz.runtime.doing.runtimes.Runtimes`) and in the
+TUI on the Runtimes page of `/settings`.
 
 | Aspect | Rule |
 | --- | --- |
-| Location | `$HUMANIZE_HOME/env-providers/<backend>/<name>/provider.json`, `<backend>` `ssh` or `docker` |
+| Location | `$HUMANIZE_HOME/runtimes/<backend>/<name>/runtime.json`, `<backend>` `ssh` or `docker` |
 | Name | `[A-Za-z0-9][A-Za-z0-9._-]*` |
-| Modes | every directory humanize creates on the way `0700`; `provider.json` `0600`, written to a temporary file and renamed |
-| Format | JSON object: `backend`, `name`, then every field of the provider (tuples as arrays) |
+| Modes | every directory humanize creates on the way `0700`; `runtime.json` `0600`, written to a temporary file and renamed |
+| Format | JSON object: `backend`, `name`, then every field of the runtime (tuples as arrays) |
 | Reading | a directory whose file is missing, unparseable or invalid is skipped by `all()`; `-e` naming it is refused as unreadable |
+| Migration | formerly these were environment providers under `$HUMANIZE_HOME/env-providers/`, each in `provider.json`: the first look at `runtimes/` while it does not exist renames `env-providers/` to it whole (docker locks included); a `provider.json` is read where there is no `runtime.json`, and removed when the runtime is next written. If both directories exist, `env-providers/` is ignored. |
 
 ```json
 {
@@ -372,11 +373,11 @@ Environments page of `/settings`.
 
 ### An ssh host {#an-ssh-host}
 
-`hmz.coganchor.machines.store.SSHProvider`:
+`hmz.coganchor.machines.store.SSHRuntime`:
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `name` | `str` | required | The provider's name. |
+| `name` | `str` | required | The runtime's name. |
 | `host` | `str` | `""` | The machine. With `alias`, sent as `HostName`. |
 | `user` | `str` | `""` | The login. |
 | `port` | `int` | `0` (config's or 22) | 0–65535. |
@@ -390,19 +391,19 @@ Environments page of `/settings`.
 
 `target()` is `ssh://[user@]<alias or host>[:port][?F=…&HostName=…&IdentityFile=…&ProxyJump=…&<options>]`.
 These options come before humanize's own `ssh` options, and `ssh` keeps the first value it
-is given, so they override both humanize's and the user's config. An imported provider keeps
+is given, so they override both humanize's and the user's config. An imported runtime keeps
 the alias rather than what it resolved to.
 
-Two providers at one host with different options use different ssh master connections.
+Two runtimes at one host with different options use different ssh master connections.
 
 ### A docker daemon {#a-docker-daemon}
 
-`hmz.coganchor.machines.store.DockerProvider`:
+`hmz.coganchor.machines.store.DockerRuntime`:
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `name` | `str` | required | The provider's name. |
-| `endpoint` | `str` | `"local"` | `local`, `unix:///PATH`, `tcp://HOST:PORT`, `ssh://[USER@]HOST[:PORT]` (no options), `ssh:<name>` (a saved ssh provider, with all its options), or `context:<name>`. |
+| `name` | `str` | required | The runtime's name. |
+| `endpoint` | `str` | `"local"` | `local`, `unix:///PATH`, `tcp://HOST:PORT`, `ssh://[USER@]HOST[:PORT]` (no options), `ssh:<name>` (a saved ssh runtime, with all its options), or `context:<name>`. |
 | `tls_dir` | `str` | `""` | For `tcp://` only: directory of `ca.pem`, `cert.pem`, `key.pem`. |
 | `image` | `str` | `""` | Default image; no whitespace. |
 | `runtime` | `str` | `""` | Container runtime, e.g. `nvidia`. |
@@ -416,7 +417,7 @@ Two providers at one host with different options use different ssh master connec
 | `made` | `str` | `"typed"` | Always `typed`. |
 
 `daemon()` returns the [`Endpoint`](#endpoints): `tls_dir` becomes `?tls=<absolute dir>`, and
-`ssh:<name>` becomes `ssh://[user@]host[:port]` carrying every option of that ssh provider.
+`ssh:<name>` becomes `ssh://[user@]host[:port]` carrying every option of that ssh runtime.
 
 ### Validation
 
@@ -426,7 +427,7 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | Input | Message |
 | --- | --- |
 | backend not `ssh` or `docker` | `'bogus' is not an environment backend: ssh, docker` |
-| bad name | `invalid environment provider name '-x': must start with a letter or digit and contain only letters, digits, dots, dashes, and underscores` |
+| bad name | `invalid runtime name '-x': must start with a letter or digit and contain only letters, digits, dots, dashes, and underscores` |
 | unknown field | `x: unknown ssh host setting 'bogus'` |
 | wrong type | `x: port cannot be '22'` |
 | ssh with neither host nor alias | `x: an ssh host requires a hostname or an alias` |
@@ -441,11 +442,11 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | bad docker endpoint | `'weird' is not a docker endpoint: local, unix:///PATH, tcp://HOST:PORT, ssh://[USER@]HOST[:PORT], ssh:<ssh host> or context:<docker context>` |
 | `tls_dir` without `tcp://` | `x: TLS certificates require a tcp:// endpoint` |
 | image with whitespace | `x: invalid image 'a b'` |
-| bad runtime | `x: invalid runtime '<value>'` |
+| bad OCI runtime | `x: invalid OCI runtime '<value>'` |
 | bad or repeated GPU id | `x: invalid GPU id '<id>'`, `x: duplicate GPU specified` |
 | negative amount | `x: CPUs cannot be negative: -1.0` (also `memory`, `GPU memory`, `containers`) |
 | `add` over an existing one | `ssh host 'gpu' already exists` |
-| `ssh:<name>` naming no ssh provider (at `daemon()`) | `ssh:nobody: ssh host 'nobody' not found` |
+| `ssh:<name>` naming no ssh runtime (at `daemon()`) | `ssh:nobody: ssh host 'nobody' not found` |
 | a `config` or `tls_dir` under a `~user` with no home (at `write`) | `the config file '<value>': home directory not found` |
 
 ### Importing from an ssh config
@@ -453,16 +454,16 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 - `hosts(config=None)` lists every `Host` of the config (default `~/.ssh/config`), following
   `Include` up to depth 16, skipping patterns (`*`, `?`, `!`), and resolves each with
   `ssh -G` (10 s each) into `SSHHost(alias, host, user, port, identity_files, proxy_jump)`.
-- `import_ssh(config=None, names=None, *, update=False)` writes one provider per host, named
+- `import_ssh(config=None, names=None, *, update=False)` writes one runtime per host, named
   after its `Host` with characters outside `[A-Za-z0-9._-]` replaced by `-`, holding
-  `alias` (and `config` where not the default). An existing provider is left alone unless
+  `alias` (and `config` where not the default). An existing runtime is left alone unless
   `update=True`, which rewrites an imported one and keeps its `workdir`; a typed one is never
   overwritten. With `names`, a host the config lacks raises `ssh config has no host <names>`,
   and a host that cannot be imported raises `<alias> cannot be imported: <why>`.
 
 ### Checking one
 
-`check(provider, seconds=30)` never raises; it returns `Checked`:
+`check(runtime, seconds=30)` never raises; it returns `Checked`:
 
 | Field | ssh host | docker daemon |
 | --- | --- | --- |
@@ -471,17 +472,17 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | `home` | the login's home | — |
 | `cpus`, `memory` | from the probe | `NCPU`, `MemTotal` |
 | `gpus` | `("0", …)` by count | CDI-listed GPU ids, answering or not |
-| `usable` | `None` | those of `gpus` that answer, asked afresh as a run asks (`gpus_usable(..., fresh=True)`, with the provider's image or `python:3.12-slim`, in what is left of `seconds` after `docker info`); `None` where nothing could be asked, no time was left, or it lists none |
+| `usable` | `None` | those of `gpus` that answer, asked afresh as a run asks (`gpus_usable(..., fresh=True)`, with the runtime's image or `python:3.12-slim`, in what is left of `seconds` after `docker info`); `None` where nothing could be asked, no time was left, or it lists none |
 | `gpu_memory` | smallest GPU's memory | — |
-| `runtimes` | — | runtimes, the default first |
+| `runtimes` | — | OCI runtimes, the default first |
 | `version` | — | the daemon's version |
-| `short` | — | `it is to hand out N CPUs and has M`, `it is to hand out N bytes and has M`, `it has no GPU <ids>`, `GPU <ids> does not answer` / `do not answer` (a saved GPU listed but not usable), `it has no runtime <r>` |
+| `short` | — | `it is to hand out N CPUs and has M`, `it is to hand out N bytes and has M`, `it has no GPU <ids>`, `GPU <ids> does not answer` / `do not answer` (a saved GPU listed but not usable), `it has no OCI runtime <r>` |
 
 The ssh check runs the environment probe down the same `ssh` a run uses, in a new session with
 no terminal and `SSH_ASKPASS_REQUIRE=never`, so a host that wants a password fails instead of
 waiting.
 
-<small>Defined in [`src/hmz/coganchor/machines/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/store.py), [`src/hmz/coganchor/machines/sshconfig.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/sshconfig.py), [`src/hmz/runtime/doing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/doing/environments.py).</small>
+<small>Defined in [`src/hmz/coganchor/machines/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/store.py), [`src/hmz/coganchor/machines/sshconfig.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/sshconfig.py), [`src/hmz/runtime/doing/runtimes.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/doing/runtimes.py).</small>
 
 ## Resources
 
@@ -489,9 +490,9 @@ A flow role declares what its environment's machine must have with mixins from `
 
 | Mixin | Attribute | Default when declared | Local and ssh | Docker |
 | --- | --- | --- | --- | --- |
-| `CPUEnvMixin` | `_cpu_count` | `1` | minimum logical CPUs | `--cpus`, and allocated from the provider |
+| `CPUEnvMixin` | `_cpu_count` | `1` | minimum logical CPUs | `--cpus`, and allocated from the runtime |
 | `MemoryEnvMixin` | `_memory` | `0` | minimum bytes | `--memory`, and allocated |
-| `GPUEnvMixin` | `_gpu_count`, `_gpu_memory` | `1`, `0` | minimum GPUs (as `CUDA_VISIBLE_DEVICES` narrows them) and minimum memory of the smallest | that many GPUs handed out; memory checked against the provider's `gpu_memory` |
+| `GPUEnvMixin` | `_gpu_count`, `_gpu_memory` | `1`, `0` | minimum GPUs (as `CUDA_VISIBLE_DEVICES` narrows them) and minimum memory of the smallest | that many GPUs handed out; memory checked against the runtime's `gpu_memory` |
 | `ImageEnvMixin` | `_image` | `""` | ignored | the container's image |
 
 A local or ssh machine smaller than declared is refused before the run starts:
@@ -501,7 +502,7 @@ ResourceUnmet: <flow>: 'box' needs 4 CPUs, and the environment given has 2
 ```
 
 (also `bytes of memory`, `GPUs`, `bytes of memory per GPU`). A docker environment is sized
-to the declaration instead, and refused only when the provider cannot hand it out.
+to the declaration instead, and refused only when the runtime cannot hand it out.
 
 ## Capabilities {#capabilities}
 
@@ -666,12 +667,12 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 
 | Variable | Effect |
 | --- | --- |
-| `HUMANIZE_HOME` | Root of `env-providers/`, `envs/` (mirrors, derived directories here), `docker-ssh/` and `harness/`; default `~/.humanize`. On an ssh host, `${HUMANIZE_HOME:-$HOME/.humanize}` there is where derived directories go. |
+| `HUMANIZE_HOME` | Root of `runtimes/`, `envs/` (mirrors, derived directories here), `docker-ssh/` and `harness/`; default `~/.humanize`. On an ssh host, `${HUMANIZE_HOME:-$HOME/.humanize}` there is where derived directories go. |
 | `DOCKER_HOST`, `DOCKER_CONTEXT` | Used by the `local` endpoint; `DOCKER_HOST` decides whether `local` counts as here. Removed from every `docker` sent to any other endpoint, with `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`. |
 | `DOCKER_CONFIG` | Where docker reads `context:NAME` contexts (docker's own). |
 | `CUDA_VISIBLE_DEVICES` | Narrows the GPUs counted on a local or ssh machine, as CUDA does. |
 | `HUMANIZE_SSH_REUSE` | `off`, `0`, `no`, `false` (any case, trimmed) or empty disables ssh connection sharing. |
-| `SSH_ASKPASS_REQUIRE` | Set to `never` for `check()` of an ssh provider. |
+| `SSH_ASKPASS_REQUIRE` | Set to `never` for `check()` of an ssh runtime. |
 
 ## API summary
 
@@ -681,24 +682,24 @@ from hmz.coganchor.machines import (
     Allocation, allocations, info, gpus_listed, Mapped, Ran,
 )
 from hmz.coganchor.machines.store import (
-    SSHProvider, DockerProvider, new, add, write, find, providers, remove, where, under,
+    SSHRuntime, DockerRuntime, new, add, write, find, runtimes, remove, where, under,
     imports, daemon_of,
 )
 from hmz.coganchor.transport import Endpoint
 from hmz.coganchor.agents import anchored
-from hmz.sdk import Hmz  # Hmz().environments
+from hmz.sdk import Hmz  # Hmz().runtimes
 ```
 
-| `Hmz().environments.` | |
+| `Hmz().runtimes.` | |
 | --- | --- |
-| `all(backend="")` | every provider, by backend then name |
+| `all(backend="")` | every runtime, by backend then name |
 | `find(backend, name)` | one, or `None` |
 | `where(backend, name)` | its directory |
 | `new(backend, name, **fields)` | build and check, unwritten |
-| `add(provider)` | write a new one |
-| `write(provider)` | write, replacing |
+| `add(runtime)` | write a new one |
+| `write(runtime)` | write, replacing |
 | `remove(backend, name) -> bool` | delete its directory |
 | `hosts(config=None)` | ssh config hosts, resolved |
 | `import_ssh(config=None, names=None, *, update=False)` | import ssh config hosts |
-| `resolve(provider) -> SSHHost` | what `ssh -G` makes of a provider |
-| `check(provider, seconds=30) -> Checked` | ask it what it has |
+| `resolve(runtime) -> SSHHost` | what `ssh -G` makes of a runtime |
+| `check(runtime, seconds=30) -> Checked` | ask it what it has |

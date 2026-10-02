@@ -461,10 +461,10 @@ def test_a_machine_left_without_a_directory_is_given_one() -> None:
     assert docker.on.workdir == PurePosixPath(home() / "harness")
 
 
-def test_a_saved_provider_is_named_by_its_name_alone() -> None:
+def test_a_saved_runtime_is_named_by_its_name_alone() -> None:
     from hmz.coganchor.machines import store
 
-    store.add(store.SSHProvider(name="gpu-box", host="10.0.0.2", workdir="/srv"))
+    store.add(store.SSHRuntime(name="gpu-box", host="10.0.0.2", workdir="/srv"))
     spec = parse_harness("standalone:gpu-box")
     assert spec.on == EnvSpec(
         "harness", EnvBackendKind.SSH, "gpu-box", PurePosixPath("/srv")
@@ -480,7 +480,7 @@ def test_a_saved_provider_is_named_by_its_name_alone() -> None:
         ("standalone:local@/tmp", "on another machine"),
         ("standalone:ftp@box/x", "not a backend"),
         ("standalone:bogus@x", "'bogus' is not a backend; one of ssh, docker"),
-        ("standalone:bogus", "no environment provider is saved as 'bogus'"),
+        ("standalone:bogus", "no runtime is saved as 'bogus'"),
         ("standalone:docker@gpubox", "expected standalone:docker@gpubox/<workdir>"),
         ("standalone:local@", "on another machine"),
     ],

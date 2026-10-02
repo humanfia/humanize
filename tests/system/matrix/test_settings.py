@@ -3,7 +3,7 @@
 Each is about no one CLI, and is run once, in the column `any`. The interface is driven by the
 Textual pilot, as `tests/integration/tui` drives it -- but what is on the far side of it is the
 real thing: an account made on the one form of the accounts page takes a real turn, and a
-machine brought in on the environments page is a real ssh host and this machine's docker
+machine brought in on the runtimes page is a real ssh host and this machine's docker
 daemon, asked for real what they have.
 
 The interface is opened with the fixtures `tests/tui` opens every one with, imported here for
@@ -34,8 +34,8 @@ from hmz.tui.pick import (
     Providers,
 )
 from tests.integration.tui.test_app import into_settings, onto
-from tests.integration.tui.test_environments import _done, _drawn, _opens, _under
 from tests.integration.tui.test_providers import _adds, _answers, _chooses, _writes
+from tests.integration.tui.test_runtimes import _done, _drawn, _opens, _under
 from tests.matrix import places
 from tests.matrix.cells import feature
 from tests.tui.fixtures import (  # noqa: F401
@@ -144,10 +144,10 @@ async def test_settings_accounts(asking: None) -> None:
 
 
 @feature(once=True, timeout=600)
-async def test_settings_environments(
+async def test_settings_runtimes(
     ssh_box: Box, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An ssh host imported and a docker daemon added on `/settings environments` answer.
+    """An ssh host imported and a docker daemon added on `/settings runtimes` answer.
 
     The host is imported from the ssh config it is named in -- the page's own import, reading
     it as `ssh -G` does -- and checked from its own menu; the daemon is docker's default here,
@@ -155,7 +155,7 @@ async def test_settings_environments(
     and answer when it checks them. Nothing of `~/.ssh` is read: the home is the test's, and
     the `ssh` that knows the host is taken off `PATH`, so only what was saved reaches it.
     """
-    from hmz.coganchor.machines.store import IMPORTED, DockerProvider, SSHProvider
+    from hmz.coganchor.machines.store import IMPORTED, DockerRuntime, SSHRuntime
     from hmz.sdk import Hmz
 
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -196,12 +196,12 @@ async def test_settings_environments(
         said = await _says(app, driver, f"{docked} answers", f"{docked} could not")
         assert f"{docked} answers: docker " in said, said
 
-    envs = Hmz().environments
+    envs = Hmz().runtimes
     host = envs.find("ssh", ssh_box.alias)
-    assert isinstance(host, SSHProvider), host
+    assert isinstance(host, SSHRuntime), host
     assert (host.made, host.alias) == (IMPORTED, ssh_box.alias), host
     daemon = envs.find("docker", name)
-    assert isinstance(daemon, DockerProvider), daemon
+    assert isinstance(daemon, DockerRuntime), daemon
     assert daemon.endpoint == "local", daemon
     for one in (host, daemon):
         checked = envs.check(one)

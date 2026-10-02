@@ -21,7 +21,7 @@ from hmz.tui import Humanize
 from hmz.tui.pick import _DONE, _HARNESS, _SAVE, Flows, Harnessing, Placing
 from tests.integration.tui.test_app import onto, opens, picks, rows
 from tests.integration.tui.test_budget import QUIET
-from tests.integration.tui.test_environments import _types
+from tests.integration.tui.test_runtimes import _types
 from tests.stubs import written
 from tests.tui.fixtures import until
 

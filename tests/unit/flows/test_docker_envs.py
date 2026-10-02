@@ -1,8 +1,8 @@
 """A docker environment as it is declared, named, shared out and placed -- nothing started.
 
 What a role declares of a container -- its image, beside the resources every environment may
-declare -- is read once per type; `-e role=docker@<provider>/<workdir>` names a provider written
-down or docker's default here; what a provider may hand out is worked out against what its
+declare -- is read once per type; `-e role=docker@<provider>/<workdir>` names a runtime written
+down or docker's default here; what a runtime may hand out is worked out against what its
 running containers already hold, arithmetic alone; and an agent working in one is anchored to
 the container rather than put on this machine. Starting a container, and what docker says of it,
 is the integration tier's against a stand-in and the system tier's against a daemon.
@@ -183,7 +183,7 @@ def test_a_container_holding_every_gpu_leaves_none() -> None:
         )
 
 
-def test_no_more_containers_than_the_provider_may_run() -> None:
+def test_no_more_containers_than_the_runtime_may_run() -> None:
     few = Has(cpus=16, memory=0, gpus=(), containers=2)
 
     shared(Asked(), few, [_held("a")], where="docker@x", role="r")
@@ -191,7 +191,7 @@ def test_no_more_containers_than_the_provider_may_run() -> None:
         shared(Asked(), few, [_held("a"), _held("b")], where="docker@x", role="r")
 
 
-def test_gpus_too_small_for_the_role_are_refused_where_the_provider_says_their_size() -> (
+def test_gpus_too_small_for_the_role_are_refused_where_the_runtime_says_their_size() -> (
     None
 ):
     small = Has(cpus=16, memory=0, gpus=("0",), gpu_memory=24 << 30)
@@ -204,7 +204,7 @@ def test_gpus_too_small_for_the_role_are_refused_where_the_provider_says_their_s
     assert shared(asked, unsaid, [], where="docker@x", role="r").gpus == ("0",)
 
 
-def test_a_provider_left_at_zero_hands_out_what_its_daemon_has() -> None:
+def test_a_runtime_left_at_zero_hands_out_what_its_daemon_has() -> None:
     info = {
         "NCPU": 64,
         "MemTotal": 256 << 30,
@@ -215,8 +215,8 @@ def test_a_provider_left_at_zero_hands_out_what_its_daemon_has() -> None:
             {"Source": "cdi", "ID": "nvidia.com/gpu=GPU-1ac8"},
         ],
     }
-    everything = store.DockerProvider(name="box")
-    capped = store.DockerProvider(
+    everything = store.DockerRuntime(name="box")
+    capped = store.DockerRuntime(
         name="box", cpus=8, memory=16 << 30, gpus=("1",), gpu_memory=1, max_containers=3
     )
 
@@ -279,10 +279,10 @@ def test_only_a_gpu_that_answers_is_handed_out() -> None:
         shared(Asked(gpus=2), has, [], where="docker@local", role="box")
 
 
-def test_a_provider_naming_a_gpu_that_does_not_answer_has_not_got_it() -> None:
-    both = store.DockerProvider(name="box", gpus=("0", "1"))
-    second = store.DockerProvider(name="box", gpus=("1",))
-    by_uuid = store.DockerProvider(name="box", gpus=("GPU-1ac8", "GPU-b2f7"))
+def test_a_runtime_naming_a_gpu_that_does_not_answer_has_not_got_it() -> None:
+    both = store.DockerRuntime(name="box", gpus=("0", "1"))
+    second = store.DockerRuntime(name="box", gpus=("1",))
+    by_uuid = store.DockerRuntime(name="box", gpus=("GPU-1ac8", "GPU-b2f7"))
 
     assert has_of(both, _HERE, _ANSWERING).gpus == ("0",)
     assert has_of(by_uuid, _HERE, _ANSWERING).gpus == ("0",)
@@ -325,7 +325,7 @@ def test_a_gpu_failing_keeps_the_names_of_those_after_it() -> None:
     # A container labelled with the second before the first failed holds it still.
     with pytest.raises(ResourceUnmet, match="GPU 1 held by old"):
         shared(Asked(gpus=1), has, [_held("old", gpus=("1",))], where="x", role="r")
-    first = store.DockerProvider(name="box", gpus=("0",))
+    first = store.DockerRuntime(name="box", gpus=("0",))
     assert has_of(first, by_index, second).gpus == ()
 
 
@@ -455,8 +455,8 @@ def test_a_daemon_listing_none_is_asked_of_every_gpu_at_once(
 # ---------------------------------------------------------------------------- what -e names
 
 
-def test_a_docker_environment_names_a_provider_written_down(tmp_path: Path) -> None:
-    store.add(store.DockerProvider(name="gpubox", workdir=str(tmp_path)))
+def test_a_docker_environment_names_a_runtime_written_down(tmp_path: Path) -> None:
+    store.add(store.DockerRuntime(name="gpubox", workdir=str(tmp_path)))
 
     (named,) = parse_envs(["box=docker@gpubox"])
     (spelled,) = parse_envs([f"box=docker@local{tmp_path}"])
@@ -466,17 +466,17 @@ def test_a_docker_environment_names_a_provider_written_down(tmp_path: Path) -> N
     assert (spelled.provider, spelled.workdir) == ("local", PurePosixPath(tmp_path))
 
 
-def test_a_docker_provider_nobody_wrote_down_is_refused() -> None:
+def test_a_docker_runtime_nobody_wrote_down_is_refused() -> None:
     (spec,) = parse_envs(["box=docker@nowhere/srv/x"])
 
     with pytest.raises(EnvUnavailable, match="docker host 'nowhere' not found"):
         open_env(spec)
 
 
-def test_a_docker_provider_that_cannot_be_read_says_so() -> None:
+def test_a_docker_runtime_that_cannot_be_read_says_so() -> None:
     at = store.where("docker", "broken")
     at.mkdir(parents=True)
-    (at / "provider.json").write_text("{")
+    (at / "runtime.json").write_text("{")
     (spec,) = parse_envs(["box=docker@broken/srv/x"])
 
     with pytest.raises(EnvUnavailable, match="cannot be read"):
@@ -484,7 +484,7 @@ def test_a_docker_provider_that_cannot_be_read_says_so() -> None:
 
 
 def test_a_workdir_under_home_is_only_this_machines() -> None:
-    store.add(store.DockerProvider(name="far", endpoint="tcp://10.0.0.5:2375"))
+    store.add(store.DockerRuntime(name="far", endpoint="tcp://10.0.0.5:2375"))
     (far,) = parse_envs(["box=docker@far/~/x"])
     (near,) = parse_envs(["box=docker@local/~/x"])
 
@@ -504,7 +504,7 @@ def _machine(driver: object) -> DockerMachine:
 
 def test_a_container_is_started_as_its_role_says_and_named_for_it() -> None:
     store.add(
-        store.DockerProvider(
+        store.DockerRuntime(
             name="gpubox", endpoint="ssh://me@gpubox:2222", image="debian:13"
         )
     )
@@ -587,7 +587,7 @@ def test_a_container_holding_a_harness_may_borrow_its_agents_descriptors(
     monkeypatch.setattr(environing_docker, "has_of", has)
     monkeypatch.setattr(machines, "allocations", held)
     monkeypatch.setattr(machines, "DockerConfig", Config)
-    store.add(store.DockerProvider(name="box", run_args=("--shm-size", "1g")))
+    store.add(store.DockerRuntime(name="box", run_args=("--shm-size", "1g")))
     (spec,) = parse_envs(["harness=docker@box/srv/x"])
 
     _machine(open_env(spec, traced=True))._brought_up()

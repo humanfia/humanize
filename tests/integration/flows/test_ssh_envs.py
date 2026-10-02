@@ -22,7 +22,7 @@ import psutil
 import pytest
 
 from hmz.coganchor.machines import AnchoredConfig, store
-from hmz.coganchor.machines.store import SSHProvider
+from hmz.coganchor.machines.store import SSHRuntime
 from hmz.flows import (
     EnvBackendKind,
     EnvCommandTimeout,
@@ -371,7 +371,7 @@ async def test_a_dropped_connection_is_made_again(
         await driver.close()
 
 
-# ------------------------------------------------------------ a provider written down
+# ------------------------------------------------------------ a runtime written down
 
 
 #: A flow whose one role is a machine it runs a command on, which writes a file there.
@@ -393,8 +393,8 @@ async def writes(task, *, agents, envs, params, ctx):
 """
 
 
-def _stored(host: str, name: str = "stored", **fields: object) -> SSHProvider:
-    """A provider for the host of the test's own, told everything a provider can say."""
+def _stored(host: str, name: str = "stored", **fields: object) -> SSHRuntime:
+    """A runtime for the host of the test's own, told everything a runtime can say."""
     said: dict[str, object] = {
         "host": host,
         "user": "me",
@@ -404,11 +404,11 @@ def _stored(host: str, name: str = "stored", **fields: object) -> SSHProvider:
         "options": {"LogLevel": "ERROR"},
         **fields,
     }
-    return cast("SSHProvider", store.add(store.new("ssh", name, **said)))
+    return cast("SSHRuntime", store.add(store.new("ssh", name, **said)))
 
 
 @pytest.mark.timeout(120)
-async def test_a_stored_provider_is_reached_with_exactly_what_it_says(
+async def test_a_stored_runtime_is_reached_with_exactly_what_it_says(
     far: Path, host: str, tmp_path: Path
 ) -> None:
     _stored(host)
@@ -429,13 +429,13 @@ async def test_a_stored_provider_is_reached_with_exactly_what_it_says(
         assert f" -p 2222 me@{host} " in line, line
 
 
-def test_two_providers_at_one_host_do_not_ride_one_connection(host: str) -> None:
+def test_two_runtimes_at_one_host_do_not_ride_one_connection(host: str) -> None:
     from hmz.coganchor.transport import Road, Target
 
     told = (
         _stored(host),
         _stored(host, "other", identity_file="/keys/another"),
-        SSHProvider(name="plain", host=host, user="me", port=2222),
+        SSHRuntime(name="plain", host=host, user="me", port=2222),
     )
 
     paths = {
@@ -451,7 +451,7 @@ def test_two_providers_at_one_host_do_not_ride_one_connection(host: str) -> None
 
 
 @pytest.mark.timeout(180)
-def test_a_flow_runs_on_a_stored_provider_an_e_names(
+def test_a_flow_runs_on_a_stored_runtime_an_e_names(
     far: Path, host: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from hmz.cli import main
