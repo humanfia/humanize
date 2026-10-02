@@ -89,9 +89,8 @@ if TYPE_CHECKING:
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.backends import Model, Way
 
-    # Under another name, because `Falls` here is the sheet one account's chain is chosen on
-    # and this is the step itself. Two things called the same thing in one file is one of
-    # them being read as the other.
+    # Under another name, because that is what it is on these pages: one place's step, the
+    # chain it falls back along and how it is tried again.
     from hmz.coganchor.fallbacks import Falls as Step
     from hmz.coganchor.machines.sshconfig import SSHHost
     from hmz.coganchor.machines.store import DockerRuntime, Runtime, SSHRuntime
@@ -123,7 +122,6 @@ __all__ = [
     "Epics",
     "Failing",
     "Fallbacks",
-    "Falls",
     "Flows",
     "Flowverses",
     "Harnessing",
@@ -5526,97 +5524,6 @@ class Signing(Form[Signs]):
         )
 
 
-class Falls(Picks):
-    """Which account a turn under this one carries on as when it fails: its fail-over.
-
-    A name rather than a mark: each account names the next, so what a turn walks is a chain
-    -- a subscription that runs out fails over to a key, and a key that is refused to a
-    gateway -- rather than there being one place every failure of that CLI goes.
-
-    Only that CLI's own accounts are offered: an account is credentials for one backend, and
-    a turn cannot be carried on under credentials for another. And a row to make one, since
-    this is where somebody finds out the one they want is not there yet.
-    """
-
-    ATOP: ClassVar = True
-    adds = "an account"
-
-    def __init__(self, cli: str, name: str, current: str = "") -> None:
-        """Initializes the choosing.
-
-        Args:
-          cli: The backend these accounts are of.
-          name: The account this is about, which is not among the ones offered.
-          current: What it fails over to now, or "" for the end of the line.
-        """
-        super().__init__(current)
-        self._cli = cli
-        self._name = name
-        self._said = ""
-        self.asked = (
-            f"Failover account for {cli}/{name}"
-            if name
-            else f"Failover account for {cli} as local"
-        )
-        self.about = (
-            "The account a turn switches to, in the same conversation, once its "
-            "retries run out. That account can fail over too, down to the end of "
-            "the chain."
-        )
-
-    def rows(self) -> list[tuple[str, str, str]]:
-        """The end of the line first, then that CLI's own other accounts."""
-        return [
-            ("", "nowhere", "the turn fails once its retries run out"),
-            *(
-                (one.name, one.name, _sets(one))
-                for one in _hmz().accounts.all(self._cli)
-                if one.name != self._name
-            ),
-        ]
-
-    def nothing(self) -> str:
-        """What came of making one, or that there is none but the end of the line."""
-        if self._said:
-            return self._said
-        if len(self._rows or []) > 1:
-            return ""
-        return f"{escape(self._cli)} has no other account to fail over to yet"
-
-    def added(self) -> None:
-        """Makes one, which is then the one it fails over to."""
-        self._new()
-
-    @work
-    async def _new(self) -> None:
-        """Makes an account of this CLI without leaving the question, and chooses it."""
-        if self.opening():
-            return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        try:
-            outcome = await made(showing, self._cli)
-        finally:
-            self.opened()
-        if outcome.provider is None or outcome.status:
-            self._said = (
-                bad(escape(outcome.why))
-                if outcome.why
-                else bad(
-                    f"{escape(outcome.provider.name)} was saved, but sign-in "
-                    f"failed with exit code {outcome.status}"
-                )
-                if outcome.provider is not None
-                else ""
-            )
-            self._rows = None
-            self._fill()
-            return
-        self.dismiss(outcome.provider.name)
-
-
 class Popup(Picks):
     """A question that arrived rather than one somebody walked to.
 
@@ -6469,7 +6376,9 @@ class Catalogue(Picks):
         self._fill()
 
 
-#: The two places a step is written between, by the id each is put up under on its form.
+#: The place a chain is written against, and the places it falls back to, by the id each is put
+#: up under on its form: the second is followed by where on the chain the row is, counting from
+#: zero, so that a chain of three is three rows and one more to add a fourth on.
 _FAILS, _GOES = "fails", "goes"
 
 #: What a row of the list of places is put up under when the account it is of has not said
@@ -6611,13 +6520,20 @@ def _tried(tries: int) -> str:
 
 
 class Failing(Form["Step | str"]):
-    """Everything about one step, on one form: where it fails, where it goes, how it retries.
+    """Everything about one chain, on one form: where it fails, where it goes, how it retries.
 
     One form rather than a walk. Adding a step used to be the three questions a place is,
     asked twice over on six sheets, and how it is tried again a menu of its own opened from
-    another: here the two places are a row apiece, each opening the one list of places, and
-    the three that say how a failed turn is tried again are stepped where they stand beside
-    them -- the tries first, since they are spent before the step is taken.
+    another: here every place is a row apiece, each opening the one list of places, and the
+    three that say how a failed turn is tried again are stepped where they stand beside them
+    -- the tries first, since they are spent before the chain is walked.
+
+    Where it falls back to is a list, in the order its places are tried, and is edited the way
+    the rest of the form is -- by opening a row. The row after the last opens onto a place to
+    add; a row already holding one opens onto the same list with `nowhere` at its head, which
+    takes that place off the chain; and choosing a place that is already further along swaps
+    the two, which is how a chain is put in another order without a key of its own to learn.
+    The place that fails is never offered, and no place can be on the chain twice.
 
     Held until `/settings` is saved, as the rest of the page is. On a step already written,
     taking it away is a row of its own above the one that keeps it.
@@ -6647,9 +6563,10 @@ class Failing(Form["Step | str"]):
         self._noted = ""
         self._unwritten = step is None
         held = step or Falls("")
+        #: Where it falls back to, in order, which is a list rather than one row's answer.
+        self._chain: list[str] = list(held.to)
         self._typed_in = {
             _FAILS: held.spec,
-            _GOES: held.to,
             _HOW_MANY: _tried(held.tries),
             _POLICY: held.policy,
             _HOW_LONG: _lasting(held.timeout),
@@ -6672,12 +6589,25 @@ class Failing(Form["Step | str"]):
                 if self._unwritten
                 else ()
             ),
+            *(
+                Question(
+                    f"{_GOES}{at}",
+                    "then" if at else "falls back to",
+                    "if that fails too, in a new conversation"
+                    if at
+                    else "fallback agent for failed turns, in a new conversation",
+                    _OPENS_ONTO,
+                )
+                for at in range(len(self._chain))
+            ),
             Question(
-                _GOES,
-                "falls back to",
-                "fallback agent for failed turns, in a new conversation",
+                f"{_GOES}{len(self._chain)}",
+                "then" if self._chain else "falls back to",
+                "add an agent to try after the ones above"
+                if self._chain
+                else "fallback agent for failed turns, in a new conversation",
                 _OPENS_ONTO,
-                needed=self._unwritten and not self._typed_in[_GOES],
+                needed=self._unwritten and not self._chain,
             ),
             Question(
                 _HOW_MANY,
@@ -6696,12 +6626,20 @@ class Failing(Form["Step | str"]):
 
     def shown(self, one: Question) -> str:
         """What a row holds, and what an empty place means."""
+        if (at := self._slot(one.held)) is not None:
+            if at < len(self._chain):
+                return self._chain[at]
+            return "+ add" if self._chain else "nowhere"
         value = self._typed_in.get(one.held, "")
-        if one.held == _GOES and not value:
-            return "nowhere"
         if one.held == _FAILS and not value:
             return "—"
         return value
+
+    @staticmethod
+    def _slot(held: str) -> int | None:
+        """Where on the chain one row is, or None for a row that is not one of the chain's."""
+        said = held.removeprefix(_GOES)
+        return int(said) if said != held and said.isdigit() else None
 
     def choices(self, held: str) -> Sequence[str]:
         """The rungs of trying again."""
@@ -6751,8 +6689,9 @@ class Failing(Form["Step | str"]):
             self._noted = ""
             return
         fresh = Falls(place)
+        if not self._chain:
+            self._chain = [one for one in was.to if one != place]
         for held, theirs, unset in (
-            (_GOES, was.to, fresh.to),
             (_HOW_MANY, _tried(was.tries), _tried(fresh.tries)),
             (_POLICY, was.policy, fresh.policy),
             (_HOW_LONG, _lasting(was.timeout), _lasting(fresh.timeout)),
@@ -6764,7 +6703,7 @@ class Failing(Form["Step | str"]):
         )
 
     def opens(self, held: str) -> None:
-        """Opens the list of places for one of the two.
+        """Opens the list of places for the place that fails or for one on its chain.
 
         Args:
           held: Which of them.
@@ -6776,7 +6715,7 @@ class Failing(Form["Step | str"]):
         """Asks which place, and moves on to what is still to be answered.
 
         Args:
-          held: Which of the two places.
+          held: The place that fails, or a row of its chain.
         """
         if self.opening():
             return
@@ -6785,29 +6724,77 @@ class Failing(Form["Step | str"]):
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
         fails = self._typed_in[_FAILS]
+        at = self._slot(held)
+        now = (
+            self._typed_in[held]
+            if at is None
+            else self._chain[at]
+            if at < len(self._chain)
+            else ""
+        )
         try:
             chosen = await showing.push_screen_wait(
                 Places(
                     self._offered,
                     "Select the agent that fails"
-                    if held == _FAILS
+                    if at is None
                     else f"Select the fallback agent for {fails or 'it'}",
-                    self._typed_in[held],
-                    leaving=fails if held == _GOES else "",
-                    nowhere=held == _GOES,
+                    now,
+                    leaving=fails if at is not None else "",
+                    nowhere=at is not None,
                 )
             )
         finally:
             self.opened()
         if chosen is None:
             return
-        if chosen != self._typed_in[held]:
+        if at is not None:
+            if self._chains(at, chosen):
+                self._wrong = ""
+                self.changed()
+            # Put up first, so that the cursor moved on to is counted among rows that are
+            # there: a chain one longer is a form one row longer.
+            self._fill()
+            self.kept(f"{_GOES}{min(at, len(self._chain))}")
+            self._fill()
+            return
+        if chosen != now:
             self._typed_in[held], self._wrong = chosen, ""
-            if held == _FAILS:
-                self._takes_up(chosen)
+            # The place that fails cannot be on its own chain: chosen as the one that fails,
+            # it comes off the chain rather than leaving a chain that points at itself.
+            self._chain = [one for one in self._chain if one != chosen]
+            self._takes_up(chosen)
             self.changed()
         self.kept(held)
         self._fill()
+
+    def _chains(self, at: int, chosen: str) -> bool:
+        """Puts one place at one position of the chain, which is three things by what it was.
+
+        `nowhere` takes the place at that position off; a place already elsewhere on the
+        chain changes places with the one there, which is how the chain is put in another
+        order; and any other place takes that position, or is added at the end of the chain
+        from the row after it.
+
+        Args:
+          at: The position, counting from zero; the length of the chain is the row after it.
+          chosen: The place, or "" for nowhere.
+
+        Returns:
+          Whether the chain changed.
+        """
+        was = list(self._chain)
+        if not chosen:
+            del self._chain[at : at + 1]
+        elif chosen in self._chain:
+            there = self._chain.index(chosen)
+            if at < len(self._chain):
+                self._chain[at], self._chain[there] = chosen, self._chain[at]
+        elif at < len(self._chain):
+            self._chain[at] = chosen
+        else:
+            self._chain.append(chosen)
+        return self._chain != was
 
     def _ask(self) -> None:
         """Says which place this is about, and what a step is."""
@@ -6825,14 +6812,16 @@ class Failing(Form["Step | str"]):
         """Answers with the step, once it says something and does not point at itself."""
         from hmz.coganchor.fallbacks import Falls
 
-        fails, goes = self._typed_in[_FAILS], self._typed_in[_GOES]
+        fails, goes = self._typed_in[_FAILS], tuple(self._chain)
         tries = next(
             (one for one in _TRIES if _tried(one) == self._typed_in[_HOW_MANY]), 0
         )
         if not fails:
             self._wrong = "select the agent that fails"
-        elif fails == goes:
+        elif fails in goes:
             self._wrong = "an agent cannot fall back to itself"
+        elif len(set(goes)) != len(goes):
+            self._wrong = "an agent can be on the chain only once"
         elif not goes and not tries:
             self._wrong = "choose a fallback agent or set retries"
         if self._wrong:
@@ -6862,18 +6851,18 @@ class Fallbacks(Pages):
     reach for are what that agent *is*, settled where it was made, and they come across the
     step unchanged.
 
-    A row also says how many times over a failed turn is taken again before the step happens.
-    Both are answers to the one thing that went wrong, so both are here.
-
-    An account falling back to another account of the same CLI is not this. That happens
-    inside the conversation that was running, so it is a thing about the account, and it is
-    said on the accounts page where the accounts are.
+    A row says where a turn goes as a chain, in the order its places are tried, and how many
+    times over a failed turn is taken again before the chain is walked. Both are answers to
+    the one thing that went wrong, so both are here. A chain is started only from the place it
+    is written against: a place that is only some chain's fallback has none of its own, and one
+    reached as a fallback carries on along the chain it was reached by.
     """
 
     #: What the page says it is.
     STEPS_ABOUT = (
-        "Where a turn falls back when an agent fails. An agent is a CLI, an "
-        "account and a model. Saved rules apply from the next failed turn."
+        "Where a turn falls back when an agent fails, tried in order. An agent "
+        "is a CLI, an account and a model. A chain starts only from the agent "
+        "it is written for. Saved rules apply from the next failed turn."
     )
 
     def __init__(self) -> None:
@@ -7037,7 +7026,7 @@ def _falling(step: Step) -> str:
     Returns:
       How often the turn is taken again there, and where it goes once those are spent.
     """
-    goes = f"falls back to {step.to}" if step.to else "no fallback"
+    goes = f"falls back to {', then '.join(step.to)}" if step.to else "no fallback"
     if not step.tries:
         return goes
     over = f", up to {_lasting(step.timeout)}" if step.timeout else ""
@@ -7049,24 +7038,24 @@ def _falling(step: Step) -> str:
 #: letter keys does. Each of these is a question about the account under the cursor, and a
 #: menu of four is a menu; four keys nobody can see are four keys nobody presses. Being rid
 #: of one is the fourth and is spelled with the rest of them -- see :data:`_TAKES_AWAY`.
-_CORRECTS, _SIGNS_IN, _FALLS_BACK = "corrects", "signs-in", "falls"
+_CORRECTS, _SIGNS_IN = "corrects", "signs-in"
 
 
 class Account(Picks):
-    """What to do with one account: correct it, sign it in, point it somewhere, be rid of it.
+    """What to do with one account: correct it, sign it in, be rid of it.
 
-    Its own menu rather than a letter apiece on the list of accounts. They are four questions
-    about the account under the cursor, and a sheet whose keys are `l` and `f` is a sheet
+    Its own menu rather than a letter apiece on the list of accounts. They are three questions
+    about the account under the cursor, and a sheet whose keys are `l` and `r` is a sheet
     whose keys have to be learned from a line at the bottom of it -- while enter, which every
-    list already means, was doing one of the four.
+    list already means, was doing one of the three.
 
     Taking it away is the last of them rather than a key on the list before this: the row
     that does it is read beside what the account is and what it is holding, which is what
     somebody deciding to be rid of it is deciding about.
 
-    How many times over a failed turn is tried again is not among them. That is a thing about
-    the place a turn runs at rather than about the credentials it runs with, and the
-    fallback page of `/settings` is where it is said.
+    Where a failed turn goes and how many times over it is tried again are not among them.
+    Those are things about the place a turn runs at rather than about the credentials it runs
+    with, and the fallback page of `/settings` is where they are said.
     """
 
     #: A few rows, read rather than narrowed.
@@ -7089,21 +7078,14 @@ class Account(Picks):
         self._gone = gone
         self.asked = f"{cli}/{name}" if name else f"{cli} as local"
         self.about = (
-            "Editing, failover, and removal take effect when /settings is "
-            "saved; signing in happens immediately."
+            "Editing and removal take effect when /settings is saved; signing in "
+            "happens immediately."
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """The four, less the three there is nothing to do for this machine's own account."""
-        held = [
-            (
-                _FALLS_BACK,
-                "fails over to",
-                "the account to use when a turn fails mid-conversation",
-            ),
-        ]
+        """The three, none of which there is anything to do about for this machine's own."""
         if not self._name:
-            return held
+            return []
         return [
             (
                 _CORRECTS,
@@ -7115,7 +7097,6 @@ class Account(Picks):
                 "sign in again",
                 "run the CLI's sign-in again; takes over the terminal while running",
             ),
-            *held,
             (
                 _TAKES_AWAY,
                 "cancel removal" if self._gone else "remove",
@@ -7126,12 +7107,12 @@ class Account(Picks):
         ]
 
     def nothing(self) -> str:
-        """Why three of them are not here.
+        """Why none of them is here.
 
         Returns:
-          The line, or "" for any account humanize made. Why three of the four rows are not
-          here is said rather than left to be noticed: a row somebody went looking for and
-          did not find is a menu that has not answered them.
+          The line, or "" for any account humanize made. Why the rows are not here is said
+          rather than left to be noticed: a row somebody went looking for and did not find is
+          a menu that has not answered them.
         """
         if self._name:
             return ""
@@ -7146,12 +7127,11 @@ class Providers(Pages):
 
     Read rather than chosen from: which account an agent runs as is asked where that agent is
     set up, so nothing here is being picked for anything. What it is for is what can happen to
-    one -- made, set up again, signed in again, marked as where a turn goes when another
-    account fails, taken away -- and all but the first of those are one menu, opened with
-    enter on the account they are about.
+    one -- made, set up again, signed in again, taken away -- and all but the first of those
+    are one menu, opened with enter on the account they are about.
 
     What is written down without running anything is held until the menu is saved: taking one
-    away, marking one as a fallback, correcting what one holds. What cannot be held is what
+    away, correcting what one holds. What cannot be held is what
     runs a command of its own -- making an account and signing one in own the terminal while
     they run, and something that has already happened is not a draft. Either way an agent
     reads the account it was configured with once, so what changes here is what its next
@@ -7180,9 +7160,6 @@ class Providers(Pages):
         self._accounts: list[Provider] = []
         #: The ones to take away when this is saved, as `cli/name`.
         self._gone: set[str] = set()
-        #: What each one is to fall back to when this is saved, by `cli/name`: the name of
-        #: another account of that CLI, or "" for the end of the line.
-        self._chains: dict[str, str] = {}
         #: What each corrected one is to hold, by `cli/name`.
         self._edits: dict[str, dict[str, str]] = {}
         #: Which other backends each corrected one is to be written down for as well, by
@@ -7196,11 +7173,8 @@ class Providers(Pages):
         """Reads every account off the disk, which is what the rows are drawn from.
 
         The account this machine is already signed into is one of them, under each CLI that
-        has one of its own: it is what an agent nobody gave an account runs as, and it is
-        where that agent's chain begins. Under a CLI with no accounts there is nothing for it
-        to fall back to, so it is a row there only where something has already been said about
-        it -- a chain that outlived the accounts it named -- which must not be a setting
-        somebody believes in that nothing shows.
+        has one of its own: it is what an agent nobody gave an account runs as, and a group of
+        accounts is read beside it.
 
         Last in each CLI's group rather than first: what somebody came here to read is the
         accounts they made, and this is the one that was always there.
@@ -7215,7 +7189,7 @@ class Providers(Pages):
             one
             for profile in hmz.backends()
             if (one := accounts.find(profile.name, LOCAL)) is not None
-            and (profile.name in whose or one.fallback)
+            and profile.name in whose
         ]
         self._accounts = sorted(
             [*held, *mine], key=lambda one: (one.cli, not one.name, one.name)
@@ -7234,12 +7208,9 @@ class Providers(Pages):
             said += f"{_DOT}checking models…"
         if named in self._edits:
             said += f"{_DOT}edited"
-        falls = self._chains.get(named, one.fallback)
-        if falls:
-            said += f"{_DOT}fails over to {falls}"
         if named in self._gone:
             said += f"{_DOT}will be removed"
-        if named in self._edits or named in self._chains or named in self._gone:
+        if named in self._edits or named in self._gone:
             said += f"{_DOT}{self.NEXT_SESSION}"
         return said
 
@@ -7304,50 +7275,14 @@ class Providers(Pages):
 
         Returns:
           The line to say under the list. humanize did not make that account and keeps no
-          credentials for it -- it is the CLI as whoever is at this machine runs it -- so the
-          only thing to say about it is what it fails over to, which is what enter offers.
+          credentials for it -- it is the CLI as whoever is at this machine runs it -- so
+          there is nothing here to do to it.
         """
         telemetry.snag("key-does-nothing", sheet="Providers", doing=doing)
         return (
             f"cannot {doing} {escape(cli)} as local: humanize keeps no credentials "
-            "for it, only what it fails over to"
+            "for it"
         )
-
-    @work
-    async def _falls_back(self, one: Provider) -> None:
-        """Asks which account a turn under this one carries on as when it fails.
-
-        Args:
-          one: The account.
-        """
-        named = self._named(one)
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        was = {self._named(each) for each in self._accounts}
-        chosen = await showing.push_screen_wait(
-            Falls(one.cli, one.name, self._chains.get(named, one.fallback))
-        )
-        # An account may have been made on the way, which is one more row here, one more
-        # line for the transcript, and one more CLI to ask what it runs as it.
-        self._read_accounts()
-        for made_ in [each for each in self._accounts if self._named(each) not in was]:
-            self._told.append(
-                f"[dim]{escape(self._named(made_))} saved to "
-                f"{escape(str(made_.at))}[/dim]"
-            )
-            self._probes(made_)
-        if chosen is None:
-            self._fill()
-            return  # walked out, which changes nothing
-        if chosen == one.fallback:
-            self._chains.pop(named, None)
-        else:
-            self._chains[named] = chosen
-        self._said = ""
-        self.changed()
-        self._fill()
 
     def _drops_account(self, one: Provider) -> None:
         """Holds one account to be taken away when this menu is saved, or takes that back.
@@ -7403,8 +7338,6 @@ class Providers(Pages):
             self._corrects(one)
         elif said == _SIGNS_IN:
             self._again(one)
-        elif said == _FALLS_BACK:
-            self._falls_back(one)
         elif said == _TAKES_AWAY:
             self._drops_account(one)
 
@@ -7665,9 +7598,8 @@ class Providers(Pages):
         """
         accounts = _hmz().accounts
         was = len(told)
-        # Taken away first, and then everything that is left: a chain pointed at an account
-        # that is going in the same save is a chain that goes nowhere, and one written before
-        # the removal would be written and then quietly left dangling.
+        # Taken away first, and then everything that is left: an account corrected and taken
+        # away in the same save is an account taken away.
         for taken in sorted(self._gone):
             cli, _, name = taken.partition("/")
             try:
@@ -7683,7 +7615,7 @@ class Providers(Pages):
         for one in self._accounts:
             named = self._named(one)
             if named in self._gone:
-                continue  # gone above, so there is nothing to correct or point anywhere
+                continue  # gone above, so there is nothing to correct
             if (answers := self._edits.get(named)) is not None:
                 try:
                     corrected = accounts.write(one.cli, one.name, one.way, answers)
@@ -7700,17 +7632,6 @@ class Providers(Pages):
                     told.append(
                         f"[dim]{escape(cli)}/{escape(one.name)} is updated "
                         "with it[/dim]"
-                    )
-            if (falls := self._chains.get(named)) is not None:
-                try:
-                    accounts.points(one.cli, one.name, falls)
-                except ValueError as why:
-                    told.append(f"hmz: {escape(str(why))}")
-                else:
-                    told.append(
-                        f"[dim]{escape(named)} fails over to {escape(falls)}[/dim]"
-                        if falls
-                        else f"[dim]{escape(named)} no longer fails over[/dim]"
                     )
         if len(told) > was:
             # When it is felt, said once rather than on every line: an agent reads the

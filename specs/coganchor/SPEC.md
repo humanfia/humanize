@@ -222,14 +222,13 @@ class Answer:
     held: bool = False
     policy: str = ""
     least: float = 0.0
-    accounts: bool = True
     reopen: bool = False
     fix: str = ""
 
 @dataclass(frozen=True, slots=True)
 class Falls:
     spec: str
-    to: str = ""
+    to: tuple[str, ...] = ()  # the places tried after it, in order
     tries: int = 0
     policy: str = DEFAULT
     timeout: float = 0.0
@@ -242,7 +241,7 @@ def spec(backend: str, model: str, provider: str = "") -> str: ...
 def reads(said: str) -> str: ...
 def falls() -> list[Falls]: ...
 def tried(said: str) -> Falls: ...
-def points(said: str, at: str) -> Falls: ...
+def points(said: str, to: Sequence[str]) -> Falls: ...
 def retrying(said: str, tries: int, policy: str, timeout: float) -> Falls: ...
 def clear(said: str) -> bool: ...
 def chain(said: str) -> list[str]: ...
@@ -515,10 +514,19 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   nothing rather than nothing spent, a near miss MUST be a miss, and every figure MUST be a floor
   read under a backend's own accounting of the turn.
 - A place MUST be `CLI[@ACCOUNT]/MODEL` and no more; one naming a CLI no backend answers to MUST be
-  refused where written; a step MUST NOT point at its own place; a chain MUST end at the second
-  sight of a place and MUST answer with that place first; and nothing MUST be retried by default,
-  `answers` answering for a fault nothing recognised.
-- An account's chain MUST be walked to its end before this one; the turn that moves MUST be taken in
+  refused where written; a place's chain MUST be an ordered list of places, never its own place
+  and never one place twice, `points` raising `ValueError` for either and for one it cannot read,
+  and a single place written as a string by an older humanize MUST read as that place and each
+  place the older rows went on to from it, which is the chain such a file walked;
+  `chain` MUST answer with that place first and then its own chain, and with that place alone
+  where it heads none -- however many chains it is a step of -- never walking on to the chains of
+  the places on it; and nothing MUST be retried by default, `answers` answering for a fault
+  nothing recognised.
+- A turn MUST be tried at its place as often as that place's own row and the fault say, inside the
+  session that was running, and only then taken at the next place of the chain it was started
+  on, each place after it the same in turn: a stand-in MUST carry on along the chain it was
+  reached by and MUST NOT read one of its own, so a chain cannot come round. An account MUST
+  NOT name an account to carry on under. The turn that moves MUST be taken in
   a new session, MUST carry the skills the flow gave the agent it left, and MUST be answered back
   through the session that asked. A stand-in MUST be configured exactly as the agent that could not
   run was; a setting the CLI taking over cannot be told MUST make it no stand-in.

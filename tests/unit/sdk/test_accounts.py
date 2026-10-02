@@ -91,14 +91,6 @@ def test_a_name_an_account_may_not_be_kept_under_is_refused() -> None:
         Hmz().accounts.where("claude", "../evil")
 
 
-def test_the_account_this_machine_is_signed_into_is_where_the_backend_keeps_its_own() -> (
-    None
-):
-    from hmz.coganchor.providers import store
-
-    assert Hmz().accounts.local("claude") == store.alone("claude")
-
-
 def test_the_ways_in_a_backend_offers_are_the_ones_it_is_asked_for() -> None:
     held = Hmz().accounts
 
@@ -227,29 +219,13 @@ def test_an_account_that_could_not_run_another_backend_is_not_copied_to_it() -> 
         held.copies(made, "definitely-not-a-backend")
 
 
-def test_the_accounts_a_turn_carries_on_under_are_the_chain_it_was_pointed_down() -> (
-    None
-):
+def test_an_account_says_nothing_about_where_a_failed_turn_goes() -> None:
+    """That is the fallback page's to say, between places, and no longer an account's."""
     held = Hmz().accounts
-    held.write("claude", "first")
-    held.write("claude", "second")
 
-    assert held.points("claude", "first", "second")
-    chain = held.chain(held.find("claude", "first"))  # pyright: ignore[reportArgumentType]
-
-    assert [one.name for one in chain] == ["first", "second"]
-
-
-def test_an_account_pointed_at_one_that_is_not_its_backend_s_is_refused() -> None:
-    held = Hmz().accounts
-    held.write("claude", "first")
-
-    with pytest.raises(ValueError, match="claude account 'never-made' not found"):
-        held.points("claude", "first", "never-made")
-
-
-def test_pointing_an_account_nobody_made_says_there_was_none_to_write_it_on() -> None:
-    assert not Hmz().accounts.points("claude", "never-made", "")
+    assert not hasattr(held, "chain")
+    assert not hasattr(held, "points")
+    assert not hasattr(held.write("claude", "mine"), "fallback")
 
 
 def test_an_account_taken_away_is_gone_and_taking_it_away_twice_says_so() -> None:

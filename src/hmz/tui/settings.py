@@ -694,7 +694,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         if page == _DIRECTORY:
             return self._profile != self._profile_was or self._forget
         if page == _ACCOUNTS:
-            return bool(self._gone or self._chains or self._edits)
+            return bool(self._gone or self._edits)
         if page == _FALLBACK:
             return self._steps != self._steps_was
         return False

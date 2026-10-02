@@ -298,13 +298,10 @@ a backend. An account `name` of `""` is the machine's own login (*as local*).
 | `asks(way: Way, given: Mapping[str, str])` | `list[str]` | Variables still unanswered. |
 | `make(cli, name, way: Way, answers=None)` | `Provider` | Writes an account from a way's answers; makes its directory. `ValueError`: bad backend or name. `OSError`. |
 | `sign_in(provider, way, answers=None)` | `int` | **Runs** the backend's sign-in command under the account's paths; its exit status. |
-| `write(cli, name, way="", env=None, args=())` | `Provider` | Writes an account as given, replacing `env`/`args`, keeping credentials and fail-over. `ValueError`, `OSError`. |
+| `write(cli, name, way="", env=None, args=())` | `Provider` | Writes an account as given, replacing `env`/`args`, keeping credentials. `ValueError`, `OSError`. |
 | `where(cli, name)` | `Path` | Its credentials directory. `ValueError`: unknown backend or invalid name. |
-| `local(cli)` | `Path` | Where the machine's own login's humanize record is kept. |
 | `serves(one: Provider)` | `tuple[str, ...]` | Other backends its credentials could run. |
 | `copies(one, cli, name="")` | `Provider` | Writes the same account for another backend. `ValueError`: that backend cannot use it. |
-| `chain(one: Provider)` | `list[Provider]` | Accounts a failing turn walks, `one` first. |
-| `points(cli, name, at)` | `bool` | Sets `name`'s fail-over account to `at` (`""`: none). `ValueError`: not that backend's, itself, or a cycle. Returns whether `name` exists. |
 | `remove(cli, name)` | `bool` | Deletes an account and its credentials. `ValueError` for `""`. |
 | `env(said: str)` | `dict[str, str]` | Parses `NAME=VALUE` lines. |
 | `environ(provider: Provider \| None)` | `dict[str, str]` | The environment a turn under it gets; `{}` for `None`. |
@@ -335,8 +332,9 @@ named by `-e <role>=ssh@<name>` and `-e <role>=docker@<name>`. `backend` is `"ss
 
 ## `Fallbacks` {#fallbacks}
 
-`Hmz().fallbacks`: [fallback steps](/user/settings#fallback) between *places*, each spelled
-`<cli>[@<account>]/<model>`.
+`Hmz().fallbacks`: [fallback chains](/user/settings#fallback) between *places*, each spelled
+`<cli>[@<account>]/<model>`. A chain is written against one place, its main, and lists the
+places tried after it, in order.
 
 | Member | Returns | Behaviour |
 | --- | --- | --- |
@@ -347,8 +345,8 @@ named by `-e <role>=ssh@<name>` and `-e <role>=docker@<name>`. `backend` is `"ss
 | `reads(said: str)` | `str` | The canonical spelling, or `""` for none. |
 | `all()` | `list[Falls]` | Every step, in the order written. |
 | `tried(said)` | `Falls` | The step for a place (empty `Falls` where none). |
-| `chain(said)` | `list[str]` | The places one turn walks, `said` first; stops at the first repeat. |
-| `points(said, at)` | `Falls` | Sets where `said` falls back to. `ValueError`: not a place, or itself. |
+| `chain(said)` | `list[str]` | `[said, *to]` where a rule is written against `said`, else `[said]`: a place only on somebody else's chain has none, and chains are never joined. |
+| `points(said, to: Sequence[str])` | `Falls` | Sets the places `said` falls back to, in order (`[]` none; a single string is one place). `ValueError`: not a place, itself, or a place named twice. |
 | `retrying(said, tries: int, policy: str, timeout: float)` | `Falls` | Sets extra tries (`0` none), the wait policy, and the total limit in seconds (`0` none). `ValueError`. |
 | `clear(said)` | `bool` | Removes the step. |
 
@@ -556,10 +554,10 @@ declaration order.
 
 | Type | Fields |
 | --- | --- |
-| `Provider` | `cli`, `name`, `way: str = "env"`, `env: Mapping[str, str]`, `args: tuple[str, ...]`, `made: str`, `fallback: str`; property `at: Path`; methods `held()`, `command(argv)`, `swaps()` |
+| `Provider` | `cli`, `name`, `way: str = "env"`, `env: Mapping[str, str]`, `args: tuple[str, ...]`, `made: str`; property `at: Path`; methods `held()`, `command(argv)`, `swaps()` |
 | `Way` | `name`, `about`, `argv: tuple[str, ...]` (sign-in command), `asks: tuple[Asked, ...]`, `sets: tuple[tuple[str, str], ...]`, `args: tuple[str, ...]`, `stdin: str` |
 | `Model` | `name`, `efforts: tuple[str, ...]` (hardest first), `swarms: bool = False` |
-| `Falls` | `spec`, `to: str` (`""` = nowhere), `tries: int = 0`, `policy: str = "exponential-jitter"`, `timeout: float = 0.0`; method `says()` |
+| `Falls` | `spec`, `to: tuple[str, ...]` (`()` = nowhere), `tries: int = 0`, `policy: str = "exponential-jitter"`, `timeout: float = 0.0`; method `says()` |
 | `Policy` | `name`, `about` |
 
 ### Environment types {#environment-types}

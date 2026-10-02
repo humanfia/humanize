@@ -29,7 +29,6 @@ H/
 ├── acp.json                            CLIs added by hand (ACP)
 ├── prices.json                         the price table
 ├── models/<cli>.json                   model catalogue of the CLI's own sign-in
-├── local/<cli>.json                    fallback of the CLI's own sign-in
 ├── providers/<cli>/<name>/             accounts
 │   ├── provider.json
 │   ├── models.json
@@ -88,20 +87,21 @@ H/
 [Fallback](/user/settings#fallback) chains. JSON array:
 
 ```json
-[{"spec": "claude@work/claude-opus-5", "to": "codex/gpt-5.6-sol",
+[{"spec": "claude@work/claude-opus-5", "to": ["codex/gpt-5.6-sol", "dsh/deepseek-v4-flash"],
   "tries": 3, "policy": "exponential", "timeout": 600.0}]
 ```
 
 | Field | Type | |
 | --- | --- | --- |
 | `spec` | `str` | `CLI[@ACCOUNT]/MODEL` the entry applies to |
-| `to` | `str` | where the turn goes next |
+| `to` | `[str]` | the chain: where the turn goes next, in order. A plain string, as older versions wrote, reads as that place followed by each place the older rows went on to from it, and is written back as a list |
 | `tries` | `int` | retries before falling |
 | `policy` | `str` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci` |
 | `timeout` | `float` | seconds |
 
 Written to `.fallbacks.json.<random>.new` (`0600`), fsynced and renamed; invalid entries are
-dropped on read.
+dropped on read, and so are places in `to` that cannot be read, name the entry's own `spec`, or
+repeat an earlier one.
 
 ### `H/acp.json`
 
@@ -155,7 +155,9 @@ renamed):
 | `env` | `{str: str}` | variables every turn under it runs with ([Environment](/reference/environment#account-variables)) |
 | `args` | `[str]` | extra CLI arguments |
 | `made` | `str` | `%Y-%m-%dT%H:%M:%SZ` |
-| `fallback` | `str` | the account to fall back to |
+
+A `fallback` key written by an older version is ignored, and dropped the next time the account
+is written.
 
 `home/`, `user/`, `config/` hold the credential files **the CLI itself writes** when it signs
 in, redirected from where it would write them at home:
@@ -178,7 +180,8 @@ Removing an account deletes its directory.
 
 ### `H/local/<cli>.json`
 
-`{"fallback": "<account>"}` for the CLI's own sign-in (`@local`). `0600`, directory `0700`.
+Written by older versions to hold the CLI's own sign-in's account fallback. No longer read;
+safe to delete.
 
 ### `H/runtimes/`
 

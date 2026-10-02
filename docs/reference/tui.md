@@ -594,7 +594,7 @@ own.
 | --- | --- | --- |
 | `/flow`, roles, agent sheet, params, budget, harness, environment form, unsaved host | everything | — |
 | `/settings` Settings, Workspace, Fallback | everything | — |
-| `/settings` Accounts | edit settings, fails over to, remove | add an account, sign in again, add a custom CLI |
+| `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
 | `/settings` Runtimes, Flowverses; `/epics` | — | everything |
 | Monitor board | — | everything |
 
@@ -927,7 +927,7 @@ A screen of six pages. Storage keys are in [Settings](/reference/settings).
 | --- | --- | --- |
 | ⚙ Settings | `reports on\|off\|not set · details on\|off` | reports, details or btw agent changed |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | profiling changed, or forget on |
-| ◉ Accounts | `<n> account(s)` (named accounts) | an edit, fail-over or removal held |
+| ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
 | ▦ Runtimes | `<n> machine(s)` | never |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ⑂ Flowverses | `<n> flowverse(s)` (≥ 3) | never |
@@ -970,7 +970,7 @@ in force.
 | /btw agent | next time btw mode is entered | `takes effect on next /btw` |
 | Profiling | next flow run | `takes effect on next flow run` |
 | Forget | next launch | `takes effect on next launch` |
-| Account edit, fails over to, removal | next agent session (running sessions keep their account) | `from the next agent session` |
+| Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Fallback rules | next failed turn | — |
 | Runtimes, Flowverses | at once | — |
 
@@ -1021,27 +1021,26 @@ agent's next session.`
 
 | Element | Rule |
 | --- | --- |
-| Groups | A muted heading per CLI; accounts alphabetically, then `as local` (`the account signed in on this machine`) where the CLI has an account or its local account has a fail-over. |
-| Row | `<name>  <way> · <VAR>, <VAR>` (names only), then ` · checking models…`, ` · edited`, ` · fails over to <x>`, ` · will be removed`, ` · from the next agent session` as they apply. |
+| Groups | A muted heading per CLI; accounts alphabetically, then `as local` (`the account signed in on this machine`) where the CLI has an account. |
+| Row | `<name>  <way> · <VAR>, <VAR>` (names only), then ` · checking models…`, ` · edited`, ` · will be removed`, ` · from the next agent session` as they apply. |
 | Empty | `no accounts yet` |
 
-`enter` on an account opens `<cli>/<name>` (or `<cli> as local`): `Editing, failover, and
-removal take effect when /settings is saved; signing in happens immediately.`
+`enter` on an account opens `<cli>/<name>` (or `<cli> as local`): `Editing and removal take
+effect when /settings is saved; signing in happens immediately.`
 
 | Row | Description | Lands |
 | --- | --- | --- |
 | `edit settings` | `ask the setup questions again` | on save. Secrets start blank (`leave blank to keep current value`). Copies for other CLIs start on. |
 | `sign in again` | `run the CLI's sign-in again; takes over the terminal while running` | at once. `<name> uses <way>, which has no command to run; edit its settings instead`; `sign-in for <name> failed with exit code <n>`. |
-| `fails over to` | `the account to use when a turn fails mid-conversation` | on save. List titled `Failover account for <cli>/<name>`: `add an account`, `search…`, `nowhere` (`the turn fails once its retries run out`), the CLI's other accounts. |
 | `remove` / `cancel removal` | `remove the account and its credentials when /settings is saved` / `will be removed when /settings is saved` | on save |
 
-`as local` offers only `fails over to`: `this is <cli> as local: humanize keeps no credentials
-for it, so you cannot edit, sign in, or remove it`.
+`as local` offers no rows: `this is <cli> as local: humanize keeps no credentials for it, so
+you cannot edit, sign in, or remove it`. Where a failing turn goes is the
+[Fallback page](#where-a-turn-goes-when-it-cannot-be-taken)'s, not an account's.
 
 On save the transcript says, per change: `<cli>/<name> and its credentials were removed`,
-`<cli>/<name> is updated` (and `<other>/<name> is updated with it`), `<cli>/<name> fails over
-to <x>` / `<cli>/<name> no longer fails over`, then once `account changes take effect from the
-next agent session`.
+`<cli>/<name> is updated` (and `<other>/<name> is updated with it`), then once `account
+changes take effect from the next agent session`.
 
 #### Account form {#making-an-account}
 
@@ -1167,8 +1166,9 @@ not checked.
 
 ### Fallback page {#where-a-turn-goes-when-it-cannot-be-taken}
 
-Intro: `Where a turn falls back when an agent fails. An agent is a CLI, an account and a model.
-Saved rules apply from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <x>` or `… · no fallback`. Empty: `no fallback rules configured yet`.
+Intro: `Where a turn falls back when an agent fails, tried in order. An agent is a CLI, an
+account and a model. A chain starts only from the agent it is written for. Saved rules apply
+from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <a>[, then <b>…]` or `… · no fallback`. Empty: `no fallback rules configured yet`.
 Semantics: [Providers](/reference/providers) and [Falling back](/user/settings#fallback).
 
 Rule form: title `Add fallback rule` (or the place when editing); intro `What happens when an
@@ -1178,7 +1178,9 @@ conversation.`
 | Row | Kind | Values | Default |
 | --- | --- | --- | --- |
 | `fails on` (new only) | ▸ | a place (`—` empty) | — |
-| `falls back to` | ▸ | a place, or `nowhere` | `nowhere` |
+| `falls back to` | ▸ | the first place of the chain, or `nowhere` | `nowhere` |
+| `then` (one per further place) | ▸ | the next place of the chain (`if that fails too, in a new conversation`) | — |
+| `then` (after the last, once the chain has one) | ▸ | `+ add` (`add an agent to try after the ones above`) | — |
 | `tries` | ▾ | `none`, `1`, `2`, `3`, `5`, `8`, `13`, `21` | `none` |
 | `policy` | ▾ | `none` (`try again at once, with no wait at all`), `constant` (`the same wait every time: 1s, 1s, 1s`), `linear` (`one second longer each time: 1s, 2s, 3s`), `exponential` (`twice as long each time: 1s, 2s, 4s, 8s`), `exponential-jitter` (`exponential, each wait anywhere up to it -- for agents failing at once`), `fibonacci` (`the Fibonacci sequence: 1s, 1s, 2s, 3s, 5s`) | `exponential-jitter` |
 | `for` | ▾ | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` | `no limit` |
@@ -1189,10 +1191,12 @@ Place picker: `Select the agent that fails` / `Select the fallback agent for <pl
 agent is a CLI, an account and a model: what a turn can fail on. Search by any of the three.`
 Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
 for a fallback (never the failing place); `<cli>[@<account>]/…  models not reported yet; select
-to query them` for an account not yet asked.
+to query them` for an account not yet asked. On a row of the chain, `nowhere` takes that place
+off it, and a place already further along the chain swaps with the one there (how the chain is
+reordered).
 
-Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `choose a
-fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
+Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `an agent can
+be on the chain only once`, `choose a fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
 a fallback rule; done will update it`. Transcript on save: `<place> <rule>` or `<place> has no
 fallback`.
 

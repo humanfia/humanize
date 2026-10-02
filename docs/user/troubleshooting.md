@@ -532,8 +532,8 @@ Command '['claude', …]' returned non-zero exit status 1. 429 rate limit exceed
 (throttled: this account has spent its quota; another one, or a wait, is what answers it)
 ```
 
-humanize waits, retries, or moves to the next account or [fallback](/user/settings#fallback) by
-itself, depending on the kind. The entries below say what is left for you to do. A failure with
+humanize waits, retries, or moves to the next place of its [fallback](/user/settings#fallback) chain
+by itself, depending on the kind. The entries below say what is left for you to do. A failure with
 no brackets is one humanize did not recognise, and it is retried as that place says. Under
 `hmz exec`, a failure nothing recovers from ends the run with a traceback whose last line is
 the same message, and exit status 1.
@@ -553,22 +553,23 @@ says. Then choose a model it runs.
 
 ### `(throttled: this account has spent its quota; another one, or a wait, is what answers it)`
 
-**Symptom.** A turn fails with this bracket, and the run pauses or moves to another account.
+**Symptom.** A turn fails with this bracket, and the run pauses or moves to another place.
 
 **Cause.** The account hit its rate limit. humanize waits, tries once more, then moves to the
-next account of that CLI.
+next place of the [fallback chain](/user/settings#fallback), if there is one.
 
 **Fix.** Give it one to move to: add an account on [the Accounts page of
-`/settings`](/user/settings#accounts) and set what it falls back to on the Fallback page.
+`/settings`](/user/settings#accounts), and put a place under it (the same model under the new
+account, say) on the chain of the place that failed, on the Fallback page.
 
-**Verify.** The next time it happens, the transcript says the turn moved to the other account.
+**Verify.** The next time it happens, the transcript says `carrying on as` the other place.
 
 ### `(refused: that account needs signing in again)`
 
 **Symptom.** A turn fails with this bracket.
 
 **Cause.** The credential was refused, or the login expired. humanize moves straight on to the
-next account.
+next place of the fallback chain.
 
 A login that renews itself (Codex with ChatGPT, Claude Code with a subscription) is also
 revoked, with `refresh token was revoked`, when two copies of it renewed apart: a copy of

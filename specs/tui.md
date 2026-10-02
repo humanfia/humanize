@@ -131,16 +131,17 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   cannot be reached; MUST apply all of it at once, so that the page holds nothing; and MUST NOT
   read a key it names.
 - MUST list on the accounts page of `/settings` every account under its CLI and offer
-  correcting, re-signing, what it fails over to and taking it away, never drawing a secret back
+  correcting, re-signing and taking it away, never drawing a secret back
   onto the screen, a secret left blank while correcting keeping the one it has.
 - MUST make an account on one form -- its CLI, its way in, a name no account is already called,
   what that way asks, and which other CLIs to write it down for -- wherever one is asked for,
   and then ask what it runs without holding up the page it was made from, saying so while it
   asks and saying how that went, why included, once it has.
-- MUST answer both scales of falling back — which agent takes over from which, on the fallback
-  page of `/settings`, a step written on one form of the place that fails, the place it falls
-  back to and how it is tried again, and which account a failing one fails over to, on its
-  accounts page, where one can be made — refusing anything that falls back to itself.
+- MUST answer falling back on the fallback page of `/settings` — which places take over from
+  which, a chain written on one form of the place that fails, the places it falls back to in the
+  order they are tried, added, taken off and put in another order there, and how it is tried
+  again — refusing a chain that names the place that fails or one place twice, and offering
+  nothing about falling back on the accounts page.
 - MUST list the runs of this directory newest first with when each began, its flow, its task, how
   it went and how many sessions it opened, marking which can be picked up, readable while one runs.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and

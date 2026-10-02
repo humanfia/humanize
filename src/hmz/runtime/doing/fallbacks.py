@@ -1,9 +1,10 @@
 """Where a turn goes when the place taking it cannot take it at all, as one object.
 
-A place is a CLI, an account and a model, and a step is written between two of them. How many times
-over a failed turn is taken again is written on the same row, both being answers to the one thing
-that happened. The file is :mod:`hmz.coganchor.fallbacks`; this is what every way in asks, so that a
-step written from a command line is one the interface's own menu reads back.
+A place is a CLI, an account and a model, and a chain is written from one of them to the places
+tried after it, in order. How many times over a failed turn is taken again is written on the same
+row, both being answers to the one thing that happened. The file is :mod:`hmz.coganchor.fallbacks`;
+this is what every way in asks, so that a step written from a command line is one the interface's
+own menu reads back.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from hmz.coganchor.fallbacks import Falls, Policy
 
 __all__ = ["Fallbacks"]
@@ -63,27 +66,33 @@ class Fallbacks:
         return fallbacks.tried(said)
 
     def chain(self, said: str) -> list[str]:
-        """The places one turn would walk, the one it starts at first."""
+        """The places one turn would walk, the one it starts at first.
+
+        The chain written against that place and nothing more: a place that is only ever some
+        other place's fallback is a chain of one.
+        """
         from hmz.coganchor import fallbacks
 
         return fallbacks.chain(said)
 
-    def points(self, said: str, at: str) -> Falls:
+    def points(self, said: str, to: Sequence[str]) -> Falls:
         """Says where one place's turns go when it cannot run at all.
 
         Args:
           said: The place that cannot run.
-          at: The place that takes the turn instead.
+          to: The places that take the turn instead, in the order they are tried, or none to
+            say it falls back nowhere.
 
         Returns:
           The step, as it is now written down.
 
         Raises:
-          ValueError: If either is not a place, or a step would point at itself.
+          ValueError: If any of them is not a place, one is the place itself, or one is named
+            twice.
         """
         from hmz.coganchor import fallbacks
 
-        return fallbacks.points(said, at)
+        return fallbacks.points(said, to)
 
     def retrying(self, said: str, tries: int, policy: str, timeout: float) -> Falls:
         """Says how a failed turn at one place is taken again before the step is taken.
