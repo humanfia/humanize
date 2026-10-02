@@ -4,7 +4,7 @@ Point one of a flow's environments at another machine with `-e`, and the work th
 there (the files an agent edits, the builds and tests it runs) happens on that machine. Use
 this when the build, the data or the GPUs are on a host you reach over ssh, and your coding
 agent and its sign-in are on the machine in front of you. This page takes you from
-`ssh build-box` working to a flow building on it, and shows each of the four places the agent's
+`ssh build-box` working to a flow building on it, and shows each of the places the agent's
 CLI itself can run.
 
 <div class="re-split">
@@ -96,18 +96,19 @@ host's, every command it runs runs there, and the flow's own steps on `box`, suc
 
 The agent's CLI, and whatever supervises it, is its **harness**. Where the harness runs decides
 whose sign-in the agent uses, where its sessions are kept, and which network its model is
-reached over. `-H` says where, for the whole run; at the prompt it is the `harness` row of
-`/flow`, kept per flow like the budget.
+reached over. Nothing on the command line says where: a host you [saved under a
+name](#save-a-host-under-a-name) says it for every run on it, as its **affinity**, a list of
+places tried in order.
 
-| `-H` | The agent's CLI runs |
+| In an affinity | The agent's CLI runs |
 | --- | --- |
-| `adaptive` *(default)* | on the host where the CLI is installed there, and here otherwise |
-| `local` | here, always, reaching the host's files and commands |
-| `env` | on the host, always; refused where the CLI is not there |
-| `standalone:<machine>` | on a third machine, reaching the host's work from there |
+| `self` | on the host itself, where the CLI is installed there and can hold the role's fence |
+| `local` | here, reaching the host's files and commands |
+| `ssh:<name>`, `docker:<name>` | on another saved runtime, reaching the host's work from there |
 
-Work in the workspace has its harness here whatever `-H` says, except `standalone`. The four
-are worked through one by one [below](#where-the-agent-runs).
+With no affinity, and on a host nobody saved, the CLI runs on the host where it is installed
+there and here otherwise. Work in the workspace always has its harness here. The places are
+worked through one by one [below](#where-the-agent-runs).
 
 ## Example: build on a host, review here
 
@@ -156,13 +157,13 @@ hmz exec -f onbox                                               ①
 6. **The reviewer works in the workspace**, here, and reads a `git diff` the flow ran on the
    host. One flow can mix roles here and there.
 
-Nothing on the command line said where the builder's CLI runs, so `-H` was `adaptive`, and with
+Nothing said where the builder's CLI runs, and `build-box` was saved with no affinity, so with
 no `claude` on `build-box` it ran here. At the prompt the transcript says so as the role's
 first session opens:
 
 ```text
 ❯ Make test_calc.py pass.
-builder's harness runs here (local)
+builder's harness runs here
 ── builder
 ● builder is working
 ```
@@ -180,11 +181,9 @@ diff --git a/calc.py b/calc.py
 ```
 
 - `/epics` lists the run, and [a trace](/user/tracing) of it shows the builder's sessions like
-  any other.
-- On `/flow`, the flow's `harness` row now says what `adaptive` came to:
-  `adaptive → local (last run)`, whether the run was made at the prompt or with `hmz exec`.
+  any other, each with where its harness went.
 - While a run goes, the monitor's page for `box` says the same on its `harness` row:
-  `adaptive → local: on this machine; what it runs lands here`. See [the monitor's environment
+  `local: on this machine; what it runs lands here`. See [the monitor's environment
   page](/user/monitor#environments).
 - `/home/me/build/myproject` also exists **here**: it is the copy the agent read and wrote
   through, kept at the same path. See [the path is taken here
@@ -203,14 +202,15 @@ what your ssh config does not already say:
    Add an ssh host
    A machine where flow environments run. Connects using your ssh config plus settings configured
    here. Keys are specified by path and never read.
-     1. host           build-box                    hostname, IP address, or user@host:port   ①
-     2. name           build-box                    name used in -e and /flow                 ②
+     1. host             build-box                  hostname, IP address, or user@host:port   ①
+     2. name             build-box                  name used in -e and /flow                 ②
      3. user                                        username; leave blank to use your ssh config
      4. port                                        leave blank to use your ssh config, or 22
      5. identity file                               path to private key
      6. proxy jump                                  jump host to connect through, if any
      7. options                                     additional ssh options: KEYWORD=VALUE, …
-   ❯ 8. workdir        /home/me/build/myproject     default working directory when -e …       ③
+     8. workdir          /home/me/build/myproject   default working directory when -e …       ③
+   ❯ 9. harness runs on                             where an agent's harness runs, in order … ④
         done                      adds ssh/build-box, and checks its resources
 ```
 
@@ -219,7 +219,7 @@ what your ssh config does not already say:
 ```text
  ssh
  build-box                 build-box · working directory: /home/me/build/myproject
- ssh/build-box answers: home /root; 64 CPUs, 2015G                                  ④
+ ssh/build-box answers: home /root; 64 CPUs, 2015G                                  ⑤
 ```
 
 **2. Put the role on it.** `/flow local/onbox` opens the flow's setup. Its environment role is
@@ -243,9 +243,8 @@ saved with:
    Configure each role: an agent (CLI, account, model and effort) or an environment.
      1. builder                   claude/claude-haiku-4-5-20251001:high
      2. reviewer                  claude/claude-haiku-4-5-20251001:high
-     3. box                       ssh@build-box                                          ⑤
+     3. box                       ssh@build-box                                          ⑥
         budget                    stops at 10m
-        harness                   adaptive → env where its CLI is installed, else local   ⑥
         save                      flow and roles
 ```
 
@@ -256,14 +255,12 @@ saved with:
 2. **`name`** is what `-e` and `/flow` call it from now on: `-e box=ssh@build-box`.
 3. **`workdir`** is where a role put on this host works when nothing more is said, so
    `ssh@build-box` alone means `ssh@build-box/home/me/build/myproject`.
-4. **`answers`** is the check: humanize reached the host with nobody there to type a password,
+4. **`harness runs on`** is the host's affinity: where the CLI of an agent working on it runs,
+   [below](#where-the-agent-runs). Blank is the default.
+5. **`answers`** is the check: humanize reached the host with nobody there to type a password,
    and read its home, CPUs and memory. A host that cannot be reached says why on this line.
-5. **The `box` row** holds what the form set, as `-e` spells it: `ssh@build-box`, the saved
+6. **The `box` row** holds what the form set, as `-e` spells it: `ssh@build-box`, the saved
    host and its saved workdir.
-6. **The `harness` row** says where the agents' CLIs will run. Before a run on this host it can
-   only say the rule; once one has run, it says what the rule came to, as
-   `adaptive → local (last run)`. <kbd>enter</kbd> on it changes it,
-   [below](#where-the-agent-runs).
 
 Your answers are kept with the flow's setup in this directory, like its agents. **Import
 ~/.ssh/config** on the same page saves every `Host` your config names in one go, each still
@@ -287,69 +284,53 @@ one of its managers, with where its tasks may go in place of GPU ids -- and name
 
 ## Where the agent runs {#where-the-agent-runs}
 
-The harness is the agent's CLI and whatever supervises it. `-H` places it for every agent of
-the run, and the `harness` row of `/flow` does the same at the prompt. On its form,
-<kbd>enter</kbd> or a click drops the four under the row, saying what each does, and
-<kbd>enter</kbd> or a click picks one:
+The harness is the agent's CLI and whatever supervises it. Where it runs is a setting of the
+runtime the work is on, not of the run: the `harness runs on` row of a saved host's form, its
+**affinity**. Write the places in the order to try them, separated by commas; the next is tried
+only when the one before has no room:
 
 ```text
-   Where the harness runs for local/onbox
-   ❯ 1. harness  adaptive ▾   on the env's machine where its CLI is installed, else here
-                 ╭─ harness ────────────────────────────────────────────────────────────────╮
-        done     │ adaptive ✔  on the env's machine where its CLI is installed, else here   │
-                 │ local  here, reaching the env through the anchor                         │
-                 │ env  on the env's machine; refused where its CLI is missing              │
-                 │ standalone  on a machine of its own, reaching the env through the anchor │
-                 ╰──────────────────────────────────────────────────────────────────────────╯
+     8. workdir          /home/me/build/myproject   default working directory when -e …
+   ❯ 9. harness runs on  docker:gpubox, local       where an agent's harness runs, in order …
 ```
 
-| | `adaptive` | `local` | `env` | `standalone:<machine>` |
+| | *(blank)* | `local` | `self` | `ssh:<name>`, `docker:<name>` |
 | --- | --- | --- | --- | --- |
-| **The CLI runs** | on the host if it can, else here | here | on the host | on a third machine |
+| **The CLI runs** | on the host if it can, else here | here | on the host | on that runtime |
 | **Signed in as** | whichever it came to | this machine's CLI, or the `@account` | the host's CLI, or the `@account` sent there | that machine's CLI |
 | **Sessions kept** | whichever it came to | here, with the run | on the host | on that machine |
 | **Needs on the host** | Python 3.12 | Python 3.12 | Python 3.12, the CLI, and Landlock for a fenced role | Python 3.12 |
-| **Refused when** | never, for placement | the path is not free here | the CLI is not on the host | the role is fenced, or that machine has no CLI |
+| **No room when** | never | never | the CLI is not on the host, or it cannot hold the role's fence | it cannot be reached, has no share left, or the role is fenced |
 
-### `adaptive`: the default
+Each role is settled once per machine, as its first session there opens, and before the flow
+is called every role is walked against every machine of the run: where no place in an affinity
+has room, the run is refused before anything runs, with the last place's refusal. The
+affinity read is the one of the runtime the work is on; a runtime a harness is sent to is used
+as it is, its own affinity never walked.
 
-Each role is looked at once per machine, as its first session there opens. The CLI runs on the
-host when all three hold, and here otherwise:
+### No affinity: the default
+
+The CLI runs on the host when all three hold, and here otherwise:
 
 - the host has the CLI, on the `PATH` a command run there gets;
 - the host can hold the role's [permission](/user/permissions), which takes Landlock there for
   any role not granted everything;
 - the flow hangs no hook on the role that decides whether each tool runs, such as the builder
   of [`humanize1:rlcr`](/flows/humanize1): a CLI on another machine can only report what such a
-  hook would have decided, so adaptive keeps that role here. A hook that answers the agent's
-  questions is not one of those: a question comes back from wherever the CLI runs.
+  hook would have decided, so that role stays here. A hook that answers the agent's questions
+  is not one of those: a question comes back from wherever the CLI runs.
 
-The `harness` row says what it comes to:
+A host given with `-e` and never saved, and docker's default `docker@local`, are always placed
+this way. Nothing to do when it goes either way: the run is the same run. Give the host an
+affinity only to insist.
 
-| The row says | When |
-| --- | --- |
-| `adaptive → local: the work is on this machine` | no environment role is on another machine |
-| `adaptive → env where its CLI is installed, else local` | one is, and no run has told yet |
-| `adaptive → local (last run)` | the last run here put every such role's CLI here |
-| `adaptive → env (last run)` | it put them on the host (`env, local` where roles went both ways) |
-
-The last run is read from the flow's record in this directory, so it counts a run made with
-`hmz exec` or before `hmz` was last opened as much as one made at this prompt.
-
-Nothing to do when it goes either way: the run is the same run. Pick one of the others only to
-insist.
-
-### `local`: always here
-
-```sh
-hmz exec -f onbox … -e box=ssh@build-box/home/me/build/myproject -H local …
-```
+### `local`: here
 
 The CLI runs here, with this machine's sign-in and its sessions kept with the run. It works in
 a copy of the host's directory that humanize keeps here, and every command it runs is sent to
-the host. At the prompt the row reads `local → here, anchored to the environment`, and the
-transcript `builder's harness runs here (local)`. Use it when the host is one you would not
-give your account to, or when its CLI is signed in as somebody else.
+the host. The transcript says `builder's harness runs here`. Use it when the host is one you
+would not give your account to, or when its CLI is signed in as somebody else. `local` always
+has room, so nothing after it is ever tried.
 
 #### The path is taken here too
 
@@ -369,16 +350,11 @@ A `docker@` environment keeps its copy under `~/.humanize/envs/mirrors/` instead
 workdir may be your own checkout.
 :::
 
-### `env`: on the host
-
-```sh
-hmz exec -f onbox … -e box=ssh@build-box/home/me/build/myproject -H env …
-```
+### `self`: on the host
 
 The CLI installed on the host runs there, in the host's directory, with nothing copied. The
-transcript says `builder's harness runs on its environment's machine (env)`. Use it when the
-host is where the CLI should live: a machine with its own sign-in, or a network only it
-reaches.
+transcript says `builder's harness runs on its environment's machine`. Use it when the host is
+where the CLI should live: a machine with its own sign-in, or a network only it reaches.
 
 - **Its sign-in is the host's.** An agent with no `@account` runs as the host's CLI is signed
   in. One with an `@account` has the account's variables and credential files sent to the host
@@ -387,7 +363,7 @@ reaches.
   while no other turn is using it, and what the host renewed it to is brought back: two copies
   renewing apart get the login revoked. A turn that finds it in use the other way is refused
   with `… signs in with a token that refreshes itself …`; give such roles an account signed in
-  with a key, or run them all with `-H local`
+  with a key, or put `local` first in the host's affinity
   ([more](/user/troubleshooting#this-account-signs-in-with-a-token-that-refreshes-itself)).
 - **Never copy your own sign-in to the host.** Sign the CLI in there itself. A copy of
   `~/.codex/auth.json` or `~/.claude/.credentials.json` renews apart from yours and signs this
@@ -397,12 +373,12 @@ reaches.
   runs can only watch.
 - **A role not granted everything needs Landlock on the host** to hold its permission.
 
-Where the host has no CLI, the run is refused before the flow starts, with exit status 2.
-Every role's CLI is looked for on every environment's machine, so the line says what to do
-about the first one missing:
+Where the host has no CLI, or cannot hold the role's permission, `self` has no room and the
+next place is tried. Where `self` is the last, the run is refused before the flow starts, with
+exit status 2, saying what to do about the first one missing:
 
 ```text
-hmz exec: error: claude is not installed on ssh@build-box: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local
+hmz exec: error: ssh@build-box: nowhere its affinity (self) names has room for claude's harness; the last: claude is not installed on ssh@build-box: npm i -g @anthropic-ai/claude-code there, or put local in the affinity of the runtime it is on
 ```
 
 ::: tip Installed is on the `PATH` an ssh command gets
@@ -411,59 +387,38 @@ there. `ssh build-box 'command -v claude'` prints nothing in that case: install 
 command finds it, such as `/usr/local/bin`.
 :::
 
-A host that cannot hold the role's permission refuses it the same way:
-`… cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or
-run its harness here with -H local`.
+### `ssh:<name>`, `docker:<name>`: on another runtime
 
-### `standalone:<machine>`: on a third machine
-
-```sh
-hmz exec -f onbox … -e box=ssh@build-box/home/me/build/myproject \
-    -H standalone:ssh@gpu-box …
-```
-
-The CLI runs on a machine of its own, and reaches the host's work from there. Use it when
+The CLI runs on another saved runtime, and reaches the host's work from there. Use it when
 neither this machine nor the host should hold the agent: a machine that is the only one signed
-in, say. The machine is named the way `-e` names one after `role=`, or by a saved name:
+in, say, or a docker daemon with containers to spare. The runtime is opened as an environment
+of its own for the run, probed with the others and taken down with them:
 
-| `-H` | The CLI runs |
+| In the affinity | The CLI runs |
 | --- | --- |
-| `standalone:ssh@gpu-box` | on `gpu-box`, in the ssh login's home |
-| `standalone:ssh@gpu-box/~/scratch` | there, in `~/scratch` |
-| `standalone:build-box` | on the host saved as `build-box`, in its saved workdir |
-| `standalone:docker@local` | in a container of its own on docker's default here, holding `~/.humanize/harness` |
-| `standalone:docker@gpubox/srv/scratch` | in a container on the daemon saved as `gpubox`; any daemon but `local` needs the directory said |
+| `ssh:gpu-box` | on the host saved as `gpu-box`, in its saved workdir, else the login's home |
+| `docker:gpubox` | in a container of its own on the daemon saved as `gpubox`, holding its saved workdir; a daemon on this machine saved without one holds `~/.humanize/harness` |
 
-At the prompt, choose `standalone` on the harness form and a `machine` row appears, which opens
-the same form an environment role is placed with:
+Such a place has no room when it cannot be reached or opened, when a daemon has no share left
+for the container (its `max containers` reached, say), and for any role not granted
+everything. Its other caveats:
 
-```text
-     1. harness  standalone ▾              on a machine of its own, reaching the env through the anchor
-     2. machine  ssh@gpu-box/~/scratch ▸   as -e names one
-   ❯    done                      runs them standalone:ssh@gpu-box/~/scratch when the flow is saved
-```
-
-Its caveats are the strictest of the four:
-
-- **Only a role granted everything.** A permission cannot be held around a CLI on a third
-  machine, so a run with any other role is refused before the flow starts:
-  `a fence cannot hold a harness that runs on another machine`. Most flows' roles run at the
-  default grant; see [Permissions](/user/permissions).
+- **Only a role granted everything.** A permission cannot be held around a CLI on another
+  machine, so a fenced role passes it by: `a fence cannot hold a harness that runs on another
+  machine`. Most flows' roles run at the default grant; see [Permissions](/user/permissions).
 - **The CLI must be installed and signed in there.** Nothing checks before the turn: a machine
   without it fails the turn with `claude: not found on PATH`. No `@account` is sent there.
-- **Work in the workspace goes there too.** It is the one mode that moves the harness of a role
-  working on this machine.
 - **It opens a port here, on every interface,** for as long as the run lasts, for the two
   machines to meet. Set `HUMANIZE_RENDEZVOUS_PORT` to pin it for a firewall.
-- **It cannot be this machine:** `-H standalone:local@/tmp` is refused with
-  `a standalone harness runs on another machine; -H local runs it on this one`.
+- **It cannot be the host itself:** an affinity naming its own runtime is refused when it is
+  saved; that is `self`.
 
 ## What it needs
 
 | Where | What it needs |
 | --- | --- |
 | **This machine** | Linux on x86-64 or aarch64, and the agent's CLI installed and signed in, unless the harness runs elsewhere |
-| **The host** | Linux or macOS on any architecture, Python 3.12 or newer, `ssh` access, and the project already at that path. The CLI too, for `-H env`. |
+| **The host** | Linux or macOS on any architecture, Python 3.12 or newer, `ssh` access, and the project already at that path. The CLI too, for `self`. |
 | **The flow** | a role for the host, besides its workspace |
 
 A Mac gives a remote command no `python3` on its `PATH`, so humanize also looks where Homebrew
@@ -497,16 +452,16 @@ status 2.
 | `… 'box' needs 8 GPUs, and the environment given has 0` | The flow asks more of the host than it has. Pick another host. |
 | `… already contains files and is not an humanize mirror …` | The same path here holds other files. See [the path is taken here too](#the-path-is-taken-here-too). |
 | `… mirrors ssh://old-box, not ssh://build-box …` | That path here holds humanize's copy of another host. Use another path. |
-| `cannot keep the local copy of the work at …` on the first turn | The path cannot be created here. Use one you can create, or `-H env`. |
-| `claude is not installed on ssh@build-box: …` | `-H env` and no CLI on the host's `PATH`. Install it there, or use `-H local`. |
-| `a fence cannot hold a harness that runs on another machine` | `-H standalone:…` for a role not granted everything. Use another `-H`. |
-| `-H 'somewhere': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` | Spell `-H` as one of the four. |
+| `cannot keep the local copy of the work at …` on the first turn | The path cannot be created here. Use one you can create, or put `self` in the host's affinity. |
+| `… nowhere its affinity (self) names has room …: claude is not installed on ssh@build-box: …` | `self` and no CLI on the host's `PATH`. Install it there, or add `local` to the affinity. |
+| `… nowhere its affinity (docker:gpubox) names has room …: a fence cannot hold a harness that runs on another machine` | A runtime in the affinity for a role not granted everything. Add `local` after it. |
+| `build-box: 'somewhere' is not where a harness runs: self, local or <ssh\|docker\|swarm>:<runtime name>` | Saving the host refused an affinity entry. Spell each as one of those. |
 
 More, with what causes each, are in [Troubleshooting](/user/troubleshooting).
 
 ::: details Good to know
 - **Network.** With the harness here, the agent's own connection to its model provider stays
-  here, and the commands it runs use the host's network. With `-H env` both are the host's.
+  here, and the commands it runs use the host's network. With `self` both are the host's.
 - **Timing.** What a command changes on the host is visible to the agent once that command has
   exited. See [What is not guaranteed](/reference/remote-execution#what-is-not-guaranteed).
 - **Other ways to reach a machine.** A port left listening, a running container, or a target
@@ -567,12 +522,10 @@ async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
 
 - [Containers](/user/containers): a container for a role, reached the same way
 - [Permissions](/user/permissions): what a role may touch, on the host as here
-- [Remote execution reference](/reference/remote-execution): the arrangements behind `-H`, and
-  where the account lives in each
-- [CLI › Choosing where the harness runs](/reference/cli#choosing-where-the-harness-runs): `-H`
-  exactly
+- [Remote execution reference](/reference/remote-execution): the arrangements behind an
+  affinity, and where the account lives in each
 - [Machines › Runtimes](/reference/machines#runtimes): every field of
-  a saved host
+  a saved host, its affinity among them
 - [humanize in CI](/user/ci): the same `-e` in a scheduled job
 
 <style scoped>

@@ -198,7 +198,7 @@ list. The `manage flowverses` row below the flows opens the flowverses; open one
 
 ## 4. Give the role an agent
 
-The flow opens on its **roles**: a row for each agent it drives, then `budget`, `harness` and
+The flow opens on its **roles**: a row for each agent it drives, then `budget` and
 `save`. `ralph_loop` has one role, `agent`. humanize fills it with the first CLI it found, so
 the row already names one.
 
@@ -210,9 +210,8 @@ the row already names one.
    <span class="p">❯ 1. agent                     claude/claude-opus-5-5:high</span> <span class="n">1</span>
 
         budget                    <span class="m">none set; a run needs one</span> <span class="n">2</span>
-        harness                   <span class="m">adaptive → local: the work is on this machine</span> <span class="n">3</span>
 
-        save                      <span class="m">flow and roles</span> <span class="n">4</span>
+        save                      <span class="m">flow and roles</span> <span class="n">3</span>
 
    <span class="d">enter open · esc back to flows</span></pre>
 
@@ -220,10 +219,7 @@ the row already names one.
 
 1. **`agent`**, the flow's one role, and the agent filling it as `cli/model:effort`.
 2. **`budget`**: none yet. You set it in step 5.
-3. **`harness`**: where each agent's CLI runs. `adaptive` runs it on the machine the work is
-   on, which for a flow whose work is here is this one, so leave it. See
-   [Remote execution › Where the agent runs](/user/remote-execution#where-the-agent-runs).
-4. **`save`**: nothing you change is kept until you press it.
+3. **`save`**: nothing you change is kept until you press it.
 
 Press <kbd>enter</kbd> on `agent`. An agent is four rows:
 

@@ -117,7 +117,7 @@ conversation), `outworlder` and `monitor`.
 | `hmz: nobody lists a price for <model>[, …], so cost=<n> cannot stop what it spends` | yellow | always, before the first turn of a run whose `cost` limit no agent's price can enforce |
 | `✻ Worked for <s>s · <agent>` | dim | always |
 | `❯ <task> · by <name>` | | a run another frontend started |
-| `<role>'s harness runs here (local)` / `<role>'s harness runs on its environment's machine (env)` / `<role>'s harness runs on <target> (standalone)` | dim | once per role per run, where the session reports a harness placement (`opened.harness` not empty) |
+| `<role>'s harness runs here` / `<role>'s harness runs on its environment's machine` / `<role>'s harness runs on the runtime <backend>:<name>` | dim | once per role per run, where the session reports a harness placement (`opened.harness` not empty) |
 | `— stopping the flow —` / `— <name> is stopping the flow —` | | this / another frontend stopped the run |
 | `hmz: <why>` / `hmz: stopped -- <why>` / `— the flow is done —` | red / yellow / — | run ended refused-failed-crashed / by its budget / normally |
 
@@ -592,7 +592,7 @@ own.
 
 | Menu | Held until saved | Applied at once |
 | --- | --- | --- |
-| `/flow`, roles, agent sheet, params, budget, harness, environment form, unsaved host | everything | — |
+| `/flow`, roles, agent sheet, params, budget, environment form, unsaved host | everything | — |
 | `/settings` Settings, Workspace, Fallback | everything | — |
 | `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
 | `/settings` Runtimes, Flowverses; `/epics` | — | everything |
@@ -651,8 +651,7 @@ params; `esc` there leaves.
 | each agent role (declared order) | `<cli>/<model>:<effort>[ · <account>]` or `not set` | [agent sheet](#what-each-agent-is) |
 | each environment role | the `-e` spec after `<role>=`, or `not set` | [environment form](#where-each-agent-works) |
 | `budget` (set apart) | [summary](#what-a-run-of-it-may-spend) | budget sheet |
-| `harness` (set apart, no blank line) | [summary](#where-the-harness-runs) | harness form |
-| `save` (set apart) | `flow and roles` | applies flow, roles, params, budget and harness together |
+| `save` (set apart) | `flow and roles` | applies flow, roles, params and budget together |
 
 Roles filled by the runtime (`Outworlder`, `LocalEnv`) are not rows. Messages:
 `<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
@@ -823,32 +822,6 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 `stops at 1m30s, 12.0k out, $0.50, even mid-turn`); unset: `none set; a run needs one`, or for
 `chat` `none needed; runs until you stop it`.
 
-### Harness form {#where-the-harness-runs}
-
-| Element | Value |
-| --- | --- |
-| Title | `Where the harness runs for <flow>` |
-| About | `The harness is each agent's CLI and what supervises it. Here, it reaches an environment on another machine through the anchor; on the environment's machine, it runs the CLI installed there; on a machine of its own, it reaches the environment from that one. Adaptive runs it on the environment's machine wherever the CLI is installed there.` |
-
-| Row | Kind | Values / about |
-| --- | --- | --- |
-| `harness` | ▾ | `adaptive` (`on the env's machine where its CLI is installed, else here`), `local` (`here, reaching the env through the anchor`), `env` (`on the env's machine; refused where its CLI is missing`), `standalone` (`on a machine of its own, reaching the env through the anchor`) |
-| `machine` | ▸, standalone only | `choose the machine it runs on`; opens the [environment form](#where-each-agent-works) as `Machine for the standalone harness`: backends `ssh` and `docker` only, its last row `as -H` (`what follows standalone: in -H; typing one sets the rows above`), read as `-H` reads what follows `standalone:`. A workdir left blank is filled in as the command line fills it (`leave blank for the login's home` over ssh, `leave blank for a directory humanize keeps` on `docker@local`); a refusal is the [`-H` error](/reference/cli#choosing-where-the-harness-runs). |
-| `done` | | `runs them <spec> when the flow is saved` |
-
-Refusals: `choose the machine a standalone harness runs on`, and the
-[`-H` errors](/reference/cli#choosing-where-the-harness-runs). Stored per flow beside the
-budget.
-
-| Row summary | When |
-| --- | --- |
-| `standalone → <machine spec>` | standalone (whatever the environment roles) |
-| `<mode> → local: the work is on this machine` | adaptive, local or env, and no `ssh`/`docker` environment role set |
-| `adaptive → <values> (last run)` | adaptive, where the last run of the flow in this directory put a session's harness anywhere (distinct, sorted): while a run of it goes, its [`opened.harness`](/reference/daemon#history-records) values; otherwise the `harness` of each session in the newest epic of the flow (matched by ref or by the name it ran under), whether `hmz`, `hmz exec` or the SDK ran it, taking each role's last session |
-| `adaptive → env where its CLI is installed, else local` | adaptive |
-| `local → here, anchored to the environment` | local |
-| `env → on the environment's machine` | env |
-
 ## `/epics` {#the-runs-that-have-already-happened}
 
 | Element | Value |
@@ -873,7 +846,7 @@ budget.
 Picks up the newest run in this directory of a flow that can be picked up. Runs are scanned
 newest first; the scan stops at the first run that is unreadable, was recorded resumable, or
 whose flow is resumable now. On success: `resuming <run>: running <flow> from saved state`,
-and the run's flow, agents, environments, params, budget, harness and task are used; the budget
+and the run's flow, agents, environments, params, budget and task are used; the budget
 counts from zero.
 
 | Message (`hmz: `, red) | Condition |
@@ -1121,10 +1094,12 @@ never read.`
 | `proxy jump` | `jump host to connect through, if any` |
 | `options` | `additional ssh options: KEYWORD=VALUE, …` |
 | `workdir` | `default working directory when -e specifies none: /abs or ~/path` |
+| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>; blank for its CLI here, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
 | `done` | `adds ssh/<name>, and checks its resources` / `updates …` |
 
 Refusals: `an ssh host named <name> already exists; edit it from its row, or choose a
-different name`, `port: '<x>' must be a number`, `options: '<x>' is not KEYWORD=VALUE`.
+different name`, `port: '<x>' must be a number`, `options: '<x>' is not KEYWORD=VALUE`, and an
+[affinity refused](/reference/machines#validation).
 
 #### docker host form {#docker-form}
 
@@ -1144,14 +1119,16 @@ it are limited to the resources configured here.`
 Then `name` (add), `image` (`default image, unless specified by the flow`), `OCI runtime` (`e.g.
 nvidia; blank for daemon default`), `run args` (`extra arguments for docker run`), `max
 containers` (`max concurrent containers; blank for no limit`), `workdir` (`default working
-directory when -e specifies no directory`), `cpus` (`max CPUs; blank to use all host CPUs`),
+directory when -e specifies no directory`), `harness runs on` (as on the [ssh host
+form](#ssh-form)), `cpus` (`max CPUs; blank to use all host CPUs`),
 `memory` (`e.g. 64G; blank to use all host memory`), `gpus` (`GPU IDs, e.g. 0, 1; blank to use
 all host GPUs`), `detect` (`detect host resources and fill them in`: `detecting resources on <endpoint>…`, then `detected …: auto-filled` with the cursor on `cpus` -- `gpus` written with only those that answer, and a yellow `<n> of <m> GPUs answer; …` where one does not -- or red `the daemon did
 not respond: …`), `done` (`adds docker/<name> and detects host resources`).
 
 Refusals: `a docker host named <name> already exists; …`, `memory: '<x>' must be a number and
 unit, such as 64G or 512M`, `cpus: '<x>' is not a number`, `max containers: '<x>' must be a
-number`, `run args: …`, `tls: home directory does not exist for '<x>'`.
+number`, `run args: …`, `tls: home directory does not exist for '<x>'`, and an
+[affinity refused](/reference/machines#validation).
 
 #### docker swarm form {#swarm-form}
 
@@ -1409,7 +1386,7 @@ environment is not in the run.`
 | `image` | the image the flow declares for the role |
 | `grants` | the role's environment capabilities (class names without `EnvMixin`), or `nothing beyond running in it` |
 | `needs` | `<n> CPUs · <x> GiB memory · <n> GPU(s) · <x> GiB per GPU` (declared parts only) |
-| `harness` | `[<-H> → ]<placement>: <where>`, the placement being each session's [`opened.harness`](/reference/daemon#history-records) and `<-H>` the run's [`started.harness`](/reference/daemon#history-records) (left out where the host did not say). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `env` `on this environment's machine, with the CLI installed there`; `standalone` `on <target>, reaching this environment through the anchor`. Where its sessions went different ways: `[<-H> → ]<placement> for <key>, <key> · <placement> for <key>`. |
+| `harness` | `<placement>: <where>`, the placement being each session's [`opened.harness`](/reference/daemon#history-records). `<where>`: `local` (with an anchored environment) `on this machine; what it runs lands here`; `local` (no anchor) `on this machine, in this workdir`; `self` `on this environment's machine, with the CLI installed there`; `<backend>:<name>` `on a runtime of its own, reaching this environment through the anchor`. Where its sessions went different ways: `<placement> for <key>, <key> · <placement> for <key>`. |
 | `status` | `<w> of <n> session(s) working` |
 | `Sessions` | `●\|○ <role> · session <n> · <spec>` (or the bare key before its first turn); `enter` or a click reads it and leaves the monitor. |
 
@@ -1476,13 +1453,12 @@ and when the width changes. The status line says `· copied` for 2 s.
 | `btw` | machine | /btw agent |
 | `workspaces.<dir>.flow` | directory | saving `/flow` |
 | `workspaces.<dir>.profile` | directory | Profiling |
-| `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, harness}` | directory, per flow | saving `/flow` |
+| `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget}` | directory, per flow | saving `/flow` |
 
 `<flow>` is the name the flow is offered under (`chat`, `local/<f>`, `user/<f>`,
 `<flowverse>/<f>`), so two flows with one bare name never share a setup. Roles are keyed by
 their declared names. Params are read back through the flow's `FlowParams`. Away, claims, the
-monitor's graph/list choice are not persisted. The harness's `(last run)` is read from the
-flow's newest epic, not from here.
+monitor's graph/list choice are not persisted.
 
 ## Colours {#colours}
 

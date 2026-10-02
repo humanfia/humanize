@@ -78,10 +78,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   for every flow but `chat` -- one that has no budget.
 - MUST let what a run may spend -- a duration, a cost, output tokens, and whether a turn is let
   finish -- be set and read on the page its roles are on.
-- MUST let where the agents' harnesses run be set on that page as `-H` spells it -- the mode, and
-  for a standalone harness its machine, chosen as an environment role's is -- kept per flow like
-  the budget, and MUST say on its row what the mode comes to: `local` for work on this machine,
-  and for work elsewhere what the last run found, and say it as each role's session opens.
+- MUST say where a role's harness went as its first session on another machine opens: here,
+  on its environment's machine, or on the runtime its affinity sent it to.
 - MUST make an agent a CLI, an account, a model and an effort and nothing else, offering only
   CLIs installed here whose harness is the one the role names and serves what the role asks,
   this machine's own account as `as local`, models known runnable as the chosen account, and
@@ -125,7 +123,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   their tasks may be placed and what they may reserve all told -- and offer making each on one
   form wherever one is asked for, importing the hosts an ssh config names -- the user's
   own or another file, switched on per host and saved already or not, never writing to it --
-  and per runtime correcting it, checking it and taking it away; MUST ask one what it has when
+  and per runtime correcting it, checking it and taking it away, its affinity -- where the
+  harness of work on it runs, in order -- written on its form as `self`, `local` and
+  `<backend>:<name>`; MUST ask one what it has when
   it is made or corrected on that page and when it is checked, an import asking none -- an ssh
   host its home, CPUs, memory and GPUs, a docker daemon its CPUs, memory, GPUs and OCI runtimes,
   a swarm which of its nodes may take a task and what those have all told, and each what it is

@@ -12,7 +12,7 @@ end, with a docker swarm that picks the node for you.
     <p class="ct-name">A container per environment</p>
     <p class="ct-type"><code>hmz exec … -e ROLE=docker@RUNTIME/…</code></p>
     <dl>
-      <dt>agents run</dt><dd>here, with your sign-in, unless the image has their CLI (<a href="#where-the-agent-s-cli-runs"><code>-H</code></a>)</dd>
+      <dt>agents run</dt><dd>here, with your sign-in, unless the image has their CLI (<a href="#where-the-agent-s-cli-runs">affinity</a>)</dd>
       <dt>commands run</dt><dd>in the container</dd>
       <dt>the image needs</dt><dd>Python 3.12 or newer</dd>
       <dt>works with</dt><dd>a flow with a role for another machine</dd>
@@ -193,25 +193,28 @@ hmz exec: error: docker@gpubox has 4 of 4 CPUs free, and 'box' asks for 8
 
 ## Where the agent's CLI runs
 
-`-H`, or the `harness` row of `/flow`, says where each agent's CLI runs; the full story is on
-[Remote execution](/user/remote-execution#where-the-agent-runs). For a container:
+A saved docker daemon's affinity, its `harness runs on` row at `/settings runtimes`, says where
+the CLI of each agent working in one of its containers runs, trying each place in order; the
+full story is on [Remote execution](/user/remote-execution#where-the-agent-runs). For a
+container:
 
-| `-H` | The agent's CLI runs | For a container |
+| In the affinity | The agent's CLI runs | For a container |
 | --- | --- | --- |
-| `adaptive` *(default)* | in the container where the image has the CLI, and here otherwise | `python:3.12-slim` has none, so here |
-| `local` | here, always | the container needs no CLI and no sign-in |
-| `env` | in the container, always | refused where the image has no CLI |
-| `standalone:docker@local` | in a second container of its own | that container needs the CLI |
+| *(blank, the default)* | in the container where the image has the CLI, and here otherwise | `python:3.12-slim` has none, so here |
+| `local` | here | the container needs no CLI and no sign-in |
+| `self` | in the container | passed by where the image has no CLI |
+| `docker:<name>` | in a second container of its own, on the daemon saved as `<name>` | that container needs the CLI |
 
-**`adaptive`** looks once per role and machine. With an image that has no coding agent, every
-role's CLI runs here, and the run says so: the transcript line
-`coder's harness runs here (local)`, and `adaptive → local (last run)` on the flow's `harness`
-row. Nothing to do.
+`docker@local` with nothing saved as `local` has no affinity, so it is always the default.
 
-**`local`** is the same as what `adaptive` came to above, said outright. Use it to keep the
+**The default** looks once per role and machine. With an image that has no coding agent, every
+role's CLI runs here, and the run says so: the transcript line `coder's harness runs here`.
+Nothing to do.
+
+**`local`** is the same as what the default came to above, said outright. Use it to keep the
 agent's account off an image you did not build.
 
-**`env`** runs the CLI the image has, in the container. It needs the CLI on the image's `PATH`,
+**`self`** runs the CLI the image has, in the container. It needs the CLI on the image's `PATH`,
 and a sign-in there: an agent with an `@account` has the account's variables and credential
 files sent in for each turn, and one without runs as the image's CLI is signed in, which a
 fresh image is not. Its sessions are kept in the container, and go with it.
@@ -221,26 +224,28 @@ A ChatGPT login of Codex and a subscription login of Claude Code renew themselve
 renewal cancels the copy it replaced: a container signed in with a copy of your
 `~/.codex/auth.json` or `~/.claude/.credentials.json` signs this machine out the first time it
 renews. Give the role an `@account` signed in with a key, sign the CLI in inside the container,
-or run the role with `-H local`. An `@account` that is itself such a login goes in only while no
-other turn is using it, and comes back renewed: see
+or put `local` first in the daemon's affinity. An `@account` that is itself such a login goes in
+only while no other turn is using it, and comes back renewed: see
 [Providers › A sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself).
 :::
 
-On an image without the CLI, the run is refused before the flow starts, with exit status 2:
+On an image without the CLI, `self` has no room and the next place is tried; where it is the
+last, the run is refused before the flow starts, with exit status 2:
 
 ```text
-hmz exec: error: claude is not installed on docker@local: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local
+hmz exec: error: docker@gpubox: nowhere its affinity (self) names has room for claude's harness; the last: claude is not installed on docker@gpubox: npm i -g @anthropic-ai/claude-code there, or put local in the affinity of the runtime it is on
 ```
 
-**`standalone:docker@local`** starts one more container just for the CLI, from the saved
-daemon's image (else `python:3.12-slim`), holding `~/.humanize/harness`; a daemon other than
-`local` needs the directory
-said, as `standalone:docker@gpubox/srv/scratch`. That container is given `--cap-add
-SYS_PTRACE`, which the CLI's supervisor needs there to hand each command's output back to it. It is only for a role granted everything, and
-the image must have the CLI:
+**`docker:<name>`** starts one more container just for the CLI, on that saved daemon, from its
+image (else `python:3.12-slim`), holding its saved workdir, or `~/.humanize/harness` for a
+daemon on this machine saved without one. That container is given `--cap-add SYS_PTRACE`,
+which the CLI's supervisor needs there to hand each command's output back to it. It counts
+against that daemon's `max containers`: a daemon at its limit has no room, and the next place
+is tried, so `docker:spare, local` falls back to here once `spare` is full. It is only for a
+role granted everything, and the image must have the CLI:
 
 ```text
-hmz exec: error: coder=claude/claude-haiku-4-5-20251001:low: ClaudeCodeAgent: a fence cannot hold a harness that runs on another machine
+hmz exec: error: docker@gpubox: nowhere its affinity (docker:spare) names has room for claude's harness; the last: coder=claude/claude-haiku-4-5-20251001:low: ClaudeCodeAgent: a fence cannot hold a harness that runs on another machine
 … hmz: claude: not found on PATH
 ```
 
@@ -356,7 +361,7 @@ Read [Security](/user/security).
 | `no directory to give the container on …` | The directory is not on the daemon's host. Make it there. |
 | `could not install humanize on docker://…: … is not running` | The image has no Python 3.12 or newer; its last words say where it looked. |
 | a tool the agent tries to install fails with a permission error | The role may write its workdir only. Put the tool in the image. |
-| `claude is not installed on docker@…` | `-H env` on an image without the CLI. Use `-H local` or the default. |
+| `… nowhere its affinity (self) names has room …: claude is not installed on docker@…` | `self` on an image without the CLI. Add `local` after it, or clear the affinity. |
 | containers left behind after a run was killed | `docker rm -f $(docker ps -q --filter label=humanize=$(id -u))` removes yours and nobody else's. |
 | `swarm@…: no node of the swarm has …` or `no node took it within 30s` | No node has room for what the role reserves, or none answers the runtime's constraints. Free a node, loosen the constraints, or ask for less. |
 | `swarm@…: no directory to give the task on the node it landed on` | The node has no such directory. Share it to every node, or constrain the runtime to the nodes that have it. |
@@ -412,13 +417,13 @@ async def boxed(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
 
 ## Next steps
 
-- [Remote execution](/user/remote-execution): the same `-e`, over ssh, and `-H` in full
+- [Remote execution](/user/remote-execution): the same `-e`, over ssh, and the affinity in full
 - [Permissions](/user/permissions): what a role may touch, in a container as here
 - [Machines › Docker environments](/reference/machines#docker-environments): every field of a
   saved daemon, and how a container is started
 - [Machines › Swarm environments](/reference/machines#swarm-environments): every field of a
   saved swarm, and how a task is placed and reached
-- [CLI › Choosing where the harness runs](/reference/cli#choosing-where-the-harness-runs)
+- [Remote execution › Affinity](/reference/remote-execution#affinity)
 - [Security](/user/security)
 
 <style scoped>

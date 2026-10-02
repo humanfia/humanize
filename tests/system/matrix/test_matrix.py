@@ -1791,12 +1791,12 @@ def test_docker_env_remote(cell: Cell, docker_box: Docked) -> None:
 
 @feature(timeout=900)
 def test_harness_placement(cell: Cell, daemon: None) -> None:
-    """Where the harness runs is what `-H` says, for a container that has no CLI of its own.
+    """Where the harness runs is what its runtime's affinity says, for a container with no CLI.
 
-    `-H env` is refused before the run, as a line to correct, naming the container and saying
-    how to install the CLI there. `adaptive`, said by saying nothing, finds no CLI there and
-    runs the harness here, as every docker row always has -- and the run writes down that it
-    did.
+    A runtime whose affinity is `self` alone is refused before the run, as a runtime to
+    correct, naming the container and saying how to install the CLI there. One with no
+    affinity finds no CLI there and runs the harness here, as every docker row always has --
+    and the run writes down that it did.
     """
     from hmz.runtime.epic import epics, read
 
@@ -1804,17 +1804,18 @@ def test_harness_placement(cell: Cell, daemon: None) -> None:
     there = cell.root / "box"
     there.mkdir()
     boxed = cell.flow("boxed", BOXED)
+    envs = cell.hmz.runtimes
+    envs.add(envs.new("docker", "native", affinity=["self"]))
 
     refused = cell.exec(
         boxed,
         CONTAINED,
-        envs=[f"box=docker@local{there}"],
-        harness="env",
+        envs=[f"box=docker@native{there}"],
         check=False,
         timeout=600,
     )
-    assert refused.status == 2, f"-H env was not refused before the run\n{refused}"
-    assert "is not installed on docker@local" in refused.err, refused
+    assert refused.status == 2, f"self was not refused before the run\n{refused}"
+    assert "is not installed on docker@native" in refused.err, refused
     assert "Traceback" not in refused.err, refused
 
     ran = cell.exec(boxed, CONTAINED, envs=[f"box=docker@local{there}"], timeout=600)
@@ -1822,7 +1823,6 @@ def test_harness_placement(cell: Cell, daemon: None) -> None:
     _contained(cell, ran)
     run = read(epics(cell.workspace)[-1])
     assert run is not None
-    assert run.harness == "adaptive"
     assert [one.harness for one in run.sessions] == ["local"], run.sessions
 
 
@@ -1842,13 +1842,16 @@ def test_workdir(home_kept_here: Path, cell: Cell, daemon: None, ssh_box: Box) -
     there if it ran there.
     """
     del home_kept_here, daemon
+    # Runtimes whose affinity keeps every harness here, whatever their machine has.
+    envs = cell.hmz.runtimes
+    envs.add(envs.new("docker", "here", affinity=["local"]))
+    envs.add(envs.new("ssh", "far", alias=ssh_box.alias, affinity=["local"]))
     boxed = cell.root / "box"
     boxed.mkdir()
     ran = cell.exec(
         cell.flow("boxed", BOXED),
         WHERE,
-        envs=[f"box=docker@local{boxed}"],
-        harness="local",
+        envs=[f"box=docker@here{boxed}"],
         timeout=600,
     )
     landed = boxed / "where.txt"
@@ -1860,8 +1863,7 @@ def test_workdir(home_kept_here: Path, cell: Cell, daemon: None, ssh_box: Box) -
     ran = cell.exec(
         cell.flow("remote", REMOTE),
         WHERE,
-        envs=[f"box=ssh@{ssh_box.alias}{there}"],
-        harness="local",
+        envs=[f"box=ssh@far{there}"],
         timeout=600,
     )
     said = ssh_box.run(f"cat {there}/where.txt 2>/dev/null || echo missing")

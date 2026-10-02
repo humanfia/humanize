@@ -94,8 +94,8 @@ Enter
 Wait+Screen /stops at/
 Sleep 1500ms
 
-# Saved from the menu's own `save` row, past `harness`.
-Down 2
+# Saved from the menu's own `save` row, under the budget.
+Down 1
 Sleep 400ms
 Enter
 Wait+Screen /enter a task/

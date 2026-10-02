@@ -355,8 +355,52 @@ async def boxed(task, *, agents, envs, params, ctx):
 """
 
 
+#: The same, its agent granted everything -- which a harness on a machine of its own needs --
+#: and never spawned: what is checked is where its harness was settled before the flow.
+_OPEN = (
+    _BOXED.replace(
+        "class Agents(AgentCollection):\n    coder: Agent",
+        "class Coder(Agent):\n"
+        "    _permission = Permission(\n"
+        "        local=PermissionKind.ALL, user=PermissionKind.ALL,\n"
+        "        system=PermissionKind.ALL, online=PermissionKind.ALL,\n"
+        "    )\n\n\n"
+        "class Agents(AgentCollection):\n    coder: Coder",
+    )
+    .replace(
+        "from hmz.flows import ImageEnvMixin, ShellEnvMixin",
+        "from hmz.flows import ImageEnvMixin, Permission, PermissionKind, ShellEnvMixin",
+    )
+    .replace(
+        """    session = await agents["coder"].spawn(env=envs["box"])
+    await agents["coder"].run(task, session=session)
+""",
+        "",
+    )
+)
+
+
+def _full(standin: Standin) -> None:
+    """A container of a run still going here, which every runtime of this daemon counts."""
+    standin.set("STANDIN_PS", "busy")
+    standin.set(
+        "STANDIN_INSPECT",
+        json.dumps(
+            [
+                _held(
+                    "busy",
+                    **{
+                        "humanize.pid": str(os.getpid()),
+                        "humanize.host": socket.gethostname(),
+                    },
+                )
+            ]
+        ),
+    )
+
+
 @pytest.mark.timeout(120)
-def test_env_is_refused_before_the_run_where_the_container_has_no_cli(
+def test_self_alone_is_refused_before_the_run_where_the_container_has_no_cli(
     standin: Standin, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Asked down the road a native turn takes, and refused before the flow is called."""
@@ -369,44 +413,129 @@ def test_env_is_refused_before_the_run_where_the_container_has_no_cli(
         return "/opt/nowhere/no-cli"
 
     monkeypatch.setattr(HarnessDriver, "_program", nowhere)
+    store.add(store.DockerRuntime(name="work", affinity=("self",)))
     work = tmp_path / "work"
     work.mkdir()
     called = tmp_path / "called"
     runner = Runner(
         written(tmp_path / "flows", "boxed", _BOXED),
         agents={"coder": "claude/m:high"},
-        envs={"box": f"docker@local{work}"},
+        envs={"box": f"docker@work{work}"},
         budget={"cost": 1},
         workspace=tmp_path,
-        harness="env",
     )
 
-    with pytest.raises(Refused, match="is not installed on docker@local") as refused:
+    with pytest.raises(Refused, match="is not installed on docker@work") as refused:
         runner.run(str(called))
 
-    assert "-H local" in str(refused.value)
+    assert "nowhere its affinity (self) names has room" in str(refused.value)
     assert not called.exists()
 
 
 @pytest.mark.timeout(120)
-def test_standalone_is_refused_before_the_run_for_a_role_it_would_have_to_fence(
+def test_a_runtime_is_refused_before_the_run_for_a_role_it_would_have_to_fence(
     standin: Standin, tmp_path: Path
 ) -> None:
     """A harness on a machine of its own cannot be held to the default permission."""
     del standin
     work = tmp_path / "work"
     work.mkdir()
+    store.add(store.DockerRuntime(name="harbor", workdir=str(work)))
+    store.add(store.DockerRuntime(name="work", affinity=("docker:harbor",)))
     called = tmp_path / "called"
     runner = Runner(
         written(tmp_path / "flows", "boxed", _BOXED),
         agents={"coder": "claude/m:high"},
-        envs={"box": f"docker@local{work}"},
+        envs={"box": f"docker@work{work}"},
         budget={"cost": 1},
         workspace=tmp_path,
-        harness=f"standalone:docker@local{work}",
     )
 
     with pytest.raises(Refused, match="a fence cannot hold a harness that runs on"):
+        runner.run(str(called))
+
+    assert not called.exists()
+
+
+@pytest.mark.timeout(120)
+def test_a_harness_goes_to_the_next_entry_where_a_runtime_has_no_room(
+    standin: Standin, tmp_path: Path
+) -> None:
+    """A runtime at its container limit is passed over for `local`, which always has room."""
+    _full(standin)
+    work = tmp_path / "work"
+    work.mkdir()
+    store.add(store.DockerRuntime(name="harbor", workdir=str(work), max_containers=1))
+    store.add(store.DockerRuntime(name="work", affinity=("docker:harbor", "local")))
+    called = tmp_path / "called"
+    runner = Runner(
+        written(tmp_path / "flows", "boxed", _OPEN),
+        agents={"coder": "claude/m:high"},
+        envs={"box": f"docker@work{work}"},
+        budget={"cost": 1},
+        workspace=tmp_path,
+    )
+
+    runner.run(str(called))
+
+    assert called.read_text() == "called"
+    # The environment's container alone: the harness's runtime had none to give.
+    (started,) = _started(standin)
+    assert _labels(started)["humanize.provider"] == "work"
+
+
+@pytest.mark.timeout(120)
+def test_a_harness_goes_to_a_runtime_with_room_and_it_is_closed_with_the_run(
+    standin: Standin, tmp_path: Path
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    store.add(store.DockerRuntime(name="harbor", workdir=str(work)))
+    store.add(store.DockerRuntime(name="work", affinity=("docker:harbor", "local")))
+    called = tmp_path / "called"
+    runner = Runner(
+        written(tmp_path / "flows", "boxed", _OPEN),
+        agents={"coder": "claude/m:high"},
+        envs={"box": f"docker@work{work}"},
+        budget={"cost": 1},
+        workspace=tmp_path,
+    )
+
+    runner.run(str(called))
+
+    assert called.read_text() == "called"
+    started = _started(standin)
+    assert sorted(_labels(one)["humanize.provider"] for one in started) == [
+        "harbor",
+        "work",
+    ]
+    # Opened to hold a harness, which borrows its agent's descriptors; and taken down.
+    (harbor,) = (
+        one for one in started if _labels(one)["humanize.provider"] == "harbor"
+    )
+    assert "SYS_PTRACE" in " ".join(harbor)
+    assert len([one for one in standin.said() if one["argv"][:1] == ["rm"]]) == 2
+
+
+@pytest.mark.timeout(120)
+def test_with_no_room_anywhere_the_run_is_refused_with_the_last_refusal(
+    standin: Standin, tmp_path: Path
+) -> None:
+    _full(standin)
+    work = tmp_path / "work"
+    work.mkdir()
+    store.add(store.DockerRuntime(name="harbor", workdir=str(work), max_containers=1))
+    store.add(store.DockerRuntime(name="work", affinity=("docker:harbor",)))
+    called = tmp_path / "called"
+    runner = Runner(
+        written(tmp_path / "flows", "boxed", _OPEN),
+        agents={"coder": "claude/m:high"},
+        envs={"box": f"docker@work{work}"},
+        budget={"cost": 1},
+        workspace=tmp_path,
+    )
+
+    with pytest.raises(Refused, match="runs 1 of the 1 containers it may"):
         runner.run(str(called))
 
     assert not called.exists()

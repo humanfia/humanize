@@ -215,10 +215,10 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | `swarm@NAME/…` | a new service of one task on `NAME`'s swarm, on whichever node has room | `target="docker://<container id>[@<the node's daemon>]"` once the task runs, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<service>/` |
 | `swarm@local/…` | a new service on the swarm this machine manages | the same, with provider `local` |
 
-Where the harness goes for such a session (supervised here, native on the machine, or on a
-third machine) is decided by the run's `-H`: see
+Where the harness goes for such a session (supervised here, native on the machine, or on
+another runtime) is decided by the `affinity` of the runtime it is on: see
 [Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs).
-A `local` environment's work always has its harness here unless `-H standalone:…`.
+A `local` environment's work always has its harness here.
 
 | Opening refusal | `EnvUnavailable` message |
 | --- | --- |
@@ -249,7 +249,7 @@ shares that machine and its connection.
 | `swarm` | `SwarmMachine` | the serving half over `docker exec -i`, against the daemon of the node the task landed on | the ssh probe, run in the container, after the task is running |
 
 - Nothing connects until the run probes its environments, which it does before any agent
-  starts (and for a standalone harness machine too).
+  starts (and for every runtime an affinity puts a harness on too).
 - Every command runs in its own process group with stdin closed; a timeout, cancellation or
   closing the driver kills the group.
 - Derived environments live under humanize's home on that machine:
@@ -285,9 +285,9 @@ reaches its environments and removed when the run closes it.
 | Image | the role's `_image` (`ImageEnvMixin`), else the runtime's `image`, else `python:3.12-slim` |
 | Workdir | a directory of the daemon's host, bind-mounted at its own path; what is written there outlives the container |
 | Limits | exactly the role's `_cpu_count`, `_memory` and `_gpu_count` as hard limits; nothing the role does not declare is limited; no GPU unless `GPUEnvMixin` is declared |
-| OCI runtime and arguments | the runtime's `runtime` (OCI runtime) and `run_args`; for the container of a `-H standalone:docker@…` harness, `--cap-add SYS_PTRACE` before them |
+| OCI runtime and arguments | the runtime's `runtime` (OCI runtime) and `run_args`; for the container an affinity's `docker:<name>` puts a harness in, `--cap-add SYS_PTRACE` before them |
 | Labels | `humanize.provider`, `humanize.role`, `humanize.host` (this host's name), `humanize.pid` (this process), plus `humanize=<uid>`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` |
-| Agents | anchored to the container over `docker exec`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex>`, or native in the container per `-H` |
+| Agents | anchored to the container over `docker exec`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex>`, or native in the container, as the runtime's `affinity` says |
 | Derived environments | inside the same container |
 
 Allocation, done while holding an exclusive `flock` on
@@ -362,7 +362,7 @@ harness, files, derived environments -- is as for a [docker environment](#docker
 | Workdir | a directory of the node the task lands on, bind-mounted at its own path: every node it may land on must have it at that path (a shared filesystem, or `constraints` keeping it where the directory is). The task runs as this user where the manager is this machine, else as the workdir's owner on the manager's host |
 | Reservations and limits | `--reserve-cpu`/`--limit-cpu` and `--reserve-memory`/`--limit-memory`, both exactly the role's `_cpu_count` and `_memory`; `--generic-resource <gpu_resource>=<_gpu_count>` for a role declaring GPUs; nothing the role does not declare |
 | Placement | `--constraint` for each of the runtime's `constraints` |
-| Arguments | the runtime's `run_args`; for the task of a `-H standalone:swarm@…` harness, `--cap-add SYS_PTRACE` (Engine 20.10 or newer). Services take no OCI `--runtime` |
+| Arguments | the runtime's `run_args`; for the task of a harness an affinity puts on the swarm, `--cap-add SYS_PTRACE` (Engine 20.10 or newer). Services take no OCI `--runtime` |
 | Labels | on the service: those of a docker environment's container |
 | Reached | `docker exec` against: the daemon the runtime's `nodes` names for the node's host, else the manager's own where the task landed on the manager, else `ssh://<the node's address>` (docker's ssh transport, as this machine's `ssh` resolves it) |
 
@@ -441,7 +441,8 @@ TUI on the Runtimes page of `/settings`.
   "alias": "",
   "config": "",
   "workdir": "~/project",
-  "made": "typed"
+  "made": "typed",
+  "affinity": ["self", "docker:gpubox", "local"]
 }
 ```
 
@@ -462,6 +463,7 @@ TUI on the Runtimes page of `/settings`.
 | `config` | `str` | `""` | The ssh config file, sent as `-F`, where it is not `~/.ssh/config`. |
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=ssh@NAME`: absolute, `~` or `~/…`. |
 | `made` | `str` | `"typed"` | `typed` or `imported`. |
+| `affinity` | `tuple[str, ...]` | `()` | Where the harness of an agent working on it runs, in the order tried: `self`, `local`, `ssh:<name>`, `docker:<name>`. Empty: on it where its CLI is, else here. See [Remote execution › Affinity](/reference/remote-execution#affinity). |
 
 `target()` is `ssh://[user@]<alias or host>[:port][?F=…&HostName=…&IdentityFile=…&ProxyJump=…&<options>]`.
 These options come before humanize's own `ssh` options, and `ssh` keeps the first value it
@@ -489,6 +491,7 @@ Two runtimes at one host with different options use different ssh master connect
 | `max_containers` | `int` | `0` | Containers at once; `0` for no limit. |
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=docker@NAME`. |
 | `made` | `str` | `"typed"` | Always `typed`. |
+| `affinity` | `tuple[str, ...]` | `()` | As for an ssh host. |
 
 `daemon()` returns the [`Endpoint`](#endpoints): `tls_dir` becomes `?tls=<absolute dir>`, and
 `ssh:<name>` becomes `ssh://[user@]host[:port]` carrying every option of that ssh runtime.
@@ -561,6 +564,9 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | a swarm constraint comparing nothing | `x: invalid constraint 'node.labels.gpu': expected <attribute>==<value> or <attribute>!=<value>` |
 | a swarm GPU resource of more than one word | `x: invalid generic resource 'NVIDIA GPU'` |
 | a swarm node's bad host name, or a value neither a name nor a destination | `x: invalid node host name '-n'`, `x: node gpu-1: '<value>' is neither a saved ssh host nor [user@]host[:port]` |
+| an affinity entry that is not `self`, `local` or `<backend>:<name>` | `x: 'here' is not where a harness runs: self, local or <ssh\|docker\|swarm>:<runtime name>` |
+| an affinity entry twice | `x: local is in its affinity twice` |
+| an affinity naming the runtime itself | `x: its affinity names itself; self is its own machine` |
 | `add` over an existing one | `ssh host 'gpu' already exists` |
 | `ssh:<name>` naming no ssh runtime (at `daemon()`) | `ssh:nobody: ssh host 'nobody' not found` |
 | a `config` or `tls_dir` under a `~user` with no home (at `write`) | `the config file '<value>': home directory not found` |
@@ -573,7 +579,7 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 - `import_ssh(config=None, names=None, *, update=False)` writes one runtime per host, named
   after its `Host` with characters outside `[A-Za-z0-9._-]` replaced by `-`, holding
   `alias` (and `config` where not the default). An existing runtime is left alone unless
-  `update=True`, which rewrites an imported one and keeps its `workdir`; a typed one is never
+  `update=True`, which rewrites an imported one and keeps its `workdir` and `affinity`; a typed one is never
   overwritten. With `names`, a host the config lacks raises `ssh config has no host <names>`,
   and a host that cannot be imported raises `<alias> cannot be imported: <why>`.
 

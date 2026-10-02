@@ -215,8 +215,8 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 
 | `event` | When | Fields |
 | --- | --- | --- |
-| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider}`, one per role), `envs` (list of `role=<-e spec>`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited), `harness` (as `-H` spells it; `adaptive` when no `-H` was given; omitted only by callers that pass none) |
-| `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (role), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<role>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, `standalone:<target>`; only when its work was on another machine) |
+| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider}`, one per role), `envs` (list of `role=<-e spec>`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited) |
+| `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (role), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<role>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `self`, or the `<backend>:<name>` of the runtime an affinity sent it to; only when its work was on another machine) |
 | `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
 | `returned` | that call ends, however | `flow`, `epic` |
 | `usage` | the run ends | `cost` (USD), `output_tokens`, `seconds`: the run's total as its budget counted it |
@@ -227,7 +227,7 @@ budget ran out, or that raised `FlowCancelled`; `failed` for any other exception
 otherwise. A missing `ended` means the process was killed (or the run is still going).
 
 ```json
-{"event": "began", "at": "2026-09-30T05:33:55.691Z", "flow": "chat", "task": "hi", "workspace": "/tmp/ws", "resumable": false, "ref": "chat:chat", "agents": [{"agent": "assistant", "backend": "claude", "model": "haiku", "effort": "low", "provider": ""}], "envs": [], "params": {}, "budget": {"duration": null, "cost": "Infinity", "output_tokens": null, "graceful": true}, "harness": "adaptive"}
+{"event": "began", "at": "2026-09-30T05:33:55.691Z", "flow": "chat", "task": "hi", "workspace": "/tmp/ws", "resumable": false, "ref": "chat:chat", "agents": [{"agent": "assistant", "backend": "claude", "model": "haiku", "effort": "low", "provider": ""}], "envs": [], "params": {}, "budget": {"duration": null, "cost": "Infinity", "output_tokens": null, "graceful": true}}
 {"event": "opened", "at": "2026-09-30T05:33:57.978Z", "agent": "assistant", "backend": "claude", "provider": "local", "session": "56107ec6-dfa6-4484-97dc-ae0f49981bed", "name": "assistant-claude@local-56107ec6-dfa6-4484-97dc-ae0f49981bed", "where": "sessions/claude"}
 {"event": "usage", "at": "2026-09-30T05:33:58.796Z", "cost": 0.0, "output_tokens": 46, "seconds": 2.252695}
 {"event": "ended", "at": "2026-09-30T05:33:58.796Z", "how": "done"}

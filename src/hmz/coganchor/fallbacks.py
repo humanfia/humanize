@@ -270,7 +270,7 @@ ANSWERS: tuple[Answer, ...] = (
         "could not keep its copy of the work here",
         held=True,
         fix="that path cannot be made here; use a workdir whose path you can create here, "
-        "or run the harness on that machine with -H env",
+        "or put self in the affinity of the runtime the work is on",
     ),
     # The machine rather than anything a turn named. A CLI that confines its own tool calls
     # asks the kernel for the confinement, and a kernel that has just said no says no to the

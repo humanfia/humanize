@@ -20,7 +20,7 @@ from hmz.flows import Budget
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import _BUDGET, _DONE, _HARNESS, _SAVE, Configures, Flows, budget_of
+from hmz.tui.pick import _BUDGET, _DONE, _SAVE, Configures, Flows, budget_of
 from tests.integration.tui.test_app import changes, onto, opens, picks, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
@@ -93,7 +93,7 @@ async def test_the_row_says_what_the_run_is_held_to_without_being_opened(
     async with app.run_test() as driver:
         await _into(app, driver, "local/quiet")
 
-        assert rows(app) == ["0", _BUDGET, _HARNESS, _SAVE]
+        assert rows(app) == ["0", _BUDGET, _SAVE]
         assert "none set" in _said(app)
 
 

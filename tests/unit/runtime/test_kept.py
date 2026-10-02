@@ -143,19 +143,6 @@ def test_choosing_the_agents_again_leaves_the_rest_alone_and_empty_erases(
     assert held.envs("rlar") == {"remote": "ssh@box/repo"}
 
 
-def test_where_the_harnesses_run_is_kept_beside_the_budget(tmp_path: Path) -> None:
-    settings = Settings(tmp_path)
-    assert settings.harness("rlar") == ""  # nobody said: adaptive
-    settings.remember("rlar", {"builder": Runs("claude/m:high")}, harness="env")
-    assert Settings(tmp_path).harness("rlar") == "env"
-
-    # Left alone by choosing the agents again, and erased by an empty one.
-    settings.remember("rlar", {"builder": Runs("codex/n:low")})
-    assert Settings(tmp_path).harness("rlar") == "env"
-    settings.remember("rlar", {"builder": Runs("codex/n:low")}, harness="")
-    assert Settings(tmp_path).harness("rlar") == ""
-
-
 def test_what_humanize_did_not_write_reads_as_nothing_remembered(
     tmp_path: Path,
 ) -> None:

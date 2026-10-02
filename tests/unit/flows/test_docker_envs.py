@@ -553,7 +553,7 @@ def test_an_agent_in_a_container_is_anchored_to_it_in_a_mirror_of_its_own() -> N
 def test_a_container_holding_a_harness_may_borrow_its_agents_descriptors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A standalone harness's container is started with `CAP_SYS_PTRACE`, and no other is.
+    """A harness runtime's container is started with `CAP_SYS_PTRACE`, and no other is.
 
     Its supervisor borrows each command's descriptors from the agent, which docker's default
     seccomp profile refuses a container without it; a socket cannot be opened again through
