@@ -110,7 +110,7 @@ class Hmz:
 
     @property
     def runtimes(self) -> Runtimes:
-        """The runtimes: the ssh hosts and docker daemons an environment may be put on, by name."""
+        """The runtimes: the ssh hosts, docker daemons and swarms an environment may be put on."""
         if self._runtimes is None:
             from hmz.runtime.doing.runtimes import Runtimes
 

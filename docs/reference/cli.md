@@ -142,7 +142,7 @@ model         = ? any text, may contain "/" and ":" ; non-empty ? ;
 effort        = ? any text without ":" ; "auto" means the CLI's default ? ;
 
 env           = identifier , "=" , backend , ( "@" , host )? , workdir? ;
-backend       = "local" | "ssh" | "docker" ;
+backend       = "local" | "ssh" | "docker" | "swarm" ;
 host          = ? any text without "/"; may contain "@" and ":" ? ;
 workdir       = "/" , ? any text ? ;                       (* "/~" or "/~/…" is home-relative *)
 
@@ -150,7 +150,7 @@ param         = key , "=" , ? any text ? ;
 limit         = ( "duration" | "cost" | "output_tokens" | "graceful" ) , "=" , ? value ? ;
 
 where         = "adaptive" | "local" | "env" | "standalone:" , machine ;
-machine       = ( "ssh" | "docker" ) , "@" , host , workdir?   (* as env, without "role=" *)
+machine       = ( "ssh" | "docker" | "swarm" ) , "@" , host , workdir?   (* as env, without "role=" *)
               | name ;                                        (* a saved runtime *)
 ```
 
@@ -230,15 +230,16 @@ Parsed by the regex `(?P<role>[^=]*)=(?P<backend>[^@/]*)(?:@(?P<provider>[^/]*))
 | Part | Rule |
 | --- | --- |
 | `<role>` | A Python identifier. |
-| `<backend>` | `local`, `ssh` or `docker`. |
-| `<provider>` | `local`: must be empty (`local@/path`). `ssh`: required — the name of a saved ssh [runtime](/reference/machines#runtimes), else any destination `ssh` accepts (`host`, `user@host`, `host:port`, a config alias). `docker`: required — the name of a saved docker runtime, or `local` for docker's default daemon here; any other name is refused when the environment is opened. |
-| `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home. Omitted: the saved runtime's own workdir; a provider with none, or an unsaved host, is refused. For `docker`, a directory of the daemon's host, mounted into the container at the same path. |
+| `<backend>` | `local`, `ssh`, `docker` or `swarm`. |
+| `<provider>` | `local`: must be empty (`local@/path`). `ssh`: required — the name of a saved ssh [runtime](/reference/machines#runtimes), else any destination `ssh` accepts (`host`, `user@host`, `host:port`, a config alias). `docker`: required — the name of a saved docker runtime, or `local` for docker's default daemon here; any other name is refused when the environment is opened. `swarm`: required — the name of a saved swarm runtime, or `local` for the swarm this machine manages; likewise. |
+| `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home. Omitted: the saved runtime's own workdir; a provider with none, or an unsaved host, is refused. For `docker`, a directory of the daemon's host, mounted into the container at the same path; for `swarm`, one every node its task may land on has, likewise. |
 
 Roles the runtime fills — `LocalEnv` roles, which are the workspace — are never given. After
 parsing, every environment is opened and probed before the flow is called; an unreachable one,
 or one whose machine has fewer CPUs, GPUs or less memory than its role declares, is
 [refused](#what-is-refused-before-anything-runs). A `docker` environment's container is started
-then. Where the provider is a saved runtime with a
+then, and a `swarm` environment's service created and waited for until its task runs. Where
+the provider is a saved runtime with a
 [fallback list](/reference/machines#falling-back), such an environment moves down that list
 first, saying so on stderr:
 
@@ -309,7 +310,7 @@ work on this machine runs its harness here under every mode but `standalone`.
 | Written | Read as |
 | --- | --- |
 | `ssh@<host>[/<workdir>]`, `docker@<provider>[/<workdir>]` | As `-e` reads it after `<role>=`. |
-| `<name>` (no `@` before the first `/`) | The saved ssh runtime of that name, else the saved docker runtime of that name, else the text as written. |
+| `<name>` (no `@` before the first `/`) | The saved ssh runtime of that name, else the saved docker runtime of that name, else the saved swarm runtime of that name, else the text as written. |
 | no `/<workdir>`, provider saved with one | That workdir. |
 | no `/<workdir>`, `ssh` | `/~` (the login's home). |
 | no `/<workdir>`, `docker@local` | `$HUMANIZE_HOME/harness`. |
@@ -320,7 +321,7 @@ work on this machine runs its harness here under every mode but `standalone`.
 | not one of the forms | `-H '<value>': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:` naming `local@…` | `-H '<value>': a standalone harness runs on another machine; -H local runs it on this one` |
 | `standalone:<name>`, nothing saved under it | `-H '<value>': no runtime is saved as '<name>'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
-| `standalone:` with an unknown backend | `-H '<value>': '<backend>' is not a backend; one of ssh, docker` |
+| `standalone:` with an unknown backend | `-H '<value>': '<backend>' is not a backend; one of ssh, docker, swarm` |
 | `standalone:docker@<provider>`, not saved, no workdir | `-H '<value>': docker@<provider> is not saved with a workdir of its own; expected standalone:docker@<provider>/<workdir>` |
 | `standalone:ssh@` with no host | `-H '<value>': ssh needs a host, as in ssh@host/workdir` |
 
@@ -383,9 +384,10 @@ Stage 1–2 messages are preceded by the usage block.
 | a role twice in `-a` | `-a: the role '<role>' is given twice` |
 | an `-e` that does not match | `-e '<item>': expected <role>=<backend>[@<provider>]/<workdir>` |
 | an `-e` role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
-| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker` |
+| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm` |
 | `ssh` with no host | `-e '<item>': ssh needs a host, as in ssh@host/workdir` |
 | `docker` with no host | `-e '<item>': docker needs a host, as in docker@local/workdir` |
+| `swarm` with no host | `-e '<item>': swarm needs a host, as in swarm@local/workdir` |
 | `local` with a host | `-e '<item>': local takes no host, as in local@/workdir` |
 | a role twice in `-e` | `-e: the role '<role>' is given twice` |
 | a `-p` without `key=` | `-p '<item>': expected <key>=<value>` |

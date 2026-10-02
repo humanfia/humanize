@@ -394,7 +394,7 @@ def test_a_turn_with_nowhere_left_to_run_moves_onto_an_added_cli(added: str) -> 
     with` rather than on the answer the CLI it moved to gave.
     """
     backends.remember("shell", ["shell"])
-    fallbacks.points("shell/m", f"{added}/m")
+    fallbacks.points("shell/m", [f"{added}/m"])
     agent = ShellAgent(AgentConfig(model="m", effort="high"))
 
     # `exit 3` is a turn that failed, and this agent has no account to fall back to. The

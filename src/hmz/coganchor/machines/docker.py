@@ -42,7 +42,7 @@ from hmz.coganchor.transport import Endpoint, Road, Target, python_command
 from .base import MachineBase, MachineConfig
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
 #: What the container does while the turns come and go: nothing, in the interpreter coganchor's
 #: target half needs, looked for the way that half looks for it -- the same machine and the
@@ -624,7 +624,7 @@ class Docker(MachineBase):
                     # `--mount` rather than `--volume`, which would make a missing source
                     # into a directory owned by root on a host nobody here can see.
                     "--mount",
-                    _bound(workspace),
+                    bound(workspace),
                     *config.run_args,
                     *self._resources(),
                     *gpus,
@@ -796,46 +796,70 @@ class Docker(MachineBase):
           FileNotFoundError: If the daemon's host has no such directory.
           RuntimeError: If no container of the image could be asked.
         """
-        if self._endpoint.here:
-            security = cast("list[str]", self._info().get("SecurityOptions") or [])
-            if any("name=rootless" in one for one in security):
-                return "0:0"
-            return f"{os.getuid()}:{os.getgid()}"
-        asked = subprocess.run(
-            self._endpoint.docker(
-                "run",
-                "--rm",
-                "--label",
-                f"{_LABEL}={os.getuid()}",
-                "--network",
-                "none",
-                "--mount",
-                _bound(workspace),
-                self._config.image,
-                *python_command(["-c", _OWNER, workspace]),
-            ),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        # The last line, since an image's entrypoint may have said something first.
-        owner = _OWNED.search(asked.stdout)
-        if asked.returncode == 0 and owner is not None:
-            return f"{owner[1]}:{owner[2]}"
-        why = asked.stderr.strip()
-        if "bind source path does not exist" in why:
-            raise FileNotFoundError(
-                errno.ENOENT,
-                f"no directory to give the container on {self._endpoint}",
-                workspace,
-            )
-        raise RuntimeError(
-            f"could not start a container of {self._config.image} on {self._endpoint}: "
-            f"{why or asked.stdout.strip()}"
-        )
+        return whose(self._endpoint, self._config.image, workspace, self._info)
 
 
-def _bound(workspace: str) -> str:
+def whose(
+    endpoint: Endpoint,
+    image: str,
+    workspace: str,
+    told: Callable[[], Mapping[str, Any]],
+) -> str:
+    """Who a container given a workspace runs as: whoever owns it, as `uid:gid`.
+
+    What :meth:`Docker.start` asks before it starts one, and a swarm's service before it is
+    created -- the same question, of the daemon each is pointed at.
+
+    Args:
+      endpoint: The daemon.
+      image: What a container asking it is started from, where one has to.
+      workspace: The directory, as the daemon's host names it.
+      told: What the daemon says of itself, asked only where it is this machine's.
+
+    Raises:
+      FileNotFoundError: If the daemon's host has no such directory.
+      RuntimeError: If no container of the image could be asked.
+    """
+    if endpoint.here:
+        security = cast("list[str]", told().get("SecurityOptions") or [])
+        if any("name=rootless" in one for one in security):
+            return "0:0"
+        return f"{os.getuid()}:{os.getgid()}"
+    asked = subprocess.run(
+        endpoint.docker(
+            "run",
+            "--rm",
+            "--label",
+            f"{_LABEL}={os.getuid()}",
+            "--network",
+            "none",
+            "--mount",
+            bound(workspace),
+            image,
+            *python_command(["-c", _OWNER, workspace]),
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    # The last line, since an image's entrypoint may have said something first.
+    owner = _OWNED.search(asked.stdout)
+    if asked.returncode == 0 and owner is not None:
+        return f"{owner[1]}:{owner[2]}"
+    why = asked.stderr.strip()
+    if "bind source path does not exist" in why:
+        raise FileNotFoundError(
+            errno.ENOENT,
+            f"no directory to give the container on {endpoint}",
+            workspace,
+        )
+    raise RuntimeError(
+        f"could not start a container of {image} on {endpoint}: "
+        f"{why or asked.stdout.strip()}"
+    )
+
+
+def bound(workspace: str) -> str:
     """The `--mount` giving a container the workspace at the path it already has.
 
     Written as the CSV row docker reads it as, so a path holding a comma or a quote is one

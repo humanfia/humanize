@@ -1,10 +1,11 @@
-"""A place falling back to a place, once the one taking a turn has nowhere left to run.
+"""A place falling back along a chain of places, once the one taking a turn has nowhere left.
 
-An account's chain answers an account going down, inside the conversation that was running,
-with the same agent at the same model throughout. This is what is left when that is no answer
-at all: a model retired, a CLI that will not start, a whole account rate-limited rather than
-one request. Another place then -- another CLI, another account, another model -- and the turn
-taken in a session of its own, because no backend can be handed another backend's session id.
+Trying again answers a turn that is the same call away from working, inside the conversation
+that was running. This is what is left when that is no answer at all: a model retired, a CLI
+that will not start, a whole account rate-limited rather than one request. Another place then --
+another CLI, another account, another model -- and the turn taken in a session of its own,
+because no backend can be handed another backend's session id. And then the place after that,
+in the order they were written down, for as long as each fails too.
 
 A place and not an agent: how hard the agent thinks, what it may reach for and which of a
 flow's skills it carries are what that agent *is*, settled where it was made, and they come
@@ -84,10 +85,10 @@ def _claude(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_a_step_is_written_down_between_two_places() -> None:
     """Three things and no more: the CLI, the account it runs as, and the model it runs."""
-    fallbacks.points("shell/m", "claude@work/claude-opus-5")
+    fallbacks.points("shell/m", ["claude@work/claude-opus-5"])
 
     assert fallbacks.falls() == [
-        fallbacks.Falls("shell/m", "claude@work/claude-opus-5")
+        fallbacks.Falls("shell/m", ("claude@work/claude-opus-5",))
     ]
     assert fallbacks.chain("shell/m") == [
         "shell/m",
@@ -95,28 +96,28 @@ def test_a_step_is_written_down_between_two_places() -> None:
     ]
 
 
-def test_the_chain_is_this_agent_and_then_wherever_each_one_goes() -> None:
+def test_the_chain_is_this_agent_and_then_the_places_written_against_it() -> None:
     """A list rather than a list and a special case: the first is always this agent."""
-    fallbacks.points("shell/m", "claude/a")
-    fallbacks.points("claude/a", "codex/b")
+    fallbacks.points("shell/m", ["claude/a", "codex/b"])
 
     assert fallbacks.chain("shell/m") == [
         "shell/m",
         "claude/a",
         "codex/b",
     ]
-    # And one nobody said anything about is a chain of one.
+    # And a place that is only on somebody else's chain is a chain of one.
+    assert fallbacks.chain("claude/a") == ["claude/a"]
     assert fallbacks.chain("codex/b") == ["codex/b"]
 
 
-def test_a_chain_that_comes_round_on_itself_ends_at_the_second_sight_of_a_place() -> (
-    None
-):
-    """Or it would be a turn that could never run out of places to go."""
-    fallbacks.points("shell/m", "claude/a")
-    fallbacks.points("claude/a", "shell/m")
+def test_a_chain_is_never_walked_onto_the_chain_of_a_place_on_it() -> None:
+    """Two chains are two things somebody wrote down, not one longer one nobody did."""
+    fallbacks.points("shell/m", ["claude/a"])
+    fallbacks.points("claude/a", ["codex/b"])
+    fallbacks.points("codex/b", ["shell/m"])
 
     assert fallbacks.chain("shell/m") == ["shell/m", "claude/a"]
+    assert fallbacks.chain("claude/a") == ["claude/a", "codex/b"]
 
 
 def test_a_step_that_points_at_itself_or_at_nothing_is_refused_where_it_is_written() -> (
@@ -124,17 +125,19 @@ def test_a_step_that_points_at_itself_or_at_nothing_is_refused_where_it_is_writt
 ):
     """Rather than found by the turn that needed it, an hour into a loop."""
     with pytest.raises(ValueError, match="cannot fall back to itself"):
-        fallbacks.points("claude/a", "claude/a")
+        fallbacks.points("claude/a", ["codex/b", "claude/a"])
+    with pytest.raises(ValueError, match="already one of the places"):
+        fallbacks.points("claude/a", ["codex/b", "codex/b"])
     with pytest.raises(ValueError, match="is not a place"):
-        fallbacks.points("nothing-is-called-this/a", "claude/a")
+        fallbacks.points("nothing-is-called-this/a", ["claude/a"])
     with pytest.raises(ValueError, match="is not a place"):
-        fallbacks.points("claude/a", "nothing-is-called-this/a")
+        fallbacks.points("claude/a", ["nothing-is-called-this/a"])
 
 
 def test_writing_one_again_says_the_new_thing_and_not_both() -> None:
-    """One place has one place to go: two would be a chain that forks."""
-    fallbacks.points("shell/m", "claude/a")
-    fallbacks.points("shell/m", "codex/b")
+    """One place has one chain: two would be a chain that forks."""
+    fallbacks.points("shell/m", ["claude/a", "codex/b"])
+    fallbacks.points("shell/m", ["codex/b"])
 
     assert fallbacks.chain("shell/m") == ["shell/m", "codex/b"]
     assert fallbacks.clear("shell/m")
@@ -166,11 +169,18 @@ def test_an_agent_nobody_wrote_a_step_about_stands_in_nowhere() -> None:
     assert ShellAgent(CONFIG).stands_in() is None
 
 
+def test_an_agent_at_a_place_only_on_somebody_else_s_chain_stands_in_nowhere() -> None:
+    """A chain is started from its own place only, and this one is not where it starts."""
+    fallbacks.points("claude/claude-opus-5", ["shell/m", "codex/b"])
+
+    assert ShellAgent(CONFIG).stands_in() is None
+
+
 def test_the_stand_in_is_at_the_place_the_step_names_and_is_made_once(
     tmp_path: Path,
 ) -> None:
     """Kept for the reason an account that has moved stays moved."""
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(CONFIG)
 
     stood_in = agent.stands_in()
@@ -183,7 +193,7 @@ def test_the_stand_in_is_at_the_place_the_step_names_and_is_made_once(
 
 def test_the_stand_in_is_configured_as_the_agent_that_could_not_run_was() -> None:
     """A step names a place; everything else about an agent is what that agent is."""
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(
         AgentConfig(model="m", effort="high", permission="read-only", goals=False)
     )
@@ -198,7 +208,7 @@ def test_the_stand_in_is_configured_as_the_agent_that_could_not_run_was() -> Non
 
 def test_a_step_to_the_same_backend_carries_what_that_backend_was_told() -> None:
     """The CLI taking over is the CLI that was told it, so it is still told it."""
-    fallbacks.points("claude/claude-opus-5", "claude/claude-sonnet-5")
+    fallbacks.points("claude/claude-opus-5", ["claude/claude-sonnet-5"])
     agent = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(
             model="claude-opus-5",
@@ -223,7 +233,7 @@ def test_a_step_to_the_same_backend_under_another_account_is_still_that_account(
     The same model under another account, so the window measured on it is still the window:
     what changed is whose key pays for the turn, which no model's numbers depend on.
     """
-    fallbacks.points("codex@work/gpt-5.6-sol", "codex@key/gpt-5.6-sol")
+    fallbacks.points("codex@work/gpt-5.6-sol", ["codex@key/gpt-5.6-sol"])
     agent = CodexAgent(
         CodexAgentConfig(
             model="gpt-5.6-sol",
@@ -251,7 +261,7 @@ def test_a_step_that_changes_the_model_leaves_that_model_s_own_numbers_behind() 
     something else: nothing refuses it, nothing logs it, and the turns simply overrun a
     window the new model has not got.
     """
-    fallbacks.points("codex/gpt-5.6-sol", "codex/gpt-5.6-sol-mini")
+    fallbacks.points("codex/gpt-5.6-sol", ["codex/gpt-5.6-sol-mini"])
     agent = CodexAgent(
         CodexAgentConfig(
             model="gpt-5.6-sol",
@@ -285,7 +295,7 @@ def test_a_step_to_the_same_cli_of_your_own_still_knows_which_cli_it_is() -> Non
     than the one it replaced -- it is pointed at nothing, and every turn after the step fails
     at the handshake rather than anywhere a reader would look.
     """
-    fallbacks.points("shell/m", "shell/other")
+    fallbacks.points("shell/m", ["shell/other"])
     agent = AcpAgent(
         AcpAgentConfig(model="m", effort="high", cli="shell", command=("sh", "-c", ":"))
     )
@@ -300,7 +310,7 @@ def test_a_step_to_the_same_cli_of_your_own_still_knows_which_cli_it_is() -> Non
 
 def test_a_step_to_another_backend_leaves_the_first_one_s_vocabulary_behind() -> None:
     """A rule Claude reads as an allowed tool says nothing to the CLI taking over."""
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     agent = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(
             model="claude-opus-5",
@@ -323,7 +333,7 @@ def test_a_rung_the_cli_taking_over_has_not_got_is_the_same_rung_of_its_own_ladd
     None
 ):
     """Every ladder here is hardest first, so a rung is how far down from the top it was."""
-    fallbacks.points("claude/claude-opus-5", "grok/grok-5")
+    fallbacks.points("claude/claude-opus-5", ["grok/grok-5"])
     agent = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(model="claude-opus-5", effort="ultracode")
     )
@@ -340,7 +350,7 @@ def test_a_stand_in_that_cannot_be_told_what_this_agent_was_told_is_no_stand_in(
     None
 ):
     """A setting a backend quietly ignored would be a setting that lies about the turn."""
-    fallbacks.points("claude/claude-opus-5", "pi/pi-1")
+    fallbacks.points("claude/claude-opus-5", ["pi/pi-1"])
     agent = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(model="claude-opus-5", effort="high", web_search=False)
     )
@@ -352,7 +362,7 @@ def test_a_stand_in_that_cannot_be_told_what_this_agent_was_told_is_no_stand_in(
 
 def test_the_stand_in_carries_what_the_flow_gave_the_agent(tmp_path: Path) -> None:
     """The skills are the flow's, and the turn that moved is still the flow's turn."""
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(CONFIG)
     agent.loads([Loaded("reading", tmp_path / "reading", "this flow")])
 
@@ -362,10 +372,9 @@ def test_the_stand_in_carries_what_the_flow_gave_the_agent(tmp_path: Path) -> No
     assert [one.name for one in stood_in.loaded] == ["reading"]
 
 
-def test_a_stand_in_holds_only_the_steps_after_its_own() -> None:
+def test_a_stand_in_holds_only_the_places_after_its_own() -> None:
     """Or a chain read again from the top by each hop would walk the failed ones twice."""
-    fallbacks.points("shell/m", "claude/a")
-    fallbacks.points("claude/a", "codex/b")
+    fallbacks.points("shell/m", ["claude/a", "codex/b"])
     agent = ShellAgent(CONFIG)
 
     first = agent.stands_in()
@@ -379,6 +388,22 @@ def test_a_stand_in_holds_only_the_steps_after_its_own() -> None:
     assert second.stands_in() is None
 
 
+def test_a_stand_in_carries_on_along_its_chain_and_never_along_its_own() -> None:
+    """A place that heads a chain of its own is, reached as a stand-in, a step of this one."""
+    fallbacks.points("shell/m", ["claude/a", "codex/b"])
+    fallbacks.points("claude/a", ["claude/other"])
+    agent = ShellAgent(CONFIG)
+
+    first = agent.stands_in()
+
+    assert first is not None
+    assert first.spec == "claude/a"
+    second = first.stands_in()
+    assert second is not None
+    assert second.spec == "codex/b"
+    assert second.stands_in() is None
+
+
 def test_the_stand_in_at_a_cli_somebody_added_knows_which_cli_it_is() -> None:
     """One class drives every added CLI, so its name is the agent rather than a setting.
 
@@ -386,7 +411,7 @@ def test_the_stand_in_at_a_cli_somebody_added_knows_which_cli_it_is() -> None:
     built was one that did not know what it was: it answered `acp`, ran at a place nobody
     had written a step about, and ended its first turn on having no command to start.
     """
-    fallbacks.points("claude/claude-opus-5", "shell/m")
+    fallbacks.points("claude/claude-opus-5", ["shell/m"])
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="high"))
 
     stood_in = agent.stands_in()
@@ -399,7 +424,7 @@ def test_the_stand_in_at_a_cli_somebody_added_knows_which_cli_it_is() -> None:
 
 def test_the_name_comes_across_and_nothing_else_of_the_backend_that_failed() -> None:
     """Identity is carved out of the narrowing; configuration goes on being narrowed away."""
-    fallbacks.points("claude/claude-opus-5", "shell/m")
+    fallbacks.points("claude/claude-opus-5", ["shell/m"])
     agent = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(
             model="claude-opus-5", effort="high", allowed_tools=("Bash(ls:*)",)
@@ -422,7 +447,7 @@ def test_the_name_comes_across_and_nothing_else_of_the_backend_that_failed() -> 
 def test_a_step_between_two_added_clis_arrives_as_the_one_it_stepped_to() -> None:
     """The name is read off the place the step names, never off the agent leaving it."""
     backends.remember("othersh", ["othersh", "-e"])
-    fallbacks.points("shell/m", "othersh/m")
+    fallbacks.points("shell/m", ["othersh/m"])
     agent = AcpAgent(
         AcpAgentConfig(
             cli="shell",
@@ -446,7 +471,7 @@ def test_a_step_between_two_added_clis_arrives_as_the_one_it_stepped_to() -> Non
 
 def test_a_step_off_an_added_cli_onto_one_humanize_drives_carries_no_name() -> None:
     """There the class is the answer, and a name beside it would be a field it has not got."""
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = AcpAgent(AcpAgentConfig(cli="shell", model="m", effort="as configured"))
 
     stood_in = agent.stands_in()
@@ -460,7 +485,7 @@ def test_a_step_naming_a_cli_that_is_not_here_is_a_turn_that_fails_as_it_always_
     None
 ):
     """The answer somebody needs is what went wrong, not what the step said."""
-    fallbacks.points("shell/m", "claude/a")
+    fallbacks.points("shell/m", ["claude/a"])
     # Written down while it could be read, and the backend gone by the time it is needed.
     agent = ShellAgent(CONFIG)
     agent._beyond = ("nothing-is-called-this/a",)
@@ -474,23 +499,83 @@ def test_a_turn_with_nowhere_left_to_run_is_taken_at_the_place_it_falls_back_to(
 ) -> None:
     """Which is the whole of it: the flow asked one agent and another one answered."""
     _claude(tmp_path, monkeypatch)
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(CONFIG)
 
-    # `exit 3` is a turn that failed, and this agent has no account to fall back to.
+    # `exit 3` is a turn that failed, and this agent has nothing to try again.
     assert agent.new()("exit 3") == "claude took it: exit 3"
 
 
+#: A `claude` that writes down which model each start of it was asked for, and refuses any
+#: model called `down` -- so that a chain whose first stand-in is down is one walked on.
+_PICKY = """
+import json, sys
+
+flags = dict(zip(sys.argv, sys.argv[1:]))
+with open({tally!r}, "a") as kept:
+    kept.write(flags.get("--model", "") + "\\n")
+if flags.get("--model") == "down":
+    print("the account is down", file=sys.stderr)
+    sys.exit(1)
+print(json.dumps({{"type": "system",
+                  "session_id": flags.get("--session-id") or flags["--resume"]}}), flush=True)
+for line in sys.stdin:
+    said = json.loads(line)["message"]["content"][0]["text"]
+    print(json.dumps({{"type": "result", "result": "claude took it: " + said}}), flush=True)
+"""
+
+
 @pytest.mark.timeout(60)
-def test_a_model_that_is_gone_walks_no_account_before_it_takes_the_step(
+def test_a_chain_is_walked_in_order_and_a_stand_in_never_walks_its_own(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Every account of a CLI is offered the same catalogue, so the step is the whole answer."""
+    """The first place after this one is down too, so the turn goes on to the second.
+
+    And the place that was down heads a chain of its own, which is not walked: reached as a
+    stand-in, it is a step of the chain it was reached by and carries on along that.
+    """
+    tally = tmp_path / "models.txt"
+    binaries = tmp_path / "bin"
+    binaries.mkdir(exist_ok=True)
+    fake = binaries / "claude"
+    fake.write_text(
+        f"#!{sys.executable}\n{standins.refusing('claude')}"
+        + _PICKY.format(tally=str(tally))
+    )
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
+    fallbacks.points("shell/m", ["claude/down", "claude/up"])
+    fallbacks.points("claude/down", ["claude/elsewhere"])
+    agent = ShellAgent(CONFIG)
+    said: list[str] = []
+    agent.watch(
+        lambda _agent, _session, event: (
+            said.append(event.text) if event.kind == "notice" else None
+        )
+    )
+
+    assert agent.new()("exit 3") == "claude took it: exit 3"
+    # Every move narrated where the flow is watching, the one a stand-in made included.
+    assert [one.rpartition("carrying on as ")[2] for one in said] == [
+        "claude/down",
+        "claude/up",
+    ]
+
+    asked = tally.read_text().split()
+    assert "elsewhere" not in asked
+    assert asked[0] == "down"
+    assert asked[-1] == "up"
+
+
+@pytest.mark.timeout(60)
+def test_a_model_that_is_gone_is_not_tried_again_before_it_takes_the_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The next call names the same model, so the step is the whole answer."""
     _claude(tmp_path, monkeypatch)
     providers.add("shell", "main", env={"WHOSE": "main"})
-    providers.add("shell", "spare", env={"WHOSE": "spare"})
-    providers.points("shell", "main", "spare")
-    fallbacks.points("shell@main/m", "claude/claude-opus-5")
+    fallbacks.retrying("shell@main/m", 3, "none", 0.0)
+    fallbacks.points("shell@main/m", ["claude/claude-opus-5"])
     agent = ShellAgent(AgentConfig(model="m", effort="high", provider="main"))
     tally = tmp_path / "took.txt"
     said: list[str] = []
@@ -503,7 +588,7 @@ def test_a_model_that_is_gone_walks_no_account_before_it_takes_the_step(
     script = f'echo "$WHOSE" >> {tally}; echo "404 model not found: m" >&2; exit 1'
     assert agent.new()(script) == f"claude took it: {script}"
 
-    # One go, under the account it started on. `spare` would have answered any other failure.
+    # One go, however many the place asked for: a model that is gone is gone a second later.
     assert tally.read_text().split() == ["main"]
     # And the step says what sent the turn there rather than only that it went.
     assert any(
@@ -519,7 +604,7 @@ def test_a_turn_that_failed_for_nothing_anybody_named_steps_as_it_always_did(
 ) -> None:
     """A failure nothing recognises is narrated the way one has always been narrated."""
     _claude(tmp_path, monkeypatch)
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(CONFIG)
     said: list[str] = []
     agent.watch(
@@ -541,7 +626,7 @@ def test_the_turn_that_moved_is_still_the_one_the_flow_asked_for(
 ) -> None:
     """One `begins` and one `ends` on the agent the flow is driving, whoever took the turn."""
     _claude(tmp_path, monkeypatch)
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(CONFIG)
     said: list[str] = []
     agent.watch(lambda _agent, _session, event: said.append(event.kind))
@@ -559,7 +644,7 @@ def test_a_turn_that_lands_never_asks_where_it_would_have_gone(
 ) -> None:
     """A chain of four agents all started when the run was would be three CLIs for nothing."""
     _claude(tmp_path, monkeypatch)
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(CONFIG)
 
     assert agent.new()("echo fine") == "fine"
@@ -583,7 +668,7 @@ def test_an_agent_stopped_stops_whatever_is_standing_in_for_it(
 ) -> None:
     """A run ended by hand ends: a stand-in that went on thinking would be one that did not."""
     _claude(tmp_path, monkeypatch)
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(CONFIG)
     agent.new()("exit 3")  # which is what makes the stand-in
 
@@ -600,7 +685,7 @@ def test_the_conversation_is_lost_once_rather_than_every_turn(
 ) -> None:
     """A stateful loop that moved is one conversation on the other side, not one a round."""
     _claude(tmp_path, monkeypatch)
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     agent = ShellAgent(CONFIG)
     session = agent.new()
 
@@ -623,7 +708,7 @@ def test_the_conversation_it_moved_to_ends_when_this_one_does(
     come down when the conversation they were for is over.
     """
     _claude(tmp_path, monkeypatch)
-    fallbacks.points("shell/m", "claude/claude-opus-5")
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
     brought = tmp_path / "brought" / "reading"
     brought.mkdir(parents=True)
     (brought / "SKILL.md").write_text("---\nname: reading\n---\n")
@@ -689,7 +774,7 @@ def test_the_stand_in_is_offered_the_callbacks_the_conversation_was_offering(
     what it offered by being moved, and nothing about it would look wrong.
     """
     log = _gone(tmp_path, monkeypatch)
-    fallbacks.points("claude/gone", "claude/claude-opus-5")
+    fallbacks.points("claude/gone", ["claude/claude-opus-5"])
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="gone", effort="high"))
     session = agent.new()
     session.offers([_delegating()])
@@ -713,7 +798,7 @@ def test_a_stand_in_that_cannot_be_given_the_callbacks_is_no_stand_in(
     anybody wrote a step down.
     """
     _gone(tmp_path, monkeypatch)
-    fallbacks.points("claude/gone", "grok/grok-5")
+    fallbacks.points("claude/gone", ["grok/grok-5"])
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="gone", effort="high"))
     said: list[str] = []
     agent.watch(lambda _agent, _session, event: said.append(event.text))
@@ -740,7 +825,7 @@ def test_the_stand_in_is_offered_what_the_agent_holds_and_not_only_this_conversa
     could see.
     """
     log = _gone(tmp_path, monkeypatch)
-    fallbacks.points("claude/gone", "claude/claude-opus-5")
+    fallbacks.points("claude/gone", ["claude/claude-opus-5"])
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="gone", effort="high"))
     # Held, or the conversation offering is collected and takes its offer back with it.
     sibling = agent.new()
@@ -762,7 +847,7 @@ def test_a_sibling_s_callbacks_stop_a_move_to_a_backend_that_takes_none(
 ) -> None:
     """The other half of the same thing: what refuses the move is what the model can see."""
     _gone(tmp_path, monkeypatch)
-    fallbacks.points("claude/gone", "grok/grok-5")
+    fallbacks.points("claude/gone", ["grok/grok-5"])
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="gone", effort="high"))
     sibling = agent.new()
     sibling.offers([_delegating()])

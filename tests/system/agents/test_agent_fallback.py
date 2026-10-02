@@ -75,7 +75,7 @@ def test_a_turn_with_nowhere_left_to_run_moves_onto_a_real_cli_of_your_own(
     (binaries / _MINE).chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     assert backends.remember("", [_MINE]) == _MINE
-    fallbacks.points("shell/m", f"{_MINE}/m")
+    fallbacks.points("shell/m", [f"{_MINE}/m"])
     agent = ShellAgent(CONFIG)
 
     # One prompt doing two jobs: a shell command that fails, which is what sends the turn on

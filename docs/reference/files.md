@@ -29,21 +29,21 @@ H/
 ├── acp.json                            CLIs added by hand (ACP)
 ├── prices.json                         the price table
 ├── models/<cli>.json                   model catalogue of the CLI's own sign-in
-├── local/<cli>.json                    fallback of the CLI's own sign-in
 ├── providers/<cli>/<name>/             accounts
 │   ├── provider.json
 │   ├── models.json
 │   └── home/ user/ config/             credential files the CLI writes
 ├── runtimes/                           was env-providers/; moved on first use
 │   ├── ssh/<name>/runtime.json
-│   └── docker/<name>/runtime.json, docker/.<name>.lock
+│   ├── docker/<name>/runtime.json, docker/.<name>.lock
+│   └── swarm/<name>/runtime.json, swarm/.<name>.lock
 ├── flowverses/
 │   ├── official/  <name>/              git clones
 │   └── .pinned/<blake2b-8(url)>/<sha>/ checkouts of git+ refs
 ├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
-│   └── mirrors/<container>/<digest>/
+│   └── mirrors/<container or service>/<digest>/
 ├── harness/                            workdir of a standalone harness on docker's default here
 ├── epics/<ws>/<stamp>-<hex6>/          one run
 ├── sessions/<cli>/                     sessions of agents no run drives
@@ -88,20 +88,21 @@ H/
 [Fallback](/user/settings#fallback) chains. JSON array:
 
 ```json
-[{"spec": "claude@work/claude-opus-5", "to": "codex/gpt-5.6-sol",
+[{"spec": "claude@work/claude-opus-5", "to": ["codex/gpt-5.6-sol", "dsh/deepseek-v4-flash"],
   "tries": 3, "policy": "exponential", "timeout": 600.0}]
 ```
 
 | Field | Type | |
 | --- | --- | --- |
 | `spec` | `str` | `CLI[@ACCOUNT]/MODEL` the entry applies to |
-| `to` | `str` | where the turn goes next |
+| `to` | `[str]` | the chain: where the turn goes next, in order. A plain string, as older versions wrote, reads as that place followed by each place the older rows went on to from it, and is written back as a list |
 | `tries` | `int` | retries before falling |
 | `policy` | `str` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci` |
 | `timeout` | `float` | seconds |
 
 Written to `.fallbacks.json.<random>.new` (`0600`), fsynced and renamed; invalid entries are
-dropped on read.
+dropped on read, and so are places in `to` that cannot be read, name the entry's own `spec`, or
+repeat an earlier one.
 
 ### `H/acp.json`
 
@@ -155,7 +156,9 @@ renamed):
 | `env` | `{str: str}` | variables every turn under it runs with ([Environment](/reference/environment#account-variables)) |
 | `args` | `[str]` | extra CLI arguments |
 | `made` | `str` | `%Y-%m-%dT%H:%M:%SZ` |
-| `fallback` | `str` | the account to fall back to |
+
+A `fallback` key written by an older version is ignored, and dropped the next time the account
+is written.
 
 `home/`, `user/`, `config/` hold the credential files **the CLI itself writes** when it signs
 in, redirected from where it would write them at home:
@@ -178,7 +181,8 @@ Removing an account deletes its directory.
 
 ### `H/local/<cli>.json`
 
-`{"fallback": "<account>"}` for the CLI's own sign-in (`@local`). `0600`, directory `0700`.
+Written by older versions to hold the CLI's own sign-in's account fallback. No longer read;
+safe to delete.
 
 ### `H/runtimes/`
 
@@ -217,6 +221,22 @@ left alone and not read.
 
 `docker/.<name>.lock`: empty; held with `flock(LOCK_EX)` while containers of that runtime are
 sized and started, so two runs never allocate from one runtime at once. Never deleted.
+
+`swarm/<name>/runtime.json`:
+
+| Field | Type |
+| --- | --- |
+| `backend` | `"swarm"` |
+| `name`, `tls_dir`, `image`, `gpu_resource`, `workdir` | `str` |
+| `endpoint` | a swarm manager, as a docker runtime's `endpoint` |
+| `run_args`, `constraints`, `fallback` | `[str]` |
+| `cpus` | `float` |
+| `memory`, `max_tasks` | `int` |
+| `nodes` | `{str: str}`: a node's host name to a saved ssh runtime's name or `[user@]host[:port]` |
+| `made` | `"typed"` |
+
+`swarm/.<name>.lock`: as `docker/.<name>.lock`, held while services of that runtime are
+counted, created and waited for until their task runs.
 
 ## Flows
 
@@ -263,6 +283,7 @@ On the machine an environment is on; `<state>` is `H` here and
 | `…/scratch/<id>-<blake2b(id)>/` | a scratch directory | as copies |
 | `…/worktrees/<ref\|head>-<hex8>/` | a `derive_worktree` with no `dir` | **never removed** |
 | `envs/mirrors/<container>/<digest>/` | the local mirror of a `docker` environment's workdir | removed with the container |
+| `envs/mirrors/<service>/<digest>/` | the local mirror of a `swarm` environment's workdir | removed with the service |
 
 Names are deterministic, so a resumed run finds the same copy. `envs/` may be deleted while
 no run uses it. `write` on a local environment goes through `.<hex12>.hmz-tmp` beside the
@@ -275,7 +296,8 @@ never removed by humanize.
 **Containers.** A `docker` environment's container is named
 `humanize-<provider>-<role>-<hex8>` and labelled `humanize=<uid>`, `humanize.provider`,
 `humanize.role`, `humanize.host`, `humanize.pid`, and `humanize.cpus`, `humanize.memory`,
-`humanize.gpus` where set. Only the workdir is bind-mounted.
+`humanize.gpus` where set. Only the workdir is bind-mounted. A `swarm` environment's service is
+named and labelled the same way, on the swarm its runtime's manager manages.
 
 ### `H/harness/`
 

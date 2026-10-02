@@ -1,11 +1,9 @@
 """The fallback page of `/settings`: where a turn goes when its place cannot take it.
 
-A place is a CLI, an account and a model, and a step is written between two of them. How many
-times over a failed turn is taken again before the step happens is written there too, both
-being answers to the one thing that went wrong -- and all of it on one form.
-
-Not the accounts. An account that goes down is answered by another account of the same
-backend, inside the conversation that was running, and that is the accounts page.
+A place is a CLI, an account and a model, and a chain is written from one of them to the
+places tried after it, in order. How many times over a failed turn is taken again before the
+chain is walked is written there too, both being answers to the one thing that went wrong --
+and all of it on one form.
 """
 
 from __future__ import annotations
@@ -23,6 +21,7 @@ from hmz.tui.pick import (
     _ACT_SAVE,
     _ACT_SEARCH,
     _DONE,
+    _SEARCH,
     _TAKES_AWAY,
     Confirms,
     Failing,
@@ -32,6 +31,7 @@ from hmz.tui.pick import (
 from tests.integration.tui.test_app import (
     bar,
     drops,
+    ids,
     into_settings,
     keeps,
     nexts,
@@ -46,7 +46,10 @@ if TYPE_CHECKING:
 
 #: Two installed CLIs, so that choosing a place has something to choose between.
 INSTALLED = {
-    "claude": (Model("claude-opus-5", ("max", "high")),),
+    "claude": (
+        Model("claude-opus-5", ("max", "high")),
+        Model("claude-sonnet-5", ("max", "high")),
+    ),
     "codex": (Model("gpt-5.6-sol", ("xhigh", "high")),),
 }
 
@@ -101,7 +104,7 @@ def _installed(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.timeout(60)
 async def test_the_menu_is_the_steps_between_places() -> None:
     """A place is a CLI, an account and a model, and nothing else is asked."""
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
@@ -148,11 +151,11 @@ async def test_a_step_is_one_form_of_two_places_and_is_held_until_the_menu_is_sa
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Failing), driver)
         # The two places, and how it is tried again, and nothing else.
-        assert rows(app) == ["fails", "goes", "tries", "policy", "for", _DONE]
+        assert rows(app) == ["fails", "goes0", "tries", "policy", "for", _DONE]
 
         await _place(app, driver, "claude/claude-opus-5")  # the one that cannot run
         # And straight on to the next thing still to say, which is where it goes.
-        assert under(app) == "goes"
+        assert under(app) == "goes0"
         await _place(app, driver, "codex/gpt-5.6-sol")  # and the one that takes over
         # With nothing left to say, the row that keeps it.
         assert under(app) == _DONE
@@ -169,8 +172,90 @@ async def test_a_step_is_one_form_of_two_places_and_is_held_until_the_menu_is_sa
         await until(lambda: not isinstance(app.screen, Fallbacks), driver)
 
     assert fallbacks.falls() == [
-        fallbacks.Falls("claude/claude-opus-5", "codex/gpt-5.6-sol")
+        fallbacks.Falls("claude/claude-opus-5", ("codex/gpt-5.6-sol",))
     ]
+
+
+@pytest.mark.timeout(90)
+async def test_a_chain_is_added_to_reordered_and_taken_from_on_its_rows() -> None:
+    """Each place on the chain is a row; the row after the last adds one to the end."""
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _opens(app, driver)
+        await until(
+            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
+        )
+        sheet = await _step(app, driver)
+        assert rows(app) == [
+            "goes0",
+            "goes1",
+            "tries",
+            "policy",
+            "for",
+            _TAKES_AWAY,
+            _DONE,
+        ]
+
+        # Added at the end, from the row after the last.
+        await onto(app, driver, "goes1")
+        await _place(app, driver, "claude/claude-sonnet-5")
+        assert sheet._chain == ["codex/gpt-5.6-sol", "claude/claude-sonnet-5"]
+        assert "goes2" in rows(app)
+
+        # Put first by choosing it on the first row, which changes the two round.
+        await onto(app, driver, "goes0")
+        await _place(app, driver, "claude/claude-sonnet-5")
+        assert sheet._chain == ["claude/claude-sonnet-5", "codex/gpt-5.6-sol"]
+
+        await onto(app, driver, _DONE)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Fallbacks), driver)
+        listing = app.screen.query_one("#choices", OptionList)
+        # Broken across lines where the row is narrower than the chain, so read as words.
+        assert (
+            "falls back to claude/claude-sonnet-5, then codex/gpt-5.6-sol"
+            in " ".join(str(listing.get_option("=claude/claude-opus-5").prompt).split())
+        )
+        await keeps(app, driver)
+        await until(lambda: not isinstance(app.screen, Fallbacks), driver)
+
+    assert fallbacks.chain("claude/claude-opus-5") == [
+        "claude/claude-opus-5",
+        "claude/claude-sonnet-5",
+        "codex/gpt-5.6-sol",
+    ]
+
+
+@pytest.mark.timeout(90)
+async def test_nowhere_on_a_row_of_the_chain_takes_that_place_off_it() -> None:
+    fallbacks.points(
+        "claude/claude-opus-5", ["codex/gpt-5.6-sol", "claude/claude-sonnet-5"]
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _opens(app, driver)
+        await until(
+            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
+        )
+        sheet = await _step(app, driver)
+
+        await onto(app, driver, "goes0")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Places), driver)
+        await until(lambda: "" in rows(app), driver)
+        await onto(app, driver, "")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Failing), driver)
+
+        assert sheet._chain == ["claude/claude-sonnet-5"]
+        await onto(app, driver, _DONE)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Fallbacks), driver)
+        await keeps(app, driver)
+        await until(lambda: not isinstance(app.screen, Fallbacks), driver)
+
+    assert fallbacks.tried("claude/claude-opus-5").to == ("claude/claude-sonnet-5",)
 
 
 @pytest.mark.timeout(90)
@@ -184,7 +269,7 @@ async def test_a_place_is_not_offered_as_where_it_falls_back_to() -> None:
         await until(lambda: isinstance(app.screen, Failing), driver)
         await _place(app, driver, "claude/claude-opus-5")
 
-        await driver.press("enter")  # on `goes`, where the cursor went
+        await driver.press("enter")  # on `goes0`, where the cursor went
         await until(lambda: isinstance(app.screen, Places), driver)
         await until(lambda: "codex/gpt-5.6-sol" in rows(app), driver)
         assert "claude/claude-opus-5" not in rows(app)
@@ -217,7 +302,7 @@ async def test_a_step_is_taken_away_from_its_own_form() -> None:
     Held until the menu is saved, like everything else the sheet is holding: what the row
     says is what lands, and nothing has landed while the menu is still up.
     """
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
@@ -226,7 +311,15 @@ async def test_a_step_is_taken_away_from_its_own_form() -> None:
         )
         await _step(app, driver)
         # The place it is written against is what the form is about, not a row of it.
-        assert rows(app) == ["goes", "tries", "policy", "for", _TAKES_AWAY, _DONE]
+        assert rows(app) == [
+            "goes0",
+            "goes1",
+            "tries",
+            "policy",
+            "for",
+            _TAKES_AWAY,
+            _DONE,
+        ]
         await onto(app, driver, _TAKES_AWAY)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
@@ -245,7 +338,7 @@ async def test_a_step_is_taken_away_from_its_own_form() -> None:
 @pytest.mark.timeout(60)
 async def test_walking_out_of_a_step_taken_away_lands_nothing() -> None:
     """It is a draft until the menu is saved, and a draft thrown away is a step left alone."""
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
@@ -261,14 +354,14 @@ async def test_walking_out_of_a_step_taken_away_lands_nothing() -> None:
         await until(lambda: not isinstance(app.screen, Fallbacks), driver)
 
     assert fallbacks.falls() == [
-        fallbacks.Falls("claude/claude-opus-5", "codex/gpt-5.6-sol")
+        fallbacks.Falls("claude/claude-opus-5", ("codex/gpt-5.6-sol",))
     ]
 
 
 @pytest.mark.timeout(60)
 async def test_the_key_that_used_to_take_a_step_away_takes_nothing_away() -> None:
     """Asking twice was for a key that acted on the spot, and there is no such key here now."""
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
@@ -287,7 +380,7 @@ async def test_the_key_that_used_to_take_a_step_away_takes_nothing_away() -> Non
 @pytest.mark.timeout(90)
 async def test_how_often_a_failed_turn_is_taken_again_is_on_the_same_form() -> None:
     """One thing went wrong, so one form says both what to try and where to go."""
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
@@ -313,13 +406,13 @@ async def test_how_often_a_failed_turn_is_taken_again_is_on_the_same_form() -> N
     said = fallbacks.tried("claude/claude-opus-5")
     assert said.tries == 1
     assert said.policy == "fibonacci"
-    assert said.to == "codex/gpt-5.6-sol"  # and where it goes is still where it goes
+    assert said.to == ("codex/gpt-5.6-sol",)  # and where it goes is still where it goes
 
 
 @pytest.mark.timeout(60)
 async def test_leaving_a_step_being_written_asks_whether_to_keep_it() -> None:
     """A form holding something is a menu holding changes, and walking out of one asks."""
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
@@ -346,7 +439,7 @@ async def test_keeping_the_last_rung_moves_on_to_done_and_not_to_taking_it_away(
     None
 ):
     """Enter twice over the last question must not be enter over `take it away`."""
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
@@ -362,7 +455,7 @@ async def test_keeping_the_last_rung_moves_on_to_done_and_not_to_taking_it_away(
 @pytest.mark.timeout(90)
 async def test_a_step_added_for_a_place_that_has_one_starts_from_it() -> None:
     """Rather than quietly writing over how it is tried again with nothing."""
-    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     fallbacks.retrying("claude/claude-opus-5", 3, "linear", 300.0)
     app = Humanize()
     async with app.run_test() as driver:
@@ -374,7 +467,7 @@ async def test_a_step_added_for_a_place_that_has_one_starts_from_it() -> None:
 
         sheet = app.screen
         assert isinstance(sheet, Failing)
-        assert sheet._typed_in["goes"] == "codex/gpt-5.6-sol"
+        assert sheet._chain == ["codex/gpt-5.6-sol"]
         assert sheet._typed_in["tries"] == "3"
         assert "already has a fallback rule" in _under(app)
         await onto(app, driver, _DONE)
@@ -412,3 +505,20 @@ async def test_choosing_an_account_that_has_not_said_what_it_runs_asks_and_stays
         assert asked == [("claude", "")]
         assert app.screen is sheet
         assert answered == []
+
+
+@pytest.mark.timeout(60)
+async def test_a_search_for_falling_back_nowhere_lands_on_it() -> None:
+    """`nowhere` answers with nothing, which a search must still be able to land on."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = Places(INSTALLED, "Select the fallback agent", nowhere=True)
+        app.push_screen(sheet)
+        await until(lambda: app.screen is sheet, driver)
+        await until(lambda: bool(sheet.query("#choices")) and "" in rows(app), driver)
+        await until(lambda: _SEARCH in ids(app), driver)
+        await onto(app, driver, _SEARCH)
+        await driver.press("enter", *"nowh")
+        await driver.pause()
+
+        assert under(app) == ""

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-// One agent's conversation, carried down a chain of accounts. A turn runs as an account, with
+// One agent's turn, carried down a fallback chain of places. A turn runs as an account, with
 // every key the backend would read from the environment unset unless the account set it
-// (`Profile.hushes` and `Profile.creds` in `src/hmz/coganchor/backends.py`). When the account
-// fails, the chain is walked inside the session that was running, so the conversation carries
-// on (`_falling_back` in `src/hmz/coganchor/agents/base.py`): a rate limit gets at least one
-// more try after at least 30 seconds, refused credentials move on at once and leave that
-// account needing a new sign-in (`ANSWERS` in `src/hmz/coganchor/fallbacks.py`). The account
-// that worked is where the agent's next turn starts. The waits drawn are compressed.
+// (`Profile.hushes` and `Profile.creds` in `src/hmz/coganchor/backends.py`). When the place
+// fails, it is tried again inside the session that was running, and then the turn moves to the
+// next place of the chain in a new conversation (`_falling_back` and `stands_in` in
+// `src/hmz/coganchor/agents/base.py`): a rate limit gets at least one more try after at least
+// 30 seconds, refused credentials move on at once and leave that account needing a new sign-in
+// (`ANSWERS` in `src/hmz/coganchor/fallbacks.py`). The agent's next turn starts at the first
+// place again, and carries on in the conversation the place that worked holds if it has to. The
+// waits drawn are compressed.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
@@ -20,14 +22,14 @@ const BEATS = [
   'Each turn runs as an account',
   'Keys in your shell stay out',
   'Rate-limited: wait, retry, move on',
-  'Key refused: next account at once',
-  'Same conversation lands, and stays',
+  'Key refused: next place at once',
+  'A new conversation lands, and is kept',
 ]
 
 const ACCOUNTS = [
-  { name: 'claude@work', kind: 'subscription', lane: 2 },
-  { name: 'claude@key', kind: 'API key', lane: 4 },
-  { name: 'claude@gateway', kind: 'gateway', lane: 3 },
+  { name: 'claude@work/opus', kind: 'subscription', lane: 2 },
+  { name: 'claude@key/opus', kind: 'API key', lane: 4 },
+  { name: 'codex/gpt-5.6', kind: 'another CLI', lane: 3 },
 ]
 
 interface Layout {
@@ -165,7 +167,7 @@ const scene = useScene({
     tl.set(one('.tether'), { drawSVG: '0%' }, 0)
     tl.set(bubbles, { autoAlpha: 0, scale: 0.4, transformOrigin: (i: number) => (BUBBLES[i].side === 'in' ? '0% 50%' : '100% 50%') }, 0)
     tl.set(scroll, { y: 0 }, 0)
-    tl.set(q('.dots, .shell, .shield, .unset, .badge, .timer, .again, .next, .kept'), { autoAlpha: 0 }, 0)
+    tl.set(q('.dots, .shell, .shield, .unset, .badge, .timer, .again, .next'), { autoAlpha: 0 }, 0)
     tl.set(q('.kind'), { autoAlpha: 1 }, 0)
     tl.set(one('.strike'), { drawSVG: '0%' }, 0)
     tl.set(one('.timer-fill'), { drawSVG: '0%' }, 0)
@@ -226,7 +228,7 @@ const scene = useScene({
     tl.set(one('.badge-try'), { text: '429' }, 0)
     tl.fromTo(b429, { scale: 1.5 }, { scale: 1, duration: 0.35, ease: 'back.out(2)', immediateRender: false }, T2 + 3.3)
     tl.call(() => fx?.spark(badgeAt(0).x, badgeAt(0).y, palette.danger, 22, 110), [], T2 + 3.35)
-    // And on to the next account, the conversation with it.
+    // And on to the next place, in a conversation of its own: what was said is left behind.
     const M1 = T2 + 3.9
     const glide = (to: number, at: number, d: number) => {
       tl.to(
@@ -245,6 +247,7 @@ const scene = useScene({
         at,
       )
       tl.to(lit[to - 1], { drawSVG: '100%', duration: d * 0.8, ease: 'cine' }, at + 0.1)
+      if (to === 1) tl.to(bubbles.slice(0, 3), { autoAlpha: 0.2, duration: 0.5 }, at + 0.2)
       tl.to(halo[to - 1], { autoAlpha: 0, duration: 0.4 }, at)
       tl.to(card[to - 1], { opacity: 0.45, duration: 0.6 }, at + 0.2)
       tl.to(halo[to], { autoAlpha: 1, duration: 0.6 }, at + d * 0.6)
@@ -274,10 +277,8 @@ const scene = useScene({
     const bOk = badge[2]
     tl.fromTo(bOk, { autoAlpha: 0, scale: 1.8, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: 'back.out(2)' }, T4 + 0.5)
     tl.call(() => fx?.spark(badgeAt(2).x, badgeAt(2).y, palette.accent, 34, 140), [], T4 + 0.55)
-    // Everything said before the fall is still there: the earlier lines light up in turn.
-    tl.fromTo(q('.kept'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25, stagger: 0.12, yoyo: true, repeat: 1 }, T4 + 0.9)
     tl.to(cam, { ...shot(1, W / 2, H / 2), duration: 1.4, ease: 'cine' }, T4 + 1.5)
-    // The next turn goes straight to the account that worked.
+    // The next turn, failing where it starts, carries on in the conversation that worked.
     const N = T4 + 2.4
     const next = one('.next')
     const nFrom = l.vertical ? { x: cc(0).x - 30, y: l.cards[0].y - 22 } : { x: l.cards[0].x - 6, y: l.cards[0].y + l.card.h + 26 }
@@ -306,7 +307,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="9 / 11"
-    label="One agent's conversation and a chain of three accounts: claude@work, a subscription; claude@key, an API key; claude@gateway, a gateway. The turn runs as claude@work, and the ANTHROPIC_API_KEY in your shell is unset for it. claude@work is rate-limited, waits at least 30 seconds, is rate-limited again, and the conversation moves to claude@key. That key is refused, so it moves at once to claude@gateway, and claude@key needs signing in again. The turn lands on claude@gateway in the same conversation, and the agent's next turn starts there."
+    label="One agent's turn and a fallback chain of three places: claude@work/opus, a subscription; claude@key/opus, an API key; codex/gpt-5.6, another CLI. The turn runs as claude@work, and the ANTHROPIC_API_KEY in your shell is unset for it. claude@work/opus is rate-limited, waits at least 30 seconds, is rate-limited again, and the turn moves to claude@key/opus in a new conversation. That key is refused, so it moves at once to codex/gpt-5.6, and claude@key needs signing in again. The turn lands on codex/gpt-5.6 in a new conversation, which is kept for the agent's next turn should it need it."
   >
     <div class="layer cam">
       <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
@@ -362,7 +363,6 @@ const scene = useScene({
               <g class="scroll">
                 <g v-for="(b, i) in BUBBLES" :key="i">
                   <rect class="bubble" :class="b.lane ? `lane-${b.lane}` : 'in'" :x="bubble(i).x" :y="bubble(i).y" :width="bubble(i).w" :height="bubble(i).h" rx="7.5" />
-                  <rect v-if="i < 3" class="kept" :x="bubble(i).x - 2" :y="bubble(i).y - 2" :width="bubble(i).w + 4" :height="bubble(i).h + 4" rx="9" />
                 </g>
                 <g class="dots" :transform="`translate(${L.thread.w - 40} ${32 + 3 * ROW + 7.5})`">
                   <circle cx="0" r="3" />
@@ -537,12 +537,6 @@ svg {
 .bubble.lane-2 { fill: var(--hmz-lane-2); }
 .bubble.lane-3 { fill: var(--hmz-lane-3); }
 .bubble.lane-4 { fill: var(--hmz-lane-4); }
-
-.kept {
-  fill: none;
-  stroke: var(--hmz-accent);
-  stroke-width: 1.5;
-}
 
 .dots circle {
   fill: var(--hmz-stage-dim);

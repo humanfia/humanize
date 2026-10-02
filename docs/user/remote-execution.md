@@ -282,7 +282,9 @@ A docker daemon is saved on the same page with **Add a docker host**, and named 
 `-e box=docker@<name>/…`: see
 [Containers](/user/containers#example-a-daemon-saved-under-a-name).
 Its `endpoint` may be a saved ssh host, the daemon on that host, reached with everything the
-host says.
+host says. A docker swarm is saved there too, with **Add a docker swarm** -- the same form for
+one of its managers, with where its tasks may go in place of GPU ids -- and named with
+`-e box=swarm@<name>/…`, or `swarm@local/…` for the swarm this machine manages.
 
 ## Where the agent runs {#where-the-agent-runs}
 

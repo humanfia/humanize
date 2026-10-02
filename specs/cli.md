@@ -107,7 +107,8 @@ def tools(argv: list[str]) -> int: ...
 - An `ssh` `<provider>` MUST be the runtime written down under that name where there
   is one, reached as it says, and otherwise the destination `ssh` is handed; a `docker` one MUST
   be the docker runtime written down under that name, or `local` for docker's default here, and
-  anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
+  a `swarm` one the swarm runtime written down under that name, or `local` for the swarm this
+  machine manages, and anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
   with one, and the run MUST record the workdir it took.
 - `-H` MUST say where every agent's harness runs, `adaptive` where the line says nothing, and
   MUST be recorded with the run; one that is none of `<where>`, or a standalone machine that is

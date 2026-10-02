@@ -7,9 +7,9 @@ service again at once. Nine kinds now, each with an answer of its own -- and the
 the point, the names being only how one is looked up.
 
 What is checked here is that what a CLI says is read as the kind it is, that the kind decides
-how many goes the turn gets here, how long the shortest wait is and whether another account
-answers it at all, that every step of it narrates itself as an event, and that a backend which
-already knows is believed over any reading of a message.
+how many goes the turn gets here and how long the shortest wait is, that every step of it
+narrates itself as an event, and that a backend which already knows is believed over any
+reading of a message.
 """
 
 from __future__ import annotations
@@ -35,19 +35,17 @@ CONFIG = AgentConfig(model="m", effort="high")
 
 @pytest.fixture
 def accounts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A home nothing has written to, `shell` as a backend, and two accounts of it."""
+    """A home nothing has written to, `shell` as a backend, and an account of it."""
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "home"))
     backends.remember("shell", ["shell"])
     providers.add("shell", "main", env={"WHOSE": "main"})
-    providers.add("shell", "spare", env={"WHOSE": "spare"})
-    providers.points("shell", "main", "spare")
 
 
 @pytest.fixture
 def unwaiting(monkeypatch: pytest.MonkeyPatch) -> None:
     """Waits that are worked out and narrated but not actually sat through.
 
-    A rate limit waits half a minute on purpose, and a suite that sat through one per account
+    A rate limit waits half a minute on purpose, and a suite that sat through one per test
     would be a suite nobody runs. What the wait *was* is on the event that says it.
     """
 
@@ -102,25 +100,23 @@ def _catalogued(*names: str) -> None:
 
     A catalogue rather than a call to ask for one: what is being read is what humanize kept
     and when it kept it, which is exactly what a person cannot see when every id in it is
-    refused. Under both accounts because a model the account may not name is still worth
-    another account, so the failure that is finally raised is the last account's.
+    refused.
 
     Args:
       names: The models it holds, in the order it holds them.
     """
-    for whose in ("main", "spare"):
-        models.where("shell", whose).write_text(
-            json.dumps(
-                {
-                    "asked": "2026-09-10T07:59:03Z",
-                    "models": [
-                        {"name": name, "efforts": ["high"], "swarms": False}
-                        for name in names
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
+    models.where("shell", "main").write_text(
+        json.dumps(
+            {
+                "asked": "2026-09-10T07:59:03Z",
+                "models": [
+                    {"name": name, "efforts": ["high"], "swarms": False}
+                    for name in names
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _fails(agent: ShellAgent, tally: Path, said: str) -> str:
@@ -191,7 +187,6 @@ def test_a_failure_nothing_recognises_is_the_turn_that_has_always_failed() -> No
     owed = fallbacks.answers("")
     assert owed.tries == 0  # the goes the place asked for, and no floor under them
     assert not owed.held
-    assert owed.accounts  # and the account chain after them, as always
     assert not owed.policy  # waited the way the place says
 
 
@@ -275,17 +270,15 @@ def test_a_credential_that_was_refused_is_not_tried_again_under_it(
 
     said = _fails(agent, tally, "API Error: 401 unauthorized")
 
-    assert _took(tally) == ["main", "spare"]  # one go apiece, and straight on
-    assert "was refused the credentials" in narrated[0]
-    assert "that account needs signing in again" in narrated[0]
-    assert "carrying on as spare" in narrated[0]
+    assert _took(tally) == ["main"]  # one go, and straight on to wherever is next
+    assert narrated == []  # nowhere is, so nothing to narrate carrying on with
     assert "(refused: that account needs signing in again)" in said
 
 
-def test_a_rate_limit_waits_long_and_then_walks_the_accounts(
+def test_a_rate_limit_waits_long_before_it_is_tried_again(
     accounts: None, unwaiting: None, tmp_path: Path
 ) -> None:
-    """The account is spending too fast; the next one is not spending at all."""
+    """The account is spending too fast; asking again at once is spending faster."""
     tally = tmp_path / "took.txt"
     agent, narrated = _driving()
 
@@ -293,10 +286,9 @@ def test_a_rate_limit_waits_long_and_then_walks_the_accounts(
 
     # A go apiece beyond the first, even though nobody wrote a retry down: the wait is the
     # answer here, and a place with no tries would otherwise have had nowhere to put one.
-    assert _took(tally) == ["main", "main", "spare", "spare"]
+    assert _took(tally) == ["main", "main"]
     assert "is rate-limited" in narrated[0]
     assert f"trying again in {fallbacks.THROTTLED:.0f}s" in narrated[0]
-    assert "carrying on as spare" in narrated[1]
 
 
 def test_the_time_a_place_was_given_still_holds_over_a_long_wait(
@@ -310,14 +302,14 @@ def test_the_time_a_place_was_given_still_holds_over_a_long_wait(
     _fails(agent, tally, "Error: 429 Too Many Requests")
 
     # Half a second was all it had, and the wait a rate limit asks for is longer than that:
-    # one go apiece, and no thirty seconds spent finding that out.
-    assert _took(tally) == ["main", "spare"]
+    # one go, and no thirty seconds spent finding that out.
+    assert _took(tally) == ["main"]
 
 
-def test_a_model_that_is_gone_walks_no_account_of_that_cli(
+def test_a_model_that_is_gone_is_not_tried_again(
     accounts: None, tmp_path: Path
 ) -> None:
-    """They are all offered the same catalogue, so walking them is being told it four times."""
+    """The next call names the same model, so it is told the same thing again."""
     tally = tmp_path / "took.txt"
     agent, narrated = _driving()
 
@@ -351,9 +343,8 @@ def test_a_model_this_account_may_not_name_is_not_an_account_to_sign_in_again(
 
     assert "(unlisted:" in said
     assert "signing in" not in said
-    # The model rather than the credential, so the next account of that CLI is still worth
-    # asking: what an account may name is that account's.
-    assert _took(tally) == ["main", "spare"]
+    # And not tried again: the list of what this account runs has not changed a second later.
+    assert _took(tally) == ["main"]
 
 
 def test_a_model_refused_says_what_humanize_last_kept_and_when_it_kept_it(
@@ -401,7 +392,7 @@ def test_a_machine_that_will_not_let_a_cli_sandbox_itself_says_so(
     said = _fails(agent, tally, "bwrap: setting up uid map: Permission denied")
 
     assert "(sandboxed: this machine will not let it sandbox itself" in said
-    # No account of that CLI is asked: a kernel that has just said no says it to every key.
+    # Not tried again: a kernel that has just said no says it to the next go too.
     assert _took(tally) == ["main"]
     assert narrated == []
 
@@ -543,7 +534,9 @@ def test_a_kind_answered_by_another_place_is_not_an_unrecoverable(
     failed = Failed(1, ["sh"], "", "404 model not found", fault="retired")
 
     assert not isinstance(failed, Unrecoverable)
-    assert not session._trouble(failed).accounts  # no account of it answers that
+    assert session._trouble(
+        failed
+    ).held  # not tried again here: another place answers it
     assert session._trouble(failed).fault == "retired"
 
 

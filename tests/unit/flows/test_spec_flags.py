@@ -235,6 +235,14 @@ def test_an_effort_is_only_what_is_spelled_as_one(
             EnvSpec("box", EnvBackendKind.DOCKER, "local", PurePosixPath("/tmp/x")),
         ),
         (
+            "box=swarm@cluster/srv/x",
+            EnvSpec("box", EnvBackendKind.SWARM, "cluster", PurePosixPath("/srv/x")),
+        ),
+        (
+            "box=swarm@local/tmp/x",
+            EnvSpec("box", EnvBackendKind.SWARM, "local", PurePosixPath("/tmp/x")),
+        ),
+        (
             " spaced = local@/tmp/x ",
             EnvSpec("spaced", EnvBackendKind.LOCAL, "", PurePosixPath("/tmp/x")),
         ),
@@ -265,6 +273,8 @@ def test_a_workdir_may_hold_commas_where_no_key_follows() -> None:
         ("repo=docker@/x", "docker needs a host"),
         ("repo=docker/x", "docker needs a host"),
         ("repo=docker@local", "expected"),
+        ("repo=swarm@/x", "swarm needs a host, as in swarm@local/workdir"),
+        ("repo=swarm@local", "expected"),
         ("repo=podman@local/x", "not a backend"),
         ("repo=ssh@/x", "needs a host"),
         ("repo=ssh/x", "needs a host"),
@@ -293,6 +303,7 @@ def test_an_environment_role_given_twice_is_refused() -> None:
         "repo=ssh@me@h/~/x",
         "repo=local@/",
         "repo=docker@gpubox/srv/x",
+        "repo=swarm@cluster/srv/x",
     ],
 )
 def test_an_environment_is_written_back_as_it_is_read(written: str) -> None:
@@ -461,6 +472,18 @@ def test_a_machine_left_without_a_directory_is_given_one() -> None:
     assert docker.on.workdir == PurePosixPath(home() / "harness")
 
 
+def test_a_saved_swarm_is_named_by_its_name_alone() -> None:
+    from hmz.coganchor.machines import store
+
+    store.add(store.SwarmRuntime(name="cluster", workdir="/shared"))
+    spec = parse_harness("standalone:cluster")
+    assert spec.on == EnvSpec(
+        "harness", EnvBackendKind.SWARM, "cluster", PurePosixPath("/shared")
+    )
+    with pytest.raises(HarnessSpecError, match="expected standalone:swarm@local/"):
+        parse_harness("standalone:swarm@local")
+
+
 def test_a_saved_runtime_is_named_by_its_name_alone() -> None:
     from hmz.coganchor.machines import store
 
@@ -479,7 +502,7 @@ def test_a_saved_runtime_is_named_by_its_name_alone() -> None:
         ("standalone:", "expected adaptive"),
         ("standalone:local@/tmp", "on another machine"),
         ("standalone:ftp@box/x", "not a backend"),
-        ("standalone:bogus@x", "'bogus' is not a backend; one of ssh, docker"),
+        ("standalone:bogus@x", "'bogus' is not a backend; one of ssh, docker, swarm"),
         ("standalone:bogus", "no runtime is saved as 'bogus'"),
         ("standalone:docker@gpubox", "expected standalone:docker@gpubox/<workdir>"),
         ("standalone:local@", "on another machine"),

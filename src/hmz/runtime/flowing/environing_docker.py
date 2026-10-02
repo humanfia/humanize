@@ -370,16 +370,17 @@ def _bytes(amount: int) -> str:
 
 
 @contextlib.contextmanager
-def _held(provider: str) -> Generator[None]:
+def _held(provider: str, backend: str = "") -> Generator[None]:
     """Holds a runtime against every other run on this machine asking it for a container.
 
     A lock file beside the runtimes, one per runtime, held while what is free is worked out
     and the container that takes its share is started, and let go of by the kernel however
-    the process holding it ends.
+    the process holding it ends. A docker runtime's unless another backend is named: a
+    swarm's is held the same way, while its service is created.
     """
     from hmz.coganchor.machines import store
 
-    at = store.under() / store.DOCKER
+    at = store.under() / (backend or store.DOCKER)
     at.mkdir(mode=0o700, parents=True, exist_ok=True)
     with (at / f".{provider}.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)

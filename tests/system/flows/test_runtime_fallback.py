@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -20,6 +20,9 @@ from hmz.coganchor.machines import store
 from hmz.runtime.epic import epics, read
 from tests.machines.fixtures import IMAGE
 from tests.stubs import written
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _LANDS = f"""
 from hmz.flows import AgentCollection, Env, EnvCollection, FlowParams, ImageEnvMixin
@@ -67,8 +70,11 @@ def _left(provider: str) -> list[str]:
 
 def _exec(flow: Path, spec: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-Pm", "hmz", "exec", "-f", str(flow), "-e", spec]
-        + ["-b", "cost=1", "go"],
+        [
+            sys.executable,
+            *("-Pm", "hmz", "exec", "-f", str(flow), "-e", spec),
+            *("-b", "cost=1", "go"),
+        ],
         cwd=cwd,
         capture_output=True,
         text=True,
@@ -86,9 +92,7 @@ def test_a_runtime_short_of_memory_falls_back_into_the_next_ones_container(
     given, saved = tmp_path / "given", tmp_path / "saved"
     given.mkdir()
     saved.mkdir()
-    store.write(
-        store.DockerRuntime(name="fa", memory=_SMALL, fallback=("docker:fb",))
-    )
+    store.write(store.DockerRuntime(name="fa", memory=_SMALL, fallback=("docker:fb",)))
     store.write(store.DockerRuntime(name="fb", workdir=str(saved)))
     flow = written(tmp_path / "flows", "lands", _LANDS)
     project = tmp_path / "project"

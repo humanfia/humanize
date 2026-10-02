@@ -5,7 +5,7 @@ of GPUs you do not have in your own shell. Use this page to put one of a flow's 
 a container of its own, on docker here or on a daemon elsewhere, with a share of that machine's
 CPUs, memory and GPUs, and to choose whether the agent's CLI runs here or in the container. Two
 other ways, the whole run inside a container and a container reached as an ssh host, are at the
-end.
+end, with a docker swarm that picks the node for you.
 
 <div class="ct-ways">
   <div class="ct-way">
@@ -300,6 +300,41 @@ On the Add a docker host form, set `endpoint` to `saved ssh host` and choose the
 daemon there is reached with everything that host was saved with. The workdir is then a
 directory of *that* host, and has to exist there.
 
+### A docker swarm {#a-docker-swarm}
+
+Where the machines are a docker swarm, let it choose the node: `-e ROLE=swarm@RUNTIME/…` gives
+the role a service of one task on the swarm, which its scheduler puts on whichever node has room
+for what the role declares. The task reserves that much of its node and is limited to it, and
+everything else is as for a container here: the directory is mounted at its own path, the CLI
+runs here by default, and the service is removed when the run ends.
+
+```sh
+hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
+    -e box=swarm@local/shared/myproject \
+    -b duration=10m "Print this machine's hostname and OS, then fix add() in calc.py."
+```
+
+`swarm@local` is the swarm this machine manages (`docker info` says `Swarm: active` and
+`Is Manager: true`). For one managed elsewhere, a cap on what its tasks may take, GPUs, or
+constraints on where they land, choose **Add a docker swarm** on the
+[Runtimes page](/user/settings#runtimes) and set its manager the way a daemon's is set: a saved
+ssh host, `ssh://`, `tcp://` or a context.
+
+- **The directory has to be on whichever node the task lands on**, at the same path: a shared
+  filesystem every node mounts, or constraints (`node.labels.shared==true`,
+  `node.hostname==gpu-1`) keeping the tasks where it is. A node without it refuses the task,
+  and the run says so.
+- **The image has to be one every node can pull.**
+- **A task on the manager is reached through the manager; one on any other node over ssh to
+  that node**, at the address the swarm knows it by. Where that is not how you reach it, say
+  how under the runtime's nodes: a node's host name, then a saved ssh host or
+  `user@host:port`. That ssh has to work without a password, and the node's `docker` has to
+  answer you.
+- **GPUs** are reserved as the generic resource your nodes advertise them as (`NVIDIA-GPU`):
+  set it as the runtime's GPU resource. With none set, a role asking for a GPU is refused.
+- **A task no node has room for is refused**, with the scheduler's own words, and its service
+  removed: at once where no node could ever hold it, after 30 seconds of waiting otherwise.
+
 ### Another daemon when this one is full
 
 A daemon at its `max containers`, or without the CPUs, memory or GPUs a role asks left free,
@@ -311,7 +346,8 @@ the first of them that can hold it instead, in that runtime's own workdir where 
 hmz exec: docker:gpubox cannot hold 'box': docker@gpubox runs 2 of the 2 containers it may; using docker:spare
 ```
 
-Only the runtime `-e` named falls back: `docker:spare`'s own list is not walked, and
+A docker swarm falls back the same way, when no node has room for the task or it is at its
+`max tasks` (`swarm:cluster` names one in a list). Only the runtime `-e` named falls back: `docker:spare`'s own list is not walked, and
 `-e box=docker@spare/…` walks nothing unless `spare` has a list of its own. The epic keeps the
 `-e` as you gave it, and records under `used` where the role actually went. See
 [Machines › Falling back](/reference/machines#falling-back).
@@ -340,6 +376,10 @@ Read [Security](/user/security).
 | a tool the agent tries to install fails with a permission error | The role may write its workdir only. Put the tool in the image. |
 | `claude is not installed on docker@…` | `-H env` on an image without the CLI. Use `-H local` or the default. |
 | containers left behind after a run was killed | `docker rm -f $(docker ps -q --filter label=humanize=$(id -u))` removes yours and nobody else's. |
+| `swarm@…: no node of the swarm has …` or `no node took it within 30s` | No node has room for what the role reserves, or none answers the runtime's constraints. Free a node, loosen the constraints, or ask for less. |
+| `swarm@…: no directory to give the task on the node it landed on` | The node has no such directory. Share it to every node, or constrain the runtime to the nodes that have it. |
+| `swarm@… is in no active swarm` or `is a worker of its swarm` | The endpoint is not a swarm manager. Point it at one. |
+| services left behind after a run was killed | `docker service rm $(docker service ls -q --filter label=humanize=$(id -u))` on the manager. |
 
 More are in [Troubleshooting](/user/troubleshooting).
 
@@ -394,6 +434,8 @@ async def boxed(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
 - [Permissions](/user/permissions): what a role may touch, in a container as here
 - [Machines › Docker environments](/reference/machines#docker-environments): every field of a
   saved daemon, and how a container is started
+- [Machines › Swarm environments](/reference/machines#swarm-environments): every field of a
+  saved swarm, and how a task is placed and reached
 - [CLI › Choosing where the harness runs](/reference/cli#choosing-where-the-harness-runs)
 - [Security](/user/security)
 

@@ -118,9 +118,11 @@ class EnvSpec:
       backend: Which kind of machine.
       provider: The ssh host -- the name of a saved runtime, `host` or `user@host` --, the
         docker runtime -- the name of a stored one, or `local` for docker's default here --,
-        or "" for this machine.
+        the swarm runtime -- likewise, `local` for the swarm this machine manages --, or ""
+        for this machine.
       workdir: The directory there: absolute, or `~/...` under the home of whoever ssh
-        logs in as. A docker one is a directory of the daemon's host.
+        logs in as. A docker one is a directory of the daemon's host, and a swarm one a
+        directory of whichever node its task lands on.
     """
 
     role: str
@@ -206,7 +208,9 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
     `ssh@gpu-box/home/me/repo` is one on the host `gpu-box`, and `ssh@gpu-box/~/repo` one under
     the home directory there. `docker@gpubox/srv/repo` is one of the docker daemon's host that
     the docker runtime called `gpubox` hands a container of its own, and `docker@local/...` one
-    of docker's default here. `ssh@gpu-box` or `docker@gpubox` alone is the workdir the
+    of docker's default here. `swarm@cluster/srv/repo` is one of whichever node of the swarm the
+    swarm runtime called `cluster` places a task on, and `swarm@local/...` one of the swarm this
+    machine manages. `ssh@gpu-box`, `docker@gpubox` or `swarm@cluster` alone is the workdir the
     runtime of that name was written down with.
 
     Args:
@@ -241,9 +245,9 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
         provider = (read["provider"] or "").strip()
         if backend is EnvBackendKind.SSH and not provider:
             raise EnvSpecError(f"-e {said!r}: ssh needs a host, as in ssh@host/workdir")
-        if backend is EnvBackendKind.DOCKER and not provider:
+        if backend in (EnvBackendKind.DOCKER, EnvBackendKind.SWARM) and not provider:
             raise EnvSpecError(
-                f"-e {said!r}: docker needs a host, as in docker@local/workdir"
+                f"-e {said!r}: {backend} needs a host, as in {backend}@local/workdir"
             )
         if backend is EnvBackendKind.LOCAL and provider:
             raise EnvSpecError(
@@ -591,7 +595,11 @@ def _machine_of(said: str) -> str:
     if "@" not in said.partition("/")[0]:
         # A bare name, which is a runtime written down: ssh's first, as the
         # machine a person is likelier to mean by a name alone.
-        found = store.find(store.SSH, said) or store.find(store.DOCKER, said)
+        found = (
+            store.find(store.SSH, said)
+            or store.find(store.DOCKER, said)
+            or store.find(store.SWARM, said)
+        )
         if found is None:
             return said
         said = f"{found.backend}@{said}"
@@ -603,4 +611,5 @@ def _machine_of(said: str) -> str:
         return f"{said}/~"
     # A directory of docker's host, which humanize keeps only where that host is this one:
     # any other daemon's is a directory nobody here can say is there.
-    return f"{said}{home() / 'harness'}" if rest.strip() == "local" else said
+    held = backend.strip() == EnvBackendKind.DOCKER.value and rest.strip() == "local"
+    return f"{said}{home() / 'harness'}" if held else said

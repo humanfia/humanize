@@ -177,7 +177,7 @@ def test_a_directory_that_is_a_clone_of_nothing_reads_as_whoever_shows_it_says(
 def test_a_step_between_two_places_is_the_same_store_a_command_line_walks() -> None:
     held = Hmz()
 
-    held.fallbacks.points("claude/opus", "codex/gpt")
+    held.fallbacks.points("claude/opus", ["codex/gpt"])
 
     assert held.fallbacks.chain("claude/opus") == ["claude/opus", "codex/gpt"]
     assert [one.spec for one in held.fallbacks.all()] == ["claude/opus"]

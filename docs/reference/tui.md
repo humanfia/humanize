@@ -594,7 +594,7 @@ own.
 | --- | --- | --- |
 | `/flow`, roles, agent sheet, params, budget, harness, environment form, unsaved host | everything | — |
 | `/settings` Settings, Workspace, Fallback | everything | — |
-| `/settings` Accounts | edit settings, fails over to, remove | add an account, sign in again, add a custom CLI |
+| `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
 | `/settings` Runtimes, Flowverses; `/epics` | — | everything |
 | Monitor board | — | everything |
 
@@ -743,24 +743,24 @@ older than 7 days; when an account never asked is chosen; on `check again`.
 
 | Row | Kind | About / values |
 | --- | --- | --- |
-| `backend` | ▾ `local` `ssh` `docker` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon`, beside each on the list too. Starts on the first of `ssh`, `docker` with a saved runtime, else `local`. Changing it clears host and workdir. |
-| `host` (ssh) · `daemon` (docker) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
+| `backend` | ▾ `local` `ssh` `docker` `swarm` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon` / `a container on whichever node of a docker swarm has room`, beside each on the list too. Starts on the first of `ssh`, `docker`, `swarm` with a saved runtime, else `local`. Changing it clears host and workdir. |
+| `host` (ssh) · `daemon` (docker) · `swarm` (swarm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
 | `workdir` | written | `absolute path on this machine` (local); `leave blank to use saved default: <dir>` (a runtime saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the runtime's workdir; while unchanged, the spec omits it. |
 | `as -e` | written | `full -e spec: typing one sets the rows above` |
 | `done` | | `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`. |
 
 The composed spec is read as [`-e`](/reference/cli#writing-an-environment) reads it and refused
 in its words (e.g. `-e 'box=ssh@somehost': expected <role>=<backend>[@<provider>]/<workdir>`
-where no workdir is given or saved). Partial answers: `fill in the <host|daemon|workdir> as
+where no workdir is given or saved). Partial answers: `fill in the <host|daemon|swarm|workdir> as
 well`, `specify an environment`. Reachability and size are checked when the run starts.
 
 #### Host picker {#host-picker}
 
 | Element | Value |
 | --- | --- |
-| Title | `Select the ssh host to use` / `Select the docker host to use` |
+| Title | `Select the ssh host to use` / `Select the docker host to use` / `Select the docker swarm to use` |
 | About | `Saved on the runtimes page of /settings; any host you add here is saved there.` |
-| Rows above the list | `add an ssh host` / `add a docker host` (the [runtime forms](#runtimes), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
+| Rows above the list | `add an ssh host` / `add a docker host` / `add a docker swarm` (the [runtime forms](#runtimes), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
 | Empty | `no ssh host is saved yet` |
 
 `unsaved host` opens **Unsaved ssh host** (`Connects using your ssh config with no extra
@@ -911,7 +911,7 @@ A screen of six pages. Storage keys are in [Settings](/reference/settings).
   │    what agents sign in as, per CLI                                       │
   │──────────────────────────────────────────────────────────────────────────│
   │ ▦  Runtimes                                                    1 machine │
-  │    ssh hosts and docker daemons a flow's roles run on                    │
+  │    ssh hosts, docker daemons and swarms a flow's roles run on            │
   │──────────────────────────────────────────────────────────────────────────│
   │ ↻  Fallback                                                      2 rules │
   │    where a turn goes when an agent fails                                 │
@@ -927,7 +927,7 @@ A screen of six pages. Storage keys are in [Settings](/reference/settings).
 | --- | --- | --- |
 | ⚙ Settings | `reports on\|off\|not set · details on\|off` | reports, details or btw agent changed |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | profiling changed, or forget on |
-| ◉ Accounts | `<n> account(s)` (named accounts) | an edit, fail-over or removal held |
+| ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
 | ▦ Runtimes | `<n> machine(s)` | never |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ⑂ Flowverses | `<n> flowverse(s)` (≥ 3) | never |
@@ -953,7 +953,7 @@ is held. Coming back out of a page puts the cursor on its card.
 | --- | --- | --- |
 | Settings, Workspace | Save | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
-| Runtimes | Add an ssh host · Add a docker host · Import ~/.ssh/config · Search… | name, backend, row text |
+| Runtimes | Add an ssh host · Add a docker host · Add a docker swarm · Import ~/.ssh/config · Search… | name, backend, row text |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
 | Flowverses | Add a flowverse · Search… | name, URL |
 
@@ -970,7 +970,7 @@ in force.
 | /btw agent | next time btw mode is entered | `takes effect on next /btw` |
 | Profiling | next flow run | `takes effect on next flow run` |
 | Forget | next launch | `takes effect on next launch` |
-| Account edit, fails over to, removal | next agent session (running sessions keep their account) | `from the next agent session` |
+| Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Fallback rules | next failed turn | — |
 | Runtimes, Flowverses | at once | — |
 
@@ -1021,27 +1021,26 @@ agent's next session.`
 
 | Element | Rule |
 | --- | --- |
-| Groups | A muted heading per CLI; accounts alphabetically, then `as local` (`the account signed in on this machine`) where the CLI has an account or its local account has a fail-over. |
-| Row | `<name>  <way> · <VAR>, <VAR>` (names only), then ` · checking models…`, ` · edited`, ` · fails over to <x>`, ` · will be removed`, ` · from the next agent session` as they apply. |
+| Groups | A muted heading per CLI; accounts alphabetically, then `as local` (`the account signed in on this machine`) where the CLI has an account. |
+| Row | `<name>  <way> · <VAR>, <VAR>` (names only), then ` · checking models…`, ` · edited`, ` · will be removed`, ` · from the next agent session` as they apply. |
 | Empty | `no accounts yet` |
 
-`enter` on an account opens `<cli>/<name>` (or `<cli> as local`): `Editing, failover, and
-removal take effect when /settings is saved; signing in happens immediately.`
+`enter` on an account opens `<cli>/<name>` (or `<cli> as local`): `Editing and removal take
+effect when /settings is saved; signing in happens immediately.`
 
 | Row | Description | Lands |
 | --- | --- | --- |
 | `edit settings` | `ask the setup questions again` | on save. Secrets start blank (`leave blank to keep current value`). Copies for other CLIs start on. |
 | `sign in again` | `run the CLI's sign-in again; takes over the terminal while running` | at once. `<name> uses <way>, which has no command to run; edit its settings instead`; `sign-in for <name> failed with exit code <n>`. |
-| `fails over to` | `the account to use when a turn fails mid-conversation` | on save. List titled `Failover account for <cli>/<name>`: `add an account`, `search…`, `nowhere` (`the turn fails once its retries run out`), the CLI's other accounts. |
 | `remove` / `cancel removal` | `remove the account and its credentials when /settings is saved` / `will be removed when /settings is saved` | on save |
 
-`as local` offers only `fails over to`: `this is <cli> as local: humanize keeps no credentials
-for it, so you cannot edit, sign in, or remove it`.
+`as local` offers no rows: `this is <cli> as local: humanize keeps no credentials for it, so
+you cannot edit, sign in, or remove it`. Where a failing turn goes is the
+[Fallback page](#where-a-turn-goes-when-it-cannot-be-taken)'s, not an account's.
 
 On save the transcript says, per change: `<cli>/<name> and its credentials were removed`,
-`<cli>/<name> is updated` (and `<other>/<name> is updated with it`), `<cli>/<name> fails over
-to <x>` / `<cli>/<name> no longer fails over`, then once `account changes take effect from the
-next agent session`.
+`<cli>/<name> is updated` (and `<other>/<name> is updated with it`), then once `account
+changes take effect from the next agent session`.
 
 #### Account form {#making-an-account}
 
@@ -1083,25 +1082,27 @@ humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-
 
 ### Runtimes page {#runtimes}
 
-Intro: `Runtimes: saved ssh hosts, and docker daemons with the resources each may hand out,
-used by name as flow environments in -e and /flow. Changes take effect immediately.` Rows
-under `ssh` and `docker` headings. Empty: `no machines saved yet; a role can still name one
-directly`. `/settings environments`, the page's former name, still opens it. Storage and
-semantics: [Machines › Runtimes](/reference/machines#runtimes).
+Intro: `Runtimes: saved ssh hosts, docker daemons with the resources each may hand out, and
+docker swarms with what their tasks may reserve, used by name as flow environments in -e and
+/flow. Changes take effect immediately.` Rows under `ssh`, `docker` and `swarm` headings.
+Empty: `no machines saved yet; a role can still name one directly`. `/settings environments`,
+the page's former name, still opens it. Storage and semantics: [Machines ›
+Runtimes](/reference/machines#runtimes).
 
 | Row description | Format |
 | --- | --- |
 | ssh | `user@host[:port]` or `from ~/.ssh/config` / `…, from <config>`, then ` · key <path>`, ` · through <jump>`, ` · -o K=V, …` |
 | docker | `<endpoint> · <image> · OCI runtime <r> · <cpus> CPUs, <mem>, GPUs <ids>\|no limits · max <n> containers` |
-| both | ` · working directory: <dir>`; ` · checking…` while checked |
+| swarm | `<endpoint> · <image> · on <constraint>, … · <cpus> CPUs, <mem>\|no limits · GPUs as <resource> · max <n> tasks` -- not its nodes |
+| all | ` · working directory: <dir>`; ` · checking…` while checked |
 
 `enter` on a runtime opens `<backend>/<name>`:
 
 | Row | Description | Effect |
 | --- | --- | --- |
 | `edit` | `edit saved settings` | Its form, without `name`; checked after saving (`<backend>/<name> updated`). |
-| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …`; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
-| `remove` | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`. |
+| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits`; swarm: `check the swarm's nodes against its quota` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …` -- for a swarm `answers: swarm <version>; <n> nodes: <a>, <b>, … and <k> more; <cpus> CPUs, <mem> all told`, naming the first 8 of the nodes that may take a task; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
+| `remove` | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`, and `<names> reached a swarm through this host; edit them` for a swarm whose endpoint or one of whose nodes it was. |
 
 #### ssh host form {#ssh-form}
 
@@ -1154,6 +1155,35 @@ Refusals: `a docker host named <name> already exists; …`, `memory: '<x>' must 
 unit, such as 64G or 512M`, `cpus: '<x>' is not a number`, `max containers: '<x>' must be a
 number`, `run args: …`, `tls: home directory does not exist for '<x>'`.
 
+#### docker swarm form {#swarm-form}
+
+Title `Add a docker swarm` / `Edit swarm/<name>`; intro `A docker swarm where flow environments
+run as services of one task, placed on whichever node has room. Reached through a manager's
+daemon: on this machine, over ssh, or at an address. Flows on it are limited to the quota
+configured here.`
+
+`endpoint` and the rows under it are the [docker host form](#docker-form)'s, a manager's
+daemon in place of a docker host's -- `local` being the swarm this machine manages -- and so is
+the default name, `swarm` where a docker host's is `docker`. Then `name` (add), `image`
+(`default image, unless specified by the flow; every node pulls it`), `run args` (`extra
+arguments for docker service create`), `constraints` (`placement constraints, e.g.
+node.labels.gpu==true, …`, a comma apart), `max tasks` (`max concurrent tasks; blank for no
+limit`), `nodes` (`HOSTNAME=SSH-HOST, …; blank to reach each at ssh://its address`: a node's
+host name and the saved ssh host, or the `[user@]host[:port]`, that reaches it), `workdir`
+(`default working directory, on every node, when -e specifies none`), `falls back to` (as
+on the ssh form), `gpu resource`
+(`generic resource nodes advertise GPUs as, e.g. NVIDIA-GPU`), `cpus` (`CPUs all tasks may
+reserve; blank for no quota`), `memory` (`e.g. 64G for all tasks; blank for no quota`),
+`detect` (as the docker host form's, writing in the CPUs and memory of the nodes that may take
+a task all told), `done` (`adds swarm/<name> and checks its nodes`). No `OCI runtime` and no
+`gpus`: a service is told neither.
+
+Refusals: `a docker swarm named <name> already exists; …`, `max tasks: '<x>' must be a number`,
+`nodes: '<x>' is not HOSTNAME=SSH-HOST`, the store's own for a constraint that is not
+`<attribute>==<value>` or `<attribute>!=<value>`, a node's ssh host that is neither saved nor
+`[user@]host[:port]`, and a generic resource that is not one; and the docker host form's for
+memory, CPUs, run args and TLS.
+
 #### Import form {#import-form}
 
 Title `Import ssh hosts`; intro `Hosts from an ssh config, as read by ssh. Each is saved under
@@ -1169,8 +1199,9 @@ not checked.
 
 ### Fallback page {#where-a-turn-goes-when-it-cannot-be-taken}
 
-Intro: `Where a turn falls back when an agent fails. An agent is a CLI, an account and a model.
-Saved rules apply from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <x>` or `… · no fallback`. Empty: `no fallback rules configured yet`.
+Intro: `Where a turn falls back when an agent fails, tried in order. An agent is a CLI, an
+account and a model. A chain starts only from the agent it is written for. Saved rules apply
+from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <a>[, then <b>…]` or `… · no fallback`. Empty: `no fallback rules configured yet`.
 Semantics: [Providers](/reference/providers) and [Falling back](/user/settings#fallback).
 
 Rule form: title `Add fallback rule` (or the place when editing); intro `What happens when an
@@ -1180,7 +1211,9 @@ conversation.`
 | Row | Kind | Values | Default |
 | --- | --- | --- | --- |
 | `fails on` (new only) | ▸ | a place (`—` empty) | — |
-| `falls back to` | ▸ | a place, or `nowhere` | `nowhere` |
+| `falls back to` | ▸ | the first place of the chain, or `nowhere` | `nowhere` |
+| `then` (one per further place) | ▸ | the next place of the chain (`if that fails too, in a new conversation`) | — |
+| `then` (after the last, once the chain has one) | ▸ | `+ add` (`add an agent to try after the ones above`) | — |
 | `tries` | ▾ | `none`, `1`, `2`, `3`, `5`, `8`, `13`, `21` | `none` |
 | `policy` | ▾ | `none` (`try again at once, with no wait at all`), `constant` (`the same wait every time: 1s, 1s, 1s`), `linear` (`one second longer each time: 1s, 2s, 3s`), `exponential` (`twice as long each time: 1s, 2s, 4s, 8s`), `exponential-jitter` (`exponential, each wait anywhere up to it -- for agents failing at once`), `fibonacci` (`the Fibonacci sequence: 1s, 1s, 2s, 3s, 5s`) | `exponential-jitter` |
 | `for` | ▾ | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` | `no limit` |
@@ -1191,10 +1224,12 @@ Place picker: `Select the agent that fails` / `Select the fallback agent for <pl
 agent is a CLI, an account and a model: what a turn can fail on. Search by any of the three.`
 Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
 for a fallback (never the failing place); `<cli>[@<account>]/…  models not reported yet; select
-to query them` for an account not yet asked.
+to query them` for an account not yet asked. On a row of the chain, `nowhere` takes that place
+off it, and a place already further along the chain swaps with the one there (how the chain is
+reordered).
 
-Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `choose a
-fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
+Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `an agent can
+be on the chain only once`, `choose a fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
 a fallback rule; done will update it`. Transcript on save: `<place> <rule>` or `<place> has no
 fallback`.
 

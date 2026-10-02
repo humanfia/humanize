@@ -89,12 +89,16 @@ if TYPE_CHECKING:
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.backends import Model, Way
 
-    # Under another name, because `Falls` here is the sheet one account's chain is chosen on
-    # and this is the step itself. Two things called the same thing in one file is one of
-    # them being read as the other.
+    # Under another name, because that is what it is on these pages: one place's step, the
+    # chain it falls back along and how it is tried again.
     from hmz.coganchor.fallbacks import Falls as Step
     from hmz.coganchor.machines.sshconfig import SSHHost
-    from hmz.coganchor.machines.store import DockerRuntime, Runtime, SSHRuntime
+    from hmz.coganchor.machines.store import (
+        DockerRuntime,
+        Runtime,
+        SSHRuntime,
+        SwarmRuntime,
+    )
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
     from hmz.runtime.epic import Ran
@@ -123,7 +127,6 @@ __all__ = [
     "Epics",
     "Failing",
     "Fallbacks",
-    "Falls",
     "Flows",
     "Flowverses",
     "Harnessing",
@@ -1869,7 +1872,7 @@ def harnessing(held: str, envs: Iterable[str], ran: Mapping[str, str]) -> str:
     mode = held or ADAPTIVE
     if mode.startswith(f"{STANDALONE}:"):
         return f"{STANDALONE} → {mode.partition(':')[2]}"
-    if not any(spec.partition("@")[0] in (_SSH, _DOCKER) for spec in envs):
+    if not any(spec.partition("@")[0] in _KINDS for spec in envs):
         return f"{mode} → {LOCAL}: the work is on this machine"
     went = sorted(set(ran.values()))
     if mode == ADAPTIVE and went:
@@ -3257,6 +3260,7 @@ class Action(NamedTuple):
 #: set apart, because a button is not a row of the list and its id cannot be taken for a name
 #: somebody chose.
 _ACT_ADD, _ACT_SPEAKS, _ACT_DOCKS, _ACT_IMPORTS = "add", "speaks", "docks", "imports"
+_ACT_SWARMS = "swarms"
 _ACT_SEARCH, _ACT_SAVE = "search", "save"
 
 
@@ -5526,97 +5530,6 @@ class Signing(Form[Signs]):
         )
 
 
-class Falls(Picks):
-    """Which account a turn under this one carries on as when it fails: its fail-over.
-
-    A name rather than a mark: each account names the next, so what a turn walks is a chain
-    -- a subscription that runs out fails over to a key, and a key that is refused to a
-    gateway -- rather than there being one place every failure of that CLI goes.
-
-    Only that CLI's own accounts are offered: an account is credentials for one backend, and
-    a turn cannot be carried on under credentials for another. And a row to make one, since
-    this is where somebody finds out the one they want is not there yet.
-    """
-
-    ATOP: ClassVar = True
-    adds = "an account"
-
-    def __init__(self, cli: str, name: str, current: str = "") -> None:
-        """Initializes the choosing.
-
-        Args:
-          cli: The backend these accounts are of.
-          name: The account this is about, which is not among the ones offered.
-          current: What it fails over to now, or "" for the end of the line.
-        """
-        super().__init__(current)
-        self._cli = cli
-        self._name = name
-        self._said = ""
-        self.asked = (
-            f"Failover account for {cli}/{name}"
-            if name
-            else f"Failover account for {cli} as local"
-        )
-        self.about = (
-            "The account a turn switches to, in the same conversation, once its "
-            "retries run out. That account can fail over too, down to the end of "
-            "the chain."
-        )
-
-    def rows(self) -> list[tuple[str, str, str]]:
-        """The end of the line first, then that CLI's own other accounts."""
-        return [
-            ("", "nowhere", "the turn fails once its retries run out"),
-            *(
-                (one.name, one.name, _sets(one))
-                for one in _hmz().accounts.all(self._cli)
-                if one.name != self._name
-            ),
-        ]
-
-    def nothing(self) -> str:
-        """What came of making one, or that there is none but the end of the line."""
-        if self._said:
-            return self._said
-        if len(self._rows or []) > 1:
-            return ""
-        return f"{escape(self._cli)} has no other account to fail over to yet"
-
-    def added(self) -> None:
-        """Makes one, which is then the one it fails over to."""
-        self._new()
-
-    @work
-    async def _new(self) -> None:
-        """Makes an account of this CLI without leaving the question, and chooses it."""
-        if self.opening():
-            return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        try:
-            outcome = await made(showing, self._cli)
-        finally:
-            self.opened()
-        if outcome.provider is None or outcome.status:
-            self._said = (
-                bad(escape(outcome.why))
-                if outcome.why
-                else bad(
-                    f"{escape(outcome.provider.name)} was saved, but sign-in "
-                    f"failed with exit code {outcome.status}"
-                )
-                if outcome.provider is not None
-                else ""
-            )
-            self._rows = None
-            self._fill()
-            return
-        self.dismiss(outcome.provider.name)
-
-
 class Popup(Picks):
     """A question that arrived rather than one somebody walked to.
 
@@ -6469,7 +6382,9 @@ class Catalogue(Picks):
         self._fill()
 
 
-#: The two places a step is written between, by the id each is put up under on its form.
+#: The place a chain is written against, and the places it falls back to, by the id each is put
+#: up under on its form: the second is followed by where on the chain the row is, counting from
+#: zero, so that a chain of three is three rows and one more to add a fourth on.
 _FAILS, _GOES = "fails", "goes"
 
 #: What a row of the list of places is put up under when the account it is of has not said
@@ -6611,13 +6526,20 @@ def _tried(tries: int) -> str:
 
 
 class Failing(Form["Step | str"]):
-    """Everything about one step, on one form: where it fails, where it goes, how it retries.
+    """Everything about one chain, on one form: where it fails, where it goes, how it retries.
 
     One form rather than a walk. Adding a step used to be the three questions a place is,
     asked twice over on six sheets, and how it is tried again a menu of its own opened from
-    another: here the two places are a row apiece, each opening the one list of places, and
-    the three that say how a failed turn is tried again are stepped where they stand beside
-    them -- the tries first, since they are spent before the step is taken.
+    another: here every place is a row apiece, each opening the one list of places, and the
+    three that say how a failed turn is tried again are stepped where they stand beside them
+    -- the tries first, since they are spent before the chain is walked.
+
+    Where it falls back to is a list, in the order its places are tried, and is edited the way
+    the rest of the form is -- by opening a row. The row after the last opens onto a place to
+    add; a row already holding one opens onto the same list with `nowhere` at its head, which
+    takes that place off the chain; and choosing a place that is already further along swaps
+    the two, which is how a chain is put in another order without a key of its own to learn.
+    The place that fails is never offered, and no place can be on the chain twice.
 
     Held until `/settings` is saved, as the rest of the page is. On a step already written,
     taking it away is a row of its own above the one that keeps it.
@@ -6647,9 +6569,10 @@ class Failing(Form["Step | str"]):
         self._noted = ""
         self._unwritten = step is None
         held = step or Falls("")
+        #: Where it falls back to, in order, which is a list rather than one row's answer.
+        self._chain: list[str] = list(held.to)
         self._typed_in = {
             _FAILS: held.spec,
-            _GOES: held.to,
             _HOW_MANY: _tried(held.tries),
             _POLICY: held.policy,
             _HOW_LONG: _lasting(held.timeout),
@@ -6672,12 +6595,25 @@ class Failing(Form["Step | str"]):
                 if self._unwritten
                 else ()
             ),
+            *(
+                Question(
+                    f"{_GOES}{at}",
+                    "then" if at else "falls back to",
+                    "if that fails too, in a new conversation"
+                    if at
+                    else "fallback agent for failed turns, in a new conversation",
+                    _OPENS_ONTO,
+                )
+                for at in range(len(self._chain))
+            ),
             Question(
-                _GOES,
-                "falls back to",
-                "fallback agent for failed turns, in a new conversation",
+                f"{_GOES}{len(self._chain)}",
+                "then" if self._chain else "falls back to",
+                "add an agent to try after the ones above"
+                if self._chain
+                else "fallback agent for failed turns, in a new conversation",
                 _OPENS_ONTO,
-                needed=self._unwritten and not self._typed_in[_GOES],
+                needed=self._unwritten and not self._chain,
             ),
             Question(
                 _HOW_MANY,
@@ -6696,12 +6632,20 @@ class Failing(Form["Step | str"]):
 
     def shown(self, one: Question) -> str:
         """What a row holds, and what an empty place means."""
+        if (at := self._slot(one.held)) is not None:
+            if at < len(self._chain):
+                return self._chain[at]
+            return "+ add" if self._chain else "nowhere"
         value = self._typed_in.get(one.held, "")
-        if one.held == _GOES and not value:
-            return "nowhere"
         if one.held == _FAILS and not value:
             return "—"
         return value
+
+    @staticmethod
+    def _slot(held: str) -> int | None:
+        """Where on the chain one row is, or None for a row that is not one of the chain's."""
+        said = held.removeprefix(_GOES)
+        return int(said) if said != held and said.isdigit() else None
 
     def choices(self, held: str) -> Sequence[str]:
         """The rungs of trying again."""
@@ -6751,8 +6695,9 @@ class Failing(Form["Step | str"]):
             self._noted = ""
             return
         fresh = Falls(place)
+        if not self._chain:
+            self._chain = [one for one in was.to if one != place]
         for held, theirs, unset in (
-            (_GOES, was.to, fresh.to),
             (_HOW_MANY, _tried(was.tries), _tried(fresh.tries)),
             (_POLICY, was.policy, fresh.policy),
             (_HOW_LONG, _lasting(was.timeout), _lasting(fresh.timeout)),
@@ -6764,7 +6709,7 @@ class Failing(Form["Step | str"]):
         )
 
     def opens(self, held: str) -> None:
-        """Opens the list of places for one of the two.
+        """Opens the list of places for the place that fails or for one on its chain.
 
         Args:
           held: Which of them.
@@ -6776,7 +6721,7 @@ class Failing(Form["Step | str"]):
         """Asks which place, and moves on to what is still to be answered.
 
         Args:
-          held: Which of the two places.
+          held: The place that fails, or a row of its chain.
         """
         if self.opening():
             return
@@ -6785,29 +6730,77 @@ class Failing(Form["Step | str"]):
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
         fails = self._typed_in[_FAILS]
+        at = self._slot(held)
+        now = (
+            self._typed_in[held]
+            if at is None
+            else self._chain[at]
+            if at < len(self._chain)
+            else ""
+        )
         try:
             chosen = await showing.push_screen_wait(
                 Places(
                     self._offered,
                     "Select the agent that fails"
-                    if held == _FAILS
+                    if at is None
                     else f"Select the fallback agent for {fails or 'it'}",
-                    self._typed_in[held],
-                    leaving=fails if held == _GOES else "",
-                    nowhere=held == _GOES,
+                    now,
+                    leaving=fails if at is not None else "",
+                    nowhere=at is not None,
                 )
             )
         finally:
             self.opened()
         if chosen is None:
             return
-        if chosen != self._typed_in[held]:
+        if at is not None:
+            if self._chains(at, chosen):
+                self._wrong = ""
+                self.changed()
+            # Put up first, so that the cursor moved on to is counted among rows that are
+            # there: a chain one longer is a form one row longer.
+            self._fill()
+            self.kept(f"{_GOES}{min(at, len(self._chain))}")
+            self._fill()
+            return
+        if chosen != now:
             self._typed_in[held], self._wrong = chosen, ""
-            if held == _FAILS:
-                self._takes_up(chosen)
+            # The place that fails cannot be on its own chain: chosen as the one that fails,
+            # it comes off the chain rather than leaving a chain that points at itself.
+            self._chain = [one for one in self._chain if one != chosen]
+            self._takes_up(chosen)
             self.changed()
         self.kept(held)
         self._fill()
+
+    def _chains(self, at: int, chosen: str) -> bool:
+        """Puts one place at one position of the chain, which is three things by what it was.
+
+        `nowhere` takes the place at that position off; a place already elsewhere on the
+        chain changes places with the one there, which is how the chain is put in another
+        order; and any other place takes that position, or is added at the end of the chain
+        from the row after it.
+
+        Args:
+          at: The position, counting from zero; the length of the chain is the row after it.
+          chosen: The place, or "" for nowhere.
+
+        Returns:
+          Whether the chain changed.
+        """
+        was = list(self._chain)
+        if not chosen:
+            del self._chain[at : at + 1]
+        elif chosen in self._chain:
+            there = self._chain.index(chosen)
+            if at < len(self._chain):
+                self._chain[at], self._chain[there] = chosen, self._chain[at]
+        elif at < len(self._chain):
+            self._chain[at] = chosen
+        else:
+            self._chain.append(chosen)
+        return self._chain != was
 
     def _ask(self) -> None:
         """Says which place this is about, and what a step is."""
@@ -6825,14 +6818,16 @@ class Failing(Form["Step | str"]):
         """Answers with the step, once it says something and does not point at itself."""
         from hmz.coganchor.fallbacks import Falls
 
-        fails, goes = self._typed_in[_FAILS], self._typed_in[_GOES]
+        fails, goes = self._typed_in[_FAILS], tuple(self._chain)
         tries = next(
             (one for one in _TRIES if _tried(one) == self._typed_in[_HOW_MANY]), 0
         )
         if not fails:
             self._wrong = "select the agent that fails"
-        elif fails == goes:
+        elif fails in goes:
             self._wrong = "an agent cannot fall back to itself"
+        elif len(set(goes)) != len(goes):
+            self._wrong = "an agent can be on the chain only once"
         elif not goes and not tries:
             self._wrong = "choose a fallback agent or set retries"
         if self._wrong:
@@ -6862,18 +6857,18 @@ class Fallbacks(Pages):
     reach for are what that agent *is*, settled where it was made, and they come across the
     step unchanged.
 
-    A row also says how many times over a failed turn is taken again before the step happens.
-    Both are answers to the one thing that went wrong, so both are here.
-
-    An account falling back to another account of the same CLI is not this. That happens
-    inside the conversation that was running, so it is a thing about the account, and it is
-    said on the accounts page where the accounts are.
+    A row says where a turn goes as a chain, in the order its places are tried, and how many
+    times over a failed turn is taken again before the chain is walked. Both are answers to
+    the one thing that went wrong, so both are here. A chain is started only from the place it
+    is written against: a place that is only some chain's fallback has none of its own, and one
+    reached as a fallback carries on along the chain it was reached by.
     """
 
     #: What the page says it is.
     STEPS_ABOUT = (
-        "Where a turn falls back when an agent fails. An agent is a CLI, an "
-        "account and a model. Saved rules apply from the next failed turn."
+        "Where a turn falls back when an agent fails, tried in order. An agent "
+        "is a CLI, an account and a model. A chain starts only from the agent "
+        "it is written for. Saved rules apply from the next failed turn."
     )
 
     def __init__(self) -> None:
@@ -7037,7 +7032,7 @@ def _falling(step: Step) -> str:
     Returns:
       How often the turn is taken again there, and where it goes once those are spent.
     """
-    goes = f"falls back to {step.to}" if step.to else "no fallback"
+    goes = f"falls back to {', then '.join(step.to)}" if step.to else "no fallback"
     if not step.tries:
         return goes
     over = f", up to {_lasting(step.timeout)}" if step.timeout else ""
@@ -7049,24 +7044,24 @@ def _falling(step: Step) -> str:
 #: letter keys does. Each of these is a question about the account under the cursor, and a
 #: menu of four is a menu; four keys nobody can see are four keys nobody presses. Being rid
 #: of one is the fourth and is spelled with the rest of them -- see :data:`_TAKES_AWAY`.
-_CORRECTS, _SIGNS_IN, _FALLS_BACK = "corrects", "signs-in", "falls"
+_CORRECTS, _SIGNS_IN = "corrects", "signs-in"
 
 
 class Account(Picks):
-    """What to do with one account: correct it, sign it in, point it somewhere, be rid of it.
+    """What to do with one account: correct it, sign it in, be rid of it.
 
-    Its own menu rather than a letter apiece on the list of accounts. They are four questions
-    about the account under the cursor, and a sheet whose keys are `l` and `f` is a sheet
+    Its own menu rather than a letter apiece on the list of accounts. They are three questions
+    about the account under the cursor, and a sheet whose keys are `l` and `r` is a sheet
     whose keys have to be learned from a line at the bottom of it -- while enter, which every
-    list already means, was doing one of the four.
+    list already means, was doing one of the three.
 
     Taking it away is the last of them rather than a key on the list before this: the row
     that does it is read beside what the account is and what it is holding, which is what
     somebody deciding to be rid of it is deciding about.
 
-    How many times over a failed turn is tried again is not among them. That is a thing about
-    the place a turn runs at rather than about the credentials it runs with, and the
-    fallback page of `/settings` is where it is said.
+    Where a failed turn goes and how many times over it is tried again are not among them.
+    Those are things about the place a turn runs at rather than about the credentials it runs
+    with, and the fallback page of `/settings` is where they are said.
     """
 
     #: A few rows, read rather than narrowed.
@@ -7089,21 +7084,14 @@ class Account(Picks):
         self._gone = gone
         self.asked = f"{cli}/{name}" if name else f"{cli} as local"
         self.about = (
-            "Editing, failover, and removal take effect when /settings is "
-            "saved; signing in happens immediately."
+            "Editing and removal take effect when /settings is saved; signing in "
+            "happens immediately."
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """The four, less the three there is nothing to do for this machine's own account."""
-        held = [
-            (
-                _FALLS_BACK,
-                "fails over to",
-                "the account to use when a turn fails mid-conversation",
-            ),
-        ]
+        """The three, none of which there is anything to do about for this machine's own."""
         if not self._name:
-            return held
+            return []
         return [
             (
                 _CORRECTS,
@@ -7115,7 +7103,6 @@ class Account(Picks):
                 "sign in again",
                 "run the CLI's sign-in again; takes over the terminal while running",
             ),
-            *held,
             (
                 _TAKES_AWAY,
                 "cancel removal" if self._gone else "remove",
@@ -7126,12 +7113,12 @@ class Account(Picks):
         ]
 
     def nothing(self) -> str:
-        """Why three of them are not here.
+        """Why none of them is here.
 
         Returns:
-          The line, or "" for any account humanize made. Why three of the four rows are not
-          here is said rather than left to be noticed: a row somebody went looking for and
-          did not find is a menu that has not answered them.
+          The line, or "" for any account humanize made. Why the rows are not here is said
+          rather than left to be noticed: a row somebody went looking for and did not find is
+          a menu that has not answered them.
         """
         if self._name:
             return ""
@@ -7146,12 +7133,11 @@ class Providers(Pages):
 
     Read rather than chosen from: which account an agent runs as is asked where that agent is
     set up, so nothing here is being picked for anything. What it is for is what can happen to
-    one -- made, set up again, signed in again, marked as where a turn goes when another
-    account fails, taken away -- and all but the first of those are one menu, opened with
-    enter on the account they are about.
+    one -- made, set up again, signed in again, taken away -- and all but the first of those
+    are one menu, opened with enter on the account they are about.
 
     What is written down without running anything is held until the menu is saved: taking one
-    away, marking one as a fallback, correcting what one holds. What cannot be held is what
+    away, correcting what one holds. What cannot be held is what
     runs a command of its own -- making an account and signing one in own the terminal while
     they run, and something that has already happened is not a draft. Either way an agent
     reads the account it was configured with once, so what changes here is what its next
@@ -7180,9 +7166,6 @@ class Providers(Pages):
         self._accounts: list[Provider] = []
         #: The ones to take away when this is saved, as `cli/name`.
         self._gone: set[str] = set()
-        #: What each one is to fall back to when this is saved, by `cli/name`: the name of
-        #: another account of that CLI, or "" for the end of the line.
-        self._chains: dict[str, str] = {}
         #: What each corrected one is to hold, by `cli/name`.
         self._edits: dict[str, dict[str, str]] = {}
         #: Which other backends each corrected one is to be written down for as well, by
@@ -7196,11 +7179,8 @@ class Providers(Pages):
         """Reads every account off the disk, which is what the rows are drawn from.
 
         The account this machine is already signed into is one of them, under each CLI that
-        has one of its own: it is what an agent nobody gave an account runs as, and it is
-        where that agent's chain begins. Under a CLI with no accounts there is nothing for it
-        to fall back to, so it is a row there only where something has already been said about
-        it -- a chain that outlived the accounts it named -- which must not be a setting
-        somebody believes in that nothing shows.
+        has one of its own: it is what an agent nobody gave an account runs as, and a group of
+        accounts is read beside it.
 
         Last in each CLI's group rather than first: what somebody came here to read is the
         accounts they made, and this is the one that was always there.
@@ -7215,7 +7195,7 @@ class Providers(Pages):
             one
             for profile in hmz.backends()
             if (one := accounts.find(profile.name, LOCAL)) is not None
-            and (profile.name in whose or one.fallback)
+            and profile.name in whose
         ]
         self._accounts = sorted(
             [*held, *mine], key=lambda one: (one.cli, not one.name, one.name)
@@ -7234,12 +7214,9 @@ class Providers(Pages):
             said += f"{_DOT}checking models…"
         if named in self._edits:
             said += f"{_DOT}edited"
-        falls = self._chains.get(named, one.fallback)
-        if falls:
-            said += f"{_DOT}fails over to {falls}"
         if named in self._gone:
             said += f"{_DOT}will be removed"
-        if named in self._edits or named in self._chains or named in self._gone:
+        if named in self._edits or named in self._gone:
             said += f"{_DOT}{self.NEXT_SESSION}"
         return said
 
@@ -7304,50 +7281,14 @@ class Providers(Pages):
 
         Returns:
           The line to say under the list. humanize did not make that account and keeps no
-          credentials for it -- it is the CLI as whoever is at this machine runs it -- so the
-          only thing to say about it is what it fails over to, which is what enter offers.
+          credentials for it -- it is the CLI as whoever is at this machine runs it -- so
+          there is nothing here to do to it.
         """
         telemetry.snag("key-does-nothing", sheet="Providers", doing=doing)
         return (
             f"cannot {doing} {escape(cli)} as local: humanize keeps no credentials "
-            "for it, only what it fails over to"
+            "for it"
         )
-
-    @work
-    async def _falls_back(self, one: Provider) -> None:
-        """Asks which account a turn under this one carries on as when it fails.
-
-        Args:
-          one: The account.
-        """
-        named = self._named(one)
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        was = {self._named(each) for each in self._accounts}
-        chosen = await showing.push_screen_wait(
-            Falls(one.cli, one.name, self._chains.get(named, one.fallback))
-        )
-        # An account may have been made on the way, which is one more row here, one more
-        # line for the transcript, and one more CLI to ask what it runs as it.
-        self._read_accounts()
-        for made_ in [each for each in self._accounts if self._named(each) not in was]:
-            self._told.append(
-                f"[dim]{escape(self._named(made_))} saved to "
-                f"{escape(str(made_.at))}[/dim]"
-            )
-            self._probes(made_)
-        if chosen is None:
-            self._fill()
-            return  # walked out, which changes nothing
-        if chosen == one.fallback:
-            self._chains.pop(named, None)
-        else:
-            self._chains[named] = chosen
-        self._said = ""
-        self.changed()
-        self._fill()
 
     def _drops_account(self, one: Provider) -> None:
         """Holds one account to be taken away when this menu is saved, or takes that back.
@@ -7403,8 +7344,6 @@ class Providers(Pages):
             self._corrects(one)
         elif said == _SIGNS_IN:
             self._again(one)
-        elif said == _FALLS_BACK:
-            self._falls_back(one)
         elif said == _TAKES_AWAY:
             self._drops_account(one)
 
@@ -7665,9 +7604,8 @@ class Providers(Pages):
         """
         accounts = _hmz().accounts
         was = len(told)
-        # Taken away first, and then everything that is left: a chain pointed at an account
-        # that is going in the same save is a chain that goes nowhere, and one written before
-        # the removal would be written and then quietly left dangling.
+        # Taken away first, and then everything that is left: an account corrected and taken
+        # away in the same save is an account taken away.
         for taken in sorted(self._gone):
             cli, _, name = taken.partition("/")
             try:
@@ -7683,7 +7621,7 @@ class Providers(Pages):
         for one in self._accounts:
             named = self._named(one)
             if named in self._gone:
-                continue  # gone above, so there is nothing to correct or point anywhere
+                continue  # gone above, so there is nothing to correct
             if (answers := self._edits.get(named)) is not None:
                 try:
                     corrected = accounts.write(one.cli, one.name, one.way, answers)
@@ -7701,17 +7639,6 @@ class Providers(Pages):
                         f"[dim]{escape(cli)}/{escape(one.name)} is updated "
                         "with it[/dim]"
                     )
-            if (falls := self._chains.get(named)) is not None:
-                try:
-                    accounts.points(one.cli, one.name, falls)
-                except ValueError as why:
-                    told.append(f"hmz: {escape(str(why))}")
-                else:
-                    told.append(
-                        f"[dim]{escape(named)} fails over to {escape(falls)}[/dim]"
-                        if falls
-                        else f"[dim]{escape(named)} no longer fails over[/dim]"
-                    )
         if len(told) > was:
             # When it is felt, said once rather than on every line: an agent reads the
             # account it was configured with once, so one running now carries on as it was.
@@ -7720,11 +7647,21 @@ class Providers(Pages):
 
 # -------------------------------------------------------------------------------- runtimes
 
-#: The backends a runtime is saved for, as `-e` and the store name them.
-_SSH, _DOCKER = "ssh", "docker"
+#: The backends a runtime is saved for, as `-e` and the store name them. A swarm's is not
+#: `_SWARM`, which is the row an agent's turns are run as a fleet on: the same word, for
+#: another thing.
+_SSH, _DOCKER, _DOCKER_SWARM = "ssh", "docker", "swarm"
 
 #: What one runtime of each is called on the buttons that add one.
-_KINDS = {_SSH: "an ssh host", _DOCKER: "a docker host"}
+_KINDS = {
+    _SSH: "an ssh host",
+    _DOCKER: "a docker host",
+    _DOCKER_SWARM: "a docker swarm",
+}
+
+#: How many of a swarm's nodes a check names before it only counts the rest: a cluster's
+#: hundred names are no line anybody reads.
+_NAMED_NODES = 8
 
 #: The ssh config an import reads unless it is told another, as the row says it.
 _OWN_CONFIG = "~/.ssh/config"
@@ -7762,6 +7699,8 @@ class _Had(Protocol):
     def version(self) -> str: ...
     @property
     def short(self) -> tuple[str, ...]: ...
+    @property
+    def nodes(self) -> tuple[str, ...]: ...
 
 
 def _sized(amount: int, *, exact: bool = False) -> str:
@@ -7875,14 +7814,30 @@ def _config_named(config: str) -> str:
     return said if len(said) <= _LABEL else f"…/{_shortly(said)}"
 
 
-def _hands_out(one: DockerRuntime) -> str:
-    """What a docker daemon may hand out, as a row says it."""
+def _hands_out(cpus: float, memory: int, gpus: Sequence[str] = ()) -> str:
+    """What a docker daemon may hand out, or a swarm's tasks reserve, as a row says it."""
     held = [
-        *((f"{one.cpus:g} CPUs",) if one.cpus else ()),
-        *((_sized(one.memory),) if one.memory else ()),
-        *((f"GPUs {', '.join(one.gpus)}",) if one.gpus else ()),
+        *((f"{cpus:g} CPUs",) if cpus else ()),
+        *((_sized(memory),) if memory else ()),
+        *((f"GPUs {', '.join(gpus)}",) if gpus else ()),
     ]
     return ", ".join(held) or "no limits"
+
+
+def _swarm_line(one: SwarmRuntime) -> list[str]:
+    """What a row says about a swarm: its manager, where its tasks go, and what they may have.
+
+    Not its nodes: how each is reached is a thing for when one is, and a swarm of a hundred
+    is no row.
+    """
+    return [
+        one.endpoint,
+        *((one.image,) if one.image else ()),
+        *((f"on {', '.join(one.constraints)}",) if one.constraints else ()),
+        _hands_out(one.cpus, one.memory),
+        *((f"GPUs as {one.gpu_resource}",) if one.gpu_resource else ()),
+        *((f"max {one.max_tasks} tasks",) if one.max_tasks else ()),
+    ]
 
 
 def _machine_line(one: Runtime) -> str:
@@ -7906,13 +7861,15 @@ def _machine_line(one: Runtime) -> str:
             *((f"through {host.proxy_jump}",) if host.proxy_jump else ()),
             *((f"-o {', '.join(host.options)}",) if host.options else ()),
         ]
+    elif one.backend == _DOCKER_SWARM:
+        said = _swarm_line(cast("SwarmRuntime", one))
     else:
         daemon = cast("DockerRuntime", one)
         said = [
             daemon.endpoint,
             *((daemon.image,) if daemon.image else ()),
             *((f"OCI runtime {daemon.runtime}",) if daemon.runtime else ()),
-            _hands_out(daemon),
+            _hands_out(daemon.cpus, daemon.memory, daemon.gpus),
             *(
                 (f"max {daemon.max_containers} containers",)
                 if daemon.max_containers
@@ -7930,19 +7887,22 @@ def _answered(one: Runtime, said: _Had) -> str:
     """What to say once a runtime has been asked what it has, as markup.
 
     What it has, and in yellow what it was saved as handing out and has not got: a resource
-    the daemon does not have is a run refused later, so it is said now.
+    the daemon does not have is a run refused later, so it is said now. A swarm says it is
+    one, and which of its nodes may be given a task -- all told, for a swarm's.
     """
     named = f"{one.backend}/{one.name}"
     if not said.reached:
         return bad(escape(f"{named} could not be reached: {said.said}"))
+    swarm = one.backend == _DOCKER_SWARM
     lead = (
-        f": docker {said.version}"
+        f": {'swarm' if swarm else 'docker'} {said.version}"
         if said.version
         else f": home {said.home}"
         if said.home
         else ""
     )
-    line = escape(f"{named} answers{lead}; {_has(said)}")
+    has = f"{_nodes(said.nodes)}; {_has(said)} all told" if swarm else _has(said)
+    line = escape(f"{named} answers{lead}; {has}")
     if failed := _failed(said):
         line += "\n" + iffy(escape(failed))
     if said.short:
@@ -7950,6 +7910,38 @@ def _answered(one: Runtime, said: _Had) -> str:
             escape(f"lacks configured resources: {'; '.join(said.short)}")
         )
     return line
+
+
+def _nodes(names: Sequence[str]) -> str:
+    """A swarm's nodes that may take a task, as a line says them: counted, the first named.
+
+    Args:
+      names: Their host names.
+    """
+    if not names:
+        return "no node may take a task"
+    count = f"{len(names)} node{'' if len(names) == 1 else 's'}"
+    shown = ", ".join(names[:_NAMED_NODES])
+    more = len(names) - _NAMED_NODES
+    return f"{count}: {shown}" + (f" and {more} more" if more > 0 else "")
+
+
+def _through(one: Runtime, host: str) -> bool:
+    """Whether a runtime is reached through a saved ssh host, which taking that away strands.
+
+    A docker daemon is where its endpoint is `ssh:<host>`; a swarm is as well, and where one
+    of its nodes is reached through it.
+
+    Args:
+      one: The runtime.
+      host: The ssh host, by the name it is saved under.
+    """
+    if one.backend == _DOCKER_SWARM:
+        swarm = cast("SwarmRuntime", one)
+        return swarm.endpoint == f"ssh:{host}" or host in swarm.nodes.values()
+    return (
+        one.backend == _DOCKER and cast("DockerRuntime", one).endpoint == f"ssh:{host}"
+    )
 
 
 async def _checked(one: Runtime) -> _Had | str:
@@ -8005,12 +7997,18 @@ async def provided(host: App[None], backend: str) -> tuple[Runtime | None, str]:
 
     Args:
       host: The interface, which the form is pushed onto.
-      backend: `ssh` or `docker`.
+      backend: `ssh`, `docker` or `swarm`.
 
     Returns:
       The runtime, saved -- or None, and why not: "" for a form walked out of.
     """
-    form: Form[Runtime] = Hosting() if backend == _SSH else Docking()
+    form: Form[Runtime] = (
+        Hosting()
+        if backend == _SSH
+        else Swarming()
+        if backend == _DOCKER_SWARM
+        else Docking()
+    )
     one = await host.push_screen_wait(form)
     if one is None:
         return None, ""
@@ -8256,8 +8254,8 @@ class Hosting(Form["Runtime"]):
         self.dismiss(made)
 
 
-#: The rows of the form a docker daemon is written on, by the field or the part of its
-#: endpoint each answers.
+#: The rows of the forms a docker daemon and a docker swarm are written on, by the field or
+#: the part of its endpoint each answers.
 _ENDPOINT, _SOCKET, _ADDRESS, _TLS, _VIA, _CONTEXT = (
     "endpoint",
     "socket",
@@ -8274,6 +8272,12 @@ _IMAGE, _RUNTIME, _ARGS, _CPUS, _MEMORY, _GPUS, _AT_ONCE = (
     "memory",
     "gpus",
     "max_containers",
+)
+_CONSTRAINTS, _TASKS, _RESOURCE, _NODES = (
+    "constraints",
+    "max_tasks",
+    "gpu_resource",
+    "nodes",
 )
 
 #: The ways a docker daemon is reached, as its form steps through them, and what each is.
@@ -8296,26 +8300,39 @@ _REACHED = {
 }
 
 
-class Docking(Form["Runtime"]):
-    """A docker daemon, on one form: where it is, what it is called, what it may hand out.
+class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
+    """What is reached through a docker daemon, on one form: where, what it is, what it holds.
 
-    Where it is is a row stepped through the ways a daemon is reached, and the rows under it
-    are the one that way asks: a socket, an address, a saved ssh host, a context. What it may
-    hand out -- CPUs, memory, GPUs -- is each blank for all it has, and `detect` asks the
-    daemon and writes what it has in, for somebody to type less over.
+    The part a docker host and a docker swarm have in common, which is most of either: where
+    the daemon is is a row stepped through the ways one is reached, and the rows under it are
+    the one that way asks -- a socket, an address, a saved ssh host, a context. Then the name,
+    the image, what else docker is told, where it works, and how much of the CPUs and memory
+    it may have, each blank for all of it; `detect` asks the daemon and writes what it has in,
+    for somebody to type less over. What else each asks is its own form's to say.
 
     Correcting one asks the same, less the name it is saved under.
     """
 
-    def __init__(self, one: DockerRuntime | None = None) -> None:
-        """Initializes the form on a daemon, or on nothing for one being added.
+    #: The backend it is saved for.
+    BACKEND: ClassVar[str] = _DOCKER
+    #: What one is called on the form, after `a`.
+    KIND: ClassVar[str] = "docker host"
+    #: What the form says it is, under its title.
+    ABOUT: ClassVar[str] = ""
+    #: What answering it does besides saving it.
+    CHECKS: ClassVar[str] = "detects host resources"
+    #: The rows detecting writes into, in the order it walks through them.
+    DETECTED: ClassVar[tuple[str, ...]] = (_CPUS, _MEMORY)
+
+    def __init__(self, one: T | None = None) -> None:
+        """Initializes the form on one, or on nothing for one being added.
 
         Args:
-          one: The daemon being corrected, or None to add one.
+          one: The one being corrected, or None to add one.
         """
         super().__init__()
         self._one = one
-        self._taken = frozenset(each.name for each in _hmz().runtimes.all(_DOCKER))
+        self._taken = frozenset(each.name for each in _hmz().runtimes.all(self.BACKEND))
         #: What to say under the form, as markup: what detecting found, or that it is asking.
         self._noted = ""
         self._detecting = False
@@ -8329,19 +8346,40 @@ class Docking(Form["Runtime"]):
             _ENDPOINT: "local",
             _TLS: one.tls_dir,
             _IMAGE: one.image,
-            _RUNTIME: one.runtime,
             _ARGS: shlex.join(one.run_args),
             _CPUS: f"{one.cpus:g}" if one.cpus else "",
             _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
-            _GPUS: ", ".join(one.gpus),
-            _AT_ONCE: str(one.max_containers) if one.max_containers else "",
             _WORKDIR: one.workdir,
             _FALLEN_TO: ", ".join(one.fallback),
+            **self._held(one),
         }
         for kind, (spelled, row) in _REACHED.items():
             if one.endpoint.startswith(spelled):
                 self._typed_in |= {_ENDPOINT: kind, row: one.endpoint[len(spelled) :]}
                 break
+
+    def _held(self, one: T) -> dict[str, str]:
+        """What the rows only this form asks hold, for one being corrected.
+
+        Args:
+          one: The one.
+        """
+        raise NotImplementedError
+
+    def _holds(self) -> list[Question]:
+        """The rows under the name, what it may hand out last."""
+        raise NotImplementedError
+
+    def _more(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """What the rows only this form asks come to, as the store takes it.
+
+        Args:
+          typed: The rows, stripped.
+
+        Raises:
+          ValueError: For one that does not read.
+        """
+        raise NotImplementedError
 
     def _names(self) -> None:
         """Calls it after where it is, until somebody has typed a name of their own."""
@@ -8352,13 +8390,13 @@ class Docking(Form["Runtime"]):
         base = (
             kind
             if kind == "local"
-            else _called_after(typed.get(_ADDRESS, ""), _DOCKER)
+            else _called_after(typed.get(_ADDRESS, ""), self.BACKEND)
             if kind in ("tcp", "ssh address")
-            else typed.get(_VIA, "") or _DOCKER
+            else typed.get(_VIA, "") or self.BACKEND
             if kind == "saved ssh host"
-            else typed.get(_CONTEXT, "").strip() or _DOCKER
+            else typed.get(_CONTEXT, "").strip() or self.BACKEND
             if kind == "context"
-            else _DOCKER
+            else self.BACKEND
         )
         typed[_CALLED] = _unique(base, self._taken)
         self._fresh.add(_CALLED)
@@ -8445,35 +8483,7 @@ class Docking(Form["Runtime"]):
             )
         # What it may hand out last, over the row that asks the daemon what it has: what is
         # written in there is walked through and typed over, and then the form is done.
-        rows.extend(
-            [
-                Question(
-                    _IMAGE,
-                    "image",
-                    "default image, unless specified by the flow",
-                ),
-                Question(
-                    _RUNTIME, "OCI runtime", "e.g. nvidia; blank for daemon default"
-                ),
-                Question(_ARGS, "run args", "extra arguments for docker run"),
-                Question(
-                    _AT_ONCE,
-                    "max containers",
-                    "max concurrent containers; blank for no limit",
-                ),
-                Question(
-                    _WORKDIR,
-                    "workdir",
-                    "default working directory when -e specifies no directory",
-                ),
-                _fallback_row(),
-                Question(_CPUS, "cpus", "max CPUs; blank to use all host CPUs"),
-                Question(_MEMORY, "memory", "e.g. 64G; blank to use all host memory"),
-                Question(
-                    _GPUS, "gpus", "GPU IDs, e.g. 0, 1; blank to use all host GPUs"
-                ),
-            ]
-        )
+        rows.extend(self._holds())
         return rows
 
     def choices(self, held: str) -> Sequence[str]:
@@ -8556,6 +8566,17 @@ class Docking(Form["Runtime"]):
         if held == _DETECTS:
             self._detects()
 
+    def _detected(self, said: _Had) -> dict[str, str]:
+        """What detecting writes into each row it fills, by the row: "" for nothing.
+
+        Args:
+          said: What the daemon has.
+        """
+        return {
+            _CPUS: f"{said.cpus:g}" if said.cpus else "",
+            _MEMORY: _sized(said.memory) if said.memory else "",
+        }
+
     @work
     async def _detects(self) -> None:
         """Asks the daemon what it has, off the loop, and writes it in to be typed over.
@@ -8569,8 +8590,8 @@ class Docking(Form["Runtime"]):
         envs = _hmz().runtimes
         try:
             probe = envs.new(
-                _DOCKER,
-                _DOCKER,
+                self.BACKEND,
+                self.BACKEND,
                 endpoint=self._endpoint(),
                 tls_dir=self._typed_in.get(_TLS, "").strip()
                 if self._typed_in.get(_ENDPOINT) == "tcp"
@@ -8593,13 +8614,7 @@ class Docking(Form["Runtime"]):
             )
             self._fill()
             return
-        for held, value in (
-            (_CPUS, f"{said.cpus:g}" if said.cpus else ""),
-            (_MEMORY, _sized(said.memory) if said.memory else ""),
-            # Those that answer, where it could say: a GPU listed but failed is one no
-            # container is handed, and one saved to be handed out is one a check says lacks.
-            (_GPUS, ", ".join(said.gpus if said.usable is None else said.usable)),
-        ):
+        for held, value in self._detected(said).items():
             if value:
                 self._typed_in[held] = value
                 self._fresh.add(held)
@@ -8622,7 +8637,7 @@ class Docking(Form["Runtime"]):
           row: The row, by id.
         """
         rows = [one.held for one in self.asked()]
-        detected = (_CPUS, _MEMORY, _GPUS)
+        detected = self.DETECTED
         if row in detected and row in rows:
             onward = [
                 at
@@ -8642,30 +8657,26 @@ class Docking(Form["Runtime"]):
         """What answering it does: saves it, and asks the daemon what it has."""
         name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
         doing = "updates" if self._one else "adds"
-        return f"{doing} docker/{name} and detects host resources"
+        return f"{doing} {self.BACKEND}/{name} and {self.CHECKS}"
 
     def _ask(self) -> None:
         """Says what is being added or corrected, and puts the questions up."""
         self.query_one("#asked", Label).update(
-            escape(f"Edit docker/{self._one.name}")
+            escape(f"Edit {self.BACKEND}/{self._one.name}")
             if self._one
-            else "Add a docker host"
+            else f"Add a {self.KIND}"
         )
-        self.query_one("#about", Label).update(
-            "A docker daemon where flow environments run in containers: on "
-            "this machine, over ssh, or at an address. Flows running on it are "
-            "limited to the resources configured here."
-        )
+        self.query_one("#about", Label).update(self.ABOUT)
         self._fill()
         self.query_one("#choices", OptionList).focus()
 
     def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
-        """Everything the form says of the daemon besides its name, as the store takes it.
+        """Everything the form says of it besides its name, as the store takes it.
 
         Raises:
           ValueError: For an amount that is not one, or run args that do not split.
         """
-        most, tls = typed.get(_AT_ONCE, ""), typed.get(_TLS, "")
+        tls = typed.get(_TLS, "")
         try:
             Path(tls).expanduser()
         except (
@@ -8674,8 +8685,6 @@ class Docking(Form["Runtime"]):
             raise ValueError(
                 f"tls: home directory does not exist for {tls!r}"
             ) from None
-        if most and not most.isdigit():
-            raise ValueError(f"max containers: {most!r} must be a number")
         try:
             argv = shlex.split(typed.get(_ARGS, ""))
         except ValueError as why:
@@ -8684,36 +8693,239 @@ class Docking(Form["Runtime"]):
             "endpoint": self._endpoint(),
             "tls_dir": tls if typed.get(_ENDPOINT) == "tcp" else "",
             "image": typed.get(_IMAGE, ""),
-            "runtime": typed.get(_RUNTIME, ""),
             "run_args": argv,
             "cpus": _number(typed.get(_CPUS, ""), "cpus"),
             "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
-            "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
-            "max_containers": int(most or 0),
             "workdir": typed.get(_WORKDIR, ""),
             "fallback": _fallback(typed.get(_FALLEN_TO, "")),
-            "gpu_memory": self._one.gpu_memory if self._one is not None else 0,
+            **self._more(typed),
         }
 
     def action_done(self) -> None:
-        """Answers with the daemon, once everything said of it reads."""
+        """Answers with it, once everything said of it reads."""
         envs = _hmz().runtimes
         typed = {key: value.strip() for key, value in self._typed_in.items()}
         name = self._one.name if self._one is not None else typed.get(_CALLED, "")
-        if self._one is None and envs.find(_DOCKER, name) is not None:
+        if self._one is None and envs.find(self.BACKEND, name) is not None:
             self._wrong = (
-                f"a docker host named {name} already exists; edit it from its "
+                f"a {self.KIND} named {name} already exists; edit it from its "
                 "row, or choose a different name"
             )
             self._fill()
             return
         try:
-            made = envs.new(_DOCKER, name, **self._fields(typed))
+            made = envs.new(self.BACKEND, name, **self._fields(typed))
         except ValueError as why:
             self._wrong = str(why)
             self._fill()
             return
         self.dismiss(made)
+
+
+def _how_many(said: str, what: str) -> int:
+    """A count a form was given, or 0 for none.
+
+    Raises:
+      ValueError: For one that is not a whole number.
+    """
+    if said and not said.isdigit():
+        raise ValueError(f"{what}: {said!r} must be a number")
+    return int(said or 0)
+
+
+class Docking(_Daemon["DockerRuntime"]):
+    """A docker daemon, on one form: where it is, what it is called, what it may hand out.
+
+    Where it is is a row stepped through the ways a daemon is reached, and the rows under it
+    are the one that way asks: a socket, an address, a saved ssh host, a context. What it may
+    hand out -- CPUs, memory, GPUs -- is each blank for all it has, and `detect` asks the
+    daemon and writes what it has in, for somebody to type less over.
+
+    Correcting one asks the same, less the name it is saved under.
+    """
+
+    BACKEND: ClassVar[str] = _DOCKER
+    KIND: ClassVar[str] = "docker host"
+    ABOUT: ClassVar[str] = (
+        "A docker daemon where flow environments run in containers: on "
+        "this machine, over ssh, or at an address. Flows running on it are "
+        "limited to the resources configured here."
+    )
+    DETECTED: ClassVar[tuple[str, ...]] = (_CPUS, _MEMORY, _GPUS)
+
+    def _held(self, one: DockerRuntime) -> dict[str, str]:
+        """Its OCI runtime, its GPUs and how many containers it may run.
+
+        Args:
+          one: The daemon.
+        """
+        return {
+            _RUNTIME: one.runtime,
+            _GPUS: ", ".join(one.gpus),
+            _AT_ONCE: str(one.max_containers) if one.max_containers else "",
+        }
+
+    def _holds(self) -> list[Question]:
+        """The image, how a container is run, where it works, and what it may hand out."""
+        return [
+            Question(
+                _IMAGE,
+                "image",
+                "default image, unless specified by the flow",
+            ),
+            Question(_RUNTIME, "OCI runtime", "e.g. nvidia; blank for daemon default"),
+            Question(_ARGS, "run args", "extra arguments for docker run"),
+            Question(
+                _AT_ONCE,
+                "max containers",
+                "max concurrent containers; blank for no limit",
+            ),
+            Question(
+                _WORKDIR,
+                "workdir",
+                "default working directory when -e specifies no directory",
+            ),
+            _fallback_row(),
+            Question(_CPUS, "cpus", "max CPUs; blank to use all host CPUs"),
+            Question(_MEMORY, "memory", "e.g. 64G; blank to use all host memory"),
+            Question(_GPUS, "gpus", "GPU IDs, e.g. 0, 1; blank to use all host GPUs"),
+        ]
+
+    def _detected(self, said: _Had) -> dict[str, str]:
+        """Its CPUs and memory, and the GPUs that answer.
+
+        Args:
+          said: What the daemon has.
+        """
+        # Those that answer, where it could say: a GPU listed but failed is one no container
+        # is handed, and one saved to be handed out is one a check says lacks.
+        return super()._detected(said) | {
+            _GPUS: ", ".join(said.gpus if said.usable is None else said.usable)
+        }
+
+    def _more(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """Its OCI runtime, its GPUs and how many containers it may run.
+
+        Raises:
+          ValueError: For a count that is not one.
+        """
+        return {
+            "runtime": typed.get(_RUNTIME, ""),
+            "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
+            "max_containers": _how_many(typed.get(_AT_ONCE, ""), "max containers"),
+            "gpu_memory": self._one.gpu_memory if self._one is not None else 0,
+        }
+
+
+def _pairs(said: str) -> dict[str, str]:
+    """A swarm's nodes as a form was given them: `HOSTNAME=SSH-HOST`, a comma apart.
+
+    Raises:
+      ValueError: For one that says no ssh host.
+    """
+    held: dict[str, str] = {}
+    for one in (part.strip() for part in said.split(",")):
+        if not one:
+            continue
+        node, _, via = one.partition("=")
+        if not node.strip() or not via.strip():
+            raise ValueError(f"nodes: {one!r} is not HOSTNAME=SSH-HOST")
+        held[node.strip()] = via.strip()
+    return held
+
+
+class Swarming(_Daemon["SwarmRuntime"]):
+    """A docker swarm, on one form: where its manager is, what its tasks may have, and where.
+
+    The manager is reached every way a docker daemon is, on the rows a docker host's form
+    has -- `local` being the swarm this machine manages. Under it, where a task may be put:
+    the constraints `docker service create` is told, and which generic resource the nodes
+    advertise their GPUs as. What all of its tasks together may reserve -- CPUs, memory -- is
+    a quota rather than a host's size, each blank for none, and `detect` writes in what the
+    nodes that may take a task have all told. No OCI runtime and no GPU ids: a service is
+    told neither.
+
+    The nodes row is for a node not reached at `ssh://<its address>`: its host name and the
+    saved ssh host or the destination that does reach it, which is how what a task does gets
+    to the node the swarm put it on.
+
+    Correcting one asks the same, less the name it is saved under.
+    """
+
+    BACKEND: ClassVar[str] = _DOCKER_SWARM
+    KIND: ClassVar[str] = "docker swarm"
+    ABOUT: ClassVar[str] = (
+        "A docker swarm where flow environments run as services of one task, "
+        "placed on whichever node has room. Reached through a manager's "
+        "daemon: on this machine, over ssh, or at an address. Flows on it are "
+        "limited to the quota configured here."
+    )
+    CHECKS: ClassVar[str] = "checks its nodes"
+
+    def _held(self, one: SwarmRuntime) -> dict[str, str]:
+        """Its constraints, GPU resource, nodes and how many tasks it may run.
+
+        Args:
+          one: The swarm.
+        """
+        return {
+            _CONSTRAINTS: ", ".join(one.constraints),
+            _TASKS: str(one.max_tasks) if one.max_tasks else "",
+            _RESOURCE: one.gpu_resource,
+            _NODES: ", ".join(f"{node}={via}" for node, via in one.nodes.items()),
+        }
+
+    def _holds(self) -> list[Question]:
+        """The image, where a task is put and reached, and what its tasks may reserve."""
+        return [
+            Question(
+                _IMAGE,
+                "image",
+                "default image, unless specified by the flow; every node pulls it",
+            ),
+            Question(_ARGS, "run args", "extra arguments for docker service create"),
+            Question(
+                _CONSTRAINTS,
+                "constraints",
+                "placement constraints, e.g. node.labels.gpu==true, …",
+            ),
+            Question(_TASKS, "max tasks", "max concurrent tasks; blank for no limit"),
+            Question(
+                _NODES,
+                "nodes",
+                "HOSTNAME=SSH-HOST, …; blank to reach each at ssh://its address",
+            ),
+            Question(
+                _WORKDIR,
+                "workdir",
+                "default working directory, on every node, when -e specifies none",
+            ),
+            _fallback_row(),
+            Question(
+                _RESOURCE,
+                "gpu resource",
+                "generic resource nodes advertise GPUs as, e.g. NVIDIA-GPU",
+            ),
+            Question(_CPUS, "cpus", "CPUs all tasks may reserve; blank for no quota"),
+            Question(_MEMORY, "memory", "e.g. 64G for all tasks; blank for no quota"),
+        ]
+
+    def _more(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """Its constraints, GPU resource, nodes and how many tasks it may run.
+
+        Raises:
+          ValueError: For a count that is not one, or a node with no ssh host.
+        """
+        return {
+            "constraints": [
+                one.strip()
+                for one in typed.get(_CONSTRAINTS, "").split(",")
+                if one.strip()
+            ],
+            "max_tasks": _how_many(typed.get(_TASKS, ""), "max tasks"),
+            "gpu_resource": typed.get(_RESOURCE, ""),
+            "nodes": _pairs(typed.get(_NODES, "")),
+        }
 
 
 class Imported(NamedTuple):
@@ -8957,6 +9169,8 @@ class Machine(Picks):
                 "check",
                 "check host resources: home directory, CPUs, memory, and GPUs"
                 if self._one.backend == _SSH
+                else "check the swarm's nodes against its quota"
+                if self._one.backend == _DOCKER_SWARM
                 else "check daemon resources against its limits",
             ),
             (_TAKES_AWAY, "remove", "remove this host immediately"),
@@ -8992,6 +9206,7 @@ class Hosts(Picks):
         self.asked = {
             _SSH: "Select the ssh host to use",
             _DOCKER: "Select the docker host to use",
+            _DOCKER_SWARM: "Select the docker swarm to use",
         }.get(backend, f"Select the {backend} host to use")
         self.about = (
             "Saved on the runtimes page of /settings; any host you add here is "
@@ -9170,10 +9385,11 @@ _BACKENDS_ABOUT = {
     "local": "this machine",
     _SSH: "a machine reached over ssh",
     _DOCKER: "a container on a docker daemon",
+    _DOCKER_SWARM: "a container on whichever node of a docker swarm has room",
 }
 
 #: What the machine is called on the row it is chosen on.
-_ON_ROW = {_SSH: "host", _DOCKER: "daemon"}
+_ON_ROW = {_SSH: "host", _DOCKER: "daemon", _DOCKER_SWARM: "swarm"}
 
 
 class Placing(Form[str]):
@@ -9672,22 +9888,24 @@ class Harnessing(Form[str]):
 class Machines(Pages):
     """The runtimes page of `/settings`: every saved machine a flow's environments may go on.
 
-    What a role's machine is chosen out of on `/flow` -- ssh hosts, and docker daemons with
-    what each may hand out -- under a heading per backend, over the buttons that bring one in:
-    adding either on one form, and importing the hosts an ssh config names. Enter on one
-    opens what can be done to it: correcting it, checking it, taking it away.
+    What a role's machine is chosen out of on `/flow` -- ssh hosts, docker daemons with what
+    each may hand out, and docker swarms with what their tasks may reserve all told -- under a
+    heading per backend, over the buttons that bring one in: adding any of them on one form,
+    and importing the hosts an ssh config names. Enter on one opens what can be done to it:
+    correcting it, checking it, taking it away.
 
     Nothing here is held until the menu is saved, so the page has no button to save from. What
     is added or corrected is asked what it has as it lands -- `ssh` into the host, `docker
-    info` of the daemon -- and an import runs `ssh -G`: each is a command run, and something
-    that has already run is not a draft. Taking one away goes with them, as a flowverse's
-    does, on a page that holds nothing.
+    info` of the daemon, `docker node ls` of the swarm's manager -- and an import runs `ssh
+    -G`: each is a command run, and something that has already run is not a draft. Taking one
+    away goes with them, as a flowverse's does, on a page that holds nothing.
     """
 
     #: What the page says it is.
     MACHINES_ABOUT = (
-        "Runtimes: saved ssh hosts, and docker daemons with the resources each "
-        "may hand out, used by name as flow environments in -e and /flow. "
+        "Runtimes: saved ssh hosts, docker daemons with the resources each "
+        "may hand out, and docker swarms with what their tasks may reserve, "
+        "used by name as flow environments in -e and /flow. "
         "Changes take effect immediately."
     )
 
@@ -9708,7 +9926,7 @@ class Machines(Pages):
         return f"{one.backend}/{one.name}"
 
     def _machine_actions(self) -> list[Action]:
-        """What is done about the machines: adding either kind, importing, and searching.
+        """What is done about the machines: adding each kind, importing, and searching.
 
         No saving: nothing on this page is held.
         """
@@ -9724,6 +9942,12 @@ class Machines(Pages):
                 f"add {_KINDS[_DOCKER]}",
                 "a local or remote docker daemon",
                 lambda: self._adds_machine(_DOCKER),
+            ),
+            Action(
+                _ACT_SWARMS,
+                f"add {_KINDS[_DOCKER_SWARM]}",
+                "a docker swarm, through one of its managers",
+                lambda: self._adds_machine(_DOCKER_SWARM),
             ),
             Action(
                 _ACT_IMPORTS,
@@ -9816,7 +10040,7 @@ class Machines(Pages):
         """Asks for a runtime on the form that makes one, saves it, and asks what it has.
 
         Args:
-          backend: `ssh` or `docker`.
+          backend: `ssh`, `docker` or `swarm`.
         """
         if self.opening():
             return
@@ -9855,6 +10079,8 @@ class Machines(Pages):
         form: Form[Runtime] = (
             Hosting(cast("SSHRuntime", one))
             if one.backend == _SSH
+            else Swarming(cast("SwarmRuntime", one))
+            if one.backend == _DOCKER_SWARM
             else Docking(cast("DockerRuntime", one))
         )
         fixed = await showing.push_screen_wait(form)
@@ -9886,20 +10112,22 @@ class Machines(Pages):
             return
         self._told.append(f"[dim]{escape(keyed)} removed[/dim]")
         self._said = f"{escape(keyed)} removed"
-        # A docker daemon reached through the host that went is reached through nothing.
-        stranded = [
-            each.name
-            for each in self._saved_machines
-            if each.backend == _DOCKER
-            and one.backend == _SSH
-            and cast("DockerRuntime", each).endpoint == f"ssh:{one.name}"
-        ]
-        if stranded:
-            self._said += "\n" + iffy(
-                escape(
-                    f"{', '.join(stranded)} reached docker through this host; edit them"
-                )
-            )
+        # A docker daemon reached through the host that went is reached through nothing, and
+        # so is a swarm whose manager was, or one of whose nodes was.
+        if one.backend == _SSH:
+            for backend, what in ((_DOCKER, "docker"), (_DOCKER_SWARM, "a swarm")):
+                stranded = [
+                    each.name
+                    for each in self._saved_machines
+                    if each.backend == backend and _through(each, one.name)
+                ]
+                if stranded:
+                    self._said += "\n" + iffy(
+                        escape(
+                            f"{', '.join(stranded)} reached {what} through this host; "
+                            "edit them"
+                        )
+                    )
         self._was = ""
         self._read_machines()
         self._fill()
