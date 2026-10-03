@@ -383,6 +383,11 @@ export default defineConfig({
             { text: 'Working on these docs', link: '/contributing/docs' },
           ],
         },
+        {
+          text: 'Maintaining',
+          collapsed: false,
+          items: [{ text: 'Releasing', link: '/contributing/releasing' }],
+        },
       ],
 
       '/reference/': [
