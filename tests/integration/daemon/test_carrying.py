@@ -158,6 +158,11 @@ def test_a_frontend_that_reads_nothing_is_let_go_without_holding_up_the_rest(
     carried: Carried, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(carrying, "_BEHIND", 1 << 16)
+    # And as long to take what it is owed as this test takes to come back for it. The stuck one
+    # is let go of near the start, and the two thousand lines after it can outlast the host's
+    # own few seconds on a slow machine -- where a send buffer as small as a Mac's still holds
+    # the frame saying why, which is then closed away unsent.
+    monkeypatch.setattr(carrying, "_FLUSHING", PATIENCE)
     alice = carried.link("alice")
     stuck = carried.raw()
     stuck.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
