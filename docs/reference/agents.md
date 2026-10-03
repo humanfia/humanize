@@ -1351,6 +1351,8 @@ below but `leader` set away from default sends the turn to
 - The `-p` prompt is one argument (`--single=…`); Linux caps an argument at 32 pages, so a
   prompt over 131062 bytes raises before the process starts.
 - `--include-partial-messages`, `--agent-profile` and `--plugin-dir` are not fields.
+- Every turn is run with `GROK_FOLDER_TRUST=0`: Grok Build reads a project's skills, the ones a
+  flow mounts under `.agents/skills` included, only from a folder it trusts.
 
 ### Kimi Code {#the-daemon-kimi-is-driven-through}
 

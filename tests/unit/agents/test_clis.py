@@ -23,6 +23,7 @@ from hmz.coganchor.agents import (
     UNSAID,
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
+    GrokBuildAgent,
     GrokBuildAgentConfig,
     MimoCodeAgent,
     MimoCodeAgentConfig,
@@ -289,3 +290,8 @@ def test_agy_refuses_a_print_clock_that_cannot_be_written_as_a_duration(
 ) -> None:
     with pytest.raises(ValueError, match="positive number of seconds"):
         AntigravityCLIAgentConfig(model="m", effort="high", print_timeout=waiting)
+
+
+def test_grok_reads_a_flow_s_skills_in_a_folder_nobody_trusted_by_hand() -> None:
+    """Grok Build 1.0.46 lists no project skill in a folder it was never told to trust."""
+    assert GrokBuildAgent(GROK).environment()["GROK_FOLDER_TRUST"] == "0"
