@@ -22,6 +22,13 @@ import pytest
 from hmz.coganchor.agents import DshAgentConfig
 from hmz.coganchor.agents.dsh import _WEB, _composed
 
+# Asked before any test is collected rather than inside `_boots`: composing reads the bundled
+# runtime too, so without the extra every test would error before reaching the skip.
+pytest.importorskip(
+    "deepseek_harness_runtime",
+    reason="the [dsh] extra is not installed in this Python environment",
+)
+
 if TYPE_CHECKING:
     from pathlib import Path
 

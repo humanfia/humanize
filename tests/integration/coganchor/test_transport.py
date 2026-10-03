@@ -197,19 +197,32 @@ def test_a_target_keeping_its_python_off_the_path_is_found_it_anyway(
     ``PATH`` for real, which is the same target as a Mac's: the bare names answer to nothing
     and only the places one is kept are left.
     """
+    said = "import sys; print(sys.version_info[0], sys.version_info[1])"
+
+    def new_enough(candidate: str) -> bool:
+        """Whether one interpreter kept here is one the bundle can run on."""
+        asked = subprocess.run(
+            [candidate, "-c", said], capture_output=True, text=True, check=False
+        )
+        version = tuple(int(part) for part in asked.stdout.split() or (0, 0))
+        return asked.returncode == 0 and version >= MINIMUM_PYTHON
+
     kept = [
         candidate
         for candidate in PYTHON_CANDIDATES
-        if candidate.startswith("/") and os.access(candidate, os.X_OK)
+        if candidate.startswith("/")
+        and os.access(candidate, os.X_OK)
+        and new_enough(candidate)
     ]
     if not kept:
+        # Ubuntu 22.04 keeps a 3.10 at /usr/bin/python3 and nothing newer: a target that is
+        # refused here is refused for what it has, which is the next test's subject.
         pytest.skip(
-            "this machine keeps no interpreter at any of the absolute candidates"
+            "this machine keeps no new enough interpreter at any absolute candidate"
         )
     empty = tmp_path / "empty"
     empty.mkdir()
 
-    said = "import sys; print(sys.version_info[0], sys.version_info[1])"
     result = subprocess.run(
         python_command(["-c", said]),
         capture_output=True,
