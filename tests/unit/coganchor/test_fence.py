@@ -36,6 +36,7 @@ from hmz.coganchor.fence import (
 )
 from hmz.coganchor.fence.wrap import CACHES, PROXIES, environ
 from hmz.coganchor.linux import landlock
+from tests.supervising import bound
 
 HOME = "/home/someone"
 WORK = "/home/someone/work"
@@ -191,6 +192,7 @@ class _Libc:
         return 0
 
 
+@bound
 @pytest.mark.parametrize(("online", "bound"), [(False, (0, 41234)), (True, ())])
 def test_the_wrapper_binds_only_the_ports_it_is_told_and_only_offline(
     monkeypatch: pytest.MonkeyPatch, online: bool, bound: tuple[int, ...]

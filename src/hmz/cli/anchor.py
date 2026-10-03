@@ -135,7 +135,9 @@ def anchor(argv: list[str]) -> int:
         # this machine has not got, is a different thing gone wrong and is answered below.
         print(f"hmz: {exc.strerror or exc}", file=sys.stderr)
         return 127
-    except (ConnectionError, ProtocolError, OSError, ValueError) as exc:
+    except (ConnectionError, ProtocolError, OSError, RuntimeError, ValueError) as exc:
+        # RuntimeError for a host that cannot intercept syscalls at all -- a Mac -- which is
+        # said in a sentence of its own rather than a traceback ending in one.
         print(f"hmz: {exc}", file=sys.stderr)
         return 1
     else:

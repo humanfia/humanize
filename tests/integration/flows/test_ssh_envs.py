@@ -23,6 +23,7 @@ import pytest
 
 from hmz.coganchor.machines import AnchoredConfig, store
 from hmz.coganchor.machines.store import SSHRuntime
+from hmz.coganchor.proto import path_key
 from hmz.flows import (
     EnvBackendKind,
     EnvCommandTimeout,
@@ -36,6 +37,7 @@ from hmz.runtime.flowing.environing_ssh import SSHMachine
 from hmz.runtime.flowing.environments import open_env, probe
 from hmz.runtime.flowing.specs import parse_envs
 from tests.flows.contracts import check_env_driver
+from tests.stubs import CPUS
 
 if TYPE_CHECKING:
     from hmz.runtime.flowing.spi import EnvDriver
@@ -103,7 +105,12 @@ def _open(host: str, workdir: Path | str) -> MachineEnvDriver:
 
 
 def _mem_total() -> int:
-    """The memory this machine's kernel says it has, as `/proc/meminfo` counts it."""
+    """The memory this machine's kernel says it has, as `/proc/meminfo` counts it.
+
+    Or as `sysctl hw.memsize` does where there is no `/proc` (macOS), which is psutil's count.
+    """
+    if not Path("/proc/meminfo").exists():
+        return int(psutil.virtual_memory().total)
     meminfo = Path("/proc/meminfo").read_text().splitlines()
     (total,) = [line.split()[1] for line in meminfo if line.startswith("MemTotal:")]
     return int(total) * 1024
@@ -192,7 +199,7 @@ async def test_what_a_host_has_is_learned_when_it_is_probed(
     try:
         await probe(driver)
         assert driver.available
-        assert driver.cpu_count == len(os.sched_getaffinity(0))
+        assert driver.cpu_count == CPUS
         assert driver.memory == _mem_total()
         assert abs(driver.memory - psutil.virtual_memory().total) < 1024 * 1024
         assert driver.gpu_count >= 0
@@ -212,7 +219,10 @@ async def test_a_workdir_under_home_is_found_where_home_is_there(
         assert isinstance(before, AnchoredConfig)
         assert before.anchor.remote_path == "~/work"
         await probe(driver)
-        assert await driver.exec(["pwd"], timeout=30) == (0, f"{far}/work\n", "")
+        # Whichever name for it the host's `pwd` prints: a Mac's says `/var` for `/private/var`.
+        status, out, err = await driver.exec(["pwd"], timeout=30)
+        assert (status, err) == (0, "")
+        assert path_key(out.strip()) == path_key(f"{far}/work")
         await driver.write("made.txt", b"made")
         assert (far / "work/made.txt").read_bytes() == b"made"
         assert await driver.read("~/work/made.txt") == b"made"

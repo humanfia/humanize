@@ -182,7 +182,13 @@ def test_connections_past_the_limit_are_turned_away(upstream: int) -> None:
     with Proxy(["localhost"], ports=[upstream], limit=1) as proxy:
         held, answer = _ask(proxy, f"CONNECT localhost:{upstream} HTTP/1.1\r\n\r\n")
         assert answer.startswith(b"HTTP/1.1 200")
-        extra, answer = _ask(proxy, f"CONNECT localhost:{upstream} HTTP/1.1\r\n\r\n")
+        # Closed unanswered: an end of file where the request had not yet arrived when it
+        # was, a reset where it had -- which is what a Mac's kernel says of unread bytes.
+        with socket.create_connection(("127.0.0.1", proxy.port), timeout=10) as extra:
+            extra.sendall(f"CONNECT localhost:{upstream} HTTP/1.1\r\n\r\n".encode())
+            try:
+                answer = extra.recv(4096)
+            except ConnectionResetError:
+                answer = b""
         assert answer == b""
-        extra.close()
         held.close()

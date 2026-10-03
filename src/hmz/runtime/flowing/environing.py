@@ -454,7 +454,15 @@ def started_error(
       `EnvUnavailable` for a workdir that is not there, and otherwise what
       :func:`env_error` makes of it.
     """
-    if error.filename == cwd and error.errno in (errno.ENOENT, errno.ENOTDIR):
+    from hmz.coganchor.proto import path_key
+
+    # Matched as the machine would name it: a Mac's `/private/var` comes back as `/var`.
+    named = error.filename
+    if (
+        isinstance(named, str)
+        and path_key(named) == path_key(cwd)
+        and error.errno in (errno.ENOENT, errno.ENOTDIR)
+    ):
         return EnvUnavailable(f"the workdir {cwd} is not there")
     return env_error(error, f"could not run {argv[0]!r} in {cwd}", reported=reported)
 

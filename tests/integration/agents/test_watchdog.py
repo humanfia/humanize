@@ -272,7 +272,13 @@ def test_a_process_that_was_stopped_is_named_as_stopped() -> None:
     session = agent.new()
     assert isinstance(session, _Stream)
     proc = session._start(session._command())
-    psutil.Process(proc.pid).suspend()
+    stopped = psutil.Process(proc.pid)
+    stopped.suspend()
+    # Stopped once the kernel says so, not once it was asked: a signal is taken when the
+    # process next runs, which on a loaded Mac can be past the first look.
+    deadline = time.monotonic() + 10
+    while stopped.status() != psutil.STATUS_STOPPED and time.monotonic() < deadline:
+        time.sleep(0.05)
     watch = Watchdog(session, riding=lambda: proc, window=0.2)
     try:
         with watch:
