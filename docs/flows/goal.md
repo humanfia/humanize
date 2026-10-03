@@ -8,7 +8,7 @@ Hand the task to the agent as its own [goal](/features/goals): the model keeps w
 after turn, until it says the goal is met. One call, one session, and the model decides when
 it is done.
 
-<Badge type="warning" text="worker: claude · codex · dsh · kimi" />
+<Badge type="tip" text="ships with humanize" /> <Badge type="warning" text="worker: claude · codex · dsh · kimi" />
 
 ::: code-group
 

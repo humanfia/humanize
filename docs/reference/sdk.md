@@ -130,7 +130,7 @@ it is the `affinity` of the [runtime](#runtimes) its work is on.
 | `agents` | `{role: spec}` where spec is an [`-a` spec](/reference/cli#writing-an-agent) without `<role>=` (`"claude@work/claude-opus-5:high"`) or an `AgentDriver` (e.g. `fakes.FakeAgentDriver`); or an iterable of `AgentSpec` (`Line.agents`). | `()` |
 | `envs` | `{role: spec}` with an [`-e` spec](/reference/cli#writing-an-environment) without `<role>=`, or an `EnvDriver`; or an iterable of `EnvSpec`. | `()` |
 | `params` | A mapping (strings read as `-p` reads them) or an instance of the flow's `FlowParams`. `None`: defaults. | `None` |
-| `budget` | A [`Budget`](/reference/flows#what-a-run-may-spend), or a mapping validated by `Budget.model_validate` (`{"cost": 5}`, `{"duration": 3600}`, `{"duration": "PT1H"}`; `"1h"` is **not** accepted). `None`: `Budget(cost=inf)` for a flow shipped with humanize, else refused. | `None` |
+| `budget` | A [`Budget`](/reference/flows#what-a-run-may-spend), or a mapping validated by `Budget.model_validate` (`{"cost": 5}`, `{"duration": 3600}`, `{"duration": "PT1H"}`; `"1h"` is **not** accepted). `None`: `Budget(cost=inf)` for `chat`, else refused. | `None` |
 | `profile` | Whether to [profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them; as `--profile`. | `False` |
 | `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
 | `outworlder` | The driver filling `Outworlder` roles (e.g. `fakes.FakeOutworlder`). `None`: always away, as under `hmz exec`. | `None` |

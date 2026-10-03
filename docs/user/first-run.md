@@ -179,16 +179,16 @@ Press <kbd>enter</kbd> on the `search…` row below the flows, type `ralph`, and
 
 </Term>
 
-1. **`official`** is where these flows come from: humanize's own
+1. **`official`** is where these flows come from: the ones humanize ships, and humanize's own
    [flowverse](/user/concepts#flowverse), a git repository it fetches.
 2. **`search…`** keeps the rows whose names hold the letters you typed, in that order.
    <kbd>esc</kbd> leaves the search first, then the menu.
 3. **`copy ralph_loop here`** copies the flow into this project, to read or change. You do not
    need it now; [Security](/user/security#listing-a-flow-runs-its-python) says when you would.
 
-::: details `official` lists only `chat`
-The rest of humanize's flows are in a git repository, the official
-[flowverse](/weaver/flowverses). `hmz` fetches it in the background every time it opens, and
+::: details `official` lists only seven flows
+Those are the ones humanize ships, `ralph_loop` among them. The rest of humanize's flows are in
+a git repository, the official [flowverse](/weaver/flowverses). `hmz` fetches it in the background every time it opens, and
 `/flow` fetches it if that has not happened yet. If the fetch fails, `/flow` says why under the
 list. The `manage flowverses` row below the flows opens the flowverses; open one and choose
 `fetch`, or `fetch again` once it has been fetched.
@@ -409,7 +409,7 @@ what you save there is what the next run starts with.
 humanize fills a role with the first CLI it found. <kbd>enter</kbd> on the role, then on
 `cli`, and pick another; then pick its model again.
 
-### `official` lists only `chat`
+### `official` lists only seven flows
 
 The official flowverse has not been fetched yet. See the note under
 [step 3](#_3-choose-a-flow).

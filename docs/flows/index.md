@@ -30,7 +30,8 @@ held one:
 <HmzFlow pick="ralph_loop,stateful_ralph,continue_loop,goal,flame_chase,rlar" />
 
 These six are the loops [FlowBench](https://humanfia.ai/projects/flowbench) scores, under the
-same names, so a result there tells you which flow to reach for here.
+same names, so a result there tells you which flow to reach for here. All six ship with
+humanize, beside `chat`, so they run on a fresh install with nothing fetched.
 
 ## Running one
 
@@ -66,9 +67,10 @@ Two things never take a flag: the `human` role, which is you, and the directory 
 in, which is wherever you start the run. Every flag is in the [CLI reference](/reference/cli).
 
 ::: tip On a fresh install, open `hmz` once first
-Every flow but `chat` comes from humanize's own flowverse, which `hmz` fetches in the
-background as it opens. Until then, `hmz exec` refuses the flow and tells you to open
-the Flowverses page of `/settings`, open `official` and choose `fetch`.
+`chat` and the six loops above ship with humanize. Every other flow comes from humanize's own
+flowverse, which `hmz` fetches in the background as it opens. Until then, `hmz exec` refuses
+such a flow and tells you to open the Flowverses page of `/settings`, open `official` and
+choose `fetch`.
 :::
 
 ::: warning Agents act without asking

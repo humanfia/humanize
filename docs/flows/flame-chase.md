@@ -8,6 +8,8 @@ Put two agents on one task and let them take turns. Each turn is a fresh session
 from the task and the repository; neither agent is told what the other said, so the working
 tree is all that passes between them.
 
+<Badge type="tip" text="ships with humanize" />
+
 ::: code-group
 
 ```text [at the prompt]

@@ -403,7 +403,7 @@ any harness that serves them.
 | When a flow calls another | What the caller hands over covers the callee's declaration. | [`RequirementError`](#requirementerror) leaves; see [What the called flow is handed](#what-the-called-flow-is-handed) |
 | At every use | The view's grant contains the mixin for the operation. | [`CapabilityNotGranted`](#capabilitynotgranted) |
 
-The flows humanize ships in the package (only [`chat`](#the-flow-in-the-package)) are marked
+Of the flows humanize ships in the package, only [`chat`](#the-flow-in-the-package) is marked
 *full view*: each agent role is granted every mixin its harness serves, whatever it declares.
 
 ## Permissions {#what-each-agent-may-do}
@@ -1045,10 +1045,10 @@ At least one of `duration`, `cost`, `output_tokens` must be set
 otherwise `pydantic.ValidationError`. `Budget(cost=math.inf)` means unlimited and serializes
 as `{"cost": "Infinity"}`.
 
-**Which runs need one.** Every run except of a flow shipped in the package: from `-b`
+**Which runs need one.** Every run except of `chat`: from `-b`
 (see [`-b`](#b-budget)), `/flow`, or `budget=` in [Python](/reference/sdk). Without it:
-`<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...`. A flow
-shipped in the package (`chat`) given none runs under `Budget(cost=math.inf)`.
+`<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...`. `chat`
+given none runs under `Budget(cost=math.inf)`.
 
 ### Effective budget
 
@@ -1425,11 +1425,20 @@ Listing a flowverse imports the entry point of every flow in its `flows/`. Addin
 that repository with this machine.
 :::
 
-### The flow in the package {#the-flow-in-the-package}
+### The flows in the package {#the-flow-in-the-package}
 
-| Flow | Agent roles | Env roles | Budget | Grant |
-| --- | --- | --- | --- | --- |
-| [`chat`](/flows/chat) | `assistant: Agent`, `human: Outworlder` | `workspace: LocalEnv` | `Budget(cost=math.inf)` unless one is given | every mixin the harness serves |
+`hmz/flows/builtin/`, there with nothing fetched. Every flow here has a `workspace: LocalEnv`
+role.
+
+| Flow | Agent roles | Roles need | Resumable | Budget | Grant |
+| --- | --- | --- | :-: | --- | --- |
+| [`chat`](/flows/chat) | `assistant`, `human: Outworlder` | | | `Budget(cost=math.inf)` unless one is given | every mixin the harness serves |
+| [`ralph_loop`](/flows/ralph-loop) | `agent` | | ✓ | required | what each role declares |
+| [`stateful_ralph`](/flows/stateful-ralph) | `agent` | | ✓ | required | what each role declares |
+| [`continue_loop`](/flows/continue-loop) | `agent` | | ✓ | required | what each role declares |
+| [`goal`](/flows/goal) | `worker` | `GoalCommandAgentMixin` | | required | what each role declares |
+| [`flame_chase`](/flows/flame-chase) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
+| [`rlar`](/flows/rlar) | `actor`, `reviewer` | | ✓ | required | what each role declares |
 
 `chat` opens one session and takes one turn per line the outworlder says; under `hmz exec`
 (outworlder away) it takes the task as its one turn and returns. The first turn's failure ends
@@ -1443,12 +1452,6 @@ Read [Security](/user/security) before running any.
 
 | Flow | Agent roles | Roles need | Resumable |
 | --- | --- | --- | :-: |
-| [`ralph_loop`](/flows/ralph-loop) | `agent` | | ✓ |
-| [`stateful_ralph`](/flows/stateful-ralph) | `agent` | | ✓ |
-| [`continue_loop`](/flows/continue-loop) | `agent` | | ✓ |
-| [`goal`](/flows/goal) | `worker` | `GoalCommandAgentMixin` | |
-| [`flame_chase`](/flows/flame-chase) | `first_chaser`, `second_chaser` | | ✓ |
-| [`rlar`](/flows/rlar) | `actor`, `reviewer` | | ✓ |
 | [`humanize1:gen-idea`](/flows/humanize1) | `drafter` | | |
 | [`humanize1:gen-plan`](/flows/humanize1) | `planner`, `analyst` | | |
 | [`humanize1:rlcr`](/flows/humanize1) | `builder`, `reviewer`, `human` | `builder`: `PermissionRequestHookAgentMixin` | ✓ |

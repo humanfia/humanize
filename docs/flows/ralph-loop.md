@@ -7,6 +7,8 @@ pageClass: hmz-feature
 Leave one agent on a long task. Every round is a fresh session that starts from the task and
 the repository, so a run can go on for days without drowning in its own context.
 
+<Badge type="tip" text="ships with humanize" />
+
 ::: code-group
 
 ```text [at the prompt]

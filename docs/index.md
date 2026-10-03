@@ -104,10 +104,8 @@ straight away.
 </template>
 <template #exec>
 
-The same run as one line. `hmz exec` downloads no flows, so if you have not opened `hmz` yet,
-open it once first: it fetches the official flows, `ralph_loop` among them, as it starts.
-
-Then pick your CLI:
+The same run as one line. `ralph_loop` ships with humanize, so nothing has to be fetched
+first. Pick your CLI:
 
 ::: code-group
 
@@ -166,8 +164,6 @@ git diff before
 
 | If | Then |
 | --- | --- |
-| `hmz` says `no such flow` | It downloads the official flows in the background as it starts. Give it a few seconds and send the line again. |
-| `hmz exec` says `not been fetched yet` | `hmz exec` downloads nothing. Open `hmz`, type `/settings flowverses`, open `official` and choose `fetch`. |
 | the model is refused | Model ids change with each CLI release, and your account decides which you may use. In `hmz`, type `/flow ralph_loop` and open the `agent` row: it lists the models your CLI offers. |
 | your CLI is not in the tabs | Every backend, and how to sign each one in, is on [Installation](/user/installation). |
 

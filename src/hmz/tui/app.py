@@ -1086,9 +1086,9 @@ class Humanize(App[None]):
         self._params: BaseModel | None = params or params_of(
             self._flow_named, self.settings.params(self._flow_named)
         )
-        #: What a run of it here may spend, or None for none yet -- which only a flow
-        #: humanize ships runs with. Beside the params and not inside them: it is a setting
-        #: of the run rather than one of the flow's own.
+        #: What a run of it here may spend, or None for none yet -- which only `chat` runs
+        #: with. Beside the params and not inside them: it is a setting of the run rather
+        #: than one of the flow's own.
         self._budget: Budget | None = budget_of(self._flow_named)
         #: Whether a run of it here profiles the programs its agents start, as well as
         #: tracing them. Beside the budget, and remembered with it: like what a run may

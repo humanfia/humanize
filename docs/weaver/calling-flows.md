@@ -2,7 +2,7 @@
 
 In this guide you build flows out of other flows. You write `steps`, which splits its task
 into steps and runs each as a call to a hidden flow beside it, under a budget of its own. Then
-you write `aimed`, which calls the official `goal` flow by its ref and carries on after it.
+you write `aimed`, which calls the `goal` flow humanize ships and carries on after it.
 
 Reach for `load` when a flow somebody has already written does one step of what you want, or
 when a flow of your own has grown steps worth naming, testing and budgeting one at a time.
@@ -219,8 +219,8 @@ async def test_a_step_over_its_budget_does_not_end_the_run() -> None:
 
 ## Example: a published flow
 
-`aimed` calls the official [`goal`](/flows/goal) flow by a git ref, then takes a turn of its
-own once the goal is met:
+`aimed` calls [`goal`](/flows/goal), which ships with humanize, then takes a turn of its own
+once the goal is met:
 
 ```python
 # .humanize/flows/aimed/__init__.py
@@ -254,7 +254,7 @@ async def aimed(
 ) -> None:
     """The task as a goal, then one more turn to write it up."""
     builder = agents["builder"]
-    goal = load("git+https://github.com/humanfia/flowverse@main#goal")  # ②
+    goal = load("goal")  # ②
     await goal(
         task,
         agents={"worker": builder},  # ③
@@ -270,9 +270,10 @@ async def aimed(
 1. **`GoalCommandAgentMixin` on your role**, because `goal`'s `worker` role asks for it. An
    agent reaches your flow granted what **your** role declared, and that is all it can pass
    on, whatever its CLI could do.
-2. **A git ref**, written the way pip writes one: the repository, `@` a branch, tag or commit,
-   and `#` the flow. It is fetched the first time you call it, once per URL and revision per
-   run. Once the official flowverse is fetched, `load("goal")` finds the same flow by name.
+2. **A name**, as `-f` takes one: `goal` ships with humanize, so it is there whatever has
+   been fetched. A flow published anywhere else is a git ref, written the way pip writes one:
+   the repository, `@` a branch, tag or commit, and `#` the flow. That is fetched the first
+   time you call it, once per URL and revision per run.
 3. **`"worker"`** is `goal`'s role name. Your `builder` fills it.
 4. **`envs={}`** leaves `goal`'s `workspace` out. It is a `LocalEnv`, which the run fills, so
    the callee gets the run's own directory.

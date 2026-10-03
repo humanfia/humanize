@@ -9,6 +9,8 @@ next turn. It is the one flow that needs no budget, and the one `hmz` opens on i
 project, so there typing a line is all it takes to start. Once you have run another flow,
 `$chat` brings you back.
 
+<Badge type="tip" text="ships with humanize" />
+
 ::: code-group
 
 ```text [at the prompt]

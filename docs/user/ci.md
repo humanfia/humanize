@@ -12,7 +12,7 @@ CLI signs in with, and run the same line CI will run, on your own machine first:
 
 ```sh
 hmz exec \
-    -f 'git+https://github.com/humanfia/flowverse@main#ralph_loop' \
+    -f ralph_loop \
     -a agent=claude/claude-opus-5:high \
     -b duration=45m,cost=20 \
     "$(cat TASK.md)"
@@ -47,7 +47,7 @@ A CI runner starts empty every time. That shapes the whole job:
 | --- | --- | --- |
 | `hmz` and the agent's CLI are installed | nothing is | installs both, every run |
 | the CLI is signed in | it is not | signs it in from a secret |
-| the official flowverse is fetched | nothing is | names the flow by its repository |
+| the flowverses are fetched | nothing is | runs a flow humanize ships, or names one by its repository |
 | `hmz` keeps a price list for `cost` | there is none | fetches it before the first turn |
 | `/epics` reads a run back | there is no prompt | traces the run from a script |
 | a stopped run can be picked up | nothing of a last run is kept | never uses `--resume` |
@@ -97,7 +97,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           hmz exec \
-            -f 'git+https://github.com/humanfia/flowverse@main#ralph_loop' \
+            -f ralph_loop \
             -a agent=claude/claude-opus-5:high \
             -b duration=45m,cost=20 \
             "$(cat TASK.md)"
@@ -203,17 +203,19 @@ signed it in, so sign it in the way that CLI supports without a browser:
 To run agents as named [accounts](/user/settings#accounts) on the runner instead, make them from
 Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/sdk).
 
-## Name the flow by its repository
+## A flow from a flowverse
 
-A fresh runner has fetched no flowverse, so a bare `-f ralph_loop` is refused there with
-`the official flowverse has not been fetched yet`. Name the flow by its repository instead, as
-the workflow does:
+`ralph_loop` ships with humanize, as do `chat` and the other loops
+[FlowBench scores](/flows/#the-loops-side-by-side), so the workflow names it the way you would
+at your desk. A flow from a [flowverse](/weaver/flowverses) is different: a fresh runner has
+fetched none, and a bare name is refused there with `the official flowverse has not been
+fetched yet`. Name it by its repository instead:
 
 ```sh
--f 'git+https://github.com/humanfia/flowverse@main#ralph_loop'
+-f 'git+https://github.com/<owner>/<repo>@<commit>#<flow>'
 ```
 
-Replace `main` with a commit to pin the flow, so a change upstream cannot change what runs at
+A commit rather than a branch pins the flow, so a change upstream cannot change what runs at
 night. A flow of your own needs none of this: commit it to `.humanize/flows/` and name it with
 `-f <name>`.
 

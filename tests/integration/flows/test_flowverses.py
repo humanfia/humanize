@@ -33,6 +33,7 @@ from hmz.runtime.flowing import (
     resolved,
 )
 from hmz.runtime.flowing import verses as store
+from tests.flows.kit import SHIPPED
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -121,7 +122,7 @@ def test_the_official_one_is_offered_before_it_is_fetched() -> None:
     assert not official.fetched
     # The half that is in the package is there whatever has been downloaded, and nothing is
     # raised about the half that has not been.
-    assert store.flows(official) == ["chat"]
+    assert store.flows(official) == list(SHIPPED)
 
 
 def test_a_flow_of_humanize_s_own_is_said_the_same_way_wherever_it_is_kept(
@@ -136,11 +137,9 @@ def test_a_flow_of_humanize_s_own_is_said_the_same_way_wherever_it_is_kept(
     monkeypatch.setattr(store, "OFFICIAL_URL", str(theirs))
     store.fetch(OFFICIAL)
 
-    assert [one.name for one in found() if one.whose == OFFICIAL] == [
-        "chat",
-        "loop",
-        "review",
-    ]
+    assert [one.name for one in found() if one.whose == OFFICIAL] == sorted(
+        (*SHIPPED, "loop", "review")
+    )
     assert find("official/chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
     assert find("official/loop") == find("loop")
 
@@ -155,11 +154,9 @@ def test_the_package_s_own_wins_a_name_the_repository_also_holds(
     monkeypatch.setattr(store, "OFFICIAL_URL", str(theirs))
     store.fetch(OFFICIAL)
 
-    assert [one.name for one in found() if one.whose == OFFICIAL] == [
-        "chat",
-        "loop",
-        "review",
-    ]
+    assert [one.name for one in found() if one.whose == OFFICIAL] == sorted(
+        (*SHIPPED, "loop", "review")
+    )
     assert find("chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
 
 
@@ -237,7 +234,7 @@ def test_fetching_one_that_was_never_fetched_clones_it(
 
     assert official.fetched
     assert official.fixed  # and it is still the one that cannot be taken away
-    assert store.flows(official) == ["chat", "loop", "review"]
+    assert store.flows(official) == sorted((*SHIPPED, "loop", "review"))
     assert ("official", "loop", "A flow of somebody else's.") in found()
 
 
@@ -520,13 +517,13 @@ def test_a_flowverse_that_has_not_been_fetched_says_so_rather_than_that_there_is
 ):
     """The name is right and the download has not happened, which is a different thing."""
     with pytest.raises(FlowNotFound, match="has not been fetched yet"):
-        resolved(f"{OFFICIAL}/rlar")
+        resolved(f"{OFFICIAL}/aot")
 
 
 def test_a_bare_name_says_so_too_when_nothing_has_been_fetched(theirs: Path) -> None:
     """Humanize's own flows are a bare name now, so this is the first run's own failure.
 
-    `-f rlar` on a machine that has fetched nothing is a name that is right and a download
+    `-f aot` on a machine that has fetched nothing is a name that is right and a download
     that has not happened, which "no flow to read" is the least useful thing to say about.
     """
     store.add(str(theirs))  # one that is here, so the one that is not is named alone
@@ -534,7 +531,7 @@ def test_a_bare_name_says_so_too_when_nothing_has_been_fetched(theirs: Path) -> 
     with pytest.raises(
         FlowNotFound, match=f"the {OFFICIAL} flowverse has not been fetched yet"
     ):
-        resolved("rlar")
+        resolved("aot")
 
 
 def test_a_clone_somebody_has_written_into_says_so(theirs: Path) -> None:
