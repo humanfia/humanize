@@ -215,7 +215,7 @@ dl {
   margin-top: 12px;
 }
 
-/* The name gets a line of its own: `parallel_flame_chase_git_pr` is wider than half a card. */
+/* The name gets a line of its own: `parallel_flame_chase:git_pr` is wider than half a card. */
 .head code {
   display: block;
   padding: 0;

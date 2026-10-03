@@ -574,6 +574,49 @@ def _settings() -> None:
     )
 
 
+#: What humanize's own flowverse lists, as its index says it: one release apiece, at a commit
+#: nobody cut. Nothing is installed from it here, so nothing is ever fetched at that commit.
+RELEASES = {
+    "agent_cleanup": "A Ralph loop or a flame chase whose workspace an agent cleans up as "
+    "it goes.",
+    "aot": "Writes a flow from a description, then loads, smoke-runs and reviews it before "
+    "landing it.",
+    "humanize1": "RLCR from humanize 1 as three flows (gen-idea, gen-plan, rlcr), each set up "
+    "before it starts.",
+    "parallel_flame_chase": "Report-driven lanes of alternating agents planned by a "
+    "coordinator, plus a git_pr variant.",
+    "recursive_lean_prover": "Recursively plans, proves, compares, reviews and catalogues "
+    "Lean theorems.",
+}
+
+
+def _index() -> None:
+    """Writes humanize's own flowverse in, as a clone of its index would leave it.
+
+    Written rather than cloned, since nothing here reaches a network. An empty `.git` beside
+    the manifests is what makes it read as fetched; the fetch the interface tries as it opens
+    then fails, quietly, having nothing to fetch from, and what is listed is what is written
+    here.
+    """
+    at = HOME / "flowverses" / "official"
+    (at / ".git").mkdir(parents=True, exist_ok=True)
+    for name, about in RELEASES.items():
+        release = at / "flows" / name / "0.1.0"
+        release.mkdir(parents=True, exist_ok=True)
+        repo = "flow-" + name.replace("_", "-")
+        (release / "flow.yaml").write_text(
+            f"name: {name}\n"
+            "version: 0.1.0\n"
+            f"description: {about}\n"
+            f"repo: humanfia/{repo}\n"
+            "ref: v0.1.0\n"
+            f"commit: {'0' * 40}\n"
+            f"subdir: {name}\n"
+            "license: Apache-2.0\n",
+            encoding="utf-8",
+        )
+
+
 if __name__ == "__main__":
     _models()
     _project()
@@ -582,3 +625,4 @@ if __name__ == "__main__":
     _account()
     _machines()
     _settings()
+    _index()

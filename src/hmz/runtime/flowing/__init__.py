@@ -13,7 +13,8 @@ is handed in [viewing.py](viewing.py), what a resumable run writes down in
 over coding agent CLIs and over machines are [harnesses.py](harnesses.py) and
 [environments.py](environments.py); and in-memory stand-ins for all of them, to test a flow
 with, are [fakes.py](fakes.py). Where flows come from and what each is called is
-[verses.py](verses.py) and [finding.py](finding.py); the skills a flow named that live
+[verses.py](verses.py) and [finding.py](finding.py), and what an index lists and installing out
+of one is [index.py](index.py); the skills a flow named that live
 somewhere else are fetched by [skills.py](skills.py).
 
 The arrow points one way. Everything here may name the flow API, and it names nothing here at
@@ -75,6 +76,7 @@ if TYPE_CHECKING:
         within,
     )
     from .harnesses import open_agent, open_outworlder
+    from .index import Index, Installed, Release, Update
     from .journaling import FlowStateImpl, Journal
     from .loading import FlowModule, Remote, forget
     from .skills import brought
@@ -160,6 +162,8 @@ __all__ = [
     "Grant",
     "HookBridge",
     "HookTable",
+    "Index",
+    "Installed",
     "Journal",
     "Limits",
     "LiveCall",
@@ -169,12 +173,14 @@ __all__ = [
     "ParamSpecError",
     "Placement",
     "Recorder",
+    "Release",
     "Remote",
     "SessionHandle",
     "SessionView",
     "Skill",
     "SpecError",
     "TurnRequest",
+    "Update",
     "UsageSink",
     "about",
     "at",
@@ -251,6 +257,8 @@ _WRITTEN = {
     "HARNESS_CAPABILITIES": "hmz.runtime.flowing.spi",
     "HookBridge": "hmz.runtime.flowing.spi",
     "HookTable": "hmz.runtime.flowing.spi",
+    "Index": "hmz.runtime.flowing.index",
+    "Installed": "hmz.runtime.flowing.index",
     "Journal": "hmz.runtime.flowing.journaling",
     "LOCAL": "hmz.runtime.flowing.verses",
     "Limits": "hmz.runtime.flowing.spi",
@@ -263,12 +271,14 @@ _WRITTEN = {
     "ParamSpecError": "hmz.runtime.flowing.specs",
     "Placement": "hmz.runtime.flowing.spi",
     "Recorder": "hmz.runtime.flowing.engine",
+    "Release": "hmz.runtime.flowing.index",
     "Remote": "hmz.runtime.flowing.loading",
     "SessionHandle": "hmz.runtime.flowing.spi",
     "SessionView": "hmz.runtime.flowing.viewing",
     "Skill": "hmz.runtime.flowing.spi",
     "SpecError": "hmz.runtime.flowing.specs",
     "TurnRequest": "hmz.runtime.flowing.spi",
+    "Update": "hmz.runtime.flowing.index",
     "USER": "hmz.runtime.flowing.verses",
     "UsageSink": "hmz.runtime.flowing.spi",
     "about": "hmz.runtime.flowing.finding",

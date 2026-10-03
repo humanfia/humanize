@@ -41,7 +41,7 @@ At mount, in the background, the interface:
 | Task | Detail |
 | --- | --- |
 | Asks installed backends for models | Each installed CLI's own account whose model list was never fetched or is older than 7 days. Failures are logged only. |
-| Fetches flowverses | Every flowverse with a URL whose clone holds no local edits, one at a time; stops if a run starts. A fetch that brings new commits makes open flow lists re-read. |
+| Fetches flowverses | Every flowverse index with a URL (cloning `official` the first time) whose clone holds no local edits, one at a time. Installed flows are not touched. A fetch that brings new commits makes open flow lists re-read. Then, where any installed flow's index lists a newer release, prints once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`. |
 | Looks for a run to resume | Decides whether [`/resume`](#resume) is listed. |
 | Refreshes prices | `$HUMANIZE_HOME/prices.json` from `HUMANIZE_PRICES` (default `https://openllmprices.com/data/prices.json`) when older than 24 h; at most one attempt an hour, 20 s timeout. |
 | Asks the reporting question | Only where unanswered: [First start](#first-start). |
@@ -240,11 +240,11 @@ Each command's line in the completion list:
 
 | Command | About | Instead, when |
 | --- | --- | --- |
-| `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
+| `/flow` | `Choose, set up and install flows` | `Set up the running flow's agents` — a run is going |
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage runs in this directory` | |
 | `/resume` | `Resume the last run in this directory` | |
-| `/settings` | `Every setting: general, accounts, fallback, runtimes, flowverses, workspace` | |
+| `/settings` | `Every setting: general, accounts, fallback, runtimes, workspace` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
@@ -272,16 +272,17 @@ Every message is red and prefixed `hmz: `.
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
-| `/settings <page>` | unknown page | `/settings has no page '<page>': choose settings, workspace, accounts, runtimes, fallback or flowverses` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, accounts, fallback, runtimes or workspace` |
+| `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
 | `/btw` | no agent to ask | `/btw requires a coding agent` |
 | `/btw` | the session is gone | `/btw: no conversation found for <role>/<n>` |
 | `/btw <q>` | busy | `btw is still answering the last question` |
 
 ### `/flow [flow]` {#flow-command}
 
-Opens the [flow menu](#choosing-a-flow). With `[flow]` (a name as offered, or a path), opens
-inside that flow's roles. While a run is going, opens on the running flow's roles and offers
-no flow list. Saving while a run is going says `the current run keeps its original roles;
+Opens the [flow menu](#choosing-a-flow) on Installed. With `[flow]` (a name as offered, or a
+path), opens inside that flow's roles. While a run is going, opens on the running flow's roles
+and offers nothing else. Saving while a run is going says `the current run keeps its original roles;
 changes will apply to the next run`.
 
 ### `/btw [question]` {#btw-command}
@@ -300,10 +301,11 @@ See [`/resume`](#carrying-the-last-one-on-outright).
 ### `/settings [page]` {#settings-command}
 
 Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
-`general`, `accounts`, `fallback`, `runtimes`, `flowverses`, `workspace`, or the aliases
-`settings` and `everywhere` (General), `directory` (Workspace) and `environments` (Runtimes);
-case-insensitive; only the first word is read. Completion offers the six names, in that order,
-not the aliases.
+`general`, `accounts`, `fallback`, `runtimes`, `workspace`, or the aliases `settings` and
+`everywhere` (General), `directory` (Workspace) and `environments` (Runtimes);
+case-insensitive; only the first word is read. Completion offers the five names, in that
+order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
+now` (dim) and opens [`/flow`](#where-flows-come-from) on Flowverses.
 
 ### `/clear` {#clear-command}
 
@@ -390,9 +392,9 @@ environment; remembered params validate against the flow's `FlowParams`; there i
 unless the flow needs none (`chat`). A flow that fails to load counts as set up (and fails
 when run).
 
-Names are those offered by completion: bare for humanize's own and the official flowverse's
-(`$chat`), `$local/<flow>`, `$user/<flow>`, `$<flowverse>/<flow>`, and `…:<name>` for another
-flow in the same module.
+Names are those offered by completion: bare for the flows built in and those installed from
+`official` (`$chat`), `$local/<flow>`, `$user/<flow>`, `$<flowverse>/<flow>` for one installed
+from another flowverse, and `…:<name>` for another flow in the same module.
 
 ## Talking to a running flow {#talking-to-a-running-flow}
 
@@ -479,7 +481,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 
 <RefFilter
   label="Filter keys: try esc, enter, or a screen"
-  :chips="['app', 'editor', 'offers', 'every menu', 'forms', '/settings', 'dropdown', 'monitor']"
+  :chips="['app', 'editor', 'offers', 'every menu', 'forms', '/settings', '/flow', 'dropdown', 'monitor']"
 >
 
 | Where | Key | Condition | Action |
@@ -499,7 +501,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | offers | <kbd>tab</kbd> | offers open | Takes the highlight. |
 | offers | <kbd>esc</kbd> | offers open | Hides the offers until the text changes. |
 | every menu | <kbd>↑</kbd> <kbd>↓</kbd> | | Previous / next row, wrapping, skipping headings and spacers. Ignored while a row is being written on the params and budget sheets. |
-| every menu | <kbd>←</kbd> <kbd>→</kbd> | `/flow`'s list | Previous / next place, wrapping. Nowhere else on a sheet: no value is stepped with them. |
+| every menu | <kbd>←</kbd> <kbd>→</kbd> | a sheet | Nothing: no value is stepped with them. |
 | every menu | <kbd>enter</kbd> · click | | On `search…`: starts a search. On a `▾` row: drops its values (see dropdown). On a written row: begins writing it; again: keeps it. Otherwise: selects the row. |
 | every menu | <kbd>esc</kbd> | | Puts back the row being written; else ends a running search; else leaves (asking [Save?](#save-box) if the menu holds changes). |
 | every menu | typing · <kbd>backspace</kbd> | a search is running | Narrows it; the cursor goes to the first match. |
@@ -510,7 +512,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | forms | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | writing `variables` | Newline. |
 | /settings | <kbd>enter</kbd> <kbd>→</kbd> · click | landing | Opens the page. |
 | /settings | <kbd>esc</kbd> | landing | Leaves, asking [Save?](#save-box) if anything is held. |
-| /settings | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click `/settings` | a page, list focused | Back to the landing screen (not when opened from `/flow`, where `esc` closes). |
+| /settings | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click `/settings` | a page, list focused | Back to the landing screen. |
 | /settings | <kbd>/</kbd> | a page with search, list focused | Opens the search box. |
 | /settings | <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous of: search box (when shown), list, enabled buttons. |
 | /settings | <kbd>enter</kbd> <kbd>↓</kbd> | search box | To the list, keeping the filter. |
@@ -518,6 +520,11 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | /settings | <kbd>←</kbd> <kbd>→</kbd> | a button focused | Previous / next enabled button, wrapping. |
 | /settings | <kbd>↑</kbd> | a button focused | To the list. |
 | /settings | <kbd>enter</kbd> · click | a button | Presses it. |
+| /flow | <kbd>enter</kbd> · click | list focused | Goes into the row: a card, a flow's roles (Installed), a flowverse, a flow's releases; on a role, `params` or `budget` opens its sheet; on a release installs it. |
+| /flow | <kbd>→</kbd> | list focused, first screen, Installed, Flowverses or one flowverse | As `enter`. |
+| /flow | <kbd>←</kbd> <kbd>backspace</kbd> · click a step across the top | list focused | Out to the page above. Not on the roles of a flow `/flow` was opened on. |
+| /flow | <kbd>esc</kbd> | list focused | Ends a search; else out to the page above; else leaves, asking [Save?](#save-box) if anything is held. |
+| /flow | <kbd>/</kbd> · <kbd>tab</kbd> · buttons | | As on /settings. |
 | dropdown | <kbd>↑</kbd> <kbd>↓</kbd> | | Moves. An on/off dropdown opens on the value not in force. |
 | dropdown | <kbd>enter</kbd> · click | | Picks the value. |
 | dropdown | <kbd>esc</kbd> · click outside | | Picks nothing. |
@@ -561,8 +568,8 @@ input-method commit arriving as one key report is not typed as raw escape text.
 
 ## Menus {#menus}
 
-`/flow`, `/epics` and their sub-sheets are sheets over the log; `/settings` is a screen of its
-own.
+`/epics` and the sheets `/flow` and `/settings` open are sheets over the log; `/flow` and
+`/settings` are screens of their own.
 
 ### Anatomy {#menu-anatomy}
 
@@ -583,19 +590,19 @@ own.
 | Element | Rule |
 | --- | --- |
 | Marks | `▸` opens something; `▾` drops its values; `✔` (green) the choice in force; `❯` the cursor. |
-| Set-apart rows | `search…`, `add …`, `save`, `set`, `done`, `check again`, `copy … here`, `manage flowverses`, …: unnumbered, each with a blank line above. Below the list, except on host pickers, where they sit above. |
+| Set-apart rows | `search…`, `add …`, `save`, `set`, `done`, `check again`, …: unnumbered, each with a blank line above. Below the list, except on host pickers, where they sit above. |
 | Height | At most 14 rows, at least 3. |
-| Search | Case-insensitive subsequence of one field. `/flow`: flow name. Pick lists: label and about, ordered by how near a field comes (equal, then starts with, then contains, then the subsequence alone), keeping the list's order within each. `/epics`: flow, task, run name. Started from `search…` only; `esc cancel search` ends it. |
-| Hints | `enter <verb>` for the row under the cursor (`open`, `choose` on a `▾` row, `change` on a written row of the params or budget sheet, `save`, `set`, `add`, `search`, `refresh`, `copy`, `done`, `type a host`), `←/→ place` on `/flow`'s list, `esc <verb>`. On a form's written row `type to edit` replaces the enter hint. While writing a row: `[shift+enter/ctrl+j new line · ]enter keep · esc undo`. |
+| Search | Case-insensitive subsequence of one field. Pick lists: label and about, ordered by how near a field comes (equal, then starts with, then contains, then the subsequence alone), keeping the list's order within each. `/epics`: flow, task, run name. Started from `search…` only; `esc cancel search` ends it. |
+| Hints | `enter <verb>` for the row under the cursor (`open`, `choose` on a `▾` row, `change` on a written row of the params or budget sheet, `save`, `set`, `add`, `search`, `refresh`, `copy`, `done`, `type a host`), `esc <verb>`. On a form's written row `type to edit` replaces the enter hint. While writing a row: `[shift+enter/ctrl+j new line · ]enter keep · esc undo`. |
 
 ### Held and immediate changes {#held-changes}
 
 | Menu | Held until saved | Applied at once |
 | --- | --- | --- |
-| `/flow`, roles, agent sheet, params, budget, environment form, unsaved host | everything | — |
+| `/flow`, roles, agent sheet, params, budget, environment form, unsaved host | the flow, its roles, params and budget | installing, updating, uninstalling; adding, fetching and removing a flowverse |
 | `/settings` Settings, Workspace, Fallback | everything | — |
 | `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
-| `/settings` Runtimes, Flowverses; `/epics` | — | everything |
+| `/settings` Runtimes; `/epics` | — | everything |
 | Monitor board | — | everything |
 
 ### Save? box {#save-box}
@@ -614,46 +621,93 @@ enter choose · esc back
 
 ## `/flow` {#choosing-a-flow}
 
-### Flow list {#flow-list}
+A screen of its own, drawn and keyed as [`/settings`](#settings-page-layout) is: the way here
+across the top (`/flows › Installed › <flow>`), every step of it but the last a click back; the
+list in a box with a block cursor; the line under it; a bar of buttons, **Save** at the far end;
+the keys. `/flow` opens on **Installed**. What it holds -- the flow and its roles, params and
+budget -- lands together on **Save**; installing, updating, uninstalling, fetching, adding and
+removing happen at once.
+
+```text
+  /flows › Installed
+  Flows ready to run here: pick one to set it up and run it, or install more from a flowverse.
+
+  ╭──────────────────────────────────────────────────────────────────────────────────────────╮
+  │ built in                                                                                 │
+  │ chat ✔                                                                          built in │
+  │   Talks to one agent for as long as you keep answering it.                               │
+  │                                                                                          │
+  │ mine                                                                                     │
+  │ mine/review                                                               0.1.0  ↑ 0.2.0 │
+  │   Review the current diff and write the findings to REVIEW.md.                           │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────╯
+
+     Install more…       Update       Uninstall       Copy here       Search…         Save
+
+  enter set up   / search   tab actions   esc back
+```
+
+| Page | Top line | About |
+| --- | --- | --- |
+| first screen | `/flows` | `Flows to run, and the flowverses more are installed from.` |
+| Installed | `/flows › Installed` | `Flows ready to run here: pick one to set it up and run it, or install more from a flowverse.` |
+| roles | `/flows › Installed › <flow>` (only `<flow>` when opened on it) | `Configure each role: an agent (CLI, account, model and effort) or an environment; then what the flow takes and what a run may spend.` |
+| Flowverses | `/flows › Flowverses` | `Indexes of flows to install, cloned under ~/.hmz/flowverses. Fetching, adding and removing one happen at once.` |
+| a flowverse | `/flows › Flowverses › <verse>` | `Flows <verse> lists, at their newest release. Open one for its others; installing happens at once.` |
+| a flow's releases | `/flows › Flowverses › <verse> › <flow>` | `Releases of <flow>, newest first. Pick one to install it, or to switch to it.` |
+
+`● unsaved changes` stands at the right of the top line while the flow or its roles differ from
+what is saved. Keys: the `/flow` rows of [Keys](#keys). Leaving with changes asks
+[Save?](#save-box). Every git and disk action runs off the event loop, one at a time:
+`<installing|uninstalling|fetching|removing> <what>…` under the list while it runs (another is
+refused with `wait for <it> to finish`), then the result there and, dim, in the transcript once
+the menu closes; an `OSError` or `ValueError` is shown red under the list instead.
+
+### First screen {#flow-first-screen}
+
+Two cards, as `/settings`' landing: **▶ Installed** (`<n> flow(s) · <flow in force|none chosen>`;
+`flows ready to run: built in, installed, or your own`) and **⑂ Flowverses** (the indexes by
+name, `· ↑ <n> update(s)` where any; `indexes of flows to install, update and add to`). Keys
+`enter open   esc close`.
+
+### Installed page {#flow-list}
 
 | Element | Value |
 | --- | --- |
-| Title | `Flow` |
-| About | `Choose a flow to run; you will type its task next. To run a flow from elsewhere, type its path.` |
-| Places (strip) | `official`, added flowverses alphabetically, `local` (`./.humanize/flows/`), `user` (`~/.humanize/flows/`); `local` and `user` only where they hold a flow. Opens on the place of the flow in force. While searching, only places with a match. |
-| Rows | `<n>. <name>[ ✔]  <first line of the flow's about>`. Cursor opens on the flow in force. |
-| Empty place | `not fetched yet; select manage flowverses below to fetch`, or `no flows yet`. |
-| Set-apart rows | `search…`; `copy <name> here   so you can edit it` (when the cursor was on a flow); `manage flowverses   the flowverses page of /settings`. |
-| Keys | `enter open · ←/→ place · esc close` |
+| Rows | Every flow there is to run, under headings: `built in` first, then by where it came from (`official`, added flowverses, `local`, `user`). `<name>[ ✔]`, its about under it; at the far end `built in`, or an installed flow's version and, where its index lists a newer one, `↑ <newer>`. `✔` marks the flow in force, where the cursor opens. |
+| Empty | `no flows yet`; searching, `no matching flows`. |
+| Search | flow name and about. |
+| Keys | `enter set up   / search   tab actions   esc back` |
 
-| Action | Result |
-| --- | --- |
-| open a place never fetched | Fetched in the background once per opening: `fetching <name>…`, then the list or a red error. |
-| `enter` on a flow | Loads what is remembered for it (if another flow), asks its [params](#setting-a-flow-up) if it declares any (also when re-choosing the same flow), then opens its [roles](#roles-page). |
-| `copy … here` | Copies the flow, what it imports and its skills into `./.humanize/flows/`: `copied to <path> -- you can edit it, and <name> now points to it`; errors `there is no flow called <x> to copy`, `there is already a flow of your own at <path>`; with no flow chosen `no flow selected to copy`. |
-| `manage flowverses` | Opens `/settings` on Flowverses alone. Refused during a fetch: `flowverses open once the fetch completes`. |
-| a flow that fails to load | `<flow> failed to load[: <first line of the error>]` (red). |
-| search with no match | `no matching flows` |
+| Button | Does | Enabled |
+| --- | --- | --- |
+| **Install more…** | Goes to Flowverses. | always |
+| **Update** | Installs the newer release of the flow under the cursor. | an update is listed |
+| **Uninstall** | Uninstalls it: `<flow> is uninstalled`. Refused while another installed flow needs it. | an installed flow |
+| **Copy here** | Copies it, what it imports and its skills into `./.humanize/flows/`: `copied to <path> -- you can edit it, and <name> now points to it`; errors `there is no flow called <x> to copy`, `there is already a flow of your own at <path>`. | not a `local` flow |
+| **Search…** · **Save** | | **Save**: something held |
 
-Opened as `/flow <name>` or from a `$` line, the menu opens on the roles and never asks
-params; `esc` there leaves.
+`enter` on a flow loads what is remembered for it (if another flow), asks its
+[params](#setting-a-flow-up) if it declares any (also when re-choosing the same flow), then
+opens its [roles](#roles-page). A flow that fails to load: `<flow> failed to load[: <first line
+of the error>]` (red).
 
 ### Roles page {#roles-page}
 
-| Element | Value |
-| --- | --- |
-| Title | the flow's name |
-| About | `Configure each role: an agent (CLI, account, model and effort) or an environment.` |
-| Keys | `enter open · esc back to flows` (`esc close` when opened by name or while running) |
+Opened from Installed, by `/flow <name>` and a `$` line naming a flow not set up, and, while a
+run is going, by `/flow` itself. The last three open on it alone: no way back across the top,
+`esc` leaves, and params are not asked.
 
 | Row | Value | `enter` opens |
 | --- | --- | --- |
-| each agent role (declared order) | `<cli>/<model>:<effort>[ · <account>]` or `not set` | [agent sheet](#what-each-agent-is) |
-| each environment role | the `-e` spec after `<role>=`, or `not set` | [environment form](#where-each-agent-works) |
-| `budget` (set apart) | [summary](#what-a-run-of-it-may-spend) | budget sheet |
-| `save` (set apart) | `flow and roles` | applies flow, roles, params and budget together |
+| each agent role (declared order) | `<cli>/<model>:<effort>` or `not set`; under it `agent[ · as <account>]` | [agent sheet](#what-each-agent-is) |
+| each environment role | the `-e` spec after `<role>=`, or `not set`; under it `environment` | [environment form](#where-each-agent-works) |
+| `params` (flows that take any) | the params changed from their defaults, or `defaults` | [params sheet](#setting-a-flow-up) |
+| `budget` | `set` or `none`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
 
-Roles filled by the runtime (`Outworlder`, `LocalEnv`) are not rows. Messages:
+Button: **Save** (`save the flow and its roles`), which applies flow, roles, params and budget
+together. Keys `enter open   tab actions   esc <back|close>`. Roles filled by the runtime
+(`Outworlder`, `LocalEnv`) are not rows. Messages:
 `<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
 nothing can be configured`.
 
@@ -661,6 +715,46 @@ nothing can be configured`.
 | --- | --- |
 | `<role>[, <role>…] is not configured yet` | An agent role lacks a CLI or model, or a required environment role is unset. |
 | `this flow requires a budget: set the budget first` | No budget, for a flow other than `chat`. |
+
+### Flowverses page {#where-flows-come-from}
+
+One card per flowverse with a URL (`official`, then added ones alphabetically; `local` and
+`user` are not indexes): its name; at the far end `fetched`, `not fetched` or `edited` (tracked
+files changed in the clone); under it the URL with credentials removed, `<n> flow(s)` listed,
+`<n> installed`, `↑ <n> update(s)`. Search: name and URL. Same store as
+[`Hmz().verses`](/reference/sdk#flowverses).
+
+| Button | Rule |
+| --- | --- |
+| **Add flowverse…** | Form `Add a flowverse` (`A git repository indexing flows: flows/<flow>/<version>/flow.yaml, one manifest per release. …`): `repository` (`a URL, or owner/repo for one on GitHub`), `name` (`flowverse name, or leave blank for the repository name`); `done` `clones its index; install flows from it next`. Refusals: `repository URL is required`; `'<x>' is not a flowverse name: letters, digits, dot, dash and underscore, starting with a letter or a digit`; reserved and taken names. Then `fetching <name>…`, `<name> is fetched`; the cursor goes to it. |
+| **Fetch again** (**Fetch** if never fetched) | Fetches the one under the cursor: `<name> is fetched`. Not a clone: `<name> is a directory that is not a clone of anything; remove it and add it again; there is nothing to fetch`. |
+| **Remove** | Not for `official`. Asks `Remove <name>?`: `remove` (`its index[ and <n> installed flow(s)]`) or `keep`. Then `<name> was removed`. |
+| **Search…** | |
+
+`enter` or `→` on a card opens that flowverse.
+
+### One flowverse {#flowverse-page}
+
+Each flow its index lists, alphabetically: its name, the newest release's description under it,
+and at the far end that release, `✔ <v> installed`, or `✔ <installed>  ↑ <newest>`. Under the
+list, where nothing is listed: `not fetched yet: press fetch to clone its index`,
+`this index lists no flows yet` or `no matching flows`; and where a manifest was skipped,
+yellow, `skipped <flow>/<version>: <why>[ and <n> more]`. Search: name and description. Keys
+`enter releases   / search   tab actions   esc back`.
+
+| Button | Rule |
+| --- | --- |
+| **Install `<v>`** · **Update to `<v>`** · **Switch to `<v>`** · **Installed** | For the flow under the cursor at its newest release: installs it and what it needs, `<flow> <v> is installed[, with <dep> <v>, …]`. **Installed** (disabled) where that release is in. |
+| **Uninstall** | Where it is installed: `<flow> is uninstalled`. |
+| **Fetch again** · **Search…** | As on Flowverses. |
+
+### Releases {#releases-page}
+
+Every release of one flow, newest first: its version; at the far end `prerelease` and
+`✔ installed` as they apply; under it `<ref> · <commit[:12]> · <license>[ · needs <dep> <range>…]`.
+The cursor opens on the installed release, else the newest. `enter` or the first button
+installs the release under the cursor (labelled as above); **Uninstall**; **Search…** (version,
+ref). Keys `enter install   / search   tab actions   esc back`.
 
 <span id="default-fill"></span>**Default fill.** An agent role with nothing remembered starts
 on the first installed backend that has reported models, serves the role and can open: its
@@ -865,8 +959,9 @@ equivalent: [`hmz exec --resume`](/reference/cli#picking-a-run-up).
 
 ## `/settings` {#what-humanize-remembers}
 
-A screen of six pages, from the broadest scope to the nearest: this machine, the accounts and
-what takes over when one fails, where work runs and where flows come from, this directory.
+A screen of five pages, from the broadest scope to the nearest: this machine, the accounts and
+what takes over when one fails, where work runs, this directory. Where flows come from is
+[`/flow`](#where-flows-come-from).
 Storage keys are in [Settings](/reference/settings).
 
 ### Landing screen {#settings-landing}
@@ -888,9 +983,6 @@ Storage keys are in [Settings](/reference/settings).
   │ ▦  Runtimes                                                    1 machine │
   │    ssh hosts, docker daemons and swarms that flows run on                │
   │──────────────────────────────────────────────────────────────────────────│
-  │ ⑂  Flowverses                                               3 flowverses │
-  │    the git repositories flows come from                                  │
-  │──────────────────────────────────────────────────────────────────────────│
   │ ⌂  Workspace                                        work/api · flow rlar │
   │    this directory: its flow, profiling, and forgetting it                │
   ╰──────────────────────────────────────────────────────────────────────────╯
@@ -904,7 +996,6 @@ Storage keys are in [Settings](/reference/settings).
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ▦ Runtimes | `<n> machine(s)` | never |
-| ⑂ Flowverses | `<n> flowverse(s)` (≥ 3) | never |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | profiling changed, or forget on |
 
 **Save** is disabled (tooltip `nothing to save yet`) until a page holds a change (`save all
@@ -915,7 +1006,7 @@ is held. Coming back out of a page puts the cursor on its card.
 
 | Element | Rule |
 | --- | --- |
-| Top line | `/settings › <Page>`; `/settings` is clickable (back to landing); `● unsaved changes` at the right while any page holds a change. Opened from `/flow`, only `<Page>`. |
+| Top line | `/settings › <Page>`; `/settings` is clickable (back to landing); `● unsaved changes` at the right while any page holds a change. |
 | Intro | Per page, below. |
 | List | Rows under headings, which the cursor steps over; scrollable. |
 | Buttons | Under the list, in the order below; label = the row's label capitalised; tooltip = its description. |
@@ -930,7 +1021,6 @@ is held. Coming back out of a page puts the cursor on its card.
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
 | Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
-| Flowverses | Add a flowverse · Search… | name, URL |
 
 **Add a runtime…** drops `ssh host`, `docker host` and `docker swarm` (titled `add a runtime`)
 over the button; picking one opens [its form](#ssh-form), `esc` or a click off it none.
@@ -950,7 +1040,7 @@ in force.
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Fallback rules | next failed turn | — |
-| Runtimes, Flowverses | at once | — |
+| Runtimes | at once | — |
 
 Leaving `/settings` writes a dim transcript line per change: first the pages' own (in the
 order done, including things done at once, even after a discard), then:
@@ -1206,22 +1296,6 @@ config is still being read`, `select at least one host to import`, `<config>: <e
 `imported <names> from <config>[; left <a>, <b>]. Open a host to check it.` Imported hosts are
 not checked.
 
-### Flowverses page {#where-flows-come-from}
-
-Intro: `Where flows come from: git repositories with a flows/ directory cloned under humanize's
-home, and your own flows read in place. Changes take effect immediately.` Rows: `official`
-(`humanfia/flowverse` on GitHub), added ones alphabetically, `local` (`your own flows in
-.humanize/flows`), `user` (`your own flows in ~/.humanize/flows`); a URL has credentials
-removed; ` · not fetched yet` where never fetched. Same store as
-[`Hmz().verses`](/reference/sdk#flowverses).
-
-| Action | Rule |
-| --- | --- |
-| **Add a flowverse** | Form `Add a flowverse`: `repository` (`a URL, or owner/repo for one on GitHub`), `name` (`flowverse name, or leave blank for the repository name`); `done` `clones the repository and adds its flows`. Refusals: `repository URL is required`; `'<x>' is not a flowverse name: letters, digits, dot, dash and underscore, starting with a letter or a digit`; reserved and taken names. |
-| `enter` on a flowverse | Sheet titled with its name: `Flows loaded from <source>. To run a flow, use /flow, which lists flows from all flowverses.` Rows above: `fetch again` (`fetch` if never fetched), `remove <name>` (`including all its flows`, added ones only), `search…`; then its flows. Fixed ones: `<name> is always listed and cannot be removed`. |
-| fetch | `fetching <name>…`, then `<name> is fetched` (also in the transcript), or the error. `local`/`user`: `local is read from .humanize/flows, so there is nothing to fetch`. Not a clone: `<name> is not a git clone, so there is nothing to fetch; remove it instead`. |
-| remove | At once: `<name> was removed` (red; also in the transcript). |
-
 ### Workspace page {#workspace-page}
 
 Intro: `What <last 2 path parts> remembers: the flow it opens on and how it was last
@@ -1419,7 +1493,7 @@ name`, `<name> can only be changed by the flow`. Changes are sent at once. See
 | --- | --- |
 | `/<partial>` (one word) | Commands available now, alphabetically, whose name starts with it. |
 | `/flow <partial>` | Flow names (no run going). |
-| `/settings <partial>` | The six page names, in page order. |
+| `/settings <partial>` | The five page names, in page order. |
 | `$<partial>` (one word) | `$<flow>` for every flow (no run going); the flow list is cached 2 s. |
 | three or more words | Nothing. |
 

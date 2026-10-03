@@ -295,7 +295,7 @@ up, which tests what `ctx.state` keeps.
 
 ## Read a real one: `ralph_loop`
 
-This is `ralph_loop` as the official flowverse ships it, less its module docstring. It has no
+This is `ralph_loop` as humanize ships it, less its module docstring. It has no
 finish line of its own: it runs until the agent has nothing more to say, or the budget is
 spent.
 
@@ -380,8 +380,8 @@ while True:
     state["turn"] = at
 ```
 
-**Start from an official loop.** Fork one into `.humanize/flows/` and change the copy. See
-[Flowverses](/weaver/flowverses).
+**Start from a built-in loop.** Copy one into your project with **Copy here** in `/flow`, and
+change the copy. See [Flowverses](/weaver/flowverses#managing-flowverses).
 
 | Flow | Each round |
 | --- | --- |

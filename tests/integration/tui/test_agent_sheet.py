@@ -26,7 +26,9 @@ from hmz.flows import Budget
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
+from hmz.tui.flows import Flows
 from hmz.tui.pick import (
+    _ACT_SAVE,
     _AGAIN,
     _BUDGET,
     _DONE,
@@ -36,7 +38,6 @@ from hmz.tui.pick import (
     Clis,
     Configures,
     Confirms,
-    Flows,
     Placing,
 )
 from tests.integration.tui.test_app import (
@@ -216,7 +217,7 @@ async def test_the_roles_the_runtime_fills_are_no_rows_of_the_menu(
         await until(lambda: sheet._inside, driver)
 
         # `builder` and nothing of `human` or `workspace`.
-        assert rows(app) == ["0", _BUDGET, _SAVE]
+        assert rows(app) == ["0", _BUDGET]
         assert "builder" in _value(app, "0")
 
 
@@ -237,9 +238,9 @@ async def test_two_agents_are_two_rows_and_a_sheet_apiece(
         # what is left to answer is what drives it.
         await until(lambda: sheet._inside, driver)
         listing = sheet.query_one("#choices", OptionList)
-        await until(lambda: len(listing.options) == 4, driver)
+        await until(lambda: len(listing.options) == 3, driver)
 
-        assert rows(app) == ["0", "1", _BUDGET, _SAVE]
+        assert rows(app) == ["0", "1", _BUDGET]
         assert "builder" in str(listing.get_option_at_index(0).prompt)
         assert "reviewer" in str(listing.get_option_at_index(1).prompt)
 
@@ -271,7 +272,7 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
 
         await opens(app, driver, _SAVE)
         await until(lambda: isinstance(app.screen, Flows), driver)
-        assert rows(app) == ["0", "1", _BUDGET, _SAVE]
+        assert rows(app) == ["0", "1", _BUDGET]
 
         await onto(app, driver, "1")
         await driver.press("enter")
@@ -280,7 +281,7 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
         await until(lambda: isinstance(app.screen, Flows), driver)
 
         await _budgets(app, driver, "1h")
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
@@ -313,7 +314,7 @@ async def test_explicit_flow_save_refuses_an_agent_with_no_model(
             await driver.press("enter")
             await until(lambda: sheet._inside, driver)
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await driver.pause()
 
@@ -342,7 +343,7 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_is_given_a_budget(
         await until(lambda: sheet._inside, driver)
         assert "none set" in _value(app, _BUDGET)
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await driver.pause()
         assert app.screen is sheet
@@ -364,7 +365,7 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_is_given_a_budget(
         await until(lambda: app.screen is sheet, driver)
         assert "stops at 1h30m" in _value(app, _BUDGET)
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
@@ -392,12 +393,12 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
         await until(lambda: isinstance(app.screen, Flows), driver)
         sheet = cast("Flows", app.screen)
         await until(lambda: sheet._inside, driver)
-        assert rows(app) == ["0", "@repo", _BUDGET, _SAVE]
+        assert rows(app) == ["0", "@repo", _BUDGET]
         assert "not set" in _value(app, "@repo")
 
         # Not said, so not saved: a run of it would be refused before it started.
         await _budgets(app, driver, "1h")
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await driver.pause()
         assert "repo is not configured yet" in _said(app)
@@ -424,7 +425,7 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
         await until(lambda: app.screen is sheet, driver)
         assert f"local@{tmp_path}" in _value(app, "@repo")
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 

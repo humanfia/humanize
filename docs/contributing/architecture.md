@@ -28,8 +28,8 @@ same table, so an import that breaks it fails the run.
 | --- | --- |
 | how a coding agent CLI is driven, or its accounts, models, fallbacks or prices | `coganchor/` |
 | the machine an agent's turns land on | `coganchor/machines/`, per [Machines](/reference/machines#writing-a-machine-of-your-own) |
-| a type, mixin, hook or error a flow imports | `flows/`, then check [humanfia/flowverse](https://github.com/humanfia/flowverse) still works |
-| how a flow runs: the engine, budgets, resuming, the harness and environment drivers | `runtime/flowing/`, then check humanfia/flowverse too |
+| a type, mixin, hook or error a flow imports | `flows/`, then check the flows [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still work |
+| how a flow runs: the engine, budgets, resuming, the harness and environment drivers | `runtime/flowing/`, then check those flows too |
 | the `hmz exec` line: a flag, a refusal | `runtime/runner.py` |
 | what a run writes down | `runtime/epic.py` |
 | reading a backend's logs back as a trace | `runtime/tracing/` |
@@ -39,7 +39,7 @@ same table, so an import that breaks it fails the run.
 | runs kept going after the terminal closes, and the socket frontends reach them over | `daemon/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
-| a flow humanize offers | [humanfia/flowverse](https://github.com/humanfia/flowverse). `flows/builtin/` holds `chat` alone |
+| a flow humanize ships | `flows/builtin/`. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
 
 Nothing sits at the top of `src/hmz/` but `__init__.py` and `__main__.py`. Name a module for
 what it holds, in the words `hmz` and these docs use.
@@ -146,8 +146,8 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
 
    `tests/unit/flows/test_harness_table.py` and `tests/unit/flows/test_harness_mapping.py`
    each want a row for it, and `tests/flows/contracts.py` holds its driver to what the engine
-   expects. A change here also checks
-   [humanfia/flowverse](https://github.com/humanfia/flowverse) still works.
+   expects. A change here also checks the flows
+   [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still work.
 
 ### 3. Read it back, in `runtime/tracing/` and `tui/`
 

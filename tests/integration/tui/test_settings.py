@@ -536,7 +536,6 @@ def test_settings_offers_its_pages_by_name() -> None:
         "accounts",
         "fallback",
         "runtimes",
-        "flowverses",
         "workspace",
     ]
     assert offered("/settings ac", _COMMANDS) == ["accounts"]
@@ -551,11 +550,11 @@ def test_settings_offers_its_pages_by_name() -> None:
     ("page", "tab"),
     [
         ("general", 0),
-        ("workspace", 5),
+        ("workspace", 4),
         # And by the names they had, which fingers still know.
         ("settings", 0),
         ("everywhere", 0),
-        ("directory", 5),
+        ("directory", 4),
         ("Accounts", 1),
         ("runtimes", 3),
         ("environments", 3),

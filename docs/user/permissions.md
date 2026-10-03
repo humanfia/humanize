@@ -74,7 +74,7 @@ Most roles run at that default. These are the ones that do not:
 | --- | --- | --- |
 | [`aot`](/flows/aot) | `critic` | `local=READ`, `online=NONE`: it reads the draft and never writes |
 | [`parallel_flame_chase`](/flows/parallel-flame-chase) | every agent | `ALL` in every scope, `online` included |
-| [`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr) | the lane agents | the default, with `user=ALL` |
+| [`parallel_flame_chase:git_pr`](/flows/parallel-flame-chase-git-pr) | the lane agents | the default, with `user=ALL` |
 | [`recursive_lean_prover`](/flows/recursive-lean-prover) | `worker`, `reviewer` | `local=ALL`, `user=ALL`, `system=READ`, `online=ALL` |
 
 A flow's own page says what its roles are granted.
@@ -202,8 +202,8 @@ grants it `online` of `NONE` is refused (see
 
 ### Change what a role may touch
 
-Copy the flow into your project: in `/flow`, walk to it and choose `copy <flow> here` below the
-flows. Then change the role's grant in the copy, as [Writing a flow](/weaver/writing-a-flow)
+Copy the flow into your project: in `/flow`, put the cursor on it and press **Copy here** under
+the list. Then change the role's grant in the copy, as [Writing a flow](/weaver/writing-a-flow)
 shows. The copy runs as `local/<flow>`.
 
 ### On a machine somebody else manages

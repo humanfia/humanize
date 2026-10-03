@@ -70,7 +70,7 @@ What an agent may touch and what it carries are declared by the flow too:
 | | |
 | --- | --- |
 | [Testing a flow](/weaver/testing-flows) | The flow run on scripted agents: milliseconds, and nothing spent |
-| [Flowverses](/weaver/flowverses) | A git repository of flows, offered by name and callable by ref |
+| [Flowverses](/weaver/flowverses) | Publish a flow by release, for anybody to install by name or call by ref |
 
 ## Next steps
 

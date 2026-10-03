@@ -16,7 +16,15 @@ if TYPE_CHECKING:
     import os
     from pathlib import Path
 
-    from hmz.runtime.flowing import Declaration, Flowverse, LiveCall, Offer
+    from hmz.runtime.flowing import (
+        Declaration,
+        Flowverse,
+        Index,
+        Installed,
+        LiveCall,
+        Offer,
+        Update,
+    )
 
 __all__ = ["Flows", "Flowverses"]
 
@@ -27,10 +35,10 @@ _NOWHERE = "-"
 
 
 class Flowverses:
-    """Where flows come from: what places there are, and the three things that happen to one.
+    """Where flows come from: what places there are, what their indexes list, and what is installed.
 
-    The same directories every way in walks, so that a flowverse added from a command line is
-    one the interface offers a moment later.
+    The same directories every way in walks, so that a flowverse added or a flow installed from
+    a command line is one the interface offers a moment later.
     """
 
     def all(self) -> list[Flowverse]:
@@ -52,7 +60,7 @@ class Flowverses:
         return verses.named(name)
 
     def add(self, url: str, name: str = "") -> Flowverse:
-        """Fetches a place and offers its flows under a name.
+        """Fetches an index, and offers what is installed out of it under a name.
 
         Args:
           url: A URL, a path, or `owner/repo` for one on GitHub.
@@ -88,7 +96,7 @@ class Flowverses:
         return verses.fetch(name)
 
     def remove(self, name: str) -> bool:
-        """Takes one away, flows and all.
+        """Takes one away: its index, and every flow installed out of it.
 
         Args:
           name: What it is listed under.
@@ -105,7 +113,7 @@ class Flowverses:
         return verses.remove(name)
 
     def holds(self, one: Flowverse) -> list[Offer]:
-        """What one place holds, by the name each flow is offered under.
+        """What one place holds to run, by the name each flow is offered under.
 
         Reading a flow means running it, so this is the one question about a place with no
         cheap answer -- and it is asked of the place named rather than of all of them.
@@ -114,12 +122,75 @@ class Flowverses:
           one: The flowverse.
 
         Returns:
-          One offer per flow in it: just the ones in the package for humanize's own before it
-          has been fetched, and nothing at all for any other that has not been.
+          One offer per flow installed out of it, or written into it for your own two: the
+          ones in the package as well for humanize's own. Never a flow its index only lists.
         """
         from hmz.runtime.flowing import offers
 
         return offers(one)
+
+    def index(self, name: str) -> Index:
+        """Every release one place's index lists, as it was last fetched.
+
+        Args:
+          name: The flowverse.
+
+        Returns:
+          Its releases, newest first within each flow, and the manifests that did not read
+          with why. Nothing for a place that is not an index or has not been fetched.
+        """
+        from hmz.runtime.flowing.index import index
+
+        return index(name)
+
+    def install(self, flow: str, version: str = "") -> list[Installed]:
+        """Installs one release of a flow out of its index, and what it needs.
+
+        Args:
+          flow: `<flowverse>/<flow>`, or a bare name for one of `official`'s.
+          version: The release, or "" for the newest that is not a prerelease. Naming another
+            release of a flow that is installed switches it to that one.
+
+        Returns:
+          What is installed now of each flow the install came to, the one asked for last.
+
+        Raises:
+          ValueError: If the index lists no such release, or what it needs cannot be had
+            without a cycle or without breaking another installed flow.
+          OSError: If a repository cannot be fetched, or the flow cannot be copied.
+        """
+        from hmz.runtime.flowing.index import install, split
+
+        return install(*split(flow), version)
+
+    def uninstall(self, flow: str) -> bool:
+        """Takes one installed flow away.
+
+        Args:
+          flow: `<flowverse>/<flow>`, or a bare name for one of `official`'s.
+
+        Returns:
+          Whether there was one to take away.
+
+        Raises:
+          ValueError: If another installed flow needs it.
+          OSError: If it will not go.
+        """
+        from hmz.runtime.flowing.index import split, uninstall
+
+        return uninstall(*split(flow))
+
+    def installed(self) -> list[Installed]:
+        """Every flow installed out of an index, and the release each is at."""
+        from hmz.runtime.flowing.index import installed
+
+        return installed()
+
+    def updates(self) -> list[Update]:
+        """Every installed flow its index lists a newer release of, as last fetched."""
+        from hmz.runtime.flowing.index import updates
+
+        return updates()
 
     def edited(self, one: Flowverse) -> bool:
         """Whether one has anything written into it that fetching it again would undo.

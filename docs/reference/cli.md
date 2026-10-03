@@ -165,19 +165,21 @@ limit         = ( "duration" | "cost" | "output_tokens" | "graceful" ) , "=" , ?
 ```text
 ref = [ flowverse , "/" ] , flow , [ ":" , name ]
     | path
-    | "git+" , url , [ "@" , rev ] , "#" , flow , [ ":" , name ] ;
+    | "git+" , url , [ "@" , rev ] , [ "#" , subdir ] , [ ":" , name ] ;
 ```
 
 | Form | Resolves to |
 | --- | --- |
-| `<flow>` | The first flow of that name, looking in `local`, `user`, `official`, then added flowverses (the order of [`Flowverses.nearest`](/reference/sdk#flowverses)). |
-| `<flowverse>/<flow>` | That flowverse's flow. `local/…` is `./.humanize/flows/`, `user/…` is `~/.humanize/flows/`. |
+| `<flow>` | The first flow of that name, looking in `local`, `user`, `official` (built in, then installed), then the flows installed from added flowverses (the order of [`Flowverses.nearest`](/reference/sdk#flowverses)). |
+| `<flowverse>/<flow>` | The flow installed from that flowverse. `local/…` is `./.humanize/flows/`, `user/…` is `~/.humanize/flows/`. |
 | `…:<name>` | Another flow defined in the same module. |
 | a path (`./x`, `/x`, `x.py`) | That directory or file. |
-| `git+<url>[@<rev>]#<flow>[:<name>]` | A flow of a repository, cloned and pinned at that revision. |
+| `git+<url>[@<rev>][#<subdir>][:<name>]` | The flow in `<subdir>` of a repository (its root without `#`), cloned and pinned at that revision, installing nothing: `git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr`. |
 
-Resolution, module loading and the several-flows-per-module rule are specified in
-[Flows › Where flows live](/reference/flows#where-flows-live) and
+A flow a flowverse's index lists is not run until it is installed (`hmz exec` installs
+nothing): naming one is refused with `<name>: not installed -- install it from /flow
+(flowverse <flowverse>)`. Resolution, module loading and the several-flows-per-module rule are
+specified in [Flows › Where flows live](/reference/flows#where-flows-live) and
 [Flows › Refs](/reference/flows#refs).
 
 ### Writing an agent (`-a`) {#writing-an-agent}
@@ -357,7 +359,7 @@ Stage 1–2 messages are preceded by the usage block.
 | a `-b` key twice | `-b: duplicate key '<key>'` |
 | a `-b` value | `-b duration: '<v>' names a unit twice`, `-b duration: '<v>' is not a valid duration: must be finite and not negative`, `-b duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`, `-b cost: '<v>' is not a valid USD cost`, `-b output_tokens: '<v>' must be a whole number of tokens`, `-b output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`, `-b graceful: '<v>' must be true or false` |
 | a `-b` that limits nothing | `-b: Value error, a budget sets at least one of duration, cost, output_tokens` |
-| no such flow | `<ref>: no flow is called '<ref>', and it is not a path`; `<ref>: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet` |
+| no such flow | `<ref>: no flow is called '<ref>', and it is not a path`; `<ref>: not installed -- install it from /flow (flowverse <flowverse>)`; `<ref>: the official flowverse has not been fetched yet -- fetch it from /flow` |
 | a role the flow does not declare | `<flow> has no agent role '<role>'; available roles are '<a>', '<b>'` (`… environment role …` for `-e`; `none` where there are none) |
 | a role the runtime fills | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a`; `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
 | a required role unfilled | `<flow> needs an agent for '<role>'; specify each with -a ROLE=CLI/MODEL:EFFORT`; `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR` |
@@ -732,7 +734,7 @@ is [Files](/reference/files).
 | `daemons/<project>-<digest>/` | `hmz` | the [host's](/reference/daemon#files) socket, record, lock and log |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
 | `providers/`, `runtimes/`, `fallbacks.json`, `acp.json`, `models/` | all | read when an agent or environment is opened |
-| `flowverses/`; `~/.humanize/flows/` and `./.humanize/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
+| `installed/`, `flowverses/`; `~/.humanize/flows/` and `./.humanize/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 
 ## Python equivalents {#python-entry-points}
 

@@ -2,27 +2,34 @@
 pageClass: hmz-feature
 ---
 
-# ralph_loop_agent_cleanup
+# agent_cleanup:ralph_loop
 
 Keep a long run's workspace tidy. [ralph_loop](/flows/ralph-loop), with a `cleaner` that
 steps in every few turns: it keeps the work, deletes what strayed, writes down what is next,
 and the repository's history becomes one commit of what survived. The same cleaner between two
-agents taking turns is [flame_chase_agent_cleanup](/flows/flame-chase-agent-cleanup).
+agents taking turns is [agent_cleanup:flame_chase](/flows/flame-chase-agent-cleanup).
 
 <Badge type="warning" text="every role: claude · codex · kimi · pi" />
 
 ::: code-group
 
 ```text [at the prompt]
-❯ $ralph_loop_agent_cleanup make every test in tests/ pass
+❯ $agent_cleanup:ralph_loop make every test in tests/ pass
 ```
 
 ```sh [hmz exec]
-hmz exec -f ralph_loop_agent_cleanup \
+hmz exec -f agent_cleanup:ralph_loop \
     -a agent=claude/claude-opus-5:high -a cleaner=claude/claude-opus-5:high \
     -p work_paths=src -b duration=12h,cost=100 "$(cat TASK.md)"
 ```
 
+:::
+
+::: tip Install it first
+It is not built in. It is a flow of the `agent_cleanup` module: type `/flow`, press
+**Install more…**, open `official` and install `agent_cleanup`, which brings
+`agent_cleanup:flame_chase` with it. Its code is
+[humanfia/flow-agent-cleanup](https://github.com/humanfia/flow-agent-cleanup).
 :::
 
 <HmzFlow flow="ralph_loop_agent_cleanup" />
@@ -30,8 +37,7 @@ hmz exec -f ralph_loop_agent_cleanup \
 ::: danger Each cleaning rewrites your git history
 Every cleaning replaces the repository's history with a single commit, `epoch N: distilled
 tree`. The history it replaces is archived outside the repository, never deleted; the flow's
-[README](https://github.com/humanfia/flowverse/blob/main/flows/ralph_loop_agent_cleanup/_ralph_loop_agent_cleanup/README.md#history-archive)
-says how to read it back. Run this on a clone you are willing to have rewritten.
+[README](https://github.com/humanfia/flow-agent-cleanup) says how to read it back. Run this on a clone you are willing to have rewritten.
 :::
 
 ## When to use it
@@ -82,6 +88,6 @@ when it would have. See [Picking a run up](/user/resuming).
 ## See also
 
 - [ralph_loop](/flows/ralph-loop): the loop, without the cleaning
-- [flame_chase_agent_cleanup](/flows/flame-chase-agent-cleanup): the same cleaning, between two
+- [agent_cleanup:flame_chase](/flows/flame-chase-agent-cleanup): the same cleaning, between two
   chasers
 - [Talking to a running turn](/user/steering): what telling a turn to wrap up is

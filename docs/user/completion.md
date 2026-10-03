@@ -47,9 +47,9 @@ With no flow running, type `/`:
   <span class="p">/clear</span>             <span class="p">Clear the screen</span>
   <span class="p">/epics</span>             <span class="p">View and manage runs in this directory</span>
   <span class="p">/exit</span>              <span class="p">Exit</span>
-  <span class="p">/flow</span> <span class="m">[flow]</span>       <span class="p">Switch flow</span>
+  <span class="p">/flow</span> <span class="m">[flow]</span>       <span class="p">Choose, set up and install flows</span>
   <span class="p">/resume</span>            <span class="p">Resume the last run in this directory</span><span class="n">2</span>
-  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: general, accounts, fallback, runtimes, flowverses, workspace</span>
+  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: general, accounts, fallback, runtimes, workspace</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="d">❯</span> /
 <span class="d">────────────────────────────────────────────────────────────</span>
@@ -95,7 +95,7 @@ What to look at, by number:
 | --- | --- |
 | `/` | every command that would do something now, with what it takes after its name and what it is for |
 | `/flow ` | every flow you can run here, by the name it is offered under |
-| `/settings ` | its six pages: `general`, `accounts`, `fallback`, `runtimes`, `flowverses`, `workspace` |
+| `/settings ` | its five pages: `general`, `accounts`, `fallback`, `runtimes`, `workspace` |
 | `$` | the same flows, as `$name`. `$ralph_loop fix the build` starts that flow on that task. |
 
 The commands follow what is going on. `/stop` is listed while a flow runs and not once it is
@@ -104,15 +104,16 @@ outworlder's transcript that nobody else holds. While a flow runs, no flow is of
 `/flow ` or `$`, and `/flow` reads `Set up the running flow's agents`. A command that is not
 listed can still be typed, and says why it did nothing.
 
-The flows are the ones humanize ships, the ones in every [flowverse](/weaver/flowverses)
-fetched here, and your own. Each is offered under one name:
+The flows are the ones humanize ships, the ones you installed from a
+[flowverse](/weaver/flowverses), and your own. A flow a flowverse lists is offered once it is
+installed. Each is offered under one name:
 
 | Where the flow comes from | Offered as |
 | --- | --- |
-| humanize itself, or the official flowverse | a bare name: `chat`, `ralph_loop` |
+| humanize itself, or installed from the official flowverse | a bare name: `chat`, `ralph_loop` |
 | this project's `.humanize/flows/` | `local/twice` |
 | `~/.humanize/flows/` | `user/twice` |
-| any other flowverse | `<flowverse>/<flow>` |
+| installed from any other flowverse | `<flowverse>/<flow>` |
 
 ## The keys
 
@@ -132,7 +133,7 @@ you brought back from [history](/user/history).
 - **Start a flow in one line.** `$` then <kbd>tab</kbd> on a flow, a space, and the task:
   `$ralph_loop fix the build`. A flow that is set up here starts at once; one that is not
   opens `/flow` on its roles, holding your line.
-- **Go straight to a settings page.** `/settings ` offers its six pages: `/settings accounts`
+- **Go straight to a settings page.** `/settings ` offers its five pages: `/settings accounts`
   opens the Accounts page. See [Settings](/user/settings).
 - **Narrow a long menu.** The menus behind the commands list flows, models, accounts, runs and
   fallbacks. Choose the `search…` row below the list and type: a row stays if the letters you
@@ -163,8 +164,8 @@ list away first, or finish the word so the list closes.
 
 ### No flows are offered after `$`
 
-A flow is running, and another cannot be chosen until it stops. Or the flowverses have not been
-fetched yet: open `/settings flowverses` and fetch `official`.
+A flow is running, and another cannot be chosen until it stops. A flow that is offered nowhere
+has not been installed: type `/flow` and press **Install more…**.
 
 ### No list appears at all
 

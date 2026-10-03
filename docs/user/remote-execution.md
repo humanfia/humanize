@@ -68,8 +68,8 @@ ends:
   already at the path you will name. You install nothing else there: humanize brings what it
   needs.
 - **This machine is Linux** on x86-64 or aarch64.
-- **A flow with a role for another machine.** The flows humanize and the official flowverse
-  ship all work in the directory you start in, so none of them takes an `-e`. This page uses
+- **A flow with a role for another machine.** The flows humanize ships and the official
+  flowverse lists all work in the directory you start in, so none of them takes an `-e`. This page uses
   [`onbox`](#the-flow-used-on-this-page), a two-role flow you can save into your project.
 
 ## How remote execution works

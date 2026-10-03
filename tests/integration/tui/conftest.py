@@ -8,15 +8,14 @@ these take tens of seconds, and none of them needs anything CI cannot be relied 
 The first two fixtures below are what makes that second half true, and both are autouse, which
 means they reach a test through the conftest of the directory it is collected from. A file
 that moved out of `tests/tui/` without them would not fail -- it would pass differently.
-`_fetches_nothing` is the only thing stopping the flow menu cloning humanize's own flowverse
-from GitHub as a test opens it: taking it off this directory and running the tier again is 116
-tests passing and 138 clones of `github.com/humanfia/flowverse`, which is a suite that is slow
-on a network and fails without one, and that says nothing either way. `_elsewhere` is the same
+`_fetches_nothing` is the only thing stopping the interface cloning humanize's own flowverse
+from GitHub as a test opens it, which is a suite that is slow on a network and fails without
+one, and that says nothing either way. `_elsewhere` is the same
 shape: it runs each test somewhere temporary with no backend installed, so a test that lost it
 reads the developer's own PATH.
 
-`catching_up` and `freshening` are the other half of that pair: they hand the fetch back to a
-test that is about the fetching. `_linked_to_nothing` and `hosting` are one more such pair: every
+`freshening` is the other half of that pair: it hands the fetch back to a test that is about
+the fetching. `_linked_to_nothing` and `hosting` are one more such pair: every
 interface here is opened on a fake end of the runs that writes down what it asks, and a test
 that runs a flow through the interface asks for runs held in its own process back.
 
@@ -47,7 +46,6 @@ from tests.tui.fixtures import (
     _elsewhere,
     _fetches_nothing,
     _linked_to_nothing,
-    catching_up,
     freshening,
     hosting,
 )
@@ -56,7 +54,6 @@ __all__ = [
     "_elsewhere",
     "_fetches_nothing",
     "_linked_to_nothing",
-    "catching_up",
     "freshening",
     "hosting",
 ]

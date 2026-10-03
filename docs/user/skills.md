@@ -156,8 +156,8 @@ and fetched again each time a run needs them, so they keep up with the repositor
 
 ### Change what a flow brings
 
-Copy the flow into your project: in `/flow`, walk to it and choose `copy <flow> here` below the
-flows. The copy lands in `.humanize/flows/`, skills and all, and is yours to edit: its
+Copy the flow into your project: in `/flow`, put the cursor on it and press **Copy here** under
+the list. The copy lands in `.humanize/flows/`, skills and all, and is yours to edit: its
 `skills/`, and which roles carry them, as [Writing a flow](/weaver/writing-a-flow) shows.
 
 ### Keep one of yours in place of the flow's

@@ -254,7 +254,7 @@ async def aimed(
 ) -> None:
     """The task as a goal, then one more turn to write it up."""
     builder = agents["builder"]
-    goal = load("git+https://github.com/humanfia/flowverse@main#goal")  # ②
+    goal = load("goal")  # ②
     await goal(
         task,
         agents={"worker": builder},  # ③
@@ -270,9 +270,11 @@ async def aimed(
 1. **`GoalCommandAgentMixin` on your role**, because `goal`'s `worker` role asks for it. An
    agent reaches your flow granted what **your** role declared, and that is all it can pass
    on, whatever its CLI could do.
-2. **A git ref**, written the way pip writes one: the repository, `@` a branch, tag or commit,
-   and `#` the flow. It is fetched the first time you call it, once per URL and revision per
-   run. Once the official flowverse is fetched, `load("goal")` finds the same flow by name.
+2. **A name.** `goal` is built into humanize, so it is there on every machine. A flow of
+   another repository is named by a git ref instead, written the way pip writes one: the
+   repository, `@` a branch, tag or commit, and `#` the directory the flow is in, as in
+   `git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr`. It is fetched the
+   first time you call it, once per URL and revision per run.
 3. **`"worker"`** is `goal`'s role name. Your `builder` fills it.
 4. **`envs={}`** leaves `goal`'s `workspace` out. It is a `LocalEnv`, which the run fills, so
    the callee gets the run's own directory.
@@ -322,7 +324,7 @@ async def test_the_goal_goes_first_then_the_write_up() -> None:
 ```
 
 1. **Both flows' sessions are the driver's**: the first opened by `goal`, the second by
-   `aimed`. The test fetches the flowverse the first time it runs, as `hmz exec` does.
+   `aimed`.
 
 ## Name the flow
 
@@ -331,10 +333,11 @@ async def test_the_goal_goes_first_then_the_write_up() -> None:
 | `:one-step` | another `@flow` in the same module as the flow asking |
 | `ralph_loop` | a flow by its directory: the flow named after it, else the only visible one |
 | `humanize1:rlcr` | one flow of several in a directory |
-| `git+<url>@<rev>#humanize1:rlcr` | a flow of another flowverse, at a branch, tag or commit |
+| `git+<url>@<rev>#humanize1:rlcr` | a flow of a repository, in the directory after `#` (its root without one), at a branch, tag or commit |
 
-A name is looked for beside the flow asking first, in its own flowverse, and then wherever
-`-f` looks, nearest first. A bare name for a directory of several visible flows, such as
+A name is looked for beside the flow asking first, among the flows of its own directory (for a
+flow installed from a [flowverse](/weaver/flowverses), the others installed from it), and then
+wherever `-f` looks, nearest first. A bare name for a directory of several visible flows, such as
 `humanize1`, raises `FlowNotFound` listing them: name one. A git ref that cannot be fetched
 raises `FlowNotFound` too.
 

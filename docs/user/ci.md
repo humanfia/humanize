@@ -12,7 +12,7 @@ CLI signs in with, and run the same line CI will run, on your own machine first:
 
 ```sh
 hmz exec \
-    -f 'git+https://github.com/humanfia/flowverse@main#ralph_loop' \
+    -f ralph_loop \
     -a agent=claude/claude-opus-5:high \
     -b duration=45m,cost=20 \
     "$(cat TASK.md)"
@@ -47,13 +47,13 @@ A CI runner starts empty every time. That shapes the whole job:
 | --- | --- | --- |
 | `hmz` and the agent's CLI are installed | nothing is | installs both, every run |
 | the CLI is signed in | it is not | signs it in from a secret |
-| the official flowverse is fetched | nothing is | names the flow by its repository |
+| the flows you installed are there | only the built-in ones are | names any other flow by its repository |
 | `hmz` keeps a price list for `cost` | there is none | fetches it before the first turn |
 | `/epics` reads a run back | there is no prompt | traces the run from a script |
 | a stopped run can be picked up | nothing of a last run is kept | never uses `--resume` |
 
 `hmz exec` does not open on what the interface was set up with in any directory. It uses what
-the machine holds: the flowverses it has fetched, its [accounts](/user/settings#accounts), its
+the machine holds: the flows installed on it, its [accounts](/user/settings#accounts), its
 [fallbacks](/user/settings#fallback), any CLI added on the Accounts page of `/settings`, whether
 [reporting](/user/reporting) was answered yes, and whether this directory's runs are
 [profiled](/user/tracing#profiling-a-run). A fresh runner holds none of these, so on a runner
@@ -98,7 +98,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           hmz exec \
-            -f 'git+https://github.com/humanfia/flowverse@main#ralph_loop' \
+            -f ralph_loop \
             -a agent=claude/claude-opus-5:high \
             -b duration=45m,cost=20 \
             "$(cat TASK.md)"
@@ -206,15 +206,17 @@ Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/
 
 ## Name the flow by its repository
 
-A fresh runner has fetched no flowverse, so a bare `-f ralph_loop` is refused there with
-`the official flowverse has not been fetched yet`. Name the flow by its repository instead, as
-the workflow does:
+`ralph_loop` is built into humanize, so `-f ralph_loop` runs on a fresh runner as it is. A flow
+you [install](/weaver/flowverses) from a flowverse is not there: a fresh runner has fetched no
+flowverse and installed nothing, so `-f parallel_flame_chase` is refused with
+`the official flowverse has not been fetched yet`. Name that release by its repository
+instead, which fetches it for the run and installs nothing:
 
 ```sh
--f 'git+https://github.com/humanfia/flowverse@main#ralph_loop'
+-f 'git+https://github.com/humanfia/flow-parallel-flame-chase@v0.1.0#parallel_flame_chase'
 ```
 
-Replace `main` with a commit to pin the flow, so a change upstream cannot change what runs at
+The `@v0.1.0` is a tag; a commit pins the flow so that nothing upstream can change what runs at
 night. A flow of your own needs none of this: commit it to `.humanize/flows/` and name it with
 `-f <name>`.
 

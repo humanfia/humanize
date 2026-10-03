@@ -31,9 +31,9 @@ a command. What each agent may touch is set by the flow. See [Permissions](/user
 - **humanize installed**, so `hmz` is on your `PATH`. See [Installation](/user/installation).
 - **A coding agent CLI, installed and signed in** on this machine. `hmz exec` runs it as it is
   signed in, unless you name an [account](/user/settings#accounts).
-- **The flow within reach.** `ralph_loop` comes from the official flowverse, which `hmz`
-  fetches each time it starts. On a machine that has never run `hmz`, name the flow by its
-  repository instead, as [in CI](/user/ci#name-the-flow-by-its-repository).
+- **The flow within reach.** `ralph_loop` is built into humanize. A flow you install from a
+  [flowverse](/weaver/flowverses) is there once it is installed; on a machine where it is not,
+  name the flow by its repository instead, as [in CI](/user/ci#name-the-flow-by-its-repository).
 - **A task**, as text. Keeping it in a file such as `TASK.md` lets the line stay short and the
   task be reviewed like any other file.
 
@@ -352,9 +352,10 @@ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 \
 
 ## Pitfalls
 
-- **`the official flowverse has not been fetched yet`.** The machine has never run `hmz`, so
-  no flowverse is here. Name the flow by its repository, `-f
-  'git+https://github.com/humanfia/flowverse@main#ralph_loop'`, or open `hmz` once.
+- **`not installed -- install it from /flow`, or `the official flowverse has not been
+  fetched yet`.** The flow is one a flowverse lists, and this machine has not installed it.
+  Install it from `/flow`, or name the release by its repository, `-f
+  'git+https://github.com/humanfia/flow-parallel-flame-chase@v0.1.0#parallel_flame_chase'`.
 - **A `cost` limit that never stops the run.** The model has no price, and the line said so
   before the first turn. Add `duration` or `output_tokens`.
 - **The CLI is not signed in.** Nothing catches it before the run: each turn fails, and a loop

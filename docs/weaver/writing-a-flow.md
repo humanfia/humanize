@@ -253,7 +253,7 @@ taking its name:
 | --- | --- | --- |
 | `.humanize/flows/twice/` in the project | `-f twice` | `$local/twice` |
 | `~/.humanize/flows/twice/` | `-f twice`, when the project has none of that name | `$user/twice` |
-| the flows humanize ships, and the [flowverses](/weaver/flowverses) you have added | `-f ralph_loop`, `-f theirs/review` | `$ralph_loop`, `$theirs/review` |
+| the flows humanize ships, and those you installed from a [flowverse](/weaver/flowverses) | `-f ralph_loop`, `-f theirs/review` | `$ralph_loop`, `$theirs/review` |
 | anywhere else | `-f ./path/to/twice` | |
 
 `-f local/twice` and `-f user/twice` say which one outright.

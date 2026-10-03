@@ -93,16 +93,20 @@ A flow whose card says what `--resume` keeps carries on from there, under a fres
 
 | You type | The flow is |
 | --- | --- |
-| `ralph_loop` | one of humanize's own: `chat` ships with humanize, and the rest are in [humanfia/flowverse](https://github.com/humanfia/flowverse) |
-| `local/scheduler` | one of this project's, in `.humanize/flows/` |
-| `user/scheduler` | one of yours, in `~/.humanize/flows/` |
-| `theirs/rlar` | one from a flowverse you added in `/settings` |
+| `ralph_loop` | built into humanize: `chat`, `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` and `rlar` |
+| `parallel_flame_chase` | one you installed from humanize's official flowverse, [humanfia/flowverse](https://github.com/humanfia/flowverse) |
+| `theirs/review` | one you installed from a flowverse you added |
+| `local/scheduler` | one of this project's, in `.hmz/flows/` |
+| `user/scheduler` | one of yours, in `~/.hmz/flows/` |
 
-A **flowverse** is any git repository with a `flows/` directory. [Writing a
+A **flowverse** is an index of flows: each release of a flow is a manifest naming the
+repository it lives in and the commit it is. Every flow on these pages that is not built in
+lives in a repository of its own and runs once you install it: type `/flow`, press
+**Install more…**, open `official`, and install the flow from there. [Writing a
 flow](/weaver/writing-a-flow) is how to make your own, and [Flowverses](/weaver/flowverses) is
 how to publish one.
 
-::: danger Adding a flowverse trusts that repository with this machine
-A flow is Python, and listing what a flowverse holds runs every flow file in it. Add only the
-ones you would clone and run.
+::: danger Installing a flow trusts its repository with this machine
+A flow is Python, and once it is installed humanize imports it whenever it lists flows. Install
+only the ones you would install as a package.
 :::

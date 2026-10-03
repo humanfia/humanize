@@ -166,8 +166,7 @@ git diff before
 
 | If | Then |
 | --- | --- |
-| `hmz` says `no such flow` | It downloads the official flows in the background as it starts. Give it a few seconds and send the line again. |
-| `hmz exec` says `not been fetched yet` | `hmz exec` downloads nothing. Open `hmz`, type `/settings flowverses`, open `official` and choose `fetch`. |
+| `hmz exec` says `not installed` | `ralph_loop` is built in; a flow from a [flowverse](/weaver/flowverses) runs once installed. Open `hmz`, type `/flow`, press **Install more…**, open `official` and install it. |
 | the model is refused | Model ids change with each CLI release, and your account decides which you may use. In `hmz`, type `/flow ralph_loop` and open the `agent` row: it lists the models your CLI offers. |
 | your CLI is not in the tabs | Every backend, and how to sign each one in, is on [Installation](/user/installation). |
 
@@ -262,7 +261,7 @@ patch](/contributing/tutorials/first-patch) takes one change from a clone to a p
   </a>
   <a :href="withBase('/flows/')">
     <strong>Flows</strong>
-    <span>Every flow in humanize and its official flowverse, each with its loop played.</span>
+    <span>Every flow humanize ships or its official flowverse lists, each with its loop played.</span>
   </a>
   <a :href="withBase('/weaver/')">
     <strong>Weaver Guide</strong>
