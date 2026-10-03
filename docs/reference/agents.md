@@ -618,6 +618,7 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 | `missing` | nothing to run: exit 126 or 127 |
 | `sandboxed` | the CLI could not start its own sandbox (`bwrap: `, `cannot create … namespace`, …) |
 | `unmirrored` | the copy of another machine's work a harness here keeps could not be made at its path (`cannot keep the local copy of the work at`); read first of all, ahead of the `Permission denied` it usually carries |
+| `fenced` | the run's network fence kept it off a host (`is not a host this run may reach`, the fence proxy's `403`); read ahead of the credentials |
 | `killed` | a signal, or exit 129–192, or `out of memory`, `SIGKILL`, `segmentation fault`, … |
 | `dropped` | the wire (`ECONNRESET`, `broken pipe`, `fetch failed`, `502`/`503`/`504`, `timed out`, …) |
 
@@ -1105,6 +1106,7 @@ Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
 | `retired` | none | — | no | the model is gone or was never this account's; another place is what answers it |
 | `contended` | 3 | constant | no | two turns of it are sharing one database |
 | `dropped` | 1 | the place's | yes | |
+| `fenced` | none | — | no | the run's network fence keeps it off that host, which no sign-in answers; give the role online of ALL to let it through |
 | `killed` | 1 | constant | yes | the machine it runs on may be out of memory |
 | `missing` | none | — | no | |
 | `sandboxed` | none | — | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |

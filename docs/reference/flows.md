@@ -1724,7 +1724,7 @@ How a failed CLI turn maps to a leaf: the fault coganchor classifies is mapped
 `contended → HarnessContended`, `throttled`/`spent → HarnessThrottled`, `refused → HarnessRefused`,
 `unlisted`/`retired → ModelUnavailable`, `missing → HarnessMissing` (`HarnessNotInstalled` when
 the exit status is 127), `sandboxed → HarnessSandboxed`, `killed → HarnessKilled`,
-`dropped → HarnessDropped`, anything else (`unmirrored` among them) `HarnessUnrecoverable`. A turn stopped by the
+`dropped → HarnessDropped`, anything else (`unmirrored` and `fenced` among them) `HarnessUnrecoverable`. A turn stopped by the
 driver is `SessionError`.
 
 ## Testing a flow {#testing-a-flow}

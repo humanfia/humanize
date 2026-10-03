@@ -165,6 +165,9 @@ class Way:
 #: - `unmirrored`: this machine's filesystem, not the account. The copy of another machine's
 #:   workspace a harness here works in could not be made at its path -- one that may not be
 #:   created here, or that is not a directory -- and it says `Permission denied` too.
+#: - `fenced`: this run's network fence, not the account. The proxy a fenced turn reaches the
+#:   network through refuses a host the role may not reach with a `403`, and the CLI passes
+#:   that on as the `Forbidden` a refused credential is said in.
 #: - `killed`: the process died rather than answered -- a signal, an out-of-memory kill.
 #: - `dropped`: the wire. A connection reset, a broken pipe, a gateway that went away.
 FAULTS = (
@@ -177,6 +180,7 @@ FAULTS = (
     "missing",
     "sandboxed",
     "unmirrored",
+    "fenced",
     "killed",
     "dropped",
 )
@@ -221,6 +225,11 @@ SIGNS: tuple[Sign, ...] = (
     # workspace a harness here works in, and says so in these words
     # (`hmz.coganchor.anchor.UNMIRRORED`) ahead of why -- often `Permission denied`.
     Sign("unmirrored", r"cannot keep the local copy of the work at"),
+    # The run's own fence rather than the provider, and in front of the credentials for the
+    # same reason: the proxy that holds a fenced turn to the hosts its role may reach refuses
+    # any other with `403 Forbidden` and says so in these words
+    # (`hmz.coganchor.fence.proxy`), and nobody's sign-in was refused at all.
+    Sign("fenced", r"is not a host this run may reach"),
     # Two turns at one store rather than anything to do with an account: opencode keeps its
     # sessions in a SQLite database shared across workspaces, and the loser of that race is
     # told so before it has spoken to a provider at all. Transient, and nothing else fixes it.

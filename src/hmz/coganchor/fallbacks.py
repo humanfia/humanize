@@ -285,6 +285,16 @@ ANSWERS: tuple[Answer, ...] = (
         fix="that path cannot be made here; use a workdir whose path you can create here, "
         "or put self in the affinity of the runtime the work is on",
     ),
+    # The run rather than the account: the fence it was started under keeps it off a host,
+    # and the same fence keeps the next go off it too. Another place may need no such host,
+    # so it is walked away from rather than scheduled.
+    Answer(
+        "fenced",
+        "was kept off a host by this run's fence",
+        held=True,
+        fix="the run's network fence keeps it off that host, which no sign-in answers; "
+        "give the role online of ALL to let it through",
+    ),
     # The machine rather than anything a turn named. A CLI that confines its own tool calls
     # asks the kernel for the confinement, and a kernel that has just said no says no to the
     # next go: an unprivileged container is not somewhere bubblewrap works under a different

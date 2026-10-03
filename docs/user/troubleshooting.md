@@ -592,6 +592,19 @@ another machine, sign its CLI in there instead.
 
 **Verify.** The CLI answers when you run it yourself, and the next turn goes through.
 
+### `(fenced: the run's network fence keeps it off that host, which no sign-in answers; give the role online of ALL to let it through)`
+
+**Symptom.** A turn fails with this bracket, after the CLI said
+`hmz: <host>:<port> is not a host this run may reach`, often beside a `403 Forbidden`.
+
+**Cause.** The role has `online` of `NONE`, so its [fence](/user/permissions) lets it reach only
+the hosts its model and login are at, and the CLI reached for another. Nothing was wrong with
+the account. humanize moves straight on to the next place of the fallback chain.
+
+**Fix.** Give the role `online` of `ALL`, or point it at a model whose host the fence knows.
+
+**Verify.** The next turn goes through.
+
 ### `… this account signs in with a token that refreshes itself, and another turn is using it …` {#this-account-signs-in-with-a-token-that-refreshes-itself}
 
 **Symptom.** A turn fails with this line, or with

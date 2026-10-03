@@ -155,6 +155,9 @@ def test_what_a_cli_says_when_it_stops_is_read_as_the_kind_it_is() -> None:
         "bwrap: setting up uid map: Permission denied": "sandboxed",
         "hmz: cannot keep the local copy of the work at /home/me/x: "
         "Permission denied: /home/me": "unmirrored",
+        "403 Forbidden: hmz: api.example.com:443 is not a host this run may reach": (
+            "fenced"
+        ),
         "404 model not found: gpt-9": "retired",
         "SqliteError: database is locked": "contended",
         "hmz: this account signs in with a token that refreshes itself, and a copy of "
@@ -283,6 +286,30 @@ def test_a_credential_that_was_refused_is_not_tried_again_under_it(
     assert _took(tally) == ["main"]  # one go, and straight on to wherever is next
     assert narrated == []  # nowhere is, so nothing to narrate carrying on with
     assert "(refused: that account needs signing in again)" in said
+
+
+def test_a_host_the_fence_kept_it_off_is_not_an_account_to_sign_in_again(
+    accounts: None, tmp_path: Path
+) -> None:
+    """The fence proxy refuses with a `403`, and a `403` alone reads as a credential.
+
+    Found under real load: a turn the run's network fence kept off a host was told its account
+    needed signing in again, which is a person sent to fix a login that nothing refused. It
+    is said as the fence it was, and walked away from as a refusal is: the next go meets the
+    same fence.
+    """
+    tally = tmp_path / "took.txt"
+    agent, _narrated = _driving()
+
+    said = _fails(
+        agent,
+        tally,
+        "Error: 403 Forbidden: hmz: api.example.com:443 is not a host this run may reach",
+    )
+
+    assert _took(tally) == ["main"]
+    assert "(fenced: the run's network fence keeps it off that host" in said
+    assert "signing in again" not in said
 
 
 def test_a_rate_limit_waits_long_before_it_is_tried_again(

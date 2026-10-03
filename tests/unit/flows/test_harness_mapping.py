@@ -527,6 +527,8 @@ def _failed(fault: str = "", status: int = 1) -> Failed:
         (_failed("sandboxed"), HarnessSandboxed),
         (_failed("killed"), HarnessKilled),
         (_failed("dropped"), HarnessDropped),
+        # The run's own fence, which is humanize's and no sign-in of the account's.
+        (_failed("fenced"), HarnessUnrecoverable),
         (_failed(), HarnessUnrecoverable),
         (Unrecoverable(1, ["cli"], "", "too long"), HarnessUnrecoverable),
         (NotInstalled("claude is not on the target"), HarnessNotInstalled),
