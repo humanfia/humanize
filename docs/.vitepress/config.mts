@@ -379,6 +379,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'Architecture', link: '/contributing/architecture' },
+            { text: 'CI', link: '/contributing/ci' },
             { text: 'The regression matrix', link: '/contributing/regression-matrix' },
             { text: 'Working on these docs', link: '/contributing/docs' },
           ],

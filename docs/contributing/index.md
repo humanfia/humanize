@@ -68,16 +68,21 @@ test this machine cannot serve skips and says why in the summary, and the ones t
 real coding agent CLI wait for `--run-agents`.
 
 Run the system tier by hand when your change is one it covers. Its directories name the parts
-it drives for real: `agents/`, `coganchor/`, `machines/`, `providers/` and the rest. It drives
-the CLIs signed in on your machine and spends real tokens, so nothing else runs it for you.
-Before a release, or after a change that could reach more than one CLI, run
+it drives for real: `agents/`, `coganchor/`, `machines/`, `providers/` and the rest. CI runs it
+too, on Linux with docker and no coding agent CLI, so the tests that drive the CLIs signed in
+on your machine, and spend real tokens, are yours alone to run. Before a release, or after a
+change that could reach more than one CLI, run
 [the regression matrix](/contributing/regression-matrix): every feature through every CLI.
 
 | | Your machine | CI |
 | --- | --- | --- |
-| the pre-commit hooks | ✓ | ✓ |
-| `tests/unit/`, `tests/integration/` | ✓ | ✓ Python 3.12, Linux |
-| `tests/system/` | ✓ with `--run-agents` for the real CLIs | never |
+| the pre-commit hooks | ✓ | ✓ every push |
+| `tests/unit/` | ✓ | ✓ every push |
+| `tests/integration/` | ✓ | ✓ every pull request |
+| `tests/system/` | ✓ with `--run-agents` for the real CLIs | ✓ on the way to `main`: Linux, no CLIs |
+
+On the way to `main`, the tests run on Linux and macOS, on Python 3.12, 3.13 and 3.14.
+[CI](/contributing/ci) has which job runs when, and how to read a run.
 
 ## Where a test goes
 
@@ -87,7 +92,7 @@ File a test by what is on the other side of it. Its directory is its tier: no ma
 | --- | --- |
 | `tests/unit/` <Badge type="tip" text="CI" /> | `hmz`, and nothing else |
 | `tests/integration/` <Badge type="tip" text="CI" /> | Anything this repository wrote: a stand-in CLI, a fake app server, a loopback socket, the mock LLM service |
-| `tests/system/` <Badge type="warning" text="you" /> | The real thing: an installed coding agent CLI, ptrace, docker, ssh, a real `node` |
+| `tests/system/` <Badge type="tip" text="CI" /> <Badge type="warning" text="you" /> | The real thing: an installed coding agent CLI, ptrace, docker, ssh, a real `node` |
 
 `tests/test_tiers.py` fails the run if a test's marker and its directory disagree.
 
@@ -138,5 +143,6 @@ tests go in one commit.
 | make a first, small change end to end | [Your first patch](/contributing/tutorials/first-patch) |
 | add or change a page of these docs | [Add a page to these docs](/contributing/tutorials/a-page-of-docs) |
 | find where a change goes, or add a backend or a command | [Architecture](/contributing/architecture) |
+| read what CI ran on a change, and why | [CI](/contributing/ci) |
 | run every feature through every CLI | [The regression matrix](/contributing/regression-matrix) |
 | hold a page to the rules | [Working on these docs](/contributing/docs) |

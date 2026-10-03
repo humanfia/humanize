@@ -142,17 +142,22 @@ gh pr create --fill
 Without push access, run `gh repo fork --remote` first and push to your fork. `gh pr create`
 opens the pull request across it either way.
 
-These workflows then run:
+CI then runs everything a change to `main` is held to, for what your change touched, and
+`triage.yml` reads the pull request itself:
 
 | | |
 | --- | --- |
-| `ci.yml` | `uv lock --check`, the same hooks over every file, `uv build`, and a start with no extras installed. Then `uv run pytest --ignore=tests/system`, on Python 3.12 on Linux |
-| `build-docs.yml` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` and `pnpm check:legible` |
-| `triage.yml` | Checks the title is a Conventional Commit, which `--fill` took from your commit, and labels the pull request from it and from the paths it changes |
+| `lint`, `typecheck` | The same hooks over every file, and `pyright` |
+| `unit`, `integration`, `system` | Each tier of the tests, on Linux and macOS and Python 3.12 to 3.14; `tests/system` on Linux alone |
+| `build`, `smoke` | `uv build`, and the wheel started with no extras installed |
+| `docs` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` and `pnpm check:legible` |
+| `ci-ok` | Green when every job that ran passed |
+| `title`, `label` | From `triage.yml`: the title is a Conventional Commit, which `--fill` took from your commit, and labels from it and from the paths it changes |
 
 ## Check it worked
 
-`gh pr checks` shows the workflows on your pull request, and waits with `--watch`:
+`gh pr checks` shows every job on your pull request, and waits with `--watch`. The ones to
+wait for are `ci-ok` and `title`; [CI](/contributing/ci) has what each job checks:
 
 ```sh
 gh pr checks --watch
