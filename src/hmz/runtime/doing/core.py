@@ -190,7 +190,7 @@ class Hmz:
             driver -- or the specs a line read.
           envs: What each environment role is, likewise with `-e`.
           params: The flow's params, or None for its defaults.
-          budget: What the run may spend; only a flow humanize ships runs without one.
+          budget: What the run may spend; only `chat` runs without one.
           profile: Whether to profile the programs its agents start, as well as trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
 
@@ -235,7 +235,7 @@ class Hmz:
           agents: What each agent role runs; see :meth:`runner`.
           envs: What each environment role is; see :meth:`runner`.
           params: The flow's params, or None for its defaults.
-          budget: What the run may spend; only a flow humanize ships runs without one.
+          budget: What the run may spend; only `chat` runs without one.
           profile: Whether to profile the programs its agents start, as well as trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           outworlder: Whoever is outside the run, or None for nobody.

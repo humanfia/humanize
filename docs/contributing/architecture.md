@@ -39,7 +39,7 @@ same table, so an import that breaks it fails the run.
 | runs kept going after the terminal closes, and the socket frontends reach them over | `daemon/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
-| a flow humanize offers | [humanfia/flowverse](https://github.com/humanfia/flowverse). `flows/builtin/` holds `chat` alone |
+| a flow humanize offers | `flows/builtin/` for `chat` and the six loops FlowBench scores; [humanfia/flowverse](https://github.com/humanfia/flowverse) for the rest |
 
 Nothing sits at the top of `src/hmz/` but `__init__.py` and `__main__.py`. Name a module for
 what it holds, in the words `hmz` and these docs use.

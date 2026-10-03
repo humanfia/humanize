@@ -118,7 +118,7 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | <span id="exec-agents"></span>`-a`, `--agents` | [`<agent>`](#writing-an-agent) list | 0‥n, merged | none | One agent per agent role. |
 | <span id="exec-envs"></span>`-e`, `--envs` | [`<env>`](#writing-an-environment) list | 0‥n, merged | none | One environment per environment role. |
 | <span id="exec-params"></span>`-p`, `--params` | [`<param>`](#writing-params) list | 0‥n, merged | the flow's defaults | Fields of the flow's `FlowParams`. |
-| <span id="exec-budget"></span>`-b`, `--budget` | [`<limit>`](#writing-a-budget) list | 0‥n, merged; **required** except for flows humanize ships | none | What the run may spend. |
+| <span id="exec-budget"></span>`-b`, `--budget` | [`<limit>`](#writing-a-budget) list | 0‥n, merged; **required** except for `chat` | none | What the run may spend. |
 | <span id="exec-profile"></span>`--profile` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
@@ -275,8 +275,8 @@ must be set. The first limit reached stops the run. See
 | `output_tokens` | Integer with optional `_`, or a decimal with `k` (×1 000) or `m` (×1 000 000) that comes to a whole number (`200k`, `1.5m`). | `int` |
 | `graceful` | `1` `true` `yes` `on` / `0` `false` `no` `off`, case-insensitive. Default `true`: the turn under way when a limit is reached is let finish. | `bool` |
 
-With no `-b`, a flow humanize ships (`chat`) runs under `Budget(cost=inf)`; any other flow is
-refused.
+With no `-b`, `chat` runs under `Budget(cost=inf)`; any other flow is refused, the other flows
+humanize ships included.
 
 A run with a finite `cost` limit first brings the [price list](/reference/files#h-prices-json)
 up to date when the copy kept is missing or older than 24 h (at most 20 s; never with
@@ -371,7 +371,7 @@ Stage 1–2 messages are preceded by the usage block.
 | a CLI lacking a capability the role needs | `<flow>: '<role>' needs <Mixin>[, <Mixin>…], which <cli> does not support` |
 | an effort off the ladder | `<role>=<spec>: <cli> cannot be asked to think at '<effort>'; expected one of <ladder>` |
 | params the flow rejects | `<canonical ref>: <pydantic validation error>` |
-| no `-b`, flow not shipped with humanize | `<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
+| no `-b`, any flow but `chat` | `<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
 | `--resume` | see [Picking a run up](#picking-a-run-up) |
 | an environment unreachable or smaller than declared | the reason, naming the role |
 | a harness with no room anywhere its runtime's affinity names | see [Where the harness runs](#choosing-where-the-harness-runs) |

@@ -35,6 +35,7 @@ from hmz.tui.pick import (
     Flowverses,
     Holds,
 )
+from tests.flows.kit import SHIPPED
 from tests.integration.tui.test_app import (
     bar,
     changes,
@@ -213,7 +214,7 @@ async def test_one_that_has_not_been_fetched_says_so_where_its_flows_would_be() 
 
         # What it holds meanwhile is the half of it humanize keeps in the package, which is
         # there whatever has been downloaded -- and the row that fetches the rest.
-        assert rows(app) == [_AGAIN, "chat"]
+        assert rows(app) == [_AGAIN, *SHIPPED]
 
 
 @pytest.mark.timeout(60)

@@ -3,8 +3,8 @@
 A row on the page the flow's roles are on, because it is a setting of the run rather than of
 the flow. What is checked is that the row says what the run is held to without being opened,
 that what is set there is written down beside what the flow was set up with and read back,
-and that a flow is not saved until a run of it is given one -- except `chat`, the flow
-humanize ships, which is a conversation and stops when the person does.
+and that a flow is not saved until a run of it is given one -- except `chat`, which is a
+conversation and stops when the person does, and is the only flow humanize ships that is spared.
 """
 
 from __future__ import annotations
@@ -247,6 +247,30 @@ async def test_the_conversation_humanize_ships_is_never_asked_for_one(
 
     assert Settings(tmp_path).flow == "chat"
     assert app._budget is None
+
+
+@pytest.mark.timeout(60)
+async def test_a_loop_humanize_ships_is_asked_for_one_like_any_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A loop runs until something stops it, wherever it came from: shipping spares it nothing."""
+    import hmz.tui.app
+    import hmz.tui.pick
+
+    monkeypatch.setattr(hmz.tui.app, "installed", lambda: dict(_INSTALLED))
+    monkeypatch.setattr(hmz.tui.pick, "installed", lambda: dict(_INSTALLED))
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into(app, driver, "ralph_loop")
+        assert "none set" in _said(app)
+
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
+        await driver.pause()
+
+        assert app.screen is sheet
+        assert "requires a budget" in _under(app)
+    assert Settings(tmp_path).flow != "ralph_loop"
 
 
 async def _sets(app: Humanize, driver: Pilot[None]) -> Flows:

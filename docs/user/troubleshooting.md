@@ -172,11 +172,11 @@ repository as `git+https://…#<flow>`.
 
 **Verify.** The line is refused for nothing, or for what the flow itself needs.
 
-### `ralph_loop: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet`
+### `aot: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet`
 
 **Symptom.** `hmz exec` refuses a flow by name, on a machine that has not fetched the official
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one
-that is misspelled.
+that is misspelled. The flows humanize ships, such as `chat` and `ralph_loop`, never do.
 
 **Cause.** The flowverse has not been downloaded yet. `hmz` fetches flowverses in the
 background every time it starts, and `hmz exec` never does.
@@ -186,7 +186,7 @@ flowverse, and choose `fetch`. On a machine that never opens `hmz`, such as a CI
 the flow by its repository:
 
 ```sh
--f 'git+https://github.com/humanfia/flowverse@main#ralph_loop'
+-f 'git+https://github.com/<owner>/<repo>@<commit>#<flow>'
 ```
 
 **Verify.** The flowverse's sheet says it was fetched, and the line gets past the check.

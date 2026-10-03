@@ -6,9 +6,9 @@
 // as a scene <HmzFlow> plays on each flow's page. Keeping all three here means the catalogue,
 // the sidebar and the diagrams cannot disagree.
 //
-// Everything is read off the flows themselves: `src/hmz/flows/builtin/chat` for `chat`, and
-// https://github.com/humanfia/flowverse for the rest. The visual grammar every scene is drawn in
-// is `components/flow/grammar.ts`, and `/flows/` shows it as a legend.
+// Everything is read off the flows themselves: `src/hmz/flows/builtin/` for `chat` and the six
+// loops beside it, and https://github.com/humanfia/flowverse for the rest. The visual grammar
+// every scene is drawn in is `components/flow/grammar.ts`, and `/flows/` shows it as a legend.
 //
 // This file is imported by `config.mts` as well as by the theme, so it imports nothing.
 

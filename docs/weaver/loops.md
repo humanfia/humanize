@@ -295,9 +295,9 @@ up, which tests what `ctx.state` keeps.
 
 ## Read a real one: `ralph_loop`
 
-This is `ralph_loop` as the official flowverse ships it, less its module docstring. It has no
-finish line of its own: it runs until the agent has nothing more to say, or the budget is
-spent.
+This is `ralph_loop` as humanize ships it, trimmed of its module and class docstrings and its
+lint comments. It has no finish line of its own: it runs until the agent has nothing more to
+say, or the budget is spent.
 
 ```python
 import asyncio

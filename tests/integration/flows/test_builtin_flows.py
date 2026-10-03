@@ -1,8 +1,9 @@
-"""The one flow humanize keeps in the package: what a run of it is, and what it leaves.
+"""The flows humanize keeps in the package: what a run of `chat` is, and what it leaves.
 
-`chat` is one agent talking, and it is here rather than in the official flowverse because it is
-what humanize does before anything has been fetched. Everything else humanize offers is in that
-repository, and what those flows do is tested where they live.
+`chat` is one agent talking, and the one flow trusted with more than it declares: its agent's
+whole harness, and no budget. The loops beside it in the package are held to a budget like any
+other flow, which is checked here as a run of one is started; what each of them does is tested
+on fakes, in the unit tier.
 
 Nothing here starts a coding agent: the agent is the stand-in Claude Code of
 :mod:`tests.flows.standins`, and the person is an outworlder answering from a list -- or nobody,
@@ -25,7 +26,7 @@ from hmz.runtime.flowing.fakes import (
     FakeSession,
     run_fake,
 )
-from hmz.runtime.runner import Runner
+from hmz.runtime.runner import Refused, Runner
 from tests.flows import standins
 
 if TYPE_CHECKING:
@@ -152,3 +153,26 @@ def test_a_chat_whose_opening_turn_cannot_be_taken_says_so(claude: None) -> None
     """
     with pytest.raises(HarnessError, match="no such thing"):
         Runner("chat", agents={"assistant": AGENT}).run("fail: no such thing")
+
+
+@pytest.mark.parametrize(
+    ("flow", "roles"),
+    [
+        ("ralph_loop", ("agent",)),
+        ("stateful_ralph", ("agent",)),
+        ("continue_loop", ("agent",)),
+        ("goal", ("worker",)),
+        ("flame_chase", ("first_chaser", "second_chaser")),
+        ("rlar", ("actor", "reviewer")),
+    ],
+)
+def test_a_loop_humanize_ships_is_run_under_a_budget_or_not_at_all(
+    claude: None, flow: str, roles: tuple[str, ...]
+) -> None:
+    """Shipping with humanize spares a flow nothing: a loop runs until something stops it.
+
+    Named bare, with nothing fetched: the loops are in the package, beside `chat`.
+    """
+    with pytest.raises(Refused, match=f"{flow} requires a budget"):
+        Runner(flow, agents=dict.fromkeys(roles, AGENT))
+    assert epics() == []

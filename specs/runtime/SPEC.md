@@ -332,7 +332,7 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   role left out; an agent that is not the harness its role names or whose harness does not
   serve what its role asks; a spec no driver can be made for, unless the runtime it names
   falls back to others; params the flow does not take;
-  no budget, except for a flow humanize ships, which runs under `Budget(cost=inf)`; and a
+  no budget, except for the package's own `chat`, which runs under `Budget(cost=inf)`; and a
   run to pick up that is not there, or of a flow that is not resumable. What the flow itself
   raises as it is imported MUST be refused with its reason. `arun` MUST raise `Refused` too
   for an environment that cannot be reached or whose provider cannot hold what its role asks

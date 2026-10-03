@@ -3,7 +3,7 @@
 # No turn is taken. The backends here are stand-ins that run nothing, and the task is typed
 # and never sent. Opening the flows fetches whatever has never been fetched, and this image
 # has no git to fetch with, which `/flow` would say in red on camera. So `official` is marked
-# as fetched out of frame: it then offers the flow in the package and nothing else, nothing
+# as fetched out of frame: it then offers the flows in the package and nothing else, nothing
 # is fetched, and the flow set up is the project's own `twice`.
 
 Set Shell "bash"

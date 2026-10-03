@@ -26,8 +26,6 @@ round, until it is willing to say the port is done.
   [Installation](/user/installation).
 - **Make one run first.** [Your first run](/user/first-run), or the
   [quickstart on the home page](/#run-a-flow), shows a flow working in a scratch repository.
-- **Open `hmz` once.** `rlar` comes from the official [flowverse](/weaver/flowverses), and
-  opening `hmz` in any directory is what fetches it. `hmz exec` does not. Leave with `/exit`.
 - **Have Python 3 with pytest, and git.** The port is checked with `python -m pytest`. You do
   not need .NET: nothing here builds the C#.
 
@@ -289,15 +287,6 @@ implemented. Before you trust the number, open `tests/test_module.py` beside
 :::
 
 ## Troubleshooting
-
-### It says the official flowverse has not been fetched yet
-
-```console
-hmz exec: error: rlar: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
-```
-
-Run `hmz` once, wait a moment, and run the line again. If it is still refused, type
-`/settings flowverses` in `hmz`, open `official`, and choose `fetch`.
 
 ### `dsh` is not offered, or its turns fail with no key
 

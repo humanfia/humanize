@@ -44,6 +44,7 @@ __all__ = [
     "inside",
     "offered",
     "offers",
+    "privileged",
     "resolved",
     "within",
 ]
@@ -56,6 +57,10 @@ __all__ = [
 #: Worked out from where this file is rather than by importing the flow API, which a listing
 #: of places has no need to pay for.
 BUILTIN_AT = Path(__file__).resolve().parents[2] / "flows" / "builtin"
+
+#: Where the one flow humanize trusts with more than it declares is: `chat`, the package's own,
+#: said by where it is rather than by a name a flow of yours could take.
+_PRIVILEGED_AT = BUILTIN_AT / "chat"
 
 #: What a flow's directory holds the flow itself in. The rest of the directory is what it
 #: imports and the `skills/` it brings, so the entry point is named rather than guessed.
@@ -290,10 +295,8 @@ def resolved(named_: str) -> FlowImpl:
 
     Anything :func:`hmz.flows.load` takes where no flow is asking: a name nearest first,
     `<flowverse>/<flow>`, either with `:<inside>`, a path, or a `git+<url>#<flow>` ref, which
-    is fetched here, on this thread. A flow humanize ships is handed its harness's every
-    capability, with :func:`~hmz.runtime.flowing.engine.full_view`: `chat` talks to whichever
-    agent it is given, and so declares nothing of any, and it is the flows in the package
-    rather than a name that says which flow that is.
+    is fetched here, on this thread. The one flow that is :func:`privileged` is handed its
+    harness's every capability, with :func:`~hmz.runtime.flowing.engine.full_view`.
 
     Args:
       named_: What the flow is called.
@@ -331,7 +334,7 @@ def resolved(named_: str) -> FlowImpl:
         fetched = found_.flow
         assert fetched is not None  # noqa: S101 -- asking its name fetched it
         flow = fetched
-    if builtin(flow):
+    if privileged(flow):
         full_view(flow)
     return flow
 
@@ -374,8 +377,30 @@ def builtin(flow: FlowImpl) -> bool:
     Returns:
       Whether it was defined under :data:`BUILTIN_AT`.
     """
-    made = Path(os.path.realpath(flow.fn.__code__.co_filename))
-    return made.is_relative_to(BUILTIN_AT)
+    return _made(flow).is_relative_to(BUILTIN_AT)
+
+
+def privileged(flow: FlowImpl) -> bool:
+    """Whether a flow is the one humanize trusts with more than it declares, which is `chat`.
+
+    `chat` talks to whichever agent it is given, and so declares nothing of any: it is handed
+    every capability of its harness instead. And it runs for as long as somebody answers it,
+    so it is the one flow a run may be started without a budget for. Shipping with humanize is
+    not what earns either -- the loops beside it in the package declare what they ask of their
+    agents and are held to it, and spend under a budget, like a flow of anybody's.
+
+    Args:
+      flow: The flow.
+
+    Returns:
+      Whether it was defined in the package's own `chat`.
+    """
+    return _made(flow).is_relative_to(_PRIVILEGED_AT)
+
+
+def _made(flow: FlowImpl) -> Path:
+    """The file a flow was defined in, with every link on the way followed."""
+    return Path(os.path.realpath(flow.fn.__code__.co_filename))
 
 
 def _split(named_: str) -> tuple[str, str]:

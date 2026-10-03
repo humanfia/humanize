@@ -264,6 +264,11 @@ ignore = [
 "src/hmz/flows/errors.py" = ["N818"]
 # What a command line writes, it prints.
 "src/hmz/cli/**" = ["T201"]
+# And so does a flow: what it prints is what its run shows whoever is watching. The flows
+# humanize ships are written the way anybody's flow is, against what the flow API hands every
+# one of them: the params and context a flow is called with whether or not it reads them, and
+# a state that is read like a dict and has no `.get`.
+"src/hmz/flows/builtin/**" = ["T201", "ARG001", "SIM401"]
 "tests/**" = [
     "S101",    # an assert is what a test is
     "SLF001",  # a test reaches for what it tests, private or not
