@@ -58,7 +58,7 @@ import datetime
 import os
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from hmz.flows import (
     AskUserHookAgentMixin,
@@ -70,6 +70,7 @@ from hmz.flows import (
     HarnessSandboxed,
     HarnessUnrecoverable,
     HookKind,
+    KeptSession,
     OutputTokensExceeded,
     OutworlderAway,
     PermissionRequestHookAgentMixin,
@@ -340,6 +341,7 @@ class HarnessDriver:
         skills: tuple[Skill, ...],
         hooks: HookTable,
         fork_of: SessionHandle | None = None,
+        carry_on: KeptSession | None = None,
     ) -> HarnessSession:
         """Opens a session, which starts no CLI until its first turn.
 
@@ -349,14 +351,17 @@ class HarnessDriver:
           skills: What skills it is given, mounted where its CLI reads them.
           hooks: What is hung on the agent.
           fork_of: A session of this driver to carry on from, or None for a fresh one.
+          carry_on: A conversation kept by this run or an earlier one to carry on from.
 
         Returns:
           The session.
 
         Raises:
           SessionError: If the driver is closed, `fork_of` is not an open session of it that
-            has taken a turn, or the workdir is not a directory here.
-          UnsupportedOperation: If the harness cannot fork, or not into `placement`.
+            has taken a turn, `carry_on` is not where it says it is kept, or the workdir is
+            not a directory here.
+          UnsupportedOperation: If the harness cannot fork, or not into `placement`; or
+            `carry_on` was kept by another harness, or the session works on another machine.
           HarnessNotInstalled: If the CLI is not installed on the machine its harness runs
             on: this one, or the environment's where its affinity has nowhere else.
           HarnessUnrecoverable: If the CLI cannot be configured as the session asks, or the
@@ -369,6 +374,7 @@ class HarnessDriver:
         if self._closed:
             raise SessionError("the agent's driver is closed")
         parent = self._parent(fork_of, placement)
+        self._recallable(carry_on, placement)
         cwd = self._where(placement)
         hung = frozenset(kind for kind in _STARTING if kind in hooks)
         config = self._configured(permission, placement, hung)
@@ -377,7 +383,7 @@ class HarnessDriver:
             self._check_installed()
         config = dataclasses.replace(config, machine=machine)
         agent, session = await asyncio.to_thread(
-            self._made, config, skills, parent, cwd
+            self._made, config, skills, parent, cwd, carry_on
         )
         handle = HarnessSession(
             self,
@@ -483,6 +489,26 @@ class HarnessDriver:
                 f"{self.harness} cannot fork a session into another workdir"
             )
         return fork_of
+
+    def _recallable(self, carry_on: KeptSession | None, placement: Placement) -> None:
+        """Refuses a kept conversation this driver could not carry on, before anything opens.
+
+        Raises:
+          UnsupportedOperation: If it was kept by another harness, this harness cannot fork,
+            or the session would work on another machine than the one it is kept on.
+        """
+        if carry_on is None:
+            return
+        if carry_on.harness != self.harness:
+            raise UnsupportedOperation(
+                f"{self.harness} cannot carry on a conversation {carry_on.harness} kept"
+            )
+        if self._profile is None or not self._profile.forks:
+            raise UnsupportedOperation(f"{self.harness} cannot fork a session")
+        if placement.machine is not None:
+            raise UnsupportedOperation(
+                f"{self.harness} cannot carry a kept conversation onto another machine"
+            )
 
     @staticmethod
     def _where(placement: Placement) -> str | None:
@@ -797,6 +823,7 @@ class HarnessDriver:
         skills: tuple[Skill, ...],
         parent: HarnessSession | None,
         cwd: str | None,
+        carry_on: KeptSession | None = None,
     ) -> tuple[AgentBase, SessionBase]:
         """Builds a session's own agent and its conversation, on a thread of its own.
 
@@ -812,10 +839,14 @@ class HarnessDriver:
         agent.loads(Loaded(name=one.name, at=one.at) for one in skills)
         for listener in self._listeners:
             agent.watch(listener)
-        if parent is None:
+        if parent is None and carry_on is None:
             return agent, agent.new(cwd)
         try:
-            return agent, parent.coganchor.fork(into=agent, cwd=cwd)
+            if carry_on is not None:
+                return agent, agent.recall(carry_on.id, carry_on.directory, cwd).fork()
+            return agent, cast("HarnessSession", parent).coganchor.fork(
+                into=agent, cwd=cwd
+            )
         except NotImplementedError as refused:
             raise UnsupportedOperation(str(refused)) from refused
         except (RuntimeError, ValueError, OSError) as refused:
@@ -1031,6 +1062,16 @@ class HarnessSession:
     def id(self) -> str | None:
         """The CLI's own id for the conversation, or None before it has said one."""
         return self._session.named
+
+    @property
+    def kept(self) -> KeptSession | None:
+        """Where the CLI keeps the conversation, or None before it has said its id."""
+        named = self._session.named
+        if named is None:
+            return None
+        return KeptSession(
+            harness=self._driver.harness, id=named, directory=str(self._agent.kept())
+        )
 
     @property
     def usage(self) -> Usage:

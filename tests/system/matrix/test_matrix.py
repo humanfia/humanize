@@ -533,6 +533,87 @@ def test_fork(cell: Cell) -> None:
     assert child.parent == parent.ident, (parent, child)
 
 
+KEPT = '''"""A conversation told a code word, and where its CLI keeps it, as plain data."""
+
+import dataclasses
+import json
+
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
+
+
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def kept(task, *, agents, envs, params, ctx):
+    worker, here = agents["worker"], envs["workspace"]
+    session = await worker.spawn(env=here)
+    await worker.run(
+        f"Remember this code word: {task}. Reply with exactly one word: OK",
+        session=session,
+    )
+    return json.dumps(dataclasses.asdict(session.kept))
+'''
+
+CARRIED = '''"""A session of a later run, carrying on a conversation an earlier one kept."""
+
+import json
+
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowParams,
+    KeptSession,
+    LocalEnv,
+    flow,
+)
+
+
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def carried(task, *, agents, envs, params, ctx):
+    worker, here = agents["worker"], envs["workspace"]
+    session = await worker.spawn(env=here, carry_on=KeptSession(**json.loads(task)))
+    return await worker.run(
+        "What is the code word I asked you to remember? Reply with the code word alone.",
+        session=session,
+    )
+'''
+
+
+@feature(forks)
+def test_carry_on(cell: Cell) -> None:
+    """A later run carries on a conversation an earlier one kept, from a copy of it."""
+    word = _word()
+    kept = json.loads(cell.run(cell.flow("kept", KEPT), word))
+    # What a flow keeping a snapshot keeps: the conversation copied out of the run.
+    copied = cell.root / "copied"
+    shutil.copytree(kept["directory"], copied)
+
+    said = cell.run(
+        cell.flow("carried", CARRIED), json.dumps({**kept, "directory": str(copied)})
+    )
+
+    assert _says(said, word), said
+    first, later = cell.hmz.epics.all()
+    (told,) = cell.hmz.epics.sessions(first)
+    (carried,) = cell.hmz.epics.sessions(later)
+    assert carried.ident != told.ident, (told, carried)
+
+
 RESUMED = '''"""Two turns, and a plug that may be pulled between them."""
 
 import json

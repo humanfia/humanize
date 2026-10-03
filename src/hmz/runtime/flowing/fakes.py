@@ -66,6 +66,7 @@ from hmz.flows import (
     EnvFileNotFound,
     HarnessKind,
     HookKind,
+    KeptSession,
     OutputSchemaError,
     OutputTokensExceeded,
     PermissionRequestHookAgentMixin,
@@ -162,6 +163,11 @@ _UNFORKED = frozenset(
 #: coganchor's sessions say; every other that forks does so only where it is.
 _FORKS_ELSEWHERE = frozenset({HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI})
 
+#: Where every fake keeps its conversations, and what each had been told when its `kept`
+#: was last read: a fake carries a conversation on across runs of one process, as a real
+#: CLI does across processes from the files it kept.
+_KEPT: dict[tuple[str, str], list[str]] = {}
+
 
 def _as(said: object, schema: type[pydantic.BaseModel] | None, who: str) -> Any:
     """An answer as what a turn asked for: text, or an instance of its schema."""
@@ -249,6 +255,7 @@ class FakeSession:
       permission: What it runs under.
       skills: What it was given.
       forked_from: The session it carries on from, or None.
+      carried_on: The kept conversation it carries on, or None.
       prompts: Every prompt it was given, hooks' context included, and every reason a `STOP`
         hook kept a turn going with.
       requests: Every turn it was asked for, limits and all.
@@ -270,6 +277,7 @@ class FakeSession:
         skills: tuple[Skill, ...],
         hooks: HookTable,
         forked_from: FakeSession | None,
+        carried_on: KeptSession | None = None,
     ) -> None:
         self.driver = driver
         self.placement = placement
@@ -277,8 +285,11 @@ class FakeSession:
         self.skills = skills
         self.hooks = hooks
         self.forked_from = forked_from
+        self.carried_on = carried_on
         self._id = f"fake-{next(self._numbers)}"
         self.prompts: list[str] = list(forked_from.prompts) if forked_from else []
+        if carried_on is not None:
+            self.prompts = list(_KEPT[carried_on.directory, carried_on.id])
         self.requests: list[TurnRequest] = []
         self.steered: list[tuple[str, bool]] = []
         self.tools: list[tuple[str, dict[str, Any], bool]] = []
@@ -306,6 +317,19 @@ class FakeSession:
         if self.driver.names_late and not self.named:
             return None
         return self._id
+
+    @property
+    def kept(self) -> KeptSession | None:
+        named = self.id
+        if named is None or not self.named:
+            return None
+        kept = KeptSession(
+            harness=self.driver.harness,
+            id=named,
+            directory=f"/fake/sessions/{self.driver.harness}",
+        )
+        _KEPT[kept.directory, kept.id] = list(self.prompts)
+        return kept
 
     @property
     def usage(self) -> Usage:
@@ -613,8 +637,26 @@ class FakeAgentDriver:
         skills: tuple[Skill, ...],
         hooks: HookTable,
         fork_of: Any = None,
+        carry_on: KeptSession | None = None,
     ) -> FakeSession:
         forked: FakeSession | None = None
+        if carry_on is not None:
+            # In the order a real driver refuses them.
+            if carry_on.harness != self.harness:
+                raise UnsupportedOperation(
+                    f"{self.harness} cannot carry on a conversation {carry_on.harness} kept"
+                )
+            if not self.forks:
+                raise UnsupportedOperation(f"{self.harness} cannot fork a session")
+            if placement.machine is not None:
+                raise UnsupportedOperation(
+                    f"{self.harness} cannot carry a kept conversation onto another machine"
+                )
+            if (carry_on.directory, carry_on.id) not in _KEPT:
+                raise SessionError(
+                    f"the session cannot be forked: no conversation {carry_on.id} "
+                    f"under {carry_on.directory}"
+                )
         if fork_of is not None:
             # In the order a real driver refuses them.
             if not isinstance(fork_of, FakeSession) or fork_of.driver is not self:
@@ -642,7 +684,9 @@ class FakeAgentDriver:
                     f"{self.harness} cannot fork a session into another workdir"
                 )
             forked = fork_of
-        session = FakeSession(self, placement, permission, skills, hooks, forked)
+        session = FakeSession(
+            self, placement, permission, skills, hooks, forked, carry_on
+        )
         self.sessions.append(session)
         self.live += 1
         self.peak = max(self.peak, self.live)

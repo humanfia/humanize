@@ -255,6 +255,26 @@ await asyncio.gather(
 )
 ```
 
+**Carry on a conversation from an earlier run.** A session's `kept` says where its CLI
+keeps the conversation, as plain data a flow can write down. Hand it back to `spawn` in a later
+run, on the same harness, and the new session is a fork of that conversation:
+
+```python
+import dataclasses, json
+from hmz.flows import KeptSession
+
+# In one run, once the session has taken a turn:
+(snapshot / "kept.json").write_text(json.dumps(dataclasses.asdict(session.kept)))
+
+# In a later run:
+kept = KeptSession(**json.loads((snapshot / "kept.json").read_text()))
+again = await agent.spawn(env=workspace, carry_on=kept)
+```
+
+`kept.directory` is the earlier run's `sessions/<cli>/`, which you may copy anywhere first and
+point `directory` at the copy. The files are copied in, never moved, so one kept conversation
+can be carried on as often as you like. See [`Agent.spawn`](/reference/flows#spawn).
+
 **Fork or derive?** They sound alike and do opposite things:
 
 | | Gives you | Carries the history? |

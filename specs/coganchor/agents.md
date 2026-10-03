@@ -142,6 +142,12 @@ class AgentBase(ABC):
     def node(self) -> Provider: ...
     def stands_in(self) -> AgentBase | None: ...
     def new(self, cwd: str | os.PathLike[str] | None = None) -> SessionBase: ...  # abstract
+    def recall(
+        self,
+        session_id: str,
+        kept: str | os.PathLike[str],
+        cwd: str | os.PathLike[str] | None = None,
+    ) -> SessionBase: ...
     # Overloaded, as on a session: `str` where no schema is given, `T | None` where one is.
     def __call__[T: BaseModel](
         self,
@@ -729,6 +735,12 @@ class BackendAgent(AgentBase):
   of any check on whether the agent was stopped -- and the turn that spends the last of it MUST
   still answer with what it said.
 - A session MUST take one turn at a time, the moments it fires included.
+- `recall` MUST answer a session holding a conversation kept elsewhere -- an earlier run's
+  `sessions/<cli>/`, or a copy of one -- that takes no turn of its own and whose `fork` carries it
+  on. Every file under `kept` with the conversation's id in its path MUST be copied into `kept()`
+  where it sat there, as that fork's first turn starts and not before, and the files it was copied
+  from MUST be left as they were. It MUST raise `NotImplementedError` where the backend has no fork
+  and `RuntimeError` where nothing under `kept` is the conversation.
 - `fork` MUST be a second conversation carrying this one's history as of the call, with its own id,
   meter and place in `opened`, unopened with the backend until its first turn; it MUST raise
   `NotImplementedError` where the backend has no fork of its own and `RuntimeError` before any turn
