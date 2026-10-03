@@ -486,7 +486,28 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      # The review reads the repository's dependency graph, which is a setting -- Settings, then
+      # Code security -- and one this workflow cannot turn on. Where it is off there is nothing
+      # to review against, which is said rather than failed on every pull request; anything
+      # else that goes wrong asking still fails.
+      - name: Is the dependency graph on
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          if said=$(gh api "repos/$REPO/dependency-graph/sbom" --jq .sbom.name 2>&1); then
+            echo "on=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$said" == *"(HTTP 404)"* ]]; then
+            echo "::warning title=Dependency graph off::Nothing to review: turn the dependency graph on under Settings, Code security."
+            echo "on=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$said" >&2
+            exit 1
+          fi
+
+      - if: steps.graph.outputs.on == 'true'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
 
   ci-ok:
     # `ci-ok` is the full tier's alone. A branch with a pull request open is pushed to as well,
