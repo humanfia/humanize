@@ -294,8 +294,8 @@ role's permission and no hook gating its tools is hung, and here otherwise.
 
 Once the environments are probed, before the flow is called, every agent's harness is settled
 on every machine whose runtime has an affinity; an affinity with no room for it refuses the run
-(`hmz exec: error: <backend>@<provider>: nowhere its affinity (<entries>) names has room for
-<cli>'s harness; the last: <refusal>`, exit `2`). A runtime an affinity sends a harness to is
+(`hmz exec: error: <backend>@<provider>: nowhere its affinity (<entries>) names has room
+for <cli>'s harness; the last: <refusal>`, exit `2`). A runtime an affinity sends a harness to is
 opened as an environment is, probed before the flow is called and closed with the run. Where
 each session's harness went is recorded on the session in the epic as `local`, `self` or
 `<backend>:<name>` ([Tracing › Epics](/reference/tracing#epics)), and in the daemon's
@@ -551,7 +551,7 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 | agent's own | the agent ran |
 | `0` | `--check` succeeded |
 | `1` | connection, protocol, OS or value error (`hmz: <why>` on stderr) |
-| `2` | no agent and no `--check` (`no agent given; try `hmz internal anchor claude``), or settings no session can run under |
+| `2` | no agent and no `--check` (``no agent given; try `hmz internal anchor claude` ``), or settings no session can run under |
 | `127` | `--native` and the target has no such CLI |
 | `130` | interrupted |
 
