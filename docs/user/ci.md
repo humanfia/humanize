@@ -215,7 +215,7 @@ the workflow does:
 ```
 
 Replace `main` with a commit to pin the flow, so a change upstream cannot change what runs at
-night. A flow of your own needs none of this: commit it to `.humanize/flows/` and name it with
+night. A flow of your own needs none of this: commit it to `.hmz/flows/` and name it with
 `-f <name>`.
 
 ## Keep a trace

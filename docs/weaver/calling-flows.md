@@ -46,7 +46,7 @@ One directory can hold several flows. `steps` keeps its step as a hidden flow in
 module, and calls it once per step:
 
 ```python
-# .humanize/flows/steps/__init__.py
+# .hmz/flows/steps/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -223,7 +223,7 @@ async def test_a_step_over_its_budget_does_not_end_the_run() -> None:
 own once the goal is met:
 
 ```python
-# .humanize/flows/aimed/__init__.py
+# .hmz/flows/aimed/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,

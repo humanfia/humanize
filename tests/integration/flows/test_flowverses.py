@@ -492,10 +492,10 @@ def test_a_flow_of_your_own_still_wins_a_bare_name(
     """Nearest first: a flowverse is further away than this project's own flows directory."""
     store.add(str(theirs))
     project = tmp_path / "project"
-    written(project / ".humanize/flows", "loop", FLOW)
+    written(project / ".hmz/flows", "loop", FLOW)
     monkeypatch.chdir(project)
 
-    assert find("loop") == str((project / ".humanize/flows/loop" / ENTRY).resolve())
+    assert find("loop") == str((project / ".hmz/flows/loop" / ENTRY).resolve())
     # But the flowverse's own name for it is not a name anything of yours can stand in for.
     assert find("theirs/loop") == str(
         (store.under() / "theirs" / FLOWS / "loop" / ENTRY).resolve()

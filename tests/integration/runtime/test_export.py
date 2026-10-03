@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+import hmz
 from hmz.coganchor import providers
 from hmz.runtime.epic import epics, sessions
 from hmz.runtime.exporting import (
@@ -143,7 +144,7 @@ def test_a_bundle_holds_every_record_the_run_wrote(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A flow that called another is two records, and one run is both of them."""
-    written(tmp_path / ".humanize" / "flows", "under", UNDER)
+    written(tmp_path / ".hmz" / "flows", "under", UNDER)
     epic = _ran(tmp_path, monkeypatch, CALLS.replace("TASKS", f"[{TASK!r}]"))
 
     inside = held(bundle(epic, tmp_path / "out.tar.gz")[0])
@@ -161,7 +162,7 @@ def test_the_manifest_says_the_call_tree_and_whose_each_session_was(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A flow called twice is two records and two conversations, and the flow name says one."""
-    written(tmp_path / ".humanize" / "flows", "under", UNDER)
+    written(tmp_path / ".hmz" / "flows", "under", UNDER)
     epic = _ran(
         tmp_path,
         monkeypatch,
@@ -368,16 +369,35 @@ def test_a_bundle_carries_nothing_about_whoever_made_it(
 
 
 def test_where_a_bundle_lands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A file outright, a directory to fill, or `.humanize/` here -- it is a thing to send."""
+    """A file outright, a directory to fill, or `.hmz/` here -- it is a thing to send."""
     epic = _ran(tmp_path, monkeypatch)
 
     # Where somebody is standing rather than in humanize's own home the way a trace of a
     # run goes, and named whole: it is a thing to attach to something.
-    assert bundle(epic)[0] == tmp_path / ".humanize" / f"{epic.name}.epic.tar.gz"
+    assert bundle(epic)[0] == tmp_path / ".hmz" / f"{epic.name}.epic.tar.gz"
     assert bundle(epic)[0].is_file()
     (tmp_path / "somewhere").mkdir()
     assert bundle(epic, tmp_path / "somewhere")[0].parent == tmp_path / "somewhere"
     assert bundle(epic, tmp_path / "named.tgz")[0].name == "named.tgz"
+
+
+def test_a_bundle_lands_beside_the_flows_a_project_kept_under_the_old_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Written into `.hmz/` only once `.humanize/` has moved there, which would hide it."""
+    epic = _ran(tmp_path, monkeypatch)
+    (tmp_path / ".humanize" / "flows").mkdir(parents=True)
+    (tmp_path / ".humanize" / "flows" / "mine.py").write_text("# mine\n")
+    # Exported by a process that has looked for no flow here: asked once there is something
+    # to move, since what was moved is the process's and not this test's.
+    hmz._moved.cache_clear()
+    hmz._project.cache_clear()
+
+    landed, _ = bundle(epic)
+
+    assert landed == tmp_path / ".hmz" / f"{epic.name}.epic.tar.gz"
+    assert (tmp_path / ".hmz" / "flows" / "mine.py").is_file()
+    assert not (tmp_path / ".humanize").exists()
 
 
 def test_a_bundle_left_in_the_project_is_kept_out_of_its_repository(
@@ -398,9 +418,9 @@ def test_a_bundle_left_in_the_project_is_kept_out_of_its_repository(
     assert ".epic.tar.gz" not in seen
 
     # And a `.gitignore` somebody wrote there is theirs.
-    (tmp_path / ".humanize" / ".gitignore").write_text("mine\n")
+    (tmp_path / ".hmz" / ".gitignore").write_text("mine\n")
     bundle(epic)
-    assert (tmp_path / ".humanize" / ".gitignore").read_text() == "mine\n"
+    assert (tmp_path / ".hmz" / ".gitignore").read_text() == "mine\n"
 
 
 def test_a_directory_holding_no_run_is_nothing_to_export(tmp_path: Path) -> None:

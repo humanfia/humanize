@@ -15,7 +15,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | fallbacks | `H/fallbacks.json` | this machine | Fallback | [Files](/reference/files#h-fallbacks-json) |
 | flowverses | `H/flowverses/<name>/` (git clones) | this machine | Flowverses | [Flows](/reference/flows#flowverses) |
 
-`H` is `$HUMANIZE_HOME`, else `~/.humanize`. A workspace is identified by its absolute,
+`H` is `$HUMANIZE_HOME`, else `~/.hmz`. A workspace is identified by its absolute,
 symlink-resolved path.
 
 ## `settings.yaml`

@@ -1603,7 +1603,7 @@ The variables the agent layer reads or sets. Every variable humanize reads is li
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
-| `HUMANIZE_HOME` | everything | humanize's home (default `~/.humanize`): `providers/`, `sessions/`, `acp.json`, `fallbacks.json`, `prices.json`, `compiled/` |
+| `HUMANIZE_HOME` | everything | humanize's home (default `~/.hmz`): `providers/`, `sessions/`, `acp.json`, `fallbacks.json`, `prices.json`, `compiled/` |
 | `HUMANIZE_WATCHDOG` | the watchdog | seconds of silence allowed; `0` or less disables it |
 | `HUMANIZE_SESSIONS` | session keeping | `off`, `0` or `no`: sessions stay in the CLI's home |
 | `HUMANIZE_PRICES` | `prices` | the price list's URL or path; `off`, `0`, `no`, `none` or empty disables fetching |

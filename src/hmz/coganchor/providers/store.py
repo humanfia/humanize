@@ -1,6 +1,6 @@
 """What a provider is, and where the credentials of one are kept.
 
-One directory per provider, under `~/.humanize/providers/<cli>/<name>/`: what it was made by
+One directory per provider, under `~/.hmz/providers/<cli>/<name>/`: what it was made by
 and what a turn under it is run with, in `provider.json`, and beside that the files the CLI
 itself writes when it signs in -- kept at the same names it uses, under `home/` for the ones
 inside its own directory and `user/` for the ones outside it.
@@ -438,7 +438,7 @@ def _kept(at: Path) -> None:
 
     `Path.mkdir(parents=True, mode=...)` gives the mode to the last directory only and makes
     the rest at whatever the umask allows, which for a tree of credentials is the wrong way
-    round: what is being made is `~/.humanize/providers/<cli>/<name>/...`, and every level of
+    round: what is being made is `~/.hmz/providers/<cli>/<name>/...`, and every level of
     it is this user's business and nobody else's.
 
     Args:

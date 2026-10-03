@@ -94,8 +94,8 @@ A flow whose card says what `--resume` keeps carries on from there, under a fres
 | You type | The flow is |
 | --- | --- |
 | `ralph_loop` | one of humanize's own: `chat` ships with humanize, and the rest are in [humanfia/flowverse](https://github.com/humanfia/flowverse) |
-| `local/scheduler` | one of this project's, in `.humanize/flows/` |
-| `user/scheduler` | one of yours, in `~/.humanize/flows/` |
+| `local/scheduler` | one of this project's, in `.hmz/flows/` |
+| `user/scheduler` | one of yours, in `~/.hmz/flows/` |
 | `theirs/rlar` | one from a flowverse you added in `/settings` |
 
 A **flowverse** is any git repository with a `flows/` directory. [Writing a

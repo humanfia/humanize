@@ -9,12 +9,21 @@ no file is named for is bound by the nearest one above it.
 
 ```python
 # __init__.py
-def home() -> pathlib.Path: ...
+def home() -> pathlib.Path: ...  # ~/.hmz
+def here() -> pathlib.Path: ...  # .hmz, relative to the directory being run in
 ```
 
 - `home` MUST answer where humanize keeps what outlives one run of one flow, MUST be
   overridable per machine by `HUMANIZE_HOME`, and MUST NOT create the directory.
-- The top of the package MUST expose `home` and nothing else.
+- `here` MUST answer where humanize keeps what is one project's own, and MUST NOT create the
+  directory.
+- Each MUST move the directory it answers with from where it was before, `.humanize` beside
+  it, the first time it is asked in a process: in one rename, only while nothing is at the new
+  place -- where both are, the old one MUST be left as it is and not used -- and a move that
+  fails MUST NOT be an error. `home` MUST NOT move anything where `HUMANIZE_HOME` is set, nor
+  `here` a home: `~/.humanize`, which is `home`'s to move, or the directory `HUMANIZE_HOME`
+  names.
+- The top of the package MUST expose `home` and `here` and nothing else.
 
 ## Packages
 

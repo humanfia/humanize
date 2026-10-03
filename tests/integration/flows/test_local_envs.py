@@ -640,8 +640,11 @@ async def test_a_rewind_forgets_a_merge_and_clones_but_keeps_humanize_own(
     with pytest.raises(subprocess.CalledProcessError):
         _git(repo, "merge", "-q", "other")
     _git(repo, "init", "-q", "cloned")
-    (repo / ".humanize/flows/mine").mkdir(parents=True)
-    (repo / ".humanize/flows/mine/__init__.py").write_text("# mine\n")
+    (repo / ".hmz/flows/mine").mkdir(parents=True)
+    (repo / ".hmz/flows/mine/__init__.py").write_text("# mine\n")
+    # And what that was called before, in a workspace humanize has not been run in since.
+    (repo / ".humanize/flows/old").mkdir(parents=True)
+    (repo / ".humanize/flows/old/__init__.py").write_text("# old\n")
 
     await driver.rewind(ref)
 
@@ -650,10 +653,26 @@ async def test_a_rewind_forgets_a_merge_and_clones_but_keeps_humanize_own(
     )
     assert (repo / "tracked.txt").read_text() == "second\n"
     assert not (repo / "cloned").exists(), "a repository cloned inside was left"
-    assert (repo / ".humanize/flows/mine/__init__.py").exists()
+    assert (repo / ".hmz/flows/mine/__init__.py").exists()
+    assert (repo / ".humanize/flows/old/__init__.py").exists()
     assert _git(repo, "status", "--porcelain", "--untracked-files=all") == (
-        "?? .humanize/flows/mine/__init__.py\n?? untracked.txt\n"
+        "?? .hmz/flows/mine/__init__.py\n?? .humanize/flows/old/__init__.py\n"
+        "?? untracked.txt\n"
     )
+
+
+async def test_a_snapshot_leaves_humanize_own_out(repo: Path) -> None:
+    """Under either name it has had: neither is recorded, so neither is put back."""
+    for kept in (".hmz", ".humanize"):
+        (repo / kept / "flows").mkdir(parents=True)
+        (repo / kept / "flows" / "mine.py").write_text("# mine\n")
+    driver = _driver(repo)
+
+    ref = await driver.snapshot("before")
+
+    names = _git(repo, "ls-tree", "-r", "--name-only", ref).split()
+    assert not [one for one in names if one.startswith((".hmz/", ".humanize/"))]
+    assert "untracked.txt" in names
 
 
 async def test_a_rewind_git_refuses_partway_leaves_the_branch_where_it_was(
@@ -1023,7 +1042,7 @@ async def test_a_copy_another_process_holds_is_left_to_it(repo: Path) -> None:
 async def test_a_copy_of_a_workdir_holding_humanize_home_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / ".humanize"))
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / ".hmz"))
     with pytest.raises(EnvError, match="inside it"):
         await _driver(tmp_path).derive_temp_clone("work", holder="me")
 

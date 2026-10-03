@@ -171,7 +171,7 @@ ref = [ flowverse , "/" ] , flow , [ ":" , name ]
 | Form | Resolves to |
 | --- | --- |
 | `<flow>` | The first flow of that name, looking in `local`, `user`, `official`, then added flowverses (the order of [`Flowverses.nearest`](/reference/sdk#flowverses)). |
-| `<flowverse>/<flow>` | That flowverse's flow. `local/…` is `./.humanize/flows/`, `user/…` is `~/.humanize/flows/`. |
+| `<flowverse>/<flow>` | That flowverse's flow. `local/…` is `./.hmz/flows/`, `user/…` is `~/.hmz/flows/`. |
 | `…:<name>` | Another flow defined in the same module. |
 | a path (`./x`, `/x`, `x.py`) | That directory or file. |
 | `git+<url>[@<rev>]#<flow>[:<name>]` | A flow of a repository, cloned and pinned at that revision. |
@@ -702,7 +702,7 @@ Variables these commands read. The complete list, with every layer's, is
 
 | Variable | Read by | Values | Effect |
 | --- | --- | --- | --- |
-| `HUMANIZE_HOME` | all | a path | Where humanize keeps what outlives a run. Default `~/.humanize`. Empty is unset. Not created until written. |
+| `HUMANIZE_HOME` | all | a path | Where humanize keeps what outlives a run. Default `~/.hmz`, which a `~/.humanize` is moved to. Empty is unset. Not created until written. |
 | `HUMANIZE_DAEMON` | `hmz` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
@@ -721,7 +721,7 @@ version), `HUMANIZE_TARGET`, `HUMANIZE_WORKSPACE`.
 
 ## Files {#files}
 
-Paths these commands read or write, under `$HUMANIZE_HOME` (`~/.humanize`). The whole layout
+Paths these commands read or write, under `$HUMANIZE_HOME` (`~/.hmz`). The whole layout
 is [Files](/reference/files).
 
 | Path | Command | Access |
@@ -732,7 +732,7 @@ is [Files](/reference/files).
 | `daemons/<project>-<digest>/` | `hmz` | the [host's](/reference/daemon#files) socket, record, lock and log |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
 | `providers/`, `runtimes/`, `fallbacks.json`, `acp.json`, `models/` | all | read when an agent or environment is opened |
-| `flowverses/`; `~/.humanize/flows/` and `./.humanize/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
+| `flowverses/`; `~/.hmz/flows/` and `./.hmz/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 
 ## Python equivalents {#python-entry-points}
 

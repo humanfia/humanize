@@ -72,9 +72,17 @@ _PROBE_WITHIN = 60.0
 #: What a host is asked when it is first reached, in POSIX sh, as `key=value` lines: its home,
 #: humanize's home there, its CPUs, memory and GPUs, `CUDA_VISIBLE_DEVICES` if it is set, and
 #: whether each program an environment mixin is served with (`git`, `bash`) is on its PATH.
+#: A home there kept under the name it had before, `~/.humanize`, is moved first, as
+#: :func:`hmz.home` moves the one here: only where nothing is at `~/.hmz` and `HUMANIZE_HOME`
+#: is not set, and a move that fails leaves it where it was. With `mv -T` where `mv` has it
+#: (GNU, busybox), which is one rename that fails onto a directory something appeared at since
+#: it was looked for, rather than moving the old one into it.
 PROBE_SCRIPT = rf"""
 printf 'home=%s\n' "$HOME"
-printf 'state=%s\n' "${{HUMANIZE_HOME:-$HOME/.humanize}}"
+[ -n "${{HUMANIZE_HOME:-}}" ] || [ -e "$HOME/.hmz" ] || [ ! -d "$HOME/.humanize" ] \
+  || mv -T -- "$HOME/.humanize" "$HOME/.hmz" 2>/dev/null \
+  || {{ [ -e "$HOME/.hmz" ] || mv -- "$HOME/.humanize" "$HOME/.hmz"; }} 2>/dev/null || :
+printf 'state=%s\n' "${{HUMANIZE_HOME:-$HOME/.hmz}}"
 printf 'cpus=%s\n' "$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null \
   || sysctl -n hw.ncpu 2>/dev/null)"
 if [ -r /proc/meminfo ]; then
@@ -124,7 +132,7 @@ def facts_of(said: str) -> _Facts:
     home = values.get("home", "")
     if not home.startswith("/"):
         raise EnvConnectionError(f"the host did not say where its home is: {said!r}")
-    state = PurePosixPath(home) / PurePosixPath(values.get("state") or ".humanize")
+    state = PurePosixPath(home) / PurePosixPath(values.get("state") or ".hmz")
     cpus = int(values["cpus"]) if values.get("cpus", "").isdigit() else 1
     if values.get("memkb", "").isdigit():
         memory = int(values["memkb"]) * 1024

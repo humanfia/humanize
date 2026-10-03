@@ -214,7 +214,7 @@ async def test_a_flow_never_set_up_here_opens_the_menu_and_runs_once_it_is_saved
     tmp_path: Path, backend: None, started: list[Started]
 ) -> None:
     """A flow with no agents chosen for it is a flow that stops on its first turn."""
-    written(tmp_path / ".humanize" / "flows", "loop", _ONE)
+    written(tmp_path / ".hmz" / "flows", "loop", _ONE)
     app = Humanize()
     async with app.run_test() as driver:
         await sends(app, driver, "$local/loop fix the build")
@@ -250,7 +250,7 @@ async def test_a_flow_that_grew_an_agent_is_asked_about_rather_than_run_short_of
     Written down under what the flow calls each place, so the reviewer it grew is a name with
     nothing against it rather than the builder's model quietly moved along one.
     """
-    written(tmp_path / ".humanize" / "flows", "pair", _PAIR)
+    written(tmp_path / ".hmz" / "flows", "pair", _PAIR)
     Settings(tmp_path).remember(
         "local/pair", {"builder": Runs("claude/m:high")}, budget=_SPENDS
     )
@@ -267,7 +267,7 @@ async def test_settings_the_flow_no_longer_accepts_are_asked_again_rather_than_d
     tmp_path: Path, backend: None, started: list[Started]
 ) -> None:
     """A flow that renamed a param under what was written down for it is one to answer."""
-    written(tmp_path / ".humanize" / "flows", "settable", _SETTABLE)
+    written(tmp_path / ".hmz" / "flows", "settable", _SETTABLE)
     Settings(tmp_path).remember(
         "local/settable",
         _WORKER,
@@ -287,7 +287,7 @@ async def test_walking_out_of_the_menu_starts_nothing_and_says_so(
     tmp_path: Path, backend: None, started: list[Started]
 ) -> None:
     """A line typed to start something must not vanish without a word about it."""
-    written(tmp_path / ".humanize" / "flows", "loop", _ONE)
+    written(tmp_path / ".hmz" / "flows", "loop", _ONE)
     app = Humanize()
     async with app.run_test() as driver:
         await sends(app, driver, "$local/loop fix the build")
@@ -361,7 +361,7 @@ async def test_one_of_the_several_flows_a_file_holds_is_named_dash_and_all(
     tmp_path: Path, started: list[Started]
 ) -> None:
     """`<file>:<inside>` is a name like any other, and what is inside may be called anything."""
-    written(tmp_path / ".humanize" / "flows", "phases", _PHASES)
+    written(tmp_path / ".hmz" / "flows", "phases", _PHASES)
     Settings(tmp_path).remember("local/phases:gen-idea", _WORKER, budget=_SPENDS)
     app = Humanize()
     async with app.run_test() as driver:
@@ -466,7 +466,7 @@ async def test_an_environment_role_the_flow_no_longer_declares_is_not_handed_to_
     tmp_path: Path,
 ) -> None:
     """A role renamed since is one no row can clear, and must not refuse every later run."""
-    written(tmp_path / ".humanize" / "flows", "loop", _ONE)
+    written(tmp_path / ".hmz" / "flows", "loop", _ONE)
     Settings(tmp_path).remember(
         "local/loop", _WORKER, envs={"scratch": "local@/tmp"}, budget=_SPENDS
     )

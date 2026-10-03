@@ -135,7 +135,7 @@ A line the same as the one before it is kept once. A task given to `hmz exec` is
 look in your shell's history.
 
 ::: details Clearing it
-History is one file, `~/.humanize/history.jsonl` (under `$HUMANIZE_HOME` if you set that).
+History is one file, `~/.hmz/history.jsonl` (under `$HUMANIZE_HOME` if you set that).
 Delete it to forget every line you have sent, everywhere. Nothing else is lost.
 :::
 

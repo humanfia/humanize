@@ -27,7 +27,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | [Providers](/reference/providers) | Accounts an agent runs as, ways in | `hmz.coganchor` |
 | [Remote execution](/reference/remote-execution) | `hmz internal anchor`: harness placement, targets, mirrors | `hmz.coganchor` |
 | [Tracing](/reference/tracing) | Epics, journals, traces, profiling, export | `hmz.runtime` |
-| [Files](/reference/files) | Everything under `$HUMANIZE_HOME` and a workspace's `.humanize/` | — |
+| [Files](/reference/files) | Everything under `$HUMANIZE_HOME` and a workspace's `.hmz/` | — |
 | [Environment variables](/reference/environment) | Every variable any part of humanize reads or sets | — |
 | [Settings](/reference/settings) | Every key of `settings.yaml` and the other stores the interface writes | — |
 
@@ -47,7 +47,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | the monitor | [TUI › Monitor](/reference/tui#watching-the-run) |
 | a daemon request or message | [Daemon › Requests](/reference/daemon#requests), [Messages](/reference/daemon#messages) |
 | a Python class or method | [SDK](/reference/sdk) |
-| a file under `~/.humanize` | [Files](/reference/files) |
+| a file under `~/.hmz` | [Files](/reference/files) |
 | an environment variable | [Environment variables](/reference/environment) |
 
 ## Conventions {#conventions}
@@ -61,7 +61,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | `a \| b` | One of the alternatives. |
 | `{a, b}` | Every combination, as a shell brace expansion. |
 | EBNF blocks | `=` defines, `,` concatenates, `\|` alternates, `[ ]` optional, `{ }` zero or more, `( )` groups, `" "` terminal, `? ?` prose. |
-| `~/.humanize` | `$HUMANIZE_HOME` where set and non-empty. |
+| `~/.hmz` | `$HUMANIZE_HOME` where set and non-empty. |
 | `hmz: …` | Text as printed; a leading `hmz: ` or `hmz exec: error: ` is part of the message. |
 | Types | Python annotations as written in the source (`str \| None`, `tuple[str, ...]`). |
 | *as local* | A CLI running as this machine's own login, with no humanize account. |

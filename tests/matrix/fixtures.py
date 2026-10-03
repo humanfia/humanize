@@ -30,7 +30,7 @@ __all__ = ["billed", "cell", "home_kept_here"]
 
 #: The unit prices this machine last fetched, which a cell's home is given a copy of: the
 #: suite fetches nothing, and a cost cap over prices nobody has is a cap nothing reads.
-_PRICES = Path.home() / ".humanize" / "prices.json"
+_PRICES = Path.home() / ".hmz" / "prices.json"
 
 
 def _priced() -> None:
@@ -111,7 +111,7 @@ def cell(
 def home_kept_here(monkeypatch: pytest.MonkeyPatch) -> Generator[Path]:
     """Humanize's home inside a directory every agent keeps on this machine, as the default is.
 
-    `~/.humanize` is one of those, and a container's mirrors are kept under humanize's home:
+    `~/.hmz` is one of those, and a container's mirrors are kept under humanize's home:
     the suite's own home under the system's temporary directory is the one place a mirror
     swallowed by a directory kept here could not be seen. `~/.cache/humanize` is another, and
     on many a machine `~/.cache` is a link to somewhere else, which a mirror under it has to

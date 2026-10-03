@@ -90,7 +90,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-home"))
-    where = tmp_path / ".humanize/flows"
+    where = tmp_path / ".hmz/flows"
     where.mkdir(parents=True)
     written(where, "counts", COUNTS)
     written(where, "plain", PLAIN)
@@ -293,7 +293,7 @@ async def test_a_flow_marked_since_the_run_is_asked_of_the_flow(
     run left rather than what its flow says -- which is the two questions in their order.
     """
     _ran("plain", "go")
-    written(workspace / ".humanize/flows", "plain", COUNTS)
+    written(workspace / ".hmz/flows", "plain", COUNTS)
 
     app = Humanize()
     async with app.run_test() as driver:

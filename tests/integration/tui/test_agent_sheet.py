@@ -137,7 +137,7 @@ async def pair(task: str, *, agents: Agents, envs: EnvCollection, params: FlowPa
 @pytest.fixture
 def flows(tmp_path: Path) -> Path:
     """Puts the flows where this project's own would be."""
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(where, "here", HERE)
     written(where, "placed", PLACED)
@@ -542,7 +542,7 @@ async def test_the_flow_may_rule_a_backend_out_of_the_clis_offered(
     tmp_path: Path,
 ) -> None:
     """A CLI that cannot do what the role declares is one choosing would refuse to start on."""
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(
         where,
@@ -594,7 +594,7 @@ async def test_a_role_typed_as_one_harness_is_offered_that_harness_alone(
     tmp_path: Path,
 ) -> None:
     """A role declared a `CodexAgent` is Codex: every other CLI would be refused at the run."""
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(
         where,

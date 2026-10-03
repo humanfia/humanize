@@ -37,7 +37,7 @@ request from another.
 ## Example: a builder that asks for reviews
 
 ```python
-# .humanize/flows/delegating/__init__.py
+# .hmz/flows/delegating/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,

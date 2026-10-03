@@ -33,7 +33,7 @@ from hmz.flows import (
     EnvUnavailable,
 )
 from hmz.runtime.flowing.environing import MachineEnvDriver
-from hmz.runtime.flowing.environing_ssh import SSHMachine
+from hmz.runtime.flowing.environing_ssh import PROBE_SCRIPT, SSHMachine, facts_of
 from hmz.runtime.flowing.environments import open_env, probe
 from hmz.runtime.flowing.specs import parse_envs
 from tests.flows.contracts import check_env_driver
@@ -205,6 +205,63 @@ async def test_what_a_host_has_is_learned_when_it_is_probed(
         assert driver.gpu_count >= 0
     finally:
         await driver.close()
+
+
+def _probed(home: Path, **env: str) -> PurePosixPath:
+    """Where the probe, run by `sh` in a home of the test's own, says humanize's home is."""
+    said = subprocess.run(
+        ["/bin/sh", "-c", PROBE_SCRIPT],
+        env={"PATH": os.environ["PATH"], "HOME": str(home), **env},
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+    ).stdout
+    return facts_of(said).state
+
+
+def test_the_probe_moves_a_home_kept_under_the_old_name(tmp_path: Path) -> None:
+    (tmp_path / ".humanize" / "envs").mkdir(parents=True)
+
+    assert _probed(tmp_path) == PurePosixPath(tmp_path / ".hmz")
+
+    assert not (tmp_path / ".humanize").exists()
+    assert (tmp_path / ".hmz" / "envs").is_dir()
+
+
+def test_the_probe_leaves_both_where_both_are(tmp_path: Path) -> None:
+    (tmp_path / ".humanize" / "old").mkdir(parents=True)
+    (tmp_path / ".hmz" / "new").mkdir(parents=True)
+
+    assert _probed(tmp_path) == PurePosixPath(tmp_path / ".hmz")
+
+    assert (tmp_path / ".humanize" / "old").is_dir()
+    assert sorted(one.name for one in (tmp_path / ".hmz").iterdir()) == ["new"]
+
+
+def test_the_probe_moves_nothing_where_humanize_home_is_set_there(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".humanize").mkdir()
+
+    state = _probed(tmp_path, HUMANIZE_HOME=str(tmp_path / "elsewhere"))
+
+    assert state == PurePosixPath(tmp_path / "elsewhere")
+    assert (tmp_path / ".humanize").is_dir()
+    assert not (tmp_path / ".hmz").exists()
+
+
+def test_the_probe_answers_where_the_old_home_cannot_be_moved(tmp_path: Path) -> None:
+    """A home nobody may write in: the old directory stays, and the new one is the answer."""
+    if os.geteuid() == 0:
+        pytest.skip("root may write in a directory nobody may write in")
+    (tmp_path / ".humanize").mkdir()
+    tmp_path.chmod(0o555)
+    try:
+        assert _probed(tmp_path) == PurePosixPath(tmp_path / ".hmz")
+        assert (tmp_path / ".humanize").is_dir()
+    finally:
+        tmp_path.chmod(0o755)
 
 
 @pytest.mark.timeout(120)

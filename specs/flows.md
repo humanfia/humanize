@@ -107,7 +107,7 @@ class RewindableEnvMixin:
 
 class GitEnvMixin(RewindableEnvMixin):
     # Implemented with git over the git worktree the workdir is in, which the target machine must have on its PATH: a flow declaring it on a machine without is refused before it runs, with `CapabilityMissing`. A workdir outside a worktree raises `RewindError`; it is not made one.
-    # `snapshot` records the commit checked out, the index and every file git does not ignore as a commit under `refs/hmz/snapshots/<name>`, touching none of them. `rewind` takes that or any ref git knows of a commit: the branch checked out, if any, is moved to it as `git reset --hard` would, the index is put back, and files neither in it nor ignored are removed. A `.humanize/` at the top of the worktree is treated as ignored by both.
+    # `snapshot` records the commit checked out, the index and every file git does not ignore as a commit under `refs/hmz/snapshots/<name>`, touching none of them. `rewind` takes that or any ref git knows of a commit: the branch checked out, if any, is moved to it as `git reset --hard` would, the index is put back, and files neither in it nor ignored are removed. A `.hmz/` at the top of the worktree is treated as ignored by both, and so is a `.humanize/`, what it was called before.
 
 class TemporaryClonedDirEnvMixin:
     async def derive_temp_clone(self, id: str) -> Self: ...

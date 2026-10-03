@@ -60,7 +60,7 @@ person as an agent](/weaver/human-agent#stand-in-for-the-person).
 The gentlest hooks only look, or add a line. `watched` does both:
 
 ```python
-# .humanize/flows/watched/__init__.py
+# .hmz/flows/watched/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -156,7 +156,7 @@ loop: whatever the CLI asks about is allowed unless the hook says no. `gated` re
 command that deletes:
 
 ```python
-# .humanize/flows/gated/__init__.py
+# .hmz/flows/gated/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,

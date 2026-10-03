@@ -56,7 +56,7 @@ uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
 mkdir -p ~/tmp/flashagent && cd ~/tmp/flashagent
 git init -q
 echo "# flash-agent" > README.md
-printf '.humanize/\ndocs/plan.md\n' > .gitignore
+printf '.hmz/\ndocs/plan.md\n' > .gitignore
 git add -A && git commit -qm "init"
 ```
 
@@ -64,7 +64,7 @@ git add -A && git commit -qm "init"
 
 1. **A git repository.** Phase 3 reads every review against the commit the plan was fixed in,
    so it has to be one.
-2. **The `.gitignore`.** It keeps the flows' own files (`.humanize/`) and the plan
+2. **The `.gitignore`.** It keeps the flows' own files (`.hmz/`) and the plan
    (`docs/plan.md`) out of the commits, which phase 3 insists on.
 
 ::: tip Checkpoint
@@ -113,8 +113,8 @@ hmz exec -f humanize1:gen-idea \
 When it ends, read what it wrote:
 
 ```sh
-ls .humanize/ideas/
-head -20 .humanize/ideas/*.md
+ls .hmz/ideas/
+head -20 .hmz/ideas/*.md
 ```
 
 ```console
@@ -140,7 +140,7 @@ A small terminal coding agent for deepseek-v4-flash. …
 1. **`-f humanize1:gen-idea`** names one flow of the `humanize1` module: `<flow>:<name>`.
 2. **`-a drafter=…`** gives its one role, the **drafter**, an agent.
 3. **`-b cost=5`** caps it at five dollars.
-4. **The draft** is in `.humanize/ideas/`. The drafter picked six different directions the idea
+4. **The draft** is in `.hmz/ideas/`. The drafter picked six different directions the idea
    could go, explored each against this repository and this machine, and wrote up one as the
    primary with the others as alternatives.
 5. **"Objective Evidence"**: every direction has to be justified by something the agent checked
@@ -207,7 +207,7 @@ alternatives recorded:
 
 **What just happened.**
 
-1. **It planned from the newest draft** in `.humanize/ideas/`, the one you may have edited.
+1. **It planned from the newest draft** in `.hmz/ideas/`, the one you may have edited.
 2. **Two agents this time.** The **planner** writes the plan and keeps one conversation
    throughout, so it remembers how the plan got where it is. The **analyst** comes fresh to
    each reading and says what is wrong. They go up to three rounds, until the analyst has
@@ -270,7 +270,7 @@ hmz exec -f humanize1:rlcr \
 The loop keeps a summary per round. Watch them appear from another terminal:
 
 ```sh
-ls -1 .humanize/rlcr/*/
+ls -1 .hmz/rlcr/*/
 ```
 
 ```console

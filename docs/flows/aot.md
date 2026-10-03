@@ -6,7 +6,7 @@ pageClass: hmz-feature
 
 Describe a flow, and get one you can run. A writer drafts it; humanize loads the draft and runs
 it on fake agents; a critic reads it fresh. Only a draft that passes all three lands in this
-project's `.humanize/flows/`.
+project's `.hmz/flows/`.
 
 ::: code-group
 
@@ -28,7 +28,7 @@ it:
 
 ```text
 compiled: turn_taking_review -- two agents take turns until a reviewer approves
-landed:   .humanize/flows/turn_taking_review
+landed:   .hmz/flows/turn_taking_review
 drives:   worker -- an agent
 drives:   reviewer -- an agent
 ends:     by verdict -- reviewer says done, within 6 rounds
@@ -65,7 +65,7 @@ against humanize. Any backend can fill either role.
 | Param | Default | |
 | --- | --- | --- |
 | `name` | blank | What to call the new flow. Blank takes the name the spec gives it. |
-| `into` | `local` | `local` lands it in this project's `.humanize/flows/`; `user` in `~/.humanize/flows/`. |
+| `into` | `local` | `local` lands it in this project's `.hmz/flows/`; `user` in `~/.hmz/flows/`. |
 | `repairs` | `3` | Rounds of repair after the first draft, 0 to 6. |
 | `strict` | `false` | Send a draft back for every warning, not only for what blocks it. |
 | `seconds` | `60` | How long each run on fakes may take. |

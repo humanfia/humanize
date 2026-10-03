@@ -37,7 +37,7 @@ what bounds a goal that never settles.
 answer it ended on:
 
 ```python
-# .humanize/flows/aim/__init__.py
+# .hmz/flows/aim/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -201,7 +201,7 @@ as its next prompt. `on_stop` is on every agent, so it needs no mixin and works 
 `ticked` keeps the agent going until every box in `TASK.md` is ticked:
 
 ```python
-# .humanize/flows/ticked/__init__.py
+# .hmz/flows/ticked/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,

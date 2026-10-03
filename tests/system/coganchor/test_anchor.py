@@ -114,7 +114,7 @@ def test_a_command_starts_in_the_workdir_of_a_mirror_kept_inside_a_local_path(
 ) -> None:
     """A mirror inside a directory kept on this machine -- humanize's home -- is the workdir.
 
-    A container's mirrors are kept under `~/.humanize`, which never reaches a target, and a
+    A container's mirrors are kept under `~/.hmz`, which never reaches a target, and a
     hole taken to cover the mirror it holds sent every command to the target's home.
     """
     kept = tmp_path / "kept"

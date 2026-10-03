@@ -23,7 +23,7 @@ Each is reached through an `ssh` told about keys made for the test alone: nothin
 `~/.ssh` is read or written. A machine that can give none of them skips, saying why.
 
 What lands in humanize's home on the far side goes, for `localhost`, into the real
-`~/.humanize` -- ssh carries none of this process's environment there -- so a test that derives
+`~/.hmz` -- ssh carries none of this process's environment there -- so a test that derives
 anything there removes it. The sshd of the test's own is told to take the test's
 `HUMANIZE_HOME` instead, and a container's is the container's.
 """

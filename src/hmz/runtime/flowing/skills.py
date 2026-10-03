@@ -12,7 +12,7 @@ A flow may also name skills that live somewhere else, by writing them where it i
 which is a git repository anything can clone and, after the `#`, which of the skills in it is
 wanted -- matched against the `skills/*` that repository holds, by the directory each is in.
 Without one, every skill that repository holds is brought. A repository is cloned once into
-`~/.humanize/skills/<name>/` and fetched again the next time a run asks for it, so a skill
+`~/.hmz/skills/<name>/` and fetched again the next time a run asks for it, so a skill
 somebody else maintains is a skill that keeps up.
 
 Nothing here installs anything. What is fetched is put where humanize keeps it, and what a

@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 #: A provider's copy of a credential and the path the CLI insists on looking at, as
 #: `hmz.coganchor.providers` lays them out.
 NAMED = "/home/me/.claude/.credentials.json"
-INSTEAD = "/home/me/.humanize/providers/claude/work/home/.credentials.json"
+INSTEAD = "/home/me/.hmz/providers/claude/work/home/.credentials.json"
 
 
 def test_a_swap_a_turn_is_given_is_a_redirect_the_session_is_spawned_with(

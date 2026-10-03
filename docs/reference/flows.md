@@ -1006,8 +1006,8 @@ against it and declare `GitEnvMixin` on the role.
 | `snapshots()` | The snapshot refs, oldest first by committer date (to the second; ties by name). Shared by every worktree of the repository. |
 
 The whole worktree is affected, whatever subdirectory the workdir is. Ignored files and a
-`.humanize/` at the worktree's top are neither recorded nor removed. Snapshots persist until
-`git update-ref -d refs/hmz/snapshots/<name>`.
+`.hmz/` (or a `.humanize/` not yet moved) at the worktree's top are neither recorded nor
+removed. Snapshots persist until `git update-ref -d refs/hmz/snapshots/<name>`.
 
 `RewindError` is raised for a workdir outside a git worktree, a ref git does not know, a name
 git refuses as a ref, a snapshot taken before the first commit rewound on a detached `HEAD`,
@@ -1219,7 +1219,7 @@ Grammar rules:
 
 **`git+` fetching.** `<rev>` absent means the default branch. A 40-hex `<rev>` is used as a
 commit; anything else is resolved with `git ls-remote`. The checkout is kept at
-`~/.humanize/flowverses/.pinned/<blake2b-8(url)>/<sha>` and cloned once per commit; each run
+`~/.hmz/flowverses/.pinned/<blake2b-8(url)>/<sha>` and cloned once per commit; each run
 fetches a given URL and revision at most once, on a worker thread, when the flow is first
 called (`hmz exec -f git+…` fetches before the run starts). Each git command has 120 s.
 
@@ -1309,7 +1309,7 @@ async def gen_plan(task, *, agents, envs, params, ctx): ...
 
   ```console
   $ hmz exec -f humanize1 -b cost=5 "…"
-  hmz exec: error: humanize1: ~/.humanize/flowverses/official/flows/humanize1 holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>
+  hmz exec: error: humanize1: ~/.hmz/flowverses/official/flows/humanize1 holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>
   ```
 
 - Lists show the flow a bare name means under the module name, and every other visible flow as
@@ -1338,10 +1338,10 @@ Names starting with `_`, and directories without `__init__.py`, are not flows.
 
 | Order | Place | Directory |
 | --- | --- | --- |
-| 1 | `local` | `.humanize/flows/` under the current directory |
-| 2 | `user` | `~/.humanize/flows/` (literally `~`, not `HUMANIZE_HOME`) |
-| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.humanize/flowverses/official/flows/` |
-| 4 | other flowverses | `~/.humanize/flowverses/<name>/flows/`, alphabetically |
+| 1 | `local` | `.hmz/flows/` under the current directory |
+| 2 | `user` | `~/.hmz/flows/` (literally `~`, not `HUMANIZE_HOME`) |
+| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.hmz/flowverses/official/flows/` |
+| 4 | other flowverses | `~/.hmz/flowverses/<name>/flows/`, alphabetically |
 | 5 | a path | `<name>/__init__.py`, `<name>`, `<name>.py` (`~` expanded) |
 
 `<flowverse>/<flow>` looks in that flowverse only. A name nothing answers to raises
@@ -1355,14 +1355,14 @@ flowverse could hold it, the message is
 | --- | --- |
 | `chat`, `rlar` | a flow of `official` (package or repository), bare |
 | `theirs/rlar` | a flow of flowverse `theirs` |
-| `local/chat` | this project's `.humanize/flows/chat` |
-| `user/chat` | `~/.humanize/flows/chat` |
+| `local/chat` | this project's `.hmz/flows/chat` |
+| `user/chat` | `~/.hmz/flows/chat` |
 
 `-f` accepts either spelling; the TUI starts a flow by its listed name (`$local/twice`). What
 `/flow` remembers is keyed by the listed name ([Settings](/reference/settings)).
 
 **Forking.** `f` on a flow in `/flow`, and [`Hmz().flows.fork(name)`](/reference/sdk#flows),
-copy the whole flow into `.humanize/flows/<name>` (or `into=`). A name already present in
+copy the whole flow into `.hmz/flows/<name>` (or `into=`). A name already present in
 either shape is refused (`ValueError`); a failed copy leaves nothing.
 
 ## Skills {#the-skills-a-flow-brings}
@@ -1386,7 +1386,7 @@ class Reviewer(Agent):
   single-file flow `... and a flow that is one file has none of it`). Unfetchable, or no such
   skill in the repository:
   `<ref>: '<role>' names a skill that cannot be fetched: <reason>`.
-- A repository is cloned into `~/.humanize/skills/<owner>-<repo>-<sha256(url)[:12]>` and
+- A repository is cloned into `~/.hmz/skills/<owner>-<repo>-<sha256(url)[:12]>` and
   fetched again (`fetch --depth 1` + `reset --hard`) the next time a run needs it; a failed
   re-fetch uses the existing copy.
 - The flow's own skill wins a name also held by a repository.
@@ -1401,10 +1401,10 @@ A flowverse is a git repository with a `flows/` directory laid out as
 
 | Flowverse | Location | Fetched | Removable |
 | --- | --- | --- | --- |
-| `official` | package `hmz/flows/builtin/` + clone of `https://github.com/humanfia/flowverse` at `~/.humanize/flowverses/official/` | clone on demand; in the background each time `hmz` starts | no |
-| `local` | `.humanize/flows` (relative to the current directory) | never | no |
-| `user` | `~/.humanize/flows` | never | no |
-| any other | `~/.humanize/flowverses/<name>/` | clone on `add`; `fetch` refreshes | yes |
+| `official` | package `hmz/flows/builtin/` + clone of `https://github.com/humanfia/flowverse` at `~/.hmz/flowverses/official/` | clone on demand; in the background each time `hmz` starts | no |
+| `local` | `.hmz/flows` (relative to the current directory) | never | no |
+| `user` | `~/.hmz/flows` | never | no |
+| any other | `~/.hmz/flowverses/<name>/` | clone on `add`; `fetch` refreshes | yes |
 
 **Order.** Listed: `official`, others alphabetically, `local`, `user`. Looked up:
 `local`, `user`, then the listed order.

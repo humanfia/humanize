@@ -4000,7 +4000,7 @@ class Fetches(Form[tuple[str, str]]):
         self.query_one("#about", Label).update(
             "A git repository with a flows/ directory: one .py file per flow, "
             "and any files they import. It is cloned under "
-            "~/.humanize/flowverses, and its flows are available under the "
+            "~/.hmz/flowverses, and its flows are available under the "
             "flowverse name."
         )
         self._fill()

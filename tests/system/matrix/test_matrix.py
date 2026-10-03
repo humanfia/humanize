@@ -2383,7 +2383,7 @@ def test_frontends_tui(
         pytest.skip(
             f"environment: claude takes a turn nowhere on this machine -- {place}"
         )
-    written(workspace / ".humanize" / "flows", "fronted", FRONTED)
+    written(workspace / ".hmz" / "flows", "fronted", FRONTED)
     # Every pane reads as a pipe would, and holds its runs apart, as a person's would.
     monkeypatch.delenv("FORCE_COLOR", raising=False)
     monkeypatch.setenv("NO_COLOR", "1")

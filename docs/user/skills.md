@@ -149,7 +149,7 @@ When the last session using a skill ends, the copy goes, along with any director
 to hold it. An agent whose turns run on [another machine](/user/remote-execution) gets them
 there.
 
-A flow may also name skills from a git repository. Those are cloned into `~/.humanize/skills/`
+A flow may also name skills from a git repository. Those are cloned into `~/.hmz/skills/`
 and fetched again each time a run needs them, so they keep up with the repository.
 
 ## Variations
@@ -157,7 +157,7 @@ and fetched again each time a run needs them, so they keep up with the repositor
 ### Change what a flow brings
 
 Copy the flow into your project: in `/flow`, walk to it and choose `copy <flow> here` below the
-flows. The copy lands in `.humanize/flows/`, skills and all, and is yours to edit: its
+flows. The copy lands in `.hmz/flows/`, skills and all, and is yours to edit: its
 `skills/`, and which roles carry them, as [Writing a flow](/weaver/writing-a-flow) shows.
 
 ### Keep one of yours in place of the flow's

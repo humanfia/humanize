@@ -104,10 +104,13 @@ PROFILES: tuple[AgentProfile, ...] = (
 _BY_NAME = {profile.name: profile for profile in PROFILES}
 
 #: Directories that hold per-user state for *any* agent and should never be
-#: mirrored, even when the workspace happens to contain them.  ``~/.humanize``
+#: mirrored, even when the workspace happens to contain them.  ``~/.hmz``
 #: is humanize's own home, which holds the providers a turn may be run as: those
 #: credentials belong to this machine, never to the one the work lands on.
+#: ``~/.humanize`` is what it was called before, which is not moved where it
+#: cannot be and is no less this machine's for that.
 COMMON_STATE_PATHS: tuple[str, ...] = (
+    "~/.hmz",
     "~/.humanize",
     "~/.cache/humanize",
     "~/.config/humanize",

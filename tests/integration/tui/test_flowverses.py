@@ -200,7 +200,7 @@ async def test_a_search_steps_to_the_places_it_found_something_in() -> None:
 @pytest.mark.timeout(60)
 async def test_the_keys_stay_inside_the_terminal(tmp_path: Path) -> None:
     """A place of twenty flows is a list shortened to fit, not a sheet with no keys on it."""
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     for n in range(20):
         written(where, f"flow_{n:02d}", FLOW)
@@ -244,7 +244,7 @@ async def test_a_flow_says_what_it_does_beside_its_name() -> None:
 @pytest.mark.timeout(60)
 async def test_the_flows_of_your_own_are_a_place_of_their_own(tmp_path: Path) -> None:
     """A directory is not a flowverse, but it is a place flows come from, so it is one."""
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(where, "mine", FLOW)
     app = Humanize()
@@ -411,7 +411,7 @@ async def test_one_of_the_flows_a_file_holds_is_chosen_like_any_other(
     tmp_path: Path,
 ) -> None:
     """The walk on from it is that flow's own: its agents, and the settings it takes."""
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(where, "three", THREE)
     app = Humanize()
@@ -445,7 +445,7 @@ async def test_each_of_them_is_set_up_with_its_own_settings(
     tmp_path: Path,
 ) -> None:
     """Choosing one asks what that phase takes, which is not what the one beside it takes."""
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(where, "three", THREE)
     app = Humanize()
@@ -502,7 +502,7 @@ async def test_a_flow_is_copied_here_to_be_changed(
         await _steps(app, driver, "local")
         assert _rows(sheet) == ["local/chat"]
 
-    at = tmp_path / ".humanize" / "flows" / "chat"
+    at = tmp_path / ".hmz" / "flows" / "chat"
     assert "one agent, one session" in (at / "__init__.py").read_text()
     from hmz.runtime.flowing import find
 
@@ -639,7 +639,7 @@ async def test_a_flow_that_will_not_load_says_why_it_would_not(tmp_path: Path) -
     They are nothing alike -- a flowverse not fetched, a module that is not installed, a
     syntax error somebody just wrote -- and each is fixed somewhere else.
     """
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(where, "broken", "import a_module_that_is_not_installed_anywhere\n")
     app = Humanize()

@@ -28,7 +28,7 @@ COPY standin /opt/standin
 COPY stage.py /opt/stage.py
 
 ENV PATH=/opt/hmz/bin:/opt/standin:$PATH \
-    HUMANIZE_HOME=/root/.humanize \
+    HUMANIZE_HOME=/root/.hmz \
     CLAUDE_CONFIG_DIR=/root/.claude \
     CODEX_HOME=/root/.codex \
     TERM=xterm-256color

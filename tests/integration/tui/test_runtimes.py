@@ -911,7 +911,7 @@ async def test_what_a_swarm_is_saved_to_reserve_and_its_nodes_have_not_got_is_sa
 @pytest.fixture
 def placed(tmp_path: Path) -> Path:
     """Puts a flow with one environment role where this project's own would be."""
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     return written(where, "placed", PLACED)
 

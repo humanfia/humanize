@@ -244,7 +244,7 @@ def test_a_repository_that_cannot_be_reached_stops_the_run_before_it_starts(
     """A flow that works by a skill it has not got is not one to start and find out later."""
     monkeypatch.chdir(tmp_path)
     written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "reads",
         READS.replace("NAMED", '("/nowhere/at/all#note-taking",)'),
     )
@@ -262,7 +262,7 @@ def test_a_session_is_given_them_where_its_backend_reads_a_projects_own(
     """Mounted as the session opens, and gone once the session it was for has ended."""
     monkeypatch.chdir(tmp_path)
     at = written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
@@ -298,7 +298,7 @@ def test_a_shared_skill_backend_is_given_flow_skills_in_the_project_directory(
     """Every backend that reads the shared project directory is given the flow's skills."""
     monkeypatch.chdir(tmp_path)
     at = written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
@@ -326,7 +326,7 @@ def test_a_backend_that_would_not_read_them_there_is_given_none(
     """
     monkeypatch.chdir(tmp_path)
     at = written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
@@ -349,7 +349,7 @@ def test_a_projects_own_skill_of_that_name_is_left_alone(
         skill("note-taking", says="The project's own.")
     )
     at = written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
@@ -486,7 +486,7 @@ def test_a_directory_the_project_already_had_is_left_where_it_is(
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".claude" / "skills").mkdir(parents=True)
     at = written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
@@ -527,20 +527,20 @@ def test_a_backend_that_reads_no_such_directory_carries_none(
     """A flow that brings skills brings that backend none, rather than failing to start."""
     monkeypatch.chdir(tmp_path)
     written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
     )
     # A backend with nowhere a skill of a flow's could go.
-    agent = _given(ShellAgent(CONFIG), tmp_path / ".humanize/flows/mine")
+    agent = _given(ShellAgent(CONFIG), tmp_path / ".hmz/flows/mine")
 
     agent("ls -a > listed.txt")
 
     assert agent.loaded == (
         Loaded(
             name="note-taking",
-            at=tmp_path / ".humanize/flows/mine/skills/note-taking",
+            at=tmp_path / ".hmz/flows/mine/skills/note-taking",
             whose="this flow",
         ),
     )
@@ -562,7 +562,7 @@ def test_a_flow_is_copied_whole_into_this_projects_own(
     assert (tmp_path / at / "__init__.py").read_text() == DOES
     assert (tmp_path / at / "skills" / "note-taking" / "SKILL.md").is_file()
     # And your own are looked in first, so the name now means the copy.
-    assert find("mine") == str(tmp_path / ".humanize/flows/mine/__init__.py")
+    assert find("mine") == str(tmp_path / ".hmz/flows/mine/__init__.py")
     # One already copied is one to edit rather than one to write over.
     with pytest.raises(ValueError, match="already a flow of your own"):
         fork(str(tmp_path / "theirs" / "mine"))
@@ -577,14 +577,14 @@ def test_a_copy_does_not_take_the_name_of_a_flow_of_yours_that_is_one_file(
     monkeypatch.chdir(tmp_path)
     (tmp_path / "theirs").mkdir()
     written(tmp_path / "theirs", "mine", DOES)
-    (tmp_path / ".humanize/flows").mkdir(parents=True)
-    (tmp_path / ".humanize/flows/mine.py").write_text(DOES)
+    (tmp_path / ".hmz/flows").mkdir(parents=True)
+    (tmp_path / ".hmz/flows/mine.py").write_text(DOES)
 
     with pytest.raises(ValueError, match="already a flow of your own"):
         fork(str(tmp_path / "theirs" / "mine"))
 
-    assert (tmp_path / ".humanize/flows/mine.py").is_file()
-    assert not (tmp_path / ".humanize/flows/mine").exists()
+    assert (tmp_path / ".hmz/flows/mine.py").is_file()
+    assert not (tmp_path / ".hmz/flows/mine").exists()
 
 
 def test_a_copy_that_fails_partway_leaves_the_name_free(
@@ -608,10 +608,10 @@ def test_a_copy_that_fails_partway_leaves_the_name_free(
 
     monkeypatch.undo()
     monkeypatch.chdir(tmp_path)
-    assert not (tmp_path / ".humanize/flows/mine").exists()
-    assert sorted(one.name for one in (tmp_path / ".humanize/flows").iterdir()) == []
+    assert not (tmp_path / ".hmz/flows/mine").exists()
+    assert sorted(one.name for one in (tmp_path / ".hmz/flows").iterdir()) == []
     fork(str(tmp_path / "theirs" / "mine"))  # and the name is free to try again
-    assert (tmp_path / ".humanize/flows/mine/__init__.py").is_file()
+    assert (tmp_path / ".hmz/flows/mine/__init__.py").is_file()
 
 
 def test_a_copy_is_yours_to_change_and_is_what_then_runs(
@@ -626,7 +626,7 @@ def test_a_copy_is_yours_to_change_and_is_what_then_runs(
     (tmp_path / "theirs").mkdir()
     written(tmp_path / "theirs", "mine", DOES, {"note-taking": skill("note-taking")})
     fork(str(tmp_path / "theirs" / "mine"))
-    at = tmp_path / ".humanize/flows/mine/skills/note-taking/SKILL.md"
+    at = tmp_path / ".hmz/flows/mine/skills/note-taking/SKILL.md"
     at.write_text(skill("note-taking", says="Changed, and mine."))
 
     _given(ClaudeAgent(CONFIG), Path(find("mine")).parent)(
@@ -652,7 +652,7 @@ def test_a_role_is_given_the_skills_it_names_through_a_run(
     """What the runtime hands a session: the role's own skills, mounted while it is open."""
     monkeypatch.chdir(tmp_path)
     written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "reads",
         READS.replace("NAMED", '("note-taking",)'),
         {"note-taking": skill("note-taking"), "other": skill("other")},
@@ -675,7 +675,7 @@ def test_a_role_naming_a_skill_the_flow_has_not_got_stops_the_run(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     written(
-        tmp_path / ".humanize/flows",
+        tmp_path / ".hmz/flows",
         "reads",
         READS.replace("NAMED", '("nowhere",)'),
         {"note-taking": skill("note-taking")},
