@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+import hmz
 from hmz.coganchor import providers
 from hmz.runtime.epic import epics, sessions
 from hmz.runtime.exporting import (
@@ -378,6 +379,25 @@ def test_where_a_bundle_lands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     (tmp_path / "somewhere").mkdir()
     assert bundle(epic, tmp_path / "somewhere")[0].parent == tmp_path / "somewhere"
     assert bundle(epic, tmp_path / "named.tgz")[0].name == "named.tgz"
+
+
+def test_a_bundle_lands_beside_the_flows_a_project_kept_under_the_old_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Written into `.hmz/` only once `.humanize/` has moved there, which would hide it."""
+    epic = _ran(tmp_path, monkeypatch)
+    (tmp_path / ".humanize" / "flows").mkdir(parents=True)
+    (tmp_path / ".humanize" / "flows" / "mine.py").write_text("# mine\n")
+    # Exported by a process that has looked for no flow here: asked once there is something
+    # to move, since what was moved is the process's and not this test's.
+    hmz._moved.cache_clear()
+    hmz._project.cache_clear()
+
+    landed, _ = bundle(epic)
+
+    assert landed == tmp_path / ".hmz" / f"{epic.name}.epic.tar.gz"
+    assert (tmp_path / ".hmz" / "flows" / "mine.py").is_file()
+    assert not (tmp_path / ".humanize").exists()
 
 
 def test_a_bundle_left_in_the_project_is_kept_out_of_its_repository(

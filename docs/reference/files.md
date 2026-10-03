@@ -7,12 +7,31 @@ Every file and directory humanize reads or writes: under its home, under a works
 
 | Root | Path | Notes |
 | --- | --- | --- |
-| **home** (`H` below) | `$HUMANIZE_HOME`, else `~/.hmz` | Not created in advance; the first writer creates it. The provider stores create every missing level with mode `0700`; other writers leave it at the umask. |
+| **home** (`H` below) | `$HUMANIZE_HOME`, else `~/.hmz` | Not created in advance; the first writer creates it. The provider stores create every missing level with mode `0700`; other writers leave it at the umask. A `~/.humanize` is [moved here](#moved-from-humanize). |
 | **user flows** | `~/.hmz/flows` | Always the literal `~`; does **not** follow `HUMANIZE_HOME`. |
-| **workspace** | `<workspace>/.hmz/` | `<workspace>` is the directory `hmz` runs in. Not added to `.gitignore`. |
+| **workspace** | `<workspace>/.hmz/` | `<workspace>` is the directory `hmz` runs in. Not added to `.gitignore`. A `<workspace>/.humanize/` is [moved here](#moved-from-humanize). |
 | **cache** | `~/.cache/humanize/` | Does not follow `HUMANIZE_HOME`. |
 | **machine** | `<tmp>/humanize-<uid>/` | Python's `tempfile.gettempdir()` (`$TMPDIR`, else `/tmp`) and the user's id: what is this machine's alone, which a home directory several machines share must not hold. Made `0700`; refused if anyone else can write it. See [Temporary](#temporary). |
-| **a remote machine's home** | `${HUMANIZE_HOME:-$HOME/.hmz}` in the login shell there | Holds `envs/` for `ssh` environments. |
+| **a remote machine's home** | `${HUMANIZE_HOME:-$HOME/.hmz}` in the login shell there | Holds `envs/` for `ssh` environments. A `$HOME/.humanize` there is [moved here](#moved-from-humanize). |
+
+### Moved from `.humanize`
+
+These directories were called `.humanize` before. Each old one is renamed to its new name
+the first time humanize looks for it, with no message:
+
+| Old | New | When |
+| --- | --- | --- |
+| `~/.humanize` | `~/.hmz` | first look at the home in a process; not when `HUMANIZE_HOME` is set |
+| `<workspace>/.humanize` | `<workspace>/.hmz` | first look at the workspace's flows, first flow forked into them, or first bundle written there; not when it is `~/.humanize` (moved as the home is) or the directory `HUMANIZE_HOME` names |
+| `$HOME/.humanize` on an `ssh` machine | `$HOME/.hmz` | when the machine is probed; not when `HUMANIZE_HOME` is set there |
+
+The rename happens only while the new directory does not exist. When both exist, the new one
+is used and the old one is left as it is; nothing is merged. A rename that fails (a parent
+that cannot be written, a mount point) is not an error: the old directory is just not used.
+Snapshots and rewinds leave a workspace's `.humanize/` alone, as they leave its `.hmz/`.
+
+With `HUMANIZE_HOME` set, `~/.humanize` is not moved, so flows of your own still in
+`~/.humanize/flows` are not found until you move them to `~/.hmz/flows`.
 
 `<ws>` below is a workspace's absolute resolved path with every character outside
 `[A-Za-z0-9]` replaced by `-` (`/home/you/code` → `-home-you-code`; distinct paths can

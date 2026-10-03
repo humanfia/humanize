@@ -26,7 +26,9 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
-from .verses import LOCAL, MINE, OFFICIAL, flowverses, holds, nearest
+from hmz import here
+
+from .verses import OFFICIAL, flowverses, holds, nearest
 
 if TYPE_CHECKING:
     from .engine import FlowImpl
@@ -534,7 +536,9 @@ def fork(named_: str, into: str | os.PathLike[str] | None = None) -> str:
     beside = os.path.dirname(found_)
     whole = os.path.basename(found_) == ENTRY
     name = os.path.basename(beside) if whole else os.path.basename(found_)
-    mine = os.path.expanduser(str(into) if into is not None else MINE[LOCAL])
+    # This project's own through its directory, which moves one kept under the name it had
+    # before: a copy made into a new `.hmz/` would hide every flow still in the old one.
+    mine = os.path.expanduser(str(into)) if into is not None else str(here() / "flows")
     at_ = os.path.join(mine, name)
     # Both shapes of the name, whichever this one is: a flow is a directory or a file, the
     # directory wins the name where there is one of each, and a copy that landed beside a

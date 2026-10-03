@@ -47,6 +47,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from hmz import here
 from hmz.coganchor import backends
 from hmz.runtime.epic import (
     JOURNAL,
@@ -393,7 +394,7 @@ def _lands(epic: Path, at: str | os.PathLike[str] | None) -> Path:
         # Whole rather than relative: what is printed and what is shown is a path somebody
         # is about to attach something to, and `.hmz/…` is a path they then have to
         # remember which directory they were standing in for.
-        return Path.cwd() / ".hmz" / named
+        return Path.cwd() / here() / named
     said = os.fspath(at)
     asked = Path(said)
     # A trailing separator as well as a directory that is already there: `-o out/` where
