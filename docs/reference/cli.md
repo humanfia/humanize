@@ -362,6 +362,7 @@ Stage 1–2 messages are preceded by the usage block.
 | a role the runtime fills | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a`; `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
 | a required role unfilled | `<flow> needs an agent for '<role>'; specify each with -a ROLE=CLI/MODEL:EFFORT`; `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR` |
 | a role typed as one CLI given another | `<flow>: '<role>' requires <cli>, but got <cli>` |
+| an `@<provider>` naming no account of that CLI | `<flow>: '<role>' names no <cli> account called '<provider>'; make it on the accounts page of /settings` |
 | a CLI lacking a capability the role needs | `<flow>: '<role>' needs <Mixin>[, <Mixin>…], which <cli> does not support` |
 | an effort off the ladder | `<role>=<spec>: <cli> cannot be asked to think at '<effort>'; expected one of <ladder>` |
 | params the flow rejects | `<canonical ref>: <pydantic validation error>` |
