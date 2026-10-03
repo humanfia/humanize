@@ -2059,22 +2059,17 @@ PROFILES = (
         # opencode's, under its own name: the database, and the per-session diffs.
         sessions=("mimocode.db*", "storage"),
         efforts=_VARIANTS,
-        # The same arrangement as opencode, which it is a fork of, and one directory more:
-        # it reads Codex's as well as Claude Code's. The ones it ships under its own data
+        # Its own and the open standard's, and nobody else's: 0.1.15 reads Claude Code's,
+        # Codex's and opencode's only where `MIMOCODE_ENABLE_CLAUDE_CODE_SKILLS` and its two
+        # siblings are set, which nothing here sets. The ones it ships under its own data
         # home -- its builtins, and the bundle its compose flows work by -- are not listed:
         # those came with the CLI rather than from whoever is running it.
         config=("mimocode/skills/*/SKILL.md", "mimocode/skill/*/SKILL.md"),
-        shared=(
-            ".agents/skills/*/SKILL.md",
-            ".claude/skills/*/SKILL.md",
-            ".codex/skills/*/SKILL.md",
-        ),
+        shared=(".agents/skills/*/SKILL.md",),
         works=(
             ".mimocode/skills/*/SKILL.md",
             ".mimocode/skill/*/SKILL.md",
             ".agents/skills/*/SKILL.md",
-            ".claude/skills/*/SKILL.md",
-            ".codex/skills/*/SKILL.md",
         ),
         mounts=".agents/skills",
         creds=("auth.json", "mcp-auth.json"),

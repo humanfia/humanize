@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.coganchor.agents import GrokBuildAgent, GrokBuildAgentConfig
 from hmz.coganchor.agents.skills import skills
 from hmz.coganchor.backends import named
 
@@ -136,6 +137,14 @@ def test_grok_reads_every_directory_it_is_written_down_as_reading(
     if shutil.which("grok") is None:
         pytest.skip("grok is not installed here")
     _, planted = _homes("grok", tmp_path, monkeypatch)
+    # As every turn humanize takes of it is run: a project's skills are read only in a folder
+    # it trusts, and this one was made a moment ago.
+    monkeypatch.setenv(
+        "GROK_FOLDER_TRUST",
+        GrokBuildAgent(GrokBuildAgentConfig(model="m", effort="")).environment()[
+            "GROK_FOLDER_TRUST"
+        ],
+    )
 
     said = _ran(["grok", "inspect"], tmp_path / "project")
     listed = re.search(r"Skills \(\d+\)\n(.*?)(?:\n\n|\Z)", said, re.DOTALL)

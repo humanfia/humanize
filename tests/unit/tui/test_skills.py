@@ -169,11 +169,13 @@ def test_a_backend_keeping_its_skills_by_its_configuration_is_read_there(
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
     monkeypatch.chdir(tmp_path / "project")
 
+    # Claude Code's too for opencode; mimocode 0.1.15 reads them only where a variable of its
+    # own says to, which nothing here sets.
     assert [one.name for one in skills(backend)] == [
         "its-own",
         "its-own-singular",
         "shared",
-        "claude-compat",
+        *(["claude-compat"] if backend == "opencode" else []),
         "project-its-own",
         "project-agents",
     ]
