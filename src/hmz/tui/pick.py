@@ -3806,9 +3806,12 @@ class Form[T](Drafts[T]):
         """
         typed = event.key == "backspace" or (event.is_printable and event.character)
         if typed and row in self._fresh:
-            # An answer nobody typed is replaced by the first thing that is.
+            # An answer nobody typed is replaced by the first letter that is, and corrected by
+            # a backspace: `gateway` backspaced is `gatewa`, not nothing, which is somebody
+            # trimming a name rather than starting another.
             self._fresh.discard(row)
-            self._typed_in[row] = ""
+            if event.key != "backspace":
+                self._typed_in[row] = ""
         if event.key == "backspace":
             self._typed_in[row] = self._typed_in.get(row, "")[:-1]
         elif event.key in _CHORD_KEYS and self.lines(row):
@@ -7032,6 +7035,8 @@ class Providers(Pages):
         self._gone: set[str] = set()
         #: What each corrected one is to hold, by `cli/name`.
         self._edits: dict[str, dict[str, str]] = {}
+        #: The accounts saving corrected, whose models the interface asks for again.
+        self._corrected: list[tuple[str, str]] = []
         #: Which other backends each corrected one is to be written down for as well, by
         #: `cli/name`: an account that several CLIs can be run as is corrected for all of
         #: them at once, which is the point of having copied it in the first place.
@@ -7493,6 +7498,7 @@ class Providers(Pages):
                     told.append(f"hmz: {escape(str(why))}")
                     continue
                 told.append(f"[dim]{escape(named)} is updated[/dim]")
+                self._corrected.append((one.cli, one.name))
                 for cli in self._alike.get(named, ()):
                     try:
                         accounts.copies(corrected, cli)
@@ -9916,6 +9922,9 @@ class Adjusted(NamedTuple):
       placed: The last thing that happened to the flowverses, or "" for nothing.
       btw: The agent `/btw` asks about a whole flow, as `cli@provider/model:effort` or "" for
         the flow's first agent, or None where that was not touched.
+      corrected: The accounts corrected, as `(cli, name)`, whose models are to be asked for
+        again: what an account runs follows from where it signs in, and a gateway moved is a
+        list of models from the one it left.
     """
 
     enable_sentry: bool | None = None
@@ -9925,6 +9934,7 @@ class Adjusted(NamedTuple):
     told: tuple[str, ...] = ()
     placed: str = ""
     btw: str | None = None
+    corrected: tuple[tuple[str, str], ...] = ()
 
 
 #: What can be done with a run that has already happened, once somebody is inside it: pick it

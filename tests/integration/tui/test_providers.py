@@ -715,6 +715,56 @@ async def test_correcting_what_one_holds_is_held_until_the_menu_is_saved() -> No
 
 
 @pytest.mark.timeout(60)
+async def test_an_account_corrected_is_asked_what_it_runs_once_it_is_saved() -> None:
+    """A gateway moved is a list of models from the one it left until it is asked again."""
+    providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "old"})
+    app = Humanize()
+    with unittest.mock.patch(
+        "hmz.tui.app.asks", new=unittest.mock.AsyncMock(return_value=(3, ""))
+    ) as asked:
+        async with app.run_test() as driver:
+            await into_settings(app, driver, "accounts")
+            await until(
+                lambda: bool(app.screen.query_one("#choices", OptionList).options),
+                driver,
+            )
+            await _doing(app, driver, "corrects")
+            await _writes(app, driver, "OPENAI_API_KEY", *"new")
+            await _answers(app, driver)
+            await until(lambda: isinstance(app.screen, Providers), driver)
+            # Not while it is only held: the account still signs in where it did.
+            asked.assert_not_called()
+
+            await keeps(app, driver)
+            await until(
+                lambda: "codex supports 3 models as work" in transcript(app), driver
+            )
+
+    asked.assert_awaited_once_with("codex", "work")
+
+
+@pytest.mark.timeout(60)
+async def test_a_backspace_trims_a_name_written_in_rather_than_clearing_it() -> None:
+    """The first letter replaces a guess; a backspace is somebody correcting it."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, "accounts")
+        form = await _adds(app, driver)
+        await _chooses(app, driver, "cli", "codex")
+        await _chooses(app, driver, "way", "gateway")
+        assert form._typed_in["name"] == "gateway"
+
+        await onto(app, driver, "name")
+        await driver.press("backspace", "y", "s")
+        await driver.press("enter")
+        await driver.pause()
+        assert form._typed_in["name"] == "gateways"
+
+        await driver.press("escape")
+        await until(lambda: isinstance(app.screen, Confirms | Providers), driver)
+
+
+@pytest.mark.timeout(60)
 async def test_a_secret_left_blank_while_correcting_keeps_the_one_it_has() -> None:
     """Correcting the endpoint of a gateway is not a reason to type its key again."""
     providers.add(

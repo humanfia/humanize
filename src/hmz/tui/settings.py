@@ -1244,6 +1244,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                 btw=self._btw if self._btw != self._btw_was else None,
                 told=tuple(told),
                 placed=self._placed,
+                corrected=tuple(self._corrected),
             )
         )
 

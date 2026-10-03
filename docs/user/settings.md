@@ -159,8 +159,8 @@ line says what answering it will do. Type on a written row to write it, no <kbd>
 first; <kbd>enter</kbd> keeps it and moves the cursor on to the next row still to be answered,
 or to `done` once none is. A row marked `▾` drops its values under it, as on a page of
 settings; one marked `▸` opens a list to choose from. What a form can guess is written in for
-you (a name, a region) and the first letter you type replaces it. A secret is drawn as bullets
-and never shown back. <kbd>esc</kbd> out of a form you wrote in asks whether to keep it.
+you (a name, a region): the first letter you type replaces it, and <kbd>backspace</kbd> trims
+it instead. A secret is drawn as bullets and never shown back. <kbd>esc</kbd> out of a form you wrote in asks whether to keep it.
 
 The line under the list says what became of the last thing done on that page, and it is still
 there when you go back into the page, as is the row the cursor was on.
@@ -510,7 +510,7 @@ be done with the account](/demo/accounts.gif)
 
 | On the menu | What it does |
 | --- | --- |
-| **edit settings** | Asks its way's questions again, on the same form it was made on. Secrets are never shown back: leave one blank to keep it, or type a new one. |
+| **edit settings** | Asks its way's questions again, on the same form it was made on. Secrets are never shown back: leave one blank to keep it, or type a new one. Once saved, the account is asked again what models it runs, so a gateway moved offers the new one's. |
 | **sign in again** | Runs its login again. It owns the terminal while it does. |
 | **remove** | The account and its credentials. |
 

@@ -1007,7 +1007,10 @@ you cannot edit, sign in, or remove it`. Where a failing turn goes is the
 
 On save the transcript says, per change: `<cli>/<name> and its credentials were removed`,
 `<cli>/<name> is updated` (and `<other>/<name> is updated with it`), then once `account
-changes take effect from the next agent session`.
+changes take effect from the next agent session`. Each account updated is then asked again,
+in the background, what it runs: `<cli> supports <n> models as <name>`, or `could not get
+models for <cli> as <name>[: <why>]; retry from the model row of an agent using this
+account`.
 
 #### Account form {#making-an-account}
 

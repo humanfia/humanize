@@ -101,6 +101,7 @@ from .pick import (
     Leaves,
     Reports,
     Runs,
+    asks,
     budget_of,
     declared_of,
     named_as,
@@ -3736,6 +3737,30 @@ class Humanize(App[None]):
                 "[dim]cleared saved settings for this directory; humanize will "
                 "open without them on next launch[/dim]"
             )
+        for cli, name in said.corrected:
+            self._asks_again(cli, name)
+
+    @work
+    async def _asks_again(self, cli: str, name: str) -> None:
+        """Asks a corrected account's CLI what it runs now, and says what it answered.
+
+        In the background, as a new account's are: the list kept was the answer of where the
+        account signed in before, and an agent offered models from a gateway it has left is
+        an agent whose first turn fails.
+
+        Args:
+          cli: The backend.
+          name: The account.
+        """
+        runs, why = await asks(cli, name)
+        self.show(
+            f"[dim]{escape(cli)} supports {runs} model{'' if runs == 1 else 's'} as "
+            f"{escape(name)}[/dim]"
+            if runs
+            else f"hmz: could not get models for {escape(cli)} as {escape(name)}"
+            + (f": {escape(why)}" if why else "")
+            + "; retry from the model row of an agent using this account"
+        )
 
     @work
     async def action_epics(self) -> None:
