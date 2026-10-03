@@ -380,8 +380,8 @@ while True:
     state["turn"] = at
 ```
 
-**Start from an official loop.** Fork one into `.humanize/flows/` and change the copy. See
-[Flowverses](/weaver/flowverses).
+**Start from a built-in loop.** Copy one into your project with **Copy here** in `/flow`, and
+change the copy. See [Flowverses](/weaver/flowverses#managing-flowverses).
 
 | Flow | Each round |
 | --- | --- |

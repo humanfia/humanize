@@ -259,8 +259,8 @@ hmz exec -f chat -a assistant=dsh/deepseek-v4-flash:high "say hello"
 ```
 
 `chat` and the six loops [FlowBench scores](/flows/#the-loops-side-by-side) ship with
-humanize. A flow from a flowverse, such as `humanize1`, needs `hmz` opened once first: that is
-what fetches flowverses, and `hmz exec` does not.
+humanize. A flow from a flowverse, such as `parallel_flame_chase`, runs once you install it
+from `/flow`; `hmz exec` installs nothing.
 
 A `dsh` agent works with full access whatever its flow declares. See
 [Security](/user/security).
@@ -274,8 +274,8 @@ the twelve above. See [Many backends, one agent](/features/backends).
 ## Where humanize keeps things
 
 Everything humanize remembers is under `~/.humanize/`: your runs, what each directory was set
-up to run, your accounts, and the flowverses it fetched. Set `HUMANIZE_HOME` to keep it
-somewhere else. A project's own flows, and the runs you export from it, are in `.humanize/` in
+up to run, your accounts, the flowverses it fetched and the flows you installed. Set
+`HUMANIZE_HOME` to keep it somewhere else. A project's own flows, and the runs you export from it, are in `.humanize/` in
 that project. The full list is in the [CLI reference](/reference/cli).
 
 ## Troubleshooting

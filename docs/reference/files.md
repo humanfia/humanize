@@ -39,8 +39,9 @@ H/
 │   ├── docker/<name>/runtime.json, docker/.<name>.lock
 │   └── swarm/<name>/runtime.json, swarm/.<name>.lock
 ├── flowverses/
-│   ├── official/  <name>/              git clones
-│   └── .pinned/<blake2b-8(url)>/<sha>/ checkouts of git+ refs
+│   ├── official/  <name>/              index clones
+│   └── .pinned/<blake2b-8(url)>/<sha>/ checkouts of git+ refs and of releases installed
+├── installed/<flowverse>/<flow>/       installed flows, each with its .installed.json
 ├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
@@ -243,17 +244,35 @@ counted, created and waited for until their task runs.
 
 ### `H/flowverses/<name>/`
 
-A `git clone --depth 1` of a [flowverse](/reference/flows#flowverses). Cloned into
-`.<name>.XXXXXXXX` beside it and renamed into place; a leftover `.<name>.*` older than 60 s is
-removed before the next clone of that name. Fetch is `git fetch --depth 1 origin HEAD` then
-`git reset --hard FETCH_HEAD`. The origin URL is read from `.git/config`. Deleted by *remove*
-(not `official`).
+A `git clone --depth 1` of a [flowverse](/reference/flows#flowverses)'s index:
+`flows/<flow>/<version>/flow.yaml`. Cloned into `.<name>.XXXXXXXX` beside it and renamed into
+place; a leftover `.<name>.*` older than 60 s is removed before the next clone of that name.
+Fetch is `git fetch --depth 1 origin HEAD` then `git reset --hard FETCH_HEAD`. The origin URL is
+read from `.git/config`. Read as YAML, never imported. Deleted by *remove* (not `official`).
 
 ### `H/flowverses/.pinned/<blake2b-8(url)>/<sha>/`
 
-Checkouts of [`git+` refs](/reference/flows#refs): a full clone with `--no-checkout` into
-`.<uuid>`, checked out detached at `<sha>`, renamed into place. One per commit; never
-removed.
+Checkouts of [`git+` refs](/reference/flows#refs), and of the releases
+[installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`,
+checked out detached at `<sha>`, renamed into place. One per commit; never removed.
+
+### `H/installed/<flowverse>/<flow>/`
+
+A flow installed from that flowverse's index: the release's `subdir` at its commit, without
+`.git` and `__pycache__` (a single `<flow>.py` as `__init__.py`), and `.installed.json`.
+Written into `.<flow>.XXXXXXXX` beside it and renamed into place, the release it replaces moved
+aside into that directory first and deleted with it; a leftover `.<flow>.*` older than 600 s is
+removed before the next install of that name. Replaced by an update, deleted by uninstall and
+by removing the flowverse. Imported where flows are listed and run.
+
+`.installed.json`, written with the copy before the rename, JSON (indented 2):
+
+| Key | Value |
+| --- | --- |
+| `verse`, `name` | the flowverse and the flow; must match the directories, or it is not read as installed |
+| `version`, `commit` | the release, and the commit it was copied from |
+| `repo`, `ref`, `subdir` | as the manifest said |
+| `dependencies` | `{flow: range}`, as the manifest said; checked by later installs and uninstalls |
 
 ### `H/skills/<owner>-<repo>-<sha256(url)[:12]>/`
 
@@ -266,7 +285,7 @@ workdir (`.claude/skills`, `.cursor/skills` or `.agents/skills`) for the session
 
 Flowverses `user` and `local`: `<name>/__init__.py` or `<name>.py`
 ([Where flows live](/reference/flows#where-flows-live)). humanize writes here only when a flow
-is forked (copied to `.<name>.*`, then renamed). Never deleted by humanize.
+is copied here (to `.<name>.*`, then renamed). Never deleted by humanize.
 
 ## Environments
 

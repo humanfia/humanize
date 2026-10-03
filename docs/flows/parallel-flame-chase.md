@@ -26,6 +26,12 @@ hmz exec -f parallel_flame_chase \
 
 :::
 
+::: tip Install it first
+It is not built in: in `/flow`, go to **Flowverses** → `official` and install
+`parallel_flame_chase`, which brings `parallel_flame_chase:git_pr` with it. Its code is
+[humanfia/flow-parallel-flame-chase](https://github.com/humanfia/flow-parallel-flame-chase).
+:::
+
 <HmzFlow flow="parallel_flame_chase" />
 
 ## When to use it
@@ -34,7 +40,7 @@ When the task is open enough that three approaches are worth trying side by side
 the budget for seven agents. It is [flame_chase](/flows/flame-chase) three times over, with a
 plan up front and one lane in charge of the tree. If every lane should get a clone and compete
 through pull requests instead, use
-[parallel_flame_chase_git_pr](/flows/parallel-flame-chase-git-pr).
+[parallel_flame_chase:git_pr](/flows/parallel-flame-chase-git-pr).
 
 It coordinates local work only: nothing in it releases, deploys, submits or sends anything.
 
@@ -77,10 +83,10 @@ one. Given a changed objective, it plans again against a fresh copy of your tree
 run. See [Picking a run up](/user/resuming).
 
 Only one run may hold a source tree at a time, whether of this flow or of
-`parallel_flame_chase_git_pr`: a second one refuses to start.
+`parallel_flame_chase:git_pr`: a second one refuses to start.
 
 ## See also
 
-- [parallel_flame_chase_git_pr](/flows/parallel-flame-chase-git-pr): the same lanes, each with
+- [parallel_flame_chase:git_pr](/flows/parallel-flame-chase-git-pr): the same lanes, each with
   a clone and pull requests
 - [flame_chase](/flows/flame-chase): one lane of this, on its own

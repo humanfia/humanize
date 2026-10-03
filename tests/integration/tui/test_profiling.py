@@ -17,7 +17,8 @@ from textual.widgets import OptionList
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import _PROFILING, _SAVE, Flows
+from hmz.tui.flows import Flows
+from hmz.tui.pick import _ACT_SAVE, _PROFILING
 from tests.integration.tui.test_app import onto, rows
 from tests.integration.tui.test_budget import _into
 from tests.integration.tui.test_budget import (
@@ -63,7 +64,7 @@ async def test_the_row_sits_under_the_budget_and_is_off_until_turned_on(
         # Held until the menu is saved, as everything else on it is.
         assert Settings(tmp_path).profile("local/quiet") is False
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
         assert app._profile

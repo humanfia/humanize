@@ -28,9 +28,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST draw in the terminal's own colours, asking it nothing; failures in red, warnings in yellow.
 - MUST stay responsive throughout — asking backends what they run, fetching, exporting — and MUST
   NOT start a CLI or reach the network on a sheet's drawing path.
-- MUST NOT fetch a flowverse a running flow could be reading, or one written into here.
-- MUST say why a flow will not load: a flowverse unfetched, a module missing, a file broken, no
-  flow named in it.
+- MUST fetch every flowverse's index as it starts, in the background and silently -- the
+  official one included where it has never been fetched, one written into here excluded -- and
+  install nothing by it; MUST then say once in the transcript which installed flows have a newer
+  release, by SemVer, and that they are updated from `/flow`. MUST NOT install, update or
+  uninstall a flow while one runs.
+- MUST say why a flow will not load: not installed, a flowverse unfetched, a module missing, a
+  file broken, no flow named in it.
 - MUST read `/name` as a command, `$name [prompt]` as a flow and what to say to it, and any
   other line as said to the conversation being read, reaching a turn already under way.
 - MUST run a `$` line at once where that flow is already set up here, otherwise open the flow
@@ -69,12 +73,23 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   is none to carry on, and refuse it, as it refuses picking any run up, while a flow is running
   or stopping.
 - MUST let a flow's agents be set up whatever is happening, but offer a flow choice only when idle.
-- MUST read the flows a place at a time — every flowverse fetched or not, then this project's own
-  — showing which place is read, and letting a flow be copied here whole and under its name.
+- MUST make `/flow` a screen of its own drawn as `/settings` is, its first screen two pages --
+  what is installed, and the flowverses -- opening on what is installed, or inside a flow named
+  to it, its way here across the top with every step a click back to it.
+- MUST list as installed only the flows humanize ships, the ones installed out of a flowverse
+  and this project's and yours, under where each came from, each installed one with its release
+  and with the newer one its index lists, the flow in force marked; and MUST offer updating,
+  uninstalling and copying the one under the cursor here whole and under its name.
+- MUST list per flowverse whether its index is fetched or written into, the flows it lists at
+  their newest release with what of each is installed, and per flow every release newest first,
+  prereleases marked and the installed one ticked; MUST install, update to or switch to the
+  release chosen, with what it needs, and uninstall, fetch, add and remove a flowverse --
+  removing what was installed out of it, asked first -- each at once and said under the list
+  and in the transcript, with any credential in a URL hidden, and name any manifest skipped.
 - MUST set a flow up by its roles: one row per agent role and one per environment role the flow
   declares, leaving out the ones the runtime fills -- an `Outworlder`, a `LocalEnv` -- then its
-  params, asked with the flow's own params model, what a run may spend and whether it is
-  profiled. A saved menu MUST take
+  params, asked with the flow's own params model as it is chosen and from a row of their own,
+  what a run may spend and whether it is profiled. A saved menu MUST take
   effect from the next run, and MUST refuse to save a flow whose agent role names no model, or --
   for every flow but `chat` -- one that has no budget.
 - MUST let what a run may spend -- a duration, a cost, output tokens, and whether a turn is let
@@ -118,9 +133,6 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   frontend holds, a flow to choose while none runs -- and refuse it otherwise, saying why; MUST
   say what a command does, and which keys work, as things stand, and reconsider both the moment
   the run or the view changes.
-- MUST offer on the flowverses page of `/settings`, per place flows come from, what it holds,
-  adding one, fetching it again and taking one away, against the same store the flows are read
-  from, with any credential in a URL hidden.
 - MUST list on the runtimes page of `/settings` every runtime under its
   backend -- ssh hosts, docker daemons with what each may hand out, and docker swarms with where
   their tasks may be placed and what they may reserve all told -- and offer making each on one
@@ -174,14 +186,15 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST draw the board a flow and a person share under the diagram, its lines nodes like any
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
-- MUST make `/settings [page]` the one menu of every setting, a screen of its own in six pages
+- MUST make `/settings [page]` the one menu of every setting, a screen of its own in five pages
   from the broadest to the nearest -- general for this machine (details, the btw agent where
   there is one, and reporting, each under a heading of what it is about), accounts, fallback,
-  runtimes, flowverses, and workspace for this directory, which it names across its top --
+  runtimes, and workspace for this directory, which it names across its top --
   opening on those pages alone and going into one on `enter` or a click and back out on `esc`,
-  or straight into the one named `general`, `accounts`, `fallback`, `runtimes`, `flowverses`
-  or `workspace`, offered as it is typed, or by its old name `settings`, `everywhere`,
-  `directory` or `environments`, refusing any other; forget this directory alone; keep what
+  or straight into the one named `general`, `accounts`, `fallback`, `runtimes` or `workspace`,
+  offered as it is typed, or by its old name `settings`, `everywhere`, `directory` or
+  `environments`, opening `/flow` on its flowverses for `flowverses` and saying they moved
+  there, refusing any other; forget this directory alone; keep what
   each page last said while another is read; and remember whether details are shown.
 - MUST apply each saved setting at once where it can, and otherwise say beside its row and in
   the transcript when it lands: accounts from the next agent session, forgetting from the next
@@ -193,15 +206,16 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   external command or writes to the board MUST apply at once instead, and a page that holds
   nothing MUST have no save row or button.
 - MUST answer a sheet once however many times its key is pressed.
-- MUST give a menu only `↑`/`↓`, `←`/`→`, `enter` and `esc`, `/settings` `tab`, `/` and
-  `backspace` as well, and on a form `/settings` opens typing, saying them on the screen in one
+- MUST give a menu only `↑`/`↓`, `←`/`→`, `enter` and `esc`, `/settings` and `/flow` `tab`, `/`
+  and `backspace` as well, and on a form `/settings` opens typing, saying them on the screen in one
   place: a row changed where it stands MUST change only between an `enter` -- or, on such a
   form's written row, a letter -- that begins it and an `enter` that keeps it, `esc` putting it
   back, and keeping one on such a form MUST move on to what is still to be answered; a value a
   menu changes from a fixed few MUST instead be picked, with the keys or a click, from every value
   it can take dropped under its row, `esc` or a click off it picking none, and never stepped with
   `←`/`→`; whatever else a menu does -- search, add, fetch or ask again, copy, save -- MUST be a
-  row of it, and on each page of `/settings` a button under the list instead, with saving last;
+  row of it, and on each page of `/settings` and `/flow` a button under the list instead, with
+  saving last;
   a search MUST be asked for from its row or button; every row, button and value of a menu MUST
   be reachable by the keys and by a click alike; and such a form MUST be answered from a
   row called `done` that says what answering it does.
@@ -216,10 +230,10 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | typing | `/settings` forms | on a written row, begin writing it |
 | `shift+enter`, `ctrl+j` | editor, sheets | break the line |
 | `shift+tab`, `tab` | app | round the views forward and back |
-| `tab`, `shift+tab` | `/settings` | between the list, its search and the buttons under it |
-| `/` | `/settings` | search the page's list |
-| `esc` | sheets | one step back, out of a change or a search first; on a page of `/settings`, out to its pages |
-| `backspace` | `/settings` | on a page, out to its pages |
+| `tab`, `shift+tab` | `/settings`, `/flow` | between the list, its search and the buttons under it |
+| `/` | `/settings`, `/flow` | search the page's list |
+| `esc` | sheets | one step back, out of a change or a search first; on a page of `/settings` or `/flow`, out to the page above it |
+| `backspace` | `/settings`, `/flow` | on a page, out to the page above it |
 | `←`, `→` | log, monitor | on an empty prompt: up to the monitor; back to the log last read |
 | `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
 | `space` | monitor | on an empty prompt: open an agent out to its sessions, or shut it |
@@ -227,4 +241,4 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
 | `↑`, `↓` | sheets | walk the rows, round the ends; on a `/settings` form, keeping the row being written |
-| `←`, `→` | sheets | step between lists, round the ends; in `/settings`, into a page and back out, or along its buttons |
+| `←`, `→` | sheets | step between lists, round the ends; in `/settings` and `/flow`, into a page and back out, or along its buttons |

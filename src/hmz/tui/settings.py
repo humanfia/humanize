@@ -1,11 +1,11 @@
 """`/settings`: every setting humanize has, on a screen of its own, one level at a time.
 
-What opens is the six places settings are kept and nothing else -- this machine's own, the
-accounts, the fallbacks, the runtimes, the flowverses and this workspace's -- each a card
-saying what is in it, as a phone's settings or VS Code's open on their categories. They stand
-from the broadest to the nearest: what is true wherever humanize runs, who its agents are and
-what takes over when one fails, where their work goes and where flows come from, and last the
-one directory open now. Enter or a
+What opens is the five places settings are kept and nothing else -- this machine's own, the
+accounts, the fallbacks, the runtimes and this workspace's -- each a card saying what is in it,
+as a phone's settings or VS Code's open on their categories. They stand from the broadest to
+the nearest: what is true wherever humanize runs, who its agents are and what takes over when
+one fails, where their work goes, and last the one directory open now. Where flows come from
+is `/flow`'s (:mod:`hmz.tui.flows`), drawn the same way. Enter or a
 click goes into one and esc or backspace comes back out, as k9s and ranger walk in and out of
 what they list; the line across the top says where you are, and its first word is a way back.
 
@@ -58,7 +58,6 @@ from .pick import (
     _MACHINES,
     _NO,
     _SHEET,
-    _VERSES,
     _YES,
     Action,
     Adjusted,
@@ -66,14 +65,13 @@ from .pick import (
     Body,
     Drop,
     Fallbacks,
-    Flowverses,
     Key,
     Machines,
     Providers,
-    _complete,
     _hmz,
     _many,
     _shortly,
+    complete,
     switched,
 )
 from .selecting import Choices
@@ -87,7 +85,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Model
 
 
-__all__ = ["PAGES", "Adjusts", "page_of"]
+__all__ = ["MOVED", "PAGES", "Adjusts", "page_of"]
 
 
 #: What `/settings` is told to open each page by, in the order they are listed: the word on
@@ -97,9 +95,11 @@ PAGES = (
     "accounts",
     "fallback",
     "runtimes",
-    "flowverses",
     "workspace",
 )
+
+#: The page that moved to `/flow`, still taken by `/settings` so that it can say where it went.
+MOVED = "flowverses"
 
 #: The words pages were opened by before they were called what they are, still taken: a word
 #: somebody's fingers know is a word they will type.
@@ -146,7 +146,6 @@ _PAGES = (
     _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
     _Page("Fallback", "↻", "where a turn goes when its agent fails"),
     _Page("Runtimes", "▦", "ssh hosts, docker daemons, swarms and Apple containers"),
-    _Page("Flowverses", "⑂", "the git repositories flows come from"),
     _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
 )
 
@@ -278,14 +277,14 @@ Adjusts #keys { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted;
 """
 
 
-class Adjusts(Providers, Machines, Fallbacks, Flowverses):
-    """Every setting humanize has: `/settings`, six pages opened from one screen of them.
+class Adjusts(Providers, Machines, Fallbacks):
+    """Every setting humanize has: `/settings`, five pages opened from one screen of them.
 
     General is what is true of this machine however many projects are driven from it; the
-    accounts, the fallbacks, the runtimes and the flowverses are what agents run as, where
-    turns go when they cannot, the machines their work goes on, and where flows come from;
-    the workspace is one directory's. One menu because they are one question -- what
-    does humanize remember -- and a command apiece was six things to learn the names of.
+    accounts, the fallbacks and the runtimes are what agents run as, where turns go when they
+    cannot, and the machines their work goes on; the workspace is one directory's. One menu
+    because they are one question -- what does humanize remember -- and a command apiece was
+    five things to learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
     written down is written down in humanize's own words, and a person should not have to know
@@ -293,7 +292,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     from the bar or from the question leaving asks, and each setting takes effect at once where
     it can; where it cannot, the row says when it will while it is held and the transcript says
     so once it is saved. What runs a command of its own -- making an account, signing one in,
-    saving or checking a machine, fetching a flowverse -- happens as it is asked for.
+    saving or checking a machine -- happens as it is asked for.
     """
 
     CSS = _SHEET + _SETTINGS
@@ -307,9 +306,9 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     class Settled(Message):
         """Says what the settings menu was answered with, to whoever applies it.
 
-        Posted to the interface rather than only answered to whoever opened the menu: the
-        flow menu opens it too, onto its flowverses, and what was changed there is the
-        interface's to apply all the same -- the details it shows, the directory it remembers.
+        Posted to the interface rather than only answered to whoever opened the menu: what
+        was changed is the interface's to apply -- the details it shows, the directory it
+        remembers -- whoever was waiting on the answer.
         """
 
         def __init__(self, said: Adjusted) -> None:
@@ -412,7 +411,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         listing.styles.max_height = None
         self._read_accounts()
         self._read_machines()
-        self._read_verses()
         self._fill()
         self._settles_focus()
 
@@ -641,7 +639,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                 _ACCOUNTS: self.ACCOUNTS_ABOUT,
                 _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
-                _VERSES: self.VERSES_ABOUT,
             }[self._tab]
         )
         if self._home:
@@ -652,8 +649,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._fill_machines()
         elif self._tab == _FALLBACK:
             self._fill_steps()
-        elif self._tab == _VERSES:
-            self._fill_verses()
         else:
             self._fill_own()
         self._shows_bar()
@@ -682,9 +677,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             return _many(len([one for one in self._accounts if one.name]), "account")
         if page == _MACHINES:
             return _many(len(self._saved_machines), "machine")
-        if page == _FALLBACK:
-            return _many(len(self._steps), "rule")
-        return _many(len(self._verses), "flowverse")
+        return _many(len(self._steps), "rule")
 
     def _pending(self, page: int) -> bool:
         """Whether one page is holding a change that saving would land."""
@@ -977,7 +970,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             _ACCOUNTS: self._account_actions,
             _MACHINES: self._machine_actions,
             _FALLBACK: self._step_actions,
-            _VERSES: self._verse_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
 
     def _acting(self, key: str) -> Action | None:
@@ -1110,8 +1102,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._took_machine(held)
         elif self._tab == _FALLBACK:
             self._took_step(held)
-        elif self._tab == _VERSES:
-            self._took_verse(held)
         elif held == _SENT:
             sent, kept = "; ".join(SENT), "; ".join(KEPT)
             self._said = f"Sent: {sent}. Never sent: {kept}."
@@ -1200,9 +1190,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                     )
                 )
                 picked = (
-                    written(chosen)
-                    if chosen is not None and _complete(chosen)
-                    else None
+                    written(chosen) if chosen is not None and complete(chosen) else None
                 )
         finally:
             self.opened()
@@ -1226,7 +1214,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                 forget=self._forget,
                 btw=self._btw if self._btw != self._btw_was else None,
                 told=tuple(told),
-                placed=self._placed,
                 corrected=tuple(self._corrected),
             )
         )
@@ -1234,8 +1221,8 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     def dismiss(self, result: Adjusted | None = None) -> AwaitComplete:
         """Answers, saying what happened even where nothing held was saved.
 
-        Making an account, saving a machine and fetching a flowverse happen as they are
-        asked for, so a menu walked out of without saving -- or with what it held thrown
+        Making an account and saving a machine happen as they are asked for, so a menu
+        walked out of without saving -- or with what it held thrown
         away -- still has something to say about them. And it is said to the interface as
         well as answered, since the interface is what applies the rest.
 
@@ -1245,11 +1232,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         Returns:
           The waiting, as a sheet's own is.
         """
-        said = result or (
-            Adjusted(told=tuple(self._told), placed=self._placed)
-            if self._told
-            else None
-        )
+        said = result or (Adjusted(told=tuple(self._told)) if self._told else None)
         if said is not None and not self._answered:
             showing = cast(
                 "App[None]",

@@ -303,8 +303,8 @@ polish = load("polish")
 await polish(task, agents=agents, envs=envs, params={"passes": 3})
 ```
 
-**Big flows.** `humanize1:rlcr` in the official flowverse takes over a dozen params, one per
-flag of the tool it ports. Open it to see a large one:
+**Big flows.** `humanize1:rlcr`, which you can install from the official flowverse, takes over
+a dozen params, one per flag of the tool it ports. Open it to see a large one:
 
 ```text
 /flow humanize1:rlcr

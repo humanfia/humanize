@@ -57,5 +57,5 @@ it keeps counting rounds: a round is one turn each. See [Picking a run up](/user
 
 ## See also
 
-- [flame_chase_agent_cleanup](/flows/flame-chase-agent-cleanup): this loop, with a cleaner between turns
+- [agent_cleanup:flame_chase](/flows/flame-chase-agent-cleanup): this loop, with a cleaner between turns
 - [parallel_flame_chase](/flows/parallel-flame-chase): three of these at once, in three lanes

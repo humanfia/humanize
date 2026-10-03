@@ -16,7 +16,7 @@ is what its flow declares, below.
 ::: info At a glance
 - **You will** make a run you can undo, read what each role of a flow may touch, and know which
   account every turn is billed to.
-- **Use it when** you are about to run a flow on a real repository, add a flowverse, or save
+- **Use it when** you are about to run a flow on a real repository, install a flow, or save
   an account.
 - **You need** humanize installed, and git for the repository the flow works in.
 :::
@@ -31,7 +31,7 @@ The checklist, before a flow touches anything you care about:
   (`git tag start`): `git diff start` then shows everything the flow changed, committed or
   not, and `git reset --hard start` takes it back.
 - **You have read what each role may touch.** It is in the flow's code, not in any menu.
-- **You trust every flowverse you added.** Listing a flow runs its code.
+- **You trust every flow you installed.** Listing a flow runs its code.
 - **You know which account each agent runs as.** It is the `account` row of the agent, and
   every turn is billed to it.
 
@@ -45,7 +45,7 @@ during it. Three things decide it, and none of them is a prompt:
 | What | Decided by | Where you check it |
 | --- | --- | --- |
 | what each agent may read, write and reach | the flow, one role at a time | the flow's code, or its page under [Flows](/flows/) |
-| whose code runs at all | you, by adding a flowverse | the Flowverses page of `/settings` |
+| whose code runs at all | you, by installing a flow | `/flow`, on its Installed page |
 | whose credentials a turn uses | you, on the agent's `account` row | `/flow`, and the Accounts page of `/settings` |
 
 Git is what makes the rest safe to try: a tag before the run turns everything the agents did
@@ -62,24 +62,28 @@ git status --short             # nothing uncommitted of yours to lose
 git tag start
 ```
 
-Then read what its roles may touch. In `hmz`, open `/flow`, find `aot` with `search…`, and
-choose `copy aot here`:
+Then read what its roles may touch. In `hmz`, open `/flow`. If `aot` is not installed yet,
+press **Install more…**, open `official` and install it, then come back to **Installed**. Put
+the cursor on `aot`, <kbd>tab</kbd> to **Copy here**, and press <kbd>enter</kbd>:
 
 <Term title="hmz · /flow">
 
-<pre>   official · local <span class="n">1</span>
+<pre>  <span class="m">/flows ›</span> <span class="p b">Installed</span>
+  <span class="m">…</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <span class="p">official</span>
+   <b>aot</b>                                                               <span class="a">0.1.0</span>
+     <span class="m">Writes a flow from a description: drafted, loaded, smoke-run, revie…</span>
 
-     <span class="d">1.</span> local/aot                 <span class="m">Writes a flow from a description: drafted, loaded, smoke-run, reviewed,…</span>
-
-        search…   aot
-
-   <span class="p">❯    copy aot here             so you can edit it</span>
-
-        manage flowverses         <span class="m">the flowverses page of /settings</span>
-
+   <span class="p">local</span> <span class="n">1</span>
+   <b>local/aot</b>
+     <span class="m">Writes a flow from a description: drafted, loaded, smoke-run, revie…</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
    <span class="m">copied to .humanize/flows/aot -- you can edit it, and aot now points to it</span> <span class="n">2</span>
 
-   <span class="d">enter copy · ←/→ place · esc cancel search</span></pre>
+    Install more…   Update   Uninstall   <span class="sel"> Copy here </span>   Search…       Save
+
+  <b>enter</b> copy   <b>←/→</b> move   <b>tab</b> list   <b>esc</b> back</pre>
 
 </Term>
 
@@ -95,8 +99,8 @@ grep -rn "_permission" .humanize/flows/aot
 
 What to look at, by number:
 
-1. **`local`** appears beside `official`: the copy is this project's own flow now, and the
-   flowverse's fetches no longer change what you run.
+1. **`local`** appears under `official`: the copy is this project's own flow now, and no
+   update to the installed `aot` changes what you run.
 2. **`aot now points to it`**: `$aot` and `-f aot` in this directory run your copy, which is
    the code you just read.
 
@@ -152,18 +156,21 @@ to it.
 ## Listing a flow runs its Python
 
 A flow is a directory of Python, and humanize runs it to find out what it is. Opening `/flow`,
-or naming a flow after `$` at the prompt, runs every flow humanize lists: this project's,
-yours, and every flowverse's.
+or naming a flow after `$` at the prompt, runs every flow humanize lists: the ones built in,
+the ones you installed, this project's and yours.
 
-Adding a [flowverse](/weaver/flowverses) therefore trusts that git repository with this
-machine, the way installing a package does. Add the ones you would clone and run. `official` is
-always there: it is humanize's own, at
-[humanfia/flowverse](https://github.com/humanfia/flowverse).
+Installing a flow from a [flowverse](/weaver/flowverses) therefore trusts the repository it
+comes from with this machine, the way installing a package does: install only the flows you
+would install as one. Adding a flowverse runs nothing: it is an index of releases, and holds no
+code. `official` is always there: it is humanize's own, at
+[humanfia/flowverse](https://github.com/humanfia/flowverse), and its maintainers review every
+release it lists, which lowers the risk without removing it.
 
-humanize fetches every flowverse again each time `hmz` opens, so a flow you read last week may
-have changed. To keep one as it is, walk to it in `/flow` and choose `copy <flow> here`, as in
-the example: it is copied into this project's `.humanize/flows/`, where nothing fetches it, and
-the flow's name here runs the copy.
+An installed flow is the exact commit its release names, and stays that commit until you update
+it: `hmz` fetches the flowverses each time it opens, and only says when a newer release is
+listed. To keep a flow as you read it whatever you install later, put the cursor on it in
+`/flow` and press **Copy here**, as in the example: it is copied into this project's own flows,
+and the flow's name here runs the copy.
 
 ## Where your credentials are
 
@@ -215,8 +222,9 @@ in git: a role at the default grant cannot write there, but one granted `user` o
 
 ### A flow I read last week behaves differently
 
-Its flowverse was fetched again when `hmz` opened. Copy it here with `copy <flow> here` to keep
-the version you read.
+It was updated: an update installs the newer release over the one you read. Choose the release
+you read on the flow's page in `/flow` (**Switch to**), then **Copy here** to keep it as it
+is.
 
 ### A turn was billed to the wrong account
 
@@ -234,7 +242,7 @@ as a vulnerability, and when you will hear back.
 
 - [Permissions](/user/permissions): what each official flow grants, and how each CLI holds it.
 - [Accounts](/user/settings#accounts): API keys, gateways and second logins, kept apart.
-- [Flowverses](/weaver/flowverses): what adding one means, and publishing your own.
+- [Flowverses](/weaver/flowverses): what installing a flow means, and publishing your own.
 - [Containers](/user/containers): put the work somewhere a mistake cannot reach you.
 
 <style scoped>

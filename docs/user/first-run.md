@@ -151,75 +151,85 @@ runs on its own you choose a **flow**.
 
 ## 3. Choose a flow
 
-Type `/flow` and press <kbd>enter</kbd>. The flows are listed by where they come from.
-`official` is humanize's own; <kbd>←</kbd> and <kbd>→</kbd> step to your project's flows
-(`local`) and your own (`user`) once you have some.
-
-Press <kbd>enter</kbd> on the `search…` row below the flows, type `ralph`, and press
-<kbd>enter</kbd> on `ralph_loop`:
+Type `/flow` and press <kbd>enter</kbd>. It opens on **Installed**: every flow ready to run
+here, the ones built into humanize first. Press <kbd>/</kbd>, type `ralph`, press
+<kbd>enter</kbd> to go back to the list, and <kbd>enter</kbd> on `ralph_loop`:
 
 <Term title="hmz · /flow">
 
-<pre>   <span class="p b">Flow</span>
-   <span class="m">Choose a flow to run; you will type its task next. To run a flow from elsewhere, type its path.</span>
+<pre>  <span class="m">/flows ›</span> <span class="p b">Installed</span>
+  <span class="m">Flows ready to run here: pick one to set it up and run it, or install more</span>
+  <span class="m">from a flowverse.</span>
 
-   official <span class="n">1</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+  <span class="p">│</span>  ralph                                                                 <span class="p">│</span> <span class="n">1</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <span class="p">built in</span> <span class="n">2</span>
+  <span class="sel"> <b>ralph_loop</b>                                                     built in </span>
+     <span class="m">The task again and again, a fresh session every round.</span>
 
-   <span class="p">❯ 1. ralph_loop</span>                <span class="m">The task again and again, a fresh session every round.</span>
-     <span class="d">2.</span> ralph_loop_agent_cleanup  <span class="m">A fresh-session Ralph loop whose periodic cleanup is performed by an agent.</span>
-     <span class="d">3.</span> stateful_ralph            <span class="m">The task again and again, in one session that remembers.</span>
+   <b>stateful_ralph</b>                                                 <span class="m">built in</span>
+     <span class="m">The task again and again, in one session that remembers.</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
-        search…   ralph <span class="n">2</span>
+    Install more…   Update   Uninstall   Copy here <span class="n">3</span>   Search…       Save
 
-        copy ralph_loop here      <span class="m">so you can edit it</span> <span class="n">3</span>
-
-        manage flowverses         <span class="m">the flowverses page of /settings</span>
-
-   <span class="d">enter open · esc cancel search</span></pre>
+  <b>enter</b> set up   <b>/</b> search   <b>tab</b> actions   <b>esc</b> back</pre>
 
 </Term>
 
-1. **`official`** is where these flows come from: the ones humanize ships, and humanize's own
-   [flowverse](/user/concepts#flowverse), a git repository it fetches.
-2. **`search…`** keeps the rows whose names hold the letters you typed, in that order.
-   <kbd>esc</kbd> leaves the search first, then the menu.
-3. **`copy ralph_loop here`** copies the flow into this project, to read or change. You do not
-   need it now; [Security](/user/security#listing-a-flow-runs-its-python) says when you would.
+1. **The search box.** It keeps the flows whose names hold the letters you typed, in that
+   order. <kbd>esc</kbd> clears it, then steps out of the menu.
+2. **`built in`** is where these flows come from: they ship with humanize. A flow you install
+   from a [flowverse](/user/concepts#flowverse) is listed under that flowverse's name, and this
+   project's own under `local`.
+3. **Copy here** copies the flow under the cursor into this project, to read or change. You do
+   not need it now; [Security](/user/security#listing-a-flow-runs-its-python) says when you
+   would.
 
-::: details `official` lists only seven flows
-Those are the ones humanize ships, `ralph_loop` among them. The rest of humanize's flows are in
-a git repository, the official [flowverse](/weaver/flowverses). `hmz` fetches it in the
-background every time it opens, and `/flow` fetches it if that has not happened yet. If the
-fetch fails, `/flow` says why under the list. The `manage flowverses` row below the flows opens
-the flowverses; open one and choose `fetch`, or `fetch again` once it has been fetched.
+::: details More flows than these
+**Install more…** goes to the flowverses: indexes of flows humanize can install, `official`
+first. `hmz` fetches them in the background every time it opens. Open one, then a flow, and
+install it; from then on it is listed here, with its version at the end of its row. See
+[Flowverses](/weaver/flowverses#managing-flowverses).
 :::
 
 ## 4. Give the role an agent
 
-The flow opens on its **roles**: a row for each agent it drives, then `budget`, `profiling`
-and `save`. `ralph_loop` has one role, `agent`. humanize fills it with the first CLI it found, so
-the row already names one.
+The flow opens on its **roles**: a row for each agent it drives, then `budget` and
+`profiling`, and a **Save** button under them. `ralph_loop` has one role, `agent`. humanize
+fills it with the first CLI it found, so the row already names one.
 
 <Term title="hmz · /flow › ralph_loop">
 
-<pre>   <span class="p b">ralph_loop</span>
-   <span class="m">Configure each role: an agent (CLI, account, model and effort) or an environment.</span>
+<pre>  <span class="m">/flows › Installed ›</span> <span class="p b">ralph_loop</span>                          <span class="y">● unsaved changes</span>
+  <span class="m">Configure each role: an agent (CLI, account, model and effort) or an</span>
+  <span class="m">environment; then what the flow takes and what a run may spend.</span>
 
-   <span class="p">❯ 1. agent                     claude/claude-opus-5-5:high</span> <span class="n">1</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+  <span class="sel"> <b>agent</b>                                     claude/claude-opus-5-5:high ▸ </span> <span class="n">1</span>
+     <span class="m">agent</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>budget</b>                                                           <span class="m">none ▸</span> <span class="n">2</span>
+     <span class="m">what a run may spend: none set; a run needs one</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>profiling</b>                                                         <span class="m">off ▸</span> <span class="n">3</span>
+     <span class="m">traced only</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
-        budget                    <span class="m">none set; a run needs one</span> <span class="n">2</span>
-        profiling                 <span class="m">off; traced only</span>
+                                                                    <span class="btn"> Save </span> <span class="n">4</span>
 
-        save                      <span class="m">flow and roles</span> <span class="n">3</span>
-
-   <span class="d">enter open · esc back to flows</span></pre>
+  <b>enter</b> open   <b>tab</b> actions   <b>esc</b> back</pre>
 
 </Term>
 
 1. **`agent`**, the flow's one role, and the agent filling it as `cli/model:effort`.
-2. **`budget`**: none yet. You set it in step 5. Under it, `profiling` stays off here: it is
-   for when you want the programs a run starts in its [trace](/user/tracing#profiling-a-run).
-3. **`save`**: nothing you change is kept until you press it.
+2. **`budget`**: none yet. You set it in step 5.
+3. **`profiling`** stays off here: it is for when you want the programs a run starts in its
+   [trace](/user/tracing#profiling-a-run).
+4. **Save**: nothing you change is kept until you press it. `● unsaved changes` says something
+   is waiting.
 
 Press <kbd>enter</kbd> on `agent`. An agent is four rows:
 
@@ -286,17 +296,18 @@ Press <kbd>enter</kbd> on `budget`:
    way.
 3. **`graceful`**: on lets the turn that is running finish when a limit is reached; off cuts
    it off. <kbd>enter</kbd> or a click drops the two under it, opening on the one it is not.
-4. **`set`** keeps all four. The roles sheet then reads `stops at 20m, $0.50`.
+4. **`set`** keeps all four. The `budget` row then reads `set`, and under it
+   `what a run may spend: stops at 20m, $0.50`.
 
 The run stops at whichever limit it reaches first. If your account is billed by the token, set
 a `cost` as well as a `duration`. See [Every run has a budget](/features/allowances).
 
 ## 6. Save
 
-Press <kbd>enter</kbd> on `save`, the last row under the roles. The status line now reads
-`◉ ralph_loop`, and humanize says `enter a task to start the flow`.
+Press <kbd>tab</kbd> to reach **Save** under the roles, and <kbd>enter</kbd>. The status line
+now reads `◉ ralph_loop`, and humanize says `enter a task to start the flow`.
 
-Nothing is applied before you save. <kbd>esc</kbd> steps back, and leaving a sheet with changes
+Nothing is applied before you save. <kbd>esc</kbd> steps back, and leaving `/flow` with changes
 in it asks `Save?`, with `save` and `discard`. A flow with no budget refuses to save, saying
 `this flow requires a budget: set the budget first`.
 
@@ -375,10 +386,10 @@ line:
 
 | The flow is | Name it |
 | --- | --- |
-| humanize's own | `$ralph_loop` |
+| built in, or installed from `official` | `$ralph_loop` |
 | in this project's `.humanize/flows/` | `$local/twice` |
 | in your `~/.humanize/flows/` | `$user/twice` |
-| in a flowverse you added | `$<flowverse>/<flow>` |
+| installed from a flowverse you added | `$<flowverse>/<flow>` |
 
 A flow that is set up here starts at once. One that is not opens the menu on its roles, and
 saving starts it. `$ralph_loop` with nothing after it only chooses the flow.
@@ -409,10 +420,10 @@ what you save there is what the next run starts with.
 humanize fills a role with the first CLI it found. <kbd>enter</kbd> on the role, then on
 `cli`, and pick another; then pick its model again.
 
-### `official` lists only seven flows
+### A flow from the [Flows](/flows/) pages is not listed
 
-The official flowverse has not been fetched yet. See the note under
-[step 3](#_3-choose-a-flow).
+Only the flows built into humanize are there from the start. Install the others from a
+flowverse: see the note under [step 3](#_3-choose-a-flow).
 
 ## Next steps
 

@@ -1,11 +1,9 @@
-# The Flowverses page of `/settings`: the places flows come from, and what one of them holds.
+# `/flow`: what is installed, then out to its first screen and into the flowverses -- the
+# indexes more flows are installed from -- and into humanize's own to read what it lists.
 #
-# The same page `manage flowverses` opens from `/flow`. Recorded from `/settings` because opening the flows
-# fetches whatever has never been fetched, and nothing here reaches the network.
-#
-# Nothing is fetched here. The two that are always listed are the package's own flows and
-# humanize's repository of the rest; asking what one holds reads the flows already on this
-# container's disk, and no turn is taken.
+# Nothing is fetched or installed here. The official index is the one `stage.py` wrote into
+# this container; the fetch the interface tries as it opens fails quietly, and adding a
+# flowverse is opened and walked back out of rather than answered.
 
 Set Shell "bash"
 Set FontSize 15
@@ -23,19 +21,37 @@ Show
 
 Sleep 400ms
 
-# Every place there is, whether or not it has been fetched, and where each came from.
-Type "/settings flowverses" Enter
-Wait+Screen /not fetched yet|official/
+# What `/flow` opens on: every flow ready to run here, the ones built in first.
+Type "/flow" Enter
+Wait+Screen /Install more/
 Sleep 1400ms
-Screenshot "/out/flowverses.png"
-Sleep 400ms
 
-# Enter says what one holds -- which means reading its flows, so it is asked of the one
-# that was opened rather than of all of them. It is also where one is taken away, past the
-# flows: what a place is, is what is in it. Not on this one -- the cursor opens on `official`,
-# which is always here -- so the sheet says why there instead.
+# Out a step, to the first screen: what is installed, and where more come from.
+Left
+Wait+Screen /indexes of flows/
+Sleep 1200ms
+
+# Into the flowverses: a card per index, how it stands and how much it lists.
+Down
 Enter
-Wait+Screen /Flows loaded from/
+Wait+Screen /Add flowverse/
 Sleep 1400ms
-Screenshot "/out/flowverse-holds.png"
+
+# Adding one is a repository and a name. Opened here, and walked back out of.
+Tab
+Sleep 400ms
+Enter
+Wait+Screen /Add a flowverse/
+Sleep 1600ms
+Escape
+Wait+Screen /Indexes of flows to install/
+Sleep 600ms
+
+# Into `official`: each flow its index lists, at its newest release, ready to install.
+Up
+Sleep 300ms
+Enter
+Wait+Screen /lists, at their newest/
+Sleep 1600ms
+Screenshot "/out/flowverses.png"
 Sleep 400ms

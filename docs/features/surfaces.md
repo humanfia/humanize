@@ -14,8 +14,8 @@ import { withBase } from 'vitepress'
 
 <div class="hmz-facts">
 
-- **Nearest flow first.** A name means this project's flow, then yours, then a flowverse's,
-  whichever way you ask.
+- **Nearest flow first.** A name means this project's flow, then yours, then one built in or
+  installed, whichever way you ask.
 - **Any run, anywhere.** However it started, it can be exported, traced and
   [picked up](/features/resuming).
 - **Walk away.** [The terminal can leave](/features/daemon), and the run keeps going.

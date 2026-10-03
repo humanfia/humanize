@@ -315,8 +315,8 @@ handed the last review to pick up from. See [Picking a run up](/user/resuming).
   one verifiable project at a time; the flow only runs it.
 - **Give the reviewer a different model.** Its job is to disagree, and two models that fail
   differently disagree more usefully than one model twice.
-- **Change what "done" means.** Walk to `rlar` in `/flow` and choose `copy rlar here` to copy
-  it into this project. `-f rlar` then runs your copy. The run ends on the reviewer's `done`,
+- **Change what "done" means.** Put the cursor on `rlar` in `/flow` and press **Copy here** to
+  copy it into this project. `-f rlar` then runs your copy. The run ends on the reviewer's `done`,
   and the field's `description` says when it may be true, so adding "and `ruff check` passes"
   there changes what ends the run. See [Answers in a shape](/weaver/shapes).
 - **Change how reviews are written.** The reviewer carries a [skill](/user/skills),

@@ -5,9 +5,9 @@
 //
 // Held to the code:
 // - The flows are grouped by where they come from. `chat` and the six loops FlowBench scores
-//   are in the package (`hmz/flows/builtin/`); the rest are the official flowverse
-//   (humanfia/flowverse), which the terminal interface fetches in the background each time it
-//   starts; and a project's `.humanize/flows` and `~/.humanize/flows` are offered as `local`
+//   are in the package (`hmz/flows/builtin/`); the rest are released from repositories of
+//   their own and installed from a flowverse, the official one (humanfia/flowverse) or one you
+//   added; and a project's `.humanize/flows` and `~/.humanize/flows` are offered as `local`
 //   and `user`.
 // - The backends are `PROFILES` in `hmz/coganchor/backends.py`, in alphabetical order.
 //   `dsh` is the one driven through a Python SDK rather than a CLI, signed in with
@@ -63,12 +63,12 @@ const BANDS: Band[] = [
         ],
       },
       {
-        label: 'the official flowverse, fetched each time hmz starts',
+        label: 'installed from a flowverse',
         chips: [
-          { text: 'humanize1', href: '/flows/humanize1' },
-          { text: 'parallel_flame_chase', href: '/flows/parallel-flame-chase' },
-          { text: 'aot', href: '/flows/aot' },
-          { text: 'and more', href: '/flows/', apart: true },
+          { text: 'humanize1', href: '/flows/humanize1', tag: 'official' },
+          { text: 'parallel_flame_chase', href: '/flows/parallel-flame-chase', tag: 'official' },
+          { text: 'aot', href: '/flows/aot', tag: 'official' },
+          { text: 'your own', href: '/weaver/flowverses', apart: true },
         ],
       },
       {

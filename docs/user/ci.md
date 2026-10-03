@@ -47,13 +47,13 @@ A CI runner starts empty every time. That shapes the whole job:
 | --- | --- | --- |
 | `hmz` and the agent's CLI are installed | nothing is | installs both, every run |
 | the CLI is signed in | it is not | signs it in from a secret |
-| the flowverses are fetched | nothing is | runs a flow humanize ships, or names one by its repository |
+| the flows you installed are there | only the built-in ones are | runs a flow humanize ships, or names any other by its repository |
 | `hmz` keeps a price list for `cost` | there is none | fetches it before the first turn |
 | `/epics` reads a run back | there is no prompt | traces the run from a script |
 | a stopped run can be picked up | nothing of a last run is kept | never uses `--resume` |
 
 `hmz exec` does not open on what the interface was set up with in any directory. It uses what
-the machine holds: the flowverses it has fetched, its [accounts](/user/settings#accounts), its
+the machine holds: the flows installed on it, its [accounts](/user/settings#accounts), its
 [fallbacks](/user/settings#fallback), any CLI added on the Accounts page of `/settings`, and
 whether [reporting](/user/reporting) was answered yes. A fresh runner holds none of these, so
 on a runner the line is the whole setup; a run is [profiled](/user/tracing#profiling-a-run)
@@ -207,16 +207,17 @@ Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/
 ## A flow from a flowverse
 
 `ralph_loop` ships with humanize, as do `chat` and the other loops
-[FlowBench scores](/flows/#the-loops-side-by-side), so the workflow names it the way you would
-at your desk. A flow from a [flowverse](/weaver/flowverses) is different: a fresh runner has
-fetched none, and a bare name is refused there with `the official flowverse has not been
-fetched yet`. Name it by its repository instead:
+[FlowBench scores](/flows/#the-loops-side-by-side), so `-f ralph_loop` runs on a fresh runner
+as it is. A flow you [install](/weaver/flowverses) from a flowverse is not there: a fresh runner
+has fetched no flowverse and installed nothing, so `-f parallel_flame_chase` is refused with
+`the official flowverse has not been fetched yet`. Name that release by its repository
+instead, which fetches it for the run and installs nothing:
 
 ```sh
--f 'git+https://github.com/<owner>/<repo>@<commit>#<flow>'
+-f 'git+https://github.com/humanfia/flow-parallel-flame-chase@v0.1.0#parallel_flame_chase'
 ```
 
-A commit rather than a branch pins the flow, so a change upstream cannot change what runs at
+The `@v0.1.0` is a tag; a commit pins the flow so that nothing upstream can change what runs at
 night. A flow of your own needs none of this: commit it to `.humanize/flows/` and name it with
 `-f <name>`.
 

@@ -38,6 +38,9 @@ dependencies = [
     # Named because the interface imports it directly. It arrives with textual either
     # way, but a dependency you import is one you declare.
     "rich>=15",
+    # What a flowverse's index says of a flow's versions is SemVer: which is newer, and which
+    # of them a dependency's range takes, are the package's rules rather than ours.
+    "semver>=3.0.4",
     # What a crash is reported through, for as long as humanize is early enough that a
     # stack nobody sees is a bug nobody fixes. Off until somebody says otherwise, and an
     # ordinary dependency rather than an extra: an install that could be missing the half

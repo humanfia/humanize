@@ -20,7 +20,8 @@ from hmz.flows import Budget
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import _BUDGET, _DONE, _PROFILING, _SAVE, Configures, Flows, budget_of
+from hmz.tui.flows import Flows
+from hmz.tui.pick import _ACT_SAVE, _BUDGET, _DONE, _PROFILING, Configures, budget_of
 from tests.integration.tui.test_app import changes, onto, opens, picks, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
@@ -93,7 +94,7 @@ async def test_the_row_says_what_the_run_is_held_to_without_being_opened(
     async with app.run_test() as driver:
         await _into(app, driver, "local/quiet")
 
-        assert rows(app) == ["0", _BUDGET, _PROFILING, _SAVE]
+        assert rows(app) == ["0", _BUDGET, _PROFILING]
         assert "none set" in _said(app)
 
 
@@ -123,7 +124,7 @@ async def test_what_is_set_there_is_kept_and_read_back(
         assert "stops at 1h" in _said(app)
         assert "$1.00" in _said(app)
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
@@ -146,7 +147,7 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_has_a_budget(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into(app, driver, "local/quiet")
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await driver.pause()
 
@@ -187,7 +188,7 @@ async def test_a_run_with_a_budget_saves_at_once(flows: Path, tmp_path: Path) ->
         sheet = await _into(app, driver, "local/quiet")
         assert "stops at 2h" in _said(app)
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: app.screen is not sheet, driver)
 
@@ -241,7 +242,7 @@ async def test_the_conversation_humanize_ships_is_never_asked_for_one(
         sheet = await _into(app, driver, "chat")
         assert "none needed" in _said(app)
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: app.screen is not sheet, driver)
 
@@ -264,7 +265,7 @@ async def test_a_loop_humanize_ships_is_asked_for_one_like_any_other(
         sheet = await _into(app, driver, "ralph_loop")
         assert "none set" in _said(app)
 
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await driver.pause()
 

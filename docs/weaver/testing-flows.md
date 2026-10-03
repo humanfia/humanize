@@ -610,11 +610,11 @@ picks it up and hands the owed notes to a fresh actor first. The flows it
 ## Test the parts that are not turns
 
 Most of what goes wrong in a flow is not the model. Pull those parts out as plain functions,
-in the flow's own helper package, and test them as you would any other code. In a flowverse,
-where `review`'s helpers are in `flows/review/_review/`:
+in the flow's own helper package, and test them as you would any other code. In a flow's own
+repository, where `review`'s helpers are in `review/_review/`:
 
 ```python
-# flows/review/_review/checks.py
+# review/_review/checks.py
 def unfinished(text: str) -> bool:
     return "- [ ]" in text
 ```
@@ -631,10 +631,10 @@ def test_unfinished() -> None:
 
 ```sh
 uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
-    --with pytest-asyncio pytest -q -o asyncio_mode=auto -o pythonpath=flows/review
+    --with pytest-asyncio pytest -q -o asyncio_mode=auto -o pythonpath=review
 ```
 
-`-o pythonpath=flows/review` lets the test import what the flow imports, from beside the flow.
+`-o pythonpath=review` lets the test import what the flow imports, from beside the flow.
 The flow is then a few lines of glue around code that is already tested. That is the shape to
 aim for.
 
@@ -682,8 +682,8 @@ jobs:
   pytest and pytest-asyncio. Nothing is published, and nothing is added to a package.
 - **`asyncio_mode = "auto"`** is the `-o asyncio_mode=auto` from the commands above.
 - **`testpaths`** names both places tests are kept, since pytest does not look inside a
-  directory whose name starts with `.` by itself. A flowverse, whose flows are in `flows/`,
-  needs only `tests`.
+  directory whose name starts with `.` by itself. A flow's own repository, with the flow in a
+  directory of its own, needs only `tests`.
 
 ```sh
 uv run pytest -q
@@ -707,8 +707,8 @@ unless it is named, so your suite never sees them, and `pytest .humanize/tests` 
 
 ## Variations
 
-**Test a flow by path.** `run_fake("flows/review", …)` runs the flow at that path, which is how
-a [flowverse](/weaver/flowverses) tests its own flows without adding itself.
+**Test a flow by path.** `run_fake("./review", …)` runs the flow at that path, which is how a
+flow's own repository tests it without [installing](/weaver/flowverses) it.
 
 **Test the flow object.** `run_fake` also takes what `load(…)` returns, for a flow you only
 reach by ref.

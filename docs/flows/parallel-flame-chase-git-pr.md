@@ -2,7 +2,7 @@
 pageClass: hmz-feature
 ---
 
-# parallel_flame_chase_git_pr
+# parallel_flame_chase:git_pr
 
 Chase three leads at once, the way a team works a repository: **every lane has a clone of its
 own and opens pull requests**, and a pull request reaches `main` only when a measurement shows
@@ -12,11 +12,11 @@ twelve-hour experiment.
 ::: code-group
 
 ```text [at the prompt]
-❯ $parallel_flame_chase_git_pr get the solver under 10 s on every benchmark in bench/
+❯ $parallel_flame_chase:git_pr get the solver under 10 s on every benchmark in bench/
 ```
 
 ```sh [hmz exec]
-hmz exec -f parallel_flame_chase_git_pr \
+hmz exec -f parallel_flame_chase:git_pr \
     -a orchestrator=codex/gpt-5.6-sol:max \
     -a lane_1_actor_a=codex/gpt-5.6-sol:max,lane_1_actor_b=claude/claude-opus-5:max \
     -a lane_2_actor_a=claude/claude-opus-5:max,lane_2_actor_b=codex/gpt-5.6-sol:max \
@@ -24,6 +24,12 @@ hmz exec -f parallel_flame_chase_git_pr \
     -p budget.duration=12h,budget.cost=500 "$(cat TASK.md)"
 ```
 
+:::
+
+::: tip Install it first
+It is not built in. It is a flow of the `parallel_flame_chase` module: in `/flow`, go to
+**Flowverses** → `official` and install `parallel_flame_chase`, which brings this with it. Its code
+is [humanfia/flow-parallel-flame-chase](https://github.com/humanfia/flow-parallel-flame-chase).
 :::
 
 <HmzFlow flow="parallel_flame_chase_git_pr" />

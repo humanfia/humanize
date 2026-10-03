@@ -2,23 +2,23 @@
 pageClass: hmz-feature
 ---
 
-# flame_chase_agent_cleanup
+# agent_cleanup:flame_chase
 
 Keep a long relay's workspace tidy. [flame_chase](/flows/flame-chase), with a `cleaner` that
 steps in every few turns between the two chasers: it keeps the work, deletes what strayed,
 writes down what is next, and the repository's history becomes one commit of what survived.
-The same cleaner behind one agent is [ralph_loop_agent_cleanup](/flows/ralph-loop-agent-cleanup).
+The same cleaner behind one agent is [agent_cleanup:ralph_loop](/flows/ralph-loop-agent-cleanup).
 
 <Badge type="warning" text="every role: claude · codex · kimi · pi" />
 
 ::: code-group
 
 ```text [at the prompt]
-❯ $flame_chase_agent_cleanup make every test in tests/ pass
+❯ $agent_cleanup:flame_chase make every test in tests/ pass
 ```
 
 ```sh [hmz exec]
-hmz exec -f flame_chase_agent_cleanup \
+hmz exec -f agent_cleanup:flame_chase \
     -a first_chaser=claude/claude-opus-5:high -a second_chaser=codex/gpt-5.6-sol:high \
     -a cleaner=claude/claude-opus-5:high \
     -p work_paths=src -p budget.duration=12h,budget.cost=100 "$(cat TASK.md)"
@@ -26,13 +26,18 @@ hmz exec -f flame_chase_agent_cleanup \
 
 :::
 
+::: tip Install it first
+It is not built in. It is a flow of the `agent_cleanup` module: in `/flow`, go to **Flowverses** →
+`official` and install `agent_cleanup`, which brings it and `agent_cleanup:ralph_loop`. Its code is
+[humanfia/flow-agent-cleanup](https://github.com/humanfia/flow-agent-cleanup).
+:::
+
 <HmzFlow flow="flame_chase_agent_cleanup" />
 
 ::: danger Each cleaning rewrites your git history
 Every cleaning replaces the repository's history with a single commit, `epoch N: distilled
 tree`. The history it replaces is archived outside the repository, never deleted; the flow's
-[README](https://github.com/humanfia/flowverse/blob/main/flows/flame_chase_agent_cleanup/_flame_chase_agent_cleanup/README.md#history-archive)
-says how to read it back. Run this on a clone you are willing to have rewritten.
+[README](https://github.com/humanfia/flow-agent-cleanup) says how to read it back. Run this on a clone you are willing to have rewritten.
 :::
 
 ## When to use it
@@ -58,7 +63,7 @@ is told to wrap up: `claude`, `codex`, `kimi` or `pi`. Any other is refused befo
 turn.
 
 `work_paths` is required, and the other params and their defaults are those of
-[ralph_loop_agent_cleanup](/flows/ralph-loop-agent-cleanup#roles-and-params): `cleanup_turns`
+[agent_cleanup:ralph_loop](/flows/ralph-loop-agent-cleanup#roles-and-params): `cleanup_turns`
 (`3`), `next_lines`, `comment_lines`, `repairs`, `check_command`, the three turn timeouts,
 `max_tracked_file_mb` and `confirm_large_workspace_copies`.
 
@@ -76,6 +81,6 @@ so the next cleaning comes when it would have. See [Picking a run up](/user/resu
 ## See also
 
 - [flame_chase](/flows/flame-chase): the relay, without the cleaning
-- [ralph_loop_agent_cleanup](/flows/ralph-loop-agent-cleanup): the same cleaning, behind one
+- [agent_cleanup:ralph_loop](/flows/ralph-loop-agent-cleanup): the same cleaning, behind one
   agent
 - [Talking to a running turn](/user/steering): what telling a turn to wrap up is

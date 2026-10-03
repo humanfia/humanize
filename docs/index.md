@@ -104,7 +104,7 @@ straight away.
 </template>
 <template #exec>
 
-The same run as one line. `ralph_loop` ships with humanize, so nothing has to be fetched
+The same run as one line. `ralph_loop` ships with humanize, so nothing has to be installed
 first. Pick your CLI:
 
 ::: code-group
@@ -164,6 +164,7 @@ git diff before
 
 | If | Then |
 | --- | --- |
+| `hmz exec` says `not installed` | `ralph_loop` is built in; a flow from a [flowverse](/weaver/flowverses) runs once installed. Open `hmz`, type `/flow`, press **Install more…**, open `official` and install it. |
 | the model is refused | Model ids change with each CLI release, and your account decides which you may use. In `hmz`, type `/flow ralph_loop` and open the `agent` row: it lists the models your CLI offers. |
 | your CLI is not in the tabs | Every backend, and how to sign each one in, is on [Installation](/user/installation). |
 
@@ -258,7 +259,7 @@ patch](/contributing/tutorials/first-patch) takes one change from a clone to a p
   </a>
   <a :href="withBase('/flows/')">
     <strong>Flows</strong>
-    <span>Every flow in humanize and its official flowverse, each with its loop played.</span>
+    <span>Every flow humanize ships or its official flowverse lists, each with its loop played.</span>
   </a>
   <a :href="withBase('/weaver/')">
     <strong>Weaver Guide</strong>

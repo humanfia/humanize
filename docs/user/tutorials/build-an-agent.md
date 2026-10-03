@@ -27,9 +27,9 @@ is a flow of its own, and each hands the next a file you can read and edit.
   [Installation](/user/installation).
 - **Make one run first.** [Your first run](/user/first-run), or the
   [quickstart on the home page](/#run-a-flow), shows a flow working in a scratch repository.
-- **Open `hmz` once.** `humanize1` comes from the official [flowverse](/weaver/flowverses),
-  and opening `hmz` in any directory is what fetches it. `hmz exec` does not. Leave with
-  `/exit`.
+- **Install `humanize1`.** It is not built in: it comes from the official
+  [flowverse](/weaver/flowverses). Open `hmz`, type `/flow`, press **Install more…**, open
+  `official` and install `humanize1`. `hmz exec` installs nothing. Leave with `/exit`.
 
 Using DeepSeek Harness? Add humanize's `[dsh]` extra, with the line for the way you installed
 humanize, and export your key before step 2:
@@ -342,14 +342,15 @@ That is the two planning phases earning their time.
 
 ## Troubleshooting
 
-### It says the official flowverse has not been fetched yet
+### It says `humanize1` is not installed
 
 ```console
-hmz exec: error: humanize1:gen-idea: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
+hmz exec: error: humanize1:gen-idea: not installed -- install it from /flow (flowverse official)
 ```
 
-Run `hmz` once, wait a moment, and run the line again. If it is still refused, type
-`/settings flowverses` in `hmz`, open `official`, and choose `fetch`.
+Install it from `/flow`, as in [Before you start](#before-you-start). If the message says the
+official flowverse has not been fetched yet instead, open `hmz` and wait a moment: it fetches
+the flowverses in the background each time it opens.
 
 ### `'builder' needs PermissionRequestHookAgentMixin`
 

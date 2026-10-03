@@ -77,6 +77,7 @@ from .btw import (
 )
 from .complete import VIEWS, Command, hinted, offered
 from .discover import installable, installed
+from .flows import INSTALLED, VERSES, Flows, Lists
 from .history import History
 from .keyboard import reads_long_reports
 from .monitor import Monitor, short, thousands
@@ -96,7 +97,6 @@ from .pick import (
     Chosen,
     Declared,
     Epics,
-    Flows,
     Held,
     Leaves,
     Reports,
@@ -112,8 +112,8 @@ from .pick import (
 )
 from .pick import EVERY as _EVERY
 from .selecting import Choices, Transcript
+from .settings import MOVED, Adjusts, page_of
 from .settings import PAGES as _PAGES
-from .settings import Adjusts, page_of
 from .tally import Seen, Tally
 
 if TYPE_CHECKING:
@@ -1282,95 +1282,73 @@ class Humanize(App[None]):
 
     @work
     async def _freshens_flows(self) -> None:
-        """Takes what each flowverse already here says now, quietly, as the interface opens.
+        """Takes what each flowverse's index says now, quietly, and says what has a newer release.
 
-        A flowverse is a copy of somebody else's repository, and one only ever fetched again
-        when somebody thinks to press a key is one that is months behind by the time anybody
-        notices. Every start is the moment to do it: it is the one moment nothing is running,
-        and it is often enough that the flows offered are the flows there are.
+        An index is a copy of somebody else's repository, and one only ever fetched again when
+        somebody thinks to press a key is one that is months behind by the time anybody
+        notices. Every start is the moment to do it, and often enough that the releases offered
+        are the releases there are. Only the indexes: what is installed out of them stays as
+        it was installed, so a run is never somebody else's newer release by surprise -- and a
+        fetch, touching nothing a flow runs from, is as safe under a running flow as beside one.
 
         In the background and one at a time, the way the backends are asked what they run: a
         fetch is a network round trip, and a prompt that waited on one would open late on a
-        slow connection and not at all on a machine with no network. Nothing is drawn about it
-        either -- whoever opened the interface asked for a prompt, not for a download -- so one
-        that failed goes to the log, and what is already here goes on being what is offered.
+        slow connection and not at all on a machine with no network. One that failed goes to
+        the log, and what was fetched last time goes on being what is offered.
 
-        Every one with somewhere to fetch from, whether or not it has ever been fetched. The
-        one nobody has fetched is the one most worth getting rather than the one to leave for
-        somebody to ask for: its flows are the flows nobody can run at all, so `official` on a
-        machine humanize was installed on this morning is the handful in the package and
-        nothing else until this lands. Nothing is lost by doing it quietly, either -- the flow
-        menu fetches what has never been fetched as it opens and says how that went, so
-        whoever goes looking for the flows a failure here would have brought is told, at the
-        moment they go looking, rather than left with an empty list and no explanation.
+        Every one with somewhere to fetch from, whether or not it has ever been fetched:
+        `official` on a machine humanize was installed on this morning is a list of flows to
+        install that nobody can see until this lands. And not one somebody has written into: a
+        fetch resets the clone to what the repository says now, which is a fair thing to do on
+        a key somebody pressed and not behind them.
 
-        And not one somebody has written into. A fetch resets the clone to what the repository
-        says now, so a weaver editing a flow in a flowverse of their own would lose it to a
-        download nobody asked for -- the flowverse's `fetch again` row is still how somebody
-        says they meant that.
-
-        Nor under a flow that is running, for the same reason read the other way round: the
-        clone reset under a running flow is its own source swapped out from beneath it, and
-        what it imports next and the skills it brings would be somebody else's edit halfway
-        through a run. Nothing is running when the interface opens, and this stops rather than
-        goes on to the next if something starts while it is still going. What is left is the
-        one fetch already in the air when a run starts, which is seconds at the opening of the
-        interface and the reason this is done then rather than on a timer.
+        Once they are in, every installed flow whose index lists a newer release is said, once,
+        in the transcript -- which version, and where it is updated from.
         """
         import asyncio
 
         verses = self.hmz.verses
         for one in await asyncio.to_thread(verses.all):
-            # Whether or not it has ever been fetched. One that never has is the one whose
-            # flows nobody can run at all, so it is the one most worth getting: `official`
-            # on a machine that has just been installed holds nothing but the `chat` in the
-            # package until this lands.
             if not one.url:
                 continue
-            if self._run is not None or self._stopping is not None:
-                return
             if one.fetched and await asyncio.to_thread(verses.edited, one):
                 continue
             was = await asyncio.to_thread(verses.standing, one)
             try:
                 await asyncio.to_thread(verses.fetch, one.name)
-            except Exception as why:  # noqa: BLE001 -- a flowverse that would not fetch again
-                # Not raised at whoever opened the interface: nobody asked for this, and the
-                # flows that came down last time are still there to run.
+            except Exception as why:  # noqa: BLE001 -- an index that would not fetch again
+                # Not raised at whoever opened the interface: nobody asked for this, and what
+                # was fetched last time is still there to install from.
                 self.log(f"failed to update flowverse {one.name}: {why}")
-            else:
-                # And only where something came down with it. Most of these bring nothing --
-                # the repository has not moved since the last start -- and reading a flow
-                # means running it, so telling the menus to read again after one of those is
-                # every flow on the disk imported, in force, to arrive at the list that is
-                # already drawn. What that costs is somebody else's code run for nothing, on
-                # a machine where it had already been run once.
-                if await asyncio.to_thread(verses.standing, one) != was:
-                    # What is on the disk is something else now, so what anything has read off
-                    # it is out of date. A fetch that landed behind a menu already holding the
-                    # list from before it is a flow that will not load until the interface is
-                    # closed and opened again -- which is the fetch working and nobody being
-                    # able to tell.
-                    self._flows_changed()
-        # And once they have all landed, whether or not anything came down: the look as the
-        # interface opened may have read a flow out of a clone halfway through being reset.
-        self._looks_for_resume()
+                continue
+            if await asyncio.to_thread(verses.standing, one) != was:
+                # Something came down, so the menus holding what the index listed before it
+                # are holding a list that is out of date.
+                self._flows_changed()
+        try:
+            newer = await asyncio.to_thread(verses.updates)
+        except Exception as why:  # noqa: BLE001 -- an index that will not read is no crash
+            self.log(f"failed to read flowverses for updates: {why}")
+            return
+        if newer:
+            listed = ", ".join(
+                f"{one.installed.called} {one.installed.version} \N{UPWARDS ARROW} {one.version}"
+                for one in newer
+            )
+            self.show(
+                f"[dim]updates available: {escape(listed)}; update from /flow[/dim]"
+            )
 
     def _flows_changed(self) -> None:
-        """Tells whatever is drawn that the flows on the disk are not the ones it read.
+        """Tells whatever is drawn that the flows and indexes on the disk are not the ones it read.
 
-        A sheet that lists flows reads them once and holds the list, reading one being running
-        it. That is right while nothing underneath changes and wrong the moment a fetch lands:
-        the held list is from before the download, so a flow that arrived in it is one the menu
-        does not offer and a flow whose file changed is one it will not load. Both look like a
-        fetch that did nothing, and both come right on a restart -- which is the interface
-        asking to be closed and opened to pick up what it already has.
+        A sheet that lists flows reads them once and holds the list. That is right while
+        nothing underneath changes and wrong the moment a fetch or an install lands: a release
+        that arrived is one the menu does not offer, and an update it does not mark.
 
         Every sheet on the stack rather than the one on top: a fetch lands where it lands, and
         the menu underneath is the one somebody comes back to.
         """
-        from hmz.tui.pick import Lists
-
         for screen in self.screen_stack:
             if isinstance(screen, Lists):
                 screen.reread()
@@ -3405,32 +3383,36 @@ class Humanize(App[None]):
                 self._on_screen(cast("Callable[..., None]", answered), answer)
 
     @work
-    async def action_flow(self, named: str = "") -> None:
-        """Opens the flow menu: which flow runs, and what each of its agents is.
+    async def action_flow(self, named: str = "", page: str = INSTALLED) -> None:
+        """Opens the flow menu: which flow runs, what its roles are, and where flows come from.
 
-        One menu walked into rather than a sheet per question: the flows, and the agents of
-        the one that is opened. Nothing in it is applied until it is saved on the way out, so
-        opening it to look at the flows and walking back out again leaves the interface
-        exactly as ready to be typed at as it was.
+        One menu walked into rather than a sheet per question: what is installed, the roles of
+        the one that is opened, and the flowverses more are installed from. Nothing held in it
+        is applied until it is saved on the way out, so opening it to look at the flows and
+        walking back out again leaves the interface exactly as ready to be typed at as it was.
 
         Not refused while a flow runs. Choosing one is not offered then -- a flow is chosen in
-        order to be started, and there is one going -- so it opens inside the agents of the
+        order to be started, and there is one going -- so it opens inside the roles of the
         flow that is going, that being where somebody halfway through a run finds out that an
         agent is thinking too little or is allowed too much.
 
         Args:
           named: A flow of your own, as a path, to open the menu already holding.
+          page: Which page to open on where no flow is named: what is installed, or the
+            flowverses.
         """
         running = self._run is not None
         if named and running:
             self.show("hmz: cannot choose a flow while one is running", "red")
             return
-        chosen = await self._chooses(named, running=running)
+        chosen = await self._chooses(named, running=running, page=page)
         if chosen is None:
             return  # walked out without saving, which changes nothing at all
         self._took_flow(chosen, running=running)
 
-    async def _chooses(self, named: str, *, running: bool) -> Chosen | None:
+    async def _chooses(
+        self, named: str, *, running: bool, page: str = INSTALLED
+    ) -> Chosen | None:
         """Puts the flow menu up and answers with whatever it was saved holding.
 
         Called from a worker, since it waits on a sheet: `/flow` opens it to be answered, and
@@ -3440,6 +3422,7 @@ class Humanize(App[None]):
         Args:
           named: A flow to open the menu already holding, or "" for the one in force.
           running: Whether a flow is running, which is what takes the flows away.
+          page: Which page to open on where no flow is named.
 
         Returns:
           The flow, what its roles are given and how the flow itself is set up, or None for a
@@ -3471,8 +3454,19 @@ class Humanize(App[None]):
                 # drives it -- and one named as a path is not in the list to choose from at
                 # all, so a menu that opened on that list would be offering to undo it.
                 inside=bool(named),
+                page=page,
             )
         )
+
+    @on(Flows.Told)
+    def _took_flows(self, event: Flows.Told) -> None:
+        """Says what the flow menu did as it was asked for: installed, fetched, taken away.
+
+        Args:
+          event: What it did, line by line.
+        """
+        for one in event.lines:
+            self.show(one)
 
     @work
     async def _quick_flow(self, named: str, task: str) -> None:
@@ -3667,17 +3661,31 @@ class Humanize(App[None]):
     def action_settings(self, page: str = "") -> None:
         """Opens every setting humanize has, which is what `/settings` is for.
 
-        Six pages: what is true of this machine, what is remembered about this workspace,
-        the accounts agents run as, the machines environments go on, where a turn goes when
-        it cannot run, and where flows come from -- opened on the screen of them all, or
-        inside the one named, so that the page somebody came for is not a walk away. Not
-        refused while a flow runs -- what lands at once does not touch what is running, and
-        what does not says when it will. What it was answered with comes back as a message
-        rather than to here, since the flow menu opens it too.
+        Five pages: what is true of this machine, what is remembered about this workspace,
+        the accounts agents run as, the machines environments go on, and where a turn goes
+        when it cannot run -- opened on the screen of them all, or inside the one named, so
+        that the page somebody came for is not a walk away. Not refused while a flow runs --
+        what lands at once does not touch what is running, and what does not says when it
+        will. What it was answered with comes back as a message rather than to here.
+
+        The flowverses were a page here once, and are `/flow`'s now: asked for by that name,
+        the flow menu opens on them, saying so, rather than refusing a word somebody's fingers
+        know.
 
         Args:
           page: Which page to open inside, by its name, or "" for none of them.
         """
+        if page.lower() == MOVED:
+            if self._run is not None:
+                self.show(
+                    "hmz: the flowverses are on /flow now, which offers them while no "
+                    "flow runs",
+                    "red",
+                )
+                return
+            self.show("[dim]the flowverses are on /flow now[/dim]")
+            self.action_flow(page=VERSES)
+            return
         opens = page_of(page) if page else None
         if page and opens is None:
             self.show(
@@ -4951,7 +4959,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: general, accounts, fallback, runtimes, flowverses, workspace",
+        "Every setting: general, accounts, fallback, runtimes, workspace",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",
         offers=_PAGES,

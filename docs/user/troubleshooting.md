@@ -164,32 +164,53 @@ which CLI does what, and the agent sheet at `/flow` offers only the CLIs that ca
 **Symptom.** `hmz exec` cannot find the flow `-f` names.
 
 **Cause.** Nothing offers a flow by that name. A name is looked up in this project's
-`.humanize/flows`, then in `~/.humanize/flows`, then among humanize's own flows and every
-[flowverse](/weaver/flowverses) fetched here. Anything else is read as a path.
+`.humanize/flows`, then in `~/.humanize/flows`, then among the flows built into humanize and
+those installed from a [flowverse](/weaver/flowverses). Anything else is read as a path.
 
 **Fix.** Check the spelling against the names `/flow` offers, or give the flow's path, or its
-repository as `git+https://…#<flow>`.
+repository as `git+https://…#<subdir>`.
 
 **Verify.** The line is refused for nothing, or for what the flow itself needs.
 
-### `aot: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet`
+### `parallel_flame_chase: not installed -- install it from /flow (flowverse official)`
+
+**Symptom.** `hmz exec` refuses a flow by name that a flowverse lists.
+
+**Cause.** A flow a [flowverse](/weaver/flowverses) lists runs only once it is installed, and
+`hmz exec` installs nothing. Only the flows built into humanize are there from the start.
+
+**Fix.** Install it: type `/flow`, press **Install more…**, open the flowverse the message
+names, and install the flow. From a script, or on a machine that never opens `hmz`, such as a
+CI runner:
+
+```sh
+python -c 'from hmz.sdk import Hmz; v = Hmz().verses; v.fetch("official"); v.install("parallel_flame_chase")'
+```
+
+Or name a release by its repository, which runs it without installing anything:
+
+```sh
+-f 'git+https://github.com/humanfia/flow-parallel-flame-chase@v0.1.0#parallel_flame_chase'
+```
+
+**Verify.** `/flow` lists the flow, with its version at the end of its row, and the line gets
+past the check.
+
+### `parallel_flame_chase: the official flowverse has not been fetched yet -- fetch it from /flow`
 
 **Symptom.** `hmz exec` refuses a flow by name, on a machine that has not fetched the official
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one
 that is misspelled. The flows humanize ships, such as `chat` and `ralph_loop`, never do.
 
-**Cause.** The flowverse has not been downloaded yet. `hmz` fetches flowverses in the
-background every time it starts, and `hmz exec` never does.
+**Cause.** The flowverse's index has not been downloaded yet. `hmz` fetches every flowverse in
+the background each time it starts, and `hmz exec` never does.
 
-**Fix.** Open `hmz` once and let it fetch, or fetch now: type `/settings flowverses`, open the
-flowverse, and choose `fetch`. On a machine that never opens `hmz`, such as a CI runner, name
-the flow by its repository:
+**Fix.** Open `hmz` once and let it fetch, or fetch now: type `/flow`, press <kbd>←</kbd>, open
+**Flowverses**, and press **Fetch** with the cursor on `official`. Then install the flow, as
+above.
 
-```sh
--f 'git+https://github.com/<owner>/<repo>@<commit>#<flow>'
-```
-
-**Verify.** The flowverse's sheet says it was fetched, and the line gets past the check.
+**Verify.** The flowverse's card says `fetched`, and the line gets past the check, or says the
+flow is not installed.
 
 ### `… holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>`
 
@@ -323,13 +344,13 @@ installed, open `/flow` and give the role a CLI and a model.
 
 | Flow | Typed as |
 | --- | --- |
-| humanize's own, and the official flowverse's | `$ralph_loop` |
+| built into humanize, or installed from the official flowverse | `$ralph_loop` |
 | this project's, in `.humanize/flows` | `$local/twice` |
 | yours, in `~/.humanize/flows` | `$user/twice` |
-| another flowverse's | `$<flowverse>/name` |
+| installed from another flowverse | `$<flowverse>/name` |
 
-**Fix.** Type `$` and let [completion](/user/completion) offer the names. A flowverse not
-fetched yet offers nothing: type `/settings flowverses`, open it, and choose `fetch`.
+**Fix.** Type `$` and let [completion](/user/completion) offer the names. A flow a flowverse
+lists is offered only once it is installed: type `/flow` and press **Install more…**.
 
 **Verify.** The flow's `/flow` sheet opens, or it starts.
 

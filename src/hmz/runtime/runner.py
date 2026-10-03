@@ -128,7 +128,7 @@ def read_line(argv: list[str]) -> Line:
         "--flow",
         required=True,
         metavar="FLOW",
-        help="the flow to run: a name, a path, or git+URL#NAME; NAME:OTHER for another "
+        help="the flow to run: a name, a path, or git+URL#subdir; NAME:OTHER for another "
         "flow in the same module",
     )
     parser.add_argument(

@@ -27,6 +27,7 @@ from hmz.coganchor.backends import Model
 from hmz.coganchor.machines.store import SSHRuntime
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
+from hmz.tui.flows import HOME, INSTALLED, VERSES, Fetches, Flows
 from hmz.tui.pick import (
     _ACT_ADD,
     _ACT_SAVE,
@@ -34,18 +35,12 @@ from hmz.tui.pick import (
     _ADD,
     _DONE,
     _DOT,
-    _FORK,
     _SAVE,
-    _SEARCH,
-    _WHENCE,
     Agent,
     Confirms,
     Docking,
     Epics,
     Failing,
-    Fetches,
-    Flows,
-    Flowverses,
     Hosting,
     Hosts,
     Importing,
@@ -84,8 +79,8 @@ CLAUDE = {"claude": (Model("claude-opus-5", ("max", "high")),)}
 #: The keys a menu has, as its row of keys says them -- and typing, on a form's written rows.
 _KEYS = {"←/→", "enter", "esc", "type"}
 
-#: And the two more `/settings` has, being a screen with a search box and a bar of buttons
-#: under its list: tab between the list and the bar, and `/` into the search.
+#: And the two more `/settings` and `/flow` have, being screens with a search box and a bar
+#: of buttons under their list: tab between the list and the bar, and `/` into the search.
 _SETTINGS_KEYS = {*_KEYS, "tab", "/"}
 
 #: How a key reads when it is named in prose. The line about a sheet MUST NOT name one -- the
@@ -115,7 +110,7 @@ def once(sheet: Screen[Any]) -> None:
 
     assert keyed, f"{type(sheet).__name__} says no keys at all"
     assert len(keyed) == len(set(keyed)), f"{type(sheet).__name__} says {keyed}"
-    allowed = _SETTINGS_KEYS if isinstance(sheet, Adjusts) else _KEYS
+    allowed = _SETTINGS_KEYS if isinstance(sheet, (Adjusts, Flows)) else _KEYS
     assert set(keyed) <= allowed, f"{type(sheet).__name__} says {keyed}"
     # And the line about the sheet says what the sheet is, and nothing about how to work it.
     about = str(sheet.query_one("#about", Label).content)
@@ -162,7 +157,18 @@ def test_the_keys_are_written_in_one_place() -> None:
             pytest.param(
                 partial(Adjusts, dict(CLAUDE), page=page), id=f"settings-{page}"
             )
-            for page in range(6)
+            for page in range(len(PAGES))
+        ),
+        *(
+            pytest.param(
+                partial(Flows, "chat", {}, None, dict(CLAUDE), {}, page=page),
+                id=f"flows-{page}",
+            )
+            for page in (HOME, INSTALLED, VERSES)
+        ),
+        pytest.param(
+            partial(Flows, "chat", {}, None, dict(CLAUDE), {}, inside=True),
+            id="flows-roles",
         ),
     ],
 )
@@ -286,8 +292,8 @@ async def test_no_letter_is_a_key_of_a_menu(
         assert not sheet._inside
         assert ids(app) == before
 
-        # Searching, copying a flow here and where flows come from are rows.
-        assert before[-3:] == [_SEARCH, _FORK, _WHENCE]
+        # Searching, copying a flow here and installing more are buttons under the list.
+        assert {_ACT_SEARCH, "copy", "more"} <= set(bar(app))
 
 
 @pytest.mark.timeout(60)
@@ -299,11 +305,12 @@ async def test_a_search_is_a_box_above_the_list_and_says_what_the_keys_do_in_it(
 
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Adjusts({}, page=PAGES.index("flowverses")))
-        await until(lambda: isinstance(app.screen, Flowverses), driver)
+        await driver.press(*"/settings flowverses")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Flows), driver)
         sheet = app.screen
-        assert isinstance(sheet, Adjusts)
-        await driver.pause()
+        assert isinstance(sheet, Flows)
+        await until(lambda: bool(rows(app)), driver)
         seek = sheet.query_one("#seek", Input)
         assert not seek.display
         assert _ACT_SEARCH in bar(app)
@@ -325,8 +332,8 @@ async def test_a_search_is_a_box_above_the_list_and_says_what_the_keys_do_in_it(
         await driver.pause()
         assert not seek.display
         assert rows(app)
-        assert isinstance(app.screen, Flowverses)
-        assert not sheet._home
+        assert app.screen is sheet
+        assert sheet._page == VERSES
 
         # And the button starts one as the key does.
         await acts(app, driver, _ACT_SEARCH)
@@ -411,7 +418,7 @@ async def test_the_settings_menu_is_walked_into_and_its_rows_changed_from_a_list
 
 
 @pytest.mark.timeout(60)
-@pytest.mark.parametrize("page", ["accounts", "fallback", "runtimes", "flowverses"])
+@pytest.mark.parametrize("page", ["accounts", "fallback", "runtimes"])
 async def test_adding_is_the_first_button_of_every_page_that_is_a_list(
     page: str,
 ) -> None:
@@ -550,7 +557,7 @@ async def test_the_switches_on_a_form_are_flipped_the_way_every_row_is_changed()
 async def test_the_flow_menu_is_saved_from_its_row(
     _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
 ) -> None:
-    """One menu walked into, saved from the row below its roles."""
+    """One menu walked into, saved from the last button under its roles."""
     app = Humanize()
     async with app.run_test() as driver:
         await into_flows(app, driver)
@@ -561,10 +568,10 @@ async def test_the_flow_menu_is_saved_from_its_row(
         await driver.press("enter")
         await until(lambda: sheet._inside, driver)
         once(sheet)
-        assert rows(app)[-1] == _SAVE
+        assert bar(app)[-1] == _ACT_SAVE
 
         # And what lands is what the menu was holding, flow and agents together.
-        await onto(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
@@ -578,11 +585,12 @@ async def test_a_search_above_a_list_lands_on_the_first_thing_it_finds() -> None
 
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Adjusts({}, page=PAGES.index("flowverses")))
-        await until(lambda: isinstance(app.screen, Flowverses), driver)
+        await driver.press(*"/settings flowverses")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Flows), driver)
         sheet = app.screen
-        assert isinstance(sheet, Flowverses)
-        await driver.pause()
+        assert isinstance(sheet, Flows)
+        await until(lambda: bool(rows(app)), driver)
 
         await driver.press("slash", *"offi")
         await driver.pause()

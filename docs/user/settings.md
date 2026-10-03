@@ -81,15 +81,13 @@ const turn = [
 
 Everything humanize remembers is in one place: `/settings`, a screen of its own. It holds
 what is true of this machine, the accounts agents run as, where a turn goes when it cannot
-run, the machines a flow's environments go on, where flows come from, and what this directory
-remembers. It works with the keys and with the mouse alike.
+run, the machines a flow's environments go on, and what this directory remembers. It works with the keys and with the mouse alike.
 
 ::: info At a glance
 - **You will** change how humanize behaves on this machine and in this directory, and manage
-  the accounts, machines, fallbacks and flowverses your flows use.
+  the accounts, machines and fallbacks your flows use.
 - **Use it when** you want to see the working, add an API key or a second account, put a
-  flow on another machine, keep a run going when a model fails, or add flows from a git
-  repository.
+  flow on another machine, or keep a run going when a model fails.
 - **You need** `hmz` open. Nothing has to be running.
 :::
 
@@ -103,10 +101,10 @@ remembers. It works with the keys and with the mouse alike.
 
 ## How it works
 
-`/settings` opens on six pages and nothing else, each a card saying what is in it. They run
+`/settings` opens on five pages and nothing else, each a card saying what is in it. They run
 from the broadest to the nearest: what is true wherever you run humanize, who your agents are
-and what takes over when one fails, where their work goes and where flows come from, and
-last the one directory open now.
+and what takes over when one fails, where their work goes, and last the one directory open
+now.
 <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one; <kbd>esc</kbd>, <kbd>backspace</kbd>,
 <kbd>←</kbd>, or a click on `/settings` across the top, comes back out. `/settings <page>` goes
 straight into the one named, and the word is offered as you type it:
@@ -117,11 +115,11 @@ straight into the one named, and the word is offered as you type it:
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms and Apple containers |
-| [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, and forgetting it |
 
 The names they had still open them: `settings` and `everywhere` open General, `directory`
-opens Workspace, and `environments` opens Runtimes. A card marked `● unsaved` holds a
+opens Workspace, and `environments` opens Runtimes. The [flowverses](#flowverses) are on
+`/flow` now, and `/settings flowverses` opens them there. A card marked `● unsaved` holds a
 change you have not saved yet.
 
 ### How a page is laid out {#layout}
@@ -138,11 +136,11 @@ every value it can take under the row, the one in force ticked; <kbd>↑</kbd> <
 An on/off switch's list opens on the answer it is not, so <kbd>enter</kbd> twice turns it
 round. A row marked `▸` opens something.
 
-**A page that is a list** (Accounts, Runtimes, Fallback, Flowverses) is the list, under a
+**A page that is a list** (Accounts, Runtimes, Fallback) is the list, under a
 heading per group where it has groups, and under it the buttons for what is done about the
 list: one `Add …` first, then anything else that brings one in, then `Search…`, and **Save** at the
-far end where the page holds anything until it is saved. Runtimes and Flowverses hold
-nothing, so they have no **Save**.
+far end where the page holds anything until it is saved. Runtimes holds nothing, so it has no
+**Save**.
 
 <kbd>tab</kbd> moves from the list to the buttons, <kbd>←</kbd> <kbd>→</kbd> along them, and
 <kbd>↑</kbd> or <kbd>tab</kbd> back. <kbd>/</kbd> or **Search…** opens a box above the list:
@@ -169,12 +167,12 @@ The last line of the screen always names the keys that work where the focus is, 
 ### When a change lands {#saving}
 
 What every page holds lands together, when you save: press **Save**, on any page or on the
-six of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and it asks **save** or
+five of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and it asks **save** or
 **discard**; <kbd>esc</kbd> on that question takes you back. **Save** cannot be pressed until
 something is changed, and `● unsaved changes` across the top says when something is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
-everything on the Runtimes and Flowverses pages. And a few that are saved cannot take hold
+everything on the Runtimes page. And a few that are saved cannot take hold
 at once, because something already running started without them. The row says when while the
 change is held, and the transcript says it again once saved:
 
@@ -207,10 +205,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
      <span class="m">where a turn goes when its agent fails</span>
    ────────────────────────────────────────────────────────────────────────
    ▦  <b>Runtimes</b>                                                0 machines
-     <span class="m">ssh hosts, docker daemons and swarms that flows run on</span>
-   ────────────────────────────────────────────────────────────────────────
-   ⑂  <b>Flowverses</b>                                            3 flowverses
-     <span class="m">the git repositories flows come from</span>
+     <span class="m">ssh hosts, docker daemons, swarms and Apple containers</span>
    ────────────────────────────────────────────────────────────────────────
    ⌂  <b>Workspace</b>                                   demo · flow ralph_loop
      <span class="m">this directory: its flow, and forgetting it</span>
@@ -273,7 +268,7 @@ and <kbd>enter</kbd> on **Save**:
 What to look at, by number:
 
 1. **The card's summary.** Each card says what it holds right now at its right-hand end, so the
-   six cards are a status page before you open any of them: `details off · reports off` here,
+   five cards are a status page before you open any of them: `details off · reports off` here,
    the number of accounts, machines and rules on the others.
 2. **Save.** Nothing has changed yet, so it cannot be pressed.
 3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
@@ -1035,30 +1030,10 @@ Runtimes](/reference/machines#runtimes).
 
 ## Flowverses
 
-A [flowverse](/weaver/flowverses) is a git repository of flows. The last page lists every place
-flows come from: `official`, the package's own, your `local` and `user` flows, and every
-flowverse you have added. Type `/settings flowverses`, or choose `manage flowverses` below
-the flows of `/flow`, which opens this page alone: <kbd>esc</kbd> there goes back to the
-flows.
-
-<HmzCast name="flowverses" alt="the Flowverses page of /settings: every place flows come from, then enter on one to read what it holds" />
-
-| Row | What it does |
-| --- | --- |
-| **Add a flowverse** | Adds one: a URL or `owner/repo`, then a name to keep it under (blank for the repository's own), then `done` clones it. |
-| **Search…** | Narrows the list by what you type. |
-| a flowverse | <kbd>enter</kbd> says what it holds, under `fetch` (`fetch again` once it has been fetched) and `remove …`. |
-
-Everything here happens as you ask, not on save, so the page has no **Save**. `hmz` also
-fetches every flowverse that has a URL in the background each time it starts. A flowverse never
-fetched is listed anyway, marked `not fetched yet`, and a flow from it says so:
-
-```
-the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
-```
-
-Adding one, publishing your own and naming a flow by URL are in
-[Flowverses](/weaver/flowverses).
+The [flowverses](/weaver/flowverses), the indexes flows are installed from, are on `/flow` now,
+beside the flows installed from them: type `/flow`, press <kbd>←</kbd>, and open
+**Flowverses**. `/settings flowverses` still takes you there, and says so. See
+[Flowverses › Managing flowverses](/weaver/flowverses#managing-flowverses).
 
 ## Workspace
 
@@ -1136,19 +1111,19 @@ reporting question again.
 
 ### `hmz: /settings has no page '…'`
 
-The word after `/settings` names none of the six pages. The message lists the ones there are:
-`general`, `accounts`, `fallback`, `runtimes`, `flowverses` and `workspace`. Type
+The word after `/settings` names none of the five pages. The message lists the ones there are:
+`general`, `accounts`, `fallback`, `runtimes` and `workspace`. Type
 `/settings ` with a space and pick one from the list offered.
 
 ### Save cannot be pressed
 
-Nothing is held to save. Making an account, signing one in, and everything on Runtimes and
-Flowverses happened as you asked, so there is nothing left for **Save** to do.
+Nothing is held to save. Making an account, signing one in, and everything on Runtimes
+happened as you asked, so there is nothing left for **Save** to do.
 
 ### <kbd>esc</kbd> did not close the screen
 
 A page opened with `/settings <page>` is still a page of `/settings`: the first <kbd>esc</kbd>
-goes back to the six cards, and the second closes the screen. With unsaved changes, the second
+goes back to the five cards, and the second closes the screen. With unsaved changes, the second
 asks **save** or **discard** first.
 
 ### `could not get models for claude as key: …`
@@ -1166,8 +1141,8 @@ back on the Accounts page.
 
 ### A flow says its flowverse `has not been fetched yet`
 
-Open the Flowverses page, <kbd>enter</kbd> on the flowverse, and choose `fetch`. If the
-fetch fails, the line under the list says why.
+Type `/flow`, press <kbd>←</kbd> and open **Flowverses**, put the cursor on the flowverse, and
+press **Fetch**. If the fetch fails, the line under the list says why.
 
 ### A change did not reach the run that is going
 

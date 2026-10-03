@@ -13,7 +13,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | accounts | `H/providers/<cli>/<name>/provider.json`, `H/acp.json` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
 | runtimes | `H/runtimes/{ssh,docker}/<name>/runtime.json` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
 | fallbacks | `H/fallbacks.json` | this machine | Fallback | [Files](/reference/files#h-fallbacks-json) |
-| flowverses | `H/flowverses/<name>/` (git clones) | this machine | Flowverses | [Flows](/reference/flows#flowverses) |
+| flowverses | `H/flowverses/<name>/` (index clones), `H/installed/<name>/<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
 
 `H` is `$HUMANIZE_HOME`, else `~/.humanize`. A workspace is identified by its absolute,
 symlink-resolved path.
@@ -73,8 +73,8 @@ loaded, and the next launch starts without it.
 ### Per flow
 
 Under `workspaces.<path>.flows.<flow>`, keyed by the flow's listed name (`rlar`,
-`local/twice`, `theirs/rlar`, `humanize1:gen-plan`), so a local flow never inherits the setup
-of the flowverse flow it shadows.
+`local/twice`, `theirs/review`, `humanize1:gen-plan`), so a local flow never inherits the setup
+of the built-in or installed flow it shadows.
 
 | Key | Type | Meaning | Read back |
 | --- | --- | --- | --- |
@@ -118,8 +118,8 @@ use only their own arguments (`--profile`, `profile=True`).
 | Workspace | Forget | deletes `workspaces.<path>` | switch |
 
 Changes are held until saved (the save button, or the question asked on leaving). The pages
-Accounts, Runtimes, Fallback and Flowverses edit the other [stores](#stores).
-`/settings <page>` opens a page by name: `general`, `accounts`, `fallback`, `runtimes`,
-`flowverses`, `workspace` (also `settings` and `everywhere` for `general`, `directory` for
-`workspace`, `environments` for `runtimes`). The Workspace page names its directory across its
-top rather than as a row.
+Accounts, Runtimes and Fallback edit the other [stores](#stores); the flowverses are edited
+on `/flow`. `/settings <page>` opens a page by name: `general`, `accounts`, `fallback`,
+`runtimes`, `workspace` (also `settings` and `everywhere` for `general`, `directory` for
+`workspace`, `environments` for `runtimes`; `flowverses` opens `/flow` on its Flowverses
+page). The Workspace page names its directory across its top rather than as a row.

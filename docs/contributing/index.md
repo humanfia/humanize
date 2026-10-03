@@ -125,8 +125,8 @@ whole of it.
   [Architecture](/contributing/architecture).
 - **`specs/` is the contract.** Change the code to match a SPEC. Do not edit one unless you were
   asked to.
-- **A change to how flows run** also keeps
-  [humanfia/flowverse](https://github.com/humanfia/flowverse) working.
+- **A change to how flows run** also keeps the flows
+  [humanfia/flowverse](https://github.com/humanfia/flowverse) lists working.
 - **A change to behaviour updates the docs** in the same pull request.
   [Working on these docs](/contributing/docs) has the rules.
 

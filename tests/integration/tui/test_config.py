@@ -19,8 +19,17 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
-from hmz.tui.pick import _DONE, Agent, Configures, Flows, setting
-from tests.integration.tui.test_app import changes, into_agent, keeps, onto, picks, rows
+from hmz.tui.flows import Flows
+from hmz.tui.pick import _DONE, Agent, Configures, setting
+from tests.integration.tui.test_app import (
+    changes,
+    ids,
+    into_agent,
+    keeps,
+    onto,
+    picks,
+    rows,
+)
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -180,14 +189,8 @@ async def _set_up(app: Humanize, driver: Pilot[None], flow: str = "settable") ->
     await driver.press(*"/flow")
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Flows), driver)
-    sheet = app.screen
-    assert isinstance(sheet, Flows)
-    for _ in range(len(sheet._stepping())):
-        if sheet._where == "local":
-            break
-        await driver.press("right")
-        await driver.pause()
-    await onto(app, driver, f"local\x1flocal/{flow}")
+    await until(lambda: f"local/{flow}" in ids(app), driver)
+    await onto(app, driver, f"local/{flow}")
     await driver.press("enter")
     await driver.pause()
 

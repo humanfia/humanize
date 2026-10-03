@@ -1,12 +1,13 @@
 """What the editor offers to finish, which is the only way anything is typed here.
 
 A command line is typed, never filled in on a form: `/` offers the commands, `/settings`
-its pages, and `/flow` the flows there are -- the ones humanize ships, the ones every
-flowverse fetched here holds, and the ones under `.humanize/flows` here or in your home
-directory. So does `$`, which is the flow said outright rather than chosen from a menu: the
-same list, under the sigil that starts one. A flow anywhere else is a path, and a path is
-typed: looking for one would mean reading every Python file below here to see which declare a
-flow, which is a guess, and far too slow to make between keystrokes.
+its pages, and `/flow` the flows there are -- the ones humanize ships, the ones installed out
+of a flowverse, and this project's own and yours. Never a flow a flowverse only lists: that is
+one to install from `/flow` before there is anything to run. So does `$`, which is the flow
+said outright rather than chosen from a menu: the same list, under the sigil that starts one.
+A flow anywhere else is a path, and a path is typed: looking for one would mean reading every
+Python file below here to see which declare a flow, which is a guess, and far too slow to make
+between keystrokes.
 
 `hmz internal anchor` is not offered: it is not something to do to a flow while it runs, and
 it takes a command line of its own. What a run left behind is `/epics`, which is where the runs are.
@@ -144,7 +145,7 @@ def offered(
 #: every flow file there is, and a `$` asks for them on every keystroke of the name after it
 #: -- twice, since the offers are reconsidered when the cursor moves as well as when the text
 #: does. A moment's cache is the difference between a list that keeps up with typing and one
-#: that does not, and the flows there are change when a flowverse is fetched or a file is
+#: that does not, and the flows there are change when a flow is installed or a file is
 #: written, neither of which happens between two keystrokes.
 _FOR = 2.0
 

@@ -33,6 +33,11 @@ hmz exec -f humanize1:rlcr \
 
 :::
 
+::: tip Install it first
+It is not built in: in `/flow`, go to **Flowverses** → `official` and install `humanize1`. Its code
+is [humanfia/flow-humanize1](https://github.com/humanfia/flow-humanize1).
+:::
+
 Name the phase: a bare `humanize1` is refused. Each phase is a run of its own, and what passes
 from one to the next is a file, the draft and then the plan. Read and edit each before you
 start the next, and put each phase on whichever models suit it.

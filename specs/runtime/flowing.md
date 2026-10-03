@@ -209,7 +209,7 @@ class FlowModule:
     def flows(self) -> dict[str, FlowImpl]: ...
 def module_of(entry: Path, run: Run | None) -> FlowModule: ...
 def pick(module: FlowModule, sub: str, ref: str) -> FlowImpl: ...
-class Remote: ...  # a flow of another flowverse, fetched when first called
+class Remote: ...  # a flow of a repository, fetched when first called
 def pinned(url: str, rev: str | None) -> Path: ...
 
 # fakes.py -- in-memory drivers, for testing a flow
@@ -223,25 +223,25 @@ async def run_fake(flow: Flow | str, task: str = "", *, agents=None, envs=None,
                    params=None, budget=None, outworlder=None, local=None,
                    journal=None, resume=False, recorder=None) -> Any: ...
 
-# verses.py -- where flows come from
+# verses.py -- where flows come from: an index's clone, or a directory of your own
 OFFICIAL = "official"
 LOCAL = "local"
 USER = "user"
-FLOWS = "flows"  # the directory a flowverse offers its flows under
+FLOWS = "flows"  # the directory an index keeps `<flow>/<version>/flow.yaml` under
 MINE: dict[str, str]  # LOCAL and USER, by where each is kept
 @dataclass(frozen=True, slots=True)
 class Flowverse:
     name: str
     url: str
-    at: Path
-    fetched: bool  # whether it is a clone rather than a directory of this machine's own
+    at: Path  # the index's clone, or your own directory
+    fetched: bool  # whether its index is cloned; true for a directory of this machine's own
     fixed: bool  # whether it is one of the three that cannot be removed
 def flowverses() -> list[Flowverse]: ...  # the order they are offered in
 def nearest() -> list[Flowverse]: ...  # the order a name is looked up in
 def named(name: str) -> Flowverse | None: ...
 def where(name: str) -> Path: ...
-def under() -> Path: ...  # where the fetched ones are kept
-def holds(one: Flowverse) -> tuple[Path, ...]: ...  # the directories its flows are in
+def under() -> Path: ...  # where the indexes are cloned
+def holds(one: Flowverse) -> tuple[Path, ...]: ...  # the directories its flows are run from
 def flows(one: Flowverse) -> list[str]: ...
 def add(url: str, name: str = "") -> Flowverse: ...
 def fetch(name: str) -> Flowverse: ...
@@ -251,6 +251,62 @@ def refresh(at: Path) -> None: ...
 def edited(at: Path) -> bool: ...
 def standing(at: Path) -> str: ...
 def plain(url: str) -> str: ...  # a URL with whatever was signed into it taken out
+
+# index.py -- what an index lists, and the flows installed out of one
+RELEASE = "flow.yaml"  # one release: flows/<flow>/<version>/flow.yaml
+RECORD = ".installed.json"  # what an installed flow's directory says it was installed from
+RESERVED: frozenset[str]  # the builtins' names, which nothing installed may take
+class Release(BaseModel):  # frozen; keys it does not know are let through unread
+    name: str  # [a-z][a-z0-9_]*, the directory it is in
+    version: str  # SemVer, the directory it is in
+    description: str = ""
+    repo: str  # owner/repo on GitHub, or a URL git fetches
+    ref: str = ""  # what it was cut from, for the reader
+    commit: str  # 40 hex: what is installed
+    subdir: str = ""  # where in the repository the flow is; "" for its root
+    license: str = ""
+    dependencies: dict[str, str] = {}  # flows of the same index, each to a SemVer range
+    @property
+    def semver(self) -> semver.Version: ...
+    @property
+    def url(self) -> str: ...
+class Skipped(NamedTuple):
+    at: Path
+    why: str
+class Index(NamedTuple):
+    verse: str
+    releases: tuple[Release, ...] = ()  # by flow, newest first
+    skipped: tuple[Skipped, ...] = ()
+    def flows(self) -> list[str]: ...
+    def versions(self, flow: str) -> list[Release]: ...
+    def release(self, flow: str, version: str) -> Release | None: ...
+    def newest(self, flow: str, spec: str = "") -> Release | None: ...
+class Installed(BaseModel):
+    verse: str
+    name: str
+    version: str
+    commit: str
+    repo: str
+    ref: str = ""
+    subdir: str = ""
+    dependencies: dict[str, str] = {}
+    @property
+    def called(self) -> str: ...  # what it is offered under
+    @property
+    def at(self) -> Path: ...
+class Update(NamedTuple):
+    installed: Installed
+    version: str
+def reserved() -> frozenset[str]: ...
+def kept(verse: str) -> Path: ...  # home()/installed/<verse>
+def split(called: str) -> tuple[str, str]: ...  # a name as offered, to flowverse and flow
+def satisfies(version: str, spec: str) -> bool: ...
+def index(one: Flowverse | str) -> Index: ...
+def installed(verse: str = "") -> list[Installed]: ...
+def updates() -> list[Update]: ...
+def plan(verse: str, flow: str, version: str = "") -> list[Release]: ...
+def install(verse: str, flow: str, version: str = "") -> list[Installed]: ...
+def uninstall(verse: str, flow: str) -> bool: ...
 
 # finding.py -- which flow a name means
 BUILTIN_AT: Path  # where humanize's own flows are: hmz/flows/builtin
@@ -378,9 +434,11 @@ def under() -> Path: ...
 ### Refs and loading
 
 - `load` MUST take `:<sub>` relative to the flow asking, `<flow>` and `<flow>:<sub>` from the
-  flowverse the flow asking is in, and `git+<url>[@<ref>]#<flow>[:<sub>]`; where no flow is
-  asking, `<flowverse>/<flow>[:<sub>]`, a name nearest first, and a path. A relative ref with
-  nothing to be relative to MUST raise `FlowRefError`, as MUST anything that is no ref.
+  directory of flows the flow asking is in, and `git+<url>[@<rev>][#<subdir>][:<sub>]` -- the
+  flow in `<subdir>` of the repository, its root where there is none, as an index's manifest
+  says it; where no flow is asking, `<flowverse>/<flow>[:<sub>]`, a name nearest first, and a
+  path. A relative ref with nothing to be relative to MUST raise `FlowRefError`, as MUST
+  anything that is no ref.
 - A bare `<flow>` MUST be the flow named after its directory, else the only visible flow of its
   module, and otherwise MUST raise `FlowNotFound` naming the flows there are. A module's flows
   MUST be only those defined inside its directory, and two of one name MUST raise
@@ -528,22 +586,43 @@ def under() -> Path: ...
 
 ### Where flows come from
 
-- Every flow MUST be listable under one name apiece -- humanize's own by a bare name, every
-  other as `<flowverse>/<name>`; the flow a bare name means under its module's own name and
-  every other visible flow of the module as `<name>:<inside>`, a hidden one not at all -- and
-  a name MUST resolve nearest first: this project's flows, then yours, then the rest. A name
-  qualified by a flowverse MUST NOT be stood in for, and a path MUST be taken outright. A
-  module that will not import MUST still be listed, under its name.
+- A flowverse MUST be an index: a git repository of `flows/<flow>/<version>/flow.yaml`, read
+  off its clone without importing anything. A manifest MUST name the flow and release its
+  directories do, by a lower-case identifier and SemVer, a repository as `owner/repo` or a
+  URL, a 40-hex commit, and a directory of it that does not climb out; one that does not, or
+  that takes a builtin's name, MUST be skipped with why, and listing the rest MUST go on. Keys
+  a manifest has that are not known MUST be ignored.
+- Only the flows humanize ships, the ones installed out of an index, and your own two places
+  MUST be listed or resolved -- never a flow an index only lists. Every one MUST be listable
+  under one name apiece -- the builtins and what was installed out of `official` by a bare
+  name, every other as `<flowverse>/<name>`; the flow a bare name means under its module's
+  own name and every other visible flow of the module as `<name>:<inside>`, a hidden one not
+  at all -- and a name MUST resolve nearest first: this project's flows, then yours, then the
+  rest. A name qualified by a flowverse MUST NOT be stood in for, and a path MUST be taken
+  outright. A module that will not import MUST still be listed, under its name.
+- Installing a release MUST copy its `subdir` at its `commit` into `installed/<flowverse>/<flow>/`
+  under humanize's home, with a record of what it was installed from, written before one
+  rename puts it in place over whatever release was there; what is at that place MUST be a
+  whole release and its record at every moment. It MUST install with it the newest release
+  of each flow it needs that the range takes, unless one installed already does, and MUST
+  refuse, saying why, a cycle, a range nothing listed takes, two ranges no one release
+  satisfies, and an install that would take away a release another installed flow needs.
+  Uninstalling one another installed flow needs MUST be refused.
+- An update MUST be the newest release an installed flow's index lists that is greater than
+  the one installed, by SemVer, and a prerelease only for a flow that is on one; fetching an
+  index MUST NOT change what is installed.
 - `resolved` MUST load what a way in names -- a name, `<flowverse>/<flow>`, either with
-  `:<inside>`, a path, or a VCS ref, fetched on the calling thread -- MUST say so where a
-  name nothing answers to could have come from a flowverse not fetched yet, and MUST mark the
-  package's own `chat` with `full_view`; nothing else is, the other flows humanize ships
-  included.
+  `:<inside>`, a path, or a VCS ref, fetched on the calling thread -- MUST say, of a name
+  nothing answers to, that it is not installed where an index lists it, or that an index it
+  could be in is not fetched yet, and MUST mark the package's own `chat` with `full_view`;
+  nothing else is, the other flows humanize ships included.
 - `brought` MUST bring the flow's own skills first and the ones it named after, the flow's own
   winning a shared name, and MUST raise where one cannot be fetched rather than at the turn.
 - `fork` MUST copy the whole of a flow and MUST refuse a name already taken rather than write
-  over it; forking, and adding, fetching or removing a flowverse, MUST leave nothing half-done
-  behind when it fails, and `official`, `local` and `user` MUST NOT be removable.
+  over it, and MUST NOT carry an installed flow's record; forking, installing, and adding,
+  fetching or removing a flowverse, MUST leave nothing half-done behind when it fails;
+  removing one MUST take what was installed out of it too; and `official`, `local` and `user`
+  MUST NOT be removable.
 - Every name above MUST be fetched only when it is named, so that listing flows costs nothing
   that reading or driving one does. Nothing here MAY be imported by `hmz.flows` at import, or
   drive an agent.

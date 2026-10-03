@@ -7,8 +7,9 @@
 // the sidebar and the diagrams cannot disagree.
 //
 // Everything is read off the flows themselves: `src/hmz/flows/builtin/` for `chat` and the six
-// loops beside it, and https://github.com/humanfia/flowverse for the rest. The visual grammar
-// every scene is drawn in is `components/flow/grammar.ts`, and `/flows/` shows it as a legend.
+// loops beside it, and for the rest the repository each is released from, as the official
+// flowverse (https://github.com/humanfia/flowverse) lists it. The visual grammar every scene is
+// drawn in is `components/flow/grammar.ts`, and `/flows/` shows it as a legend.
 //
 // This file is imported by `config.mts` as well as by the theme, so it imports nothing.
 
@@ -87,7 +88,7 @@ export const JOBS: JobInfo[] = [
   {
     id: 'parallel',
     said: 'chase several leads at once',
-    hint: 'Seven agents in three lanes. In `parallel_flame_chase` one lane writes your tree and two work on copies; in `parallel_flame_chase_git_pr` every lane has a clone and main moves only for a measured improvement.',
+    hint: 'Seven agents in three lanes. In `parallel_flame_chase` one lane writes your tree and two work on copies; in `parallel_flame_chase:git_pr` every lane has a clone and main moves only for a measured improvement.',
   },
   {
     id: 'lean',
@@ -195,7 +196,7 @@ export const FLOWS: Flow[] = [
     scene: 'flame_chase',
   },
   {
-    name: 'ralph_loop_agent_cleanup',
+    name: 'agent_cleanup:ralph_loop',
     link: '/flows/ralph-loop-agent-cleanup',
     roles: 'agent · cleaner',
     said: 'ralph_loop, plus a cleaner that distills the tree into one commit every few turns.',
@@ -206,7 +207,7 @@ export const FLOWS: Flow[] = [
     scene: 'ralph_loop_agent_cleanup',
   },
   {
-    name: 'flame_chase_agent_cleanup',
+    name: 'agent_cleanup:flame_chase',
     link: '/flows/flame-chase-agent-cleanup',
     roles: 'first_chaser · second_chaser · cleaner',
     said: 'flame_chase, with the same cleaner working between the two chasers.',
@@ -262,7 +263,7 @@ export const FLOWS: Flow[] = [
     scene: 'parallel_flame_chase',
   },
   {
-    name: 'parallel_flame_chase_git_pr',
+    name: 'parallel_flame_chase:git_pr',
     link: '/flows/parallel-flame-chase-git-pr',
     roles: 'orchestrator · six lane actors',
     said: 'Three lanes, each with a clone and pull requests; main moves only for a measured improvement.',
@@ -488,7 +489,7 @@ export const SCENES: Record<string, Scene> = {
   },
 
   ralph_loop_agent_cleanup: {
-    of: 'ralph_loop_agent_cleanup',
+    of: 'agent_cleanup:ralph_loop',
     beat: 146,
     envs: [{ id: 'repo', name: 'your repository — its history rewritten every epoch' }],
     roles: [
@@ -526,7 +527,7 @@ export const SCENES: Record<string, Scene> = {
   },
 
   flame_chase_agent_cleanup: {
-    of: 'flame_chase_agent_cleanup',
+    of: 'agent_cleanup:flame_chase',
     beat: 146,
     envs: [{ id: 'repo', name: 'your repository — its history rewritten every epoch' }],
     roles: [
@@ -841,7 +842,7 @@ export const SCENES: Record<string, Scene> = {
   },
 
   parallel_flame_chase_git_pr: {
-    of: 'parallel_flame_chase_git_pr',
+    of: 'parallel_flame_chase:git_pr',
     depth: 'lanes',
     beat: 150,
     envs: [

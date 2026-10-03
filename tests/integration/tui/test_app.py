@@ -26,6 +26,7 @@ from hmz.runtime.epic import epics
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.app import _BY_NAME, _COMMANDS, _SAID, Editor, _where
+from hmz.tui.flows import Flows
 from hmz.tui.monitoring import Monitoring
 from hmz.tui.pick import (
     _ACT_ADD,
@@ -44,7 +45,6 @@ from hmz.tui.pick import (
     Configures,
     Confirms,
     Epics,
-    Flows,
     Signing,
 )
 from hmz.tui.settings import PAGES, Adjusts
@@ -162,10 +162,11 @@ async def onto(app: Humanize, driver: Pilot[None], held: str) -> None:
     Args:
       app: The interface.
       driver: What is pumping it.
-      held: The row, by its id -- or, on a page of `/settings`, one of the buttons under
-        its list by its key, which tab walks the focus on to.
+      held: The row, by its id -- or, on a page of `/settings` or `/flow`, one of the
+        buttons under its list by its key, which tab walks the focus on to.
     """
-    if isinstance(app.screen, Adjusts) and held in bar(app):
+    paged = isinstance(app.screen, (Adjusts, Flows))
+    if paged and held in bar(app):
         button = app.screen.query_one(f"#act-{held}")
         for _ in range(len(bar(app)) + 3):
             if button.has_focus:
@@ -174,10 +175,7 @@ async def onto(app: Humanize, driver: Pilot[None], held: str) -> None:
             await driver.pause()
         assert button.has_focus, f"tab never reached {held!r}"
         return
-    if (
-        isinstance(app.screen, Adjusts)
-        and not app.screen.query_one("#choices").has_focus
-    ):
+    if paged and not app.screen.query_one("#choices").has_focus:
         app.screen.query_one("#choices").focus()
         await driver.pause()
     listing = app.screen.query_one("#choices", OptionList)
@@ -381,10 +379,9 @@ async def details(app: Humanize, driver: Pilot[None]) -> None:
 async def _leaves(app: Humanize, driver: Pilot[None], *answer: str) -> None:
     """Leaves the sheet on top, answering whatever it asks about what it is holding.
 
-    Esc twice where the first press was a step back rather than the way out: the flow menu is
-    walked into, so esc on the agents of a flow comes back to the flows and the press that
-    leaves the menu is the one after it -- and a page of `/settings` is gone into from the
-    screen of them all, which esc comes back to first.
+    Esc as many times as it takes, each press one step back: `/flow` and `/settings` are
+    walked into, so esc on a page comes back out to the one above it, and the press that
+    leaves the menu is the one on its first screen.
 
     Args:
       app: The interface.
@@ -392,21 +389,15 @@ async def _leaves(app: Humanize, driver: Pilot[None], *answer: str) -> None:
       answer: What to press on the question about what it is holding, where it asks one.
     """
     was = app.screen
-    inside = (
-        was._inside
-        if isinstance(was, Flows)
-        else not (was._home or was._only)
-        if isinstance(was, Adjusts)
-        else False
-    )
-    await driver.press("escape")
-    await driver.pause()
-    if inside and app.screen is was:
+    for _ in range(5):
         await driver.press("escape")
         await driver.pause()
-    if isinstance(app.screen, Confirms):
-        await driver.press(*answer)
-        await driver.pause()
+        if isinstance(app.screen, Confirms):
+            await driver.press(*answer)
+            await driver.pause()
+            break
+        if app.screen is not was:
+            break
     await until(lambda: app.screen is not was, driver)
 
 
@@ -786,9 +777,9 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
         sheet = cast("Flows", app.screen)
 
         assert sheet._inside  # it opens on the agents, the flows not being offered
-        # And nothing draws the places, which are about which list of flows is being read.
-        assert not str(sheet.query_one("#tabs", Label).content)
-        assert "esc close" in str(sheet.query_one("#keys", Label).content)
+        # And nothing draws the way back to a list, there being none behind it.
+        assert not sheet.query_one("#crumb-root", Label).display
+        assert ("esc", "close") in [(one.key, one.does) for one in sheet._keyed]
 
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Flows), driver)
@@ -1249,9 +1240,11 @@ async def test_a_turn_that_has_gone_quiet_still_reads_as_one_that_is_running() -
 async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None:
     """One menu walked into, which is what enter and esc mean everywhere else here.
 
-    Not two pages: a flow is picked out of a list and its agents are that flow's, so tab is
-    not what steps between them -- it would read as a view that had been there all along.
+    Its agents are the flow's own, so they are a page under the flow rather than a view beside
+    the list it was picked from; and the list of flows is a page under the first screen.
     """
+    from hmz.tui.flows import HOME
+
     app = Humanize()
     # Whatever this machine has installed, since the menu is only put up if there is one.
     with unittest.mock.patch(
@@ -1261,27 +1254,26 @@ async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None
         async with app.run_test() as driver:
             await into_flows(app, driver)
             sheet = cast("Flows", app.screen)
-            assert "chat" in rows(app)[0]  # the flows, one place at a time
-            assert "enter open" in str(sheet.query_one("#keys", Label).content)
-
-            # Tab is not a key of this menu at all: it turns nothing, and nothing moves.
-            await driver.press("tab")
-            await driver.pause()
-            assert not sheet._inside
+            assert "chat" in rows(app)  # what is installed, the built in ones first
+            assert ("enter", "set up") in [(one.key, one.does) for one in sheet._keyed]
 
             await driver.press("enter")
             await until(lambda: sheet._inside, driver)
             # The role the person chooses an agent for -- the person being the other, and
-            # nobody's to choose -- what a run may spend, and the row the lot is saved from.
-            assert rows(app) == ["0", _BUDGET, _PROFILING, _SAVE]
+            # nobody's to choose -- what a run may spend and whether it is profiled; the lot is
+            # saved from a button.
+            assert rows(app) == ["0", _BUDGET, _PROFILING]
+            assert bar(app)[-1] == _ACT_SAVE
             assert "chat" in str(sheet.query_one("#asked", Label).content)
-            assert "esc back to flows" in str(sheet.query_one("#keys", Label).content)
+            assert ("esc", "back") in [(one.key, one.does) for one in sheet._keyed]
 
             await driver.press("escape")
             await until(lambda: not sheet._inside, driver)
             assert app.screen is sheet  # one step back, and not out of the menu
-            assert "chat" in rows(app)[0]
+            assert "chat" in rows(app)
 
+            await driver.press("escape")  # and up to the first screen, then out
+            await until(lambda: sheet._page == HOME, driver)
             await driver.press("escape")
             await until(lambda: not isinstance(app.screen, Flows), driver)
 
@@ -1321,8 +1313,8 @@ async def test_the_commands_that_were_pages_of_settings_are_gone() -> None:
 
 
 @pytest.mark.timeout(60)
-async def test_settings_is_one_menu_of_six_pages() -> None:
-    """General, the accounts, the fallbacks, the runtimes, the flowverses, the workspace."""
+async def test_settings_is_one_menu_of_five_pages() -> None:
+    """General, the accounts, the fallbacks, the runtimes, the workspace."""
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press(*"/settings")
@@ -1334,13 +1326,13 @@ async def test_settings_is_one_menu_of_six_pages() -> None:
         # What opens is the pages and nothing else, each a card of its own.
         assert sheet._home
         # From the broadest to the nearest: this machine, who agents are and what takes
-        # over when one fails, where work goes and where flows come from, this directory.
+        # over when one fails, where work goes, this directory. Where flows come from is
+        # `/flow`'s.
         assert ids(app) == [
             "general",
             "accounts",
             "fallback",
             "runtimes",
-            "flowverses",
             "workspace",
         ]
         prompts = [
@@ -1350,10 +1342,10 @@ async def test_settings_is_one_menu_of_six_pages() -> None:
         assert "Workspace" in prompts[-1]
 
         # Enter goes into one, and esc comes back out onto the card it went in from.
-        await onto(app, driver, "flowverses")
+        await onto(app, driver, "runtimes")
         await driver.press("enter")
         await until(lambda: not sheet._home, driver)
-        assert sheet._tab == PAGES.index("flowverses")
+        assert sheet._tab == PAGES.index("runtimes")
         # What is done about the list is a button under it, and nothing on this page is
         # held, so there is nothing to save it from.
         assert _ACT_ADD in bar(app)
@@ -1362,8 +1354,24 @@ async def test_settings_is_one_menu_of_six_pages() -> None:
 
         await driver.press("escape")
         await until(lambda: sheet._home, driver)
-        assert under(app) == "flowverses"
+        assert under(app) == "runtimes"
         assert isinstance(app.screen, Adjusts)
+
+
+@pytest.mark.timeout(60)
+async def test_the_flowverses_page_of_settings_is_on_flow_now() -> None:
+    """Asked for by its old name, `/flow` opens on it and says where it went."""
+    from hmz.tui.flows import VERSES
+
+    app = Humanize()
+    async with app.run_test() as driver:
+        await driver.press(*"/settings flowverses")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        sheet = cast("Flows", app.screen)
+
+        assert sheet._page == VERSES
+        assert "flowverses are on /flow now" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -2645,22 +2653,18 @@ async def test_a_list_too_long_to_walk_is_narrowed_by_typing_at_it(
         await into_flows(app, driver)
         sheet = app.screen
         listing = sheet.query_one("#choices", OptionList)
-        await until(lambda: bool(listing.options), driver)
 
-        # On to this project's own flows, there being more than one of those to narrow: the
-        # page opens on the place the flow in force came from, which is humanize's own.
+        # This project's own flows, there being more than one of those to narrow.
         def flows() -> list[str]:
-            return [one for one in rows(app) if "\x1f" in one]
+            return [one for one in rows(app) if one.startswith("local/")]
 
-        await driver.press("right")
         await until(lambda: len(flows()) == 3, driver)
         every = listing.option_count
 
-        await onto(app, driver, _SEARCH)
-        await driver.press("enter")
+        await driver.press("slash")
         await driver.press("c", "h", "a", "t", "t", "e")
         await driver.pause()
-        assert flows() == ["local\x1flocal/chatter"]
+        assert flows() == ["local/chatter"]
 
         await driver.press("backspace")  # and one letter back is a wider list again
         await driver.pause()
@@ -2669,13 +2673,12 @@ async def test_a_list_too_long_to_walk_is_narrowed_by_typing_at_it(
 
         await driver.press("z", "z")  # narrowed to nothing rather than to everything
         await driver.pause()
-        assert not [one for one in flows() if one.partition("\x1f")[2]]
+        assert not flows()
 
         await driver.press("escape")  # which esc steps back out of before it leaves
         await driver.pause()
         assert listing.option_count == every
         assert isinstance(app.screen, Flows)
-        # Left on the row that searches, which is where a search that found nothing puts it.
         await onto(app, driver, flows()[0])
 
         # Spread through the name in order, rather than a prefix: `hk` finds `claude-haiku`.
@@ -2701,9 +2704,11 @@ async def test_the_cursor_can_be_seen_in_the_lists_that_are_chosen_from() -> Non
     """
     app = Humanize()
     async with app.run_test() as driver:
-        await into_flows(app, driver)
+        await driver.press(*"/epics")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Epics), driver)
         listing = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(listing.options), driver)
+        await until(lambda: len(listing.options) > 1, driver)
 
         marked = [at for at, o in enumerate(listing.options) if "❯" in str(o.prompt)]
         assert marked == [listing.highlighted]

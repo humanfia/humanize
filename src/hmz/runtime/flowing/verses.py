@@ -1,31 +1,29 @@
 """Where flows come from: every place there is one, and what each of them is called.
 
-A flowverse is a git repository with a `flows/` directory in it: one directory per flow, each
-with the `__init__.py` that is the flow, whatever it imports beside it and the `skills/` it
-brings. It is cloned into `~/.humanize/flowverses/<name>/`, and every flow in it is offered
-under that name. Only that directory is read, so a repository is free to be a repository
-around it -- a README, a pyproject, a test suite -- without any of it being taken for a flow
-and run to find out.
+A flowverse is an index: a git repository of `flows/<flow>/<version>/flow.yaml`, one manifest
+per release of a flow, saying which repository and commit that release is (:mod:`index`). It is
+cloned into `~/.hmz/flowverses/<name>/`, and holds no code: what runs is what somebody chose to
+install out of it, which is kept apart under humanize's home and offered under the flowverse's
+name. Fetching an index again changes what may be installed, and never what runs.
 
 Three are always there, and none of them can be added or taken away. `official` is humanize's
 own, and is there whether or not it has been fetched yet: a list that only mentioned it once
 somebody had thought to add it would be a list that hid what there is. And `local` and `user`
-are the flows of your own: `.humanize/flows` here, and the one in your home directory.
+are the flows of your own: this project's own flows directory, and the one in your home.
 
 `official` is the one that is read from two places at once. `chat` and the six loops beside it
 are in the package, because a machine that has never reached a network still has to have
-something to open talking to and a loop to leave running; everything else humanize offers is in
-the repository, where it can change without a release. Which of the two a flow is in is
-humanize's business rather than anybody else's, so both are offered under the one name: `chat`
-and `aot` are each one of humanize's flows, said the same way, and `official/chat` resolves the
-same as `official/aot`. The package's own wins a name they both hold -- the one that is always
-there beats the one a fetch could take away.
+something to open talking to and a loop to leave running; whatever was installed out of
+humanize's index is beside them. Which of the two a flow is in is humanize's business rather
+than anybody else's, so both are offered under the one name: `chat` and an installed `aot` are
+each one of humanize's flows, said the same way. The package's own wins a name they both hold
+-- and an index may not offer one of those names at all.
 
-Those last two are places rather than repositories -- nothing fetches them, and what is in one
-is whatever you put there -- but they are flowverses all the same, because everything that goes
-looking for a flow has one question to ask and one list to ask it of. A flow of yours is read
-where it stands the way the package's own is, offered under the name of the place it is in the
-way a flowverse's are, and looked in first: `local/chat` says which one it is, and a bare
+Those last two are places rather than indexes -- nothing fetches them, nothing is installed
+into them, and what is in one is whatever you put there -- but they are flowverses all the same,
+because everything that goes looking for a flow has one question to ask and one list to ask it
+of. A flow of yours is read where it stands, offered under the name of the place it is in the
+way an installed flow is, and looked in first: `local/chat` says which one it is, and a bare
 `chat` finds yours before humanize's.
 
 Nothing here runs a flow, and nothing here reads one. It is the answer to "which flows are
@@ -65,10 +63,10 @@ __all__ = [
     "under",
 ]
 
-#: What humanize's own flows are listed under, and where the repository of them is. Always
-#: listed, whether or not it has been fetched: what there is to run is not the same question as
+#: What humanize's own flows are listed under, and where its index of them is. Always listed,
+#: whether or not it has been fetched: what there is to install is not the same question as
 #: what has been downloaded, and somebody who has never fetched it should still be able to see
-#: it and say so. The handful in the package are listed under this name too -- one name for
+#: it and say so. The flows in the package are listed under this name too -- one name for
 #: humanize's flows, whichever of the two places a given one happens to be kept in.
 OFFICIAL = "official"
 OFFICIAL_URL = "https://github.com/humanfia/flowverse"
@@ -91,16 +89,11 @@ MINE = {
 #: one nobody could reach.
 _ALWAYS = (OFFICIAL, LOCAL, USER)
 
-#: The places whose flows are read where they stand rather than out of a `flows/` inside them.
-#: A fetched flowverse needs that directory to tell its flows from the repository around them;
-#: these have no repository around them, and a directory of flows has nothing to tell them from.
+#: The places whose flows are read where they stand rather than installed out of an index.
 _AS_THEY_STAND = (LOCAL, USER)
 
-#: The directory a fetched flowverse keeps its flows in, and the only one read for them. A
-#: flowverse is a repository, and a repository has a README, a pyproject and a test suite in it:
-#: reading a flow means running it, so the ones to run are the ones somebody put here and
-#: nothing else. The flows in the package have no repository around them and so have no need
-#: of this.
+#: The directory an index keeps its manifests in, `flows/<flow>/<version>/flow.yaml`, and the
+#: only one read for them: an index is a repository, with a README and a CI of its own beside.
 FLOWS = "flows"
 
 #: What a flowverse may be called: one directory name, and one that cannot climb out of the
@@ -119,15 +112,16 @@ class Flowverse:
     Attributes:
       name: What it is called, which is the directory it is kept in and the name its flows are
         offered under.
-      url: Where it is fetched from, or "" for one that is not fetched from anywhere -- the
-        two directories your own flows live in.
-      at: The directory it is kept in, which for a fetched one is the repository rather than
-        the flows: what its flows are read from is :func:`holds`.
-      fetched: Whether the repository has been cloned. False for one named but never fetched,
+      url: Where its index is fetched from, or "" for one that is not fetched from anywhere --
+        the two directories your own flows live in.
+      at: The directory it is kept in, which for an index is the clone of it rather than the
+        flows installed out of it: what its flows are read from is :func:`holds`.
+      fetched: Whether the index has been cloned. False for one named but never fetched,
         which `official` is until somebody asks for it, and true for the ones fetched from
         nowhere: a directory that is not there holds no flows, which is what its list of them
         says rather than a download somebody is waiting for. Not the same question as whether
-        it offers anything -- `official` offers the flows in the package either way.
+        it offers anything -- `official` offers the flows in the package either way, and what
+        was installed out of an index stays installed whether or not it is fetched again.
       fixed: Whether it is always listed and cannot be removed: humanize's own, and the two
         your own flows live in.
     """
@@ -140,37 +134,38 @@ class Flowverse:
 
 
 def under() -> Path:
-    """Where every fetched flowverse is kept, which is one directory under humanize's home."""
+    """Where every fetched index is kept, which is one directory under humanize's home."""
     return home() / "flowverses"
 
 
 def holds(one: Flowverse) -> tuple[Path, ...]:
     """The directories one flowverse's flows are read from, and the one place that is worked out.
 
-    The `flows/` inside it, except for the two places that are a directory of flows and nothing
-    else -- yours -- which have no repository around them, no README, no pyproject and no test
-    suite to be kept out of the way, and so are read where they stand.
+    What was installed out of its index, except for the two places that are a directory of
+    flows and nothing else -- yours -- which are read where they stand. Never the index itself:
+    that is manifests, and a flow an index lists that nobody installed is not a flow to run.
 
     More than one only for `official`, which is humanize's own flows and is kept in two places:
-    the handful in the package, read where they stand, and the repository of the rest. The
-    package's own come first, so that a name both hold is the one that is always there rather
-    than the one a fetch could take away.
+    the ones in the package, read where they stand, and what was installed out of humanize's
+    index. The package's own come first, so that a name both hold is the one that is always
+    there rather than one an install could change.
 
     Args:
       one: The flowverse.
 
     Returns:
       The paths, in the order a name is looked for in them, whether or not there is anything
-      at any of them -- a repository with no `flows/` in it is a flowverse holding nothing,
-      which is a thing to say rather than a thing to raise.
+      at any of them -- a flowverse nothing has been installed out of holds nothing, which is
+      a thing to say rather than a thing to raise.
     """
     from .finding import BUILTIN_AT
+    from .index import kept
 
     if one.name in _AS_THEY_STAND:
         return (one.at,)
     if one.name == OFFICIAL:
-        return (BUILTIN_AT, one.at / FLOWS)
-    return (one.at / FLOWS,)
+        return (BUILTIN_AT, kept(OFFICIAL))
+    return (kept(one.name),)
 
 
 def where(name: str) -> Path:
@@ -283,12 +278,15 @@ def named(name: str) -> Flowverse | None:
 
 
 def add(url: str, name: str = "") -> Flowverse:
-    """Fetches a flowverse, and answers with what was fetched.
+    """Fetches a flowverse's index, and answers with what was fetched.
+
+    Nothing is installed out of it: which of its flows to install, and at which release, is
+    for whoever added it to say.
 
     Args:
       url: Where it is, as git takes it: a URL, or `owner/repo` for one on GitHub.
       name: What to call it, defaulting to the repository's own name. It is the directory it
-        is kept in and the name its flows are offered under.
+        is kept in and the name the flows installed out of it are offered under.
 
     Returns:
       The flowverse, fetched.
@@ -330,10 +328,12 @@ def add(url: str, name: str = "") -> Flowverse:
 
 
 def fetch(name: str) -> Flowverse:
-    """Fetches a flowverse again, or for the first time.
+    """Fetches a flowverse's index again, or for the first time.
 
     The first time is what `official` is usually having done to it: it is listed from the
-    start and fetched when somebody wants what is in it.
+    start and fetched in the background the first time the interface opens. What is installed
+    out of it is left exactly as it is: a newer release in the index is an update to offer,
+    not one to take.
 
     Args:
       name: What it is called.
@@ -377,7 +377,15 @@ def fetch(name: str) -> Flowverse:
 
 
 def remove(name: str) -> bool:
-    """Takes a flowverse away, flows and all.
+    """Takes a flowverse away: its index, and every flow installed out of it.
+
+    The flows go with it because nothing else would ever reach them: an installed flow is
+    offered under its flowverse's name, and a name nothing lists is a flow nobody can update,
+    uninstall or tell is there.
+
+    Each is moved out of its place in one rename before anything in it is deleted, so that a
+    delete that fails partway leaves a hidden directory nothing lists rather than half an
+    index, or an installed flow with its record and without its entry point.
 
     Args:
       name: What it is called.
@@ -388,22 +396,33 @@ def remove(name: str) -> bool:
     Raises:
       ValueError: If it is one of the three that are always there: humanize's own, and the
         two directories your own flows live in, which are wherever you are.
+      OSError: If either will not move out of its place.
     """
     import shutil
+    import tempfile
+
+    from .index import kept
 
     one = named(name)
     if one is None:
         return False
     if one.fixed:
         raise ValueError(f"{name} is always here; it is not one to take away")
-    if not one.at.is_dir():
-        return False
-    shutil.rmtree(one.at)
-    return True
+    gone = False
+    for place in (one.at, kept(name)):
+        if not place.is_dir():
+            continue
+        holding = Path(tempfile.mkdtemp(dir=place.parent, prefix=f".{name}."))
+        try:
+            place.rename(holding / name)
+            gone = True
+        finally:
+            shutil.rmtree(holding, ignore_errors=True)
+    return gone
 
 
 def flows(one: Flowverse) -> list[str]:
-    """The flows in one flowverse, by the name each is offered under.
+    """The flows one flowverse offers to run, by the name each is offered under.
 
     Args:
       one: The flowverse.
@@ -412,12 +431,11 @@ def flows(one: Flowverse) -> list[str]:
       One name per flow in the directories it holds them in, alphabetically -- a directory with
       an `__init__.py` in it, or a single `.py` file, both of which are a module. A directory
       without an entry point is what the flows beside it import rather than a flow, and
-      neither is a name that starts with an underscore. Nothing at all where there is no such
-      directory: a repository somebody added that keeps its flows somewhere else holds none of
-      them, which is what the list says.
+      neither is a name that starts with an underscore. Nothing at all for an index nothing
+      has been installed out of: what it lists is offered to install, not to run.
 
-      One name apiece for `official`, which is kept in two places: a flow the package and the
-      repository both hold is one name here, and which of the two it resolves to is the order
+      One name apiece for `official`, which is kept in two places: a flow the package and an
+      install both hold is one name here, and which of the two it resolves to is the order
       :func:`holds` puts them in.
     """
     from .finding import offered
@@ -470,11 +488,11 @@ def refresh(at: Path) -> None:
 def edited(at: Path) -> bool:
     """Whether a clone has anything written into it that fetching it again would undo.
 
-    A flowverse is a copy of somebody else's repository and a fetch resets the clone to what
-    that repository says now, so anything written into a flow there goes. That is a fair thing
-    to do on a key somebody pressed, and not a fair thing to do behind them: a weaver who has
-    added their own repository and is editing a flow in it would lose the morning to a fetch
-    nobody asked for. Whoever fetches without being asked asks this first.
+    An index is a copy of somebody else's repository and a fetch resets the clone to what that
+    repository says now, so anything written into it goes. That is a fair thing to do on a key
+    somebody pressed, and not a fair thing to do behind them: somebody writing the manifest of
+    their next release into an index they added would lose it to a fetch nobody asked for.
+    Whoever fetches without being asked asks this first.
 
     Tracked files only, which is exactly what `reset --hard` takes back: a file somebody added
     and never committed survives a fetch, and the `__pycache__` that reading a flow leaves
@@ -496,10 +514,9 @@ def standing(at: Path) -> str:
 
     Asked either side of a fetch by whatever fetches without being asked to, so that what is
     done about a fetch that landed is done about the fetches that landed something. Most of
-    them land nothing -- the repository has not moved since the last start -- and everything
-    that reads the flows off a clone reads them by running them, so taking one of those for a
-    change is every flow on the disk imported again to arrive at the list that was already
-    drawn.
+    them land nothing -- the repository has not moved since the last start -- and taking one
+    of those for a change is every menu reading its index again to arrive at the list that was
+    already drawn.
 
     Args:
       at: The clone.
@@ -526,9 +543,9 @@ def clone(url: str, at: Path) -> None:
     is what comes by for it.
 
     And two callers reach one directory as a matter of course: the interface takes what every
-    flowverse says now as it opens, and the flow menu fetches whatever has never been fetched
-    as it is opened, so typing `/flow` on a machine where `official` has never been fetched is
-    two clones of one place, each begun before the other had finished. Cloning straight into
+    index says now as it opens, and the flow menu fetches one as it is asked to, so asking for
+    `official` on a machine where the first fetch of it is still going is two clones of one
+    place, each begun before the other had finished. Cloning straight into
     `at` makes the second of them fail on a directory that is already there -- and tidying up
     after that failure by taking `at` away is taking away the clone the first one had just
     written. The move is what settles who won, and whoever lost throws their own copy away and
