@@ -133,7 +133,7 @@ def agy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Agy]:
     # turn stopped in a log of its own rather than on its streams, so a failed turn of this
     # stand-in sends `backends.journalled` to `~/.gemini/antigravity-cli/cli.log` -- the log
     # of whatever real `agy` somebody has running on this machine, written by somebody else's
-    # turn. The word `quota` anywhere in its last four kilobytes reads as `throttled`, which
+    # turn. The word `quota` anywhere in its last four kilobytes reads as `spent`, which
     # is a kind of failure worth another go: a second process, a third record in
     # `calls.jsonl`, thirty seconds of backoff spent on the way, and `too many values to
     # unpack` in whichever test here counted the turns it took. Pointed at this test's own

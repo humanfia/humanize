@@ -187,11 +187,24 @@ class Answer:
 #: which is the only answer that cannot be wrong about something it has not understood.
 ANSWERS: tuple[Answer, ...] = (
     # Waited out first and then walked away from, in that order: the service has said the
-    # account is spending too fast, so the next call under the same account is the same
-    # answer -- and the place after it is not rate-limited at all.
+    # account is asking too fast, so the next call under the same account is the same
+    # answer -- and the place after it is not rate-limited at all. Said as a limit on how
+    # fast and not as a quota: a plain `429` is the service asking for room, and nothing a
+    # person has to top up.
     Answer(
         "throttled",
         "is rate-limited",
+        tries=1,
+        least=THROTTLED,
+        fix="the service asks it to slow down, with no quota spent; a wait is what answers it",
+    ),
+    # Answered as a rate limit is -- a wait, then another account -- because the service
+    # gives it the same `429`, and a quota that renews by the hour is one a wait does answer.
+    # Said as what it is, though, since the account rather than the moment is what somebody
+    # attends to.
+    Answer(
+        "spent",
+        "has spent its quota",
         tries=1,
         least=THROTTLED,
         fix="this account has spent its quota; another one, or a wait, is what answers it",

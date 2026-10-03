@@ -367,6 +367,7 @@ FAULTS: Mapping[str, type[HarnessError]] = MappingProxyType(
     {
         "contended": HarnessContended,
         "throttled": HarnessThrottled,
+        "spent": HarnessThrottled,
         "refused": HarnessRefused,
         "unlisted": ModelUnavailable,
         "retired": ModelUnavailable,

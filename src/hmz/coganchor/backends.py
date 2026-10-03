@@ -142,8 +142,13 @@ class Way:
 #:
 #: - `contended`: two turns at one local store. opencode's SQLite is shared across workspaces,
 #:   and the loser of a race says `database is locked` before it has spoken to any provider.
-#: - `throttled`: too many requests, or a quota spent. The whole account rather than the one
-#:   call, which is why waiting comes first and another account after it.
+#: - `throttled`: too many requests. The whole account rather than the one call, but for a
+#:   while rather than for good: the service is limiting how fast it is asked, and waiting is
+#:   what answers it, with another account after that.
+#: - `spent`: a quota or a balance used up, which the service says in so many words --
+#:   `insufficient_quota`, a credit balance too low, billing. It arrives as the same `429` a
+#:   rate limit does and is answered the same way, but a person reading it has something to
+#:   do that a person reading a rate limit does not, so it is said as what it is.
 #: - `refused`: the credential, not the request -- 401, a login that has expired, a key that
 #:   was revoked. The same key a second later is the same answer, so nothing here is tried
 #:   again.
@@ -164,6 +169,7 @@ class Way:
 #: - `dropped`: the wire. A connection reset, a broken pipe, a gateway that went away.
 FAULTS = (
     "contended",
+    "spent",
     "throttled",
     "refused",
     "unlisted",
@@ -223,15 +229,22 @@ SIGNS: tuple[Sign, ...] = (
     # A sign-in that refreshes itself, held by another turn the other way round: a copy of it
     # out on another machine, or turns here using it while this one would send one out.
     Sign("contended", r"signs in with a token that refreshes itself"),
+    # A quota or a balance the account has used up, in the words the services use for it --
+    # `insufficient_quota` is OpenAI's, `Quota exceeded` Google's, a credit balance too low
+    # Anthropic's. In front of the rate limit because it comes as the same `429`, and a
+    # plain `429` from a gateway said as a quota spent is a person sent to top up an account
+    # that was only being asked too fast.
+    Sign("spent", r"quota"),
+    Sign("spent", r"insufficient[ _-]balance"),
+    Sign("spent", r"credit balance is too low"),
+    Sign("spent", r"billing"),
     # Too many requests, under every name the services put on it. `RESOURCE_EXHAUSTED` is
-    # Google's word for that status, `insufficient_quota` OpenAI's, and `overloaded_error`
-    # what Anthropic answers 529 with -- each of them answered by waiting rather than by
-    # asking again now, and then by an account that has not spent its quota.
+    # Google's word for that status and `overloaded_error` what Anthropic answers 529 with
+    # -- each of them answered by waiting rather than by asking again now.
     Sign("throttled", r"\b429\b"),
     Sign("throttled", r"\b529\b"),
     Sign("throttled", r"too many requests"),
     Sign("throttled", r"rate[ _-]?limit"),
-    Sign("throttled", r"quota"),
     Sign("throttled", r"resource[ _-]?exhausted"),
     # The same status said as a sentence, which is how Grok Build puts xAI's 429 on its last
     # line -- `Some resource has been exhausted: You are sending requests too quickly` -- with
@@ -240,8 +253,6 @@ SIGNS: tuple[Sign, ...] = (
     Sign("throttled", r"sending requests too quickly"),
     Sign("throttled", r"overloaded"),
     Sign("throttled", r"usage limit"),
-    Sign("throttled", r"insufficient[ _-]balance"),
-    Sign("throttled", r"credit balance is too low"),
     # The machine rather than the account, and in front of the credentials because the word it
     # fails with is one of theirs. A CLI that confines its own tool calls asks the kernel for
     # a namespace to confine them in, and an unprivileged container has none to give: `bwrap:

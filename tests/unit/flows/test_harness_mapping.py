@@ -518,6 +518,7 @@ def _failed(fault: str = "", status: int = 1) -> Failed:
     [
         (_failed("contended"), HarnessContended),
         (_failed("throttled"), HarnessThrottled),
+        (_failed("spent"), HarnessThrottled),
         (_failed("refused"), HarnessRefused),
         (_failed("unlisted"), ModelUnavailable),
         (_failed("retired"), ModelUnavailable),

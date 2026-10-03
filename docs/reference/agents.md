@@ -610,7 +610,8 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 | Fault | Meaning |
 | --- | --- |
 | `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`) |
-| `throttled` | too many requests or a quota spent (`429`, `529`, `rate limit`, `quota`, `resource exhausted`, `overloaded`, `usage limit`, …) |
+| `spent` | a quota or balance used up, said in so many words (`quota`, `insufficient balance`, `credit balance is too low`, `billing`); read ahead of `throttled`, since it comes as the same `429` |
+| `throttled` | too many requests (`429`, `529`, `rate limit`, `resource exhausted`, `overloaded`, `usage limit`, …) |
 | `refused` | the credential (`401`, `403`, `unauthorized`, `invalid api key`, `not logged in`, `token expired`, `token was revoked`, `forbidden`, …) |
 | `unlisted` | the model is not this account's (`not allowed to access model`, `can only access models`, `is not supported when using`, …) |
 | `retired` | the model is gone (`404`, `model not found`, `unknown model`, …) |
@@ -1097,7 +1098,8 @@ Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
 
 | Fault | Tries (floor) | Wait | Transport reopened | Fix |
 | --- | --- | --- | --- | --- |
-| `throttled` | 1 | at least 30 s | no | this account has spent its quota; another one, or a wait, is what answers it |
+| `throttled` | 1 | at least 30 s | no | the service asks it to slow down, with no quota spent; a wait is what answers it |
+| `spent` | 1 | at least 30 s | no | this account has spent its quota; another one, or a wait, is what answers it |
 | `refused` | none | — | no | that account needs signing in again |
 | `unlisted` | none | — | no | that model is not this account's to name; ask it what it runs and name one of those |
 | `retired` | none | — | no | the model is gone or was never this account's; another place is what answers it |

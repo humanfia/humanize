@@ -518,7 +518,7 @@ A failed turn ends with what the CLI said, then the kind of failure in brackets:
 
 ```text{2}
 Command 'claude' returned non-zero exit status 1. 429 rate limit exceeded
-(throttled: this account has spent its quota; another one, or a wait, is what answers it)
+(throttled: the service asks it to slow down, with no quota spent; a wait is what answers it)
 ```
 
 humanize waits, retries, or moves to the next place of its [fallback](/user/settings#fallback) chain
@@ -540,18 +540,32 @@ says. Then choose a model it runs.
 
 **Verify.** The CLI answers on its own, and the next turn under humanize does too.
 
-### `(throttled: this account has spent its quota; another one, or a wait, is what answers it)`
+### `(throttled: the service asks it to slow down, with no quota spent; a wait is what answers it)`
 
 **Symptom.** A turn fails with this bracket, and the run pauses or moves to another place.
 
-**Cause.** The account hit its rate limit. humanize waits, tries once more, then moves to the
-next place of the [fallback chain](/user/settings#fallback), if there is one.
+**Cause.** The account hit its rate limit: the service is asking it to slow down, and has not
+said a quota is spent. humanize waits, tries once more, then moves to the next place of the
+[fallback chain](/user/settings#fallback), if there is one.
 
 **Fix.** Give it one to move to: add an account on [the Accounts page of
 `/settings`](/user/settings#accounts), and put a place under it (the same model under the new
 account, say) on the chain of the place that failed, on the Fallback page.
 
 **Verify.** The next time it happens, the transcript says `carrying on as` the other place.
+
+### `(spent: this account has spent its quota; another one, or a wait, is what answers it)`
+
+**Symptom.** A turn fails with this bracket, and the run pauses or moves to another place.
+
+**Cause.** The provider said the account's quota or balance is used up (`insufficient_quota`,
+`Quota exceeded`, a credit balance too low, billing). humanize answers it as it answers a rate
+limit: it waits, tries once more, then moves to the next place of the chain.
+
+**Fix.** Top the account up, or wait for its quota to renew. Meanwhile give it somewhere to
+move to, as for a rate limit above.
+
+**Verify.** The CLI answers under that account on its own again.
 
 ### `(refused: that account needs signing in again)`
 

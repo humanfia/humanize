@@ -139,7 +139,8 @@ def test_what_a_cli_says_when_it_stops_is_read_as_the_kind_it_is() -> None:
     """One classifier, because a 429 is a 429 whichever CLI was holding the socket."""
     read = {
         "Error: 429 Too Many Requests": "throttled",
-        "RESOURCE_EXHAUSTED: quota exceeded for this project": "throttled",
+        "RESOURCE_EXHAUSTED: quota exceeded for this project": "spent",
+        "429 You exceeded your current quota (insufficient_quota)": "spent",
         "Error: Some resource has been exhausted: You are sending requests too "
         "quickly. Please slow down": "throttled",
         "Claude AI usage limit reached": "throttled",
@@ -222,7 +223,7 @@ def test_a_cli_s_own_sentence_beats_a_word_that_happens_to_be_beside_it() -> Non
 
     assert backends.trouble("dsh", said) == "refused"
     # The same line to a backend that has no sentence of its own reads as the word does.
-    assert backends.trouble("claude", said) == "throttled"
+    assert backends.trouble("claude", said) == "spent"
 
 
 def test_a_line_that_mentions_a_sandbox_is_not_a_sandbox_that_would_not_start() -> None:
@@ -298,6 +299,38 @@ def test_a_rate_limit_waits_long_before_it_is_tried_again(
     assert _took(tally) == ["main", "main"]
     assert "is rate-limited" in narrated[0]
     assert f"trying again in {fallbacks.THROTTLED:.0f}s" in narrated[0]
+
+
+def test_a_plain_429_is_a_rate_limit_and_not_a_quota_spent(
+    accounts: None, unwaiting: None, tmp_path: Path
+) -> None:
+    """A gateway asking for room is not an account somebody has to top up.
+
+    Found under real load: every `429` a gateway answered with was narrated as an account
+    that had spent its quota, which sends a person to the billing page of an account that was
+    only being asked too fast. A quota is said where the service says one.
+    """
+    tally = tmp_path / "took.txt"
+    agent, narrated = _driving()
+
+    said = _fails(agent, tally, "Error: 429 Too Many Requests")
+
+    assert "is rate-limited" in narrated[0]
+    assert "slow down" in narrated[0]
+    assert "spent its quota" not in narrated[0]
+    assert "(throttled: " in said
+    assert "spent its quota" not in said
+
+    tally.unlink()
+    agent, narrated = _driving()
+    said = _fails(
+        agent, tally, "429 You exceeded your current quota (insufficient_quota)"
+    )
+
+    # Waited out the same way, being the same status, and said as what it is.
+    assert _took(tally) == ["main", "main"]
+    assert "has spent its quota" in narrated[0]
+    assert "(spent: this account has spent its quota" in said
 
 
 def test_the_time_a_place_was_given_still_holds_over_a_long_wait(
@@ -559,7 +592,7 @@ def test_a_backend_that_keeps_its_reason_in_its_own_log_is_read_there(
     generic = "Agent execution terminated due to error."
     assert backends.trouble("agy", generic) == ""
     assert backends.trouble("agy", generic, journal=backends.journalled("agy")) == (
-        "throttled"
+        "spent"
     )
 
 

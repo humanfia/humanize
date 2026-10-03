@@ -1721,7 +1721,7 @@ FlowException
 | <code id="rewinderror">RewindError</code> | `EnvError` | `snapshot`, `rewind` or `snapshots` failed |
 
 How a failed CLI turn maps to a leaf: the fault coganchor classifies is mapped
-`contended → HarnessContended`, `throttled → HarnessThrottled`, `refused → HarnessRefused`,
+`contended → HarnessContended`, `throttled`/`spent → HarnessThrottled`, `refused → HarnessRefused`,
 `unlisted`/`retired → ModelUnavailable`, `missing → HarnessMissing` (`HarnessNotInstalled` when
 the exit status is 127), `sandboxed → HarnessSandboxed`, `killed → HarnessKilled`,
 `dropped → HarnessDropped`, anything else (`unmirrored` among them) `HarnessUnrecoverable`. A turn stopped by the

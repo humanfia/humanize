@@ -24,7 +24,7 @@ const notice = [
   {
     label: 'notice',
     lines: [
-      '[y]●[/] [dim]claude is rate-limited (this account has spent its quota; another one, or a wait, is what answers it); carrying on as claude@key/claude-opus-5-5[/]',
+      '[y]●[/] [dim]claude is rate-limited (the service asks it to slow down, with no quota spent; a wait is what answers it); carrying on as claude@key/claude-opus-5-5[/]',
     ],
   },
 ]
@@ -760,8 +760,8 @@ Each move shows in the transcript as it happens, even with [details](#details) o
 that is recovering does not look hung:
 
 ```
-claude is rate-limited (this account has spent its quota; another one, or a wait, is what answers it); trying again in 30s (1 of 1)
-claude is rate-limited (this account has spent its quota; another one, or a wait, is what answers it); carrying on as claude@key/claude-opus-5-5
+claude is rate-limited (the service asks it to slow down, with no quota spent; a wait is what answers it); trying again in 30s (1 of 1)
+claude is rate-limited (the service asks it to slow down, with no quota spent; a wait is what answers it); carrying on as claude@key/claude-opus-5-5
 ```
 
 Where there is something to do about it, the line says so in brackets: an account that needs

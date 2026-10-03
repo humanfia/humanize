@@ -62,7 +62,7 @@ _NOT_A_CHAT = (
 
 #: What a turn fails for that is the account's to answer rather than anything humanize kept:
 #: as :data:`hmz.coganchor.backends.FAULTS` names them.
-_ACCOUNTS = frozenset({"throttled", "refused", "unlisted", "retired"})
+_ACCOUNTS = frozenset({"throttled", "spent", "refused", "unlisted", "retired"})
 
 #: How much of a file is read at a time, looking for a session id in it.
 _CHUNK = 1 << 20
