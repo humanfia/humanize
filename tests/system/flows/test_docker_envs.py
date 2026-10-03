@@ -26,12 +26,12 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
 from hmz.coganchor import backends
-from hmz.coganchor.machines import gpus_listed, gpus_usable, store
+from hmz.coganchor.machines import gpus_listed, gpus_usable, info, store
 from hmz.coganchor.machines.docker import CDI
 from hmz.flows import (
     CPUEnvMixin,
@@ -236,14 +236,13 @@ async def test_what_a_role_declares_is_the_containers_limit(
 
 
 def _devices() -> list[object]:
-    """What the daemon here lists as its devices."""
-    said = subprocess.run(
-        ["docker", "info", "--format", "{{json .DiscoveredDevices}}"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return json.loads(said.stdout or "null") or []
+    """What the daemon here lists as its devices, read out of `docker info` as humanize reads it.
+
+    The whole answer rather than `--format '{{json .DiscoveredDevices}}'`: a daemon older than
+    that field prints a blank line for it, where the whole answer leaves it out -- and Docker
+    28.0, which GitHub's runners have, is one.
+    """
+    return cast("list[object]", info().get("DiscoveredDevices") or [])
 
 
 @pytest.fixture
