@@ -50,6 +50,6 @@ def test_a_flow_is_traced_as_the_agents_it_ran(
 
     assert document["otherData"]["sessions"] == "2"
     assert labels(document, "process_name") == {
-        "actor · claude-opus-4-8 · high · 1 sessions",
-        "reviewer · claude-opus-4-8 · high · 1 sessions",
+        "actor · claude-opus-4-8 · high · 1 session",
+        "reviewer · claude-opus-4-8 · high · 1 session",
     }

@@ -220,7 +220,7 @@ def test_tells_apart_the_agents_a_flow_names(claude_home: pathlib.Path) -> None:
 
     assert labels(document, "process_name") == {
         "actor · claude-opus-5 · xhigh · 2 sessions",
-        "reviewer · claude-opus-5 · xhigh · 1 sessions",
+        "reviewer · claude-opus-5 · xhigh · 1 session",
     }
     assert document["otherData"]["agents"] == (
         "actor · claude-opus-5 · xhigh, reviewer · claude-opus-5 · xhigh"

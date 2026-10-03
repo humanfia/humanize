@@ -284,9 +284,9 @@ Choose **export run**. The line under the list says where the archive went, in t
 the screen's title. Drag it into [ui.perfetto.dev](https://ui.perfetto.dev):
 
 ```
-process   first_chaser · 6 sessions
+process   first_chaser · claude-opus-5-5 · high · 6 sessions
   track     main ──▶ ▓▓▓▓▓     ▓▓▓▓▓▓     ▓▓▓▓     ▓▓▓▓▓▓
-process   second_chaser · 6 sessions
+process   second_chaser · gpt-5.6-sol · high · 6 sessions
   track     main ──▶      ▓▓▓▓▓      ▓▓▓▓▓     ▓▓▓▓▓
 ```
 

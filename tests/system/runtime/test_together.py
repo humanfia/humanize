@@ -94,7 +94,7 @@ def test_an_anchored_flow_leaves_its_work_there_and_its_trajectory_here(
 
     assert document["otherData"]["sessions"] == "1"
     assert labels(document, "process_name") == {
-        "actor · claude-opus-4-8 · high · 1 sessions"
+        "actor · claude-opus-4-8 · high · 1 session"
     }
 
 
