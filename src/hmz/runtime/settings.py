@@ -553,8 +553,13 @@ def _respelled(held: dict[str, Any]) -> bool:
 
 
 def _respell(held: dict[str, Any]) -> None:
-    """:func:`_respelled`, as a change :meth:`Settings._write` makes."""
-    _respelled(held)
+    """:func:`_respelled`, as a change :meth:`Settings._write` makes.
+
+    Of a reading not marked yet, and only that: another writer since may have respelled and
+    marked it, after which what it holds is spelled as it is meant.
+    """
+    if _SPELLING not in held:
+        _respelled(held)
 
 
 def _mapping(held: object) -> dict[str, Any]:
