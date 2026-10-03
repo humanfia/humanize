@@ -644,6 +644,11 @@ class SessionBase(ABC):
         #: cut off once is not a session that can never take another turn.
         self._over = ""
         self._cut = ""
+        #: Set when the turn is cut off or the agent stopped, for a turn that is waiting to try
+        #: again rather than running: a wait of thirty seconds out a rate limit has no process
+        #: to take away, and a person who pressed ctrl+c is not to wait the thirty seconds out
+        #: as well. Cleared as a turn opens.
+        self._waking = threading.Event()
         #: And whether the one that cut it off was the watchdog, which is the one cut-off a
         #: turn does not answer to. A budget spent and a person's `interrupt` both leave a
         #: turn that landed -- half an answer is still an answer -- but a backend that had
@@ -900,8 +905,13 @@ class SessionBase(ABC):
             # would end the next turn before it had said anything. A turn that has not started
             # is prevented by stopping the agent, which is a different thing.
             return
+        # Said once, however often it is asked: an interface asks again until the turn has
+        # ended, and a turn that takes a while to let go read as twenty cut-offs.
+        again = bool(self._cut)
         self._cut = why or "interrupted"
-        self._heard(Event(kind="notice", text=f"cutting the turn off: {self._cut}"))
+        if not again:
+            self._heard(Event(kind="notice", text=f"cutting the turn off: {self._cut}"))
+        self._waking.set()
         self._cuts()
         if self._moved_to is not None:
             # And the conversation this one moved to, since the turn being cut off may be
@@ -1277,6 +1287,7 @@ class SessionBase(ABC):
             # a reason set in that window and cleared afterwards is a cut-off that quietly
             # never happened.
             self._over = self._cut = ""
+            self._waking.clear()
             self._wedged = False
             self._sofar = []
             self._working = True
@@ -1544,7 +1555,11 @@ class SessionBase(ABC):
                 ):
                     break
                 self._narrates(self._recovering(answer, waiting, attempt - 1, goes))
-                time.sleep(waiting)
+                # Woken by a cut-off or a stop, the wait is over and so is the turn: cut off,
+                # it fails as the try before it did, which the turn reads as the cut-off it
+                # is; stopped, it is the stop at the top of the loop.
+                if self._sits(waiting) and self._cut and last is not None:
+                    raise last
             started = time.time()
             try:
                 yield from self._stream(self._shaped_ask(prompt, schema), schema=schema)
@@ -1603,6 +1618,17 @@ class SessionBase(ABC):
         if last is None:  # nothing ran at all, which is nothing this can raise about
             raise RuntimeError("no try was taken")
         raise last
+
+    def _sits(self, seconds: float) -> bool:
+        """Waits out the pause before a turn is tried again, or less.
+
+        Args:
+          seconds: How long the pause is.
+
+        Returns:
+          Whether it was cut short, by the turn being cut off or the agent stopped.
+        """
+        return self._waking.wait(seconds)
 
     def _narrates(self, text: str) -> None:
         """Says one step of a recovery where whoever is running the flow can see it.
@@ -5106,6 +5132,7 @@ class AgentBase(ABC):
         """
         self._stopped = True
         for session in self.sessions:
+            session._waking.set()
             session.close()
         with self._starting:
             stood_in = self._stands_in
