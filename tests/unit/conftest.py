@@ -47,3 +47,5 @@ def _asks_codex_nothing_of_its_features(monkeypatch: pytest.MonkeyPatch) -> None
 def _knows_none(feature: str) -> bool:
     del feature
     return False
+
+# Scratch: a change that touches Python, for the middle tier to run on.
