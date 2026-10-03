@@ -287,6 +287,46 @@ def test_subagent_completion_does_not_settle_the_main_turn() -> None:
             updates.close()
 
 
+def test_a_turn_that_failed_says_what_it_failed_of() -> None:
+    """Stopped as an answered turn stops, a failed one was read as an empty success.
+
+    The gateway refused kimi-code's `prompt_cache_key`, and every turn answered "".
+    """
+    frames = (
+        ("main", "turn.started", None),
+        ("main", "turn.ended", {"reason": "failed", "error": {"message": "bad param"}}),
+        ("main", "turn.started", None),
+        ("main", "turn.ended", {"reason": "completed"}),
+    )
+
+    def handler(socket: ServerConnection) -> None:
+        acknowledge(socket)
+        for agent, kind, more in frames:
+            socket.send(
+                json.dumps(
+                    {
+                        "type": kind,
+                        "session_id": "ours",
+                        "payload": {"agentId": agent, **(more or {})},
+                    }
+                )
+            )
+        socket.recv()
+
+    with server(handler) as base:
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
+        try:
+            updates.wait(settled=False)
+            assert updates.ended
+            assert updates.failed == "bad param"
+            # And the next turn starts with nothing against it.
+            updates.wait(settled=False)
+            assert updates.ended
+            assert updates.failed == ""
+        finally:
+            updates.close()
+
+
 def test_notifications_say_when_a_question_may_be_waiting() -> None:
     """Only a question is something a turn stops on, so only it is worth bringing forward.
 

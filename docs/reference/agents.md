@@ -1371,7 +1371,8 @@ rung, thinking level and swarm width, and question ids.
 - Usage comes from `turn.step.completed` (`inputOther`, `output`, `inputCacheRead`,
   `inputCacheCreation`); the larger of the steps' sum and the session aggregate wins per kind.
 - A turn is over when the session is seen stopped twice, a wait apart, after it was seen to
-  start.
+  start. One whose `turn.ended` notification says `reason: failed` fails, with the daemon's
+  `error` message, rather than answering with nothing.
 - The fence goes up once, when the daemon starts; another fence or account starts a new daemon.
   With `online=False`, the port is chosen before start and is the only one in `listen`, and
   `WebSearch`/`FetchURL` are in `disabled_tools` regardless of `web_search`.
