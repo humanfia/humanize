@@ -6,15 +6,34 @@ from typing import TYPE_CHECKING
 
 import pytest
 import yaml
+from textual.content import Content
 from textual.widgets import Label, OptionList
 
 from hmz import home
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
+from hmz.tui.settings import PAGES
 from tests.tui.fixtures import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def _shown(listing: OptionList, held: str) -> str:
+    """What one row of a settings page says, found by its id rather than where it stands.
+
+    Args:
+      listing: The page's list.
+      held: The row, by the id it was put up under.
+
+    Returns:
+      The row's words, without the colours it is drawn in.
+    """
+    return next(
+        Content.from_markup(str(one.prompt)).plain
+        for one in listing.options
+        if one.id == f"={held}"
+    )
 
 
 def test_a_workspace_that_has_run_nothing_remembers_nothing(tmp_path: Path) -> None:
@@ -350,7 +369,7 @@ async def test_the_settings_menu_turns_the_reporting_off(
     """One page for what is true of this machine, one for what this directory is set up as."""
     from hmz.runtime.kept import Runs
     from hmz.tui import Humanize
-    from hmz.tui.pick import _ACT_SAVE, Confirms
+    from hmz.tui.pick import _ACT_SAVE, Confirms, _shortly
     from hmz.tui.settings import Adjusts
     from tests.integration.tui.test_app import bar, ids, into_settings, onto, picks
 
@@ -363,13 +382,16 @@ async def test_the_settings_menu_turns_the_reporting_off(
         sheet = app.screen
         assert isinstance(sheet, Adjusts)
         listing = sheet.query_one("#choices", OptionList)
-        assert ids(app) == ["reports", "sent", "details", "btw"]
+        # The one turned round most first, under a heading apiece; the headings are no rows.
+        assert [one for one in ids(app) if one] == ["details", "btw", "reports", "sent"]
+        assert "Display" in str(listing.get_option_at_index(0).prompt)
+        assert listing.get_option_at_index(0).disabled
         # Saved from the bar under the list rather than from a row of it.
         assert _ACT_SAVE in bar(app)
-        assert "● on" in str(listing.get_option_at_index(0).prompt)
+        assert "● on" in _shown(listing, "reports")
 
         await picks(app, driver, "reports", "off")
-        assert "○ off" in str(listing.get_option_at_index(0).prompt)
+        assert "○ off" in _shown(listing, "reports")
         assert sheet._changed
 
         # The other page, by way of the screen of them all: this directory.
@@ -377,9 +399,13 @@ async def test_the_settings_menu_turns_the_reporting_off(
         await until(lambda: sheet._home, driver)
         await onto(app, driver, "workspace")
         await driver.press("enter")
-        await until(lambda: not sheet._home and sheet._tab == 1, driver)
-        assert ids(app) == ["workspace", "flow", "profile", "forget"]
-        assert "chat" in str(listing.get_option_at_index(1).prompt)
+        await until(
+            lambda: not sheet._home and sheet._tab == PAGES.index("workspace"), driver
+        )
+        # The directory is said across the top rather than as a row nothing can change.
+        assert [one for one in ids(app) if one] == ["flow", "profile", "forget"]
+        assert _shortly(str(tmp_path)) in str(sheet.query_one("#about", Label).content)
+        assert "chat" in _shown(listing, "flow")
 
         await driver.press("escape")
         await until(lambda: sheet._home, driver)
@@ -414,8 +440,8 @@ async def test_a_value_is_picked_from_the_list_dropped_under_it_with_the_mouse(
         assert isinstance(sheet, Adjusts)
         listing = sheet.query_one("#choices", OptionList)
 
-        # Details is the third row: two lines and a rule apiece, under the list's border.
-        await driver.click("#choices", offset=(4, 1 + 3 * 2))
+        # Details is the first row, under the list's border and the heading over it.
+        await driver.click("#choices", offset=(4, 2))
         await until(lambda: isinstance(app.screen, Dropdown), driver)
         dropped = app.screen
         values = dropped.query_one(OptionList)
@@ -429,12 +455,12 @@ async def test_a_value_is_picked_from_the_list_dropped_under_it_with_the_mouse(
         assert not sheet._details
         assert not sheet._changed
 
-        await driver.click("#choices", offset=(4, 1 + 3 * 2))
+        await driver.click("#choices", offset=(4, 2))
         await until(lambda: isinstance(app.screen, Dropdown), driver)
         await driver.click(app.screen.query_one(OptionList), offset=(2, 1))
         await until(lambda: app.screen is sheet, driver)
         assert sheet._details
-        assert "● on" in str(listing.get_option_at_index(2).prompt)
+        assert "● on" in _shown(listing, "details")
         # Held, and not yet written down.
         assert not Settings(tmp_path).details
 
@@ -462,18 +488,16 @@ async def test_whether_a_run_here_is_profiled_is_a_row_of_this_directory(
     assert not Settings(tmp_path).profiling
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 1)
+        await into_settings(app, driver, "workspace")
         listing = app.screen.query_one("#choices", OptionList)
 
         await picks(app, driver, "profile", "on")
-        assert "● on" in str(listing.get_option_at_index(2).prompt)
+        assert "● on" in _shown(listing, "profile")
 
         # Held until the menu is saved, exactly as everything else on it is.
         assert not Settings(tmp_path).profiling
         # Read as a run starts, so the row says when it lands while it is held.
-        assert "takes effect on next flow run" in str(
-            listing.get_option_at_index(2).prompt
-        )
+        assert "takes effect on next flow run" in _shown(listing, "profile")
         await driver.press("escape", "escape")
         await until(lambda: isinstance(app.screen, Confirms), driver)
         await driver.press("enter")
@@ -508,12 +532,12 @@ def test_settings_offers_its_pages_by_name() -> None:
 
     assert _BY_NAME["settings"].takes == "[page]"
     assert offered("/settings ", _COMMANDS) == [
-        "settings",
-        "workspace",
+        "general",
         "accounts",
-        "runtimes",
         "fallback",
+        "runtimes",
         "flowverses",
+        "workspace",
     ]
     assert offered("/settings ac", _COMMANDS) == ["accounts"]
     assert offered("/settings run", _COMMANDS) == ["runtimes"]
@@ -526,15 +550,16 @@ def test_settings_offers_its_pages_by_name() -> None:
 @pytest.mark.parametrize(
     ("page", "tab"),
     [
-        ("settings", 0),
-        ("workspace", 1),
+        ("general", 0),
+        ("workspace", 5),
         # And by the names they had, which fingers still know.
+        ("settings", 0),
         ("everywhere", 0),
-        ("directory", 1),
-        ("Accounts", 2),
+        ("directory", 5),
+        ("Accounts", 1),
         ("runtimes", 3),
         ("environments", 3),
-        ("fallback", 4),
+        ("fallback", 2),
     ],
 )
 async def test_settings_opens_straight_onto_the_page_it_is_given(
@@ -602,14 +627,18 @@ async def test_what_a_page_said_is_still_said_when_it_is_turned_back_to(
         await driver.press("escape")
         await until(lambda: sheet._home, driver)
         await driver.press("down", "enter")
-        await until(lambda: sheet._tab == 3 and not sheet._home, driver)
+        await until(
+            lambda: sheet._tab == PAGES.index("fallback") and not sheet._home, driver
+        )
         assert "something happened here" not in str(
             sheet.query_one("#tuning", Label).content
         )
         await driver.press("escape")
         await until(lambda: sheet._home, driver)
         await driver.press("up", "enter")
-        await until(lambda: sheet._tab == 2 and not sheet._home, driver)
+        await until(
+            lambda: sheet._tab == PAGES.index("accounts") and not sheet._home, driver
+        )
 
         assert "something happened here" in str(
             sheet.query_one("#tuning", Label).content

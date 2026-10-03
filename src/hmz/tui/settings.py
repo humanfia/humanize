@@ -1,8 +1,11 @@
 """`/settings`: every setting humanize has, on a screen of its own, one level at a time.
 
-What opens is the six places settings are kept and nothing else -- this machine's own, this
-workspace's, the accounts, the runtimes, the fallbacks and the flowverses -- each a card
-saying what is in it, as a phone's settings or VS Code's open on their categories. Enter or a
+What opens is the six places settings are kept and nothing else -- this machine's own, the
+accounts, the fallbacks, the runtimes, the flowverses and this workspace's -- each a card
+saying what is in it, as a phone's settings or VS Code's open on their categories. They stand
+from the broadest to the nearest: what is true wherever humanize runs, who its agents are and
+what takes over when one fails, where their work goes and where flows come from, and last the
+one directory open now. Enter or a
 click goes into one and esc or backspace comes back out, as k9s and ranger walk in and out of
 what they list; the line across the top says where you are, and its first word is a way back.
 
@@ -90,17 +93,18 @@ __all__ = ["PAGES", "Adjusts", "page_of"]
 #: What `/settings` is told to open each page by, in the order they are listed: the word on
 #: its card, lower case, so that the word typed is the word read.
 PAGES = (
-    "settings",
-    "workspace",
+    "general",
     "accounts",
-    "runtimes",
     "fallback",
+    "runtimes",
     "flowverses",
+    "workspace",
 )
 
 #: The words pages were opened by before they were called what they are, still taken: a word
 #: somebody's fingers know is a word they will type.
 _ALIASES = {
+    "settings": _EVERYWHERE,
     "everywhere": _EVERYWHERE,
     "directory": _DIRECTORY,
     "environments": PAGES.index("runtimes"),
@@ -136,25 +140,24 @@ class _Page(NamedTuple):
 
 #: The pages, in the order of :data:`PAGES`.
 _PAGES = (
-    _Page("Settings", "⚙", "this machine: error reports, details, and the /btw agent"),
-    _Page("Workspace", "⌂", "this directory: its flow, profiling, and forgetting it"),
-    _Page("Accounts", "◉", "what agents sign in as, per CLI"),
     _Page(
-        "Runtimes", "▦", "ssh hosts, docker daemons and swarms a flow's roles run on"
+        "General", "⚙", "this machine: what runs show, the /btw agent, error reports"
     ),
-    _Page("Fallback", "↻", "where a turn goes when an agent fails"),
-    _Page("Flowverses", "⑂", "where flows come from"),
+    _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
+    _Page("Fallback", "↻", "where a turn goes when its agent fails"),
+    _Page("Runtimes", "▦", "ssh hosts, docker daemons and swarms that flows run on"),
+    _Page("Flowverses", "⑂", "the git repositories flows come from"),
+    _Page("Workspace", "⌂", "this directory: its flow, profiling, and forgetting it"),
 )
 
 #: What the first screen says it is.
 _HOME_ABOUT = "Every setting humanize keeps. What you change is held until you save it."
 
-#: The rows the first two pages are made of, by the id each is put up under.
+#: The rows the general and workspace pages are made of, by the id each is put up under.
 _SENTRY = "reports"
 _SENT = "sent"
 _DETAILS = "details"
 _BTW = "btw"
-_WORKSPACE = "workspace"
 _RUNS = "flow"
 _PROFILES = "profile"
 _FORGET = "forget"
@@ -180,7 +183,7 @@ def _act(key: str) -> str:
 
 
 class _Setting(NamedTuple):
-    """One row of the first two pages.
+    """One row of the general or the workspace page.
 
     Attributes:
       held: Its id.
@@ -189,6 +192,7 @@ class _Setting(NamedTuple):
       about: What it means.
       kind: Which of the four kinds of row it is -- see :data:`_SWITCH`.
       note: When a change held on it lands, or "" for one that lands at once.
+      group: The heading it stands under, which the rows before it share or do not.
     """
 
     held: str
@@ -197,6 +201,7 @@ class _Setting(NamedTuple):
     about: str
     kind: str
     note: str = ""
+    group: str = ""
 
 
 def _word(on: bool | None) -> str:  # noqa: FBT001 -- a switch is one
@@ -279,10 +284,10 @@ Adjusts #keys { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted;
 class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     """Every setting humanize has: `/settings`, six pages opened from one screen of them.
 
-    Settings is what is true of this machine however many projects are driven from it; the
-    workspace is one directory's; the accounts, the runtimes, the fallbacks and the
-    flowverses are what agents run as, the machines their work goes on, where turns go when
-    they cannot, and where flows come from. One menu because they are one question -- what
+    General is what is true of this machine however many projects are driven from it; the
+    accounts, the fallbacks, the runtimes and the flowverses are what agents run as, where
+    turns go when they cannot, the machines their work goes on, and where flows come from;
+    the workspace is one directory's. One menu because they are one question -- what
     does humanize remember -- and a command apiece was six things to learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
@@ -370,7 +375,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         self._acts: list[Action] = []
         #: The keys the page last said it had, before where the focus is was said as well.
         self._page_keys: tuple[Key, ...] = ()
-        #: How wide the names of the first two pages' rows are, where their values start.
+        #: How wide the names of the general and workspace pages' rows are: where values start.
         self._values_at = 0
         #: How wide the screen was last drawn, which the cards are laid out across.
         self._width = 0
@@ -634,9 +639,9 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             _HOME_ABOUT
             if self._home
             else {
-                _EVERYWHERE: "Global settings for humanize on this machine.",
-                _DIRECTORY: "Saved settings for this directory: the default flow, and "
-                "how it was last configured.",
+                _EVERYWHERE: "How humanize behaves on this machine, in every directory.",
+                _DIRECTORY: f"What {_shortly(self._workspace)} remembers: the flow it "
+                "opens on and how it was last configured.",
                 _ACCOUNTS: self.ACCOUNTS_ABOUT,
                 _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
@@ -674,7 +679,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     def _summary(self, page: int) -> str:
         """What one page's card says is in it, in a few words."""
         if page == _EVERYWHERE:
-            return f"reports {_word(self._sentry)}{_DOT}details {_word(self._details)}"
+            return f"details {_word(self._details)}{_DOT}reports {_word(self._sentry)}"
         if page == _DIRECTORY:
             return f"{_shortly(self._workspace)}{_DOT}flow {self._flow or 'none'}"
         if page == _ACCOUNTS:
@@ -757,22 +762,22 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         self._footed(Key("enter", "open"), Key("esc", "close"))
 
     def _settings(self) -> list[_Setting]:
-        """The rows of the first two pages, as they are held now."""
+        """The rows of the general or the workspace page, as they are held now.
+
+        Under a heading per thing they are about, the one changed most first: details are
+        turned round while a run is read, the reporting once, if ever. The directory itself is
+        no row: it is not set here, and the page says it across the top. Forgetting goes last,
+        apart, as what undoes the rest does in any settings.
+        """
         if self._tab == _DIRECTORY:
             return [
-                _Setting(
-                    _WORKSPACE,
-                    "Directory",
-                    _shortly(self._workspace),
-                    "the directory these settings apply to",
-                    _READ,
-                ),
                 _Setting(
                     _RUNS,
                     "Default flow",
                     self._flow or "none",
                     f"configured with {_many(self._roles, 'agent')}; chosen with /flow",
                     _READ,
+                    group="Flow",
                 ),
                 _Setting(
                     _PROFILES,
@@ -781,6 +786,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                     "profile programs started by runs here",
                     _SWITCH,
                     _NEXT_RUN if self._profile != self._profile_was else "",
+                    group="Runs",
                 ),
                 _Setting(
                     _FORGET,
@@ -789,29 +795,17 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                     f"clear saved settings here, across {_many(self._flows, 'flow')}",
                     _SWITCH,
                     _NEXT_LAUNCH if self._forget else "",
+                    group="Reset",
                 ),
             ]
         return [
-            _Setting(
-                _SENTRY,
-                "Error reports",
-                _word(self._sentry),
-                "send error reports to humanize",
-                _SWITCH,
-            ),
-            _Setting(
-                _SENT,
-                "What is sent",
-                "",
-                "what error reports include and exclude",
-                _SAYS,
-            ),
             _Setting(
                 _DETAILS,
                 "Details",
                 _word(self._details),
                 "show every tool call and all of the thinking",
                 _SWITCH,
+                group="Display",
             ),
             _Setting(
                 _BTW,
@@ -820,6 +814,23 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                 "the agent /btw uses outside a session",
                 _PICK,
                 _NEXT_BTW if self._btw != self._btw_was else "",
+                group="Agents",
+            ),
+            _Setting(
+                _SENTRY,
+                "Error reports",
+                _word(self._sentry),
+                "send error reports to humanize",
+                _SWITCH,
+                group="Privacy",
+            ),
+            _Setting(
+                _SENT,
+                "What is sent",
+                "",
+                "what error reports include and exclude",
+                _SAYS,
+                group="Privacy",
             ),
         ]
 
@@ -859,7 +870,11 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         return _shade("$text-muted", one.value, here=here), len(one.value)
 
     def _fill_own(self) -> None:
-        """Puts up the first or second page: a row per setting, its value at the far end."""
+        """Puts up the general or workspace page: a row per setting under its heading.
+
+        Its value at the far end, and a rule between two rows of one heading; a heading, as
+        the accounts' are, is a row the arrows step over.
+        """
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
         rows = self._settings()
@@ -867,7 +882,14 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         landing = self._was if self._was in held else held[0]
         width = self._width_of(listing)
         options: list[Option | None] = []
+        group = ""
         for one in rows:
+            if one.group != group:
+                if options:
+                    # Not the rule after the last row: a blank line before the next heading.
+                    options[-1] = Option("", disabled=True)
+                group = one.group
+                options.append(Option(f" [$primary]{escape(group)}[/]", disabled=True))
             here = one.held == landing
             chip, cells = self._chip(one, here=here)
             pad = max(2, width - 2 - len(one.named) - cells)
@@ -885,7 +907,11 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             )
             options.append(None)
         listing.set_options(options[:-1])
-        listing.highlighted = held.index(landing)
+        listing.highlighted = next(
+            at
+            for at in range(listing.option_count)
+            if listing.get_option_at_index(at).id == f"={landing}"
+        )
         self._was = landing
         self._drawn = listing.highlighted
         said = self._said
@@ -956,7 +982,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         """What the screen of pages, or the page open, does about its list, in the order it stands.
 
         Saving on the screen of pages and on every page that holds anything, and nothing else
-        on the first two pages, whose rows are each a setting of their own.
+        on the general and workspace pages, whose rows are each a setting of their own.
         """
         if self._home:
             return [self._saves_all()]
@@ -1107,7 +1133,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._chooses_btw()
 
     def drops(self, row: str) -> bool:
-        """Whether a row is a switch of the first two pages, whose two values drop under it.
+        """Whether a row is a switch of the general or workspace page, its two values dropped.
 
         Args:
           row: The row, by id.

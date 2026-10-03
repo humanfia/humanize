@@ -61,7 +61,7 @@ def _under(app: Humanize) -> str:
 
 async def _opens(app: Humanize, driver: Pilot[None]) -> None:
     """Opens the fallback page of `/settings` and waits for it to be up."""
-    await into_settings(app, driver, 4)
+    await into_settings(app, driver, "fallback")
 
 
 async def _place(app: Humanize, driver: Pilot[None], place: str) -> None:

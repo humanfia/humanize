@@ -107,7 +107,7 @@ conversation), `outworlder` and `monitor`.
 | --- | --- | --- |
 | `● <agent> is working[ · conversation <i> of <n>]` | dim | always; the suffix where the role holds ≥ 2 sessions |
 | `● <text>`; continuation lines indented 2 | green bullet | always |
-| `● <tool>(<args>)` | green bullet | [details](#settings-page) on |
+| `● <tool>(<args>)` | green bullet | [details](#general-page) on |
 | thinking | dim italic | details on |
 | `● <name>(<about>) started` / `done` | cyan bullet | details on |
 | `  ⎿  <line>` (backend output) | dim | details on |
@@ -244,7 +244,7 @@ Each command's line in the completion list:
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage runs in this directory` | |
 | `/resume` | `Resume the last run in this directory` | |
-| `/settings` | `Every setting: settings, workspace, accounts, runtimes, fallback, flowverses` | |
+| `/settings` | `Every setting: general, accounts, fallback, runtimes, flowverses, workspace` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
@@ -300,8 +300,8 @@ See [`/resume`](#carrying-the-last-one-on-outright).
 ### `/settings [page]` {#settings-command}
 
 Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
-`settings`, `workspace`, `accounts`, `runtimes`, `fallback`, `flowverses`, or the aliases
-`everywhere` (Settings), `directory` (Workspace) and `environments` (Runtimes);
+`general`, `accounts`, `fallback`, `runtimes`, `flowverses`, `workspace`, or the aliases
+`settings` and `everywhere` (General), `directory` (Workspace) and `environments` (Runtimes);
 case-insensitive; only the first word is read. Completion offers the six names, in that order,
 not the aliases.
 
@@ -453,7 +453,7 @@ hook the flow hung. It is shown on the asking outworlder's view and on the aggre
 | Enter | `/btw [question]`. Prints `btw · <target\|btw agent> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
 | In btw mode | Every line not starting with `/` is one more turn of the same side conversation. |
 | Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
-| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the one set on [Settings](#settings-page), else the flow's first declared role with a session, else its configured agent. |
+| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the one set on [General](#general-page), else the flow's first declared role with a session, else its configured agent. |
 | Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
 | btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It may reply with lines `@ask <role>/<n>: <question>` (regex `^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$`); each is put to that session's side copy (`btw · asking <key>: <question>`), and answers return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found)`, `(could not ask: <e>)`, `(no answer)`. |
 | Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
@@ -865,7 +865,9 @@ equivalent: [`hmz exec --resume`](/reference/cli#picking-a-run-up).
 
 ## `/settings` {#what-humanize-remembers}
 
-A screen of six pages. Storage keys are in [Settings](/reference/settings).
+A screen of six pages, from the broadest scope to the nearest: this machine, the accounts and
+what takes over when one fails, where work runs and where flows come from, this directory.
+Storage keys are in [Settings](/reference/settings).
 
 ### Landing screen {#settings-landing}
 
@@ -874,23 +876,23 @@ A screen of six pages. Storage keys are in [Settings](/reference/settings).
   Every setting humanize keeps. What you change is held until you save it.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
-  │ ⚙  Settings                                     reports on · details off │
-  │    this machine: error reports, details, and the /btw agent              │
+  │ ⚙  General                                      details off · reports on │
+  │    this machine: what runs show, the /btw agent, error reports           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ◉  Accounts                                        3 accounts  ● unsaved │
+  │    what agents sign in as, under each CLI                                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ↻  Fallback                                                      2 rules │
+  │    where a turn goes when its agent fails                                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ▦  Runtimes                                                    1 machine │
+  │    ssh hosts, docker daemons and swarms that flows run on                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ⑂  Flowverses                                               3 flowverses │
+  │    the git repositories flows come from                                  │
   │──────────────────────────────────────────────────────────────────────────│
   │ ⌂  Workspace                                        work/api · flow rlar │
   │    this directory: its flow, profiling, and forgetting it                │
-  │──────────────────────────────────────────────────────────────────────────│
-  │ ◉  Accounts                                        3 accounts  ● unsaved │
-  │    what agents sign in as, per CLI                                       │
-  │──────────────────────────────────────────────────────────────────────────│
-  │ ▦  Runtimes                                                    1 machine │
-  │    ssh hosts, docker daemons and swarms a flow's roles run on            │
-  │──────────────────────────────────────────────────────────────────────────│
-  │ ↻  Fallback                                                      2 rules │
-  │    where a turn goes when an agent fails                                 │
-  │──────────────────────────────────────────────────────────────────────────│
-  │ ⑂  Flowverses                                               3 flowverses │
-  │    where flows come from                                                 │
   ╰──────────────────────────────────────────────────────────────────────────╯
                                                                       Save
   enter open   tab actions   esc close
@@ -898,12 +900,12 @@ A screen of six pages. Storage keys are in [Settings](/reference/settings).
 
 | Card | Summary | `● unsaved` when |
 | --- | --- | --- |
-| ⚙ Settings | `reports on\|off\|not set · details on\|off` | reports, details or btw agent changed |
-| ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | profiling changed, or forget on |
+| ⚙ General | `details on\|off · reports on\|off\|not set` | details, btw agent or reports changed |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
-| ▦ Runtimes | `<n> machine(s)` | never |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
+| ▦ Runtimes | `<n> machine(s)` | never |
 | ⑂ Flowverses | `<n> flowverse(s)` (≥ 3) | never |
+| ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | profiling changed, or forget on |
 
 **Save** is disabled (tooltip `nothing to save yet`) until a page holds a change (`save all
 changes`). Hints: `enter open   [tab actions   ]esc close`; `tab actions` only while something
@@ -915,7 +917,7 @@ is held. Coming back out of a page puts the cursor on its card.
 | --- | --- |
 | Top line | `/settings › <Page>`; `/settings` is clickable (back to landing); `● unsaved changes` at the right while any page holds a change. Opened from `/flow`, only `<Page>`. |
 | Intro | Per page, below. |
-| List | Rows, or grouped rows under muted headings; scrollable. |
+| List | Rows under headings, which the cursor steps over; scrollable. |
 | Buttons | Under the list, in the order below; label = the row's label capitalised; tooltip = its description. |
 | Search | `/` or **Search…**: a box above the list, placeholder `type to filter`, filters as typed (case-insensitive subsequence). Letters typed on the list do not search. Cleared on leaving the page. |
 | Message | One line under the list; kept, with the cursor row, while another page is read. |
@@ -924,11 +926,14 @@ is held. Coming back out of a page puts the cursor on its card.
 
 | Page | Buttons | Search matches |
 | --- | --- | --- |
-| Settings, Workspace | Save | — |
+| General, Workspace | Save | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
-| Runtimes | Add an ssh host · Add a docker host · Add a docker swarm · Import ~/.ssh/config · Search… | name, backend, row text |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
+| Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
 | Flowverses | Add a flowverse · Search… | name, URL |
+
+**Add a runtime…** drops `ssh host`, `docker host` and `docker swarm` (titled `add a runtime`)
+over the button; picking one opens [its form](#ssh-form), `esc` or a click off it none.
 
 **Dropdowns.** A `▾` value -- here and on every other menu -- opens a framed list titled with
 the row's name, under the value (above it where there is no room), at most 12 visible values:
@@ -958,32 +963,21 @@ order done, including things done at once, even after a discard), then:
 | /btw agent | `/btw will ask <spec\|the flow's first agent> about the whole flow next time you enter btw mode` |
 | Forget | `cleared saved settings for this directory; humanize will open without them on next launch` |
 
-### Settings page {#settings-page}
+### General page {#general-page}
 
-Intro: `Global settings for humanize on this machine.` Scope: this machine.
+Intro: `How humanize behaves on this machine, in every directory.` Scope: this machine. Rows
+in this order, under the heading in the first column.
 
-| Row | Values (description) | Default | Stored as |
-| --- | --- | --- | --- |
-| **Error reports** ▾ `send error reports to humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
-| **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
-| **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
-| **/btw agent** ▾ `the agent /btw uses outside a session` | `the flow's first agent` (`whichever it names first`), the current choice (`chosen`), `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up btw agent`) | the flow's first agent | `btw` (`cli[@account]/model:effort`) |
+| Heading | Row | Values (description) | Default | Stored as |
+| --- | --- | --- | --- | --- |
+| Display | **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
+| Agents | **/btw agent** ▾ `the agent /btw uses outside a session` | `the flow's first agent` (`whichever it names first`), the current choice (`chosen`), `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up btw agent`) | the flow's first agent | `btw` (`cli[@account]/model:effort`) |
+| Privacy | **Error reports** ▾ `send error reports to humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
+| Privacy | **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
 
 Once answered, Error reports cannot return to *not set*. Where `HUMANIZE_SENTRY` overrides it,
 the page says `HUMANIZE_SENTRY is set, overriding this setting for this run`; the row shows the
 saved value.
-
-### Workspace page {#workspace-page}
-
-Intro: `Saved settings for this directory: the default flow, and how it was last configured.`
-Scope: `workspaces.<resolved cwd>`.
-
-| Row | Value | Kind |
-| --- | --- | --- |
-| **Directory** `the directory these settings apply to` | last two path parts | read-only |
-| **Default flow** `configured with <n> agent(s); chosen with /flow` | the flow, or `none` | read-only |
-| **Profiling** `profile programs started by runs here` | `on` (`profile what runs here start`), `off` (`trace them only`); default off | ▾ |
-| **Forget** `clear saved settings here, across <n> flow(s)` | `on` (`clear saved settings here`), `off` (`keep them`); starts off | ▾; on save deletes this directory's entry |
 
 ### Accounts page {#the-accounts-themselves}
 
@@ -1053,11 +1047,47 @@ after the command's first word: `<name> added as a backend`; transcript ``<name>
 backend: `<command>` starts it``. Refusals: `command is required`, `<x> is already a backend
 humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-your-own).
 
+### Fallback page {#where-a-turn-goes-when-it-cannot-be-taken}
+
+Intro: `Where a turn falls back when an agent fails, tried in order. An agent is a CLI, an
+account and a model. A chain starts only from the agent it is written for. Saved rules apply
+from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <a>[, then <b>…]` or `… · no fallback`. Empty: `no fallback rules configured yet`.
+Semantics: [Providers](/reference/providers) and [Falling back](/user/settings#fallback).
+
+Rule form: title `Add fallback rule` (or the place when editing); intro `What happens when an
+agent cannot take a turn: retry as configured, then fall back to another agent in a new
+conversation.`
+
+| Row | Kind | Values | Default |
+| --- | --- | --- | --- |
+| `fails on` (new only) | ▸ | a place (`—` empty) | — |
+| `falls back to` | ▸ | the first place of the chain, or `nowhere` | `nowhere` |
+| `then` (one per further place) | ▸ | the next place of the chain (`if that fails too, in a new conversation`) | — |
+| `then` (after the last, once the chain has one) | ▸ | `+ add` (`add an agent to try after the ones above`) | — |
+| `tries` | ▾ | `none`, `1`, `2`, `3`, `5`, `8`, `13`, `21` | `none` |
+| `policy` | ▾ | `none` (`try again at once, with no wait at all`), `constant` (`the same wait every time: 1s, 1s, 1s`), `linear` (`one second longer each time: 1s, 2s, 3s`), `exponential` (`twice as long each time: 1s, 2s, 4s, 8s`), `exponential-jitter` (`exponential, each wait anywhere up to it -- for agents failing at once`), `fibonacci` (`the Fibonacci sequence: 1s, 1s, 2s, 3s, 5s`) | `exponential-jitter` |
+| `for` | ▾ | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` | `no limit` |
+| `remove` (edit) | | `removes this fallback rule when saved` | |
+| `done` | | `applies this fallback rule when /settings is saved` | |
+
+Place picker: `Select the agent that fails` / `Select the fallback agent for <place>`; `Here an
+agent is a CLI, an account and a model: what a turn can fail on. Search by any of the three.`
+Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
+for a fallback (never the failing place); `<cli>[@<account>]/…  models not reported yet; select
+to query them` for an account not yet asked. On a row of the chain, `nowhere` takes that place
+off it, and a place already further along the chain swaps with the one there (how the chain is
+reordered).
+
+Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `an agent can
+be on the chain only once`, `choose a fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
+a fallback rule; done will update it`. Transcript on save: `<place> <rule>` or `<place> has no
+fallback`.
+
 ### Runtimes page {#runtimes}
 
-Intro: `Runtimes: saved ssh hosts, docker daemons with the resources each may hand out, and
-docker swarms with what their tasks may reserve, used by name as flow environments in -e and
-/flow. Changes take effect immediately.` Rows under `ssh`, `docker` and `swarm` headings.
+Intro: `Saved ssh hosts, docker daemons with the resources each may hand out, and docker
+swarms with what their tasks may reserve, used by name as flow environments in -e and /flow.
+Changes take effect immediately.` Rows under `ssh`, `docker` and `swarm` headings.
 Empty: `no machines saved yet; a role can still name one directly`. `/settings environments`,
 the page's former name, still opens it. Storage and semantics: [Machines ›
 Runtimes](/reference/machines#runtimes).
@@ -1173,42 +1203,6 @@ config is still being read`, `select at least one host to import`, `<config>: <e
 `imported <names> from <config>[; left <a>, <b>]. Open a host to check it.` Imported hosts are
 not checked.
 
-### Fallback page {#where-a-turn-goes-when-it-cannot-be-taken}
-
-Intro: `Where a turn falls back when an agent fails, tried in order. An agent is a CLI, an
-account and a model. A chain starts only from the agent it is written for. Saved rules apply
-from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <a>[, then <b>…]` or `… · no fallback`. Empty: `no fallback rules configured yet`.
-Semantics: [Providers](/reference/providers) and [Falling back](/user/settings#fallback).
-
-Rule form: title `Add fallback rule` (or the place when editing); intro `What happens when an
-agent cannot take a turn: retry as configured, then fall back to another agent in a new
-conversation.`
-
-| Row | Kind | Values | Default |
-| --- | --- | --- | --- |
-| `fails on` (new only) | ▸ | a place (`—` empty) | — |
-| `falls back to` | ▸ | the first place of the chain, or `nowhere` | `nowhere` |
-| `then` (one per further place) | ▸ | the next place of the chain (`if that fails too, in a new conversation`) | — |
-| `then` (after the last, once the chain has one) | ▸ | `+ add` (`add an agent to try after the ones above`) | — |
-| `tries` | ▾ | `none`, `1`, `2`, `3`, `5`, `8`, `13`, `21` | `none` |
-| `policy` | ▾ | `none` (`try again at once, with no wait at all`), `constant` (`the same wait every time: 1s, 1s, 1s`), `linear` (`one second longer each time: 1s, 2s, 3s`), `exponential` (`twice as long each time: 1s, 2s, 4s, 8s`), `exponential-jitter` (`exponential, each wait anywhere up to it -- for agents failing at once`), `fibonacci` (`the Fibonacci sequence: 1s, 1s, 2s, 3s, 5s`) | `exponential-jitter` |
-| `for` | ▾ | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` | `no limit` |
-| `remove` (edit) | | `removes this fallback rule when saved` | |
-| `done` | | `applies this fallback rule when /settings is saved` | |
-
-Place picker: `Select the agent that fails` / `Select the fallback agent for <place>`; `Here an
-agent is a CLI, an account and a model: what a turn can fail on. Search by any of the three.`
-Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
-for a fallback (never the failing place); `<cli>[@<account>]/…  models not reported yet; select
-to query them` for an account not yet asked. On a row of the chain, `nowhere` takes that place
-off it, and a place already further along the chain swaps with the one there (how the chain is
-reordered).
-
-Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `an agent can
-be on the chain only once`, `choose a fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
-a fallback rule; done will update it`. Transcript on save: `<place> <rule>` or `<place> has no
-fallback`.
-
 ### Flowverses page {#where-flows-come-from}
 
 Intro: `Where flows come from: git repositories with a flows/ directory cloned under humanize's
@@ -1224,6 +1218,18 @@ removed; ` · not fetched yet` where never fetched. Same store as
 | `enter` on a flowverse | Sheet titled with its name: `Flows loaded from <source>. To run a flow, use /flow, which lists flows from all flowverses.` Rows above: `fetch again` (`fetch` if never fetched), `remove <name>` (`including all its flows`, added ones only), `search…`; then its flows. Fixed ones: `<name> is always listed and cannot be removed`. |
 | fetch | `fetching <name>…`, then `<name> is fetched` (also in the transcript), or the error. `local`/`user`: `local is read from .humanize/flows, so there is nothing to fetch`. Not a clone: `<name> is not a git clone, so there is nothing to fetch; remove it instead`. |
 | remove | At once: `<name> was removed` (red; also in the transcript). |
+
+### Workspace page {#workspace-page}
+
+Intro: `What <last 2 path parts> remembers: the flow it opens on and how it was last
+configured.` Scope: `workspaces.<resolved cwd>`. Rows in this order, under the heading in the
+first column.
+
+| Heading | Row | Value | Kind |
+| --- | --- | --- | --- |
+| Flow | **Default flow** `configured with <n> agent(s); chosen with /flow` | the flow, or `none` | read-only |
+| Runs | **Profiling** `profile programs started by runs here` | `on` (`profile what runs here start`), `off` (`trace them only`); default off | ▾ |
+| Reset | **Forget** `clear saved settings here, across <n> flow(s)` | `on` (`clear saved settings here`), `off` (`keep them`); starts off | ▾; on save deletes this directory's entry |
 
 ### First start {#first-start}
 

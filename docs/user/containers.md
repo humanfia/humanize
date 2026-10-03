@@ -106,7 +106,7 @@ Say this machine has 64 CPUs and two GPUs, and a flow's container should get no 
 of those CPUs and 8 GB. Save the daemon with that allowance, then name it.
 
 **1. Save it.** `/settings runtimes` opens the [Runtimes
-page](/user/settings#runtimes). Choose **Add a docker host**:
+page](/user/settings#runtimes). Choose **Add a runtime…**, then `docker host`:
 
 ```text
    Add a docker host
@@ -321,7 +321,7 @@ hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
 
 `swarm@local` is the swarm this machine manages (`docker info` says `Swarm: active` and
 `Is Manager: true`). For one managed elsewhere, a cap on what its tasks may take, GPUs, or
-constraints on where they land, choose **Add a docker swarm** on the
+constraints on where they land, choose **Add a runtime…**, then `docker swarm`, on the
 [Runtimes page](/user/settings#runtimes) and set its manager the way a daemon's is set: a saved
 ssh host, `ssh://`, `tcp://` or a context.
 

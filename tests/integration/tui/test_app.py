@@ -46,7 +46,7 @@ from hmz.tui.pick import (
     Flows,
     Signing,
 )
-from hmz.tui.settings import Adjusts
+from hmz.tui.settings import PAGES, Adjusts
 from tests.stubs import events as recorded
 from tests.stubs import written
 from tests.tui.fixtures import (
@@ -270,22 +270,23 @@ async def changes(app: Humanize, driver: Pilot[None], held: str, *keys: str) -> 
     await driver.pause()
 
 
-async def into_settings(app: Humanize, driver: Pilot[None], page: int = 0) -> None:
+async def into_settings(
+    app: Humanize, driver: Pilot[None], page: str = "general"
+) -> None:
     """Opens `/settings` on one of its pages, by the name the command is given.
 
     Args:
       app: The interface.
       driver: What is pumping it.
-      page: Which page, counting from the first: everywhere, this directory, the accounts,
-        the environments, the fallbacks and the flowverses.
+      page: Which page, by its name: one of :data:`hmz.tui.settings.PAGES`.
     """
     from hmz.tui.settings import PAGES
 
-    await driver.press(*f"/settings {PAGES[page]}")
+    await driver.press(*f"/settings {page}")
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Adjusts), driver)
     sheet = cast("Adjusts", app.screen)
-    await until(lambda: sheet._tab == page and not sheet._home, driver)
+    await until(lambda: sheet._tab == PAGES.index(page) and not sheet._home, driver)
     await driver.pause()
 
 
@@ -1320,7 +1321,7 @@ async def test_the_commands_that_were_pages_of_settings_are_gone() -> None:
 
 @pytest.mark.timeout(60)
 async def test_settings_is_one_menu_of_six_pages() -> None:
-    """Settings, the workspace, the accounts, the environments, the fallbacks, the flowverses."""
+    """General, the accounts, the fallbacks, the runtimes, the flowverses, the workspace."""
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press(*"/settings")
@@ -1331,25 +1332,27 @@ async def test_settings_is_one_menu_of_six_pages() -> None:
 
         # What opens is the pages and nothing else, each a card of its own.
         assert sheet._home
+        # From the broadest to the nearest: this machine, who agents are and what takes
+        # over when one fails, where work goes and where flows come from, this directory.
         assert ids(app) == [
-            "settings",
-            "workspace",
+            "general",
             "accounts",
-            "runtimes",
             "fallback",
+            "runtimes",
             "flowverses",
+            "workspace",
         ]
         prompts = [
             str(one.prompt) for one in sheet.query_one("#choices", OptionList).options
         ]
-        assert "Settings" in prompts[0]
-        assert "Workspace" in prompts[1]
+        assert "General" in prompts[0]
+        assert "Workspace" in prompts[-1]
 
         # Enter goes into one, and esc comes back out onto the card it went in from.
         await onto(app, driver, "flowverses")
         await driver.press("enter")
         await until(lambda: not sheet._home, driver)
-        assert sheet._tab == 5
+        assert sheet._tab == PAGES.index("flowverses")
         # What is done about the list is a button under it, and nothing on this page is
         # held, so there is nothing to save it from.
         assert _ACT_ADD in bar(app)
@@ -1374,22 +1377,22 @@ async def test_a_page_of_settings_is_gone_into_and_come_out_of_with_the_mouse() 
         await driver.pause()
         listing = sheet.query_one("#choices", OptionList)
 
-        # The third card, two lines and a rule apiece down from the top of the list.
-        await driver.click("#choices", offset=(10, 1 + 3 * 2))
+        # The second card, two lines and a rule down from the top of the list.
+        await driver.click("#choices", offset=(10, 1 + 3 * 1))
         await until(lambda: not sheet._home, driver)
-        assert sheet._tab == 2
+        assert sheet._tab == PAGES.index("accounts")
         assert str(sheet.query_one("#asked", Label).content) == "Accounts"
 
         await driver.click("#crumb-root")
         await until(lambda: sheet._home, driver)
-        assert listing.highlighted == 2
+        assert listing.highlighted == 1
 
         # And the arrows across go in and come out as well, as a file manager's do -- on a
         # page with rows, since on an empty one the focus is on its buttons, which the arrows
         # across walk along instead.
-        await driver.press("up", "up", "right")
+        await driver.press("up", "right")
         await until(lambda: not sheet._home, driver)
-        assert sheet._tab == 0
+        assert sheet._tab == PAGES.index("general")
         await driver.press("left")
         await until(lambda: sheet._home, driver)
         assert sheet._home

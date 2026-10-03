@@ -24,7 +24,6 @@ from textual.widgets import OptionList
 
 from hmz.tui import Humanize
 from hmz.tui.pick import (
-    _ACT_DOCKS,
     _ACT_IMPORTS,
     _CHECKS,
     _DONE,
@@ -116,7 +115,7 @@ async def test_settings_accounts(asking: None) -> None:
     try:
         app = Humanize()
         async with app.run_test() as driver:
-            await into_settings(app, driver, 2)
+            await into_settings(app, driver, "accounts")
             await _adds(app, driver)
             await _chooses(app, driver, "cli", "dsh")
             await _chooses(app, driver, "way", "gateway")
@@ -164,7 +163,7 @@ async def test_settings_runtimes(
     config = str(ssh_box.config)
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 3)
+        await into_settings(app, driver, "runtimes")
         sheet = app.screen
         await _opens(app, driver, _ACT_IMPORTS, Importing)
         form = cast("Importing", app.screen)
@@ -188,7 +187,7 @@ async def test_settings_runtimes(
         said = await _says(app, driver, f"{host} answers", f"{host} could not")
         assert f"{host} answers: home /root" in said, said
 
-        await _opens(app, driver, _ACT_DOCKS, Docking)
+        await _opens(app, driver, "docker", Docking)
         name = cast("Docking", app.screen)._typed_in["name"]
         await _done(app, driver)
         await until(lambda: app.screen is sheet, driver)

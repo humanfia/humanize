@@ -108,17 +108,17 @@ arguments.
 
 | Page | Row | Key | Kind |
 | --- | --- | --- | --- |
-| Settings | Error reports | `enable_sentry` | switch |
-| Settings | What is sent | — | shows the lists |
-| Settings | Details | `details` | switch |
-| Settings | /btw agent | `btw` | pick |
-| Workspace | Directory | — (the workspace path) | read-only |
+| General | Details | `details` | switch |
+| General | /btw agent | `btw` | pick |
+| General | Error reports | `enable_sentry` | switch |
+| General | What is sent | — | shows the lists |
 | Workspace | Default flow | `workspaces.<path>.flow` | read-only |
 | Workspace | Profiling | `workspaces.<path>.profile` | switch |
 | Workspace | Forget | deletes `workspaces.<path>` | switch |
 
 Changes are held until saved (the save button, or the question asked on leaving). The pages
 Accounts, Runtimes, Fallback and Flowverses edit the other [stores](#stores).
-`/settings <page>` opens a page by name: `settings`, `workspace`, `accounts`, `runtimes`,
-`fallback`, `flowverses` (also `everywhere` for `settings`, `directory` for `workspace`,
-`environments` for `runtimes`).
+`/settings <page>` opens a page by name: `general`, `accounts`, `fallback`, `runtimes`,
+`flowverses`, `workspace` (also `settings` and `everywhere` for `general`, `directory` for
+`workspace`, `environments` for `runtimes`). The Workspace page names its directory across its
+top rather than as a row.

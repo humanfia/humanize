@@ -24,8 +24,7 @@ Show
 Sleep 400ms
 
 # Every machine saved, under a heading per backend, with what brings one in on the buttons
-# under them: adding an ssh host, adding a docker daemon, and importing the hosts an ssh
-# config names.
+# under them: adding one of any kind, and importing the hosts an ssh config names.
 Type "/settings runtimes" Enter
 Wait+Screen /Import ~\/.ssh\/config/
 Sleep 1400ms
@@ -39,11 +38,15 @@ Sleep 1400ms
 Escape
 Sleep 700ms
 
-# And `Add a docker host`, the second button, is one form: where the daemon is, picked from a
-# list, the name written in for you, and what it may hand out last, over the row that asks
-# the daemon.
+# And `Add a runtime…`, the first button, drops the kinds; a docker host, the second, is one
+# form: where the daemon is, picked from a list, the name written in for you, and what it
+# may hand out last, over the row that asks the daemon.
 Tab
-Right
+Sleep 500ms
+Enter
+Wait+Screen /docker swarm/
+Sleep 1000ms
+Down
 Sleep 500ms
 Enter
 Wait+Screen /endpoint/

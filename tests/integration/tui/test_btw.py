@@ -419,11 +419,13 @@ async def test_the_btw_agent_is_a_row_of_settings_set_up_on_the_agent_sheet() ->
 
     app = Humanize()
     async with app.run_test() as driver:
-        await typed(driver, "/settings settings")
+        await typed(driver, "/settings general")
         await until(lambda: isinstance(app.screen, Adjusts), driver)
         await driver.pause()
         listing = app.screen.query_one("#choices", OptionList)
-        assert "the flow's first agent" in str(listing.get_option_at_index(3).prompt)
+        assert "the flow's first agent" in next(
+            str(one.prompt) for one in listing.options if one.id == "=btw"
+        )
         # Its list offers the flow's first agent, and another set up on the agent sheet.
         await picks(app, driver, "btw", f"{_APART_MARK}another")
         await until(lambda: isinstance(app.screen, Agent), driver)

@@ -58,7 +58,7 @@ from hmz.tui.pick import (
     Speaks,
     Unsaved,
 )
-from hmz.tui.settings import Adjusts
+from hmz.tui.settings import PAGES, Adjusts
 from tests.integration.tui.test_app import (
     acts,
     bar,
@@ -299,7 +299,7 @@ async def test_a_search_is_a_box_above_the_list_and_says_what_the_keys_do_in_it(
 
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Adjusts({}, page=5))
+        await app.push_screen(Adjusts({}, page=PAGES.index("flowverses")))
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         sheet = app.screen
         assert isinstance(sheet, Adjusts)
@@ -383,7 +383,12 @@ async def test_the_settings_menu_is_walked_into_and_its_rows_changed_from_a_list
         await driver.press("enter")
         await until(lambda: not sheet._home, driver)
         once(sheet)
-        assert rows(app) == ["reports", "sent", "details", "btw"]
+        assert [one for one in rows(app) if one] == [
+            "details",
+            "btw",
+            "reports",
+            "sent",
+        ]
         assert "enter choose" in said(sheet)
         await driver.press("right")
         await driver.pause()
@@ -406,21 +411,21 @@ async def test_the_settings_menu_is_walked_into_and_its_rows_changed_from_a_list
 
 
 @pytest.mark.timeout(60)
-@pytest.mark.parametrize("page", [2, 3, 4, 5])
+@pytest.mark.parametrize("page", ["accounts", "fallback", "runtimes", "flowverses"])
 async def test_adding_is_the_first_button_of_every_page_that_is_a_list(
-    page: int,
+    page: str,
 ) -> None:
     """Found in the same place on each of them, and on an empty one where the focus is."""
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Adjusts({}, page=page))
+        await app.push_screen(Adjusts({}, page=PAGES.index(page)))
         await until(lambda: isinstance(app.screen, Adjusts), driver)
         await driver.pause()
 
         assert bar(app)[0] == _ACT_ADD
         assert _ADD not in rows(app)
         # Saved from the last button where the page holds anything, and from none where not.
-        assert (bar(app)[-1] == _ACT_SAVE) is (page in (2, 4))
+        assert (bar(app)[-1] == _ACT_SAVE) is (page in ("accounts", "fallback"))
         if not rows(app):
             assert app.screen.focused is app.screen.query_one("#act-add")
 
@@ -573,7 +578,7 @@ async def test_a_search_above_a_list_lands_on_the_first_thing_it_finds() -> None
 
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Adjusts({}, page=5))
+        await app.push_screen(Adjusts({}, page=PAGES.index("flowverses")))
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         sheet = app.screen
         assert isinstance(sheet, Flowverses)

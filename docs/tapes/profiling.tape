@@ -22,11 +22,12 @@ Show
 Sleep 400ms
 
 Type "/settings" Enter
-Wait+Screen /Workspace/
+Wait+Screen /General/
 Sleep 2s
 
-# Its six pages, and into the second: what is remembered about this directory.
-Down
+# Its six pages, and into the last: what is remembered about this directory, one up from the
+# first round the end.
+Up
 Sleep 500ms
 Enter
 Wait+Screen /Profiling/

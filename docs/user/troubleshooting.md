@@ -461,7 +461,7 @@ of. The run is untouched.
 copy one from. `btw is still answering the last question` means the side conversation has not
 answered yet.
 
-**Fix.** Choose a flow, or set the **/btw agent** on the Settings page of `/settings`. For the
+**Fix.** Choose a flow, or set the **/btw agent** on the General page of `/settings`. For the
 second message, wait for the answer.
 
 **Verify.** `/btw` opens the side conversation.

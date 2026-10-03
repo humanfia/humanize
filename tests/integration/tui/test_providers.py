@@ -38,7 +38,7 @@ from hmz.tui.pick import (
     Signing,
     reads,
 )
-from hmz.tui.settings import Adjusts
+from hmz.tui.settings import PAGES, Adjusts
 from tests.integration.tui.test_app import (
     bar,
     changes,
@@ -207,7 +207,7 @@ async def test_the_command_opens_the_sheet_of_accounts() -> None:
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
         rows = [str(option.prompt) for option in listing.options]
@@ -229,7 +229,7 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
     """One form: which CLI and which way in, stepped where they stand, and a name."""
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
 
         form = await _adds(app, driver)
         # The first CLI and its first way in, which for Claude Code is its own login: that
@@ -268,7 +268,7 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
 async def test_deepseek_offers_its_own_ways_and_no_env_from_providers() -> None:
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         form = await _adds(app, driver)
         await _chooses(app, driver, "cli", "dsh")
 
@@ -291,7 +291,7 @@ async def test_a_secret_is_never_drawn_back(signed_in: unittest.mock.MagicMock) 
     """It is on its way into a credential store, and a screen is somewhere it is read off."""
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await _adds(app, driver)
 
         # `key`, which is a variable rather than a login: it asks, and nothing is run.
@@ -318,7 +318,7 @@ async def test_a_secret_is_never_drawn_back(signed_in: unittest.mock.MagicMock) 
 async def test_a_pasted_secret_is_stored_without_its_trailing_newline() -> None:
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await _adds(app, driver)
         await _chooses(app, driver, "cli", "dsh")
         await _writes(app, driver, "name", *"mine")
@@ -356,7 +356,7 @@ async def test_variables_of_your_own_are_given_a_line_apiece(
     del signed_in
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await _adds(app, driver)
         # `env`, the way every backend has: variables of its own, which is the last of them.
         await _chooses(app, driver, "way", "env")
@@ -503,7 +503,7 @@ async def test_walking_out_of_the_form_makes_nothing() -> None:
     """Esc off a form nothing was written into is the page again, with nothing written down."""
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await _adds(app, driver)
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Providers), driver)
@@ -605,7 +605,7 @@ async def test_walking_out_of_a_form_written_into_asks_and_loses_nothing() -> No
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
 
         await _adds(app, driver)
         await _writes(app, driver, "name", *"other")
@@ -628,7 +628,7 @@ async def test_an_account_is_signed_in_again_by_the_way_it_was_made_with(
     providers.add("claude", "deepseek", way="login")
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -651,7 +651,7 @@ async def test_signing_in_again_asks_only_what_is_not_written_down(
     providers.add("codex", "work", way="key")
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -679,7 +679,7 @@ async def test_correcting_what_one_holds_is_held_until_the_menu_is_saved() -> No
     providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "old"})
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -728,7 +728,7 @@ async def test_a_secret_left_blank_while_correcting_keeps_the_one_it_has() -> No
     )
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(lambda: "claude/gate" in ids(app), driver)
         await onto(app, driver, "claude/gate")
 
@@ -759,7 +759,7 @@ async def test_taking_an_account_away_says_what_went_with_it() -> None:
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -789,7 +789,7 @@ async def test_an_account_held_to_go_is_offered_the_way_back() -> None:
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -823,7 +823,7 @@ async def test_an_account_held_to_go_stays_where_the_menu_is_not_saved() -> None
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -842,7 +842,7 @@ async def test_the_key_that_used_to_take_an_account_away_takes_nothing_away() ->
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -905,7 +905,7 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
     providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
 
@@ -947,7 +947,7 @@ async def test_an_account_offers_nothing_about_where_a_failed_turn_goes() -> Non
     providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(lambda: "codex/work" in ids(app), driver)
         await onto(app, driver, "codex/work")
         await driver.press("enter")
@@ -968,7 +968,7 @@ async def test_a_cli_of_your_own_is_written_down_from_a_row_of_its_own() -> None
 
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
 
         await onto(app, driver, _ACT_SPEAKS)
         await driver.press("enter")
@@ -994,7 +994,7 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
     """
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
 
         form = await _adds(app, driver)
         await _chooses(app, driver, "way", "key")
@@ -1038,7 +1038,7 @@ async def test_correcting_one_corrects_the_copies_it_was_made_for() -> None:
     providers.copies(one, "opencode")
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await until(lambda: "claude/shared" in ids(app), driver)
         await onto(app, driver, "claude/shared")
 
@@ -1070,7 +1070,7 @@ async def test_an_account_that_travels_nowhere_is_not_asked_about() -> None:
     """A subscription is never asked about, and one left switched off goes nowhere."""
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await _adds(app, driver)
         # A login writes the CLI's own store, which nothing else reads.
         assert not [one for one in rows(app) if one.startswith("also:")]
@@ -1098,7 +1098,7 @@ async def test_the_name_written_for_an_account_is_one_nothing_is_called() -> Non
     providers.add("pi", "key", way="env", env={"ANTHROPIC_API_KEY": "theirs"})
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         form = await _adds(app, driver)
         await _chooses(app, driver, "way", "key")
 
@@ -1115,7 +1115,7 @@ async def test_typing_on_a_row_of_the_form_writes_it_and_enter_moves_on() -> Non
     """A form of questions takes letters as answers: no enter to begin each one."""
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         form = await _adds(app, driver)
         await _chooses(app, driver, "way", "key")
         assert form.under() == "ANTHROPIC_API_KEY"
@@ -1159,7 +1159,7 @@ async def test_what_a_new_account_runs_is_asked_after_it_lands_and_said(
     monkeypatch.setattr(hmz.coganchor.models, "ask", refuses)
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await _adds(app, driver)
         await _chooses(app, driver, "way", "key")
         await _writes(app, driver, "ANTHROPIC_API_KEY", *"sk-x")
@@ -1178,7 +1178,9 @@ async def test_what_a_new_account_runs_is_asked_after_it_lands_and_said(
         await driver.press("escape")
         await until(lambda: sheet._home, driver)
         await driver.press("down", "enter")
-        await until(lambda: sheet._tab == 3 and not sheet._home, driver)
+        await until(
+            lambda: sheet._tab == PAGES.index("runtimes") and not sheet._home, driver
+        )
         let_go.set()
         await until(lambda: not sheet._asking, driver)
         assert "could not get models" not in _under(app)
@@ -1198,7 +1200,7 @@ async def test_variables_typed_for_one_way_are_not_written_down_for_another() ->
     """What is on no row of the form when it is answered is not part of the answer."""
     app = Humanize()
     async with app.run_test() as driver:
-        await into_settings(app, driver, 2)
+        await into_settings(app, driver, "accounts")
         await _adds(app, driver)
         await _chooses(app, driver, "way", "env")
         await _writes(app, driver, " ", *"FOO=bar")

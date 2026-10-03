@@ -195,7 +195,7 @@ The same run, set up in `hmz` rather than on a command line, with the host saved
 nothing about it has to be typed again.
 
 **1. Save the host.** `/settings runtimes` opens the [Runtimes
-page](/user/settings#runtimes). Choose **Add an ssh host**, type the host, and fill in only
+page](/user/settings#runtimes). Choose **Add a runtime…**, then `ssh host`, type the host, and fill in only
 what your ssh config does not already say:
 
 ```text
@@ -275,11 +275,11 @@ again, **edit** reopens its form, and **remove** forgets it. Saved hosts are off
 the `host` row of every environment form at `/flow`. What each field means is in
 [Machines › Runtimes](/reference/machines#runtimes).
 
-A docker daemon is saved on the same page with **Add a docker host**, and named with
+A docker daemon is saved on the same page with **Add a runtime…** and `docker host`, and named with
 `-e box=docker@<name>/…`: see
 [Containers](/user/containers#example-a-daemon-saved-under-a-name).
 Its `endpoint` may be a saved ssh host, the daemon on that host, reached with everything the
-host says. A docker swarm is saved there too, with **Add a docker swarm** -- the same form for
+host says. A docker swarm is saved there too, with `docker swarm` under **Add a runtime…** -- the same form for
 one of its managers, with where its tasks may go in place of GPU ids -- and named with
 `-e box=swarm@<name>/…`, or `swarm@local/…` for the swarm this machine manages.
 

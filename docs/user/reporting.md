@@ -173,7 +173,7 @@ The error and `flow.yaml` are illustrative: nobody crashed humanize to write thi
 | Where | What happens |
 | --- | --- |
 | `hmz`, the first time | It asks. <kbd>esc</kbd> leaves the question unanswered, and it asks again next time. |
-| `hmz`, after that | It does what you answered. [`/settings`](/user/settings) changes it: **Error reports**, on its Settings page. A no stops reporting at once. |
+| `hmz`, after that | It does what you answered. [`/settings`](/user/settings) changes it: **Error reports**, on its General page. A no stops reporting at once. |
 | `hmz exec` | It never asks. It reports only if you answered yes. |
 | a script using `hmz.sdk` | Nothing is reported unless the script calls `Hmz().reports()`, and then only if you answered yes. |
 | any of them, under `HUMANIZE_SENTRY` | `on` or `off` answers for that one process and writes nothing down. While it is set, `/settings` says `HUMANIZE_SENTRY is set, overriding this setting for this run`. |

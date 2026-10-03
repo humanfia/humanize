@@ -17,6 +17,7 @@ import unittest.mock
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from textual.content import Content
 from textual.widgets import Button, Label, OptionList
 
 from hmz.coganchor.backends import Model
@@ -27,18 +28,18 @@ from hmz.runtime.doing.runtimes import Checked, Runtimes
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
+from hmz.tui.dropdown import Dropdown
 from hmz.tui.pick import (
     _ACT_ADD,
-    _ACT_DOCKS,
     _ACT_IMPORTS,
     _ACT_SEARCH,
-    _ACT_SWARMS,
     _ADD,
     _BUDGET,
     _CHECKS,
     _CORRECTS,
     _DETECTS,
     _DONE,
+    _KINDS,
     _SAVE,
     _TAKES_AWAY,
     _UNSAVED,
@@ -162,12 +163,17 @@ async def _opens(app: Humanize, driver: Pilot[None], held: str, sheet: type) -> 
     Args:
       app: The interface.
       driver: What is pumping it.
-      held: The row, by its id.
+      held: The row, by its id, or the kind of runtime the button that adds one adds.
       sheet: What it opens.
     """
-    await until(lambda: held in ids(app) or held in bar(app), driver)
-    await onto(app, driver, held)
-    await driver.press("enter")
+    if held in _KINDS:
+        # A kind of runtime, which the one button that adds them drops.
+        await until(lambda: _ACT_ADD in bar(app), driver)
+        await picks(app, driver, _ACT_ADD, held)
+    else:
+        await until(lambda: held in ids(app) or held in bar(app), driver)
+        await onto(app, driver, held)
+        await driver.press("enter")
     await until(lambda: isinstance(app.screen, sheet), driver)
     await until(
         lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
@@ -204,7 +210,7 @@ async def _done(app: Humanize, driver: Pilot[None]) -> None:
 
 async def _into_machines(app: Humanize, driver: Pilot[None]) -> Adjusts:
     """Opens `/settings runtimes`, which is the page these are all about."""
-    await into_settings(app, driver, 3)
+    await into_settings(app, driver, "runtimes")
     return cast("Adjusts", app.screen)
 
 
@@ -219,13 +225,7 @@ async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
         sheet = await _into_machines(app, driver)
 
         assert rows(app) == []
-        assert bar(app) == [
-            _ACT_ADD,
-            _ACT_DOCKS,
-            _ACT_SWARMS,
-            _ACT_IMPORTS,
-            _ACT_SEARCH,
-        ]
+        assert bar(app) == [_ACT_ADD, _ACT_IMPORTS, _ACT_SEARCH]
         assert sheet.focused is sheet.query_one("#act-add")
         assert "no machines saved yet" in _under(app)
         labels = [
@@ -233,9 +233,27 @@ async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
             for one in sheet.query("#actions Button").results(Button)
             if one.display
         ]
-        assert "Add an ssh host" in labels
-        assert "Add a docker host" in labels
-        assert "Add a docker swarm" in labels
+        assert labels == ["Add a runtime…", "Import ~/.ssh/config", "Search…"]
+        # All of the bar inside an 80-column terminal, which a button per kind was not.
+        assert app.size.width == 80
+        assert all(
+            one.region.right <= app.size.width
+            for one in sheet.query("#actions Button").results(Button)
+            if one.display
+        )
+
+        # One button adds every kind, dropping them over it rather than a button apiece.
+        await onto(app, driver, _ACT_ADD)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Dropdown), driver)
+        dropped = app.screen.query_one(OptionList)
+        assert [str(one.id) for one in dropped.options] == [
+            "=ssh",
+            "=docker",
+            "=swarm",
+        ]
+        await driver.press("escape")
+        await until(lambda: app.screen is sheet, driver)
 
 
 @pytest.mark.timeout(60)
@@ -246,7 +264,7 @@ async def test_an_ssh_host_is_added_on_one_form_and_asked_what_it_has(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_ADD, Hosting)
+        await _opens(app, driver, "ssh", Hosting)
         form = cast("Hosting", app.screen)
         assert form.under() == "host"
 
@@ -291,7 +309,7 @@ async def test_what_the_store_refuses_is_said_on_the_form_and_saves_nothing(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_ADD, Hosting)
+        await _opens(app, driver, "ssh", Hosting)
         form = cast("Hosting", app.screen)
         await driver.press(*"gpu", "enter")
         # Named after its host, but not over one saved already.
@@ -428,7 +446,7 @@ async def test_a_docker_host_is_reached_every_way_a_daemon_is(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_DOCKS, Docking)
+        await _opens(app, driver, "docker", Docking)
         form = cast("Docking", app.screen)
         if steps:
             await nexts(app, driver, "endpoint", steps)
@@ -463,7 +481,7 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_DOCKS, Docking)
+        await _opens(app, driver, "docker", Docking)
         form = cast("Docking", app.screen)
         assert form._typed_in["name"] == "local"
 
@@ -514,7 +532,7 @@ async def test_what_a_daemon_cannot_be_given_is_refused_on_the_form(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_DOCKS, Docking)
+        await _opens(app, driver, "docker", Docking)
         await _types(app, driver, held, said)
         await _done(app, driver)
 
@@ -591,7 +609,7 @@ async def test_detect_writes_in_only_the_gpus_that_answer(failing: Path) -> None
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_DOCKS, Docking)
+        await _opens(app, driver, "docker", Docking)
         form = cast("Docking", app.screen)
 
         await onto(app, driver, _DETECTS)
@@ -716,7 +734,7 @@ async def test_a_docker_swarm_is_added_on_its_own_form_and_asked_what_its_nodes_
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_SWARMS, Swarming)
+        await _opens(app, driver, "swarm", Swarming)
         form = cast("Swarming", app.screen)
         assert form._typed_in["name"] == "local"
         assert rows(app)[:4] == ["endpoint", "name", "affinity", "image"]
@@ -772,7 +790,7 @@ async def test_detect_writes_in_what_a_swarm_s_nodes_have_all_told(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_SWARMS, Swarming)
+        await _opens(app, driver, "swarm", Swarming)
         form = cast("Swarming", app.screen)
 
         await onto(app, driver, _DETECTS)
@@ -803,7 +821,7 @@ async def test_what_a_swarm_cannot_be_given_is_refused_on_the_form(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_SWARMS, Swarming)
+        await _opens(app, driver, "swarm", Swarming)
         await _types(app, driver, held, said)
         await _done(app, driver)
 
@@ -1174,7 +1192,9 @@ async def test_a_host_a_typed_one_is_saved_as_starts_off_and_says_why(
 
         assert not form._on("gpu")
         assert form._on("builder")
-        assert "a manually added host is already saved as gpu" in _drawn(app)
+        # Read as words: a line about a row wraps in its own column where it is long.
+        said = " ".join(Content.from_markup(_drawn(app)).plain.split())
+        assert "a manually added host is already saved as gpu" in said
 
 
 @pytest.mark.timeout(60)
@@ -1184,7 +1204,7 @@ async def test_an_option_whose_value_is_a_list_is_one_option(standins: Path) -> 
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_ADD, Hosting)
+        await _opens(app, driver, "ssh", Hosting)
         await driver.press(*"box", "enter")
         await _types(
             app, driver, "options", "Ciphers=aes128-ctr,aes256-ctr, Compression=yes"
@@ -1261,7 +1281,7 @@ async def test_a_tls_directory_under_a_home_nobody_has_is_refused_on_the_form(
     app = Humanize()
     async with app.run_test() as driver:
         await _into_machines(app, driver)
-        await _opens(app, driver, _ACT_DOCKS, Docking)
+        await _opens(app, driver, "docker", Docking)
         await nexts(app, driver, "endpoint", 2)
         await _types(app, driver, "address", "10.0.0.5:2376")
         await _types(app, driver, "tls_dir", "~nosuchuser9/certs")

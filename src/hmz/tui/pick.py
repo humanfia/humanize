@@ -41,6 +41,7 @@ import datetime
 import re
 import shlex
 import sys
+import textwrap
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -3110,8 +3111,7 @@ class Action(NamedTuple):
 #: What each button under a page of `/settings` is known by. Words rather than the ids of rows
 #: set apart, because a button is not a row of the list and its id cannot be taken for a name
 #: somebody chose.
-_ACT_ADD, _ACT_SPEAKS, _ACT_DOCKS, _ACT_IMPORTS = "add", "speaks", "docks", "imports"
-_ACT_SWARMS = "swarms"
+_ACT_ADD, _ACT_SPEAKS, _ACT_IMPORTS = "add", "speaks", "imports"
 _ACT_SEARCH, _ACT_SAVE = "search", "save"
 
 
@@ -3713,10 +3713,22 @@ class Form[T](Drafts[T]):
         # Padded on what is shown rather than on what is written: markup is not columns.
         label = escape(one.named) + " " * max(1, named - len(one.named))
         room = wide - len(value) - (1 if caret else 0) - len(moves)
+        # Wrapped here rather than by the list, so that a second line starts under the first
+        # rather than under the edge: the column of what each row asks stays a column.
+        starts = len(_INDENT) + 2 + len(number) + 1 + named + wide - room + max(1, room)
+        # The list has no width of its own before it is first laid out; the screen's is it.
+        across = (
+            self.query_one("#choices", OptionList).scrollable_content_region.width
+            or self.size.width
+        )
+        lines = textwrap.wrap(one.about, max(across - starts, 20)) or [""]
+        about = f"\n{' ' * starts}".join(
+            f"[$text-muted]{escape(line)}[/]" for line in lines
+        )
         return (
             f"{mark}[$text-muted]{number}[/] {label}"
             f"[$secondary]{escape(value)}[/]{caret}[$text-muted]{moves}[/]"
-            f"{' ' * max(1, room)}[$text-muted]{escape(one.about)}[/]"
+            f"{' ' * max(1, room)}{about}"
         )
 
     def _kind(self, row: str) -> str:
@@ -5498,12 +5510,13 @@ class Leaves(Popup):
 #: The two answers to the question humanize asks about itself on a first start.
 _REPORTS, _QUIET = "on", "off"
 
-#: The pages of `/settings`, in the order they are listed on its first screen. The machines
-#: a flow's environments go on are beside the accounts its agents run as: both are
-#: providers, one of somewhere to run and one of something to run as. The menu itself is
+#: The pages of `/settings`, in the order they are listed on its first screen: from the
+#: broadest to the nearest. The fallbacks are beside the accounts, since what a turn falls
+#: back to is another account or model; the machines a flow's environments go on and where
+#: flows come from follow; this directory's own come last. The menu itself is
 #: :mod:`hmz.tui.settings`; the pages are counted here because each page that is a list of
 #: things is a class of this module, and says which page it is when it says something.
-_EVERYWHERE, _DIRECTORY, _ACCOUNTS, _MACHINES, _FALLBACK, _VERSES = range(6)
+_EVERYWHERE, _ACCOUNTS, _FALLBACK, _MACHINES, _VERSES, _DIRECTORY = range(6)
 
 
 #: How much of a directory a row says: the last of it, which is what tells one project from
@@ -7503,12 +7516,19 @@ class Providers(Pages):
 #: another thing.
 _SSH, _DOCKER, _DOCKER_SWARM = "ssh", "docker", "swarm"
 
-#: What one runtime of each is called on the buttons that add one.
+#: What one runtime of each is called on the form that adds one.
 _KINDS = {
     _SSH: "an ssh host",
     _DOCKER: "a docker host",
     _DOCKER_SWARM: "a docker swarm",
 }
+
+#: The kinds the one button that adds a runtime drops, in its order, each with what it is.
+_ADDING = (
+    Value(_SSH, "ssh host", "a machine reached over ssh"),
+    Value(_DOCKER, "docker host", "a local or remote docker daemon"),
+    Value(_DOCKER_SWARM, "docker swarm", "a docker swarm, through one of its managers"),
+)
 
 #: How many of a swarm's nodes a check names before it only counts the rest: a cluster's
 #: hundred names are no line anybody reads.
@@ -9565,9 +9585,9 @@ class Machines(Pages):
 
     #: What the page says it is.
     MACHINES_ABOUT = (
-        "Runtimes: saved ssh hosts, docker daemons with the resources each "
-        "may hand out, and docker swarms with what their tasks may reserve, "
-        "used by name as flow environments in -e and /flow. "
+        "Saved ssh hosts, docker daemons with the resources each may hand "
+        "out, and docker swarms with what their tasks may reserve, used by "
+        "name as flow environments in -e and /flow. "
         "Changes take effect immediately."
     )
 
@@ -9588,28 +9608,18 @@ class Machines(Pages):
         return f"{one.backend}/{one.name}"
 
     def _machine_actions(self) -> list[Action]:
-        """What is done about the machines: adding each kind, importing, and searching.
+        """What is done about the machines: adding one of any kind, importing, and searching.
 
-        No saving: nothing on this page is held.
+        One button adds every kind, dropping the kinds over it, as one `+` does in an editor's
+        panel: a button per kind was a bar wider than a terminal, and three ways of saying
+        add. No saving: nothing on this page is held.
         """
         return [
             Action(
                 _ACT_ADD,
-                f"add {_KINDS[_SSH]}",
-                "a machine reached over ssh",
-                lambda: self._adds_machine(_SSH),
-            ),
-            Action(
-                _ACT_DOCKS,
-                f"add {_KINDS[_DOCKER]}",
-                "a local or remote docker daemon",
-                lambda: self._adds_machine(_DOCKER),
-            ),
-            Action(
-                _ACT_SWARMS,
-                f"add {_KINDS[_DOCKER_SWARM]}",
-                "a docker swarm, through one of its managers",
-                lambda: self._adds_machine(_DOCKER_SWARM),
+                "add a runtime…",
+                "an ssh host, a docker host or a docker swarm",
+                self._picks_kind,
             ),
             Action(
                 _ACT_IMPORTS,
@@ -9696,6 +9706,28 @@ class Machines(Pages):
             self._checks(one)
         elif said == _TAKES_AWAY:
             self._drops_machine(one)
+
+    @work
+    async def _picks_kind(self) -> None:
+        """Drops the kinds of runtime over the button that adds one, and adds the one picked.
+
+        Esc, or a click off the list, adds nothing.
+        """
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        button = self.query_one(f"#act-{_ACT_ADD}")
+        try:
+            picked = await showing.push_screen_wait(
+                Dropdown("add a runtime", _ADDING, "", at=button.region.offset)
+            )
+        finally:
+            self.opened()
+        if picked:
+            self._adds_machine(picked)
 
     @work
     async def _adds_machine(self, backend: str) -> None:

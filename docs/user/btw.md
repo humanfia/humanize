@@ -113,8 +113,8 @@ Who answers depends on what is on the screen when you type `/btw`:
   the same agent, given a snapshot of the run and what that role has done lately. This works
   for a conversation that has ended too, with no flow running.
 - **Every agent's transcript, or the monitor** (`btw · btw agent`): the **btw agent**. It is
-  the flow's first agent unless you chose another on the [Settings page of
-  `/settings`](/user/settings#settings-page). It is given a snapshot of the run and the list of
+  the flow's first agent unless you chose another on the [General page of
+  `/settings`](/user/settings#general). It is given a snapshot of the run and the list of
   its sessions, and it may put a question of its own to any session's side copy, up to 4 per
   question you ask. Each one shows as a dim `btw · asking <session>: …` line.
 
@@ -165,7 +165,7 @@ What to look at, by number:
   ```
 
 - **Enter first, ask after.** `/btw` on its own enters btw mode with no question yet.
-- **Choose who answers from every agent's view.** Set **/btw agent** on the Settings page of
+- **Choose who answers from every agent's view.** Set **/btw agent** on the General page of
   `/settings`: the flow's first agent, one you chose, or `another…`, which asks for its CLI,
   account, model and effort. It takes effect the next time you enter btw mode.
 

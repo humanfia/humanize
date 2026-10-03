@@ -80,9 +80,9 @@ const turn = [
 # Settings — `/settings`
 
 Everything humanize remembers is in one place: `/settings`, a screen of its own. It holds
-what is true of this machine, what this directory remembers, the accounts agents run as, the
-machines a flow's environments go on, where a turn goes when it cannot run, and where flows
-come from. It works with the keys and with the mouse alike.
+what is true of this machine, the accounts agents run as, where a turn goes when it cannot
+run, the machines a flow's environments go on, where flows come from, and what this directory
+remembers. It works with the keys and with the mouse alike.
 
 ::: info At a glance
 - **You will** change how humanize behaves on this machine and in this directory, and manage
@@ -101,26 +101,30 @@ come from. It works with the keys and with the mouse alike.
 /settings runtimes
 ```
 
-![/settings opening on its six pages, then into Workspace: directory, default flow,
-profiling and forget](/demo/profiling.gif)
+![/settings opening on its six pages, then into Workspace: default flow, profiling and
+forget](/demo/profiling.gif)
 
 ## How it works
 
-`/settings` opens on six pages and nothing else, each a card saying what is in it.
+`/settings` opens on six pages and nothing else, each a card saying what is in it. They run
+from the broadest to the nearest: what is true wherever you run humanize, who your agents are
+and what takes over when one fails, where their work goes and where flows come from, and
+last the one directory open now.
 <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one; <kbd>esc</kbd>, <kbd>backspace</kbd>,
 <kbd>←</kbd>, or a click on `/settings` across the top, comes back out. `/settings <page>` goes
 straight into the one named, and the word is offered as you type it:
 
 | Page | `/settings …` | What it holds |
 | --- | --- | --- |
-| [**Settings**](#settings-page) | `settings` | whether humanize reports what goes wrong, whether the screen [shows the working](#details), and which agent `/btw` talks to |
-| [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, whether its runs are profiled, and forgetting it |
+| [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether humanize reports what goes wrong |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
-| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons and docker swarms |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
+| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons and docker swarms |
 | [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
+| [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, whether its runs are profiled, and forgetting it |
 
-`everywhere` and `directory` open the first two as well. A card marked `● unsaved` holds a
+The names they had still open them: `settings` and `everywhere` open General, `directory`
+opens Workspace, and `environments` opens Runtimes. A card marked `● unsaved` holds a
 change you have not saved yet.
 
 ### How a page is laid out {#layout}
@@ -129,8 +133,9 @@ Inside a page, the line across the top says where you are (`/settings › Accoun
 fills the screen, and under it is a bar of buttons. Every page is one of two kinds, and each
 kind is laid out the same way wherever it is.
 
-**A page of settings** (Settings, Workspace) is a row per setting: its name, what it means
-under it, and its value at the far end. <kbd>enter</kbd> or a click on a value marked `▾` drops
+**A page of settings** (General, Workspace) is a row per setting under a heading of what it
+is about: its name, what it means under it, and its value at the far end. The one you change
+most is first, and the arrows step over the headings. <kbd>enter</kbd> or a click on a value marked `▾` drops
 every value it can take under the row, the one in force ticked; <kbd>↑</kbd> <kbd>↓</kbd> and
 <kbd>enter</kbd>, or a click, pick one, and <kbd>esc</kbd> or a click off the list picks none.
 An on/off switch's list opens on the answer it is not, so <kbd>enter</kbd> twice turns it
@@ -138,7 +143,7 @@ round. A row marked `▸` opens something.
 
 **A page that is a list** (Accounts, Runtimes, Fallback, Flowverses) is the list, under a
 heading per group where it has groups, and under it the buttons for what is done about the
-list: `Add …` first, then anything else that brings one in, then `Search…`, and **Save** at the
+list: one `Add …` first, then anything else that brings one in, then `Search…`, and **Save** at the
 far end where the page holds anything until it is saved. Runtimes and Flowverses hold
 nothing, so they have no **Save**.
 
@@ -196,23 +201,23 @@ switch on [Details](#details), so every tool call and every line of thinking sho
   <span class="m">Every setting humanize keeps. What you change is held until you save it.</span>
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
-  <span class="sel"> ⚙  <b>Settings</b>                                   reports off · details off </span> <span class="n">1</span>
-     <span class="m">this machine: error reports, details, and the /btw agent</span>
+  <span class="sel"> ⚙  <b>General</b>                                    details off · reports off </span> <span class="n">1</span>
+     <span class="m">this machine: what runs show, the /btw agent, error reports</span>
+   ────────────────────────────────────────────────────────────────────────
+   ◉  <b>Accounts</b>                                                0 accounts
+     <span class="m">what agents sign in as, under each CLI</span>
+   ────────────────────────────────────────────────────────────────────────
+   ↻  <b>Fallback</b>                                                   0 rules
+     <span class="m">where a turn goes when its agent fails</span>
+   ────────────────────────────────────────────────────────────────────────
+   ▦  <b>Runtimes</b>                                                0 machines
+     <span class="m">ssh hosts, docker daemons and swarms that flows run on</span>
+   ────────────────────────────────────────────────────────────────────────
+   ⑂  <b>Flowverses</b>                                            3 flowverses
+     <span class="m">the git repositories flows come from</span>
    ────────────────────────────────────────────────────────────────────────
    ⌂  <b>Workspace</b>                                   demo · flow ralph_loop
      <span class="m">this directory: its flow, profiling, and forgetting it</span>
-   ────────────────────────────────────────────────────────────────────────
-   ◉  <b>Accounts</b>                                                0 accounts
-     <span class="m">what agents sign in as, per CLI</span>
-   ────────────────────────────────────────────────────────────────────────
-   ▦  <b>Runtimes</b>                                                0 machines
-     <span class="m">ssh hosts, docker daemons and swarms a flow's roles run on</span>
-   ────────────────────────────────────────────────────────────────────────
-   ↻  <b>Fallback</b>                                                   0 rules
-     <span class="m">where a turn goes when an agent fails</span>
-   ────────────────────────────────────────────────────────────────────────
-   ⑂  <b>Flowverses</b>                                            3 flowverses
-     <span class="m">where flows come from</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
                                                                     <span class="btn"> Save </span> <span class="n">2</span>
@@ -221,27 +226,29 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
 </Term>
 
-**2. Go into Settings and drop Details' values.** <kbd>enter</kbd> on the first card, then
-<kbd>↓</kbd> <kbd>↓</kbd> to **Details**, and <kbd>enter</kbd>:
+**2. Go into General and drop Details' values.** <kbd>enter</kbd> on the first card, and
+<kbd>enter</kbd> again on **Details**, the first row:
 
-<Term title="/settings › Settings">
+<Term title="/settings › General">
 
-<pre>  <span class="m">/settings ›</span> <span class="p b">Settings</span>
-  <span class="m">Global settings for humanize on this machine.</span>
+<pre>  <span class="m">/settings ›</span> <span class="p b">General</span>
+  <span class="m">How humanize behaves on this machine, in every directory.</span>
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <span class="p">Display</span>
+  <span class="sel"> <b>Details</b>                                                         ○ off ▾ </span> <span class="n">3</span>
+     <span class="m">show every tool call and all of the thinking</span>
+                                      <span class="p">╭─ Details ────────────────────────╮</span>
+   <span class="p">Agents</span>                             <span class="p">│</span><span class="sel"> on  show tool calls and thinking </span><span class="p">│</span> <span class="n">4</span>
+   <b>/btw agent</b>                         <span class="p">│</span> off ✔  show turn responses only  <span class="p">│</span>
+     <span class="m">the agent /btw uses outside a </span>  <span class="p">╰──────────────────────────────────╯</span>
+
+   <span class="p">Privacy</span>
    <b>Error reports</b>                                               <span class="m">○ off ▾</span>
      <span class="m">send error reports to humanize</span>
    ────────────────────────────────────────────────────────────────────────
    <b>What is sent</b>                                                      <span class="m">▸</span>
      <span class="m">what error reports include and exclude</span>
-   ────────────────────────────────────────────────────────────────────────
-  <span class="sel"> <b>Details</b>                                                         ○ off ▾ </span> <span class="n">3</span>
-     <span class="m">show every tool call and all of the thinking</span>
-                                      <span class="p">╭─ Details ────────────────────────╮</span>
-   <b>/btw agent</b>                         <span class="p">│</span><span class="sel"> on  show tool calls and thinking </span><span class="p">│</span> <span class="n">4</span>
-     <span class="m">the agent /btw uses outside a </span>  <span class="p">│</span> off ✔  show turn responses only  <span class="p">│</span>
-                                      <span class="p">╰──────────────────────────────────╯</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
                                                                     <span class="btn"> Save </span>
@@ -253,10 +260,10 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 **3. Pick `on`, and save.** <kbd>enter</kbd> picks `on`. Then <kbd>tab</kbd> to the buttons
 and <kbd>enter</kbd> on **Save**:
 
-<Term title="/settings › Settings">
+<Term title="/settings › General">
 
-<pre>  <span class="m">/settings ›</span> <span class="p b">Settings</span>                              <span class="y">● unsaved changes</span> <span class="n">5</span>
-  <span class="m">Global settings for humanize on this machine.</span>
+<pre>  <span class="m">/settings ›</span> <span class="p b">General</span>                               <span class="y">● unsaved changes</span> <span class="n">5</span>
+  <span class="m">How humanize behaves on this machine, in every directory.</span>
   <span class="m">…</span>
    <b>Details</b>                                                      <span class="g">● on ▾</span>
      <span class="m">show every tool call and all of the thinking</span>
@@ -270,7 +277,7 @@ and <kbd>enter</kbd> on **Save**:
 What to look at, by number:
 
 1. **The card's summary.** Each card says what it holds right now at its right-hand end, so the
-   six cards are a status page before you open any of them: `reports off · details off` here,
+   six cards are a status page before you open any of them: `details off · reports off` here,
    the number of accounts, machines and rules on the others.
 2. **Save.** Nothing has changed yet, so it cannot be pressed.
 3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
@@ -290,18 +297,19 @@ showing details: tool calls, thinking, and backend output
 ```
 
 The status line under the prompt now starts with `details ·`, and it stays that way in the
-next `hmz` too. Open `/settings` again and the first card reads `reports off · details on`.
+next `hmz` too. Open `/settings` again and the first card reads `details on · reports off`.
 
-## Settings {#settings-page}
+## General {#general}
 
-What is true of this machine, for every project on it.
+What is true of this machine, for every project on it, under a heading of what each row is
+about.
 
-| Row | What it is |
-| --- | --- |
-| Error reports | whether humanize [reports what goes wrong](/user/reporting) to its developers |
-| What is sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
-| Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
-| /btw agent | the agent [`/btw`](/user/btw) talks to outside a session: the flow's first agent, the one you chose, or `another…`, which chooses its CLI, account, model and effort. It takes effect the next time you enter btw mode. |
+| Heading | Row | What it is |
+| --- | --- | --- |
+| Display | Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
+| Agents | /btw agent | the agent [`/btw`](/user/btw) talks to outside a session: the flow's first agent, the one you chose, or `another…`, which chooses its CLI, account, model and effort. It takes effect the next time you enter btw mode. |
+| Privacy | Error reports | whether humanize [reports what goes wrong](/user/reporting) to its developers |
+| Privacy | What is sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 
 ### Details
 
@@ -341,83 +349,6 @@ run and its trace are the same either way.
 | When a turn takes far longer than it should | When you want each answer without scrolling past its tools |
 
 A flow can watch its agents' tool calls itself. See [Hooks](/weaver/hooks).
-
-## Workspace
-
-Run `hmz` in a directory you have used before and it opens on the flow you last saved there,
-with the agents you gave it. This page shows what this directory remembers, and is where you
-make it forget.
-
-| Row | What it is |
-| --- | --- |
-| Directory | the directory these settings belong to |
-| Default flow | the flow it opens on, and how many agents that flow was set up with |
-| Profiling | whether a run here [profiles](#whether-a-run-here-is-profiled) the programs it starts |
-| Forget | a switch: turned `on` and saved, it forgets everything this directory remembers. Its line says how many flows that is. |
-
-**Forget** clears this directory only. Every other directory, and everything on the other
-pages, stay as they were. The next `hmz` here opens as it did the first time; the one open now
-carries on with what it opened with.
-
-### What a directory remembers
-
-- **The flow** it last ran.
-- **For each flow it has run:**
-  - what each agent role runs: the CLI, the [account](#accounts), the model and the
-    effort;
-  - where each environment role works;
-  - how the flow itself was [set up](/reference/tui), and what a run of it may spend.
-- **Whether its runs are profiled.**
-
-Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one humanize
-ships, `local/twice` for a project flow, `user/twice` for a personal one. Within a flow, each
-agent is kept under its role name. A flow that gains a new role does not hand an existing
-role's model to it.
-
-When the flow changes, what was saved is checked against it again. A setting the flow has
-since dropped or renamed is asked for again, rather than carried over.
-
-### Changing it
-
-Change it where you set it: in [`/flow`](/reference/tui). Choose the flow, set each agent and
-environment and what a run may spend, and save. That save is what the next `hmz` here opens
-on. It only opens there: nothing runs until you send the first line.
-
-Saving checks the lot before any of it is kept. The flow is loaded, every role is checked
-against what the flow declares, and a flow that refuses a combination of its own settings says
-why. You fix it in the menu, not half an hour into a run.
-
-### Whether a run here is profiled
-
-The **Profiling** row adds the programs a run starts (the tests, the builds, the greps) and how
-long each took to the run's [trace](/user/tracing), on the same timeline as the agents. It is
-off until you turn it on, and it belongs to the directory: a repository whose tests take an
-hour is a different question from one whose tests take a minute.
-
-It takes effect from the next run, not the one under way. An `hmz exec` run in this
-directory is profiled too. What is recorded, and how to read it, is
-[Tracing](/user/tracing).
-
-### `hmz exec` starts from none of this
-
-What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p` and `-b`. An
-unattended run inherits nothing from how this directory was last set up. It reads only two
-things from here:
-
-- whether runs in this directory are profiled;
-- whether you said yes to [reporting](/user/reporting).
-
-### The first time
-
-With nothing remembered, `hmz` opens on the [`chat`](/flows/chat) flow, with the first
-installed CLI that can run without further setup, at the first model that CLI lists, at effort
-`high` where the model offers it.
-
-::: details Where it is kept
-The first two pages are one file, `~/.humanize/settings.yaml` (under `$HUMANIZE_HOME` if you
-set that). Deleting it makes every directory start over, turns details off, and asks the
-reporting question again.
-:::
 
 ## Accounts
 
@@ -657,209 +588,6 @@ accounts.copies(shared, "pi")               # pi/shared, holding the same key
 See [SDK › Accounts](/reference/sdk#accounts).
 :::
 
-## Runtimes
-
-A **runtime** is a machine a flow's [environment
-roles](/user/remote-execution) can be put on, saved under a name: an ssh host with everything
-`ssh` has to be told to reach it, a docker daemon with what it may hand out, or a docker swarm
-with where its tasks may go and what they may reserve all told. Save one here,
-then choose it for a role at [`/flow`](#choosing-one-for-a-role), or name it after the `@` of
-`-e`:
-
-```sh
-hmz exec -f onbox -e box=ssh@gpu -b duration=1h "run the benchmarks"
-```
-
-`ssh@gpu` with no directory works where `gpu` was saved to work. Reach for one when a machine
-needs more than its name to be reached (a login, a port, a key, a jump host), or when it is a
-docker daemon or a swarm.
-
-### Try it {#runtimes-try-it}
-
-Type `/settings runtimes`:
-
-<Term title="/settings · Runtimes">
-
-<pre>  <span class="m">/settings ›</span> <span class="p b">Runtimes</span>
-  <span class="m">Runtimes: saved ssh hosts, docker daemons with the resources each may hand out,
-  and docker swarms with what their tasks may reserve, used by name as flow environments in
-  -e and /flow. Changes take effect immediately.</span>
-
-  <span class="p">╭──────────────────────────────────────────────────────────────────────────────────╮</span>
-    <span class="p">ssh</span>
-   <span class="sel"> <b>box</b>                       me@box.example.com:2200 · key ~/.ssh/id_box · working    </span>
-   <span class="sel">                           directory: ~/proj                                      </span>
-    <b>gpu</b>                       <span class="m">from ~/.ssh/config · working directory: ~/work</span>
-
-    <span class="p">docker</span>
-    <b>local</b>                     <span class="m">local · 16 CPUs, 64G, GPUs 0</span>
-  <span class="p">╰──────────────────────────────────────────────────────────────────────────────────╯</span>
-
-   <span class="btn"> Add an ssh host </span>  <span class="btn"> Add a docker host </span>  <span class="btn"> Add a docker swarm </span>  <span class="btn"> Import ~/.ssh/config </span>  <span class="btn"> Search… </span>
-
-  <b>enter</b> open   <b>/</b> search   <b>tab</b> actions   <b>esc</b> back</pre>
-
-</Term>
-
-- **Import the hosts you already have.** Press **Import ~/.ssh/config**. Each host your ssh
-  config names is listed as `ssh -G` resolves it (the machine, the login, the port, the key,
-  the jump host), switched on unless it is saved already, and the cursor is on `done`: press
-  <kbd>enter</kbd>. From an empty page, where the focus opens on **Add an ssh host**, that is
-  four key presses, <kbd>→</kbd> <kbd>→</kbd> <kbd>enter</kbd> <kbd>enter</kbd>, however many
-  hosts there are -- or two clicks.
-- **Add one by hand.** Press **Add an ssh host**, type `me@box.example.com:2200`, and choose
-  `done`. The login and the port go to their own rows, and the name is written in for you
-  (`box`, the host's first label).
-- **Add a docker daemon.** Press **Add a docker host**, then `detect` (two <kbd>↑</kbd> from
-  the first row): the daemon's CPUs, memory and GPUs are written in and the cursor is on the
-  first of them. Type `16`, <kbd>enter</kbd>, `64G`, <kbd>enter</kbd>, `0`, <kbd>enter</kbd>,
-  and <kbd>enter</kbd> on `done`. From an empty page that is nine key presses and what you
-  typed.
-
-![the Runtimes page of /settings: ssh hosts and a docker daemon under a heading each,
-enter opening what can be done to one, then the form a docker daemon is added
-on](/demo/runtimes.gif)
-
-Everything on this page happens as you ask, so it has no **Save**. What you add or correct
-is asked what it has as it lands, in the background, and the line under the list says what it
-answered, or why it could not be reached.
-
-### An ssh host
-
-| Row | What it is |
-| --- | --- |
-| host | The machine: a name or an address. `user@host:port` is taken apart into the rows below. |
-| name | What `-e` and `/flow` call it. Written in after the host until you type one; never one already saved. |
-| user, port | Who to log in as, and the port. Blank is your ssh config's, or ssh's own. |
-| identity file | The key, by its path. humanize never reads what is in it. |
-| proxy jump | The host it is reached through (`ProxyJump`). |
-| options | Anything else ssh is told, `KEYWORD=VALUE` with a comma between two: `ServerAliveInterval=15, Compression=yes`. A setting with a row of its own is refused here. |
-| workdir | Where it works when `-e` names no directory: `/abs/path`, or `~/path` under the login's home. |
-| harness runs on | Where the CLI of an agent working on it runs, tried in order, the next only when one has no room: `self` (on this host), `local` (here), or another saved runtime as `ssh:<name>` or `docker:<name>`, a comma between two: `self, local`. Blank is on the host where its CLI is installed, else here. See [Where the agent runs](/user/remote-execution#where-the-agent-runs). |
-
-Whatever is set is passed to `ssh` ahead of your own config, so what is written here wins.
-
-### Importing from an ssh config
-
-`import ~/.ssh/config` opens one form: the config to read, then a switch per host it names.
-
-- `from` is your own config. Type another file's path over it to read that one instead; its
-  hosts are then saved with that file named, and `ssh` is told to read it for them.
-- A host already saved starts switched off and says `already imported`; switched on, it is
-  imported again, keeping its workdir and where its harness runs. One you typed in by hand is never written over.
-- An imported host is saved under its `Host` and keeps pointing at it, so `ssh` resolves it
-  through the config every time: editing the config edits the host. Nothing here writes to the
-  config.
-- What was imported, and what was left switched off, is said under the list.
-
-### A docker host
-
-![add a docker host: the endpoint picked from a list, the name written in for you, and
-what it may hand out last, over detect and done](/demo/docker-form.png)
-
-`endpoint` is where the daemon is, picked from the list <kbd>enter</kbd> drops under it. The row under it is what that way asks:
-
-| endpoint | Asks | Saved as |
-| --- | --- | --- |
-| `local` | nothing: whatever `docker` on this machine reaches | `local` |
-| `socket` | its path | `unix:///run/docker.sock` |
-| `tcp` | `host:port`, and a directory of `ca.pem`, `cert.pem` and `key.pem` for TLS | `tcp://10.0.0.5:2376` |
-| `saved ssh host` | which ssh host saved here the daemon is on, from a list | `ssh:gpu` |
-| `ssh address` | `[user@]host[:port]` of any host ssh reaches | `ssh://me@box` |
-| `context` | a docker context's name | `context:remote` |
-
-Then `name`, `image` (what a container starts from when the flow names none), `OCI runtime`
-(`nvidia`; blank for the daemon's own), `run args` (anything else `docker run` is told),
-`max containers` (how many containers it may run together), `workdir`, `harness runs on` (as
-for an ssh host: `docker:spare, local` puts each agent's CLI in a container on `spare` while it
-has room, and here once it has none), and what it may hand out:
-
-| Row | Takes | Blank is |
-| --- | --- | --- |
-| cpus | a number, `16` or `0.5` | all it has |
-| memory | a number and a unit, in docker's units of 1024: `64G`, `512M`, `1.5T` | all it has |
-| gpus | device ids: `0, 1` | all it has |
-
-**`detect`** asks the daemon what it has and writes it into those three rows, for you to type
-less over; the first letter typed replaces what it wrote. Only the GPUs that answer are written
-in: a GPU that has failed since docker was set up for it is listed by the daemon still, and
-said in yellow (`1 of 2 GPUs answer; GPU 1 does not`). Where the daemon has less than a
-runtime is saved to hand out (more CPUs than it has, a GPU it does not have or that does not
-answer, an OCI runtime it does not offer), the line under the list says so in yellow when it is
-checked.
-
-### A docker swarm
-
-**Add a docker swarm** opens the docker host's form for a swarm's manager: the same
-`endpoint` rows, `local` being the swarm this machine manages, then `name`, `image` (every
-node a task may land on pulls it) and `run args` (anything else `docker service create` is
-told). No `OCI runtime` and no `gpus`: a service is told neither. In their place, where a
-task may go:
-
-| Row | Takes | Blank is |
-| --- | --- | --- |
-| constraints | placement constraints, a comma apart: `node.labels.gpu==true, node.role!=manager` | anywhere |
-| max tasks | how many tasks it may run together | no limit |
-| nodes | `HOSTNAME=SSH-HOST`, a comma apart: a node's host name and the ssh host saved here, or the `[user@]host[:port]`, that reaches it | each node at `ssh://` its address |
-| workdir | where it works when `-e` names no directory, at the same path on every node | none |
-| gpu resource | the generic resource its nodes advertise GPUs as: `NVIDIA-GPU` | no GPUs |
-| cpus, memory | what all of its tasks together may reserve | no quota |
-
-**`detect`** writes in the CPUs and memory of the nodes that may take a task, all told. A
-check says which those are -- `12 nodes: node01, node02, … and 4 more` -- and, in yellow, a
-quota more than they have or a GPU resource none of them advertises.
-
-### On one runtime
-
-<kbd>enter</kbd> on a runtime opens what can be done to it, all of it at once:
-
-| On the menu | What it does |
-| --- | --- |
-| **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
-| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A swarm's manager is asked which of its nodes may take a task, and what those have. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Each is given 30 seconds, in the background: the row says `checking…` until it answers. |
-| **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing, and so is a swarm whose manager or one of whose nodes it reached. |
-
-### Choosing one for a role {#choosing-one-for-a-role}
-
-At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
-
-<Term title="/flow · onbox">
-
-<pre><span class="p b">Environment for box</span>
-
-  <span class="d">1.</span> backend  <span class="a">ssh ▾</span>                   <span class="m">a machine reached over ssh</span>
-  <span class="d">2.</span> host     <span class="a">gpu ▸</span>                   <span class="m">from ~/.ssh/config · working directory: ~/work</span>
-  <span class="d">3.</span> workdir  <span class="a">~/work</span>                  <span class="m">leave blank to use saved default: ~/work</span>
-  <span class="d">4.</span> as -e    <span class="a">ssh@gpu</span>                 <span class="m">full -e spec: typing one sets the rows above</span>
-
-<span class="p">❯</span>    <span class="p">done</span>                   <span class="m">sets box to ssh@gpu when the flow is saved</span>
-
-<span class="d">enter done · esc back</span></pre>
-
-</Term>
-
-- `backend` is every backend `-e` takes, dropped under the row by <kbd>enter</kbd> or a click,
-  each with what it is. It starts on the first one anything is saved for, and the cursor on the
-  first thing still to answer.
-- `host` (`daemon` for a docker backend, once `-e` takes one) opens the runtimes of that
-  backend saved here, with `add an
-  ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `unsaved
-  host`: any host `ssh` reaches, as you would type it, saved nowhere.
-- `workdir` starts from where the runtime was saved to work. Left as it is, the spelling
-  leaves it out (`ssh@gpu`), so the role goes on following the runtime when its workdir is
-  corrected; type over it for another directory there (`ssh@gpu/~/other`).
-- `as -e` is all of it, as `-e` spells it. Type a whole spec there instead and the rows above
-  take it apart; one `-e` would refuse is refused on `done`, in the words `-e` refuses it in.
-
-What `done` holds is saved with the flow, from the `save` row of `/flow`, and it is what the
-next `hmz` here opens on.
-
-::: details From Python
-Every row of this page is a call on `Hmz().runtimes`: `new`, `add`, `write`, `remove`,
-`hosts`, `import_ssh` and `check`. See [Machines ›
-Runtimes](/reference/machines#runtimes).
-:::
-
 ## Fallback
 
 When a turn cannot run where it is (the model was retired, the CLI will not start, the whole
@@ -1095,6 +823,210 @@ falls.clear("claude@work/claude-opus-5-5")
 The rest is in the [SDK reference](/reference/sdk).
 :::
 
+## Runtimes
+
+A **runtime** is a machine a flow's [environment
+roles](/user/remote-execution) can be put on, saved under a name: an ssh host with everything
+`ssh` has to be told to reach it, a docker daemon with what it may hand out, or a docker swarm
+with where its tasks may go and what they may reserve all told. Save one here,
+then choose it for a role at [`/flow`](#choosing-one-for-a-role), or name it after the `@` of
+`-e`:
+
+```sh
+hmz exec -f onbox -e box=ssh@gpu -b duration=1h "run the benchmarks"
+```
+
+`ssh@gpu` with no directory works where `gpu` was saved to work. Reach for one when a machine
+needs more than its name to be reached (a login, a port, a key, a jump host), or when it is a
+docker daemon or a swarm.
+
+### Try it {#runtimes-try-it}
+
+Type `/settings runtimes`:
+
+<Term title="/settings · Runtimes">
+
+<pre>  <span class="m">/settings ›</span> <span class="p b">Runtimes</span>
+  <span class="m">Saved ssh hosts, docker daemons with the resources each may hand out, and docker
+  swarms with what their tasks may reserve, used by name as flow environments in -e and
+  /flow. Changes take effect immediately.</span>
+
+  <span class="p">╭──────────────────────────────────────────────────────────────────────────────────╮</span>
+    <span class="p">ssh</span>
+   <span class="sel"> <b>box</b>                       me@box.example.com:2200 · key ~/.ssh/id_box · working    </span>
+   <span class="sel">                           directory: ~/proj                                      </span>
+    <b>gpu</b>                       <span class="m">from ~/.ssh/config · working directory: ~/work</span>
+
+    <span class="p">docker</span>
+    <b>local</b>                     <span class="m">local · 16 CPUs, 64G, GPUs 0</span>
+  <span class="p">╰──────────────────────────────────────────────────────────────────────────────────╯</span>
+
+   <span class="btn"> Add a runtime… </span>  <span class="btn"> Import ~/.ssh/config </span>  <span class="btn"> Search… </span>
+
+  <b>enter</b> open   <b>/</b> search   <b>tab</b> actions   <b>esc</b> back</pre>
+
+</Term>
+
+- **Import the hosts you already have.** Press **Import ~/.ssh/config**. Each host your ssh
+  config names is listed as `ssh -G` resolves it (the machine, the login, the port, the key,
+  the jump host), switched on unless it is saved already, and the cursor is on `done`: press
+  <kbd>enter</kbd>. From an empty page, where the focus opens on **Add a runtime…**, that is
+  three key presses, <kbd>→</kbd> <kbd>enter</kbd> <kbd>enter</kbd>, however many hosts there
+  are -- or two clicks.
+- **Add one by hand.** Press **Add a runtime…**: it drops the three kinds, `ssh host`,
+  `docker host` and `docker swarm`, over the button. Pick `ssh host`, type
+  `me@box.example.com:2200`, and choose `done`. The login and the port go to their own rows,
+  and the name is written in for you (`box`, the host's first label).
+- **Add a docker daemon.** Press **Add a runtime…** and pick `docker host`, then `detect` (two
+  <kbd>↑</kbd> from the first row): the daemon's CPUs, memory and GPUs are written in and the
+  cursor is on the first of them. Type `16`, <kbd>enter</kbd>, `64G`, <kbd>enter</kbd>, `0`,
+  <kbd>enter</kbd>, and <kbd>enter</kbd> on `done`. From an empty page that is ten key presses
+  and what you typed.
+
+![the Runtimes page of /settings: ssh hosts and a docker daemon under a heading each,
+enter opening what can be done to one, then the form a docker daemon is added
+on](/demo/runtimes.gif)
+
+Everything on this page happens as you ask, so it has no **Save**. What you add or correct
+is asked what it has as it lands, in the background, and the line under the list says what it
+answered, or why it could not be reached.
+
+### An ssh host
+
+| Row | What it is |
+| --- | --- |
+| host | The machine: a name or an address. `user@host:port` is taken apart into the rows below. |
+| name | What `-e` and `/flow` call it. Written in after the host until you type one; never one already saved. |
+| user, port | Who to log in as, and the port. Blank is your ssh config's, or ssh's own. |
+| identity file | The key, by its path. humanize never reads what is in it. |
+| proxy jump | The host it is reached through (`ProxyJump`). |
+| options | Anything else ssh is told, `KEYWORD=VALUE` with a comma between two: `ServerAliveInterval=15, Compression=yes`. A setting with a row of its own is refused here. |
+| workdir | Where it works when `-e` names no directory: `/abs/path`, or `~/path` under the login's home. |
+| harness runs on | Where the CLI of an agent working on it runs, tried in order, the next only when one has no room: `self` (on this host), `local` (here), or another saved runtime as `ssh:<name>` or `docker:<name>`, a comma between two: `self, local`. Blank is on the host where its CLI is installed, else here. See [Where the agent runs](/user/remote-execution#where-the-agent-runs). |
+
+Whatever is set is passed to `ssh` ahead of your own config, so what is written here wins.
+
+### Importing from an ssh config
+
+`import ~/.ssh/config` opens one form: the config to read, then a switch per host it names.
+
+- `from` is your own config. Type another file's path over it to read that one instead; its
+  hosts are then saved with that file named, and `ssh` is told to read it for them.
+- A host already saved starts switched off and says `already imported`; switched on, it is
+  imported again, keeping its workdir and where its harness runs. One you typed in by hand is never written over.
+- An imported host is saved under its `Host` and keeps pointing at it, so `ssh` resolves it
+  through the config every time: editing the config edits the host. Nothing here writes to the
+  config.
+- What was imported, and what was left switched off, is said under the list.
+
+### A docker host
+
+![add a docker host: the endpoint picked from a list, the name written in for you, and
+what it may hand out last, each line about it kept in its column](/demo/docker-form.png)
+
+`endpoint` is where the daemon is, picked from the list <kbd>enter</kbd> drops under it. The row under it is what that way asks:
+
+| endpoint | Asks | Saved as |
+| --- | --- | --- |
+| `local` | nothing: whatever `docker` on this machine reaches | `local` |
+| `socket` | its path | `unix:///run/docker.sock` |
+| `tcp` | `host:port`, and a directory of `ca.pem`, `cert.pem` and `key.pem` for TLS | `tcp://10.0.0.5:2376` |
+| `saved ssh host` | which ssh host saved here the daemon is on, from a list | `ssh:gpu` |
+| `ssh address` | `[user@]host[:port]` of any host ssh reaches | `ssh://me@box` |
+| `context` | a docker context's name | `context:remote` |
+
+Then `name`, `image` (what a container starts from when the flow names none), `OCI runtime`
+(`nvidia`; blank for the daemon's own), `run args` (anything else `docker run` is told),
+`max containers` (how many containers it may run together), `workdir`, `harness runs on` (as
+for an ssh host: `docker:spare, local` puts each agent's CLI in a container on `spare` while it
+has room, and here once it has none), and what it may hand out:
+
+| Row | Takes | Blank is |
+| --- | --- | --- |
+| cpus | a number, `16` or `0.5` | all it has |
+| memory | a number and a unit, in docker's units of 1024: `64G`, `512M`, `1.5T` | all it has |
+| gpus | device ids: `0, 1` | all it has |
+
+**`detect`** asks the daemon what it has and writes it into those three rows, for you to type
+less over; the first letter typed replaces what it wrote. Only the GPUs that answer are written
+in: a GPU that has failed since docker was set up for it is listed by the daemon still, and
+said in yellow (`1 of 2 GPUs answer; GPU 1 does not`). Where the daemon has less than a
+runtime is saved to hand out (more CPUs than it has, a GPU it does not have or that does not
+answer, an OCI runtime it does not offer), the line under the list says so in yellow when it is
+checked.
+
+### A docker swarm
+
+`docker swarm` under **Add a runtime…** opens the docker host's form for a swarm's manager: the same
+`endpoint` rows, `local` being the swarm this machine manages, then `name`, `image` (every
+node a task may land on pulls it) and `run args` (anything else `docker service create` is
+told). No `OCI runtime` and no `gpus`: a service is told neither. In their place, where a
+task may go:
+
+| Row | Takes | Blank is |
+| --- | --- | --- |
+| constraints | placement constraints, a comma apart: `node.labels.gpu==true, node.role!=manager` | anywhere |
+| max tasks | how many tasks it may run together | no limit |
+| nodes | `HOSTNAME=SSH-HOST`, a comma apart: a node's host name and the ssh host saved here, or the `[user@]host[:port]`, that reaches it | each node at `ssh://` its address |
+| workdir | where it works when `-e` names no directory, at the same path on every node | none |
+| gpu resource | the generic resource its nodes advertise GPUs as: `NVIDIA-GPU` | no GPUs |
+| cpus, memory | what all of its tasks together may reserve | no quota |
+
+**`detect`** writes in the CPUs and memory of the nodes that may take a task, all told. A
+check says which those are -- `12 nodes: node01, node02, … and 4 more` -- and, in yellow, a
+quota more than they have or a GPU resource none of them advertises.
+
+### On one runtime
+
+<kbd>enter</kbd> on a runtime opens what can be done to it, all of it at once:
+
+| On the menu | What it does |
+| --- | --- |
+| **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
+| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A swarm's manager is asked which of its nodes may take a task, and what those have. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Each is given 30 seconds, in the background: the row says `checking…` until it answers. |
+| **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing, and so is a swarm whose manager or one of whose nodes it reached. |
+
+### Choosing one for a role {#choosing-one-for-a-role}
+
+At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
+
+<Term title="/flow · onbox">
+
+<pre><span class="p b">Environment for box</span>
+
+  <span class="d">1.</span> backend  <span class="a">ssh ▾</span>                   <span class="m">a machine reached over ssh</span>
+  <span class="d">2.</span> host     <span class="a">gpu ▸</span>                   <span class="m">from ~/.ssh/config · working directory: ~/work</span>
+  <span class="d">3.</span> workdir  <span class="a">~/work</span>                  <span class="m">leave blank to use saved default: ~/work</span>
+  <span class="d">4.</span> as -e    <span class="a">ssh@gpu</span>                 <span class="m">full -e spec: typing one sets the rows above</span>
+
+<span class="p">❯</span>    <span class="p">done</span>                   <span class="m">sets box to ssh@gpu when the flow is saved</span>
+
+<span class="d">enter done · esc back</span></pre>
+
+</Term>
+
+- `backend` is every backend `-e` takes, dropped under the row by <kbd>enter</kbd> or a click,
+  each with what it is. It starts on the first one anything is saved for, and the cursor on the
+  first thing still to answer.
+- `host` (`daemon` for a docker backend, once `-e` takes one) opens the runtimes of that
+  backend saved here, with `add an
+  ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `unsaved
+  host`: any host `ssh` reaches, as you would type it, saved nowhere.
+- `workdir` starts from where the runtime was saved to work. Left as it is, the spelling
+  leaves it out (`ssh@gpu`), so the role goes on following the runtime when its workdir is
+  corrected; type over it for another directory there (`ssh@gpu/~/other`).
+- `as -e` is all of it, as `-e` spells it. Type a whole spec there instead and the rows above
+  take it apart; one `-e` would refuse is refused on `done`, in the words `-e` refuses it in.
+
+What `done` holds is saved with the flow, from the `save` row of `/flow`, and it is what the
+next `hmz` here opens on.
+
+::: details From Python
+Every row of this page is a call on `Hmz().runtimes`: `new`, `add`, `write`, `remove`,
+`hosts`, `import_ssh` and `check`. See [Machines ›
+Runtimes](/reference/machines#runtimes).
+:::
+
 ## Flowverses
 
 A [flowverse](/weaver/flowverses) is a git repository of flows. The last page lists every place
@@ -1123,12 +1055,88 @@ the official flowverse has not been fetched yet -- open the flowverses page of /
 Adding one, publishing your own and naming a flow by URL are in
 [Flowverses](/weaver/flowverses).
 
+## Workspace
+
+Run `hmz` in a directory you have used before and it opens on the flow you last saved there,
+with the agents you gave it. This page shows what this directory remembers, and is where you
+make it forget. The line across its top names the directory.
+
+| Heading | Row | What it is |
+| --- | --- | --- |
+| Flow | Default flow | the flow it opens on, and how many agents that flow was set up with |
+| Runs | Profiling | whether a run here [profiles](#whether-a-run-here-is-profiled) the programs it starts |
+| Reset | Forget | a switch: turned `on` and saved, it forgets everything this directory remembers. Its line says how many flows that is. |
+
+**Forget** clears this directory only. Every other directory, and everything on the other
+pages, stay as they were. The next `hmz` here opens as it did the first time; the one open now
+carries on with what it opened with.
+
+### What a directory remembers
+
+- **The flow** it last ran.
+- **For each flow it has run:**
+  - what each agent role runs: the CLI, the [account](#accounts), the model and the
+    effort;
+  - where each environment role works;
+  - how the flow itself was [set up](/reference/tui), and what a run of it may spend.
+- **Whether its runs are profiled.**
+
+Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one humanize
+ships, `local/twice` for a project flow, `user/twice` for a personal one. Within a flow, each
+agent is kept under its role name. A flow that gains a new role does not hand an existing
+role's model to it.
+
+When the flow changes, what was saved is checked against it again. A setting the flow has
+since dropped or renamed is asked for again, rather than carried over.
+
+### Changing it
+
+Change it where you set it: in [`/flow`](/reference/tui). Choose the flow, set each agent and
+environment and what a run may spend, and save. That save is what the next `hmz` here opens
+on. It only opens there: nothing runs until you send the first line.
+
+Saving checks the lot before any of it is kept. The flow is loaded, every role is checked
+against what the flow declares, and a flow that refuses a combination of its own settings says
+why. You fix it in the menu, not half an hour into a run.
+
+### Whether a run here is profiled
+
+The **Profiling** row adds the programs a run starts (the tests, the builds, the greps) and how
+long each took to the run's [trace](/user/tracing), on the same timeline as the agents. It is
+off until you turn it on, and it belongs to the directory: a repository whose tests take an
+hour is a different question from one whose tests take a minute.
+
+It takes effect from the next run, not the one under way. An `hmz exec` run in this
+directory is profiled too. What is recorded, and how to read it, is
+[Tracing](/user/tracing).
+
+### `hmz exec` starts from none of this
+
+What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p` and `-b`. An
+unattended run inherits nothing from how this directory was last set up. It reads only two
+things from here:
+
+- whether runs in this directory are profiled;
+- whether you said yes to [reporting](/user/reporting).
+
+### The first time
+
+With nothing remembered, `hmz` opens on the [`chat`](/flows/chat) flow, with the first
+installed CLI that can run without further setup, at the first model that CLI lists, at effort
+`high` where the model offers it.
+
+::: details Where it is kept
+General and Workspace are one file, `~/.humanize/settings.yaml` (under `$HUMANIZE_HOME` if you
+set that). Deleting it makes every directory start over, turns details off, and asks the
+reporting question again.
+:::
+
 ## Troubleshooting
 
 ### `hmz: /settings has no page '…'`
 
 The word after `/settings` names none of the six pages. The message lists the ones there are:
-`settings`, `workspace`, `accounts`, `runtimes`, `fallback` and `flowverses`. Type
+`general`, `accounts`, `fallback`, `runtimes`, `flowverses` and `workspace`. Type
 `/settings ` with a space and pick one from the list offered.
 
 ### Save cannot be pressed

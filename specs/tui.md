@@ -172,14 +172,14 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
 - MUST make `/settings [page]` the one menu of every setting, a screen of its own in six pages
-  -- settings for this machine (reporting, details, and the btw agent where there is one),
-  workspace for this directory, accounts, runtimes, fallback and flowverses -- opening on
-  those pages alone and going into one on `enter` or a click and back out on `esc`, or straight
-  into the one named `settings`, `workspace`, `accounts`, `runtimes`, `fallback` or
-  `flowverses`, offered as it is typed, or by its old name `everywhere`, `directory` or
-  `environments`, refusing
-  any other; forget this directory alone; keep what each page last said while another is read;
-  and remember whether details are shown.
+  from the broadest to the nearest -- general for this machine (details, the btw agent where
+  there is one, and reporting, each under a heading of what it is about), accounts, fallback,
+  runtimes, flowverses, and workspace for this directory, which it names across its top --
+  opening on those pages alone and going into one on `enter` or a click and back out on `esc`,
+  or straight into the one named `general`, `accounts`, `fallback`, `runtimes`, `flowverses`
+  or `workspace`, offered as it is typed, or by its old name `settings`, `everywhere`,
+  `directory` or `environments`, refusing any other; forget this directory alone; keep what
+  each page last said while another is read; and remember whether details are shown.
 - MUST apply each saved setting at once where it can, and otherwise say beside its row and in
   the transcript when it lands: profiling from the next flow run, accounts from the next agent
   session, forgetting from the next launch.
