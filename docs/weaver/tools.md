@@ -261,7 +261,7 @@ decides, mid-turn, that a piece of work needs a loop of its own, and gets
 ```python
 from hmz.flows import Budget, BudgetExceeded, load
 
-chase = load("git+https://github.com/humanfia/flowverse@main#flame_chase")
+chase = load("flame_chase")
 
 
 async def asked(params: AskUserHookParams) -> AskUserHookResult:

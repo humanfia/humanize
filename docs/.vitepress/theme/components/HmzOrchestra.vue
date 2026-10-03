@@ -4,8 +4,8 @@
 // answer coming back, and every call each agent makes landing on one timeline underneath, the
 // way a collected trace lands them in Perfetto.
 //
-// What is held to the code: each flow's roles are the ones it declares in the official
-// flowverse, every agent is spelled the way `hmz exec -a` takes it (role=cli/model:effort,
+// What is held to the code: each flow's roles are the ones it declares in its own source,
+// every agent is spelled the way `hmz exec -a` takes it (role=cli/model:effort,
 // with the effort on that CLI's ladder in `coganchor/backends.py`), and who takes a turn after
 // whom is the flow's own order. What is invented: the calls, their lengths, and the models.
 import { computed, nextTick, ref } from 'vue'

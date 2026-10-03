@@ -12,7 +12,7 @@ hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the ter
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
          [-p|--params <key>=<value>[,...]]... [-b|--budget <limit>[,<limit>...]]...
          [--resume] [--json] <task>
-<ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>]#<flow>[:<name>]
+<ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
 <env>    := <role>=<backend>@<provider>[/<workdir>]
 <limit>  := duration=<duration> | cost=<usd> | output_tokens=<count> | graceful=<bool>

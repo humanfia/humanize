@@ -75,7 +75,7 @@ Python, for the weaver: whoever writes the flow.
 | **Branch a conversation.** Fork it and try more than one way on. | [Branching a conversation](/weaver/branching) |
 | **Worktrees and copies.** A worktree per task, a throwaway copy, or a scratch directory. | [Worktrees, copies and scratch](/weaver/worktrees) |
 | **Test without a model.** Scripted agents: milliseconds a test, nothing spent. | [Testing a flow](/weaver/testing-flows) |
-| **Publish it.** Flows in a git repository anybody can add and run by name. | [Flowverses](/weaver/flowverses) |
+| **Publish it.** A flow in a repository of its own, listed in a flowverse anybody can install it from. | [Flowverses](/weaver/flowverses) |
 
 ::: details Which CLI does what
 Most of the map works the same on every CLI. Three things do not:

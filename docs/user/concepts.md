@@ -103,9 +103,11 @@ choose one at `/flow` or name it with `$`. See [Your first run](/user/first-run)
 
 ## Flowverse
 
-A git repository of flows. `official` is humanize's own; add others on the [Flowverses page of
-`/settings`](/user/settings#flowverses). Its flows are named `<flowverse>/<flow>`, and
-humanize's own by their bare names. See [Flowverses](/weaver/flowverses).
+An index of flows: a git repository listing each release of a flow, and the repository and
+commit it is. A flow it lists runs once you install it from `/flow`. `official` is humanize's
+own; add others on `/flow`'s Flowverses page. A flow installed from another is named
+`<flowverse>/<flow>`, and one built in or installed from `official` by its bare name. See
+[Flowverses](/weaver/flowverses).
 
 ## Outworlder
 

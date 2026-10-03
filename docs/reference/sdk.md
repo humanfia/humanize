@@ -255,7 +255,7 @@ A run, or a request to a host, refused before anything of it ran. `str(error)` i
 | `about(named: str)` | `str` | The flow's one-line description, or `""`. |
 | `declared(named: str \| PathLike)` | [`Declaration`](#declaration) | Imports the flow. Raises the flow API's `FlowException` for a flow that cannot load. |
 | `resumes(named: str \| PathLike)` | `bool` | Whether it is [resumable](/reference/flows#a-flow-that-can-be-picked-up). Imports the flow. |
-| `fork(named: str, into: str \| PathLike \| None = None)` | `str` | Copies the flow, what it imports and its skills into `./.humanize/flows/` (or `into`). Returns the directory. `ValueError`: not a flow, or already a copy here. `OSError`: cannot copy. |
+| `fork(named: str, into: str \| PathLike \| None = None)` | `str` | Copies the flow, what it imports and its skills into `./.humanize/flows/` (or `into`), as **Copy here** does in `/flow`; not an installed flow's `.installed.json`. Returns the directory. `ValueError`: not a flow, or already a copy here. `OSError`: cannot copy. |
 | `running()` | `tuple[LiveCall, ...]` | Every flow call in progress in this process, oldest first. |
 
 ```python
@@ -265,22 +265,41 @@ for offer in Hmz().flows.all():
 
 ## `Flowverses` {#flowverses}
 
-`Hmz().verses`: the store the [Flowverses page of `/settings`](/reference/tui#where-flows-come-from) edits.
+`Hmz().verses`: the store [`/flow`'s Flowverses page](/reference/tui#where-flows-come-from)
+edits. `flow` arguments are `<flowverse>/<flow>`, or a bare `<flow>` for `official`. Semantics:
+[Flows › Flowverses](/reference/flows#flowverses).
 
 | Method | Returns | Behaviour |
 | --- | --- | --- |
 | `all()` | `list[Flowverse]` | Offer order: `official`, added ones alphabetically, `local`, `user`. |
 | `nearest()` | `list[Flowverse]` | Lookup order for a bare name: `local`, `user`, `official`, added ones. |
 | `find(name: str)` | `Flowverse \| None` | |
-| `add(url: str, name: str = "")` | `Flowverse` | Clones `url` (a URL, a path, or `owner/repo` on GitHub) under `name` (default: the repository's name). `ValueError`: name taken, reserved (`official`, `local`, `user`) or not a valid directory name. `OSError`: clone failed. |
-| `fetch(name: str)` | `Flowverse` | Fetches again, or for the first time; resets the clone to the remote. `ValueError`: no such name, or `local`/`user`. `OSError`: git failed. |
-| `remove(name: str)` | `bool` | Deletes it; whether there was one. `ValueError`: `official`, `local`, `user`. |
-| `holds(one: Flowverse)` | `list[Offer]` | Its flows. **Imports every flow in it.** For `official` before fetch: the package's own; for any other unfetched place: `[]`. |
+| `add(url: str, name: str = "")` | `Flowverse` | Clones the index at `url` (a URL, a path, or `owner/repo` on GitHub) under `name` (default: the repository's name). Installs nothing. `ValueError`: name taken, reserved (`official`, `local`, `user`) or not a valid directory name. `OSError`: clone failed. |
+| `fetch(name: str)` | `Flowverse` | Fetches the index again, or for the first time; resets the clone to the remote. Installed flows are untouched. `ValueError`: no such name, or `local`/`user`. `OSError`: git failed. |
+| `remove(name: str)` | `bool` | Deletes the index and every flow installed from it; whether there was one. `ValueError`: `official`, `local`, `user`. |
+| `index(name: str)` | [`Index`](#flowverse-types) | What its index lists, as last fetched. Reads YAML only; empty for `local`, `user`, an unfetched one or an unknown name. |
+| `install(flow: str, version: str = "")` | `list[Installed]` | Installs that release (`""`: the newest that is not a prerelease, else the newest prerelease) and what it needs. Returns what is now installed of every flow the install came to, the asked-for one last. Another version of an installed flow switches it. `ValueError`: no such flowverse, flow or release; unfetched; a cycle; a range nothing satisfies; breaking another installed flow's range. `OSError`: fetch or copy failed. |
+| `uninstall(flow: str)` | `bool` | Removes an installed flow; whether there was one. `ValueError`: another installed flow needs it. `OSError`: it will not go. |
+| `installed()` | `list[Installed]` | Every installed flow, by flowverse and then name. |
+| `updates()` | `list[Update]` | Every installed flow whose index, as last fetched, lists a newer release. |
+| `holds(one: Flowverse)` | `list[Offer]` | What it offers to run: built-in and installed flows for `official`, installed ones for another, the directory's for `local` and `user`. **Imports every flow in it.** Never a flow its index only lists. |
 | `edited(one: Flowverse)` | `bool` | Whether the clone holds changes a fetch would discard. `False` for a non-clone. |
 | `standing(one: Flowverse)` | `str` | The clone's commit, or `""`. |
-| `where(name: str)` | `Path` | Its directory, fetched or not. |
+| `where(name: str)` | `Path` | Its index's directory, fetched or not. |
 | `plain(url: str)` | `str` | `url` with credentials removed. |
 | `whence(one: Flowverse, nowhere: str = "-")` | `str` | Displayable origin: the credential-free URL; `your own flows in .humanize/flows` for `local`; `nowhere` for a directory with no readable origin. |
+
+```python
+from hmz.sdk import Hmz
+
+verses = Hmz().verses
+verses.fetch("official")
+for release in verses.index("official").versions("parallel_flame_chase"):
+    print(release.version, release.commit[:12])
+verses.install("parallel_flame_chase")
+for update in verses.updates():
+    print(update.installed.called, update.installed.version, "->", update.version)
+```
 
 ## `Accounts` {#accounts}
 
@@ -545,6 +564,18 @@ declaration order.
 | `EnvRole` | `name`, `declared: type`, `required`, `auto`, `capabilities`, `cpu_count: int`, `memory: int`, `gpu_count: int`, `gpu_memory: int`, `image: str`, `grant`, `resources: bool` |
 | `LiveCall` | `ref`, `name`, `depth: int` (1 = the run's flow), `since: float` (monotonic), `id: int` (journal id, 0 = none), `parent: LiveCall \| None`, `task: str`, `resumable: bool` |
 | `Flowverse` | `name`, `url` (`""` for `local`, `user`), `at: Path`, `fetched: bool`, `fixed: bool` (`official`, `local`, `user`) |
+
+### Flowverse types {#flowverse-types}
+
+`hmz.runtime.flowing.index`; all but `Skipped` are also exported from `hmz.runtime.flowing`.
+
+| Type | Fields |
+| --- | --- |
+| `Index` (named tuple) | `verse: str`, `releases: tuple[Release, ...]` (by flow, newest first), `skipped: tuple[Skipped, ...]`; methods `flows()` (names, sorted), `versions(flow)` (newest first), `release(flow, version)` → `Release \| None`, `newest(flow, spec="")` → the newest in range that is not a prerelease, else the newest prerelease, else `None` |
+| `Release` (pydantic, frozen) | `name`, `version`, `description`, `repo`, `ref`, `commit`, `subdir`, `license`, `dependencies: dict[str, str]`; properties `semver` (a `semver.Version`), `url` (what git fetches) |
+| `Skipped` (named tuple) | `at: Path` (the manifest), `why: str` |
+| `Installed` (pydantic, frozen) | `verse`, `name`, `version`, `commit`, `repo`, `ref`, `subdir`, `dependencies`; properties `called` (the name it is offered under), `at: Path` (its directory) |
+| `Update` (named tuple) | `installed: Installed`, `version: str` (the newest after it) |
 
 ### Account types {#account-types}
 

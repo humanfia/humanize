@@ -3,8 +3,8 @@
 // loop sends each turn to a session -- a fresh one each round, or one kept -- with ordinary
 // code between the turns, and another flow can call it, handing down only the roles it
 // declared. Pick a flow to watch its loop. Each loop is the one the flow really runs:
-// `chat` from `src/hmz/flows/builtin/chat/`, and `ralph_loop`, `stateful_ralph` and `rlar`
-// from the official flowverse (`humanfia/flowverse`, `flows/<name>/__init__.py`). What a
+// `chat`, `ralph_loop`, `stateful_ralph` and `rlar` from the package,
+// `src/hmz/flows/builtin/<name>/`. What a
 // called flow is handed is `specs/flows.md`. The CLIs in the sockets are only examples.
 import { computed, nextTick, ref } from 'vue'
 import { withBase } from 'vitepress'

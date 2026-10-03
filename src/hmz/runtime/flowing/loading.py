@@ -3,14 +3,18 @@
 A ref is one of::
 
     :review                                   a flow in the same module as the flow asking
-    humanize1  humanize1:gen-plan             a flow in the same flowverse
-    git+https://github.com/humanfia/flowverse@main#humanize1:rlcr
-                                              a flow in another flowverse, at a ref
+    humanize1  humanize1:gen-plan             a flow beside the flow asking
+    git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr
+                                              a flow of a repository, at a ref
 
 and, where no flow is asking -- a command line naming what to run -- `official/rlar`,
 `local/scheduler` and a path, looked up nearest first as :mod:`finding` always has. A flow
 named bare is the flow named after its directory, else the one visible flow its module holds,
 else nothing: the choice is not the runtime's to make.
+
+A `git+` ref says where a flow is the way an index's manifest does: a repository, a revision,
+and the directory of it the flow is in after the `#` -- its root where there is none -- so a
+release listed in a flowverse is one ref away from being run without being installed.
 
 A flow is a directory whose `__init__.py` is imported as a module named after it, with the
 directory itself on `sys.path` so that what it keeps beside it -- `_humanize1/` beside
@@ -20,7 +24,7 @@ checkouts claiming one name in one run is a :class:`~hmz.flows.FlowLoadConflict`
 whose files changed is imported afresh by the next run that nobody else is running it in. A
 run asks for a module once; every later `load` of the same ref is a dictionary lookup.
 
-A flowverse named by URL is cloned once per commit into humanize's home, the ref resolved to
+A repository named by URL is cloned once per commit into humanize's home, the ref resolved to
 the commit it stands at, and loaded from there -- fetched on a thread the first time it is
 called rather than when `load` is, so that naming one costs a flow nothing until it is used.
 """
@@ -93,7 +97,8 @@ class Ref:
       url: The repository of a VCS ref, as git fetches it; None otherwise.
       rev: The ref after its `@`, or None for the repository's default branch.
       where: The flow part: a flow's name, `<flowverse>/<flow>`, a path, or "" for
-        `:<sub>`.
+        `:<sub>` -- and for a VCS ref, the directory of the repository the flow is in, "" for
+        its root.
       sub: The flow inside it after the colon, or "" for the bare form.
     """
 
@@ -118,7 +123,7 @@ def parse(ref: str) -> Ref:
     if not isinstance(ref, str) or not ref.strip():  # pyright: ignore[reportUnnecessaryIsInstance]
         raise FlowRefError(f"{ref!r} is not a flow ref")
     said = ref.strip()
-    if "#" in said:
+    if "#" in said or said.startswith("git+"):
         return _vcs(said)
     if said.startswith(":"):
         sub = said[1:]
@@ -134,13 +139,27 @@ def parse(ref: str) -> Ref:
 
 
 def _vcs(said: str) -> Ref:
-    """Reads a pip-style VCS ref: `git+<url>[@<rev>]#<flow>[:<sub>]`."""
-    url, _, fragment = said.partition("#")
+    """Reads a pip-style VCS ref: `git+<url>[@<rev>][#<subdir>][:<sub>]`.
+
+    The directory after the `#` is where the flow is in the repository, as an index's
+    manifest says it, and is the repository's root where there is none. A `:<sub>` with no `#`
+    is told from a port by what follows the colon: a name, where a port is followed by a path.
+    """
+    url, hashed, fragment = said.partition("#")
     if not url.startswith("git+"):
         raise FlowRefError(
-            f"{said!r}: a ref naming another flowverse is git+<url>[@<ref>]#<flow>[:<sub>]"
+            f"{said!r}: a ref naming a repository is git+<url>[@<rev>][#<subdir>][:<sub>]"
         )
-    split = urlsplit(url.removeprefix("git+"))
+    url = url.removeprefix("git+")
+    if hashed:
+        where, colon, sub = fragment.partition(":")
+    else:
+        head, colon, sub = url.rpartition(":")
+        if colon and NAME.match(sub) and "/" in head.partition("://")[2]:
+            url, where = head, ""
+        else:
+            colon, sub, where = "", "", ""
+    split = urlsplit(url)
     if split.scheme not in _SCHEMES or not (split.netloc or split.scheme == "file"):
         raise FlowRefError(f"{said!r}: {url!r} is not a URL git can fetch")
     path, at, rev = split.path.rpartition("@")
@@ -148,11 +167,14 @@ def _vcs(said: str) -> Ref:
         path, rev = split.path, ""
     if not path.strip("/"):
         raise FlowRefError(f"{said!r}: {url!r} names no repository")
-    where, colon, sub = fragment.partition(":")
-    if not NAME.match(where) or (colon and not NAME.match(sub)):
-        raise FlowRefError(f"{said!r}: #{fragment} is not <flow>[:<subflow>]")
+    where = where.strip("/")
+    parts = where.split("/") if where else []
+    if any(not NAME.match(one) or one.startswith(".") for one in parts) or (
+        colon and not NAME.match(sub)
+    ):
+        raise FlowRefError(f"{said!r}: #{fragment} is not <subdir>[:<subflow>]")
     fetched = split._replace(path=path, fragment="", query="").geturl()
-    return Ref(fetched, rev or None, where, sub)
+    return Ref(fetched, rev or None, "/".join(parts), sub)
 
 
 # ------------------------------------------------------------------------ flow modules
@@ -669,7 +691,7 @@ def home_of(flow: FlowImpl) -> FlowModule | None:
 
 
 class Remote:
-    """A flow in another flowverse, fetched the first time it is called or asked about.
+    """A flow of a repository, fetched the first time it is called or asked about.
 
     Answers to :class:`hmz.flows.Flow`; once fetched, it is that flow.
     """
@@ -685,12 +707,27 @@ class Remote:
         return f"<flow {self._ref}{'' if self.flow else ' (not fetched)'}>"
 
     def settle(self, checkout: Path, run: Run | None) -> FlowImpl:
-        """The flow, out of a fetched checkout."""
+        """The flow, out of a fetched checkout: the directory the ref names, or its root.
+
+        Or the file it names, for a flow that is one file -- which is how a release an index
+        lists as `<name>.py` in a directory is run without installing it.
+
+        Raises:
+          FlowNotFound: If there is no flow there -- saying where one is, for a ref still
+            written the way it was when a repository of flows kept them under `flows/`.
+        """
         said = self._said
-        entry = _entry(checkout / "flows", said.where)
-        if entry is None:
+        at = checkout / said.where if said.where else checkout
+        # A flow that is one file is named by the file, `#tools/review.py`, as an index names
+        # the directory it is in.
+        entry = at if at.suffix == ".py" and at.is_file() else at / ENTRY
+        if not entry.is_file():
+            where = said.where or "its root"
+            older = said.where and _entry(checkout / "flows", said.where)
+            hint = f"; there is one at #flows/{said.where}" if older else ""
             raise FlowNotFound(
-                f"{self._ref}: {said.url} has no flow called {said.where!r} in flows/"
+                f"{self._ref}: {said.url} has no flow in {where}, which holds no "
+                f"{ENTRY}{hint}"
             )
         flow = pick(module_of(entry, run), said.sub, self._ref)
         self.flow = flow

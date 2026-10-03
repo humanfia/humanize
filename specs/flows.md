@@ -438,8 +438,9 @@ def load(ref: str) -> Flow: ...
 A flow ref can be either:
 
 - (in a flow only) `:<subflow>`: another flow in the same flow module;
-- (in a flow only) `<flow>:<subflow>`: a flow in the same flowverse;
-- `<pip-style-vcs-url>#<flow>:<subflow>`: a flow in another flowverse.
+- (in a flow only) `<flow>:<subflow>`: a flow beside the flow asking;
+- `<pip-style-vcs-url>[#<subdir>][:<subflow>]`: a flow in `<subdir>` of a repository, or at
+  its root.
 
 If the parent flow is resumed, the subflows resumes as well if they are called with exactly the same task agents, envs, and params.
 

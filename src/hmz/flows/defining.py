@@ -291,10 +291,11 @@ def load(ref: str) -> Flow:
     A ref is one of:
 
     - `:<subflow>`, a flow in the same module as the flow asking;
-    - `<flow>` or `<flow>:<subflow>`, a flow in the same flowverse -- the bare form being
+    - `<flow>` or `<flow>:<subflow>`, a flow beside the flow asking -- the bare form being
       the flow named after the directory, else the one visible flow it holds;
-    - `<pip-style-vcs-url>#<flow>:<subflow>`, a flow in another flowverse, such as
-      `git+https://github.com/humanfia/flowverse@main#humanize1:rlcr`.
+    - `<pip-style-vcs-url>[#<subdir>][:<subflow>]`, a flow of a repository, in the directory
+      after the `#` or at its root, such as
+      `git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr`.
 
     A resumed flow's subflows resume too, where they are called with the same task, agents,
     environments and params as before.

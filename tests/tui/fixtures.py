@@ -17,17 +17,16 @@ installed is whatever is on the developer's own PATH, so a test that did not say
 here and fail on a machine with nothing installed, or start a real coding agent on a line
 typed as a no-op. Every test therefore starts with nothing installed until it says otherwise.
 
-And two things here fetch from a remote on a machine that only asked for the suite to pass: the
-flow menu clones what has never been fetched as it opens, and the interface takes what
-everything already fetched says now as it starts. Both are taken away here, and each is given
-back by name to the test that is about it -- `catching_up` for the menu's first fetch and
-`freshening` for the interface's.
+And one thing here fetches from a remote on a machine that only asked for the suite to pass:
+the interface takes what every flowverse's index says now as it starts, cloning `official` on a
+machine where it never has been. That is taken away here, and given back by name to the test
+that is about it -- `freshening`.
 
 Taken away for the time and the determinism, though, rather than as the promise that nothing
 here reaches anybody's network. That promise is `tests/conftest.py`'s, which refuses for the
 whole session any clone whose address names another machine: a road off the machine is a road
 off the machine wherever the test that takes it is filed, and while it was shut in this file it
-covered the interface's own tests and nothing else. So a test that asks for one of these back
+covered the interface's own tests and nothing else. So a test that asks for it back
 has not opened that road. It says which flowverse it fetches from, and the guard at the root is
 still standing behind it to refuse one that names somebody else's.
 """
@@ -43,7 +42,6 @@ import pytest
 import hmz.tui.app
 import hmz.tui.pick
 from hmz.daemon import Link
-from hmz.tui.pick import Flows
 from hmz.tui.selecting import Transcript
 
 if TYPE_CHECKING:
@@ -60,10 +58,7 @@ if TYPE_CHECKING:
 #: How long anything here waits for the interface to catch up before giving up on it.
 PATIENCE = 30.0
 
-#: Catching up on fetches, before the suite takes it away again.
-_CATCHES = Flows._catches_up
-
-#: And taking what the ones already here say now, likewise.
+#: Taking what the indexes already here say now, before the suite takes it away again.
 _FRESHENS = hmz.tui.app.Humanize._freshens_flows
 
 #: And holding runs in this process, before the suite hands every interface a fake instead.
@@ -84,11 +79,10 @@ def _elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _fetches_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Takes both fetches off the interface: the menu's first one, and the interface's own.
+    """Takes the interface's own fetch of every flowverse's index off it.
 
-    Both, rather than the one the test being written is about: a suite that left either in
-    would clone or fetch humanize's own flowverse on every interface it opens, which is a
-    suite that is slow on a network and fails without one.
+    A suite that left it in would clone or fetch humanize's own flowverse on every interface
+    it opens, which is a suite that is slow on a network and fails without one.
 
     Not the guard against reaching one, which is `_clones_nothing_elsewhere` in
     `tests/conftest.py` and is over the whole session rather than over this directory. This is
@@ -98,29 +92,19 @@ def _fetches_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     flows are already there.
     """
 
-    def nothing(_self: Flows) -> None:
-        """What catching up on fetches comes to here, which is nothing at all."""
+    def nothing(_self: Humanize) -> None:
+        """What taking what the indexes say now comes to here, which is nothing at all."""
 
-    def nor_again(_self: Humanize) -> None:
-        """Nor does taking what the ones already here say now."""
-
-    monkeypatch.setattr(Flows, "_catches_up", nothing)
-    monkeypatch.setattr(hmz.tui.app.Humanize, "_freshens_flows", nor_again)
-
-
-@pytest.fixture
-def catching_up(_fetches_nothing: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Gives it back, for a test that is about what the menu fetches as it opens.
-
-    Named after the fixture that took it away, so that it is put back after rather than
-    before: two fixtures setting one attribute is the order they run in.
-    """
-    monkeypatch.setattr(Flows, "_catches_up", _CATCHES)
+    monkeypatch.setattr(hmz.tui.app.Humanize, "_freshens_flows", nothing)
 
 
 @pytest.fixture
 def freshening(_fetches_nothing: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The same, for a test about what the interface fetches again as it starts."""
+    """Gives it back, for a test about what the interface fetches as it starts.
+
+    Named after the fixture that took it away, so that it is put back after rather than
+    before: two fixtures setting one attribute is the order they run in.
+    """
     monkeypatch.setattr(hmz.tui.app.Humanize, "_freshens_flows", _FRESHENS)
 
 

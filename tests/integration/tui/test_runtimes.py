@@ -29,9 +29,11 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
+from hmz.tui.flows import Flows
 from hmz.tui.pick import (
     _ACT_ADD,
     _ACT_IMPORTS,
+    _ACT_SAVE,
     _ACT_SEARCH,
     _ADD,
     _BUDGET,
@@ -45,7 +47,6 @@ from hmz.tui.pick import (
     _UNSAVED,
     Configures,
     Docking,
-    Flows,
     Hosting,
     Hosts,
     Importing,
@@ -927,14 +928,14 @@ async def _placing(app: Humanize, driver: Pilot[None]) -> Placing:
 
 
 async def _saves(app: Humanize, driver: Pilot[None]) -> None:
-    """Gives the flow a budget, and saves the menu from its row."""
+    """Gives the flow a budget, and saves the menu from its button."""
     await onto(app, driver, _BUDGET)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Configures), driver)
     await changes(app, driver, "duration", *"1h")
     await _done(app, driver)
     await until(lambda: isinstance(app.screen, Flows), driver)
-    await onto(app, driver, _SAVE)
+    await onto(app, driver, _ACT_SAVE)
     await driver.press("enter")
     await until(lambda: not isinstance(app.screen, Flows), driver)
 

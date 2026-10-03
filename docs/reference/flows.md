@@ -1186,7 +1186,7 @@ once per run. A `git+` ref returns a flow that is fetched when first used.
 | Raises | When |
 | --- | --- |
 | `FlowRefError` (a `ValueError`) | not a ref; `:<name>` with no flow asking (`':review' is relative to the flow asking, and no flow is asking`) |
-| `FlowNotFound` | the ref names no flow; a `git+` repository cannot be fetched or has no such flow |
+| `FlowNotFound` | the ref names no flow; a `git+` repository cannot be fetched or has no flow where the ref says |
 | `FlowLoadConflict` | importing the module would replace a module another flow of a running run uses |
 | `FlowDefinitionError` | the named module or flow is written wrong, or its import raised (`importing the flow at <dir> failed: <error>`) |
 
@@ -1195,22 +1195,24 @@ once per run. A `git+` ref returns a flow that is fetched when first used.
 | Form | Names | Resolved |
 | --- | --- | --- |
 | `:<name>` | a flow in the same module as the code calling `load` | only with a flow asking |
-| `<flow>` | the flow a bare name means in module `<flow>` | in the asking flow's own directory of flows (its flowverse), else [nearest first](#where-flows-live), else as a path |
+| `<flow>` | the flow a bare name means in module `<flow>` | in the asking flow's own directory of flows (for an installed flow, the flows installed from its flowverse), else [nearest first](#where-flows-live), else as a path |
 | `<flow>:<name>` | flow `<name>` of module `<flow>` | as above |
-| `<flowverse>/<flow>[:<name>]` | a flow of that flowverse | that flowverse only (no stand-in) |
+| `<flowverse>/<flow>[:<name>]` | a flow of that flowverse: installed from it, or for `local` and `user` in that directory | that flowverse only (no stand-in) |
 | a path | a flow directory, its `__init__.py`, or a `.py` file (`.py` may be omitted) | `~` expanded |
-| `git+<url>[@<rev>]#<flow>[:<name>]` | a flow in another repository's `flows/` | fetched; see below |
+| `git+<url>[@<rev>][#<subdir>][:<name>]` | the flow in `<subdir>` of a repository, or at its root without `#` | fetched; see below |
 
 Grammar rules:
 
-- `<name>` and `<flow>` in a `git+` fragment match `[A-Za-z0-9_][A-Za-z0-9_.-]*`.
+- `<name>`, and each `/`-separated part of `<subdir>`, match `[A-Za-z0-9_][A-Za-z0-9_.-]*`.
 - A `:` is a sub-flow separator only where what follows contains no `/`; otherwise the whole
-  string is a path.
+  string is a path. In a `git+` ref without `#`, a final `:<name>` is a sub-flow where it
+  follows the repository's path (`git+https://host/o/r@v1:review`), and a port where a path
+  follows it.
 - `git+` URLs: scheme `https`, `http`, `ssh`, `file` or `git`; a host is required except for
   `file`; `@<rev>` is the last `@` in the path; query and fragment of the URL are dropped.
-  Errors: `'<ref>': a ref naming another flowverse is git+<url>[@<ref>]#<flow>[:<sub>]`,
+  Errors: `'<ref>': a ref naming a repository is git+<url>[@<rev>][#<subdir>][:<sub>]`,
   `'<ref>': '<url>' is not a URL git can fetch`, `'<ref>': '<url>' names no repository`,
-  `'<ref>': #<fragment> is not <flow>[:<subflow>]`.
+  `'<ref>': #<fragment> is not <subdir>[:<subflow>]`.
 - A bare module name picks the flow named after the directory (or file stem); else the only
   non-hidden flow; else `FlowNotFound`
   (`<ref>: <dir> holds a, b and none is called '<stem>'; name one as <stem>:<flow>`, or
@@ -1219,9 +1221,14 @@ Grammar rules:
 
 **`git+` fetching.** `<rev>` absent means the default branch. A 40-hex `<rev>` is used as a
 commit; anything else is resolved with `git ls-remote`. The checkout is kept at
-`~/.humanize/flowverses/.pinned/<blake2b-8(url)>/<sha>` and cloned once per commit; each run
+`~/.hmz/flowverses/.pinned/<blake2b-8(url)>/<sha>` and cloned once per commit; each run
 fetches a given URL and revision at most once, on a worker thread, when the flow is first
-called (`hmz exec -f git+…` fetches before the run starts). Each git command has 120 s.
+called (`hmz exec -f git+…` fetches before the run starts). Each git command has 120 s. The
+flow is `<subdir>/__init__.py` of the checkout (the root's without `#`). Where there is none:
+`<ref>: <url> has no flow in <subdir>, which holds no __init__.py`, ending
+`; there is one at #flows/<subdir>` where a ref written for a repository that kept its flows
+under `flows/` would find one there. The same checkouts are what [installing](#flowverses)
+copies from.
 
 **Module import rules.**
 
@@ -1309,7 +1316,7 @@ async def gen_plan(task, *, agents, envs, params, ctx): ...
 
   ```console
   $ hmz exec -f humanize1 -b cost=5 "…"
-  hmz exec: error: humanize1: ~/.humanize/flowverses/official/flows/humanize1 holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>
+  hmz exec: error: humanize1: ~/.hmz/installed/official/humanize1 holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>
   ```
 
 - Lists show the flow a bare name means under the module name, and every other visible flow as
@@ -1340,30 +1347,35 @@ Names starting with `_`, and directories without `__init__.py`, are not flows.
 | --- | --- | --- |
 | 1 | `local` | `.humanize/flows/` under the current directory |
 | 2 | `user` | `~/.humanize/flows/` (literally `~`, not `HUMANIZE_HOME`) |
-| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.humanize/flowverses/official/flows/` |
-| 4 | other flowverses | `~/.humanize/flowverses/<name>/flows/`, alphabetically |
+| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.hmz/installed/official/` |
+| 4 | other flowverses | `~/.hmz/installed/<name>/`, alphabetically |
 | 5 | a path | `<name>/__init__.py`, `<name>`, `<name>.py` (`~` expanded) |
 
-`<flowverse>/<flow>` looks in that flowverse only. A name nothing answers to raises
-`FlowNotFound` (`<ref>: no flow is called '<name>', and it is not a path`); if an unfetched
-flowverse could hold it, the message is
-`<name>: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet`.
+Only what is built in, installed or in `local` and `user` is found: never a flow an index only
+lists. `<flowverse>/<flow>` looks in that flowverse only. A name nothing answers to raises
+`FlowNotFound` (`<ref>: no flow is called '<name>', and it is not a path`), unless:
+
+| Where | Message |
+| --- | --- |
+| an index lists it (`<flowverse>/` named: that one; bare: any, in listed order) | `<name>: not installed -- install it from /flow (flowverse <flowverse>)` |
+| otherwise, an index it could be in has not been fetched | `<name>: the official flowverse has not been fetched yet -- fetch it from /flow` (`the a and b flowverses have …` for several) |
 
 **Listed names.**
 
 | Listed as | Is |
 | --- | --- |
-| `chat`, `rlar` | a flow of `official` (package or repository), bare |
-| `theirs/rlar` | a flow of flowverse `theirs` |
-| `local/chat` | this project's `.humanize/flows/chat` |
-| `user/chat` | `~/.humanize/flows/chat` |
+| `chat`, `parallel_flame_chase` | built in, or installed from `official`; bare |
+| `theirs/review` | installed from flowverse `theirs` |
+| `local/chat` | this project's `.hmz/flows/chat` |
+| `user/chat` | `~/.hmz/flows/chat` |
 
 `-f` accepts either spelling; the TUI starts a flow by its listed name (`$local/twice`). What
 `/flow` remembers is keyed by the listed name ([Settings](/reference/settings)).
 
-**Forking.** `f` on a flow in `/flow`, and [`Hmz().flows.fork(name)`](/reference/sdk#flows),
-copy the whole flow into `.humanize/flows/<name>` (or `into=`). A name already present in
-either shape is refused (`ValueError`); a failed copy leaves nothing.
+**Copying here.** **Copy here** on `/flow`'s Installed page, and
+[`Hmz().flows.fork(name)`](/reference/sdk#flows), copy the whole flow into
+`.hmz/flows/<name>` (or `into=`), without an installed flow's `.installed.json`. A name
+already present in either shape is refused (`ValueError`); a failed copy leaves nothing.
 
 ## Skills {#the-skills-a-flow-brings}
 
@@ -1372,7 +1384,7 @@ names the skills its sessions carry in `_skills`.
 
 ```python
 class Reviewer(Agent):
-    _skills = ("review-notes", "https://github.com/humanfia/flowverse#writing-tests")
+    _skills = ("review-notes", "https://github.com/you/review-skills#writing-tests")
 ```
 
 | Entry | Is |
@@ -1396,33 +1408,114 @@ class Reviewer(Agent):
 
 ## Flowverses {#flowverses}
 
-A flowverse is a git repository with a `flows/` directory laid out as
-[above](#where-flows-live). Nothing outside `flows/` is read.
+A flowverse is an index: a git repository of manifests, `flows/<flow>/<version>/flow.yaml`, one
+per release of a flow. Nothing else in it is read, and nothing in it is imported. What runs is
+what was [installed](#installing) from it.
 
 | Flowverse | Location | Fetched | Removable |
 | --- | --- | --- | --- |
-| `official` | package `hmz/flows/builtin/` + clone of `https://github.com/humanfia/flowverse` at `~/.humanize/flowverses/official/` | clone on demand; in the background each time `hmz` starts | no |
-| `local` | `.humanize/flows` (relative to the current directory) | never | no |
-| `user` | `~/.humanize/flows` | never | no |
-| any other | `~/.humanize/flowverses/<name>/` | clone on `add`; `fetch` refreshes | yes |
+| `official` | package `hmz/flows/builtin/` + what is installed from the clone of `https://github.com/humanfia/flowverse` at `~/.hmz/flowverses/official/` | in the background each time `hmz` starts (cloned the first time); on demand | no |
+| `local` | `.hmz/flows` (relative to the current directory) | never | no |
+| `user` | `~/.hmz/flows` | never | no |
+| any other | what is installed from the clone at `~/.hmz/flowverses/<name>/` | clone on `add`; in the background each time `hmz` starts; on demand | yes |
 
 **Order.** Listed: `official`, others alphabetically, `local`, `user`. Looked up:
 `local`, `user`, then the listed order.
 
 | Operation | Behaviour | Errors |
 | --- | --- | --- |
-| add `<url>` [`<name>`] | `git clone --depth 1` into `.<name>.XXXXXXXX` beside the target, then renamed into place. `<url>` may be `owner/repo` (GitHub) unless a local path of that name exists. Name defaults to the repository name less `.git`. | `ValueError`: name not `[A-Za-z0-9][A-Za-z0-9._-]*`; `official`/`local`/`user`; already exists. `OSError`: git missing, clone failed (60 s timeout) |
-| fetch `<name>` | Clone if never fetched; otherwise `git fetch --depth 1 origin HEAD` + `git reset --hard FETCH_HEAD` (local edits to tracked files are lost). | `ValueError`: unknown; `local`/`user`; a directory that is not a clone |
-| remove `<name>` | Deletes the directory. | `ValueError` for the three fixed ones |
+| add `<url>` [`<name>`] | `git clone --depth 1` into `.<name>.XXXXXXXX` beside the target, then renamed into place. `<url>` may be `owner/repo` (GitHub) unless a local path of that name exists. Name defaults to the repository name less `.git`. Installs nothing. | `ValueError`: name not `[A-Za-z0-9][A-Za-z0-9._-]*`; `official`/`local`/`user`; already exists. `OSError`: git missing, clone failed (60 s timeout) |
+| fetch `<name>` | Clone if never fetched; otherwise `git fetch --depth 1 origin HEAD` + `git reset --hard FETCH_HEAD` (local edits to tracked files are lost). Installed flows are not touched. | `ValueError`: unknown; `local`/`user`; a directory that is not a clone |
+| remove `<name>` | Deletes the clone and `~/.hmz/installed/<name>/`: every flow installed from it. | `ValueError` for the three fixed ones |
 
 A stale half-clone `.<name>.*` older than 60 s is removed before the next clone of that name.
-Where a flowverse came from is shown with any `user:password@` in its URL replaced by `***@`.
-Managed on the [Flowverses page of `/settings`](/reference/tui#where-flows-come-from) and with
+The background fetch at start skips a clone whose tracked files have local edits. Where a
+flowverse came from is shown with any `user:password@` in its URL replaced by `***@`. Managed
+on [`/flow`'s Flowverses page](/reference/tui#where-flows-come-from) and with
 [`Hmz().verses`](/reference/sdk#flowverses).
 
-::: warning A flowverse is code
-Listing a flowverse imports the entry point of every flow in its `flows/`. Adding one trusts
-that repository with this machine.
+### Manifests {#manifests}
+
+```yaml
+name: parallel_flame_chase
+version: 0.1.0
+description: Report-driven lanes of alternating agents planned by a coordinator.
+repo: humanfia/flow-parallel-flame-chase
+ref: v0.1.0
+commit: <40 hex>
+subdir: parallel_flame_chase
+license: Apache-2.0
+dependencies:
+  humanize1: ">=0.1.0,<0.2.0"
+```
+
+| Key | Type | Required | Rule |
+| --- | --- | --- | --- |
+| `name` | `str` | yes | `[a-z][a-z0-9_]*`; equal to the `<flow>` directory; not a built-in flow's name |
+| `version` | `str` | yes | SemVer 2.0.0; equal to the `<version>` directory |
+| `description` | `str` | no | one line |
+| `repo` | `str` | yes | `owner/repo` (GitHub, fetched from `https://github.com/<owner>/<repo>`) or a URL starting `https://`, `http://`, `ssh://`, `git://` or `file://` |
+| `ref` | `str` | no | the tag or branch the release was cut from; informational |
+| `commit` | `str` | yes | 40 hex digits (case-folded); what is installed |
+| `subdir` | `str` | no | the directory holding the flow (`__init__.py`, or `<name>.py`); `""` or `.` for the root; no part hidden or climbing |
+| `license` | `str` | no | SPDX identifier |
+| `dependencies` | `{flow: range}` | no | flows of the same flowverse; a range is clauses joined by `,`, all of which hold, each `<`, `<=`, `>`, `>=`, `==` or `!=` and a version, a bare version meaning `==` |
+
+Other keys are ignored. A manifest that is unreadable, not a mapping, fails a rule above, or is
+missing from a version directory is **skipped**: listed with why (`name: …`,
+`version 0.2.0 is not the directory it is in, 0.1.0`,
+`rlar is built into humanize; nothing may be installed over it`) and never an error. Hidden
+directories are not read.
+
+Within a flow, releases are ordered by SemVer, newest first. The release a flow is shown and
+installed by when none is named is the newest that is not a prerelease, else the newest
+prerelease.
+
+### Installing {#installing}
+
+Installing `<flow>` at `<version>` (default as above) from flowverse `<verse>`:
+
+1. **Plan.** The release, then for each dependency in name order: skipped where the release
+   already chosen for it, or the one installed, satisfies the range; else the newest in range
+   (as above), visited in turn. Refused with `ValueError`:
+
+   | Refusal | Message |
+   | --- | --- |
+   | no such flowverse, not an index, not fetched | `no flowverse called '<verse>'`, `<verse> is a directory of your own flows, not an index`, `<verse> has not been fetched yet; fetch it first` |
+   | no such flow or release | `<verse> lists no flow called <flow>`, `<verse> lists no release <version> of <flow>` |
+   | a cycle | `<a> needs itself, through <a> -> <b> -> <a>` |
+   | nothing in range | `<flow> <version> needs <dep> <range>, and <verse> lists no release of it in that range` |
+   | two ranges for one flow that one release cannot meet | `<flow> <version> needs <dep> <range>, and <dep> <v> is what the rest of this install needs` |
+   | another installed flow's range broken | `<other> <v> needs <flow> <range>; installing <flow> <version> would break it` |
+
+2. **Copy**, dependencies first, the asked-for flow last; a flow already installed at the same
+   version and commit is left. Each is fetched as a [`git+` ref](#refs) at `commit` (the same
+   cached checkout), and `subdir` is copied, without `.git` and `__pycache__`, into
+   `.<flow>.XXXXXXXX` beside the target; a single `<flow>.py` becomes that directory's
+   `__init__.py`. `.installed.json` is written into it, and it is renamed into
+   `~/.hmz/installed/<verse>/<flow>/`, the release it replaces moved aside first. No subdir
+   holding the flow: `ValueError`
+   (`<repo> at <commit[:12]> has no flow in <subdir|its root>: neither __init__.py nor <flow>.py`);
+   fetch or copy failed: `OSError`.
+
+`.installed.json`: `verse`, `name`, `version`, `commit`, `repo`, `ref`, `subdir`,
+`dependencies`. A directory without one that reads is not an installed flow.
+
+**Uninstalling** renames the directory aside and deletes it. Refused with `ValueError` where
+another flow installed from the same flowverse lists it in `dependencies`:
+`<a>, <b> need <flow>; uninstall that first`.
+
+**Updates.** An installed flow has an update where its index, as last fetched, lists a newer
+release: a prerelease only for a flow installed at one. After the background fetch at start,
+the TUI says once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`.
+
+The flows installed from one flowverse are one directory of flows, so a bare ref
+(`humanize1:rlcr`) from inside one finds the others.
+
+::: warning An installed flow is code
+Adding or fetching a flowverse imports nothing. Listing flows imports the entry point of every
+installed flow, and a run executes it. Installing one trusts its repository with this
+machine.
 :::
 
 ### The flow in the package {#the-flow-in-the-package}
@@ -1437,8 +1530,10 @@ the run; later failures are reported and the conversation continues.
 
 ### The official flowverse {#the-official-flowverse}
 
-[humanfia/flowverse](https://github.com/humanfia/flowverse), `flows/`. Every flow here also has
-a `workspace: LocalEnv` role; `human` is an `Outworlder`. None declares a budget of its own.
+The flows humanize offers besides `chat`. Those not built into the package are listed by
+[humanfia/flowverse](https://github.com/humanfia/flowverse), each released from a repository of
+its own (`humanfia/flow-<name>`), and run once [installed](#installing). Every flow here also
+has a `workspace: LocalEnv` role; `human` is an `Outworlder`. None declares a budget of its own.
 Read [Security](/user/security) before running any.
 
 | Flow | Agent roles | Roles need | Resumable |
@@ -1453,9 +1548,9 @@ Read [Security](/user/security) before running any.
 | [`humanize1:gen-plan`](/flows/humanize1) | `planner`, `analyst` | | |
 | [`humanize1:rlcr`](/flows/humanize1) | `builder`, `reviewer`, `human` | `builder`: `PermissionRequestHookAgentMixin` | ✓ |
 | [`parallel_flame_chase`](/flows/parallel-flame-chase) | `coordinator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr) | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`ralph_loop_agent_cleanup`](/flows/ralph-loop-agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
-| [`flame_chase_agent_cleanup`](/flows/flame-chase-agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
+| [`parallel_flame_chase:git_pr`](/flows/parallel-flame-chase-git-pr) | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
+| [`agent_cleanup:ralph_loop`](/flows/ralph-loop-agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
+| [`agent_cleanup:flame_chase`](/flows/flame-chase-agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
 | [`recursive_lean_prover`](/flows/recursive-lean-prover) | `worker`, `reviewer` | `worker`: `PermissionRequestHookAgentMixin` | ✓ |
 | [`aot`](/flows/aot) | `writer`, `critic`, `human` | | |
 

@@ -20,13 +20,16 @@ import { withBase } from 'vitepress'
 - **Where agents work is yours.** Here or on [another machine](/features/anchor), chosen at run time.
 - **Calls nest.** A called flow's budget fits inside what its caller has left, and runs
   [side by side](/features/concurrency).
-- **Skills travel with it.** Copy a flow and its skills come along; fork one to make it yours.
+- **Skills travel with it.** Copy a flow and its skills come along; copy one into your project
+  to make it yours.
+- **Published by release.** A published flow lives in a repository of its own, and is installed
+  from a [flowverse](/weaver/flowverses) at the exact commit its release names.
 
 </div>
 
 ::: warning A flow is code
-Running a flow runs its Python, with its agents' approvals bypassed. Add a flowverse only if you
-would install its code. See [Security](/user/security).
+Running a flow runs its Python, with its agents' approvals bypassed. Install a flow only if you
+would install its code as a package. See [Security](/user/security).
 :::
 
 <div class="hmz-paths by-three">

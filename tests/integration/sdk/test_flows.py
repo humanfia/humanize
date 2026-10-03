@@ -1,26 +1,36 @@
 """The flows there are and the places they come from, reached through the SDK.
 
-A command line, the interface and a daemon each ask this rather than the three modules behind
-it, so what is checked here is that all three would get the same answer: a flowverse added
-from here is one the listing offers a moment later, a flow's name resolves to the file it is
-written in, and the handful of answers every way in needs -- what a flow takes, what it says
-about itself, whether it can be picked up -- come off the flow rather than off a second copy
-of the facts.
+A command line, the interface and a daemon each ask this rather than the modules behind it,
+so what is checked here is that all three would get the same answer: a flowverse added from
+here is one whose index the listing reads a moment later, a flow installed out of it is one it
+offers, a flow's name resolves to the file it is written in, and the handful of answers every
+way in needs -- what a flow takes, what it says about itself, whether it can be picked up --
+come off the flow rather than off a second copy of the facts.
 
-The flowverse fetched from is a git repository under `tmp_path`. Nothing here reaches a
-network, and nothing starts a coding agent.
+The index fetched from, and the repository its releases live in, are git repositories under
+`tmp_path`. Nothing here reaches a network, and nothing starts a coding agent.
 """
 
 from __future__ import annotations
 
-import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.flows import FlowNotFound
-from hmz.runtime.flowing import ENTRY, FLOWS, LOCAL, OFFICIAL, USER
+from hmz.runtime.flowing import (
+    BUILTIN_AT,
+    ENTRY,
+    LOCAL,
+    OFFICIAL,
+    USER,
+    Index,
+    Update,
+    offered,
+)
+from hmz.runtime.flowing import verses as store
 from hmz.sdk import Hmz
+from tests.flows.indexes import committed, listed, release
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -66,22 +76,26 @@ async def run(task, *, agents, envs, params, ctx):
 '''
 
 
-def _git(*said: str, at: Path) -> None:
-    """Runs one git command in a directory, failing the test if it fails."""
-    subprocess.run(["git", "-C", str(at), *said], check=True, capture_output=True)
+@pytest.fixture
+def code(tmp_path: Path) -> tuple[str, str]:
+    """The repository the releases here live in: two flows, a directory apiece.
+
+    Returns:
+      Where it is fetched from, and the commit every release here was cut from.
+    """
+    where = tmp_path / "code"
+    written(where, "loop", FLOW)
+    written(where, "second", FLOW)
+    return f"file://{where}", committed(where, "two flows")
 
 
 @pytest.fixture
-def theirs(tmp_path: Path) -> Path:
-    """A repository of one flow, to be fetched from."""
+def theirs(tmp_path: Path, code: tuple[str, str]) -> Path:
+    """An index of one release of one flow, to be fetched from."""
+    url, commit = code
     where = tmp_path / "theirs"
-    (where / FLOWS).mkdir(parents=True)
-    written(where / FLOWS, "loop", FLOW)
-    _git("init", "-b", "main", at=where)
-    _git("config", "user.email", "t@example.com", at=where)
-    _git("config", "user.name", "t", at=where)
-    _git("add", "-A", at=where)
-    _git("commit", "-m", "one flow", at=where)
+    listed(where, release("loop", "0.1.0", url, commit, subdir="loop"))
+    committed(where, "one release")
     return where
 
 
@@ -124,9 +138,10 @@ def test_a_place_is_found_by_name_and_a_name_none_answers_to_is_nothing() -> Non
     assert verses.find("not-a-flowverse") is None
 
 
-def test_a_place_added_here_is_one_the_listing_offers_a_moment_later(
+def test_a_place_added_here_is_one_whose_index_the_listing_reads_a_moment_later(
     theirs: Path,
 ) -> None:
+    """What it lists is to install, and none of it is a flow to run until it is."""
     verses = Hmz().verses
 
     added = verses.add(str(theirs), "theirs")
@@ -134,8 +149,72 @@ def test_a_place_added_here_is_one_the_listing_offers_a_moment_later(
     assert added.name == "theirs"
     assert added.fetched
     assert "theirs" in [one.name for one in verses.all()]
+    assert verses.index("theirs").flows() == ["loop"]
+    assert verses.holds(added) == []
+    assert "theirs/loop" not in [one.name for one in Hmz().flows.all()]
+
+
+def test_a_flow_installed_here_is_one_the_listing_offers_a_moment_later(
+    theirs: Path,
+) -> None:
+    verses = Hmz().verses
+    added = verses.add(str(theirs), "theirs")
+
+    (done,) = verses.install("theirs/loop")
+
+    assert (done.verse, done.name, done.version) == ("theirs", "loop", "0.1.0")
+    assert verses.installed() == [done]
     assert [one.name for one in verses.holds(added)] == ["theirs/loop"]
     assert "theirs/loop" in [one.name for one in Hmz().flows.all()]
+    assert Hmz().flows.about("theirs/loop") == "A flow of somebody else's."
+
+
+def test_a_flow_uninstalled_here_is_gone_and_uninstalling_it_twice_says_so(
+    theirs: Path,
+) -> None:
+    verses = Hmz().verses
+    verses.add(str(theirs), "theirs")
+    verses.install("theirs/loop")
+
+    assert verses.uninstall("theirs/loop")
+
+    assert verses.installed() == []
+    assert "theirs/loop" not in [one.name for one in Hmz().flows.all()]
+    assert not verses.uninstall("theirs/loop")
+
+
+def test_a_bare_name_installs_one_of_humanize_s_own(
+    theirs: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """As a bare name runs one: humanize's own flows are the ones nobody has to name."""
+    monkeypatch.setattr(store, "OFFICIAL_URL", str(theirs))
+    verses = Hmz().verses
+    verses.fetch(OFFICIAL)
+
+    (done,) = verses.install("loop")
+
+    assert (done.verse, done.called) == (OFFICIAL, "loop")
+    assert "loop" in [one.name for one in Hmz().flows.all()]
+    assert verses.uninstall("loop")
+    assert "loop" not in [one.name for one in Hmz().flows.all()]
+
+
+def test_installing_what_an_index_does_not_list_is_refused(theirs: Path) -> None:
+    verses = Hmz().verses
+    verses.add(str(theirs), "theirs")
+
+    with pytest.raises(ValueError, match="lists no flow called nothing"):
+        verses.install("theirs/nothing")
+    with pytest.raises(ValueError, match=r"lists no release 9\.9\.9 of loop"):
+        verses.install("theirs/loop", "9.9.9")
+
+
+def test_a_place_that_is_not_an_index_lists_nothing_to_install() -> None:
+    verses = Hmz().verses
+
+    assert verses.index(LOCAL) == Index(LOCAL)
+    assert verses.index(OFFICIAL) == Index(OFFICIAL)  # not fetched yet
+    assert verses.index("not-a-flowverse") == Index("not-a-flowverse")
 
 
 def test_a_place_is_kept_in_the_directory_this_says_whether_or_not_it_was_fetched() -> (
@@ -149,16 +228,28 @@ def test_a_place_is_kept_in_the_directory_this_says_whether_or_not_it_was_fetche
     assert at.name == "theirs"
 
 
-def test_a_place_fetched_again_is_a_fetch_rather_than_a_merge(theirs: Path) -> None:
+def test_a_place_fetched_again_lists_what_was_published_and_runs_what_it_ran(
+    theirs: Path, code: tuple[str, str]
+) -> None:
+    """A newer release fetched is an update to offer, not one to take."""
+    url, commit = code
     verses = Hmz().verses
     verses.add(str(theirs), "theirs")
-    written(theirs / FLOWS, "second", FLOW)
-    _git("add", "-A", at=theirs)
-    _git("commit", "-m", "another flow", at=theirs)
+    (loop,) = verses.install("theirs/loop")
+    listed(
+        theirs,
+        release("loop", "0.2.0", url, commit, subdir="loop"),
+        release("second", "0.1.0", url, commit, subdir="second"),
+    )
+    committed(theirs, "two more releases")
+    assert verses.updates() == []  # published, and not fetched yet
 
     again = verses.fetch("theirs")
 
-    assert {one.name for one in verses.holds(again)} == {"theirs/loop", "theirs/second"}
+    assert verses.index("theirs").flows() == ["loop", "second"]
+    assert verses.updates() == [Update(loop, "0.2.0")]
+    assert [one.name for one in verses.holds(again)] == ["theirs/loop"]
+    assert verses.installed() == [loop]
 
 
 def test_a_place_taken_away_is_gone_and_taking_it_away_twice_says_so(
@@ -184,9 +275,10 @@ def test_a_place_that_has_not_been_fetched_holds_nothing_rather_than_failing() -
     official = verses.find(OFFICIAL)
     assert official is not None
 
-    if official.fetched:
-        pytest.skip("humanize's own flowverse has been fetched on this machine")
-    assert [one.name for one in verses.holds(official)] == ["chat"]
+    assert not official.fetched
+    held = [one.name for one in verses.holds(official)]
+    assert "chat" in held
+    assert {one.partition(":")[0] for one in held} == set(offered(BUILTIN_AT))
 
 
 def test_what_was_signed_into_a_url_is_not_what_is_printed_of_it() -> None:
