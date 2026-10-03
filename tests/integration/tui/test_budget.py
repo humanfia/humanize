@@ -13,6 +13,7 @@ import datetime
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from textual.geometry import Offset
 from textual.widgets import Label, OptionList
 
 from hmz.coganchor.backends import Model
@@ -20,8 +21,8 @@ from hmz.flows import Budget
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import _BUDGET, _DONE, _SAVE, Configures, Flows, budget_of
-from tests.integration.tui.test_app import changes, onto, opens, picks, rows
+from hmz.tui.pick import _ACT_DONE, _BUDGET, _SAVE, Configures, Flows, budget_of
+from tests.integration.tui.test_app import bar, changes, onto, opens, picks, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -84,6 +85,20 @@ def _under(app: Humanize) -> str:
     return str(app.screen.query_one("#tuning", Label).content)
 
 
+def _on_row(sheet: Configures, held: str) -> Offset:
+    """Where on a sheet's list one of its rows is drawn, from the list's corner, to click.
+
+    A row is as many lines as what it says takes, under the list's border, so where one is
+    drawn is read off the list rather than counted.
+    """
+    listing = sheet.query_one("#choices", OptionList)
+    at = [str(one.id) for one in listing.options].index(held)
+    # Textual keeps no public map from an option to the line it starts on.
+    line = listing._index_to_line[at]
+    inside = listing.content_region.offset - listing.region.offset
+    return Offset(inside.x + 4, inside.y + line - round(listing.scroll_offset.y))
+
+
 @pytest.mark.timeout(60)
 async def test_the_row_says_what_the_run_is_held_to_without_being_opened(
     flows: Path,
@@ -109,13 +124,14 @@ async def test_what_is_set_there_is_kept_and_read_back(
         await until(lambda: isinstance(app.screen, Configures), driver)
         sheet = cast("Configures", app.screen)
 
-        # The four `-b` takes, and the row that sets them.
-        assert rows(app) == ["duration", "cost", "output_tokens", "graceful", _DONE]
+        # The four `-b` takes, and the button under them that sets them.
+        assert rows(app) == ["duration", "cost", "output_tokens", "graceful"]
+        assert bar(app) == [_ACT_DONE]
 
         await changes(app, driver, "duration", *"1h")  # written, as `-b` writes one
         await changes(app, driver, "cost", "1")  # the 0.0 there, selected, typed over
         assert (sheet._typed_in["duration"], sheet._typed_in["cost"]) == ("1h", "1")
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
 
@@ -166,7 +182,7 @@ async def test_a_budget_that_limits_nothing_is_refused_where_it_is_typed(
         await opens(app, driver, _BUDGET)
         await until(lambda: isinstance(app.screen, Configures), driver)
 
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await driver.pause()
 
@@ -250,8 +266,8 @@ async def test_the_conversation_humanize_ships_is_never_asked_for_one(
 
 
 async def _sets(app: Humanize, driver: Pilot[None]) -> Flows:
-    """Answers the budget sheet from its last row, back on to the menu."""
-    await onto(app, driver, _DONE)
+    """Answers the budget sheet from the button under it, back on to the menu."""
+    await onto(app, driver, _ACT_DONE)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Flows), driver)
     return cast("Flows", app.screen)
@@ -400,7 +416,7 @@ async def test_whether_a_run_finishes_its_turn_is_picked_from_a_list(
         )
 
         # The fourth row, clicked: the list drops, opening on the answer it is not.
-        await driver.click("#choices", offset=(8, 3))
+        await driver.click("#choices", offset=_on_row(sheet, "graceful"))
         await until(lambda: isinstance(app.screen, Dropdown), driver)
         values = app.screen.query_one(OptionList)
         assert [str(one.id) for one in values.options] == ["=on", "=off"]

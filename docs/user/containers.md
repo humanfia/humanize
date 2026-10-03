@@ -106,34 +106,71 @@ Say this machine has 64 CPUs and two GPUs, and a flow's container should get no 
 of those CPUs and 8 GB. Save the daemon with that allowance, then name it.
 
 **1. Save it.** `/settings runtimes` opens the [Runtimes
-page](/user/settings#runtimes). Choose **Add a runtime…**, then `docker host`:
+page](/user/settings#runtimes). Choose **Add a runtime…**, then `docker host`. Type the name,
+`4` on `cpus` and `8G` on `memory`, then <kbd>tab</kbd> to the buttons and <kbd>→</kbd> to
+**Done**:
 
 ```text
-   Add a docker host
-   A docker daemon where flow environments run in containers: on this machine, over ssh, or at an
-   address. Flows running on it are limited to the resources configured here.
-      1. endpoint        local ▾    the default docker daemon on this machine          ①
-      2. name            gpubox     name used in -e and /flow                          ②
-      3. image                      default image, unless specified by the flow        ③
-      4. OCI runtime                e.g. nvidia; blank for daemon default
-      5. run args                   extra arguments for docker run
-      6. max containers             max concurrent containers; blank for no limit
-      7. workdir                    default working directory when -e specifies no directory
-      8. falls back to              runtimes to try in order if this one cannot: docker:box, ssh:gpu2
-      9. cpus            4          max CPUs; blank to use all host CPUs               ④
-   ❯ 10. memory          8G         e.g. 64G; blank to use all host memory
-     11. gpus                       GPU IDs, e.g. 0, 1; blank to use all host GPUs
-         detect                    detect host resources and fill them in
-         done                      adds docker/gpubox and detects host resources
+  hmz › /settings › Runtimes › Add a docker host             ● unsaved changes
+  A docker daemon where flow environments run in containers: on this machine,
+  over ssh, or at an address. Flows running on it are limited to the resources
+  configured here.
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ endpoint                                                         local ▾ │  ①
+  │   the default docker daemon on this machine                              │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ name                                                              gpubox │  ②
+  │   name used in -e and /flow                                              │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ harness runs on                                                        — │
+  │   where an agent's harness runs, in order, the next only when one has no │
+  │   room: self, local, ssh:<name>, docker:<name>, swarm:<name>; blank for  │
+  │   self where the CLI is there, else local                                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ image                                                                  — │  ③
+  │   default image, unless specified by the flow                            │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ OCI runtime                                                            — │
+  │   e.g. nvidia; blank for daemon default                                  │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ run args                                                               — │
+  │   extra arguments for docker run                                         │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ max containers                                                         — │
+  │   max concurrent containers; blank for no limit                          │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ workdir                                                                — │
+  │   default working directory when -e specifies no directory               │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ falls back to                                                          — │
+  │   runtimes to try in order if this one cannot: docker:box, ssh:gpu2      │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ cpus                                                                   4 │  ④
+  │   max CPUs; blank to use all host CPUs                                   │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ memory                                                                8G │
+  │   e.g. 64G; blank to use all host memory                                 │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ gpus                                                                   — │
+  │   GPU IDs, e.g. 0, 1; blank to use all host GPUs                         │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+   adds docker/gpubox and detects host resources
+
+  Detect                                                                  Done
+
+  enter done   ←/→ move   tab list   esc back
 ```
 
-`done` saves it and asks the daemon at once:
+**Done** saves it and asks the daemon at once:
 
 ```text
- docker
- gpubox                    local · 4 CPUs, 8G
- docker/gpubox answers: docker 29.4.3; 64 CPUs, 2015G, GPUs 0, 1; OCI runtimes      ⑤
- nvidia, io.containerd.runc.v2, runc
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ docker                                                                   │
+  │ gpubox                    local · 4 CPUs, 8G                             │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+   docker/gpubox answers: docker 29.4.3; 64 CPUs, 2015G, GPUs 0, 1; OCI runtimes  ⑤
+   nvidia, io.containerd.runc.v2, runc
 ```
 
 **2. Name it in the environment role:**
@@ -162,12 +199,14 @@ hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
 ### What each part means
 
 1. **`endpoint`** is which daemon: `local` for this machine's, or a socket, a TCP address, a
-   saved ssh host, an ssh address or a docker context. The row below it asks for whatever that
-   choice needs.
+   saved ssh host, an ssh address or a docker context. The rows under it then ask for whatever
+   that choice needs; `local` needs none.
 2. **`name`** is what `-e` names: `docker@gpubox/…`.
 3. **`image`**, left blank, leaves the choice to the flow, then `python:3.12-slim`.
 4. **`cpus` and `memory`** cap what this daemon may hand out to humanize's containers, across
-   every run on it at once. `detect` fills in everything the daemon has, to type over.
+   every run on it at once. **Detect**, beside **Done**, asks the daemon and writes in
+   everything it has, to type over: the line under the list says `detecting resources on
+   local…`, then what it found, and the cursor lands on `cpus`.
 5. **`answers`** is the check: the daemon's version, what it has, and its runtimes. What it was
    saved to hand out and has not got is said in yellow.
 6. **`pip install pytest` failed** in the container, and the agent installed into the project
@@ -301,9 +340,9 @@ pitfalls all apply here.
 
 ### A daemon on another machine
 
-On the Add a docker host form, set `endpoint` to `saved ssh host` and choose the host: the
-daemon there is reached with everything that host was saved with. The workdir is then a
-directory of *that* host, and has to exist there.
+On the Add a docker host form, set `endpoint` to `saved ssh host` and choose the host on the
+`on` row under it: the daemon there is reached with everything that host was saved with. The
+workdir is then a directory of *that* host, and has to exist there.
 
 ### A docker swarm {#a-docker-swarm}
 
@@ -343,7 +382,7 @@ ssh host, `ssh://`, `tcp://` or a context.
 ### Another daemon when this one is full
 
 A daemon at its `max containers`, or without the CPUs, memory or GPUs a role asks left free,
-cannot hold that role, and the run is refused. Fill in **falls back to** on its form with other
+cannot hold that role, and the run is refused. Fill in `falls back to` on its form with other
 saved runtimes, in the order to try them (`docker:spare, ssh:gpu2`), and the environment moves to
 the first of them that can hold it instead, in that runtime's own workdir where it has one:
 

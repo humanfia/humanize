@@ -139,7 +139,7 @@ def test_one_leaves_it_running_comes_back_and_the_other_stops_it(
 
     # Alice leaves, and leaves the run running: her interface goes, the run does not.
     panes.types(alice, "/exit")
-    panes.waits(alice, "detach and exit")
+    panes.waits(alice, "Detach and exit")
     panes.presses(alice, "Down")
     panes.presses(alice, "Enter")
     time.sleep(2.0)

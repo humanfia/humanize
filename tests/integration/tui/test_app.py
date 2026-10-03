@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from textual import events
-from textual.widgets import Label, OptionList, Static
+from textual.widgets import Button, Input, Label, OptionList, Static
 
 from hmz.coganchor.agents import DshSession
 from hmz.coganchor.backends import Model
@@ -29,11 +29,11 @@ from hmz.tui.app import _BY_NAME, _COMMANDS, _SAID, Editor, _where
 from hmz.tui.monitoring import Monitoring
 from hmz.tui.pick import (
     _ACT_ADD,
+    _ACT_AGAIN,
+    _ACT_DONE,
     _ACT_SAVE,
-    _ADD,
-    _AGAIN,
+    _ACT_SEARCH,
     _BUDGET,
-    _DONE,
     _SAVE,
     _SEARCH,
     Accounts,
@@ -132,10 +132,11 @@ def under(app: Humanize) -> str:
 
 
 def rows(app: Humanize) -> list[str]:
-    """What the sheet on top is offering, less the row that starts a search.
+    """What the sheet on top is offering, less a row that starts a search.
 
-    Every list long enough to be searched has that row, so a test about what a list offers
-    would otherwise be a test that it can be searched as well.
+    The flow menu still has that row among its own, so a test about what a list offers would
+    otherwise be a test that it can be searched as well. Every other list is searched from a
+    button under it, which is not a row.
     """
     return [one for one in ids(app) if one != _SEARCH]
 
@@ -156,15 +157,15 @@ async def into_flows(app: Humanize, driver: Pilot[None]) -> None:
 
 
 async def onto(app: Humanize, driver: Pilot[None], held: str) -> None:
-    """Walks the cursor on to the row put up under one id.
+    """Walks the cursor on to the row put up under one id, or the focus on to a button.
 
     Args:
       app: The interface.
       driver: What is pumping it.
-      held: The row, by its id -- or, on a page of `/settings`, one of the buttons under
-        its list by its key, which tab walks the focus on to.
+      held: The row, by its id -- or one of the buttons under the list by its key, which
+        tab walks the focus on to, as it would for somebody at the keys.
     """
-    if isinstance(app.screen, Adjusts) and held in bar(app):
+    if held in bar(app):
         button = app.screen.query_one(f"#act-{held}")
         for _ in range(len(bar(app)) + 3):
             if button.has_focus:
@@ -173,10 +174,7 @@ async def onto(app: Humanize, driver: Pilot[None], held: str) -> None:
             await driver.pause()
         assert button.has_focus, f"tab never reached {held!r}"
         return
-    if (
-        isinstance(app.screen, Adjusts)
-        and not app.screen.query_one("#choices").has_focus
-    ):
+    if not app.screen.query_one("#choices").has_focus:
         app.screen.query_one("#choices").focus()
         await driver.pause()
     listing = app.screen.query_one("#choices", OptionList)
@@ -291,7 +289,7 @@ async def into_settings(
 
 
 def bar(app: Humanize) -> list[str]:
-    """The buttons under the list of the settings page on top, by key, in the order they stand."""
+    """The buttons under the list of the sheet on top, by key, in the order they stand."""
     return [
         (one.id or "").removeprefix("act-")
         for one in app.screen.query("#actions Button")
@@ -299,8 +297,34 @@ def bar(app: Humanize) -> list[str]:
     ]
 
 
+def keyed(app: Humanize) -> list[str]:
+    """What the row of keys under the sheet on top says, a `key does` apiece.
+
+    Read off the keys the sheet kept rather than out of the line it drew from them, which
+    picks each key out from what it does in markup of its own.
+    """
+    from hmz.tui.pick import Sheet
+
+    sheet = app.screen
+    assert isinstance(sheet, Sheet)
+    return [f"{one.key} {one.does}" for one in sheet._keyed]
+
+
+def reads(app: Humanize, at: int) -> str:
+    """What one row of the sheet on top says, as words, by where it is in the list.
+
+    A row's line about itself is wrapped onto further lines, each in markup of its own, so a
+    phrase is looked for in what the row reads as rather than in how it is laid out.
+    """
+    from textual.content import Content
+
+    listing = app.screen.query_one("#choices", OptionList)
+    said = Content.from_markup(str(listing.get_option_at_index(at).prompt)).plain
+    return " ".join(said.split())
+
+
 async def acts(app: Humanize, driver: Pilot[None], held: str) -> None:
-    """Clicks one of the buttons under the list of the settings page on top.
+    """Clicks one of the buttons under the list of the sheet on top.
 
     Args:
       app: The interface.
@@ -423,7 +447,7 @@ async def keeps(app: Humanize, driver: Pilot[None]) -> None:
     """Leaves the sheet on top, saving what it is holding when it asks.
 
     A menu applies nothing until it is left, so this is what applying one is: esc, and then
-    the first row of the question it puts up about what it is holding.
+    the first answer of the question it puts up about what it is holding, which has the focus.
 
     Args:
       app: The interface.
@@ -787,7 +811,7 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
         assert sheet._inside  # it opens on the agents, the flows not being offered
         # And nothing draws the places, which are about which list of flows is being read.
         assert not str(sheet.query_one("#tabs", Label).content)
-        assert "esc close" in str(sheet.query_one("#keys", Label).content)
+        assert "esc close" in keyed(app)
 
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Flows), driver)
@@ -1261,9 +1285,10 @@ async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None
             await into_flows(app, driver)
             sheet = cast("Flows", app.screen)
             assert "chat" in rows(app)[0]  # the flows, one place at a time
-            assert "enter open" in str(sheet.query_one("#keys", Label).content)
+            assert "enter open" in keyed(app)
 
-            # Tab is not a key of this menu at all: it turns nothing, and nothing moves.
+            # Tab moves the focus between the list and the buttons under it, and turns no
+            # page: the flows and their agents are not two views of one thing.
             await driver.press("tab")
             await driver.pause()
             assert not sheet._inside
@@ -1274,7 +1299,7 @@ async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None
             # nobody's to choose -- what a run may spend, and the row the lot is saved from.
             assert rows(app) == ["0", _BUDGET, _SAVE]
             assert "chat" in str(sheet.query_one("#asked", Label).content)
-            assert "esc back to flows" in str(sheet.query_one("#keys", Label).content)
+            assert "esc back to flows" in keyed(app)
 
             await driver.press("escape")
             await until(lambda: not sheet._inside, driver)
@@ -1357,7 +1382,6 @@ async def test_settings_is_one_menu_of_six_pages() -> None:
         # held, so there is nothing to save it from.
         assert _ACT_ADD in bar(app)
         assert _ACT_SAVE not in bar(app)
-        assert _ADD not in rows(app)
 
         await driver.press("escape")
         await until(lambda: sheet._home, driver)
@@ -1383,7 +1407,9 @@ async def test_a_page_of_settings_is_gone_into_and_come_out_of_with_the_mouse() 
         assert sheet._tab == PAGES.index("accounts")
         assert str(sheet.query_one("#asked", Label).content) == "Accounts"
 
-        await driver.click("#crumb-root")
+        # The way across the top is the prompt, then `/settings`, then the page it is on.
+        assert str(sheet.query_one("#crumb-1", Label).content) == "/settings"
+        await driver.click("#crumb-1")
         await until(lambda: sheet._home, driver)
         assert listing.highlighted == 1
 
@@ -2084,14 +2110,19 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_is_picked(
     The CLI settles which models there are, so the models are opened from a row under it and
     are that CLI's own rather than every model there is.
     """
-    from hmz.tui.dropdown import Dropdown
+    from textual.geometry import Offset
+
+    from hmz.tui.dropdown import Dropdown, anchor
 
     app = Humanize()
     async with app.run_test() as driver:
         # Walked into the way it is walked into: a flow, then what each of its agents is.
         await into_flows(app, driver)
         await into_agent(app, driver)
-        assert rows(app) == ["cli", "provider", "model", "effort", _SAVE]
+        assert rows(app) == ["cli", "provider", "model", "effort"]
+        # Saved from the button under them, which nothing changed yet gives nothing to do.
+        assert bar(app) == [_ACT_SAVE]
+        assert app.screen.query_one(f"#act-{_ACT_SAVE}", Button).disabled
 
         # The CLIs installed here, opened from the row that says which one it is.
         await opens(app, driver, "cli")
@@ -2101,14 +2132,13 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_is_picked(
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
 
-        # And under it that CLI's models, numbered, with the cursor marked by `❯`.
+        # And under it that CLI's models, and a button that asks it again what they are.
         await opens(app, driver, "model")
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
-        assert rows(app) == ["claude-opus-5", _AGAIN]
-        assert "❯" in str(listing.get_option_at_index(0).prompt)
-        assert "1." in str(listing.get_option_at_index(0).prompt)
+        assert rows(app) == ["claude-opus-5"]
+        assert _ACT_AGAIN in bar(app)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
 
@@ -2127,7 +2157,7 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_is_picked(
         assert "▾" in effort()
         # A click on the row drops them, hardest first, with the cursor on the one in force;
         # a click on one takes it.
-        await driver.click("#choices", offset=(8, rows(app).index("effort")))
+        await driver.click(offset=anchor(listing) + Offset(8, 0))
         await until(lambda: isinstance(app.screen, Dropdown), driver)
         values = app.screen.query_one(OptionList)
         assert [str(one.id) for one in values.options] == ["=max", "=high", "=low"]
@@ -2176,9 +2206,10 @@ async def test_changing_the_cli_lets_go_of_the_model_that_belonged_to_the_last_o
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
-        # The models of the CLI that was chosen, numbered afresh, and no others.
-        assert rows(app) == ["gpt-5.6-sol", "gpt-5.5", _AGAIN]
-        assert "1." in str(listing.get_option_at_index(0).prompt)
+        # The models of the CLI that was chosen, and no others -- the cursor on the first
+        # of them, the one this agent ran having gone with the CLI it belonged to.
+        assert rows(app) == ["gpt-5.6-sol", "gpt-5.5"]
+        assert under(app) == "gpt-5.6-sol"
 
         await driver.press("down")  # the second of that CLI's models
         await driver.press("enter")
@@ -2253,17 +2284,17 @@ async def goal(task: str, *, agents: Agents, envs: EnvCollection, params: FlowPa
         # The account it runs as, whose first row is always the machine's own.
         await opens(app, driver, "provider")
         await until(lambda: isinstance(app.screen, Accounts), driver)
-        accounts = app.screen.query_one("#choices", OptionList)
-        assert rows(app) == ["", _ADD]
-        assert "as local" in str(accounts.get_option_at_index(0).prompt)
-        assert "saved by dsh" in str(accounts.get_option_at_index(0).prompt)
+        assert rows(app) == [""]
+        assert _ACT_ADD in bar(app)
+        assert "as local" in reads(app, 0)
+        assert "saved by dsh" in reads(app, 0)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
 
         await opens(app, driver, "model")
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         await until(lambda: "deepseek-v4-flash" in rows(app), driver)
-        assert rows(app) == ["deepseek-v4-flash", "deepseek-v4-pro", _AGAIN]
+        assert rows(app) == ["deepseek-v4-flash", "deepseek-v4-pro"]
 
         await driver.press("down", "enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
@@ -2313,11 +2344,10 @@ async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
 
         await opens(app, driver, "provider")
         await until(lambda: isinstance(app.screen, Accounts), driver)
-        listing = app.screen.query_one("#choices", OptionList)
-        assert rows(app) == ["", _ADD]
-        assert "saved by dsh" in str(listing.get_option_at_index(0).prompt)
+        assert rows(app) == [""]
+        assert "saved by dsh" in reads(app, 0)
 
-        await onto(app, driver, _ADD)
+        await onto(app, driver, _ACT_ADD)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Signing), driver)
         sheet = cast("Signing", app.screen)
@@ -2344,8 +2374,9 @@ async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
         await driver.pause()
         await driver.press("enter")
         # A DeepSeek key is a DeepSeek key wherever it is held, so the form asks which other
-        # backends to write it down for as well -- none, where none is installed.
-        await onto(app, driver, _DONE)
+        # backends to write it down for as well -- none, where none is installed. The last
+        # question kept, what the keys are on is the button that answers the form.
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
 
         # Making one here is choosing it, so what comes back is the agent with it on.
@@ -2393,9 +2424,8 @@ async def test_agents_says_how_to_install_deepseek_when_its_sdk_is_missing(
 
         await opens(app, driver, "cli")
         await until(lambda: isinstance(app.screen, Clis), driver)
-        listing = app.screen.query_one("#choices", OptionList)
         await onto(app, driver, "dsh")
-        installing = str(listing.get_option_at_index(rows(app).index("dsh")).prompt)
+        installing = reads(app, rows(app).index("dsh"))
         assert "DeepSeek Harness is not installed" in installing
         assert "uv pip install --python" in installing
         assert "deepseek-harness-sdk" in installing
@@ -2454,7 +2484,7 @@ async def test_one_cli_is_still_a_row_that_is_opened_and_answered(
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         models = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(models.options), driver)
-        assert rows(app) == ["claude-opus-5", "claude-sonnet-5", _AGAIN]
+        assert rows(app) == ["claude-opus-5", "claude-sonnet-5"]
 
 
 @pytest.mark.timeout(60)
@@ -2468,7 +2498,10 @@ async def test_one_cli_is_still_a_row_that_is_opened_and_answered(
 async def test_a_search_is_asked_for_and_left_rather_than_being_what_typing_does(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
 ) -> None:
-    """The letters only search once the row that says so has been chosen."""
+    """The letters only search once a search is asked for, with its button or with `/`.
+
+    And they go into a box of their own above the list, which is where they are seen going.
+    """
     from hmz.coganchor import providers
 
     providers.add("claude", "deepseek", way="key", env={"ANTHROPIC_API_KEY": "k"})
@@ -2484,15 +2517,16 @@ async def test_a_search_is_asked_for_and_left_rather_than_being_what_typing_does
         await driver.press(*"deep")  # typing at the list is not searching it
         await driver.pause()
         assert not sheet._searching
-        assert rows(app) == ["", "deepseek", _ADD]
+        assert rows(app) == ["", "deepseek"]
 
-        await onto(app, driver, _SEARCH)
+        await onto(app, driver, _ACT_SEARCH)
         await driver.press("enter")
         await driver.pause()
         assert sheet._searching
+        assert isinstance(sheet.focused, Input)
         await driver.press(*"deep")
         await driver.pause()
-        assert rows(app) == ["deepseek", _ADD]
+        assert rows(app) == ["deepseek"]
 
         # And esc comes out of the search rather than out of the sheet.
         await driver.press("escape")
@@ -2500,7 +2534,16 @@ async def test_a_search_is_asked_for_and_left_rather_than_being_what_typing_does
         assert not sheet._searching
         assert sheet._typed == ""
         assert app.screen is sheet
-        assert rows(app) == ["", "deepseek", _ADD]
+        assert rows(app) == ["", "deepseek"]
+
+        # `/` asks for it from the list as well, and esc leaves it the same way.
+        await driver.press("/")
+        await driver.pause()
+        assert sheet._searching
+        await driver.press("escape")
+        await driver.pause()
+        assert not sheet._searching
+        assert app.screen is sheet
 
 
 @pytest.mark.timeout(60)
@@ -2532,7 +2575,7 @@ async def test_a_model_typed_out_whole_is_found_above_one_that_only_holds_its_le
         listing = sheet.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
 
-        await onto(app, driver, _SEARCH)
+        await onto(app, driver, _ACT_SEARCH)
         await driver.press("enter")
         await driver.press(*"claude-sonnet-5")
         await driver.pause()
@@ -2681,20 +2724,21 @@ async def test_a_list_too_long_to_walk_is_narrowed_by_typing_at_it(
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
-        await onto(app, driver, _SEARCH)
+        await onto(app, driver, _ACT_SEARCH)
         await driver.press("enter")
         await driver.press("h", "k")
         await driver.pause()
 
-        assert rows(app) == ["claude-haiku-4-5", _AGAIN]
+        assert rows(app) == ["claude-haiku-4-5"]
 
 
 @pytest.mark.timeout(60)
 async def test_the_cursor_can_be_seen_in_the_lists_that_are_chosen_from() -> None:
     """A list you cannot see the cursor in is one you choose from blind.
 
-    Claude Code marks it with `❯` against the row rather than by filling the row, so what is
-    checked is the marker: it is on the row the cursor is on and on no other.
+    Every menu fills the row under the cursor, as `/settings` does, rather than marking it
+    with a character beside it -- so what is checked is what is drawn: the cursor's colours
+    are on the row the cursor is on and on no other.
     """
     app = Humanize()
     async with app.run_test() as driver:
@@ -2702,13 +2746,28 @@ async def test_the_cursor_can_be_seen_in_the_lists_that_are_chosen_from() -> Non
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
 
-        marked = [at for at, o in enumerate(listing.options) if "❯" in str(o.prompt)]
-        assert marked == [listing.highlighted]
+        def filled() -> list[int]:
+            """The rows drawn in the cursor's colours, by where each is in the list."""
+            cursor = listing.get_component_rich_style("option-list--option-highlighted")
+            starts = listing._index_to_line
+            drawn = [
+                round(listing.scroll_offset.y) + y
+                for y in range(listing.size.height)
+                if any(
+                    one.style is not None and one.style.bgcolor == cursor.bgcolor
+                    for one in listing.render_line(y)
+                )
+            ]
+            return sorted(
+                {max(at for at, line in starts.items() if line <= y) for y in drawn}
+            )
+
+        assert listing.has_focus  # and so in the colours of a cursor that has the keys
+        assert filled() == [listing.highlighted]
 
         await driver.press("down")
         await driver.pause()
-        marked = [at for at, o in enumerate(listing.options) if "❯" in str(o.prompt)]
-        assert marked == [listing.highlighted]
+        assert filled() == [listing.highlighted]
 
 
 async def _away(app: Humanize, driver: Pilot[None], line: str) -> dict[str, object]:

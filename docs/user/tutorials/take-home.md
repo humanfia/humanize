@@ -273,18 +273,23 @@ hmz
 Type `/epics`. It lists every run in this directory, newest first. Press <kbd>enter</kbd> on
 the top one, the loop you just stopped:
 
-```
-2026-08-17 14:02 · flame_chase
-/home/you/.humanize/epics/…/20260817T140233.512Z-4c1e9a
-It stopped with 2 agents in 12 sessions.
+```text
+  hmz › /epics › 2026-08-17 14:02 · flame_chase
+  /home/you/.humanize/epics/…/20260817T140233.512Z-4c1e9a
+  It stopped with 2 agents in 12 sessions.
 
-❯ 1. resume run
-  2. export run
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ resume run                resume the flow from this run                  │
+  │ export run                the entire run as an archive, with its trace   │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+  enter choose   esc back
 ```
 
-Choose **export run**. The line under the list says where the archive went, in this project's
-`.humanize/`. The trace is also at `traces/export.trace.json` inside the directory named under
-the screen's title. Drag it into [ui.perfetto.dev](https://ui.perfetto.dev):
+Choose **export run**. Back on the list of runs, the line under it says where the archive went,
+in this project's `.humanize/`. The trace is also at `traces/export.trace.json` inside the
+directory named under the screen's title. Drag it into
+[ui.perfetto.dev](https://ui.perfetto.dev):
 
 ```
 process   first_chaser · claude-opus-5-5 · high · 6 sessions

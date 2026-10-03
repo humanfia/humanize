@@ -50,17 +50,19 @@ A [Ralph loop](/flows/ralph-loop) ran three rounds on a small project and was st
 budget. Open the run in `/epics`:
 
 ```text
-   2026-09-30 05:37 · ralph_loop                                              ①
-   /tmp/hmzdocs-C/home/epics/-tmp-hmzdocs-C-app/20260930T053725.504Z-a3d685     ②
-   It stopped with 1 agent in 3 sessions.                                     ③
+  hmz › /epics › 2026-09-30 05:37 · ralph_loop                                  ①
+  /tmp/hmzdocs-C/home/epics/-tmp-hmzdocs-C-app/20260930T053725.504Z-a3d685      ②
+  It stopped with 1 agent in 3 sessions.                                        ③
 
-   ❯ 1. resume run                resume the flow from this run
-     2. export run                the entire run as an archive, with its trace
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ resume run                resume the flow from this run                  │
+  │ export run                the entire run as an archive, with its trace   │
+  ╰──────────────────────────────────────────────────────────────────────────╯
 
-   enter choose · esc back
+  enter choose   esc back
 ```
 
-Choose **export run**. A moment later the list is back, with a line under it:
+Choose **export run**. A moment later the list of runs is back, with a line under it:
 
 ```text
    /tmp/hmzdocs-C/app/.humanize/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
@@ -69,7 +71,8 @@ Choose **export run**. A moment later the list is back, with a line under it:
 
 ### What each part means
 
-1. **When the run started, and its flow.** The same line `/epics` lists it on.
+1. **When the run started, and its flow**, at the end of the way across the top: the name
+   `/epics` lists the run under. A click on `/epics`, or <kbd>esc</kbd>, goes back to the runs.
 2. **Where the run is kept**: under `~/.humanize/epics/`, or wherever `HUMANIZE_HOME` points,
    as it did for this example. This is what gets packed. You never need to go there yourself.
 3. **How it ended, and what it opened.** `stopped` covers a spent budget,

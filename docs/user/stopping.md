@@ -133,7 +133,12 @@ What to look at, by number:
 - `/epics` lists the run at the top, marked `stopped`:
 
   ```text
-  ❯ 1. 2026-09-30 05:36 · ralph_loop Run the test suite … · 4 sessions · stopped · resumable
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ 2026-09-30 05:36 · ralph_loop Run the test suite until it is green. Do   │
+  │                               not commit. · 4 sessions · stopped ·       │
+  │                               resumable                                  │
+  │ …                                                                        │
+  ╰──────────────────────────────────────────────────────────────────────────╯
   ```
 
 - `git diff` shows what the agent changed before it was cut off. Look for half-written files.
@@ -171,26 +176,34 @@ running, it asks first:
 
 <Term title="/exit">
 
-<pre><span class="p b">A flow is running.</span><span class="n">1</span>
-
-<span class="p">❯</span> <span class="d">1.</span> <span class="p">stop the flow and exit</span><span class="n">2</span>
-  <span class="d">2.</span> <span class="p">detach and exit</span>           <span class="m">run `hmz` here to reattach</span><span class="n">3</span>
-
-<span class="d">enter choose · esc stay</span><span class="n">4</span></pre>
+<pre>  <span class="p">╭────────────────────────────────────────────────────────────────╮</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span>  <span class="p b">A flow is running.</span>                                            <span class="p">│</span> <span class="n">1</span>
+  <span class="p">│</span>  <span class="m">Detached, it keeps running: run `hmz` here to reattach.</span>       <span class="p">│</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span> <span class="sel"> Stop the flow and exit </span> <span class="btn"> Detach and exit </span>                     <span class="p">│</span> <span class="n">2</span> <span class="n">3</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span>  <b>enter</b> stop   <b>esc</b> stay                                         <span class="p">│</span> <span class="n">4</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────╯</span></pre>
 
 </Term>
 
 1. **The question** only appears while a flow runs. With nothing running, `/exit` closes at
    once.
-2. **stop the flow and exit** stops it for everybody, as `/stop` and <kbd>ctrl+c</kbd> twice
-   do, then closes this terminal's `hmz`.
-3. **detach and exit** lets the flow carry on without your terminal, and without letting go of
-   anybody else reading it. Run `hmz` again in the same directory to get back to it. See
-   [Leaving it running](/user/leaving).
-4. **<kbd>esc</kbd> stays**, with the flow untouched.
+2. **Stop the flow and exit**, the button with the focus as the box opens, stops it for
+   everybody, as `/stop` and <kbd>ctrl+c</kbd> twice do, then closes this terminal's `hmz`.
+3. **Detach and exit** lets the flow carry on without your terminal, and without letting go of
+   anybody else reading it. Run `hmz` again in the same directory to get back to it, as the
+   line under the question says. See [Leaving it running](/user/leaving).
+4. **<kbd>esc</kbd> stays**, with the flow untouched, and so does a click outside the box.
+
+<kbd>←</kbd> <kbd>→</kbd> or <kbd>tab</kbd> move between the buttons, and <kbd>enter</kbd>
+presses the one with the focus. A click presses one too.
 
 When humanize cannot hold the run apart from the terminal (input or output is not a terminal,
-or `HUMANIZE_DAEMON=off` is set), the second answer is **cancel** instead.
+or `HUMANIZE_DAEMON=off` is set), the second button is **Cancel** instead, and the line under
+the question is not there.
 
 ## After a stop
 

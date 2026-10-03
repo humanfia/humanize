@@ -32,7 +32,7 @@ const back = [
 # Leaving it running
 
 A run does not need your terminal. Close the window, lose the ssh connection, or `/exit` and
-choose `detach and exit`: the flow goes on taking its turns. Run `hmz` in the same directory
+press **Detach and exit**: the flow goes on taking its turns. Run `hmz` in the same directory
 and you are back in it.
 
 ::: info At a glance
@@ -45,7 +45,7 @@ and you are back in it.
 
 ## Try it
 
-While a flow runs, type `/exit`, choose `detach and exit`, and later, in the same directory:
+While a flow runs, type `/exit`, press **Detach and exit**, and later, in the same directory:
 
 ```sh
 hmz
@@ -75,20 +75,26 @@ Start a flow, as in [Your first run](/user/first-run). Then type `/exit`, or pre
 
 <Term title="/exit">
 
-<pre><span class="p b">A flow is running.</span>
-
-<span class="p">❯</span> <span class="d">1.</span> <span class="p">stop the flow and exit</span>
-  <span class="d">2.</span> <span class="p">detach and exit</span>           <span class="m">run `hmz` here to reattach</span><span class="n">1</span>
-
-<span class="d">enter choose · esc stay</span></pre>
+<pre>  <span class="p">╭────────────────────────────────────────────────────────────────╮</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span>  <span class="p b">A flow is running.</span>                                            <span class="p">│</span>
+  <span class="p">│</span>  <span class="m">Detached, it keeps running: run `hmz` here to reattach.</span>       <span class="p">│</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span> <span class="sel"> Stop the flow and exit </span> <span class="btn"> Detach and exit </span>                     <span class="p">│</span> <span class="n">1</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span>  <b>enter</b> stop   <b>esc</b> stay                                         <span class="p">│</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────╯</span></pre>
 
 </Term>
 
-1. **`detach and exit`** is only offered where the run can outlive the terminal. Where it
-   cannot, the answer in its place is `cancel`; see [below](#when-it-cant-be-left-running).
+1. **Detach and exit**, and the line under the question, are only there where the run can
+   outlive the terminal. Where it cannot, the button in its place is **Cancel**; see
+   [below](#when-it-cant-be-left-running).
 
-Press <kbd>↓</kbd> and <kbd>enter</kbd> on `detach and exit`. Your shell comes back, and the
-flow is still going.
+**Stop the flow and exit** has the focus as the box opens. Press <kbd>→</kbd> to move to
+**Detach and exit**, then <kbd>enter</kbd>, or click it. Your shell comes back, and the flow is
+still going.
 
 Later, from any terminal on the same machine:
 
@@ -111,7 +117,7 @@ What to look at, by number:
 
 ### Check it worked
 
-- After `detach and exit`, the shell prompt comes back at once, with no `stopping` line.
+- After **Detach and exit**, the shell prompt comes back at once, with no `stopping` line.
 - `hmz` in the same directory opens on the flow, still working, and not on a fresh `chat`.
 - The transcript holds turns that happened while you were gone.
 
@@ -130,7 +136,7 @@ What to look at, by number:
 ## Variations
 
 - **Just close the window.** Closing the terminal or losing the connection does what
-  `detach and exit` does. `/exit` only asks so that you choose on purpose.
+  **Detach and exit** does. `/exit` only asks so that you choose on purpose.
 - **Watch from two places.** Leave one `hmz` open and run another in the same directory, over
   ssh for example. Leaving one leaves the others reading it.
 - **Nobody watching at all.** A run with no one at any window belongs on a command line: see
@@ -139,7 +145,7 @@ What to look at, by number:
 ## When it can't be left running {#when-it-cant-be-left-running}
 
 Then the interface holds the run in its own process, and closing the terminal ends the run.
-`/exit` offers `cancel` in place of `detach and exit`. That happens when:
+`/exit` offers **Cancel** in place of **Detach and exit**. That happens when:
 
 - **stdin or stdout is not a terminal**: output redirected to a file, or input from a pipe;
 - **`HUMANIZE_DAEMON` is `off`**, `0` or `no`, for a machine where a run should end with its
@@ -170,7 +176,7 @@ finished. `/epics` lists it with how it ended. A flow that can be picked up carr
 
 A question was put to you and nobody answered. Turn [`/afk`](/user/afk) on before you leave.
 
-### `/exit` offers `cancel` instead of `detach and exit`
+### `/exit` offers `Cancel` instead of `Detach and exit`
 
 The run cannot outlive this terminal. See
 [When it can't be left running](#when-it-cant-be-left-running).

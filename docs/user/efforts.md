@@ -93,21 +93,33 @@ In `hmz`, open `/flow`, choose the flow, then the agent's role. The agent sheet 
 per choice, and the effort is the last of them:
 
 ```text
-   Set up assistant
-   Configure this agent: select its CLI, account, model, and reasoning effort.
+  hmz › chat › Set up assistant
+  Configure this agent: select its CLI, account, model, and reasoning effort.
 
-     1. cli         claude ▸                          coding agent CLI to use
-     2. account     as local ▸                        account to run as          ①
-     3. model       claude-haiku-4-5-20251001 ▸       model to use               ②
-   ❯ 4. effort      low ▾                             reasoning effort           ③
-                    ╭─ effort ─────────────╮
-        save        │ ultracode            │
-                    │ max                  │
-                    │ xhigh                │
-                    │ high                 │
-   enter choose · es│ medium               │                                     ④
-                    │ low ✔                │
-                    ╰──────────────────────╯
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ cli                                                             claude ▸ │
+  │   coding agent CLI to use                                                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ account                                                       as local ▸ │  ①
+  │   account to run as                                                      │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ model                                        claude-haiku-4-5-20251001 ▸ │  ②
+  │   model to use                                                           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ effort                                                             low ▾ │  ③
+  │   reasoning effort                             ╭─ effort ─────────────╮  │
+  │                                                │ ultracode            │  │
+  │                                                │ max                  │  │
+  │                                                │ xhigh                │  │
+  │                                                │ high                 │  │  ④
+  │                                                │ medium               │  │
+  │                                                │ low ✔                │  │
+  │                                                ╰──────────────────────╯  │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+                                                                          Save
+
+  enter choose   esc close
 ```
 
 ### What each part means
@@ -122,7 +134,8 @@ per choice, and the effort is the last of them:
 4. **The list**: <kbd>↑</kbd> <kbd>↓</kbd> and <kbd>enter</kbd>, or a click, pick an effort;
    <kbd>esc</kbd> or a click off the list keeps the one you had.
 
-Choose **save** on the sheet, then **save** on the flow. The line above the prompt then reads
+Press **Save** under the sheet (<kbd>tab</kbd>, <kbd>enter</kbd>), then **save** on the flow. The
+line above the prompt then reads
 `assistant · claude/claude-haiku-4-5-20251001:low`.
 
 ## Check that it worked

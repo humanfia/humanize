@@ -26,7 +26,6 @@ from hmz.tui import Humanize
 from hmz.tui.pick import (
     _ACT_IMPORTS,
     _CHECKS,
-    _DONE,
     Docking,
     Importing,
     Machine,
@@ -171,8 +170,7 @@ async def test_settings_runtimes(
         await driver.press(*config, "enter")
         await until(lambda: form._read == config and not form._reading, driver)
         assert form._on(ssh_box.alias), _drawn(app)
-        await onto(app, driver, _DONE)
-        await driver.press("enter")
+        await _done(app, driver)
         await until(lambda: app.screen is sheet, driver)
         await until(lambda: f"imported {ssh_box.alias}" in _under(app), driver)
 

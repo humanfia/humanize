@@ -12,8 +12,9 @@ end of this page you will have found a run, exported its trace and read it.
 ## Try it
 
 1. In the project you ran in, type `/epics`. Every run here is listed, newest first.
-2. Move to the run with <kbd>↑</kbd> <kbd>↓</kbd>, or choose `search…` to search what each
-   run was asked to do, and press <kbd>enter</kbd>.
+2. Move to the run with <kbd>↑</kbd> <kbd>↓</kbd> and press <kbd>enter</kbd>. In a long list,
+   press <kbd>/</kbd> first (or the **Search…** button) and type part of the run's flow, task
+   or name to narrow it.
 3. Choose **export run**. humanize gathers the trace and packs the run into an archive, then
    says what it wrote under the list.
 4. Open [ui.perfetto.dev](https://ui.perfetto.dev) and drop in `traces/export.trace.json` from
@@ -51,15 +52,22 @@ A [Ralph loop](/flows/ralph-loop) ran three rounds on a small project, each roun
 session of Claude Code. Its `/epics` list:
 
 ```text
-   Epics
-   Every run of a flow in this directory, newest first: task, status, and session count.
+  hmz › Epics
+  Every run of a flow in this directory, newest first: task, status, and
+  session count.
 
-   ❯ 1. 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. … · 1 session · stopped ·…
-     2. 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. … · 3 sessions · stopped ·…   ①
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│
+  │                               slug.py only. · 1 session · stopped ·      │
+  │                               resumable                                  │
+  │ 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. Change│
+  │                               slug.py only. · 3 sessions · stopped ·     │  ①
+  │                               resumable                                  │
+  ╰──────────────────────────────────────────────────────────────────────────╯
 
-        search…                                                                                        ②
+  Search…                                                                       ②
 
-   enter open · esc close
+  enter open   / search   tab actions   esc close
 ```
 
 <kbd>↓</kbd> to the second run, <kbd>enter</kbd>, **export run**:
@@ -78,7 +86,8 @@ Perfetto lays out a trace, it looks like this:
 
 1. **`3 sessions · stopped`**: three rounds of a Ralph loop are three sessions, and the run was
    stopped by its budget. The row ends in `resumable` when the flow can be picked up.
-2. **`search…`** searches what each run was asked to do, for a directory with a long history.
+2. **Search…** narrows the list as you type, by flow, task or run name, for a directory with a
+   long history. <kbd>/</kbd> opens it too, and <kbd>esc</kbd> clears it.
 3. **`3 sessions`**: every session the run opened and a trace could read. The same figure as
    the list, unless an agent ran on a CLI a trace cannot read.
 4. **`53 slices`**: the things the agents did, across those sessions.
@@ -123,22 +132,26 @@ call, not the processes it started. Turn on **Profiling** on the Workspace page 
 agents ran, what started it, and how long it took.
 
 ```text
-  /settings › Workspace                                                         ● unsaved changes
-  Saved settings for this directory: the default flow, and how it was last configured.
+  hmz › /settings › Workspace                                ● unsaved changes
+  What hmzdocs-C/app remembers: the flow it opens on and how it was last
+  configured.
 
-  │ Directory                                                                      hmzdocs-C/app │
-  │   the directory these settings apply to                                                      │
-  │──────────────────────────────────────────────────────────────────────────────────────────────│
-  │ Default flow                                                                            none │
-  │   configured with 0 agents; chosen with /flow                                                │
-  │──────────────────────────────────────────────────────────────────────────────────────────────│
-  │ Profiling                                                                             ● on ▾ │  ①
-  │   profile programs started by runs here · takes effect on next flow run                      │  ②
-  │──────────────────────────────────────────────────────────────────────────────────────────────│
-  │ Forget                                                                               ○ off ▾ │
-  │   clear saved settings here, across 0 flows                                                  │
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ Flow                                                                     │
+  │ Default flow                                                        none │
+  │   configured with 0 agents; chosen with /flow                            │
+  │                                                                          │
+  │ Runs                                                                     │
+  │ Profiling                                                         ● on ▾ │  ①
+  │   profile programs started by runs here · takes effect on next flow run  │  ②
+  │                                                                          │
+  │ Reset                                                                    │
+  │ Forget                                                           ○ off ▾ │
+  │   clear saved settings here, across 0 flows                              │
+  ╰──────────────────────────────────────────────────────────────────────────╯
 
-                                                                                          Save   ③
+                                                                          Save  ③
+
   enter choose   tab actions   esc back
 ```
 
@@ -146,8 +159,8 @@ agents ran, what started it, and how long it took.
    here start) and `off` (trace them only), with the cursor already on the other one, so
    <kbd>enter</kbd> twice turns it round.
 2. **`takes effect on next flow run`**: a run already going is not profiled halfway through.
-3. **`Save`**: <kbd>tab</kbd> reaches it. Saved, the transcript says `runs will profile started
-   programs from the next flow run; /epics collects the trace`.
+3. **Save**: <kbd>tab</kbd> reaches it, and <kbd>enter</kbd> presses it. Saved, the transcript
+   says `runs will profile started programs from the next flow run; /epics collects the trace`.
 
 A trace of a profiled run shows each program as a process of its own, on the same clock as the
 sessions, and its summary counts them. The same Ralph loop, resumed once profiling was on:

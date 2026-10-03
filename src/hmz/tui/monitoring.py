@@ -47,8 +47,10 @@ from .pick import (
     _LIVE,
     _WORKING,
     EVERY,
+    Action,
     Key,
     Sheet,
+    _shade,
     named_as,
     reads,
     setting,
@@ -984,7 +986,24 @@ class Entry(Sheet[tuple[str, str]]):
             "Shared by you and the flow. Neither waits for the other."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
+
+    def crumb(self) -> str:
+        """What a line of the board is, before it has a name of its own."""
+        return "board entry"
+
+    def actions(self) -> list[Action]:
+        """Going on to what the line says, once it is named, or writing it down."""
+        return [
+            Action(
+                "onward",
+                "next" if self._naming else "save",
+                "name the entry, then say what it is"
+                if self._naming
+                else "write the entry on the board; an empty one is taken off",
+                self.action_onward,
+                variant="primary",
+            )
+        ]
 
     def _fill(self) -> None:
         """Puts up what has been typed, which is the whole of what this sheet shows."""
@@ -993,8 +1012,7 @@ class Entry(Sheet[tuple[str, str]]):
         listing.set_options(
             [
                 Option(
-                    f"{_INDENT}[$text-muted]{asked}[/]  "
-                    f"[$secondary]{escape(self._typed)}[/][reverse] [/reverse]",
+                    f" [b]{asked}[/]  {escape(self._typed)}[reverse] [/reverse]",
                     id="=typed",
                 )
             ]
@@ -1092,7 +1110,6 @@ class Place(Sheet[str]):
         """Says which environment this is, and keeps saying how it stands."""
         self._fill()
         self.set_interval(_LIVE, self._fill)
-        self.query_one("#choices", OptionList).focus()
 
     def _fill(self) -> None:
         """Puts up what it is, and under that the sessions working in it."""
@@ -1134,20 +1151,28 @@ class Place(Sheet[str]):
         landing = at if at in place.sessions else next(iter(place.sessions), "")
         rows = [
             Option(
-                f"{_INDENT}  [$text-muted]{field:<{_FIELD}}[/]{escape(value)}",
+                f" [$text-muted]{field:<{_FIELD}}[/]{escape(value)}",
                 disabled=True,
             )
             for field, value in facts
             if value
         ]
-        rows.append(Option(f"{_INDENT}  [$primary]Sessions[/]", disabled=True))
+        rows.append(Option("", disabled=True))
+        rows.append(Option(" [$primary]Sessions[/]", disabled=True))
         rows += [
             Option(
-                f"{_marked(here=one.who == landing)}  "
-                f"[{'$secondary' if one.working else '$text-muted'}]"
-                f"{_WORKING if one.working else _IDLE}[/] "
-                f"{escape(one.named or one.who)}"
-                + (f"{_DOT}[$text-muted]{escape(one.runs)}[/]" if one.runs else ""),
+                " "
+                + _shade(
+                    "$secondary" if one.working else "$text-muted",
+                    _WORKING if one.working else _IDLE,
+                    here=one.who == landing,
+                )
+                + f" {escape(one.named or one.who)}"
+                + (
+                    f"{_DOT}{_shade('$text-muted', one.runs, here=one.who == landing)}"
+                    if one.runs
+                    else ""
+                ),
                 id=f"={one.who}",
             )
             for one in using
@@ -1372,6 +1397,14 @@ class Monitoring(Screen[str | None]):
         #: back where they were, and the list is only built again when the run grows a node.
         self._ids: list[str] = []
         self._shown: list[str] = []
+
+    def crumb(self) -> str:
+        """What a menu opened over the monitor says it was opened from."""
+        return "monitor"
+
+    def crumbs(self) -> list[str]:
+        """Nothing: the monitor is one level, which the way back to it goes to."""
+        return []
 
     def compose(self) -> ComposeResult:
         """The graph, what it cannot say, and the log's own prompt and status line under it."""

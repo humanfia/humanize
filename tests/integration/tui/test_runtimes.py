@@ -31,18 +31,18 @@ from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.pick import (
     _ACT_ADD,
+    _ACT_DETECT,
+    _ACT_DONE,
     _ACT_IMPORTS,
+    _ACT_REMOVE,
+    _ACT_SAVE,
     _ACT_SEARCH,
-    _ADD,
+    _ACT_UNSAVED,
     _BUDGET,
     _CHECKS,
     _CORRECTS,
-    _DETECTS,
-    _DONE,
     _KINDS,
     _SAVE,
-    _TAKES_AWAY,
-    _UNSAVED,
     Configures,
     Docking,
     Flows,
@@ -157,13 +157,27 @@ def _drawn(app: Humanize) -> str:
     )
 
 
+def _answers(app: Humanize) -> str:
+    """What the button that answers the form on top says answering it does.
+
+    Which is what pointing at it says, and what is said under the list once it has the focus.
+    """
+    return str(app.screen.query_one(f"#act-{_ACT_DONE}", Button).tooltip)
+
+
+def _on_done(app: Humanize) -> bool:
+    """Whether the focus is on the button that answers the form on top."""
+    return app.screen.focused is app.screen.query_one(f"#act-{_ACT_DONE}")
+
+
 async def _opens(app: Humanize, driver: Pilot[None], held: str, sheet: type) -> None:
-    """Walks on to one row, presses enter, and waits for the sheet it opens.
+    """Walks on to one row or button, presses enter, and waits for the sheet it opens.
 
     Args:
       app: The interface.
       driver: What is pumping it.
-      held: The row, by its id, or the kind of runtime the button that adds one adds.
+      held: The row, by its id; a button under the list, by its key; or the kind of runtime
+        the button that adds one adds.
       sheet: What it opens.
     """
     if held in _KINDS:
@@ -202,8 +216,8 @@ async def _types(app: Humanize, driver: Pilot[None], held: str, said: str) -> No
 
 
 async def _done(app: Humanize, driver: Pilot[None]) -> None:
-    """Answers the form on top from its `done` row."""
-    await onto(app, driver, _DONE)
+    """Answers the form on top from its `done` button, tabbed on to as from the keys."""
+    await onto(app, driver, _ACT_DONE)
     await driver.press("enter")
     await driver.pause()
 
@@ -215,7 +229,7 @@ async def _into_machines(app: Humanize, driver: Pilot[None]) -> Adjusts:
 
 
 @pytest.mark.timeout(60)
-async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
+async def test_the_page_brings_machines_in_from_its_buttons_and_holds_nothing(
     standins: Path,
 ) -> None:
     """Adding each kind and importing, under the list; no save button, nothing held."""
@@ -276,7 +290,7 @@ async def test_an_ssh_host_is_added_on_one_form_and_asked_what_it_has(
         await _types(app, driver, "identity_file", "~/.ssh/gpu")
         await _types(app, driver, "options", "ServerAliveInterval=15, Compression=yes")
         await _types(app, driver, "workdir", "~/work")
-        assert "adds ssh/gpu" in _drawn(app)
+        assert "adds ssh/gpu" in _answers(app)
         await _done(app, driver)
 
         await until(lambda: app.screen is sheet, driver)
@@ -360,16 +374,18 @@ async def test_the_hosts_of_another_config_are_imported_and_theirs_is_never_writ
         await onto(app, driver, "config")
         await driver.press(*str(config), "enter")
         await until(lambda: form._read == str(config) and not form._reading, driver)
-        assert rows(app) == ["config", "host:gpu", "host:builder", _DONE]
+        assert rows(app) == ["config", "host:gpu", "host:builder"]
+        assert bar(app) == [_ACT_DONE]
         # The one not saved is on, the one saved is off and says so.
         assert form._on("gpu")
         assert not form._on("builder")
         # What `ssh -G` said of it, which the stand-in says of any host.
         assert "me@gpu.example:22" in _drawn(app)
         assert "already imported" in _drawn(app)
-        # And the cursor is on the row that imports them.
-        assert form.under() == _DONE
-        assert "imports gpu" in _drawn(app)
+        # And the focus is on the button that imports them, which says which it will.
+        assert _on_done(app)
+        assert "imports gpu" in _answers(app)
+        await until(lambda: "imports gpu" in _under(app), driver)
         await driver.press("enter")
 
         await until(lambda: app.screen is sheet, driver)
@@ -402,7 +418,7 @@ async def test_a_host_switched_off_is_not_imported(
 
         await nexts(app, driver, "host:gpu")
         await nexts(app, driver, "host:builder")
-        assert "imports nothing" in _drawn(app)
+        assert "imports nothing" in _answers(app)
         await _done(app, driver)
         assert "select at least one host" in _under(app)
 
@@ -485,12 +501,14 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
         form = cast("Docking", app.screen)
         assert form._typed_in["name"] == "local"
 
-        await onto(app, driver, _DETECTS)
+        await onto(app, driver, _ACT_DETECT)
         await driver.press("enter")
         await until(lambda: form._typed_in.get("cpus") == "64", driver)
         assert form._typed_in["memory"] == "2015G"
         assert form._typed_in["gpus"] == "0, 1"
         assert "OCI runtimes nvidia" in _under(app)
+        # Back from the button that asked, on the list, on the first of what it wrote in.
+        assert form.focused is form.query_one("#choices")
         assert form.under() == "cpus"
 
         # The first letter replaces what it wrote, and enter walks on to the next of them.
@@ -499,8 +517,10 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
         await driver.press(*"64G", "enter")
         assert form.under() == "gpus"
         await driver.press("0", "enter")
-        # What it hands out is the last of the form, so that was the last of it.
-        assert form.under() == _DONE
+        # What it hands out is the last of the form, so that was the last of it: on to the
+        # button that answers it.
+        assert _on_done(app)
+        assert form.under() == "gpus"
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
         await until(lambda: "answers" in _under(app), driver)
@@ -612,7 +632,7 @@ async def test_detect_writes_in_only_the_gpus_that_answer(failing: Path) -> None
         await _opens(app, driver, "docker", Docking)
         form = cast("Docking", app.screen)
 
-        await onto(app, driver, _DETECTS)
+        await onto(app, driver, _ACT_DETECT)
         await driver.press("enter")
         await until(lambda: form._typed_in.get("cpus") == "64", driver)
 
@@ -632,7 +652,8 @@ async def test_a_host_that_cannot_be_reached_says_why_rather_than_hanging(
         await onto(app, driver, "ssh/far")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Machine), driver)
-        assert rows(app) == [_CORRECTS, _CHECKS, _TAKES_AWAY]
+        assert rows(app) == [_CORRECTS, _CHECKS]
+        assert bar(app) == [_ACT_REMOVE]
         await onto(app, driver, _CHECKS)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
@@ -646,7 +667,7 @@ async def test_a_host_that_cannot_be_reached_says_why_rather_than_hanging(
 async def test_a_machine_is_corrected_and_taken_away_from_its_own_menu(
     standins: Path,
 ) -> None:
-    """Each at once, which is why the page has no row to save from."""
+    """Each at once, which is why the page has no button to save from."""
     del standins
     store.add(SSHRuntime(name="gpu", host="gpu.example", workdir="~/a"))
     store.add(DockerRuntime(name="far", endpoint="ssh:gpu"))
@@ -660,7 +681,7 @@ async def test_a_machine_is_corrected_and_taken_away_from_its_own_menu(
         # Correcting one asks all of it but the name it is saved under.
         assert "name" not in rows(app)
         await _types(app, driver, "workdir", "~/b")
-        assert "updates ssh/gpu" in _drawn(app)
+        assert "updates ssh/gpu" in _answers(app)
         await _done(app, driver)
         await until(lambda: app.screen is sheet, driver)
         stored = store.find("ssh", "gpu")
@@ -672,7 +693,7 @@ async def test_a_machine_is_corrected_and_taken_away_from_its_own_menu(
         await onto(app, driver, "ssh/gpu")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Machine), driver)
-        await onto(app, driver, _TAKES_AWAY)
+        await onto(app, driver, _ACT_REMOVE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
 
@@ -681,7 +702,7 @@ async def test_a_machine_is_corrected_and_taken_away_from_its_own_menu(
         assert "ssh/gpu removed" in _under(app)
         # And what reached its daemon through it is said, in yellow.
         assert "far reached docker through this host" in _under(app)
-        assert _SAVE not in ids(app)
+        assert _ACT_SAVE not in bar(app)
 
 
 # ------------------------------------------------------------ docker swarms
@@ -749,7 +770,7 @@ async def test_a_docker_swarm_is_added_on_its_own_form_and_asked_what_its_nodes_
         await _types(app, driver, "gpu_resource", "NVIDIA-GPU")
         await _types(app, driver, "cpus", "32")
         await _types(app, driver, "memory", "128G")
-        assert "adds swarm/local and checks its nodes" in _drawn(app)
+        assert "adds swarm/local and checks its nodes" in _answers(app)
         await _done(app, driver)
 
         await until(lambda: app.screen is sheet, driver)
@@ -793,10 +814,11 @@ async def test_detect_writes_in_what_a_swarm_s_nodes_have_all_told(
         await _opens(app, driver, "swarm", Swarming)
         form = cast("Swarming", app.screen)
 
-        await onto(app, driver, _DETECTS)
+        await onto(app, driver, _ACT_DETECT)
         await driver.press("enter")
         await until(lambda: form._typed_in.get("cpus") == "768", driver)
         assert form._typed_in["memory"] == "6T"
+        assert form.focused is form.query_one("#choices")
         assert form.under() == "cpus"
         await driver.press(*"16", "enter")
         assert form.under() == "memory"
@@ -858,7 +880,7 @@ async def test_a_swarm_is_corrected_and_stranded_by_the_ssh_host_it_is_reached_t
         assert form._typed_in["endpoint"] == "ssh address"
         assert form._typed_in["address"] == "me@manager"
         await _types(app, driver, "image", "python:3.12")
-        assert "updates swarm/cluster" in _drawn(app)
+        assert "updates swarm/cluster" in _answers(app)
         await _done(app, driver)
         await until(lambda: app.screen is sheet, driver)
         await until(lambda: "answers" in _under(app), driver)
@@ -867,7 +889,7 @@ async def test_a_swarm_is_corrected_and_stranded_by_the_ssh_host_it_is_reached_t
         await onto(app, driver, "ssh/gpu")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Machine), driver)
-        await onto(app, driver, _TAKES_AWAY)
+        await onto(app, driver, _ACT_REMOVE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
         assert "cluster reached a swarm through this host" in _under(app)
@@ -956,10 +978,12 @@ async def test_a_role_is_put_on_a_saved_host_and_remembered_as_e_spells_it(
         # On ssh, there being hosts saved for it, and on the one thing still to answer.
         assert form._typed_in["backend"] == "ssh"
         assert form.under() == "provider"
-        assert "leaves box unset" in _drawn(app)
+        assert "leaves box unset" in _answers(app)
 
         await _opens(app, driver, "provider", Hosts)
-        assert rows(app)[:2] == [_ADD, _UNSAVED]
+        # The hosts to choose from, and adding one or naming one nobody saved beneath them.
+        assert rows(app) == ["box", "gpu"]
+        assert bar(app) == [_ACT_ADD, _ACT_UNSAVED, _ACT_SEARCH]
         await onto(app, driver, "box")
         await driver.press("enter")
         await until(lambda: app.screen is form, driver)
@@ -967,7 +991,8 @@ async def test_a_role_is_put_on_a_saved_host_and_remembered_as_e_spells_it(
         # Its own workdir, shown and left out of the spelling: the role follows the host.
         assert form._typed_in["workdir"] == "~/work"
         assert form._typed_in["spelled"] == "ssh@box"
-        assert form.under() == _DONE
+        # Nothing left to answer, so on to the button that answers it.
+        assert _on_done(app)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
         assert "ssh@box" in _drawn(app)
@@ -995,8 +1020,9 @@ async def test_a_role_is_put_on_a_saved_swarm_as_on_a_docker_host(
         assert "swarm" in _drawn(app)
 
         await _opens(app, driver, "provider", Hosts)
-        assert rows(app)[0] == _ADD
-        assert "cluster" in rows(app)
+        # A swarm is saved or it is nothing: adding one, and no host nobody saved.
+        assert rows(app) == ["cluster"]
+        assert bar(app) == [_ACT_ADD, _ACT_SEARCH]
         await onto(app, driver, "cluster")
         await driver.press("enter")
         await until(lambda: app.screen is form, driver)
@@ -1081,7 +1107,7 @@ async def test_a_role_is_put_on_a_host_nobody_saved(
 
         await _opens(app, driver, "provider", Hosts)
         assert "no ssh host is saved yet" in _under(app)
-        await _opens(app, driver, _UNSAVED, Unsaved)
+        await _opens(app, driver, _ACT_UNSAVED, Unsaved)
         await driver.press(*"me@far:2222", "enter")
         await _done(app, driver)
         await until(lambda: app.screen is form, driver)
@@ -1110,7 +1136,7 @@ async def test_a_host_added_from_the_role_is_saved_and_comes_back_chosen(
     async with app.run_test() as driver:
         form = await _placing(app, driver)
         await _opens(app, driver, "provider", Hosts)
-        await _opens(app, driver, _ADD, Hosting)
+        await _opens(app, driver, _ACT_ADD, Hosting)
         await driver.press(*"new.example", "enter")
         await _types(app, driver, "workdir", "~/w")
         await _done(app, driver)
@@ -1148,7 +1174,8 @@ async def test_a_spec_typed_whole_sets_the_rows_and_one_that_does_not_read_is_re
         assert "provider" not in rows(app)
         await _done(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
-        assert f"local@{tmp_path}" in _drawn(app)
+        # Read with the breaks taken out: a path longer than its column is broken inside it.
+        assert f"local@{tmp_path}" in "".join(_drawn(app).split())
 
 
 @pytest.mark.timeout(60)
@@ -1169,7 +1196,7 @@ async def test_a_config_under_a_home_nobody_has_is_said_rather_than_crashing(
         assert app.is_running
         # Read as ssh reads it: a file that is not there, which names no host.
         assert "~nosuchuser9/config contains no hosts" in _under(app)
-        assert rows(app) == ["config", _DONE]
+        assert rows(app) == ["config"]
 
 
 @pytest.mark.timeout(60)

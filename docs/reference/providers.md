@@ -77,7 +77,7 @@ is written. So is `local/<cli>.json`, which held only that.
 ### `models.json`
 
 The account's model catalogue, written by `hmz.coganchor.models.ask` when the account is made
-and when it is asked again (the `check again` row of the TUI's models sheet). Read by every
+and when it is asked again (the **Check again** button of the TUI's model list). Read by every
 prompt. Older than 7 days (`models.STALE`) counts as stale; at start-up the TUI asks again, in
 the background, for each installed backend whose machine's-own catalogue is missing or stale.
 

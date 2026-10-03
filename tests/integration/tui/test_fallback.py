@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from textual.content import Content
 from textual.widgets import Label, OptionList
 
 from hmz.coganchor import fallbacks
@@ -18,11 +19,10 @@ from hmz.coganchor.backends import Model
 from hmz.tui import Humanize
 from hmz.tui.pick import (
     _ACT_ADD,
+    _ACT_DONE,
+    _ACT_REMOVE,
     _ACT_SAVE,
     _ACT_SEARCH,
-    _DONE,
-    _SEARCH,
-    _TAKES_AWAY,
     Confirms,
     Failing,
     Fallbacks,
@@ -57,6 +57,25 @@ INSTALLED = {
 def _under(app: Humanize) -> str:
     """What is said under the list, which is where a menu reports itself."""
     return str(app.screen.query_one("#tuning", Label).content)
+
+
+def _says(app: Humanize, held: str) -> str:
+    """What one row of the sheet on top says, as words.
+
+    Without the colours, and with the lines a long row wraps onto run back together: a row
+    says what it says whatever width the screen it was laid out across was.
+
+    Args:
+      app: The interface.
+      held: The row, by the id it was put up under.
+    """
+    prompt = app.screen.query_one("#choices", OptionList).get_option(f"={held}").prompt
+    return " ".join(Content.from_markup(str(prompt)).plain.split())
+
+
+def _done(app: Humanize) -> bool:
+    """Whether the focus is on the button that answers the form on top."""
+    return app.screen.focused is app.screen.query_one(f"#act-{_ACT_DONE}")
 
 
 async def _opens(app: Humanize, driver: Pilot[None]) -> None:
@@ -112,26 +131,24 @@ async def test_the_menu_is_the_steps_between_places() -> None:
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
 
-        # Adding one above the steps, saving below everything.
+        # The steps are the rows; adding one, searching and saving are the buttons under
+        # them, saving last.
         assert rows(app) == ["claude/claude-opus-5"]
         assert bar(app) == [_ACT_ADD, _ACT_SEARCH, _ACT_SAVE]
-        listing = app.screen.query_one("#choices", OptionList)
-        assert "falls back to codex/gpt-5.6-sol" in str(
-            listing.get_option("=claude/claude-opus-5").prompt
-        )
+        assert "falls back to codex/gpt-5.6-sol" in _says(app, "claude/claude-opus-5")
         # And the cursor on the step, which is what turning to the page was for.
         assert under(app) == "claude/claude-opus-5"
 
 
 @pytest.mark.timeout(60)
-async def test_an_empty_menu_opens_on_the_row_that_writes_one_down() -> None:
+async def test_an_empty_menu_opens_on_the_button_that_writes_one_down() -> None:
     """An empty list with nothing to do about it reads as a feature that does not work."""
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
         await driver.pause()
 
-        # The row that writes one down, which is where to start, and the cursor on it.
+        # The button that writes one down, which is where to start.
         assert rows(app) == []
         assert bar(app) == [_ACT_ADD, _ACT_SEARCH, _ACT_SAVE]
         # The focus is on the button that writes the first one down.
@@ -150,15 +167,17 @@ async def test_a_step_is_one_form_of_two_places_and_is_held_until_the_menu_is_sa
         await onto(app, driver, _ACT_ADD)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Failing), driver)
-        # The two places, and how it is tried again, and nothing else.
-        assert rows(app) == ["fails", "goes0", "tries", "policy", "for", _DONE]
+        # The two places, and how it is tried again, and nothing else -- and the button
+        # that keeps it, which is the only one on a step not yet written.
+        assert rows(app) == ["fails", "goes0", "tries", "policy", "for"]
+        assert bar(app) == [_ACT_DONE]
 
         await _place(app, driver, "claude/claude-opus-5")  # the one that cannot run
         # And straight on to the next thing still to say, which is where it goes.
         assert under(app) == "goes0"
         await _place(app, driver, "codex/gpt-5.6-sol")  # and the one that takes over
-        # With nothing left to say, the row that keeps it.
-        assert under(app) == _DONE
+        # With nothing left to say, the button that keeps it.
+        await until(lambda: _done(app), driver)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 
@@ -187,15 +206,8 @@ async def test_a_chain_is_added_to_reordered_and_taken_from_on_its_rows() -> Non
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
         sheet = await _step(app, driver)
-        assert rows(app) == [
-            "goes0",
-            "goes1",
-            "tries",
-            "policy",
-            "for",
-            _TAKES_AWAY,
-            _DONE,
-        ]
+        assert rows(app) == ["goes0", "goes1", "tries", "policy", "for"]
+        assert bar(app) == [_ACT_REMOVE, _ACT_DONE]
 
         # Added at the end, from the row after the last.
         await onto(app, driver, "goes1")
@@ -208,14 +220,12 @@ async def test_a_chain_is_added_to_reordered_and_taken_from_on_its_rows() -> Non
         await _place(app, driver, "claude/claude-sonnet-5")
         assert sheet._chain == ["claude/claude-sonnet-5", "codex/gpt-5.6-sol"]
 
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
-        listing = app.screen.query_one("#choices", OptionList)
         # Broken across lines where the row is narrower than the chain, so read as words.
-        assert (
-            "falls back to claude/claude-sonnet-5, then codex/gpt-5.6-sol"
-            in " ".join(str(listing.get_option("=claude/claude-opus-5").prompt).split())
+        assert "falls back to claude/claude-sonnet-5, then codex/gpt-5.6-sol" in _says(
+            app, "claude/claude-opus-5"
         )
         await keeps(app, driver)
         await until(lambda: not isinstance(app.screen, Fallbacks), driver)
@@ -249,7 +259,7 @@ async def test_nowhere_on_a_row_of_the_chain_takes_that_place_off_it() -> None:
         await until(lambda: isinstance(app.screen, Failing), driver)
 
         assert sheet._chain == ["claude/claude-sonnet-5"]
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
         await keeps(app, driver)
@@ -287,7 +297,7 @@ async def test_a_step_that_says_nothing_is_refused_where_it_was_written() -> Non
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Failing), driver)
         await _place(app, driver, "claude/claude-opus-5")
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await driver.pause()
 
@@ -297,7 +307,7 @@ async def test_a_step_that_says_nothing_is_refused_where_it_was_written() -> Non
 
 @pytest.mark.timeout(60)
 async def test_a_step_is_taken_away_from_its_own_form() -> None:
-    """Enter opens what a step is, and being rid of it is a row of that.
+    """Enter opens what a step is, and being rid of it is a button of that.
 
     Held until the menu is saved, like everything else the sheet is holding: what the row
     says is what lands, and nothing has landed while the menu is still up.
@@ -310,17 +320,11 @@ async def test_a_step_is_taken_away_from_its_own_form() -> None:
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
         await _step(app, driver)
-        # The place it is written against is what the form is about, not a row of it.
-        assert rows(app) == [
-            "goes0",
-            "goes1",
-            "tries",
-            "policy",
-            "for",
-            _TAKES_AWAY,
-            _DONE,
-        ]
-        await onto(app, driver, _TAKES_AWAY)
+        # The place it is written against is what the form is about, not a row of it; and
+        # being rid of it is what is done about the form, not one of its questions.
+        assert rows(app) == ["goes0", "goes1", "tries", "policy", "for"]
+        assert bar(app) == [_ACT_REMOVE, _ACT_DONE]
+        await onto(app, driver, _ACT_REMOVE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 
@@ -346,7 +350,7 @@ async def test_walking_out_of_a_step_taken_away_lands_nothing() -> None:
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
         await _step(app, driver)
-        await onto(app, driver, _TAKES_AWAY)
+        await onto(app, driver, _ACT_REMOVE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 
@@ -391,13 +395,12 @@ async def test_how_often_a_failed_turn_is_taken_again_is_on_the_same_form() -> N
 
         await nexts(app, driver, "tries")  # one try beyond the first
         await nexts(app, driver, "policy")  # and the wait stepped on one
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 
         # Said, and held until the menu is saved.
-        listing = app.screen.query_one("#choices", OptionList)
-        assert "1 retry" in str(listing.get_option("=claude/claude-opus-5").prompt)
+        assert "1 retry" in _says(app, "claude/claude-opus-5")
         assert fallbacks.tried("claude/claude-opus-5").tries == 0
 
         await keeps(app, driver)
@@ -427,18 +430,14 @@ async def test_leaving_a_step_being_written_asks_whether_to_keep_it() -> None:
         await driver.press("enter")  # save, which is keeping the step as it now says
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 
-        assert "1 retry" in str(
-            app.screen.query_one("#choices", OptionList)
-            .get_option("=claude/claude-opus-5")
-            .prompt
-        )
+        assert "1 retry" in _says(app, "claude/claude-opus-5")
 
 
 @pytest.mark.timeout(60)
 async def test_keeping_the_last_rung_moves_on_to_done_and_not_to_taking_it_away() -> (
     None
 ):
-    """Enter twice over the last question must not be enter over `take it away`."""
+    """Enter twice over the last question must not be enter on the button that removes it."""
     fallbacks.points("claude/claude-opus-5", ["codex/gpt-5.6-sol"])
     app = Humanize()
     async with app.run_test() as driver:
@@ -449,7 +448,9 @@ async def test_keeping_the_last_rung_moves_on_to_done_and_not_to_taking_it_away(
         await _step(app, driver)
         await nexts(app, driver, "for")
 
-        assert under(app) == _DONE
+        # The focus on the button that keeps it, and the cursor left on the question.
+        assert _done(app)
+        assert under(app) == "for"
 
 
 @pytest.mark.timeout(90)
@@ -470,7 +471,7 @@ async def test_a_step_added_for_a_place_that_has_one_starts_from_it() -> None:
         assert sheet._chain == ["codex/gpt-5.6-sol"]
         assert sheet._typed_in["tries"] == "3"
         assert "already has a fallback rule" in _under(app)
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
         await keeps(app, driver)
@@ -516,9 +517,11 @@ async def test_a_search_for_falling_back_nowhere_lands_on_it() -> None:
         app.push_screen(sheet)
         await until(lambda: app.screen is sheet, driver)
         await until(lambda: bool(sheet.query("#choices")) and "" in rows(app), driver)
-        await until(lambda: _SEARCH in ids(app), driver)
-        await onto(app, driver, _SEARCH)
-        await driver.press("enter", *"nowh")
+        await until(lambda: _ACT_SEARCH in bar(app), driver)
+        await driver.press("slash", *"nowh")
         await driver.pause()
 
+        # Found, and the cursor on it: an answer of nothing is a row like any other.
+        assert ids(app) == [""]
+        assert sheet.query_one("#choices", OptionList).highlighted == 0
         assert under(app) == ""

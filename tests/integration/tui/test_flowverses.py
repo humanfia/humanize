@@ -212,7 +212,7 @@ async def test_the_keys_stay_inside_the_terminal(tmp_path: Path) -> None:
         listing = sheet.query_one("#choices", OptionList)
 
         assert len(_rows(sheet)) == 20  # every one of them offered, all the same
-        assert sheet.query_one("#rule", Label).region.y >= 0
+        assert sheet.query_one("#top").region.y >= 0  # the way here, still at the top
         assert keys.region.bottom <= app.size.height
         # And the line of them wrapped rather than run off the side.
         assert keys.region.right <= app.size.width

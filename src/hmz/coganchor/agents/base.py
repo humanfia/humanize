@@ -1781,18 +1781,18 @@ class SessionBase(ABC):
         if not held:
             return (
                 'this account has not been checked for models; the "check again" '
-                "row under its models checks it"
+                "button under its models checks it"
             )
         asked = f" (asked {when})" if when else ""
         if model in held:
             return (
                 f"the {len(held)} models this account was last offered{asked} still list "
-                'it, so that list is stale; the "check again" row under its models '
+                'it, so that list is stale; the "check again" button under its models '
                 "checks again"
             )
         return (
             f"it is not among the {len(held)} models this account was last offered"
-            f'{asked}; the "check again" row under its models checks again, and '
+            f'{asked}; the "check again" button under its models checks again, and '
             "lists what it can run"
         )
 

@@ -114,7 +114,7 @@ async def polish(
    each field's `description`, not the class's.
 3. **`passes: int = Field(default=1, ge=1, le=5, …)`**: the type says `-p passes=3` is read as
    an `int`; `ge` and `le` are pydantic's bounds, so `-p passes=9` is refused before anything
-   runs; `description` is the line shown beside it on the form.
+   runs; `description` is the line shown under it on the form.
 4. **`Literal["correctness", "style", "tests"]`** is a choice. The command line accepts exactly
    those words, and the form drops them under the row in the order written.
 5. **`commit: bool`** is a switch: `-p commit=true` on the command line, `on` or `off` on the
@@ -183,20 +183,35 @@ looked at tests (`focus=tests`), and a commit (`commit=true`).
 **At the prompt**, choosing the flow in `/flow` puts its params up as a form before its agents:
 
 ```text
-   passes  ·  what the agent does
-   ❯ 1. passes                            1            review passes after the work
-     2. focus                             correctness ▾ what each pass looks for
+  hmz › Flow › Set up polish
+  Configure how this flow runs. Options and validation are defined by the flow
+  itself.
 
-   after  ·  what happens at the end
-     3. commit                            off ▾        commit when done
-     4. message                                        the commit message; empty for the agent's own
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ passes  ·  what the agent does                                           │
+  │ passes                                                                 1 │
+  │   review passes after the work                                           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ focus                                                      correctness ▾ │
+  │   what each pass looks for                                               │
+  │                                                                          │
+  │ after  ·  what happens at the end                                        │
+  │ commit                                                           ○ off ▾ │
+  │   commit when done                                                       │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ message                                                                — │
+  │   the commit message; empty for the agent's own                          │
+  ╰──────────────────────────────────────────────────────────────────────────╯
 
-        set                       all of the above
+                                                                           Set
+
+  enter change   tab actions   esc back
 ```
 
-The two headings are the `section`s, each row is a field with its value and its `description`,
-and `▾` marks a row whose values <kbd>enter</kbd> or a click drops under it to be picked
-from. **set** takes the form and goes on to the flow's agents.
+The two headings are the `section`s, each row is a field with its value at the far end and its
+`description` under it, and `▾` marks a row whose values <kbd>enter</kbd> or a click drops
+under it to be picked from. **Set**, the button under them, takes the form and goes on to the
+flow's agents.
 
 | Field type | On the form |
 | --- | --- |

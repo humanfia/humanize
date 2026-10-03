@@ -15,7 +15,8 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from textual import events
-from textual.widgets import Label, OptionList, Static
+from textual.content import Content
+from textual.widgets import Button, Label, OptionList, Static
 
 from hmz.coganchor import providers
 from hmz.coganchor.backends import Model
@@ -24,16 +25,16 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import (
     _ACT_ADD,
+    _ACT_DONE,
+    _ACT_REMOVE,
     _ACT_SAVE,
     _ACT_SEARCH,
     _ACT_SPEAKS,
-    _ADD,
-    _DONE,
-    _TAKES_AWAY,
     Account,
     Accounts,
     Agent,
     Confirms,
+    Key,
     Providers,
     Signing,
     reads,
@@ -73,22 +74,28 @@ def _under(app: Humanize) -> str:
 
 
 def _drawn(app: Humanize) -> str:
-    """Every row the sheet on top has put up, as one block to read."""
-    return "\n".join(
-        str(one.prompt) for one in app.screen.query_one("#choices", OptionList).options
+    """Every row the sheet on top has put up, as one line of words to read.
+
+    Without the colours, and with the lines a long row wraps onto run back together: a row
+    says what it says whatever width the screen it was laid out across was.
+    """
+    return " ".join(
+        " ".join(Content.from_markup(str(one.prompt)).plain.split())
+        for one in app.screen.query_one("#choices", OptionList).options
     )
 
 
 async def _doing(app: Humanize, driver: Pilot[None], held: str) -> None:
     """Opens what there is to do with the account under the cursor, and picks one of them.
 
-    Which is what enter on an account is now: three questions about it -- correct it, sign it
-    in again, be rid of it -- rather than three letter keys on the list of accounts.
+    Which is what enter on an account is now: two questions about it -- correct it, sign it in
+    again -- and a button under them that is rid of it, rather than three letter keys on the
+    list of accounts.
 
     Args:
       app: The interface.
       driver: What is pumping it.
-      held: Which of them, by the id its row is put up under.
+      held: Which of them, by the id its row is put up under or the key of the button.
     """
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Account), driver)
@@ -100,7 +107,7 @@ async def _doing(app: Humanize, driver: Pilot[None], held: str) -> None:
 
 
 async def _adds(app: Humanize, driver: Pilot[None]) -> Signing:
-    """Opens the form an account is made on, from the row above the accounts that says so.
+    """Opens the form an account is made on, from the button under the accounts that says so.
 
     Args:
       app: The interface.
@@ -109,8 +116,8 @@ async def _adds(app: Humanize, driver: Pilot[None]) -> Signing:
     Returns:
       The form.
     """
-    await until(lambda: _ADD in ids(app) or _ACT_ADD in bar(app), driver)
-    await onto(app, driver, _ACT_ADD if _ACT_ADD in bar(app) else _ADD)
+    await until(lambda: _ACT_ADD in bar(app), driver)
+    await onto(app, driver, _ACT_ADD)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Signing), driver)
     await until(
@@ -151,13 +158,13 @@ async def _writes(app: Humanize, driver: Pilot[None], held: str, *keys: str) -> 
 
 
 async def _answers(app: Humanize, driver: Pilot[None]) -> None:
-    """Answers a form from the row below its questions.
+    """Answers a form from the button below its questions.
 
     Args:
       app: The interface.
       driver: What is pumping it.
     """
-    await onto(app, driver, _DONE)
+    await onto(app, driver, _ACT_DONE)
     await driver.press("enter")
 
 
@@ -235,7 +242,8 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
         # The first CLI and its first way in, which for Claude Code is its own login: that
         # asks nothing else, the CLI's own login being what asks the rest -- and nothing
         # travels, so there is nothing to ask about where else it goes.
-        assert rows(app) == ["cli", "way", "name", _DONE]
+        assert rows(app) == ["cli", "way", "name"]
+        assert bar(app) == [_ACT_DONE]
         assert form._typed_in["cli"] == "claude"
         assert form._typed_in["way"] == "login"
         # The name is written for you, and the cursor is on the first question.
@@ -404,7 +412,8 @@ async def test_the_account_an_agent_runs_as_is_the_first_thing_asked_about_it(
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
         # This machine's own first, which is what every agent ran as before there were any.
-        assert rows(app) == ["", "deepseek", _ADD]
+        assert rows(app) == ["", "deepseek"]
+        assert _ACT_ADD in bar(app)
 
         await driver.press("down", "enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
@@ -437,8 +446,8 @@ async def test_an_account_can_be_made_from_the_sheet_that_asks_for_one(
 ) -> None:
     """The moment somebody finds out they have no account is the moment to offer them one.
 
-    So making one is a row of the question rather than a walk out of it, and what comes back
-    is the account chosen: making one here is choosing it -- with the models that account
+    So making one is a button of the question rather than a walk out of it, and what comes
+    back is the account chosen: making one here is choosing it -- with the models that account
     runs already asked for, which is what makes the step after it answerable.
     """
     import hmz.coganchor.models
@@ -457,9 +466,10 @@ async def test_an_account_can_be_made_from_the_sheet_that_asks_for_one(
         await opens(app, driver, "provider")
         await until(lambda: isinstance(app.screen, Accounts), driver)
         # Nothing to choose but this machine's own, which is where somebody finds out.
-        assert rows(app) == ["", _ADD]
+        assert rows(app) == [""]
+        assert _ACT_ADD in bar(app)
 
-        await onto(app, driver, _ADD)
+        await onto(app, driver, _ACT_ADD)
         await driver.press("enter")
         # Straight to the form, less the question of which CLI: it is the one the agent is on.
         await until(lambda: isinstance(app.screen, Signing), driver)
@@ -526,7 +536,7 @@ async def test_making_one_and_walking_out_of_it_changes_nothing(
         await into_agent(app, driver)
         await opens(app, driver, "provider")
         await until(lambda: isinstance(app.screen, Accounts), driver)
-        await onto(app, driver, _ADD)
+        await onto(app, driver, _ACT_ADD)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Signing), driver)
         await driver.press("escape")
@@ -560,11 +570,14 @@ async def test_a_cli_with_no_accounts_says_where_they_come_from(
 
         assert "claude has no saved accounts yet" in said
         # And offers one without sending anybody out of the question: the moment somebody
-        # finds out they have none is the moment to be offered one. A row of the list rather
-        # than a key, a key said at the bottom of the screen being one to go looking for.
-        assert rows(app)[-1] == _ADD
-        await onto(app, driver, _ADD)
-        assert "enter add" in str(app.screen.query_one("#keys", Label).content)
+        # finds out they have none is the moment to be offered one. A button under the list
+        # rather than a key, a key said at the bottom of the screen being one to go looking
+        # for -- and the row of keys says tab reaches it from the list.
+        sheet = cast("Accounts", app.screen)
+        assert _ACT_ADD in bar(app)
+        assert Key("tab", "actions") in sheet._keyed
+        await onto(app, driver, _ACT_ADD)
+        assert Key("enter", "add") in sheet._keyed
 
 
 @pytest.mark.timeout(60)
@@ -662,7 +675,8 @@ async def test_signing_in_again_asks_only_what_is_not_written_down(
         await until(lambda: bool(form.options), driver)
         # And only that: what to call an account that already has a name is not a question,
         # and nor is where else it goes.
-        assert rows(app) == ["OPENAI_API_KEY", _DONE]
+        assert rows(app) == ["OPENAI_API_KEY"]
+        assert bar(app) == [_ACT_DONE]
 
         await _writes(app, driver, "OPENAI_API_KEY", *"sk-1")
         await _answers(app, driver)
@@ -815,7 +829,7 @@ async def test_taking_an_account_away_says_what_went_with_it() -> None:
         )
 
         # From inside what there is to do with it, and held until the menu is saved.
-        await _doing(app, driver, _TAKES_AWAY)
+        await _doing(app, driver, _ACT_REMOVE)
         await until(
             lambda: (
                 "when this menu is saved"
@@ -835,7 +849,7 @@ async def test_taking_an_account_away_says_what_went_with_it() -> None:
 
 @pytest.mark.timeout(60)
 async def test_an_account_held_to_go_is_offered_the_way_back() -> None:
-    """Nothing has happened yet, so the row that marked it is the row that unmarks it."""
+    """Nothing has happened yet, so the button that marked it is the one that unmarks it."""
     _account()
     app = Humanize()
     async with app.run_test() as driver:
@@ -843,20 +857,17 @@ async def test_an_account_held_to_go_is_offered_the_way_back() -> None:
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
-        await _doing(app, driver, _TAKES_AWAY)
+        await _doing(app, driver, _ACT_REMOVE)
         await until(lambda: isinstance(app.screen, Providers), driver)
         assert "will be removed" in _drawn(app)
 
-        # Open again and the row says the opposite, rather than offering the same thing.
+        # Open again and the button says the opposite, rather than offering the same thing.
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Account), driver)
-        await until(
-            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
-        )
-        assert "cancel removal" in str(
-            app.screen.query_one("#choices", OptionList).options[-1].prompt
-        )
-        await onto(app, driver, _TAKES_AWAY)
+        await until(lambda: _ACT_REMOVE in bar(app), driver)
+        undo = app.screen.query_one(f"#act-{_ACT_REMOVE}", Button)
+        assert str(undo.label) == "Cancel removal"
+        await onto(app, driver, _ACT_REMOVE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Providers), driver)
         await until(lambda: "deepseek stays" in _under(app), driver)
@@ -877,7 +888,7 @@ async def test_an_account_held_to_go_stays_where_the_menu_is_not_saved() -> None
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
-        await _doing(app, driver, _TAKES_AWAY)
+        await _doing(app, driver, _ACT_REMOVE)
         await until(lambda: isinstance(app.screen, Providers), driver)
 
         await drops(app, driver)
@@ -977,15 +988,12 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
         # Correcting it, signing it in and taking it away are not offered at all, with the
         # reason said where they would have been: humanize did not make that account and
         # keeps nothing for it. And where a turn under it goes when it fails is not an
-        # account's to say at all, so there is no row left.
+        # account's to say at all, so there is no row left -- and no button either.
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Account), driver)
         await until(lambda: "keeps no credentials for it" in _under(app), driver)
-        assert [
-            str(one.id or "").removeprefix("=")
-            for one in app.screen.query_one("#choices", OptionList).options
-            if one.id and not str(one.id).startswith("=\x1e")
-        ] == []
+        assert ids(app) == []
+        assert bar(app) == []
         assert "remove it" in _under(app)
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Providers), driver)
@@ -1011,8 +1019,8 @@ async def test_an_account_offers_nothing_about_where_a_failed_turn_goes() -> Non
 
 
 @pytest.mark.timeout(60)
-async def test_a_cli_of_your_own_is_written_down_from_a_row_of_its_own() -> None:
-    """Beside the row that adds an account, since what it adds is a backend rather than one."""
+async def test_a_cli_of_your_own_is_written_down_from_a_button_of_its_own() -> None:
+    """Beside the button that adds an account, since what it adds is a backend, not one."""
     from hmz.coganchor import backends
     from hmz.tui.pick import Speaks
 
@@ -1062,8 +1070,9 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
         # Nothing is installed in this suite, so nothing starts switched on.
         assert not any(form._also(one) for one in ("pi", "opencode", "mimo"))
         await nexts(app, driver, "also:opencode")
+        # Said where answering it is: by the button that answers it.
         assert "for opencode too" in str(
-            app.screen.query_one("#choices", OptionList).get_option(f"={_DONE}").prompt
+            app.screen.query_one(f"#act-{_ACT_DONE}", Button).tooltip
         )
         await _answers(app, driver)
 
@@ -1169,7 +1178,7 @@ async def test_typing_on_a_row_of_the_form_writes_it_and_enter_moves_on() -> Non
         form = await _adds(app, driver)
         await _chooses(app, driver, "way", "key")
         assert form.under() == "ANTHROPIC_API_KEY"
-        assert "type to edit" in str(app.screen.query_one("#keys", Label).content)
+        assert Key("type", "to edit") in form._keyed
 
         await driver.press(*"sk-typed")
         await driver.pause()
@@ -1177,9 +1186,11 @@ async def test_typing_on_a_row_of_the_form_writes_it_and_enter_moves_on() -> Non
         await driver.press("enter")
         await driver.pause()
 
-        # Kept, and on to what is left, which is nothing but answering it.
+        # Kept, and on to what is left, which is nothing but answering it: the focus on the
+        # button that does, and the cursor left on the question just answered.
         assert form._typed_in["ANTHROPIC_API_KEY"] == "sk-typed"
-        assert form.under() == _DONE
+        assert form.focused is form.query_one(f"#act-{_ACT_DONE}", Button)
+        assert form.under() == "ANTHROPIC_API_KEY"
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Providers), driver)
 
