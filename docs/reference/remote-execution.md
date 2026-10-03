@@ -600,7 +600,9 @@ machine, humanize books a meeting:
    else `$HUMANIZE_RENDEZVOUS`, else this machine's outward-facing IPv4 address (the source
    address of a route to `192.0.2.1`; `127.0.0.1` if there is none).
 3. It spawns `hmz internal anchor --target peer://TICKET@HOST:PORT` on the harness machine.
-4. Both halves dial the broker with the ticket and their role (`anchor` or `serve`).
+4. Both halves dial the broker with the ticket and their role (`anchor` or `serve`), and offer
+   the address they dialled from plus the IPv4 addresses their hostname resolves to -- left
+   out where resolving it takes longer than 1 s, as an unanswered macOS `.local` name does.
 
 | Phase | Behaviour | Time limit |
 | --- | --- | --- |

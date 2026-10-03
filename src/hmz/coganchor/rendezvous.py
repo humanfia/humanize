@@ -95,6 +95,9 @@ PUNCHING = 4.0
 #: connection to something that is not listening for us.
 GREETING = 3.0
 
+#: How long a half waits for its own machine's name to resolve before going without it.
+_NAMING = 1.0
+
 #: How long a half waits on the broker's own answers, which are sent as soon as it has them.
 _ANSWERING = 30.0
 
@@ -1008,14 +1011,36 @@ def _mine(home: socket.socket, port: int) -> list[tuple[str, int]]:
     where the broker is somewhere else entirely and the two halves are neighbours.
     """
     addresses = [str(home.getsockname()[0])]
-    with contextlib.suppress(OSError):
-        for found in socket.getaddrinfo(
-            socket.gethostname(), port, socket.AF_INET, socket.SOCK_STREAM
-        ):
-            address = str(found[4][0])
-            if address not in addresses:
-                addresses.append(address)
+    for address in _named(port):
+        if address not in addresses:
+            addresses.append(address)
     return [(address, port) for address in addresses]
+
+
+def _named(port: int) -> list[str]:
+    """This machine's addresses by its own name, or none if the name is slow to say them.
+
+    Asked of the resolver, which may not know the name at all: a Mac's `<name>.local` is
+    looked up over multicast DNS and, where nothing answers, takes over half a minute to fail
+    -- longer than the broker waits for this half's first word, so a half that waited for it
+    would arrive to find the broker gone. The names are a nicety for neighbours, and are left
+    out rather than waited for.
+    """
+    found: list[str] = []
+    done = threading.Event()
+
+    def asking() -> None:
+        with contextlib.suppress(OSError):
+            found.extend(
+                str(one[4][0])
+                for one in socket.getaddrinfo(
+                    socket.gethostname(), port, socket.AF_INET, socket.SOCK_STREAM
+                )
+            )
+        done.set()
+
+    threading.Thread(target=asking, name="rendezvous-names", daemon=True).start()
+    return list(found) if done.wait(_NAMING) else []
 
 
 def _pairs(said: Any) -> list[tuple[str, int]]:
