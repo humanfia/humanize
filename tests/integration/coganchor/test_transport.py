@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz import coganchor
 from hmz.coganchor import transport
 from hmz.coganchor.proto import path_within
 from hmz.coganchor.statepaths import COMMON_STATE_PATHS
@@ -159,6 +160,40 @@ def test_the_bundle_is_the_same_wherever_it_is_built(
         monkeypatch.undo()
         time.tzset()
     assert here == elsewhere
+
+
+def test_the_bundle_says_which_humanize_it_is_with_none_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A harness run from the archive tells its agent the version of the humanize that sent it.
+
+    Under `-S` the interpreter has no site-packages at all, so the only `hmz` it can find, and
+    the only metadata, is the archive's own. A version this side was never installed as is what
+    proves the answer came out of the archive rather than out of an install beside it.
+    """
+    monkeypatch.setattr(coganchor, "__version__", "9.8.7")
+    bundle = build_bundle(tmp_path / "coganchor.pyz")
+
+    said = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            (
+                "import sys; sys.path.insert(0, sys.argv[1]);"
+                " from hmz.coganchor import __version__; print(__version__)"
+            ),
+            str(bundle),
+        ],
+        capture_output=True,
+        text=True,
+        cwd="/",
+        check=False,
+    )
+
+    assert said.returncode == 0, said.stderr
+    assert said.stdout.strip() == "9.8.7"
 
 
 def test_bundle_reports_failure_in_its_exit_status(tmp_path: Path) -> None:

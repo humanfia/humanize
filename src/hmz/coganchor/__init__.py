@@ -28,7 +28,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from hmz.coganchor.anchor import AnchorConfig, check, connect, drive
 
-__version__ = "0.1.0"
+    #: humanize's version: the one `pyproject.toml` says, as the installed `hmz` carries it.
+    __version__: str
 
 __all__ = ["AnchorConfig", "__version__", "check", "connect", "drive"]
 
@@ -45,6 +46,10 @@ _WRITTEN = {
 def __getattr__(name: str) -> object:
     """Hands through what this package offers, out of the module it is written in.
 
+    And the version, out of the installed package's metadata -- which is where the one copy of
+    it, in `pyproject.toml`, ends up -- kept here once it is read. The archive a target runs
+    carries a copy of that metadata, so that the same question has the same answer there.
+
     Args:
       name: What was asked for.
 
@@ -54,6 +59,18 @@ def __getattr__(name: str) -> object:
     Raises:
       AttributeError: If nothing here is called that, as for any other module.
     """
+    if name == "__version__":
+        # Asked for rather than read at import: reaching the metadata costs more than the rest
+        # of this front door, and only a turn being started, or the archive it ships, asks.
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            found = version("hmz")
+        except PackageNotFoundError:
+            # A source tree run without being installed, which has a version nowhere to read.
+            found = "unknown"
+        globals()[name] = found
+        return found
     from importlib import import_module
 
     where_ = _WRITTEN.get(name)
