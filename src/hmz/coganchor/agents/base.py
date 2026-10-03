@@ -3212,6 +3212,18 @@ class StreamSessionBase(SessionBase):
         """
 
 
+def _unheard(agent: AgentBase, session: SessionBase | None, event: Event) -> None:
+    """Hears a stand-in's words for the agent whose turn they come back through, and drops them.
+
+    Args:
+      agent: The stand-in.
+      session: Its conversation.
+      event: What it said, which the agent it stands in for is already telling its own
+        watchers.
+    """
+    del agent, session, event
+
+
 def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
     """One agent to stand in at a place, configured as the agent that could not run was.
 
@@ -4600,6 +4612,12 @@ class AgentBase(ABC):
                 made.loads(self._loads)
                 made.epic = self.epic
                 made._keeps = self._keeps
+                # Watched where this agent is, by nothing of its own: what it says comes back
+                # through this agent's turn and is shown as this agent's. A stand-in that
+                # believed nobody was watching would put its words and its answer on the
+                # terminal itself as well, and the run would say everything twice.
+                if self.watched:
+                    made.watch(_unheard)
                 # And this run's allowance, because a turn taken by a stand-in is this run's
                 # turn: an account that went down is not a reason for the money to stop being
                 # counted.

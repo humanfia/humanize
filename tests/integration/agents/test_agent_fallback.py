@@ -639,6 +639,30 @@ def test_the_turn_that_moved_is_still_the_one_the_flow_asked_for(
 
 
 @pytest.mark.timeout(60)
+def test_a_watched_agent_s_stand_in_leaves_the_terminal_to_what_watches_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """The answer once, as the watched agent's: `hmz exec` printed a fallback's answer thrice.
+
+    A stand-in that believed nobody was watching put its answer on stdout itself, beside the
+    one the watcher wrote for the agent whose turn it was.
+    """
+    _claude(tmp_path, monkeypatch)
+    fallbacks.points("shell/m", ["claude/claude-opus-5"])
+    agent = ShellAgent(CONFIG)
+    agent.watch(lambda _agent, _session, _event: None)
+    capfd.readouterr()
+
+    assert agent.new()("exit 3") == "claude took it: exit 3"
+
+    said = capfd.readouterr()
+    assert "claude took it" not in said.out
+    assert "claude took it" not in said.err
+
+
+@pytest.mark.timeout(60)
 def test_a_turn_that_lands_never_asks_where_it_would_have_gone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

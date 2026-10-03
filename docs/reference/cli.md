@@ -401,7 +401,10 @@ One line (or block) per event, in order. `●` is `⏺` on macOS.
 | `took` | nothing | |
 
 Cost footer: `✻ <kind> <count>[ · <kind> <count>…] · [<money> · ]<model> · <agent>`, drawn
-only for a `result` carrying `spent`. Kinds in the order `input`, `output`, `cache_read`,
+only for a `result` carrying `spent`. `<model>` is the one model the result's `tokens` names,
+where it names exactly one (the model a [fallback](/user/settings#fallback) carried the turn
+to, or the one an alias resolved to), else the agent's configured model; it is also what the
+money is priced at. Kinds in the order `input`, `output`, `cache_read`,
 `cache_write`, `reasoning`, then any other alphabetically. Counts: `< 1000` as an integer,
 `< 1 000 000` as `<n.n>k`, else `<n.nn>M`. Money is omitted for a model with no known price;
 otherwise `$<n>` with no decimals from $100, two decimals from $0.01, four below, `$0.00` for

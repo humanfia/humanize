@@ -496,6 +496,11 @@ class Shown:
         model, whose = str(said["model"]), str(said["agent"])
         if not spent:
             return
+        # The model the turn ran on, where the backend named one, over the one the agent was
+        # configured with: a turn a fallback carried to another place was spent there, and
+        # priced as the place it left it would be a bill for a model that never answered.
+        if len(ran := tuple(said["tokens"])) == 1:
+            model = str(ran[0])
         # In the one order every reader of these is shown them: what went in, what came out,
         # then the cache kinds and the reasoning. A footer whose columns came out in whatever
         # order the backend happened to write them is one nobody can read two turns of.
