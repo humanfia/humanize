@@ -16,7 +16,7 @@ project's `.humanize/flows/`.
 
 ```sh [hmz exec]
 hmz exec -f aot -a writer=claude/claude-opus-5:high -a critic=codex/gpt-5.6-sol:high \
-    -b cost=10 "two agents take turns until a reviewer says it is done"
+    -p budget.cost=10 "two agents take turns until a reviewer says it is done"
 ```
 
 :::
@@ -33,7 +33,7 @@ drives:   worker -- an agent
 drives:   reviewer -- an agent
 ends:     by verdict -- reviewer says done, within 6 rounds
 
-hmz exec -f local/turn_taking_review -a worker=CLI/MODEL:EFFORT -a reviewer=CLI/MODEL:EFFORT -b cost=USD "the task"
+hmz exec -f local/turn_taking_review -a worker=CLI/MODEL:EFFORT -a reviewer=CLI/MODEL:EFFORT -p budget.cost=USD "the task"
 ```
 
 At the prompt, the new flow is `$local/turn_taking_review`.

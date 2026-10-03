@@ -1,15 +1,18 @@
-"""What `-a`, `-e`, `-p` and `-b` say, read the way `hmz exec` reads them."""
+"""What `-a`, `-e` and `-p` say -- a budget among the last --, read as `hmz exec` reads them."""
 
 from __future__ import annotations
 
 import datetime
 import math
+import re
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.coganchor import backends
+from hmz.coganchor.machines import store
+from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime, SwarmRuntime
 from hmz.flows import Budget, EnvBackendKind, HarnessKind
 from hmz.runtime.flowing.specs import (
     AgentSpec,
@@ -121,9 +124,9 @@ def test_a_role_given_twice_is_refused() -> None:
         (parse_agents, AgentSpecError, ""),
         (parse_envs, EnvSpecError, " "),
         (parse_params, ParamSpecError, ""),
-        (parse_budget, BudgetSpecError, ",cost=1"),
+        (parse_budget, ParamSpecError, ",budget.cost=1"),
     ],
-    ids=["-a", "-e", "-p", "-b"],
+    ids=["-a", "-e", "-p", "-p budget"],
 )
 def test_an_empty_item_is_refused_as_that_flag(
     parse: Callable[[list[str]], object], refused: type[SpecError], written: str
@@ -134,7 +137,7 @@ def test_an_empty_item_is_refused_as_that_flag(
 
 def test_a_space_after_a_comma_still_separates_two_items() -> None:
     assert parse_params(["a=1, b=2"]) == {"a": "1", "b": "2"}
-    assert [spec.role for spec in parse_envs(["a=local@/x,  b=local@/y"])] == ["a", "b"]
+    assert [spec.role for spec in parse_envs(["a=local/x,  b=local/y"])] == ["a", "b"]
     assert [spec.role for spec in parse_agents(["a=claude/m:high, b=codex/m:low"])] == [
         "a",
         "b",
@@ -193,13 +196,18 @@ def test_an_effort_is_only_what_is_spelled_as_one(
 # ------------------------------------------------------------------------------------ -e
 
 
+@pytest.fixture
+def saved() -> None:
+    """A runtime of each backend saved here, each under a name an `-e` may name it by."""
+    store.add(SSHRuntime(name="gpu-box", host="10.0.0.2"))
+    store.add(DockerRuntime(name="gpubox"))
+    store.add(SwarmRuntime(name="cluster"))
+
+
+@pytest.mark.usefixtures("saved")
 @pytest.mark.parametrize(
     ("written", "spec"),
     [
-        (
-            "repo=local@/home/me/repo",
-            EnvSpec("repo", EnvBackendKind.LOCAL, "", PurePosixPath("/home/me/repo")),
-        ),
         (
             "repo=local/home/me/repo",
             EnvSpec("repo", EnvBackendKind.LOCAL, "", PurePosixPath("/home/me/repo")),
@@ -211,102 +219,188 @@ def test_an_effort_is_only_what_is_spelled_as_one(
             ),
         ),
         (
-            "repo=ssh@me@gpu-box/srv/x",
-            EnvSpec("repo", EnvBackendKind.SSH, "me@gpu-box", PurePosixPath("/srv/x")),
+            "repo=ssh@[me@gpu-box:2222]/srv/x",
+            EnvSpec(
+                "repo",
+                EnvBackendKind.SSH,
+                "[me@gpu-box:2222]",
+                PurePosixPath("/srv/x"),
+            ),
         ),
         (
             "repo=ssh@gpu-box/~/repo",
             EnvSpec("repo", EnvBackendKind.SSH, "gpu-box", PurePosixPath("~/repo")),
         ),
         (
-            "home=ssh@gpu-box/~",
-            EnvSpec("home", EnvBackendKind.SSH, "gpu-box", PurePosixPath("~")),
+            "home=ssh@[gpu-box]/~",
+            EnvSpec("home", EnvBackendKind.SSH, "[gpu-box]", PurePosixPath("~")),
         ),
-        ("root=local@/", EnvSpec("root", EnvBackendKind.LOCAL, "", PurePosixPath("/"))),
+        ("root=local/", EnvSpec("root", EnvBackendKind.LOCAL, "", PurePosixPath("/"))),
         (
             "box=docker@gpubox/srv/x",
             EnvSpec("box", EnvBackendKind.DOCKER, "gpubox", PurePosixPath("/srv/x")),
         ),
         (
-            "box=docker@local/tmp/x",
-            EnvSpec("box", EnvBackendKind.DOCKER, "local", PurePosixPath("/tmp/x")),
+            "box=docker/tmp/x",
+            EnvSpec("box", EnvBackendKind.DOCKER, "", PurePosixPath("/tmp/x")),
         ),
         (
             "box=swarm@cluster/srv/x",
             EnvSpec("box", EnvBackendKind.SWARM, "cluster", PurePosixPath("/srv/x")),
         ),
         (
-            "box=swarm@local/tmp/x",
-            EnvSpec("box", EnvBackendKind.SWARM, "local", PurePosixPath("/tmp/x")),
+            "box=swarm/tmp/x",
+            EnvSpec("box", EnvBackendKind.SWARM, "", PurePosixPath("/tmp/x")),
         ),
         (
-            " spaced = local@/tmp/x ",
+            " spaced = local/tmp/x ",
             EnvSpec("spaced", EnvBackendKind.LOCAL, "", PurePosixPath("/tmp/x")),
         ),
     ],
 )
-def test_an_environment_is_a_role_a_backend_a_host_and_a_workdir(
+def test_an_environment_is_a_role_a_backend_a_provider_and_a_workdir(
     written: str, spec: EnvSpec
 ) -> None:
     assert parse_envs([written]) == [spec]
 
 
 def test_environments_come_in_lists_and_in_repeated_flags() -> None:
-    specs = parse_envs(["a=local@/x,b=ssh@h/y", "c=local@/z"])
+    specs = parse_envs(["a=local/x,b=ssh@[h]/y", "c=local/z"])
     assert [spec.role for spec in specs] == ["a", "b", "c"]
 
 
 def test_a_workdir_may_hold_commas_where_no_key_follows() -> None:
-    (spec,) = parse_envs(["repo=local@/data/a,b,c"])
+    (spec,) = parse_envs(["repo=local/data/a,b,c"])
     assert spec.workdir == PurePosixPath("/data/a,b,c")
 
 
+def test_a_saved_runtime_alone_is_the_workdir_it_was_saved_with() -> None:
+    store.add(SSHRuntime(name="gpu", host="h", workdir="/srv/proj"))
+    assert parse_envs(["repo=ssh@gpu"])[0].workdir == PurePosixPath("/srv/proj")
+
+
+@pytest.mark.usefixtures("saved")
 @pytest.mark.parametrize(
     ("written", "says"),
     [
-        ("local@/x", "expected"),
+        ("local/x", "expected"),
         ("repo=local", "expected"),
-        ("repo=ssh@host", "expected"),
-        ("repo=docker@/x", "docker needs a host"),
-        ("repo=docker/x", "docker needs a host"),
-        ("repo=docker@local", "expected"),
-        ("repo=swarm@/x", "swarm needs a host, as in swarm@local/workdir"),
-        ("repo=swarm@local", "expected"),
-        ("repo=podman@local/x", "not a backend"),
-        ("repo=ssh@/x", "needs a host"),
-        ("repo=ssh/x", "needs a host"),
-        ("repo=local@box/x", "takes no host"),
-        ("my-repo=local@/x", "identifier"),
-        ("=local@/x", "identifier"),
+        ("repo=ssh@gpu-box", "left off only for a runtime saved with one"),
+        ("repo=ssh@[h]", "left off only"),
+        ("repo=docker", "left off only"),
+        ("repo=docker@gpubox", "left off only"),
+        ("repo=podman/x", "not a backend"),
+        ("repo=ssh/x", "ssh needs a host"),
+        ("repo=ssh@/x", "ssh needs a host"),
+        ("repo=ssh@[]/x", "not an ssh host"),
+        ("repo=ssh@[-oProxy=x]/x", "not an ssh host"),
+        ("repo=ssh@[a b]/x", "not an ssh host"),
+        ("repo=ssh@[h/x", "expected"),
+        ("repo=ssh@h]/x", "expected"),
+        ("repo=docker@[h]/x", "only ssh takes a host nobody saved"),
+        ("repo=swarm@[h]/x", "only ssh takes a host nobody saved"),
+        ("repo=local@[h]/x", "local takes no provider"),
+        ("repo=docker@ghost/x", "no docker runtime is saved as 'ghost'"),
+        ("repo=swarm@ghost/x", "no swarm runtime is saved as 'ghost'"),
+        ("repo=local@box/x", "local takes no provider"),
+        ("my-repo=local/x", "identifier"),
+        ("=local/x", "identifier"),
     ],
 )
 def test_what_is_not_an_environment_is_refused_saying_why(
     written: str, says: str
 ) -> None:
-    with pytest.raises(EnvSpecError, match=says):
+    with pytest.raises(EnvSpecError, match=re.escape(says)):
         parse_envs([written])
+
+
+@pytest.mark.parametrize(
+    ("written", "hint"),
+    [
+        ("r=local@/tmp/x", "write r=local/tmp/x"),
+        ("r=docker@local/w", "write r=docker/w"),
+        ("r=docker@/w", "write r=docker/w"),
+        ("r=swarm@local/w", "write r=swarm/w"),
+        ("r=ssh@somehost/x", "write r=ssh@[somehost]/x for a host not saved"),
+        ("r=ssh@me@host:2222/~/x", "write r=ssh@[me@host:2222]/~/x"),
+        ("r=ssh@somehost", "write r=ssh@[somehost]/<workdir>"),
+    ],
+)
+def test_the_old_spelling_is_refused_saying_how_it_is_spelled_now(
+    written: str, hint: str
+) -> None:
+    with pytest.raises(EnvSpecError, match=re.escape(hint)):
+        parse_envs([written])
+
+
+def test_a_runtime_saved_as_local_is_still_one_to_name() -> None:
+    store.add(DockerRuntime(name="local"))
+    (spec,) = parse_envs(["box=docker@local/w"])
+    assert spec.provider == "local"
+
+
+def test_a_runtime_saved_under_a_hosts_name_is_that_runtime_and_brackets_are_the_host() -> (
+    None
+):
+    store.add(SSHRuntime(name="gpu-box", host="10.0.0.2"))
+    assert parse_envs(["a=ssh@gpu-box/x"])[0].provider == "gpu-box"
+    assert parse_envs(["a=ssh@[gpu-box]/x"])[0].provider == "[gpu-box]"
 
 
 def test_an_environment_role_given_twice_is_refused() -> None:
     with pytest.raises(EnvSpecError, match="twice"):
-        parse_envs(["repo=local@/x", "repo=local@/y"])
+        parse_envs(["repo=local/x", "repo=local/y"])
 
 
+@pytest.mark.usefixtures("saved")
 @pytest.mark.parametrize(
     "written",
     [
-        "repo=local@/home/me",
-        "repo=ssh@h/srv/x",
-        "repo=ssh@me@h/~/x",
-        "repo=local@/",
+        "repo=local/home/me",
+        "repo=ssh@gpu-box/srv/x",
+        "repo=ssh@[me@h]/~/x",
+        "repo=local/",
         "repo=docker@gpubox/srv/x",
+        "repo=docker/srv/x",
         "repo=swarm@cluster/srv/x",
+        "repo=swarm/srv/x",
     ],
 )
 def test_an_environment_is_written_back_as_it_is_read(written: str) -> None:
     (spec,) = parse_envs([written])
     assert str(spec) == written
     assert parse_envs([str(spec)]) == [spec]
+
+
+@pytest.mark.parametrize(
+    ("kept", "now"),
+    [
+        ("local@/home/me", "local/home/me"),
+        ("docker@local/srv/x", "docker/srv/x"),
+        ("swarm@local/srv/x", "swarm/srv/x"),
+        ("ssh@me@h:2222/~/x", "ssh@[me@h:2222]/~/x"),
+        ("ssh@unsaved/srv", "ssh@[unsaved]/srv"),
+        ("ssh@gpu-box/srv", "ssh@gpu-box/srv"),
+        ("ssh@gpu-box", "ssh@gpu-box"),
+        ("docker@gpubox/srv/x", "docker@gpubox/srv/x"),
+        ("local/home/me", "local/home/me"),
+        ("docker/srv/x", "docker/srv/x"),
+        ("ssh@[h]/x", "ssh@[h]/x"),
+        ("nonsense", "nonsense"),
+    ],
+)
+@pytest.mark.usefixtures("saved")
+def test_what_was_kept_the_old_way_is_respelled_as_e_takes_it_now(
+    kept: str, now: str
+) -> None:
+    assert store.respelled(kept) == now
+
+
+def test_docker_here_kept_the_old_way_is_a_runtime_saved_as_local_where_there_is_one() -> (
+    None
+):
+    store.add(DockerRuntime(name="local"))
+    assert store.respelled("docker@local/x") == "docker@local/x"
 
 
 # ------------------------------------------------------------------------------------ -p
@@ -339,7 +433,30 @@ def test_a_param_given_twice_is_refused() -> None:
         parse_params(["rounds=3,rounds=4"])
 
 
-# ------------------------------------------------------------------------------------ -b
+def test_the_budget_is_not_a_param_of_the_flows() -> None:
+    assert parse_params(["rounds=3,budget.cost=5", "budget.duration=1h"]) == {
+        "rounds": "3"
+    }
+
+
+@pytest.mark.parametrize(
+    ("written", "says"),
+    [
+        (["budget=5"], "a budget is given a limit at a time"),
+        (["budget.cost=1,budget.cost=2"], "'budget.cost' is given twice"),
+        (["budget.cost.x=1"], "expected <key>=<value>"),
+        (["a.b=1"], "expected <key>=<value>"),
+    ],
+)
+def test_what_is_not_a_param_or_a_limit_is_refused_by_both(
+    written: list[str], says: str
+) -> None:
+    for parse in (parse_params, parse_budget):
+        with pytest.raises(ParamSpecError, match=re.escape(says)):
+            parse(written)
+
+
+# ---------------------------------------------------------------------- -p budget.<limit>
 
 
 @pytest.mark.parametrize(
@@ -378,11 +495,18 @@ def test_what_is_not_a_duration_is_refused(written: str) -> None:
 
 
 def test_a_budget_is_every_limit_across_every_flag() -> None:
-    assert parse_budget(["duration=1h30m,cost=5", "output_tokens=200k"]) == Budget(
+    assert parse_budget(
+        ["budget.duration=1h30m,rounds=3,budget.cost=5", "budget.output_tokens=200k"]
+    ) == Budget(
         duration=datetime.timedelta(hours=1, minutes=30),
         cost=5,
         output_tokens=200_000,
     )
+
+
+def test_no_limit_is_no_budget() -> None:
+    assert parse_budget(["rounds=3"]) is None
+    assert parse_budget([]) is None
 
 
 @pytest.mark.parametrize(
@@ -406,23 +530,21 @@ def test_a_budget_is_every_limit_across_every_flag() -> None:
     ],
 )
 def test_each_limit_is_read_as_a_person_writes_it(written: str, budget: Budget) -> None:
-    assert parse_budget([written]) == budget
+    assert parse_budget([re.sub(r"(^|,)", r"\1budget.", written)]) == budget
 
 
 @pytest.mark.parametrize(
     ("written", "says"),
     [
-        (["graceful=false"], "at least one"),
-        (["hours=2"], "expected key=value where key is one of"),
-        (["cost"], "expected key=value where key is one of"),
-        (["cost=1", "cost=2"], "duplicate key 'cost'"),
-        (["cost=-1"], "cost"),
-        (["cost=nan"], "cost"),
-        (["cost=free"], "cost"),
-        (["output_tokens=1.5"], "whole number"),
-        (["output_tokens=lots"], "tokens"),
-        (["duration=soon"], "duration"),
-        (["cost=1,graceful=maybe"], "true or false"),
+        (["budget.graceful=false"], "at least one"),
+        (["budget.hours=2"], "-p budget.hours: not a limit; one of budget.duration"),
+        (["budget.cost=-1"], "-p budget.cost"),
+        (["budget.cost=nan"], "-p budget.cost"),
+        (["budget.cost=free"], "-p budget.cost"),
+        (["budget.output_tokens=1.5"], "whole number"),
+        (["budget.output_tokens=lots"], "tokens"),
+        (["budget.duration=soon"], "-p budget.duration"),
+        (["budget.cost=1,budget.graceful=maybe"], "true or false"),
     ],
 )
 def test_what_is_not_a_budget_is_refused_saying_why(

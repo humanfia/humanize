@@ -164,7 +164,7 @@ class Hmz:
           of it by :meth:`runner`.
 
         Raises:
-          SystemExit: If the line is not one argparse accepts, or an `-a`, `-e`, `-p` or `-b`
+          SystemExit: If the line is not one argparse accepts, or an `-a`, `-e` or `-p`
             on it cannot be read.
         """
         from hmz.runtime.runner import read_line

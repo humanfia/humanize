@@ -48,18 +48,22 @@ class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, reso
                                # snapshots, placement, close
 class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, role)
 
-# specs.py -- what -a, -e, -p and -b say
+# specs.py -- what -a, -e and -p say, the budget among them
 @dataclass(frozen=True, slots=True)
 class AgentSpec: ...  # role, harness, provider, model, effort, cli
 @dataclass(frozen=True, slots=True)
-class EnvSpec: ...  # role, backend, provider (a saved runtime's name, a host, or
-                    # `local` for docker's default or the swarm here), workdir
+class EnvSpec: ...  # role, backend, provider (a saved runtime's name, an ssh host in
+                    # brackets, or "" for this machine), workdir
+BUDGET = "budget"   # the param a run's budget is given as, a limit apiece; no flow's
 def parse_agents(values: Sequence[str]) -> list[AgentSpec]: ...
 def parse_envs(values: Sequence[str]) -> list[EnvSpec]: ...
 def fallbacks(spec: EnvSpec) -> list[EnvSpec]: ...  # what its saved runtime falls back to
-def parse_params(values: Sequence[str]) -> dict[str, str]: ...
-def parse_budget(values: Sequence[str]) -> Budget: ...
+def parse_params(values: Sequence[str]) -> dict[str, str]: ...  # the flow's, budget.* not
+def parse_budget(values: Sequence[str]) -> Budget | None: ...  # every -p budget.<limit>=
 def parse_duration(text: str) -> timedelta: ...
+def where(backend: str, provider: str, workdir: str | PurePosixPath = "") -> str: ...  # as -e
+def spelled(backend: str, provider: str, workdir: str | PurePosixPath = "") -> str: ...
+    # where a driver is, as -e spells it: what its machine calls itself, respelled
 
 # harnesses.py -- the agent drivers
 def open_agent(spec: AgentSpec, harbors: Harbors | None = None) -> HarnessDriver: ...

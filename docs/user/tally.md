@@ -58,7 +58,7 @@ turn under `hmz exec`, and a running readout above the prompt in `hmz`.
 1. **`input 10`**: fresh input for this turn. Small, because almost all of what an agent is
    sent is its system prompt and history, which the provider caches.
 2. **`output 136`**: what the model wrote. This is the figure a harder
-   [effort](/user/efforts) makes grow, and the one `-b output_tokens=` caps.
+   [effort](/user/efforts) makes grow, and the one `-p budget.output_tokens=` caps.
 3. **`cache_read 13.9k`**: cached input read back. Large but cheap: at Claude Haiku's list
    price it is a tenth of `input`.
 4. **`cache_write 6.9k`**: input the provider cached this turn, to read back on the next one.
@@ -159,8 +159,8 @@ HUMANIZE_PRICES=/srv/prices.json hmz                  # or read a file
 
 ### Cap the spending rather than watch it
 
-The same figures are what a budget stops on. `-b cost=5` stops the run at five dollars,
-`-b output_tokens=200k` at that many written tokens. See
+The same figures are what a budget stops on. `-p budget.cost=5` stops the run at five dollars,
+`-p budget.output_tokens=200k` at that many written tokens. See
 [Every run has a budget](/features/allowances).
 
 ## When it moves

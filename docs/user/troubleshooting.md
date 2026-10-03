@@ -38,7 +38,7 @@ unattended](/user/unattended#check-the-line-before-you-schedule-it).
 
 ```sh
 hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
-    -b cost=20 "fix the build"
+    -p budget.cost=20 "fix the build"
 ```
 
 **Verify.** The line gets past the check and the first agent starts working.
@@ -96,17 +96,17 @@ is the effort that asks for none:
 **Verify.** The usage line is gone. Try a spec in the reader on [Run it
 unattended](/user/unattended#name-an-agent-for-each-role) to see how it is read.
 
-### `ralph_loop requires a budget: specify with -b duration=...,cost=...,output_tokens=...` {#ralph-loop-a-run-is-given-a-budget-b-duration-cost-output-tokens-and-this-one-was-given-none}
+### `ralph_loop requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` {#ralph-loop-a-run-is-given-a-budget-b-duration-cost-output-tokens-and-this-one-was-given-none}
 
 **Symptom.** `hmz exec` refuses the line before anything runs.
 
 **Cause.** Every flow except `chat` runs under a budget, and the line gives none.
 
-**Fix.** Give it one with `-b`:
+**Fix.** Give it one with `-p budget.<limit>=`:
 
 ```sh
--b cost=20
--b duration=6h,output_tokens=10m
+-p budget.cost=20
+-p budget.duration=6h,budget.output_tokens=10m
 ```
 
 See [Every run has a budget](/features/allowances) for what each key stops.
@@ -272,7 +272,7 @@ model the price list does not have, and for every model on a machine that has ne
 **Fix.** Cap something it can count as well:
 
 ```sh
--b cost=5,output_tokens=2m
+-p budget.cost=5,budget.output_tokens=2m
 ```
 
 **Verify.** The warning is still printed, but the run now stops at the other limit, with
@@ -815,11 +815,10 @@ you have them.
 
 ## Remote machines and containers
 
-These come from an agent whose work lands on another machine: an `ssh@` or `docker@`
-environment given with `-e`, a container, or a [remote execution](/user/remote-execution)
-target.
+These come from an agent whose work lands on another machine: an ssh or docker environment
+given with `-e`, a container, or a [remote execution](/user/remote-execution) target.
 
-### `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR`
+### `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND[@PROVIDER]/WORKDIR`
 
 **Symptom.** `hmz exec` refuses the line before anything runs.
 
@@ -880,7 +879,7 @@ walks the whole path to a target without starting an agent.
 
 ### `docker@gpubox has 0 of 2 GPUs free, and 'box' asks for 1 …`
 
-**Symptom.** A `docker@` role is refused before any agent starts. The message names every
+**Symptom.** A docker role is refused before any agent starts. The message names every
 resource that is short (containers, CPUs, memory, GPUs) and which containers hold the rest.
 
 **Cause.** The docker daemon saved as `gpubox` may hand out only so much, and running

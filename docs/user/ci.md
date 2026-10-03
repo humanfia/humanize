@@ -14,7 +14,7 @@ CLI signs in with, and run the same line CI will run, on your own machine first:
 hmz exec \
     -f ralph_loop \
     -a agent=claude/claude-opus-5:high \
-    -b duration=45m,cost=20 \
+    -p budget.duration=45m,budget.cost=20 \
     "$(cat TASK.md)"
 ```
 
@@ -99,7 +99,7 @@ jobs:
           hmz exec \
             -f ralph_loop \
             -a agent=claude/claude-opus-5:high \
-            -b duration=45m,cost=20 \
+            -p budget.duration=45m,budget.cost=20 \
             "$(cat TASK.md)"
 
       - name: Trace the run                         # ⑥
@@ -133,10 +133,10 @@ jobs:
    environment of its own whose `bin` is put on the `PATH`. Kimi Code and DeepSeek Harness
    also need the `hmz[all]` extra: see [Installation](/user/installation).
 5. **Run the loop.** The same `hmz exec` line you ran by hand, with the CLI signed in from a
-   secret. `-b duration=45m,cost=20` stops it at 45 minutes or $20, whichever comes first,
-   and the step still exits 0: a [Ralph loop](/flows/ralph-loop) usually ends this way. A
-   fresh runner has no price list, so a run with a `cost` limit fetches one before its first
-   turn (at most 20 s). The `duration` still bounds the run if the model has no price.
+   secret. `-p budget.duration=45m,budget.cost=20` stops it at 45 minutes or $20, whichever
+   comes first, and the step still exits 0: a [Ralph loop](/flows/ralph-loop) usually ends this
+   way. A fresh runner has no price list, so a run with a `cost` limit fetches one before its
+   first turn (at most 20 s). The `duration` still bounds the run if the model has no price.
 6. **Trace the run.** `if: always()` traces a run that failed too, which is the one you most
    want to read. `continue-on-error` keeps a failed trace from failing the job.
 7. **Upload the trace** as an artifact named `trace`, kept with the job.
@@ -307,7 +307,7 @@ five steps: install, sign in, `hmz exec`, `python ci/trace.py`, and keep the tra
 | --- | --- |
 | `0` | The flow returned, or its budget stopped it. |
 | `1` | The run failed: the flow raised an error it did not handle. |
-| `2` | Refused before any agent started: an `-a` it can't read, a role left unfilled, no `-b`, a flow that isn't there. |
+| `2` | Refused before any agent started: an `-a` it can't read, a role left unfilled, no budget, a flow that isn't there. |
 | anything else | The job was cancelled: `143` for a terminate signal, `130` for an interrupt, once the run has let go of what it started. |
 
 A `2` fails the job in seconds rather than after forty minutes.

@@ -468,7 +468,7 @@ async def test_an_environment_role_the_flow_no_longer_declares_is_not_handed_to_
     """A role renamed since is one no row can clear, and must not refuse every later run."""
     written(tmp_path / ".humanize" / "flows", "loop", _ONE)
     Settings(tmp_path).remember(
-        "local/loop", _WORKER, envs={"scratch": "local@/tmp"}, budget=_SPENDS
+        "local/loop", _WORKER, envs={"scratch": "local/tmp"}, budget=_SPENDS
     )
     app = Humanize()
     async with app.run_test() as driver:

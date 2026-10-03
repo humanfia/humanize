@@ -98,6 +98,7 @@ def host(tmp_path: Path) -> str:
 
 
 def _open(host: str, workdir: Path | str) -> MachineEnvDriver:
+    """The driver an `-e` naming `host` -- a saved runtime, or a host in brackets -- opens."""
     (spec,) = parse_envs([f"work=ssh@{host}/{str(workdir).lstrip('/')}"])
     driver = open_env(spec)
     assert isinstance(driver, MachineEnvDriver)
@@ -166,13 +167,13 @@ async def test_the_ssh_driver_keeps_the_contract(
     (repo / "file.txt").write_text("x\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-q", "-m", "first")
-    await check_env_driver(_open(host, repo), repo=True)
+    await check_env_driver(_open(f"[{host}]", repo), repo=True)
 
 
 async def test_opening_one_reaches_nothing(
     far: Path, host: str, tmp_path: Path
 ) -> None:
-    driver = _open(host, "/anywhere/at/all")
+    driver = _open(f"[{host}]", "/anywhere/at/all")
     assert driver.backend is EnvBackendKind.SSH
     assert driver.provider == host
     assert driver.workdir == PurePosixPath("/anywhere/at/all")
@@ -195,7 +196,7 @@ async def test_opening_one_reaches_nothing(
 async def test_what_a_host_has_is_learned_when_it_is_probed(
     far: Path, host: str, tmp_path: Path
 ) -> None:
-    driver = _open(host, tmp_path)
+    driver = _open(f"[{host}]", tmp_path)
     try:
         await probe(driver)
         assert driver.available
@@ -212,7 +213,7 @@ async def test_a_workdir_under_home_is_found_where_home_is_there(
     far: Path, host: str
 ) -> None:
     (far / "work").mkdir()
-    driver = _open(host, "~/work")
+    driver = _open(f"[{host}]", "~/work")
     try:
         assert driver.workdir == PurePosixPath("~/work")
         before = driver.placement().machine
@@ -241,7 +242,7 @@ async def test_a_workdir_under_home_is_found_where_home_is_there(
 async def test_a_host_nothing_resolves_is_unavailable(
     far: Path, tmp_path: Path
 ) -> None:
-    driver = _open(f"nowhere-{tmp_path.name}", "/tmp")
+    driver = _open(f"[nowhere-{tmp_path.name}]", "/tmp")
     with pytest.raises(EnvUnavailable, match="no ssh host"):
         await probe(driver)
     assert not driver.available
@@ -253,7 +254,7 @@ async def test_a_host_nothing_resolves_is_unavailable(
 async def test_a_host_that_will_not_answer_is_a_connection_error(
     far: Path, tmp_path: Path
 ) -> None:
-    driver = _open(f"refusing-{tmp_path.name}", "/tmp")
+    driver = _open(f"[refusing-{tmp_path.name}]", "/tmp")
     with pytest.raises(EnvConnectionError, match="Connection refused") as raised:
         await probe(driver)
     assert isinstance(raised.value, ConnectionError)
@@ -270,7 +271,7 @@ def test_what_is_no_ssh_host_is_refused_where_it_is_named() -> None:
 async def test_a_workdir_that_is_not_there_is_unavailable(
     far: Path, host: str, tmp_path: Path
 ) -> None:
-    driver = _open(host, tmp_path / "missing")
+    driver = _open(f"[{host}]", tmp_path / "missing")
     try:
         with pytest.raises(EnvUnavailable, match="not there"):
             await probe(driver)
@@ -304,7 +305,7 @@ async def _gone(pid: int) -> bool:
 async def test_a_timeout_kills_everything_the_command_started_there(
     far: Path, host: str, tmp_path: Path, script: str
 ) -> None:
-    driver = _open(host, tmp_path)
+    driver = _open(f"[{host}]", tmp_path)
     try:
         with pytest.raises(EnvCommandTimeout):
             await driver.exec(script, timeout=_SETTLED)
@@ -318,7 +319,7 @@ async def test_a_timeout_kills_everything_the_command_started_there(
 async def test_what_cannot_be_read_there_says_why(
     far: Path, host: str, tmp_path: Path
 ) -> None:
-    driver = _open(host, tmp_path)
+    driver = _open(f"[{host}]", tmp_path)
     (tmp_path / "dir").mkdir()
     try:
         with pytest.raises(EnvFileNotFound):
@@ -336,7 +337,7 @@ async def test_what_cannot_be_read_there_says_why(
 async def test_closing_the_root_kills_what_runs_there(
     far: Path, host: str, tmp_path: Path
 ) -> None:
-    driver = _open(host, tmp_path)
+    driver = _open(f"[{host}]", tmp_path)
     running = asyncio.create_task(
         driver.exec("sleep 30 & echo $! > child; wait", timeout=0)
     )
@@ -362,7 +363,7 @@ async def test_closing_the_root_kills_what_runs_there(
 async def test_a_dropped_connection_is_made_again(
     far: Path, host: str, tmp_path: Path
 ) -> None:
-    driver = _open(host, tmp_path)
+    driver = _open(f"[{host}]", tmp_path)
     try:
         await probe(driver)
         machine = driver._machine
@@ -485,8 +486,8 @@ def test_a_flow_runs_on_a_stored_runtime_an_e_names(
             str(flow),
             "-e",
             f"box=ssh@stored{workdir}",
-            "-b",
-            "cost=1",
+            "-p",
+            "budget.cost=1",
             "hello",
         ]
     )
@@ -511,7 +512,7 @@ def _exec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, env: str) -> Path:
     project.mkdir(exist_ok=True)
     monkeypatch.chdir(project)
     flow = written(tmp_path / "flows", "writes", _WRITES)
-    main(["exec", "-f", str(flow), "-e", env, "-b", "cost=1", "hello"])
+    main(["exec", "-f", str(flow), "-e", env, "-p", "budget.cost=1", "hello"])
     return project
 
 

@@ -111,7 +111,7 @@ async def parts(
 ### Run it
 
 ```sh
-hmz exec -f parts -a agent=claude/claude-sonnet-5-5:low -b cost=1 \
+hmz exec -f parts -a agent=claude/claude-sonnet-5-5:low -p budget.cost=1 \
     "Write a one-line file PLAN.md saying what you would build first. Nothing else."
 ```
 
@@ -260,7 +260,7 @@ async def guarded(
 ### Run it
 
 ```sh
-hmz exec -f guarded -a agent=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f guarded -a agent=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "Change add in calc.py so that it multiplies its arguments instead, and add a file NOTES.md saying why."
 ```
 
@@ -456,7 +456,7 @@ class Workspace(Env, GitWorktreeEnvMixin): ...  # Env: named with -e
 
 ```sh
 hmz exec -f parts -a agent=claude/claude-opus-5:high \
-    -e workspace=ssh@gpu-box/home/me/repo -b cost=20 "port the tokenizer"
+    -e workspace=ssh@gpu-box/home/me/repo -p budget.cost=20 "port the tokenizer"
 ```
 
 Everything on this page works the same there. Worktrees, copies, scratch directories and

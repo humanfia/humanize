@@ -171,14 +171,14 @@ def read(self, argv: list[str]) -> Line
 ```
 
 Parses an `hmz exec` argument list (without `exec`) to a [`Line`](#line). Loads no flow. A
-line argparse rejects, or an `-a`/`-e`/`-p`/`-b` that does not parse, prints usage and
+line argparse rejects, or an `-a`/`-e`/`-p` that does not parse, prints usage and
 the error to stderr and raises `SystemExit(2)`; `--help` prints help and raises
 `SystemExit(0)`.
 
 ```python
 hmz = Hmz()
 line = hmz.read(["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high",
-                 "-b", "duration=6h,cost=50", "fix the build"])
+                 "-p", "budget.duration=6h,budget.cost=50", "fix the build"])
 run = hmz.run(line.flow, line.task, agents=line.agents, envs=line.envs,
               params=line.params, budget=line.budget, profile=line.profile,
               resume=line.resume)
@@ -526,8 +526,8 @@ declaration order.
 | `task` | `str` | — | `task` |
 | `agents` | `tuple[AgentSpec, ...]` | `()` | every `-a`, in order |
 | `envs` | `tuple[EnvSpec, ...]` | `()` | every `-e`, in order |
-| `params` | `dict[str, str]` | `{}` | every `-p`, values unparsed |
-| `budget` | `Budget \| None` | `None` | every `-b`, parsed |
+| `params` | `dict[str, str]` | `{}` | every `-p` but `budget.*`, values unparsed |
+| `budget` | `Budget \| None` | `None` | every `-p budget.<limit>=`, parsed |
 | `profile` | `bool` | `False` | `--profile` |
 | `resume` | `bool` | `False` | `--resume` |
 | `as_json` | `bool` | `False` | `--json` |
@@ -539,7 +539,7 @@ declaration order.
 | Type | Fields |
 | --- | --- |
 | `AgentSpec` | `role: str`, `harness: HarnessKind` (`ACP` for an ACP CLI), `provider: str` (`""` = as local), `model: str`, `effort: str` (`""` = auto), `cli: str` |
-| `EnvSpec` | `role: str`, `backend: EnvBackendKind`, `provider: str`, `workdir: PurePosixPath` (`~/…` relative to home) |
+| `EnvSpec` | `role: str`, `backend: EnvBackendKind`, `provider: str` (a saved runtime's name, an ssh host nobody saved in its brackets, `"[me@box:22]"`, or `""` for this machine), `workdir: PurePosixPath` (`~/…` relative to home) |
 
 ### Flow types {#flow-types}
 
@@ -578,7 +578,7 @@ them.
 
 | Type | Fields |
 | --- | --- |
-| `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`), `profile: bool` (whether it was [profiled](/reference/tracing#profiling-a-run)); property `name` |
+| `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them, a run's kept in an older spelling included), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`), `profile: bool` (whether it was [profiled](/reference/tracing#profiling-a-run)); property `name` |
 | `Drove` | `agent`, `backend`, `model`, `effort` (`""` = auto), `provider` (`""` = as local); property `spec` (`-a` spelling after `<role>=`) |
 | `Called` | `flow`, `task`, `record` (file in the epic), `began`, `ended`, `how`, `calls: tuple[Called, ...]` |
 | `Session` | `agent`, `backend`, `provider` (`local` = as local), `ident` (backend's id), `name`, `at`, `flow`, `parent` (forked-from id or `""`), `record`, `where` (kept-session path), `harness` (`local`, `self`, the `<backend>:<name>` of a runtime an affinity sent it to, or `""` for work on this machine) |

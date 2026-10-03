@@ -43,6 +43,7 @@ workspaces:
 enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
+spelling: 2                        # how envs are spelled; written with every change
 ```
 
 ### Machine settings
@@ -52,6 +53,7 @@ btw: claude/claude-opus-5:high     # this machine
 | <span id="enable-sentry"></span>`enable_sentry` | `bool` | absent: *nobody has been asked*; the TUI asks at its first start; everything else reports nothing | the first-start question; `/settings` › Settings › **Error reports** | every process that could report (read once per process) | immediately in the process that changed it; at start elsewhere. [`HUMANIZE_SENTRY`](/reference/environment#humanize-sentry) overrides it for one process without writing it. Reading never writes it. |
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › Settings › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
 | `btw` | `str`: `cli[@account]/model:effort` | `""`: the running flow's first agent | `/settings` › Settings › **/btw agent** | the TUI | the next time `/btw` is entered |
+| <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
 
 What error reports contain and exclude is listed on `/settings` › Settings › **What is sent**.
 
@@ -77,7 +79,7 @@ of the flowverse flow it shadows.
 | Key | Type | Meaning | Read back |
 | --- | --- | --- | --- |
 | `agents` | `{role: str}` | each agent role's `cli[@account]/model:effort` (the [`-a`](/reference/flows#a-agents) spec after `<role>=`) | an entry that does not read as `cli[@account]/model:effort` (split at the first `/` and the last `:`) makes the whole `agents` mapping read as absent |
-| `envs` | `{role: str}` | each environment role's [`-e`](/reference/flows#e-environments) spec after `<role>=` | any non-string value makes the mapping read as absent |
+| `envs` | `{role: str}` | each environment role's [`-e`](/reference/flows#e-environments) spec after `<role>=` | any non-string value makes the mapping read as absent; in a file with no [`spelling`](#spelling), a spec in the spelling `-e` refuses with a hint (`local@/x`, `docker@local/x`, `swarm@local/x`, an unsaved ssh host out of brackets) is rewritten in the one the hint gives, in every workspace, when the file is first read |
 | `params` | mapping | the params, as JSON | validated through the flow's current params model; a failure reads as not set up |
 | `budget` | `{duration, cost, output_tokens, graceful}` | the budget as `Budget.model_dump_json` writes it (`duration` ISO 8601, `cost` `"Infinity"` for unlimited) | validated as a `Budget`; a failure reads as absent |
 | `profile` | `bool`, written only as `true` | whether a run of the flow started from the TUI is [profiled](/reference/tracing#profiling-a-run), set on the `/flow` menu's **profiling** row | anything but `true` reads as off |

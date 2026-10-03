@@ -1,17 +1,18 @@
 """What a command line says a run is given: its agents, environments, params and budget.
 
-Four flags, each taking any number of occurrences and each occurrence a comma-separated
+Three flags, each taking any number of occurrences and each occurrence a comma-separated
 list::
 
     -a coder=claude/opus:high,reviewer=codex@work/gpt-5:medium
-    -e repo=ssh@gpu-box/home/me/repo -e scratch=local@/tmp/scratch
-    -e box=docker@gpubox/srv/x
+    -e repo=ssh@gpu-box/home/me/repo -e scratch=local/tmp/scratch
+    -e box=docker/srv/x -e far=ssh@[me@far.host:2222]/srv/x
     -p rounds=3 -p tags=a,b,c
-    -b duration=1h30m,cost=5 -b output_tokens=200k
+    -p budget.duration=1h30m,budget.cost=5 -p budget.output_tokens=200k
 
 A comma separates two items only where what follows it -- spaces aside -- is a key and `=`,
 so a value may hold commas of its own -- `tags=a,b,c` is one param -- and may not hold
-`,<key>=`.
+`,<key>=`. What a run may spend is given as params too, one `budget.<limit>` apiece, which is
+why no flow may have a param called `budget`.
 """
 
 from __future__ import annotations
@@ -46,6 +47,8 @@ __all__ = [
     "parse_duration",
     "parse_envs",
     "parse_params",
+    "spelled",
+    "where",
 ]
 
 
@@ -58,15 +61,15 @@ class AgentSpecError(SpecError):
 
 
 class EnvSpecError(SpecError):
-    """An `-e` that is not `<role>=<backend>[@<provider>]/<workdir>`."""
+    """An `-e` that is not `<role>=<backend>[@<provider>][/<workdir>]`."""
 
 
 class ParamSpecError(SpecError):
     """A `-p` that is not `<key>=<value>`."""
 
 
-class BudgetSpecError(SpecError):
-    """A `-b` that is not a budget."""
+class BudgetSpecError(ParamSpecError):
+    """A `-p budget.<limit>=` that is not a budget."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,10 +108,10 @@ class EnvSpec:
     Attributes:
       role: The role it fills.
       backend: Which kind of machine.
-      provider: The ssh host -- the name of a saved runtime, `host` or `user@host` --, the
-        docker runtime -- the name of a stored one, or `local` for docker's default here --,
-        the swarm runtime -- likewise, `local` for the swarm this machine manages --, or ""
-        for this machine.
+      provider: The runtime saved under this name for that backend; for ssh alone, a host
+        nobody saved, in the brackets `-e` writes one in -- `[me@gpu-box:2222]`; or "" for
+        this machine: a directory here, docker's default here, the swarm this machine
+        manages.
       workdir: The directory there: absolute, or `~/...` under the home of whoever ssh
         logs in as. A docker one is a directory of the daemon's host, and a swarm one a
         directory of whichever node its task lands on.
@@ -121,21 +124,41 @@ class EnvSpec:
 
     def __str__(self) -> str:
         """The spec written back as `-e` takes it."""
-        return f"{self.role}={self.backend}@{self.provider}/{str(self.workdir).lstrip('/')}"
+        return f"{self.role}={where(self.backend, self.provider, self.workdir)}"
 
+
+#: The param a run's budget is given under, a limit apiece as `budget.<limit>`: the run's,
+#: and so never a flow's.
+BUDGET = "budget"
 
 #: Where one item of a flag ends and the next begins: a comma followed by a key and `=`,
 #: with any spaces between them, which are the separator's rather than the next item's.
-_ITEMS = re.compile(r",\s*(?=[A-Za-z_][\w-]*=)")
+_ITEMS = re.compile(rf",\s*(?=(?:{BUDGET}\.)?[A-Za-z_][\w-]*=)")
 
-#: What a key is, which is what `_ITEMS` splits before.
-_KEY = re.compile(r"[A-Za-z_][\w-]*")
+#: What a key is, which is what `_ITEMS` splits before: a param's, or one limit of the budget.
+_KEY = re.compile(rf"(?:{BUDGET}\.)?[A-Za-z_][\w-]*")
 
-#: `-e` read whole: the role, the backend, the provider after an `@`, and the workdir from the
-#: first `/` after it. The provider may hold an `@` of its own, as `user@host` does.
+#: `-e` read whole: the role, the backend, the provider after an `@` -- a name, or a host in
+#: brackets, which may hold an `@` of its own as `user@host` does --, and the workdir from the
+#: first `/` after it.
 _ENV = re.compile(
-    r"(?P<role>[^=]*)=(?P<backend>[^@/]*)(?:@(?P<provider>[^/]*))?(?P<at>/.*)?"
+    r"(?P<role>[^=]*)=(?P<backend>[^@/\[\]]*)"
+    r"(?:@(?P<provider>\[[^\]/]*\]|[^/]*))?(?P<at>/.*)?"
 )
+
+#: What an ssh host nobody saved may be, inside its brackets: `host`, `user@host`, either with
+#: `:port`, or an alias of the user's ssh config. Never beginning with `-`, which `ssh` would
+#: read as an option.
+DESTINATION = re.compile(
+    r"(?:[A-Za-z0-9_][A-Za-z0-9._%+-]*@)?[A-Za-z0-9_][A-Za-z0-9._-]*(?::[0-9]{1,5})?"
+)
+
+#: What docker and the swarm called their default here, before an `-e` naming no provider was
+#: one on this machine: still how their machines here are known.
+_HERE = "local"
+
+#: The backends that have a default here as well as runtimes saved under names.
+_HERES = (EnvBackendKind.DOCKER, EnvBackendKind.SWARM)
 
 
 def _items(values: Sequence[str], flag: str, refused: type[SpecError]) -> Iterator[str]:
@@ -193,14 +216,21 @@ def parse_agents(values: Sequence[str]) -> list[AgentSpec]:
 def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
     """Reads every `-e`.
 
-    `local@/home/me/repo` is a directory on this machine, and `local` takes no provider.
-    `ssh@gpu-box/home/me/repo` is one on the host `gpu-box`, and `ssh@gpu-box/~/repo` one under
-    the home directory there. `docker@gpubox/srv/repo` is one of the docker daemon's host that
-    the docker runtime called `gpubox` hands a container of its own, and `docker@local/...` one
-    of docker's default here. `swarm@cluster/srv/repo` is one of whichever node of the swarm the
-    swarm runtime called `cluster` places a task on, and `swarm@local/...` one of the swarm this
-    machine manages. `ssh@gpu-box`, `docker@gpubox` or `swarm@cluster` alone is the workdir the
-    runtime of that name was written down with.
+    An `@` is written only before a provider, and a provider is a runtime saved for that
+    backend: `ssh@gpu-box/home/me/repo` is a directory of the ssh host saved as `gpu-box`, and
+    `ssh@gpu-box/~/repo` one under the home directory there; `docker@gpubox/srv/repo` one of
+    the host of the docker daemon saved as `gpubox`, which hands the role a container of its
+    own; `swarm@cluster/srv/repo` one of whichever node of the swarm saved as `cluster` places
+    the role's task. Naming none is this machine: `local/home/me/repo` is a directory here --
+    `local` takes no provider at all --, `docker/srv/repo` one of docker's default here, and
+    `swarm/srv/repo` one of the swarm this machine manages. ssh always names one, and alone
+    takes a host nobody saved, in brackets: `ssh@[me@gpu-box:2222]/srv/repo`. `ssh@gpu-box`,
+    `docker@gpubox` or `swarm@cluster` alone is the workdir that runtime was saved with.
+
+    What `-e` took before an `@` was a provider's alone -- `local@/...`, `docker@local/...`,
+    `swarm@local/...`, an ssh host nobody saved out of brackets -- is refused, saying how it is
+    spelled now: :func:`hmz.coganchor.machines.store.respelled` is what reads it where it was
+    written down.
 
     Args:
       values: What each `-e` was given.
@@ -209,7 +239,9 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
       One spec per environment, in the order they were written.
 
     Raises:
-      EnvSpecError: For an item that is not an environment, and for a role given twice.
+      EnvSpecError: For an item that is not an environment, names a runtime nobody saved or a
+        host nobody saved for a backend other than ssh, or is spelled the old way; and for a
+        role given twice.
     """
     specs: list[EnvSpec] = []
     roles: set[str] = set()
@@ -217,11 +249,8 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
     for item in _items(values, "-e", EnvSpecError):
         said = item.strip()
         read = _ENV.fullmatch(said)
-        at = None if read is None else read["at"] or _workdir_of(read)
-        if read is None or at is None:
-            raise EnvSpecError(
-                f"-e {said!r}: expected <role>=<backend>[@<provider>]/<workdir>"
-            )
+        if read is None:
+            raise EnvSpecError(f"-e {said!r}: expected {_SPELLING}")
         role = read["role"].strip()
         if not role.isidentifier():
             raise EnvSpecError(f"-e {said!r}: the role {role!r} is not an identifier")
@@ -231,16 +260,12 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
             raise EnvSpecError(
                 f"-e {said!r}: {read['backend']!r} is not a backend; one of {backends}"
             ) from None
-        provider = (read["provider"] or "").strip()
-        if backend is EnvBackendKind.SSH and not provider:
-            raise EnvSpecError(f"-e {said!r}: ssh needs a host, as in ssh@host/workdir")
-        if backend in (EnvBackendKind.DOCKER, EnvBackendKind.SWARM) and not provider:
+        provider = _provider(said, role, backend, read["provider"], read["at"])
+        at = read["at"] or _workdir_of(backend, provider)
+        if at is None:
             raise EnvSpecError(
-                f"-e {said!r}: {backend} needs a host, as in {backend}@local/workdir"
-            )
-        if backend is EnvBackendKind.LOCAL and provider:
-            raise EnvSpecError(
-                f"-e {said!r}: local takes no host, as in local@/workdir"
+                f"-e {said!r}: expected {_SPELLING}; /<workdir> may be left off only "
+                "for a runtime saved with one"
             )
         workdir = PurePosixPath(at[1:] if at[1:].startswith("~") else at)
         if role in roles:
@@ -250,17 +275,144 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
     return specs
 
 
-def _workdir_of(read: re.Match[str]) -> str | None:
+#: What `-e` takes, as a message says it.
+_SPELLING = "<role>=<backend>[@<provider>][/<workdir>]"
+
+
+def _provider(
+    said: str, role: str, backend: EnvBackendKind, written: str | None, at: str | None
+) -> str:
+    """The provider one `-e` names, held to what its backend takes, or "" for this machine.
+
+    Args:
+      said: The item, as it was written.
+      role: Its role.
+      backend: Its backend.
+      written: What followed its `@`, or None for no `@`.
+      at: Its workdir from the `/`, or None for none written.
+
+    Returns:
+      A runtime's name, a host in brackets, or "".
+
+    Raises:
+      EnvSpecError: For a provider its backend does not take, saying how to write it where
+        it is one spelled the old way.
+    """
+    provider = (written or "").strip()
+    rest = at or "/<workdir>"
+
+    def instead(one: str) -> str:
+        return f"write {role}={where(backend, one)}{rest}"
+
+    bracketed = len(provider) > 1 and provider[0] == "[" and provider[-1] == "]"
+    if not bracketed and ("[" in provider or "]" in provider):
+        raise EnvSpecError(f"-e {said!r}: expected {_SPELLING}")
+    if backend is EnvBackendKind.LOCAL:
+        if written is not None:
+            raise EnvSpecError(f"-e {said!r}: local takes no provider; {instead('')}")
+        return ""
+    if bracketed:
+        if backend is not EnvBackendKind.SSH:
+            raise EnvSpecError(
+                f"-e {said!r}: only ssh takes a host nobody saved; {backend}@<name> "
+                f"names a {backend} runtime saved on the runtimes page of /settings"
+            )
+        host = provider[1:-1].strip()
+        if not DESTINATION.fullmatch(host):
+            raise EnvSpecError(
+                f"-e {said!r}: {host!r} is not an ssh host, as [user@]host[:port]"
+            )
+        return f"[{host}]"
+    if backend is EnvBackendKind.SSH and not provider:
+        raise EnvSpecError(
+            f"-e {said!r}: ssh needs a host: ssh@<saved host>{rest}, or "
+            f"ssh@[user@host:port]{rest} for a host not saved"
+        )
+    if not provider:
+        if written is not None:
+            raise EnvSpecError(
+                f"-e {said!r}: an @ is written only before a provider; {instead('')}"
+            )
+        return ""
+    if _saved(backend, provider):
+        return provider
+    if backend is EnvBackendKind.SSH:
+        raise EnvSpecError(
+            f"-e {said!r}: no ssh host is saved as {provider!r}; "
+            f"{instead(f'[{provider}]')} for a host not saved"
+        )
+    if provider == _HERE and backend in _HERES:
+        raise EnvSpecError(
+            f"-e {said!r}: {backend} on this machine names no provider; {instead('')}"
+        )
+    raise EnvSpecError(
+        f"-e {said!r}: no {backend} runtime is saved as {provider!r}; save one on the "
+        f"runtimes page of /settings, or {instead('')} for {backend} on this machine"
+    )
+
+
+def _saved(backend: str, name: str) -> bool:
+    """Whether a runtime of a backend is written down under a name, whether or not it reads.
+
+    One that cannot be read is still one: what opens it says that it cannot be, rather than
+    this taking the name for a host nobody saved.
+    """
+    from hmz.coganchor.machines import store
+
+    try:
+        return store.where(str(backend), name).exists()
+    except ValueError:
+        return False  # a backend nothing is saved for, or a name no runtime may have
+
+
+def _workdir_of(backend: str, provider: str) -> str | None:
     """The workdir the saved runtime an `-e` names was written down with, as `/...`.
 
     None where it names no provider, or one with no workdir of its own.
     """
     from hmz.coganchor.machines import store
 
-    found = store.find(read["backend"].strip(), (read["provider"] or "").strip())
+    found = store.find(str(backend), provider)
     if found is None or not found.workdir:
         return None
     return found.workdir if found.workdir.startswith("/") else f"/{found.workdir}"
+
+
+def where(backend: str, provider: str, workdir: str | PurePosixPath = "") -> str:
+    """Where an environment is, as `-e` spells it after `<role>=`.
+
+    Args:
+      backend: Which kind of machine.
+      provider: Which one: a saved runtime's name, an ssh host in brackets, or "" for this
+        machine.
+      workdir: The directory there -- absolute, or `~/...` --, or "" for none written.
+
+    Returns:
+      `<backend>[@<provider>][/<workdir>]`.
+    """
+    named = f"@{provider}" if provider else ""
+    at = str(workdir).lstrip("/")
+    return f"{backend}{named}/{at}" if workdir else f"{backend}{named}"
+
+
+def spelled(backend: str, provider: str, workdir: str | PurePosixPath = "") -> str:
+    """Where a driver works, as `-e` spells it, for a message or a record to say.
+
+    A machine calls itself what `-e` once did: `local` for docker's default here and the swarm
+    this machine manages, and an ssh host nobody saved by the host alone. Those are spelled as
+    `-e` takes them now -- `docker/...`, `ssh@[host]/...` -- which turns on what is saved here.
+
+    Args:
+      backend: Which kind of machine.
+      provider: What the machine calls itself.
+      workdir: The directory there, or "" for none.
+
+    Returns:
+      `<backend>[@<provider>][/<workdir>]`.
+    """
+    from hmz.coganchor.machines.store import respelled
+
+    return respelled(where(backend, provider, workdir))
 
 
 def fallbacks(spec: EnvSpec) -> list[EnvSpec]:
@@ -269,8 +421,10 @@ def fallbacks(spec: EnvSpec) -> list[EnvSpec]:
     The fallback list of the saved runtime it names, each entry a spec of its own for the same
     role: in that runtime's saved workdir where it has one, and otherwise in the workdir given.
     Only the runtime the `-e` names is read: one fallen back to is never walked on down its
-    own list. A spec naming no saved runtime -- `local@`, an ssh destination written out, docker's
-    default here -- falls back to nothing.
+    own list. A spec naming no saved runtime -- this machine, docker's default here, an ssh
+    host in brackets -- falls back to nothing. An entry `docker:local` or `swarm:local` is
+    docker's default here or the swarm this machine manages, where nothing of theirs is saved
+    as `local`: the one name a list has for them.
 
     Args:
       spec: The environment, as `-e` gave it.
@@ -288,26 +442,46 @@ def fallbacks(spec: EnvSpec) -> list[EnvSpec]:
             kind = EnvBackendKind(backend)
         except ValueError:
             continue  # a backend of the store's no environment is put on
+        here = kind in _HERES and name == _HERE and not _saved(kind, name)
         onward.append(
             EnvSpec(
-                spec.role, kind, name, PurePosixPath(saved) if saved else spec.workdir
+                spec.role,
+                kind,
+                "" if here else name,
+                PurePosixPath(saved) if saved else spec.workdir,
             )
         )
     return onward
 
 
 def parse_params(values: Sequence[str]) -> dict[str, str]:
-    """Reads every `-p`.
+    """Reads every `-p` that is a param of the flow's.
 
     Args:
       values: What each `-p` was given.
 
     Returns:
       Each key and its value, exactly as written after the `=`. What the value means is the
-      flow's params model's to say.
+      flow's params model's to say. A `budget.<limit>` is the run's rather than the flow's,
+      and is left to :func:`parse_budget`.
 
     Raises:
-      ParamSpecError: For an item that is not `<key>=<value>`, and for a key given twice.
+      ParamSpecError: For an item that is not `<key>=<value>`, for `budget` with no limit,
+        and for a key given twice.
+    """
+    return {
+        key: value
+        for key, value in _params(values).items()
+        if not key.startswith(f"{BUDGET}.")
+    }
+
+
+def _params(values: Sequence[str]) -> dict[str, str]:
+    """Every `-p`, the flow's params and the budget's limits alike, by key.
+
+    Raises:
+      ParamSpecError: For an item that is not `<key>=<value>`, for `budget` with no limit,
+        and for a key given twice.
     """
     params: dict[str, str] = {}
     for item in _items(values, "-p", ParamSpecError):
@@ -315,13 +489,17 @@ def parse_params(values: Sequence[str]) -> dict[str, str]:
         key = key.strip()
         if not written or not _KEY.fullmatch(key):
             raise ParamSpecError(f"-p {item!r}: expected <key>=<value>")
+        if key == BUDGET:
+            raise ParamSpecError(
+                f"-p {item!r}: a budget is given a limit at a time, as budget.cost=5"
+            )
         if key in params:
             raise ParamSpecError(f"-p: {key!r} is given twice")
         params[key] = value
     return params
 
 
-#: What `-b` takes, and nothing else.
+#: The limits a budget takes, each as `-p budget.<limit>=`, and nothing else.
 _BUDGET = ("duration", "cost", "output_tokens", "graceful")
 
 #: What each unit of a written duration is, in seconds.
@@ -430,32 +608,35 @@ def _flag(text: str) -> bool:
     raise ValueError(f"{text!r} must be true or false")
 
 
-def parse_budget(values: Sequence[str]) -> Budget:
-    """Reads every `-b` into one budget.
+def parse_budget(values: Sequence[str]) -> Budget | None:
+    """Reads every `-p budget.<limit>=` into one budget.
 
     Args:
-      values: What each `-b` was given: `duration=`, `cost=`, `output_tokens=` and
-        `graceful=`, each at most once across all of them.
+      values: What each `-p` was given: of which `budget.duration=`, `budget.cost=`,
+        `budget.output_tokens=` and `budget.graceful=` are read, each at most once across
+        all of them, and the flow's own params left alone.
 
     Returns:
-      The budget.
+      The budget, or None where no `-p` named a limit.
 
     Raises:
-      BudgetSpecError: For an unknown or repeated key, a value that cannot be read, or a
-        budget that limits nothing.
+      ParamSpecError: For a `-p` that cannot be read at all.
+      BudgetSpecError: For an unknown limit, a value that cannot be read, or a budget that
+        limits nothing.
     """
-    said: dict[str, str] = {}
-    for item in _items(values, "-b", BudgetSpecError):
-        key, written, value = item.partition("=")
-        key = key.strip()
-        if not written or key not in _BUDGET:
+    said = {
+        key.removeprefix(f"{BUDGET}."): value
+        for key, value in _params(values).items()
+        if key.startswith(f"{BUDGET}.")
+    }
+    if not said:
+        return None
+    for key in said:
+        if key not in _BUDGET:
             raise BudgetSpecError(
-                f"-b {item!r}: expected key=value where key is one of "
-                f"{', '.join(_BUDGET)}"
+                f"-p {BUDGET}.{key}: not a limit; one of "
+                f"{', '.join(f'{BUDGET}.{one}' for one in _BUDGET)}"
             )
-        if key in said:
-            raise BudgetSpecError(f"-b: duplicate key {key!r}")
-        said[key] = value
     readers = {
         "duration": parse_duration,
         "cost": _cost,
@@ -467,10 +648,10 @@ def parse_budget(values: Sequence[str]) -> Budget:
         try:
             fields[key] = readers[key](value)
         except ValueError as error:
-            raise BudgetSpecError(f"-b {key}: {error}") from error
+            raise BudgetSpecError(f"-p {BUDGET}.{key}: {error}") from error
     try:
         return Budget.model_validate(fields)
     except pydantic.ValidationError as error:
         raise BudgetSpecError(
-            f"-b: {'; '.join(one['msg'] for one in error.errors())}"
+            f"-p {BUDGET}.*: {'; '.join(one['msg'] for one in error.errors())}"
         ) from error

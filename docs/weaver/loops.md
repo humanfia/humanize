@@ -44,7 +44,7 @@ while True:
 | a check of yours | `return` when your code says the work is done |
 | a round limit | `for` over a `range`, or a counter |
 | a stall | the agent answering with nothing, round after round |
-| the run's budget | always there: the turn that finds `-b` spent raises `BudgetExceeded` |
+| the run's budget | always there: the turn that finds it spent raises `BudgetExceeded` |
 
 **What a failed turn does.** `run` raises `HarnessError` when the CLI could not take the turn:
 it died mid-turn, the provider throttled it, the connection broke. Uncaught, that ends the run.
@@ -180,7 +180,7 @@ $local/checklist Work through TASK.md.
 ```
 
 ```sh [Claude Code]
-hmz exec -f checklist -a agent=claude/claude-sonnet-5-5:high -b cost=1 "Work through TASK.md."
+hmz exec -f checklist -a agent=claude/claude-sonnet-5-5:high -p budget.cost=1 "Work through TASK.md."
 ```
 
 :::
@@ -350,8 +350,8 @@ async def ralph_loop(
         await asyncio.sleep(PAUSE)  # ⑤
 ```
 
-1. **`while True`** has no round limit: the budget is the limit. Run it with a `-b` you would
-   be content to spend in full.
+1. **`while True`** has no round limit: the budget is the limit. Run it with a budget you
+   would be content to spend in full.
 2. **The round count** lives in `ctx.state`, as in `checklist`, so `--resume` counts on.
 3. **A failed turn is a round answered with nothing**, rather than a skipped one, so a CLI that
    fails every time counts towards the stall.

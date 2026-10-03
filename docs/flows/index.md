@@ -47,7 +47,7 @@ same run is `hmz exec`:
 ```sh [hmz exec]
 hmz exec -f rlar \
     -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
-    -b duration=6h,cost=60 "$(cat TASK.md)"
+    -p budget.duration=6h,budget.cost=60 "$(cat TASK.md)"
 ```
 
 :::
@@ -60,7 +60,7 @@ params and a budget, then remembers them for this project. `/flow` changes them 
 | `-f rlar` | the flow, by the name on its card |
 | `-a actor=claude/claude-opus-5:high` | the agent for one role: `role=CLI/MODEL:EFFORT`, once per role |
 | `-p max=20` | a param, for a flow that takes some |
-| `-b duration=6h,cost=60` | the [budget](/features/allowances). Every flow but `chat` needs one |
+| `-p budget.duration=6h,budget.cost=60` | the [budget](/features/allowances). Every flow but `chat` needs one |
 | `--resume` | pick up this flow's newest run in this directory |
 
 Two things never take a flag: the `human` role, which is you, and the directory the agents work
@@ -88,7 +88,7 @@ only where you would accept that, and read [Security](/user/security) first.
 - **You.** `/stop` at the prompt, or <kbd>ctrl+c</kbd> under `hmz exec`. See
   [Stopping a run](/user/stopping).
 
-A flow whose card says what `--resume` keeps carries on from there, under a fresh `-b`. See
+A flow whose card says what `--resume` keeps carries on from there, under a fresh budget. See
 [Picking a run up](/user/resuming).
 
 ## Where flows come from

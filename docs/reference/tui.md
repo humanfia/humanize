@@ -744,15 +744,18 @@ older than 7 days; when an account never asked is chosen; on `check again`.
 | Row | Kind | About / values |
 | --- | --- | --- |
 | `backend` | ▾ `local` `ssh` `docker` `swarm` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon` / `a container on whichever node of a docker swarm has room`, beside each on the list too. Starts on the first of `ssh`, `docker`, `swarm` with a saved runtime, else `local`. Changing it clears host and workdir. |
-| `host` (ssh) · `daemon` (docker) · `swarm` (swarm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
+| `host` (ssh) · `daemon` (docker) · `swarm` (swarm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, `choose a saved host, or add one` (ssh), or `none: <backend> on this machine, or choose a saved one` (docker, swarm: left empty, it is this machine). Absent for `local`. |
 | `workdir` | written | `absolute path on this machine` (local); `leave blank to use saved default: <dir>` (a runtime saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the runtime's workdir; while unchanged, the spec omits it. |
 | `as -e` | written | `full -e spec: typing one sets the rows above` |
 | `done` | | `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`. |
 
-The composed spec is read as [`-e`](/reference/cli#writing-an-environment) reads it and refused
-in its words (e.g. `-e 'box=ssh@somehost': expected <role>=<backend>[@<provider>]/<workdir>`
-where no workdir is given or saved). Partial answers: `fill in the <host|daemon|swarm|workdir> as
-well`, `specify an environment`. Reachability and size are checked when the run starts.
+The rows are composed as `-e` spells them: no provider for `local`, nor for docker or swarm
+left on this machine (`docker/<workdir>`); an ssh host that is no saved runtime in brackets
+(`ssh@[<host>]/<workdir>`). The composed spec is read as
+[`-e`](/reference/cli#writing-an-environment) reads it and refused in its words (e.g.
+`-e 'box=ssh@[somehost]': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one`
+where no workdir is given or saved). Partial answers: `fill in the <host|workdir> as well`,
+`specify an environment`. Reachability and size are checked when the run starts.
 
 #### Host picker {#host-picker}
 
@@ -766,8 +769,8 @@ well`, `specify an environment`. Reachability and size are checked when the run 
 `unsaved host` opens **Unsaved ssh host** (`Connects using your ssh config with no extra
 settings. To save a host with a name, go to the runtimes page of /settings.`): one row
 `host   [user@]host[:port], or an alias in your ssh config`; `done` `assigns the role to this
-host without saving it`; errors `host is required`, `'<x>' is not a valid host: cannot contain
-spaces or slashes`.
+host without saving it`, as `ssh@[<host>]`; errors `host is required`, `'<x>' is not a valid
+host: cannot contain spaces, slashes or brackets`.
 
 ### Params sheet {#setting-a-flow-up}
 
@@ -802,7 +805,7 @@ Equivalent on the command line: [`-p`](/reference/cli#writing-params).
 
 | Row | Kind | Default | About |
 | --- | --- | --- | --- |
-| `duration` | written | `""` | `maximum run duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-b duration`](/reference/cli#writing-a-budget); reopens in days, hours, minutes and seconds, e.g. `6h`, `12d`, `1m30s`) |
+| `duration` | written | `""` | `maximum run duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-p budget.duration`](/reference/cli#writing-a-budget); reopens in days, hours, minutes and seconds, e.g. `6h`, `12d`, `1m30s`) |
 | `cost` | written | `0.0` | `maximum cost in US dollars, 0 for no limit` |
 | `output_tokens` | written | `0` | `maximum output tokens, 0 for no limit` |
 | `graceful` | ▾ `on`/`off` | `on` | `finish the current turn when a limit is reached` |

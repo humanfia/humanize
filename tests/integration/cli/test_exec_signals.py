@@ -131,7 +131,7 @@ def _ended(run: subprocess.Popen[str]) -> str:
 def test_an_interrupt_before_the_run_began_exits_130(tmp_path: Path) -> None:
     """Nothing has been made yet, so there is nothing to let go of -- nor any traceback."""
     flow = written(tmp_path / "flows", "loading", _LOADING)
-    run = _exec(tmp_path, "-f", str(flow), "-b", "cost=1", "go")
+    run = _exec(tmp_path, "-f", str(flow), "-p", "budget.cost=1", "go")
 
     err = _ended(run)
 
@@ -151,7 +151,7 @@ def test_an_interrupt_before_the_first_turn_stops_the_run_before_it(
     run = _exec(
         tmp_path,
         *("-f", str(flow), "-a", "coder=claude/claude-haiku-4-5:low"),
-        *("-b", "cost=1", "go"),
+        *("-p", "budget.cost=1", "go"),
     )
 
     err = _ended(run)
@@ -211,7 +211,7 @@ def test_a_terminate_or_a_hangup_while_the_run_unwinds_does_not_cut_it_short(
     """The run lets go of what it made, and exits as the first signal would have had it."""
     flow = written(tmp_path / "flows", "waits", _WAITS.replace("AGAIN", str(int(then))))
     here = tmp_path / "flows" / "waits"
-    run = _exec(tmp_path, "-f", str(flow), "-b", "cost=1", "go")
+    run = _exec(tmp_path, "-f", str(flow), "-p", "budget.cost=1", "go")
     _once(here / "up", run)
 
     run.send_signal(first)
@@ -232,7 +232,7 @@ def test_a_second_interrupt_while_the_run_unwinds_ends_it_there_and_then(
         tmp_path / "flows", "waits", _WAITS.replace("AGAIN", str(int(signal.SIGINT)))
     )
     here = tmp_path / "flows" / "waits"
-    run = _exec(tmp_path, "-f", str(flow), "-b", "cost=1", "go")
+    run = _exec(tmp_path, "-f", str(flow), "-p", "budget.cost=1", "go")
     _once(here / "up", run)
 
     run.send_signal(first)

@@ -104,8 +104,8 @@ def test_a_flow_of_your_own_runs_on_a_real_cli(project: Path) -> None:
             f"worker={WORKER}",
             "-p",
             "rounds=2",
-            "-b",
-            "cost=0.5",
+            "-p",
+            "budget.cost=0.5",
             "two words",
         )
         == 0
@@ -161,8 +161,8 @@ def test_a_run_written_for_a_program_is_one_object_a_line(
             "demo",
             "-a",
             f"worker={WORKER}",
-            "-b",
-            "cost=0.5",
+            "-p",
+            "budget.cost=0.5",
             "--json",
             "one word",
         )

@@ -367,5 +367,6 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   first turn, waiting no longer than the fetch's own timeout nor once the run is stopped, and
   on the rules every fetch is held to; every other run MUST have it refreshed without waiting.
 - `read_line` MUST read the whole `hmz exec` line, MUST NOT load a flow to answer `--help`,
-  MUST take every `-a`, `-e`, `-p` and `-b` as one list however they were broken up, and
+  MUST take every `-a`, `-e` and `-p` as one list however they were broken up -- the budget
+  out of `-p budget.<limit>=` --, and
   MUST refuse one that cannot be read as argparse refuses a line.

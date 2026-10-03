@@ -1,7 +1,7 @@
 """``hmz`` -- the whole command line, over layers that have none of their own.
 
     hmz
-    hmz exec -f ralph_loop -a coder=claude/MODEL:high -b cost=5 "$(cat TASK.md)"
+    hmz exec -f ralph_loop -a coder=claude/MODEL:high -p budget.cost=5 "$(cat TASK.md)"
 
 There is one command anybody types, and everything else humanize keeps is walked at the
 prompt: a listing with a noun in it for every store would be a second interface to learn, and

@@ -8,7 +8,7 @@ finally set the tests up to run in CI.
 Test a flow whenever its logic is worth more than one line: when it loops, branches on an
 answer, refuses something, or keeps state across a stop. A test proves what the flow does with
 each answer. It does not prove what a model answers, so run the flow for real once, with a
-small `-b`, before you rely on it.
+small budget, before you rely on it.
 
 ::: info Before you start
 - A flow of your own: [Your first flow](/weaver/writing-a-flow).
@@ -728,7 +728,7 @@ model are ordinary Python, and belong beside the flow's own tests.
   `Budget(duration=…, graceful=False)` with `DurationExceeded`. Under a graceful budget, the
   default, it waits for ever, and so does the test.
 - **Fakes prove the flow, not the model.** Before you [publish a flow](/weaver/flowverses),
-  run it once for real with a small `-b`.
+  run it once for real with a small budget.
 
 ## Next steps
 

@@ -813,7 +813,7 @@ async def test_an_ssh_environment_is_made_without_reaching_the_host(
         raise AssertionError("the host was reached")
 
     monkeypatch.setattr("hmz.coganchor.transport.connect", refused)
-    (spec,) = parse_envs(["gpu=ssh@me@gpu-box:2222/~/repo"])
+    (spec,) = parse_envs(["gpu=ssh@[me@gpu-box:2222]/~/repo"])
     driver = open_env(spec)
     assert isinstance(driver, MachineEnvDriver)
     assert (driver.backend, driver.provider) == (EnvBackendKind.SSH, "me@gpu-box:2222")
@@ -833,7 +833,7 @@ async def test_an_ssh_environment_is_made_without_reaching_the_host(
 
 
 def test_an_absolute_ssh_workdir_is_the_anchor_s_workspace() -> None:
-    (spec,) = parse_envs(["gpu=ssh@gpu-box/srv/repo"])
+    (spec,) = parse_envs(["gpu=ssh@[gpu-box]/srv/repo"])
     placement = open_env(spec).placement()
     assert isinstance(placement.machine, AnchoredConfig)
     assert placement.machine.anchor.workspace == "/srv/repo"
@@ -854,7 +854,7 @@ def test_a_workdir_is_one_name_for_one_place() -> None:
     for refused in ("~/..", "~/../x", "relative/path"):
         with pytest.raises(EnvUnavailable):
             tidy_workdir(PurePosixPath(refused))
-    (spec,) = parse_envs(["w=ssh@host/~/proj/."])
+    (spec,) = parse_envs(["w=ssh@[host]/~/proj/."])
     assert open_env(spec).workdir == PurePosixPath("~/proj")
 
 

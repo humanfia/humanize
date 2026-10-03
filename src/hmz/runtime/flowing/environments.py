@@ -48,13 +48,13 @@ def open_env(
     driver whose `available` is False.
 
     Args:
-      spec: The environment: `local@/abs/path` for a directory here, `ssh@host/abs/path` or
-        `ssh@host/~/path` for one on a host `ssh` reaches -- a saved ssh runtime by its
-        name, and otherwise `[user@]host[:port]` or an alias of the ssh config -- or
-        `docker@name/abs/path` for a container of its own on the daemon a saved docker
-        runtime names, `docker@local/...` on docker's default here -- or `swarm@name/abs/path`
-        for a task of its own on the swarm a saved swarm runtime names, `swarm@local/...` on
-        the swarm this machine manages.
+      spec: The environment: `local/abs/path` for a directory here; `ssh@name/abs/path` or
+        `ssh@name/~/path` for one on the host a saved ssh runtime names, and
+        `ssh@[user@host:port]/...` -- or an alias of the ssh config in the brackets -- on
+        one nobody saved; `docker@name/abs/path` for a container of its own on the daemon a
+        saved docker runtime names, `docker/...` on docker's default here; or
+        `swarm@name/abs/path` for a task of its own on the swarm a saved swarm runtime names,
+        `swarm/...` on the swarm this machine manages.
       role: What the environment is for, as its flow declares it: a container is started
         from its image and given its resources. None asks for nothing.
       traced: Whether a harness is to run there, supervising its agent: a container is
@@ -77,18 +77,26 @@ def open_env(
 
         from .environing_ssh import SSHMachine
 
-        # A runtime written down under that name is reached as it says; any other name is
-        # the destination `ssh` is handed as it is.
+        # A host in brackets is the destination `ssh` is handed as it is, which a runtime
+        # saved under the same name never stands in for; a name is the runtime written down
+        # under it, reached as it says.
+        host = spec.provider.removeprefix("[").removesuffix("]")
+        if host != spec.provider:
+            return MachineEnvDriver(SSHMachine(host), tidy_workdir(spec.workdir))
         stored = store.find(store.SSH, spec.provider)
-        if stored is None and _unreadable(spec.provider):
+        if not isinstance(stored, store.SSHRuntime):
+            if _unreadable(spec.provider):
+                raise EnvUnavailable(
+                    f"the ssh host {spec.provider!r} cannot be read; fix or remove "
+                    f"it: {store.where(store.SSH, spec.provider)}"
+                )
             raise EnvUnavailable(
-                f"the ssh host {spec.provider!r} cannot be read; fix or remove "
-                f"it: {store.where(store.SSH, spec.provider)}"
+                f"no ssh host is saved as {spec.provider!r}: add it on the runtimes page "
+                f"of /settings, or name a host not saved as ssh@[{spec.provider}]"
             )
-        target = stored.target() if isinstance(stored, store.SSHRuntime) else ""
         # One place, one name: what is derived from it is found by that name again.
         return MachineEnvDriver(
-            SSHMachine(spec.provider, target), tidy_workdir(spec.workdir)
+            SSHMachine(spec.provider, stored.target()), tidy_workdir(spec.workdir)
         )
     return local_env(Path(spec.workdir).expanduser())
 
@@ -99,8 +107,8 @@ def _docker_env(
     """The driver for a container of its own on a docker runtime's daemon.
 
     Raises:
-      EnvUnavailable: If no docker runtime is written down under that name -- `local` being
-        docker's default here where none is -- or the workdir is not a path of its host.
+      EnvUnavailable: If no docker runtime is written down under that name -- none named
+        being docker's default here -- or the workdir is not a path of its host.
     """
     from hmz.coganchor.machines import store
 
@@ -109,15 +117,15 @@ def _docker_env(
     stored = store.find(store.DOCKER, spec.provider)
     if stored is not None and not isinstance(stored, store.DockerRuntime):
         stored = None
-    if stored is None and spec.provider != LOCAL:
+    if stored is None and spec.provider:
         if _unreadable(spec.provider, store.DOCKER):
             raise EnvUnavailable(
                 f"the docker host {spec.provider!r} cannot be read; fix or "
                 f"remove it: {store.where(store.DOCKER, spec.provider)}"
             )
         raise EnvUnavailable(
-            f"docker host {spec.provider!r} not found: add one, or use the "
-            f"default docker@{LOCAL}"
+            f"docker host {spec.provider!r} not found: add one, or name none for "
+            "docker's default here, as docker/<workdir>"
         )
     workdir = tidy_workdir(spec.workdir)
     if not workdir.is_absolute():
@@ -135,7 +143,7 @@ def _docker_env(
             )
         workdir = PurePosixPath(Path(str(workdir)).expanduser())
     machine = DockerMachine(
-        spec.provider,
+        spec.provider or LOCAL,
         workdir,
         stored=stored,
         role=role,
@@ -151,9 +159,9 @@ def _swarm_env(
     """The driver for a task of its own on a swarm runtime's swarm.
 
     Raises:
-      EnvUnavailable: If no swarm runtime is written down under that name -- `local` being
-        the swarm this machine manages where none is -- or the workdir is not absolute, or
-        under the home of this machine's user where the manager is this machine.
+      EnvUnavailable: If no swarm runtime is written down under that name -- none named
+        being the swarm this machine manages -- or the workdir is not absolute, or under the
+        home of this machine's user where the manager is this machine.
     """
     from hmz.coganchor.machines import store
 
@@ -162,15 +170,15 @@ def _swarm_env(
     stored = store.find(store.SWARM, spec.provider)
     if stored is not None and not isinstance(stored, store.SwarmRuntime):
         stored = None
-    if stored is None and spec.provider != LOCAL:
+    if stored is None and spec.provider:
         if _unreadable(spec.provider, store.SWARM):
             raise EnvUnavailable(
                 f"the docker swarm {spec.provider!r} cannot be read; fix or "
                 f"remove it: {store.where(store.SWARM, spec.provider)}"
             )
         raise EnvUnavailable(
-            f"docker swarm {spec.provider!r} not found: add one, or use the "
-            f"swarm this machine manages, swarm@{LOCAL}"
+            f"docker swarm {spec.provider!r} not found: add one, or name none for the "
+            "swarm this machine manages, as swarm/<workdir>"
         )
     workdir = tidy_workdir(spec.workdir)
     if not workdir.is_absolute():
@@ -188,7 +196,7 @@ def _swarm_env(
             )
         workdir = PurePosixPath(Path(str(workdir)).expanduser())
     machine = SwarmMachine(
-        spec.provider,
+        spec.provider or LOCAL,
         workdir,
         stored=stored,
         role=role,

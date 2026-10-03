@@ -991,7 +991,8 @@ async def test_a_role_is_put_on_a_saved_swarm_as_on_a_docker_host(
     async with app.run_test() as driver:
         form = await _placing(app, driver)
         assert form._typed_in["backend"] == "swarm"
-        assert form.under() == "provider"
+        # No swarm named is the one this machine manages, so the workdir is what is asked.
+        assert form.under() == "workdir"
         assert "swarm" in _drawn(app)
 
         await _opens(app, driver, "provider", Hosts)
@@ -1086,7 +1087,8 @@ async def test_a_role_is_put_on_a_host_nobody_saved(
         await _done(app, driver)
         await until(lambda: app.screen is form, driver)
 
-        assert form._typed_in["provider"] == "me@far:2222"
+        # In the brackets `-e` takes a host nobody saved in, which the last row spells.
+        assert form._typed_in["provider"] == "[me@far:2222]"
         assert "not saved" in _drawn(app)
         # No workdir of its own, so that is what is asked next -- and asked for, on done.
         assert form.under() == "workdir"
@@ -1095,7 +1097,7 @@ async def test_a_role_is_put_on_a_host_nobody_saved(
         await _types(app, driver, "workdir", "/srv")
         await _done(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
-        assert cast("Flows", app.screen)._envs == {"box": "ssh@me@far:2222/srv"}
+        assert cast("Flows", app.screen)._envs == {"box": "ssh@[me@far:2222]/srv"}
 
 
 @pytest.mark.timeout(60)
@@ -1140,15 +1142,60 @@ async def test_a_spec_typed_whole_sets_the_rows_and_one_that_does_not_read_is_re
         await _types(app, driver, "spelled", "nowhere")
         await _done(app, driver)
         assert isinstance(app.screen, Placing)
-        assert "expected <role>=<backend>" in _under(app)
+        assert "'nowhere' is not a backend" in _under(app)
 
+        # The way `-e` spelled it before an `@` was a provider's alone, refused saying how.
         await _types(app, driver, "spelled", f"local@{tmp_path}")
+        await _done(app, driver)
+        assert isinstance(app.screen, Placing)
+        assert f"write box=local{tmp_path}" in _under(app)
+
+        await _types(app, driver, "spelled", f"local{tmp_path}")
         assert form._typed_in["backend"] == "local"
         assert form._typed_in["workdir"] == str(tmp_path)
         assert "provider" not in rows(app)
         await _done(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
-        assert f"local@{tmp_path}" in _drawn(app)
+        assert f"local{tmp_path}" in _drawn(app)
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_a_directory_here_that_is_not_absolute_is_refused(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+    placed: Path,
+) -> None:
+    """Rather than spelled `local/repo`, which `-e` reads as `/repo`."""
+    del placed
+    app = Humanize()
+    async with app.run_test() as driver:
+        form = await _placing(app, driver)
+        assert form._typed_in["backend"] == "local"
+        await _types(app, driver, "workdir", "repo")
+        await _done(app, driver)
+        assert isinstance(app.screen, Placing)
+        assert "'repo' is not an absolute path on this machine" in _under(app)
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_a_role_on_docker_here_names_no_daemon(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+    placed: Path,
+) -> None:
+    """Docker's default on this machine is docker with no `@` at all, as `-e` spells it."""
+    del placed
+    app = Humanize()
+    async with app.run_test() as driver:
+        form = await _placing(app, driver)
+        await picks(app, driver, "backend", "docker")
+        assert form._typed_in["provider"] == ""
+        assert "docker on this machine" in _drawn(app)
+        await _types(app, driver, "workdir", "/srv")
+        assert form._typed_in["spelled"] == "docker/srv"
+        await _done(app, driver)
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        assert cast("Flows", app.screen)._envs == {"box": "docker/srv"}
 
 
 @pytest.mark.timeout(60)

@@ -20,7 +20,7 @@ agents taking turns is [flame_chase_agent_cleanup](/flows/flame-chase-agent-clea
 ```sh [hmz exec]
 hmz exec -f ralph_loop_agent_cleanup \
     -a agent=claude/claude-opus-5:high -a cleaner=claude/claude-opus-5:high \
-    -p work_paths=src -b duration=12h,cost=100 "$(cat TASK.md)"
+    -p work_paths=src -p budget.duration=12h,budget.cost=100 "$(cat TASK.md)"
 ```
 
 :::

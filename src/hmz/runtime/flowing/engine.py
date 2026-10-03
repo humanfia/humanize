@@ -74,6 +74,7 @@ from .declaring import (
     env_roles,
 )
 from .journaling import FlowStateImpl, Journal, Past, digest
+from .specs import spelled
 from .spi import ENV_TOOLS
 from .viewing import (
     CALLING,
@@ -592,7 +593,8 @@ def _env(role: EnvRole, given: object, node: Call, flow: FlowImpl) -> EnvView:
     if role.auto and driver.backend != _LOCAL:
         raise CapabilityMissing(
             f"{flow.ref}: {role.name!r} is a LocalEnv, and the environment given is "
-            f"{driver.backend}@{driver.provider}{driver.workdir}, which is not this machine"
+            f"{spelled(driver.backend, driver.provider, driver.workdir)}, which is not "
+            "this machine"
         )
     return _narrowed(
         role,
@@ -662,7 +664,8 @@ def _serves_env(flow: FlowImpl, role: EnvRole, driver: EnvDriver) -> None:
         raise CapabilityMissing(
             f"{flow.ref}: {role.name!r} needs "
             f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
-            f"{driver.backend}@{driver.provider}{driver.workdir} does not support{why}"
+            f"{spelled(driver.backend, driver.provider, driver.workdir)} does not "
+            f"support{why}"
         )
 
 

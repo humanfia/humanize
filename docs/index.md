@@ -110,27 +110,27 @@ first. Pick your CLI:
 ::: code-group
 
 ```sh [Claude Code]
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=10m "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=10m "Fix the bug in calc.py."
 ```
 
 ```sh [Codex]
-hmz exec -f ralph_loop -a agent=codex/gpt-5.6-sol:high -b duration=10m "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=codex/gpt-5.6-sol:high -p budget.duration=10m "Fix the bug in calc.py."
 ```
 
 ```sh [Antigravity]
-hmz exec -f ralph_loop -a agent=agy/gemini-3.7-flash-high:high -b duration=10m "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=agy/gemini-3.7-flash-high:high -p budget.duration=10m "Fix the bug in calc.py."
 ```
 
 ```sh [Qwen Code]
-hmz exec -f ralph_loop -a agent=qwen/qwen3-coder-plus:high -b duration=10m "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=qwen/qwen3-coder-plus:high -p budget.duration=10m "Fix the bug in calc.py."
 ```
 
 ```sh [Kimi Code]
-hmz exec -f ralph_loop -a agent=kimi/kimi-code/k3:high -b duration=10m "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=kimi/kimi-code/k3:high -p budget.duration=10m "Fix the bug in calc.py."
 ```
 
 ```sh [Grok Build]
-hmz exec -f ralph_loop -a agent=grok/grok-4.6:high -b duration=10m "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=grok/grok-4.6:high -p budget.duration=10m "Fix the bug in calc.py."
 ```
 
 :::
@@ -138,8 +138,8 @@ hmz exec -f ralph_loop -a agent=grok/grok-4.6:high -b duration=10m "Fix the bug 
 - `-f` names the flow.
 - `-a agent=CLI/MODEL:EFFORT` fills its one role, `agent`: which CLI, which model, and how hard
   the model thinks.
-- `-b` caps what the run may spend: a `duration`, a `cost` in dollars, or `output_tokens`. It
-  will not start without one.
+- `-p budget.…` caps what the run may spend: a `duration`, a `cost` in dollars, or
+  `output_tokens`. It will not start without one.
 
 <kbd>ctrl+c</kbd> stops it. [The command line](/reference/cli) has every flag.
 
@@ -216,7 +216,7 @@ Run it like any other flow: by name from your shell, or as `$local/twice` at the
 ::: code-group
 
 ```sh [hmz exec]
-hmz exec -f twice -a builder=claude/claude-opus-5:high -b cost=5 "Add a subtract function to calc.py."
+hmz exec -f twice -a builder=claude/claude-opus-5:high -p budget.cost=5 "Add a subtract function to calc.py."
 ```
 
 ```text [at the prompt]

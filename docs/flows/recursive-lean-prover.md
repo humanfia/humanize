@@ -21,7 +21,7 @@ your comparator and a fresh reviewer accept is written to a Markdown wiki as it 
 hmz exec -f recursive_lean_prover \
     -a worker=codex/gpt-5.6-sol:max -a reviewer=codex/gpt-5.6-sol:max \
     -p lean_target=Submission.lean -p 'comparator_command=bash tools/check-with-comparator.sh' \
-    -b duration=72h "$(cat PROBLEM.md)"
+    -p budget.duration=72h "$(cat PROBLEM.md)"
 ```
 
 :::

@@ -17,7 +17,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 
 | Page | Covers | Package |
 | --- | --- | --- |
-| [CLI](/reference/cli) | `hmz`, `hmz exec`, `hmz internal …`: synopsis, options, the `-f`/`-a`/`-e`/`-p`/`-b` grammars, refusals, output and NDJSON schema, signals, exit statuses | `hmz.cli` |
+| [CLI](/reference/cli) | `hmz`, `hmz exec`, `hmz internal …`: synopsis, options, the `-f`/`-a`/`-e`/`-p` grammars, refusals, output and NDJSON schema, signals, exit statuses | `hmz.cli` |
 | [TUI](/reference/tui) | The interface `hmz` opens: views, status line, commands, keys, menus, `/settings`, the monitor, completion, history | `hmz.tui` |
 | [Daemon](/reference/daemon) | The machine's daemon and its per-workspace host processes, their files, lifecycle, frame protocol, requests, messages and multi-frontend rules | `hmz.daemon` |
 | [SDK](/reference/sdk) | `hmz.sdk`: every exported class, method, parameter, return type and exception | `hmz.sdk` |
@@ -36,7 +36,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | Looking for | Section |
 | --- | --- |
 | an `hmz exec` option | [CLI › Options](/reference/cli#exec-options) |
-| the grammar of `-a`, `-e`, `-p`, `-b` | [CLI › Grammar](/reference/cli#grammar) |
+| the grammar of `-a`, `-e`, `-p` | [CLI › Grammar](/reference/cli#grammar) |
 | why `hmz exec` refused a line | [CLI › What is refused](/reference/cli#what-is-refused-before-anything-runs) |
 | what `hmz exec --json` writes | [CLI › `--json`](/reference/cli#ndjson) |
 | an exit status | [CLI › Exit statuses](/reference/cli#exit-statuses) |

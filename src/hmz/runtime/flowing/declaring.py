@@ -42,6 +42,7 @@ from hmz.flows import (
     Permission,
 )
 
+from .specs import BUDGET
 from .spi import AGENT_CAPABILITIES, ENV_CAPABILITIES, capabilities_of
 
 if TYPE_CHECKING:
@@ -249,7 +250,7 @@ def checked_definition(
     Raises:
       FlowDefinitionError: For a function that is not async or does not take what a flow
         is called with, collections that are not the flow API's, params that are not a
-        `FlowParams`, and a name no ref could name.
+        `FlowParams` or that have a `budget`, and a name no ref could name.
     """
     called = getattr(fn, "__qualname__", repr(fn))
     if not inspect.iscoroutinefunction(fn):
@@ -266,6 +267,15 @@ def checked_definition(
     if not (isinstance(params, type) and issubclass(params, FlowParams)):
         raise FlowDefinitionError(
             f"{called}: params={params!r} is not a FlowParams subclass"
+        )
+    if any(
+        BUDGET in (field, held.alias) for field, held in params.model_fields.items()
+    ):
+        # What a run may spend is given as `-p budget.<limit>=`, beside the flow's own
+        # params: a param of the same name would be one no line could ever set.
+        raise FlowDefinitionError(
+            f"{called}: {BUDGET!r} is the run's budget, given as -p {BUDGET}.<limit>=, "
+            "and cannot be a param"
         )
     named = fn.__name__ if name is None else name
     if not isinstance(named, str) or not NAME.match(named):

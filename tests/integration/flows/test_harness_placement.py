@@ -62,5 +62,5 @@ def test_a_cli_the_machine_has_not_is_missing_there(
     assert said is not None
     kind, why = said
     assert kind is HarnessNotInstalled
-    assert "is not installed on ssh@stand-in" in why
+    assert "is not installed on ssh@[stand-in]" in why
     assert "put local in the affinity" in why

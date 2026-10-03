@@ -156,7 +156,7 @@ export DEEPSEEK_API_KEY=sk-…
 hmz exec -f rlar \
     -a actor=dsh/deepseek-v4-pro:high \
     -a reviewer=dsh/deepseek-v4-pro:high \
-    -b duration=3h,cost=30 \
+    -p budget.duration=3h,budget.cost=30 \
     "$(cat TASK.md)"
 ```
 
@@ -164,7 +164,7 @@ hmz exec -f rlar \
 hmz exec -f rlar \
     -a actor=claude/claude-opus-5-5:high \
     -a reviewer=codex/gpt-5.6-sol:high \
-    -b duration=3h,cost=30 \
+    -p budget.duration=3h,budget.cost=30 \
     "$(cat TASK.md)"
 ```
 
@@ -172,7 +172,7 @@ hmz exec -f rlar \
 hmz exec -f rlar \
     -a actor=claude/claude-opus-5-5:high \
     -a reviewer=claude/claude-opus-5-5:high \
-    -b duration=3h,cost=30 \
+    -p budget.duration=3h,budget.cost=30 \
     "$(cat TASK.md)"
 ```
 
@@ -194,7 +194,7 @@ hmz exec -f rlar \
 2. **`-a actor=…` and `-a reviewer=…`** give each role an agent. The same model in both is
    fine: the reviewer is independent because its conversation has never seen the actor's, not
    because it runs a different model.
-3. **`-b duration=3h,cost=30`** caps the run. The reviewer usually ends it sooner.
+3. **`-p budget.duration=3h,budget.cost=30`** caps the run. The reviewer usually ends it sooner.
 4. **The output** is one long actor turn followed by a short reviewer turn: a round. Then the
    actor goes again, told what the reviewer found.
 
@@ -295,7 +295,7 @@ DeepSeek Harness needs the `[dsh]` extra in humanize's own environment and a key
 
 ### It ran out of budget before the reviewer said `done`
 
-The loop is resumable: run the same line with `--resume` and a fresh `-b`. A fresh actor is
+The loop is resumable: run the same line with `--resume` and a fresh budget. A fresh actor is
 handed the last review to pick up from. See [Picking a run up](/user/resuming).
 
 ## What you learned

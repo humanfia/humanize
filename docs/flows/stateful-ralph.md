@@ -17,7 +17,7 @@ task again every round, so the agent keeps every approach it has already ruled o
 
 ```sh [hmz exec]
 hmz exec -f stateful_ralph -a agent=kimi/kimi-code/k3:high \
-    -b duration=6h "$(cat TASK.md)"
+    -p budget.duration=6h "$(cat TASK.md)"
 ```
 
 :::
@@ -43,7 +43,7 @@ No params. The loop pauses 5 seconds between rounds.
 
 ## What ends it
 
-- **The [budget](/features/allowances).** Whichever limit of `-b` runs out first.
+- **The [budget](/features/allowances).** Whichever of its limits runs out first.
 - **Three rounds in a row that answer nothing.** A round whose turn fails counts as one that
   answered nothing, as in [ralph_loop](/flows/ralph-loop#what-ends-it).
 

@@ -1,7 +1,7 @@
 # Flows
 
 The flow API: the module `hmz.flows`, the command-line specs that fill a flow's roles
-(`-a`, `-e`, `-p`, `-b`), how a flow is found, loaded, called, resumed and tested, and
+(`-a`, `-e`, `-p`), how a flow is found, loaded, called, resumed and tested, and
 every exception it raises. Guides: [Writing a flow](/weaver/writing-a-flow),
 [Loops](/weaver/loops).
 
@@ -32,7 +32,7 @@ async def twice(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
 ```
 
 ```sh
-hmz exec -f twice -a builder=claude/claude-opus-5:high -b cost=5 "add a --dry-run flag"
+hmz exec -f twice -a builder=claude/claude-opus-5:high -p budget.cost=5 "add a --dry-run flag"
 ```
 
 ## Stability
@@ -110,6 +110,7 @@ qualified name):
 | `agents` not an `AgentCollection` subclass | `agents=<value> is not an AgentCollection subclass` |
 | `envs` not an `EnvCollection` subclass | `envs=<value> is not an EnvCollection subclass` |
 | `params` not a `FlowParams` subclass | `params=<value> is not a FlowParams subclass` |
+| `params` with a field or alias `budget` | `'budget' is the run's budget, given as -p budget.<limit>=, and cannot be a param` |
 | name not matching the pattern | ``'<name>' is not a flow name: letters, digits, `_`, `.` and `-` `` |
 
 **Raised later**, the first time the flow is called or described (listed, loaded by
@@ -191,6 +192,7 @@ each field is a question, its type decides the input, its `description` is the h
 | Rule | |
 | --- | --- |
 | Unknown keys | Refused (`extra="forbid"`). |
+| `budget` | Not a field or alias: it is the run's, given as [`-p budget.<limit>=`](#p-budget). |
 | Field without a default | Must be given (`-p`, `/flow`, or a caller). |
 | Cross-field constraints | Belong in a `model_validator`, so they are refused before the run. |
 | Infinity/NaN | Serialized as the strings `"Infinity"`/`"NaN"`. |
@@ -912,7 +914,7 @@ workspace), filled by the runtime. A role typed `LocalEnv` or a subclass takes n
 (`<flow>: '<role>' is the workspace the run started in and cannot be set with -e`). A caller
 may omit it (the callee gets the run's workspace, granted what the callee declares) or pass an
 environment on this machine; an environment on another machine raises `CapabilityMissing`:
-`<ref>: '<role>' is a LocalEnv, and the environment given is <backend>@<provider><workdir>, which is not this machine`.
+`<ref>: '<role>' is a LocalEnv, and the environment given is <backend>[@<provider>]/<workdir>, which is not this machine`.
 
 ### `EnvBackendKind` {#envbackendkind}
 
@@ -1018,7 +1020,7 @@ no `git` on its `PATH`, or `BashEnvMixin` for one with no `bash`, is refused bef
 runs:
 
 ```
-hmz exec: error: tries: 'repo' needs GitEnvMixin, which docker@local/srv/repo does not support: GitEnvMixin needs git on the machine's PATH, and it has none
+hmz exec: error: tries: 'repo' needs GitEnvMixin, which docker@gpubox/srv/repo does not support: GitEnvMixin needs git on the machine's PATH, and it has none
 ```
 
 ## Budgets {#what-a-run-may-spend}
@@ -1045,10 +1047,10 @@ At least one of `duration`, `cost`, `output_tokens` must be set
 otherwise `pydantic.ValidationError`. `Budget(cost=math.inf)` means unlimited and serializes
 as `{"cost": "Infinity"}`.
 
-**Which runs need one.** Every run except of `chat`: from `-b`
-(see [`-b`](#b-budget)), `/flow`, or `budget=` in [Python](/reference/sdk). Without it:
-`<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...`. `chat`
-given none runs under `Budget(cost=math.inf)`.
+**Which runs need one.** Every run except of `chat`: from `-p budget.<limit>=`
+(see [`budget.*`](#p-budget)), `/flow`, or `budget=` in [Python](/reference/sdk). Without it:
+`<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...`.
+`chat` given none runs under `Budget(cost=math.inf)`.
 
 ### Effective budget
 
@@ -1308,7 +1310,7 @@ async def gen_plan(task, *, agents, envs, params, ctx): ...
   else it is refused:
 
   ```console
-  $ hmz exec -f humanize1 -b cost=5 "…"
+  $ hmz exec -f humanize1 -p budget.cost=5 "…"
   hmz exec: error: humanize1: ~/.humanize/flowverses/official/flows/humanize1 holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>
   ```
 
@@ -1466,15 +1468,16 @@ Read [Security](/user/security) before running any.
 
 ```sh
 hmz exec -f <flow> [-a <role>=<spec>[,…]]… [-e <role>=<spec>[,…]]… [-p <key>=<value>[,…]]…
-         [-b <key>=<value>[,…]]… [--resume] [--json] <task>
+         [--resume] [--json] <task>
 ```
 
-`-a`, `-e`, `-p` and `-b` may each be repeated; every occurrence is a comma list. A comma
-separates items only where it is followed (after optional spaces) by `<key>=`, with `<key>`
-matching `[A-Za-z_][\w-]*`; so `-p note=one,two` is one item. An empty item is refused
-(`<flag> '<value>': an item is empty`). The same syntax is used by `/flow`, the settings
-file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every refusal below exits
-`hmz exec` with status 2 before anything runs. Other flags: [CLI](/reference/cli#hmz-exec).
+`-a`, `-e` and `-p` may each be repeated; every occurrence is a comma list. A comma
+separates items only where it is followed (after optional spaces) by `<key>=` or
+`budget.<key>=`, with `<key>` matching `[A-Za-z_][\w-]*`; so `-p note=one,two` is one item.
+An empty item is refused (`<flag> '<value>': an item is empty`). The same syntax is used by
+`/flow`, the settings file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every
+refusal below exits `hmz exec` with status 2 before anything runs. Other flags:
+[CLI](/reference/cli#hmz-exec).
 
 ### `-a`: agents {#a-agents}
 
@@ -1511,28 +1514,37 @@ file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every refusal bel
 <role>=<backend>[@<provider>][/<workdir>]
 ```
 
+An `@` is written only before a provider: the name of a runtime saved for that backend, or,
+for `ssh` alone, a host nobody saved, in brackets. None is this machine.
+
 | Form | Is |
 | --- | --- |
-| `local@/abs/path` | a directory on this machine; `local` takes no provider |
-| `ssh@<host>/abs/path` | a directory on a host: a saved runtime's name, else a destination `ssh` resolves (`host`, `user@host`, an alias) |
-| `ssh@<host>/~/path` | under the login's home there (the leading `/` before `~` is dropped) |
-| `docker@<provider>/abs/path` | a container of its own on a saved docker runtime's daemon (`local`: docker's default here); the path is on the daemon's host and is mounted at the same path |
-| `swarm@<provider>/abs/path` | a container of its own as the one task of a service on a saved swarm runtime's swarm (`local`: the swarm this machine manages), on whichever node has room; the path is on that node and is mounted at the same path |
+| `local/abs/path` | a directory on this machine; `local` takes no provider |
+| `ssh@<name>/abs/path` | a directory on the host the ssh runtime saved as `<name>` reaches |
+| `ssh@[<host>]/abs/path` | a directory on a host nobody saved: `[user@]host[:port]` or an alias of the ssh config, handed to `ssh` as it is; no fallback |
+| `ssh@<name>/~/path`, `ssh@[<host>]/~/path` | under the login's home there (the leading `/` before `~` is dropped) |
+| `docker/abs/path`, `docker@<name>/abs/path` | a container of its own on docker's default daemon here, or on a saved docker runtime's daemon; the path is on the daemon's host and is mounted at the same path |
+| `swarm/abs/path`, `swarm@<name>/abs/path` | a container of its own as the one task of a service on the swarm this machine manages, or on a saved swarm runtime's swarm, on whichever node has room; the path is on that node and is mounted at the same path |
 | `ssh@<name>`, `docker@<name>`, `swarm@<name>` | the workdir the saved runtime was saved with |
 
 | Input | Message |
 | --- | --- |
-| no `/workdir` and no saved runtime workdir, or not `<role>=…` | `-e '<item>': expected <role>=<backend>[@<provider>]/<workdir>` |
+| not `<role>=…`, or a stray bracket | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
+| no `/workdir` and no saved runtime workdir | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one` |
 | role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
 | unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm` |
-| `ssh` without host | `-e '<item>': ssh needs a host, as in ssh@host/workdir` |
-| `docker` without provider | `-e '<item>': docker needs a host, as in docker@local/workdir` |
-| `swarm` without provider | `-e '<item>': swarm needs a host, as in swarm@local/workdir` |
-| `local` with provider | `-e '<item>': local takes no host, as in local@/workdir` |
+| `ssh` without host | `-e '<item>': ssh needs a host: ssh@<saved host>/<workdir>, or ssh@[user@host:port]/<workdir> for a host not saved` |
+| `ssh@<name>`, nothing saved as `<name>` | `-e '<item>': no ssh host is saved as '<name>'; write <role>=ssh@[<name>]/<workdir> for a host not saved` |
+| `ssh@[<host>]`, not a host | `-e '<item>': '<host>' is not an ssh host, as [user@]host[:port]` |
+| brackets on `docker` or `swarm` | `-e '<item>': only ssh takes a host nobody saved; <backend>@<name> names a <backend> runtime saved on the runtimes page of /settings` |
+| `docker@local`, `swarm@local`, nothing saved as `local` | `-e '<item>': <backend> on this machine names no provider; write <role>=<backend>/<workdir>` |
+| `docker@<name>`, `swarm@<name>`, nothing saved as `<name>` | `-e '<item>': no <backend> runtime is saved as '<name>'; save one on the runtimes page of /settings, or write <role>=<backend>/<workdir> for <backend> on this machine` |
+| `docker@` or `swarm@` with nothing after | `-e '<item>': an @ is written only before a provider; write <role>=<backend>/<workdir>` |
+| `local` with an `@` | `-e '<item>': local takes no provider; write <role>=local/<workdir>` |
 | role twice | `-e: the role '<role>' is given twice` |
 | role not declared | `<flow> has no environment role '<role>'; available roles are …` |
 | role is a `LocalEnv` | `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
-| required role missing | `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR` |
+| required role missing | `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND[@PROVIDER]/WORKDIR` |
 | machine unreachable, workdir missing, mixin unsupported, resources short | refused when the run probes every environment, before the flow is called |
 
 Machines and providers: [Machines](/reference/machines).
@@ -1540,35 +1552,39 @@ Machines and providers: [Machines](/reference/machines).
 ### `-p`: params {#p-params}
 
 `<key>=<value>`; `<key>` matches `[A-Za-z_][\w-]*`; the value is the text after the first
-`=`, unparsed until [validated](#flowparams).
+`=`, unparsed until [validated](#flowparams). `budget.<limit>=<value>` is the run's
+[budget](#p-budget) rather than a param of the flow's.
 
 | Input | Message |
 | --- | --- |
 | not `<key>=<value>` | `-p '<item>': expected <key>=<value>` |
 | key twice | `-p: '<key>' is given twice` |
+| `budget` with no limit | `-p '<item>': a budget is given a limit at a time, as budget.cost=5` |
 | does not validate | the `ParamsError` text |
 
-### `-b`: budget {#b-budget}
+#### `budget.*`: the run's budget {#p-budget}
 
-Keys `duration`, `cost`, `output_tokens`, `graceful`, each at most once across all `-b`.
+Limits `budget.duration`, `budget.cost`, `budget.output_tokens`, `budget.graceful`, each at
+most once across all `-p`, among the flow's params or apart from them:
+`-p rounds=3,budget.cost=5 -p budget.duration=1h`. No flow may declare a param `budget`.
 
-| Key | Accepted | Examples |
+| Limit | Accepted | Examples |
 | --- | --- | --- |
-| `duration` | seconds (`90`, `1.5`); units `w d h m s`, each at most once, decimals allowed (`1h30m`, `2d`, `1.5h`); ISO 8601 (`PT1H30M`); `HH:MM:SS`. Finite, ≥ 0. | `duration=6h` |
-| `cost` | USD, optional leading `$`; `inf` for none; ≥ 0, not NaN | `cost=$20` |
-| `output_tokens` | whole number, `_` ignored, suffix `k` (×1000) or `m` (×1 000 000), decimals allowed if the result is whole | `output_tokens=1.5m` |
-| `graceful` | `1 true yes on` / `0 false no off` (case-insensitive) | `graceful=false` |
+| `budget.duration` | seconds (`90`, `1.5`); units `w d h m s`, each at most once, decimals allowed (`1h30m`, `2d`, `1.5h`); ISO 8601 (`PT1H30M`); `HH:MM:SS`. Finite, ≥ 0. | `budget.duration=6h` |
+| `budget.cost` | USD, optional leading `$`; `inf` for none; ≥ 0, not NaN | `budget.cost=$20` |
+| `budget.output_tokens` | whole number, `_` ignored, suffix `k` (×1000) or `m` (×1 000 000), decimals allowed if the result is whole | `budget.output_tokens=1.5m` |
+| `budget.graceful` | `1 true yes on` / `0 false no off` (case-insensitive) | `budget.graceful=false` |
 
 | Input | Message |
 | --- | --- |
-| unknown key | `-b '<item>': expected key=value where key is one of duration, cost, output_tokens, graceful` |
-| key twice | `-b: duplicate key '<key>'` |
-| bad duration | `-b duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`; `'<v>' names a unit twice`; `'<v>' is negative`; `'<v>' is not a valid duration: must be finite and not negative`; `duration '<v>' is too long` |
-| bad cost | `-b cost: '<v>' is not a valid USD cost` |
-| bad tokens | `-b output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`; `'<v>' must be a whole number of tokens` |
-| bad graceful | `-b graceful: '<v>' must be true or false` |
-| no limit set | `-b: Value error, a budget sets at least one of duration, cost, output_tokens` |
-| no `-b` for a flow that needs one | `<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
+| unknown limit | `-p budget.<limit>: not a limit; one of budget.duration, budget.cost, budget.output_tokens, budget.graceful` |
+| limit twice | `-p: 'budget.<limit>' is given twice` |
+| bad duration | `-p budget.duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`; `'<v>' names a unit twice`; `'<v>' is negative`; `'<v>' is not a valid duration: must be finite and not negative`; `duration '<v>' is too long` |
+| bad cost | `-p budget.cost: '<v>' is not a valid USD cost` |
+| bad tokens | `-p budget.output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`; `'<v>' must be a whole number of tokens` |
+| bad graceful | `-p budget.graceful: '<v>' must be true or false` |
+| no limit set | `-p budget.*: Value error, a budget sets at least one of duration, cost, output_tokens` |
+| no `budget.*` for a flow that needs one | `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` |
 
 ### Harness placement {#harness-placement}
 
@@ -1598,12 +1614,12 @@ stopped with the run). Whether the machine can hold a fence is asked once per ki
 | --- | --- |
 | a runtime entry, role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
 | a runtime entry that cannot be opened, reached or given a container | the runtime's `EnvUnavailable`, `EnvConnectionError` or `ResourceUnmet` |
-| `self`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>@<provider>: <install hint> there, or put local in the affinity of the runtime it is on` |
-| `self`: fence not holdable | `HarnessSandboxed`: `<backend>@<provider> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or put local in the affinity of the runtime it is on` |
+| `self`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>[@<provider>]: <install hint> there, or put local in the affinity of the runtime it is on` |
+| `self`: fence not holdable | `HarnessSandboxed`: `<backend>[@<provider>] cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or put local in the affinity of the runtime it is on` |
 
-Where no entry has room, the last refusal is raised, of its type, as `<backend>@<provider>:
+Where no entry has room, the last refusal is raised, of its type, as `<backend>[@<provider>]:
 nowhere its affinity (<entries>) names has room for <cli>'s harness; the last: <refusal>`. A
-machine that did not answer under `self` raises `HarnessUnrecoverable` (`<backend>@<provider>
+machine that did not answer under `self` raises `HarnessUnrecoverable` (`<backend>[@<provider>]
 did not say within 300s whether <cli> is there`, or `could not be asked whether <cli> is
 there: <reason>`) rather than being passed by. Every affinity is walked for every agent
 against every environment (the workspace included) once the environments are probed, before

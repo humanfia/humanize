@@ -46,6 +46,10 @@ if TYPE_CHECKING:
 
 __all__ = ["Settings"]
 
+#: Where the file says how it spells an environment, which every write writes: see
+#: :data:`hmz.coganchor.machines.store.SPELLING`.
+_SPELLING = "spelling"
+
 #: How long, in seconds, a write waits for another writer to be done before going ahead
 #: without it. A write takes milliseconds, and seconds on a disk busy enough that fsync
 #: queues; this is for a writer that has stopped, not for one that is slow.
@@ -64,6 +68,10 @@ class Settings:
         self._where = str(Path(workspace or Path.cwd()).resolve())
         self._file = home() / "settings.yaml"
         self._held = self._read()
+        if _SPELLING not in self._held and _respelled(copy.deepcopy(self._held)):
+            # Once, for every workspace, and marked so as every write is: `ssh@gpu/x` kept
+            # from here on is the runtime `gpu`, never read again as a host nobody saved.
+            self._write(_respell)
 
     @property
     def flow(self) -> str:
@@ -173,8 +181,10 @@ class Settings:
           flow: The flow they were for.
 
         Returns:
-          One `<backend>@<provider>/<workdir>` per role, and nothing at all for a flow that
-          was given none here -- one whose environments are the workspace it runs in.
+          One `<backend>[@<provider>][/<workdir>]` per role, and nothing at all for a flow
+          that was given none here -- one whose environments are the workspace it runs in.
+          One kept the way `-e` spelled it before an `@` was a provider's alone was written
+          again as it is spelled now when the file was first read.
         """
         held = self._kept(flow, "envs")
         if not all(isinstance(one, str) for one in held.values()):
@@ -430,6 +440,7 @@ class Settings:
             # holds rather than with nothing but the change.
             held = copy.deepcopy(self._held) if fresh is None else fresh
             change(held)
+            held[_SPELLING] = _spelling()
             try:
                 self._writes(yaml.safe_dump(held, sort_keys=False, allow_unicode=True))
             except (OSError, yaml.YAMLError):
@@ -505,3 +516,51 @@ class Settings:
         except BaseException:
             Path(beside).unlink(missing_ok=True)
             raise
+
+
+def _spelling() -> int:
+    """How an environment written now is spelled."""
+    from hmz.coganchor.machines.store import SPELLING
+
+    return SPELLING
+
+
+def _respelled(held: dict[str, Any]) -> bool:
+    """Spells every environment in one reading of the file as `-e` spells one now.
+
+    What was kept before an `@` was a provider's alone -- `local@/x`, `docker@local/x`, an ssh
+    host nobody saved out of brackets -- in every workspace, and nothing else.
+
+    Args:
+      held: The reading, which is changed in place.
+
+    Returns:
+      Whether anything was.
+    """
+    kept = [
+        envs
+        for entry in _mapping(held.get("workspaces")).values()
+        for flow in _mapping(_mapping(entry).get("flows")).values()
+        if (envs := _mapping(_mapping(flow).get("envs")))
+    ]
+    if not kept:
+        return False  # nothing to read, and nothing of `-e` to load to read it
+    from hmz.coganchor.machines.store import respelled
+
+    changed = False
+    for envs in kept:
+        for role, spec in envs.items():
+            if isinstance(spec, str) and (now := respelled(spec)) != spec:
+                envs[role] = now
+                changed = True
+    return changed
+
+
+def _respell(held: dict[str, Any]) -> None:
+    """:func:`_respelled`, as a change :meth:`Settings._write` makes."""
+    _respelled(held)
+
+
+def _mapping(held: object) -> dict[str, Any]:
+    """One value of the file as the mapping it is, and an empty one where it is not one."""
+    return cast("dict[str, Any]", held) if isinstance(held, dict) else {}

@@ -362,7 +362,7 @@ async def build_under_test(
 6. **The builder's `spawn` is outside the loop**, so it keeps one conversation and remembers
    every round: what it tried, and what it was told.
 7. **`while True`** has no round limit of its own. If the reviewer is never satisfied, the
-   run's budget ends it: the turn that finds `-b` spent raises `BudgetExceeded`.
+   run's budget ends it: the turn that finds it spent raises `BudgetExceeded`.
 8. **A red suite never reaches the reviewer.** pytest's own words become the builder's next
    prompt, and the loop goes round again.
 9. **The reviewer's `spawn` is inside the loop**, so every review starts fresh, with no memory
@@ -391,7 +391,7 @@ Each role takes its own agent. Here the reviewer thinks harder than the builder:
 hmz exec -f build_under_test \
     -a builder=claude/claude-sonnet-5-5:medium \
     -a reviewer=claude/claude-sonnet-5-5:high \
-    -b cost=2,duration=30m "$task"
+    -p budget.cost=2,budget.duration=30m "$task"
 ```
 
 ```text [At the prompt]
@@ -400,7 +400,8 @@ $local/build_under_test Add from_roman(s: str) -> int to roman.py, the exact inv
 
 :::
 
-`-b cost=2,duration=30m` lets the run spend two dollars or half an hour, whichever comes first.
+`-p budget.cost=2,budget.duration=30m` lets the run spend two dollars or half an hour, whichever
+comes first.
 It ends by itself, printing the review it ended on. A real run, abridged:
 
 ```text
@@ -587,8 +588,8 @@ flow: the role asks for no more than any CLI can do.
 - **A suite that cannot run is red for ever.** If `python -m pytest` is not installed where the
   run starts, every round is "the tests fail" until the budget is spent. Run Step 1's check
   first.
-- **The budget is the only brake on `while True`.** Give every run a `-b` you would be content
-  to spend in full, or add a round limit.
+- **The budget is the only brake on `while True`.** Give every run a budget you would be
+  content to spend in full, or add a round limit.
 
 ## Next steps
 

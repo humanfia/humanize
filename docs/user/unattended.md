@@ -14,7 +14,7 @@ or when another program wants to read the run as it happens.
 ```sh
 hmz exec -f ralph_loop \
     -a agent=claude/claude-opus-5:high \
-    -b duration=2h,cost=10 \
+    -p budget.duration=2h,budget.cost=10 \
     "$(cat TASK.md)"
 ```
 
@@ -46,7 +46,7 @@ answer at once:
 | --- | --- | --- |
 | `-f` | which flow: the name `/flow` offers it under, a path, or a `git+…#flow` ref | always |
 | `-a` | which CLI, account, model and effort fills each agent role | one per role |
-| `-b` | what the run may spend | every flow but `chat` |
+| `-p budget.…` | what the run may spend | every flow but `chat` |
 | `-p` | the flow's own [params](/weaver/flow-settings), where you want other than the defaults | when you want them |
 | `-e` | where an environment role is, for a flow that works on [another machine](/user/remote-execution) | when the flow has one |
 | `--resume` | carry on the last run of this flow here, rather than start over | no |
@@ -87,14 +87,15 @@ You never name the person or the working directory. humanize fills those roles i
 
 ### Set the budget {#say-what-the-run-may-spend}
 
-A loop runs until something stops it, so every flow but `chat` needs a `-b`:
+A loop runs until something stops it, so every flow but `chat` needs a budget, given as
+`-p budget.<key>=`:
 
 | Key | Written as |
 | --- | --- |
-| `duration` | wall clock: `90s`, `1h30m`, `2d`, or ISO `PT6H` |
-| `cost` | US dollars: `50` or `$50` |
-| `output_tokens` | tokens the agents may write: `200k`, `10m` |
-| `graceful` | `false` cuts off the turn under way when a limit is reached. By default it finishes. |
+| `budget.duration` | wall clock: `90s`, `1h30m`, `2d`, or ISO `PT6H` |
+| `budget.cost` | US dollars: `50` or `$50` |
+| `budget.output_tokens` | tokens the agents may write: `200k`, `10m` |
+| `budget.graceful` | `false` cuts off the turn under way when a limit is reached. By default it finishes. |
 
 Give at least one limit. When one is reached, the run stops, `hmz exec: stopped -- …` names the
 limit on stderr, and the exit status is still 0: for a loop, that is the ordinary way to end.
@@ -125,7 +126,7 @@ cents of a small model and let it go:
 ```sh
 hmz exec -f ralph_loop \
     -a agent=claude/claude-haiku-4-5-20251001:low \
-    -b cost=0.03 \
+    -p budget.cost=0.03 \
     "$(cat TASK.md)"
 ```
 
@@ -167,8 +168,8 @@ $ echo $?
 2. **`-a agent=claude/claude-haiku-4-5-20251001:low`** fills the loop's one role, `agent`, with
    Claude Code on a small model at a low effort. A small model and a low effort are the cheap
    way to try a line; raise both for real work.
-3. **`-b cost=0.03`** is the budget: three US cents. Use a `duration` too for anything you
-   leave running, as the tip above says.
+3. **`-p budget.cost=0.03`** is the budget: three US cents. Use a `duration` too for anything
+   you leave running, as the tip above says.
 4. **`"$(cat TASK.md)"`** is the task, read from the file by your shell. The quotes keep it one
    argument, however many lines it has.
 5. **`round 1`** is the flow's own line, not an agent's. What the flow prints goes to stdout.
@@ -210,7 +211,7 @@ $ tail -2 run.log
 ✻ Worked for 9s · assistant
 ```
 
-1. **`> summary.txt`** takes the answer alone. [`chat`](/flows/chat) needs no `-b`, and with
+1. **`> summary.txt`** takes the answer alone. [`chat`](/flows/chat) needs no budget, and with
    nobody at a prompt it answers once and returns.
 2. **`2> run.log`** keeps the run: every tool call, every turn's cost, and any
    `hmz exec: …` line. Redirected, the lines come out without colour or the ticking clock.
@@ -229,7 +230,7 @@ second, with exit status 2, before any agent starts. So try the line by hand onc
 
 ```console
 $ hmz exec -f ralph_loop -a agent=claude/claude-haiku-4-5-20251001:low "x"
-hmz exec: error: ralph_loop requires a budget: specify with -b duration=...,cost=...,output_tokens=...
+hmz exec: error: ralph_loop requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...
 $ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:ultra "x"
 hmz exec: error: assistant=claude/claude-haiku-4-5-20251001:ultra: claude cannot be asked to think at 'ultra'; expected one of ultracode, max, xhigh, high, medium, low
 ```
@@ -249,7 +250,7 @@ that cannot be, is refused the same way, still before the flow runs. Every messa
 | `143` | Stopped by a terminate signal, such as `kill` or a cancelled CI job, once the run has let go of everything it started. |
 
 ```sh
-if ! hmz exec -f goal -a worker=claude/claude-opus-5:max -b duration=4h "$(cat TASK.md)"; then
+if ! hmz exec -f goal -a worker=claude/claude-opus-5:max -p budget.duration=4h "$(cat TASK.md)"; then
     echo "the loop did not finish" >&2
     exit 1
 fi
@@ -310,13 +311,14 @@ A flow with [params of its own](/weaver/flow-settings) takes each one you want t
 hmz exec -f humanize1:rlcr -p max=9,plan_file=docs/plan.md \
     -a builder=claude/claude-opus-5:max \
     -a reviewer=codex/gpt-5.6-sol:xhigh \
-    -b duration=12h,cost=100 "add undo"
+    -p budget.duration=12h,budget.cost=100 "add undo"
 ```
 
-A flow that works on another machine takes it with `-e`, as `role=local@/abs/path`,
-`role=ssh@[user@]host[:port]/path` or `role=docker@<daemon>/path`; where each agent's CLI
-runs while it works there is the [affinity](/user/remote-execution#where-the-agent-runs) of the
-host or daemon saved under that name. Most flows have no such role. See [Remote
+A flow that works on another machine takes it with `-e`, as `role=local/abs/path`,
+`role=ssh@<host>/path` for a host saved under that name, `role=ssh@[user@host:port]/path` for
+one nobody saved, or `role=docker@<daemon>/path`; where each agent's CLI runs while it works
+there is the [affinity](/user/remote-execution#where-the-agent-runs) of the host or daemon
+saved under that name. Most flows have no such role. See [Remote
 execution](/user/remote-execution).
 
 ### Stop it, and pick it up again
@@ -327,7 +329,7 @@ execution](/user/remote-execution).
 line with `--resume`: a Ralph loop stopped in round 12 starts again at round 13.
 
 ```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=2h \
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=2h \
     --resume "$(cat TASK.md)"
 ```
 
@@ -346,7 +348,7 @@ With nobody at a prompt, the run behaves as if you were [away](/user/afk) the wh
 Put `--` before it, so it is read as the task rather than a flag:
 
 ```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 \
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 \
     -- "--force is not a flag here"
 ```
 

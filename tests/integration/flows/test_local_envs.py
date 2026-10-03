@@ -164,7 +164,7 @@ async def test_the_workspace_driver_keeps_the_contract(repo: Path) -> None:
 async def test_the_driver_an_e_flag_names_keeps_the_contract(tmp_path: Path) -> None:
     # Beside humanize's home rather than around it, which is where copies of it are made.
     (tmp_path / "work").mkdir()
-    (spec,) = parse_envs([f"work=local@{tmp_path / 'work'}"])
+    (spec,) = parse_envs([f"work=local{tmp_path / 'work'}"])
     await check_env_driver(open_env(spec))
 
 
@@ -191,7 +191,7 @@ async def test_a_workspace_named_with_dots_is_one_place(repo: Path) -> None:
 def test_a_directory_that_is_not_there_is_unavailable(tmp_path: Path) -> None:
     with pytest.raises(EnvUnavailable):
         local_env(tmp_path / "missing")
-    (spec,) = parse_envs([f"work=local@{tmp_path / 'missing'}"])
+    (spec,) = parse_envs([f"work=local{tmp_path / 'missing'}"])
     with pytest.raises(EnvUnavailable):
         open_env(spec)
 

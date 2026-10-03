@@ -134,7 +134,7 @@ Start it. Pick the tab for the backends you have:
 hmz exec -f flame_chase \
     -a first_chaser=claude/claude-opus-5-5:high \
     -a second_chaser=codex/gpt-5.6-sol:high \
-    -b duration=8h,cost=100 \
+    -p budget.duration=8h,budget.cost=100 \
     "$(cat TASK.md)"
 ```
 
@@ -142,7 +142,7 @@ hmz exec -f flame_chase \
 hmz exec -f flame_chase \
     -a first_chaser=claude/claude-opus-5-5:high \
     -a second_chaser=claude/claude-opus-5-5:high \
-    -b duration=8h,cost=100 \
+    -p budget.duration=8h,budget.cost=100 \
     "$(cat TASK.md)"
 ```
 
@@ -150,7 +150,7 @@ hmz exec -f flame_chase \
 hmz exec -f flame_chase \
     -a first_chaser=codex/gpt-5.6-sol:high \
     -a second_chaser=codex/gpt-5.6-sol:high \
-    -b duration=8h,cost=100 \
+    -p budget.duration=8h,budget.cost=100 \
     "$(cat TASK.md)"
 ```
 
@@ -173,8 +173,8 @@ The first turn starts at once, and closes with what it spent:
 2. **`-f flame_chase`** names the flow.
 3. **`-a first_chaser=…` and `-a second_chaser=…`** give each of the flow's two roles an
    agent, written `CLI/MODEL:EFFORT`. Any other backend fills a role the same way.
-4. **`-b duration=8h,cost=100`** is the budget: the run stops at eight hours or a hundred
-   dollars, whichever comes first.
+4. **`-p budget.duration=8h,budget.cost=100`** is the budget: the run stops at eight hours or a
+   hundred dollars, whichever comes first.
 5. **`"$(cat TASK.md)"`** is the task, the file you wrote, given whole.
 
 In the output, `● first_chaser is working` opens a turn, and the `✻` lines close it with the
@@ -325,7 +325,8 @@ It is often an account out of quota or signed out. See
 
 - A long loop is only as good as its task file: say what counts, what is forbidden, and how to
   prove neither happened.
-- `hmz exec -f … -a … -b …` starts a flow with one agent per role and a budget that stops it.
+- `hmz exec -f … -a … -p budget.…` starts a flow with one agent per role and a budget that
+  stops it.
 - A fresh session per turn means the repository and a notes file are the loop's only memory.
 - The test, not the transcript, says what is true; and `git diff` says whether the test is
   still the test.
@@ -334,7 +335,7 @@ It is often an account out of quota or signed out. See
 ## Next steps
 
 - **Carry on from where it stopped.** `flame_chase` can be picked up. Run the same line with
-  `--resume` and a fresh `-b`, and it carries on with whichever chaser was next. See
+  `--resume` and a fresh budget, and it carries on with whichever chaser was next. See
   [Picking a run up](/user/resuming).
 - **Ratchet the target.** Put the new floor in `TASK.md` and start again.
 - **Mix the models.** Two models that go wrong in different ways beat two copies of the

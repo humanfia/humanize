@@ -140,7 +140,7 @@ const LAYERS: Layer[] = [
   {
     id: 'flowing',
     dotted: 'hmz.runtime.flowing',
-    here: 'Everything done to a flow: the engine, budgets, resuming, the agent and environment drivers, the `-a` `-e` `-p` `-b` parsers, the fakes, finding flows and flowverses.',
+    here: 'Everything done to a flow: the engine, budgets, resuming, the agent and environment drivers, the `-a` `-e` `-p` parsers, the fakes, finding flows and flowverses.',
     spec: 'runtime/flowing.md',
     ref: '/reference/flows',
   },

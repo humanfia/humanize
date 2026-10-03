@@ -40,8 +40,8 @@ that has a role for another machine, such as [`onbox`](#the-flow-used-on-this-pa
 hmz exec -f onbox \
     -a builder=claude/claude-haiku-4-5-20251001:low \
     -a reviewer=claude/claude-haiku-4-5-20251001:low \
-    -e box=ssh@build-box/home/me/build/myproject \
-    -b duration=10m "Make test_calc.py pass."
+    -e box=ssh@[build-box]/home/me/build/myproject \
+    -p budget.duration=10m "Make test_calc.py pass."
 ```
 
 The builder's tools name the host's paths, and what it changed is on the host when the run
@@ -79,16 +79,19 @@ A flow declares **environment roles**: named places its agents work. One is alwa
 name, with `-e role=…` on the command line or on its row at `/flow`. `onbox` has one, `box`:
 its builder works there, and its reviewer reads in the workspace.
 
-What `-e` takes after the `=` is three parts, `backend@provider/workdir`:
+What `-e` takes after the `=` is up to three parts, `backend@provider/workdir`. The
+`@provider` is a machine you [saved under a name](#save-a-host-under-a-name), or, for ssh, any
+host in brackets; leave it off for this machine:
 
 | `-e box=` | Where the role's work happens |
 | --- | --- |
-| `ssh@build-box/home/me/build/myproject` | that directory on a host `ssh` reaches: a host you [saved under a name](#save-a-host-under-a-name), `host`, `user@host`, `host:port`, or an alias from your ssh config |
-| `ssh@build-box/~/build/myproject` | the same, under the home directory of whoever ssh logs in as |
+| `ssh@build-box/home/me/build/myproject` | that directory on the host you saved as `build-box` |
+| `ssh@[build-box]/home/me/build/myproject` | that directory on a host nobody saved, as `ssh` reaches it: `host`, `user@host`, `host:port`, or an alias from your ssh config |
+| `ssh@build-box/~/build/myproject` | under the home directory of whoever ssh logs in as |
 | `ssh@build-box` | the workdir the host saved as `build-box` was saved with |
 | `docker@gpubox/home/me/myproject` | a [container of its own](/user/containers#try-it-a-container-per-environment) on the docker daemon saved as `gpubox`, holding that directory of the daemon's host |
-| `docker@local/home/me/myproject` | the same, on docker's default here, with nothing saved |
-| `local@/srv/project` | a directory on this machine |
+| `docker/home/me/myproject` | the same, on docker's default here, with nothing saved |
+| `local/srv/project` | a directory on this machine |
 
 Every session the flow opens in `box` works on the host: the files it reads and writes are the
 host's, every command it runs runs there, and the flow's own steps on `box`, such as `onbox`'s
@@ -119,8 +122,8 @@ coding agent CLI.
 hmz exec -f onbox                                               ①
     -a builder=claude/claude-haiku-4-5-20251001:low
     -a reviewer=claude/claude-haiku-4-5-20251001:low
-    -e box=ssh@build-box/home/me/build/myproject                ②
-    -b duration=10m                                             ③
+    -e box=ssh@[build-box]/home/me/build/myproject              ②
+    -p budget.duration=10m                                      ③
     "Make test_calc.py pass."
 ```
 
@@ -145,10 +148,13 @@ hmz exec -f onbox                                               ①
 
 1. **`-f onbox`** names a flow with an environment role. A flow without one refuses `-e`:
    `ralph_loop has no environment role 'box'; available roles are none`.
-2. **`-e box=ssh@build-box/home/me/build/myproject`** puts the `box` role on the host
-   `build-box`, in that directory. `build-box` is whatever `ssh build-box` reaches, so an alias
-   from your ssh config works as it is. The path is the host's, and has to exist there.
-3. **`-b duration=10m`** is the budget, as for any flow. A remote run spends like any other.
+2. **`-e box=ssh@[build-box]/home/me/build/myproject`** puts the `box` role on the host
+   `build-box`, in that directory. In brackets, `build-box` is whatever `ssh build-box`
+   reaches, so an alias from your ssh config works as it is; once it is [saved under a
+   name](#save-a-host-under-a-name), `ssh@build-box` names it. The path is the host's, and has
+   to exist there.
+3. **`-p budget.duration=10m`** is the budget, as for any flow. A remote run spends like any
+   other.
 4. **The builder's tools name `/home/me/build/myproject`**, the host's path. The agent sees the
    host's files at the host's own paths, so a path in a compiler error or a test failure is one
    you can open on the host.
@@ -157,7 +163,7 @@ hmz exec -f onbox                                               ①
 6. **The reviewer works in the workspace**, here, and reads a `git diff` the flow ran on the
    host. One flow can mix roles here and there.
 
-Nothing said where the builder's CLI runs, and `build-box` was saved with no affinity, so with
+Nothing said where the builder's CLI runs, and a host nobody saved has no affinity, so with
 no `claude` on `build-box` it ran here. At the prompt the transcript says so as the role's
 first session opens:
 
@@ -282,7 +288,7 @@ A docker daemon is saved on the same page with **Add a runtime…** and `docker 
 Its `endpoint` may be a saved ssh host, the daemon on that host, reached with everything the
 host says. A docker swarm is saved there too, with `docker swarm` under **Add a runtime…** -- the same form for
 one of its managers, with where its tasks may go in place of GPU ids -- and named with
-`-e box=swarm@<name>/…`, or `swarm@local/…` for the swarm this machine manages.
+`-e box=swarm@<name>/…`, or `swarm/…` for the swarm this machine manages.
 
 ## Where the agent runs {#where-the-agent-runs}
 
@@ -322,8 +328,8 @@ The CLI runs on the host when all three hold, and here otherwise:
   hook would have decided, so that role stays here. A hook that answers the agent's questions
   is not one of those: a question comes back from wherever the CLI runs.
 
-A host given with `-e` and never saved, and docker's default `docker@local`, are always placed
-this way. Nothing to do when it goes either way: the run is the same run. Give the host an
+A host given in brackets and never saved, and docker's default here (`docker/…`), are always
+placed this way. Nothing to do when it goes either way: the run is the same run. Give the host an
 affinity only to insist.
 
 ### `local`: here
@@ -348,7 +354,7 @@ from an earlier run.
   `cannot keep the local copy of the work at /home/me/build/myproject: Permission denied: /home/me`,
   marked `(unmirrored: …)`.
 
-A `docker@` environment keeps its copy under `~/.humanize/envs/mirrors/` instead, so its
+A docker environment keeps its copy under `~/.humanize/envs/mirrors/` instead, so its
 workdir may be your own checkout.
 :::
 
@@ -432,9 +438,9 @@ and the python.org installer put one, and says what it looked for if it finds no
   separated by commas: `-e box=ssh@build-box,gpu=ssh@gpu-box/~/train`.
 - **A path under the login's home.** `ssh@build-box/~/build/myproject` is the same directory
   for whoever ssh logs in as, without spelling out the home.
-- **A container instead of a host.** `-e box=docker@local/home/me/myproject` gives the role a
+- **A container instead of a host.** `-e box=docker/home/me/myproject` gives the role a
   container of its own: see [Containers](/user/containers).
-- **A directory on this machine.** `-e box=local@/srv/project` puts the role somewhere other
+- **A directory on this machine.** `-e box=local/srv/project` puts the role somewhere other
   than the workspace, on this machine.
 - **Another host when this one is down.** Fill in **falls back to** on a saved host's form
   (`ssh:build-2, docker:box`): where `-e box=ssh@build-box/…` cannot reach `build-box`, the
@@ -449,7 +455,8 @@ status 2.
 
 | You see | What to do |
 | --- | --- |
-| `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR` | Say where `box` is, with `-e` or at `/flow`. |
+| `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND[@PROVIDER]/WORKDIR` | Say where `box` is, with `-e` or at `/flow`. |
+| `-e 'box=ssh@build-box/…': no ssh host is saved as 'build-box'; write box=ssh@[build-box]/… for a host not saved` | [Save it](#save-a-host-under-a-name) under that name, or put it in brackets. |
 | `ralph_loop has no environment role 'box'; available roles are none` | That flow only works in the directory you start it in. |
 | `onbox: 'workspace' is the workspace the run started in and cannot be set with -e` | Start `hmz` in that directory instead. |
 | `there is no ssh host build-box: …` | Nothing resolves the name. Check your ssh config. |

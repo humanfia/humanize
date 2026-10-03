@@ -185,20 +185,25 @@ every other role is filled by `-e`.
 | --- | --- |
 | `ROLE` | A Python identifier; each role at most once per run. |
 | `BACKEND` | `local`, `ssh`, `docker` or `swarm`. |
-| `PROVIDER` | `local`: none. `ssh`: a saved ssh [runtime](#runtimes), else `[user@]host[:port]` or an alias of the ssh config. `docker`: a saved docker runtime, or `local` for docker's default here. `swarm`: a saved swarm runtime, or `local` for the swarm this machine manages. May contain `@` (`user@host`). |
+| `PROVIDER` | Written only after an `@`: the [runtime](#runtimes) saved under that name for `BACKEND`, or, for `ssh` alone, a host nobody saved, in brackets (`[host]`, `[user@host:port]`, `[<ssh config alias>]`). `ssh` always has one. Absent, it is this machine: a directory here (`local`, which takes no provider), docker's default here, the swarm this machine manages. |
 | `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here, swarm with a manager here). Omitted: the saved runtime's `workdir`, which then must be set. |
 
 Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 
 | Input | `EnvSpecError` (exit 2) |
 | --- | --- |
-| not the shape above, or no workdir and none saved | `-e 'repo=ssh@nohost': expected <role>=<backend>[@<provider>]/<workdir>` |
-| role not an identifier | `-e '9r=local@/tmp': the role '9r' is not an identifier` |
+| not the shape above | `-e 'repo=ssh@[x': expected <role>=<backend>[@<provider>][/<workdir>]` |
+| no workdir, and none saved | `-e 'repo=docker': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one` |
+| role not an identifier | `-e '9r=local/tmp': the role '9r' is not an identifier` |
 | unknown backend | `-e 'repo=bogus@x/y': 'bogus' is not a backend; one of local, ssh, docker, swarm` |
-| `ssh` without a host | `-e 'repo=ssh/y': ssh needs a host, as in ssh@host/workdir` |
-| `docker` without a provider | `-e 'repo=docker/y': docker needs a host, as in docker@local/workdir` |
-| `swarm` without a provider | `-e 'repo=swarm/y': swarm needs a host, as in swarm@local/workdir` |
-| `local` with a provider | `-e 'repo=local@h/y': local takes no host, as in local@/workdir` |
+| `ssh` without a host | `-e 'repo=ssh/y': ssh needs a host: ssh@<saved host>/y, or ssh@[user@host:port]/y for a host not saved` |
+| `ssh` naming no saved runtime, out of brackets | `-e 'repo=ssh@box/y': no ssh host is saved as 'box'; write repo=ssh@[box]/y for a host not saved` |
+| a bracketed host that is not one | `-e 'repo=ssh@[-x]/y': '-x' is not an ssh host, as [user@]host[:port]` |
+| brackets on `docker` or `swarm` | `-e 'repo=docker@[x]/y': only ssh takes a host nobody saved; docker@<name> names a docker runtime saved on the runtimes page of /settings` |
+| `docker@local`, `swarm@local`, nothing saved as `local` | `-e 'repo=docker@local/y': docker on this machine names no provider; write repo=docker/y` |
+| `docker` or `swarm` naming no saved runtime | `-e 'repo=docker@nope/y': no docker runtime is saved as 'nope'; save one on the runtimes page of /settings, or write repo=docker/y for docker on this machine` |
+| an `@` with nothing after it | `-e 'repo=docker@/y': an @ is written only before a provider; write repo=docker/y` |
+| `local` with a provider | `-e 'repo=local@/y': local takes no provider; write repo=local/y` |
 | a role given twice | `-e: the role 'repo' is given twice` |
 | an empty item | `-e '<value>': an item is empty` |
 
@@ -206,14 +211,14 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 
 | `-e` | Machine | Session's anchor (harness here) |
 | --- | --- | --- |
-| `local@/srv/project` | this machine | none: `machine=None` |
-| `ssh@HOST/srv/project` | `HOST` over ssh | `AnchorConfig(target="ssh://HOST", workspace="/srv/project")` |
-| `ssh@HOST/~/project` | the same | `workspace` is `~` resolved to the login's home once the host has been reached; before that, `remote_path="~/project"` |
+| `local/srv/project` | this machine | none: `machine=None` |
+| `ssh@[HOST]/srv/project` | `HOST` over ssh | `AnchorConfig(target="ssh://HOST", workspace="/srv/project")` |
+| `ssh@[HOST]/~/project` | the same | `workspace` is `~` resolved to the login's home once the host has been reached; before that, `remote_path="~/project"` |
 | `ssh@NAME/…`, `NAME` a saved ssh runtime | the runtime's host | `target=` `NAME`'s [target](#an-ssh-host), e.g. `ssh://me@10.0.0.2:2222?IdentityFile=~/.ssh/gpu&ProxyJump=me@bastion` |
 | `docker@NAME/…` | a new container on `NAME`'s daemon | `target="docker://humanize-NAME-ROLE-<8 hex>[@<endpoint>]"`, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<container>/` |
-| `docker@local/…` | a new container on docker's default here | the same, with provider `local` |
+| `docker/…` | a new container on docker's default here | the same, with provider `local` |
 | `swarm@NAME/…` | a new service of one task on `NAME`'s swarm, on whichever node has room | `target="docker://<container id>[@<the node's daemon>]"` once the task runs, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<service>/` |
-| `swarm@local/…` | a new service on the swarm this machine manages | the same, with provider `local` |
+| `swarm/…` | a new service on the swarm this machine manages | the same, with provider `local` |
 
 Where the harness goes for such a session (supervised here, native on the machine, or on
 another runtime) is decided by the `affinity` of the runtime it is on: see
@@ -225,10 +230,11 @@ A `local` environment's work always has its harness here.
 | `local` workdir not a directory | `there is no directory <path> on this machine` |
 | ssh destination not a destination | `'<provider>' is not an ssh host, as [user@]host[:port]` |
 | a saved ssh runtime that cannot be read | `the ssh host '<name>' cannot be read; fix or remove it: <dir>` |
-| an unknown docker runtime | `docker host '<name>' not found: add one, or use the default docker@local` |
+| an unknown ssh runtime | `no ssh host is saved as '<name>': add it on the runtimes page of /settings, or name a host not saved as ssh@[<name>]` |
+| an unknown docker runtime | `docker host '<name>' not found: add one, or name none for docker's default here, as docker/<workdir>` |
 | a saved docker runtime that cannot be read | `the docker host '<name>' cannot be read; fix or remove it: <dir>` |
 | `~/…` on a docker daemon elsewhere | `<workdir> is on a remote docker host, so it must be an absolute path` |
-| an unknown swarm runtime | `docker swarm '<name>' not found: add one, or use the swarm this machine manages, swarm@local` |
+| an unknown swarm runtime | `docker swarm '<name>' not found: add one, or name none for the swarm this machine manages, as swarm/<workdir>` |
 | a saved swarm runtime that cannot be read | `the docker swarm '<name>' cannot be read; fix or remove it: <dir>` |
 | `~/…` on a swarm managed elsewhere | `<workdir> is on a remote docker swarm, so it must be an absolute path` |
 | a `~` workdir that climbs out of home | `<workdir> climbs out of the home directory it is under` |
@@ -276,8 +282,9 @@ shares that machine and its connection.
 
 ### Docker environments {#docker-environments}
 
-`-e ROLE=docker@RUNTIME/WORKDIR` gives the role one container of its own, started when the run
-reaches its environments and removed when the run closes it.
+`-e ROLE=docker@RUNTIME/WORKDIR` (or `docker/WORKDIR`, docker's default here) gives the role
+one container of its own, started when the run reaches its environments and removed when the
+run closes it.
 
 | Aspect | Rule |
 | --- | --- |
@@ -334,6 +341,9 @@ docker@gpubox's GPUs have 24 GiB each, and 'box' asks for 40 GiB
 | container would not start | `EnvUnavailable: docker@<p>: could not start a container of <image> on <endpoint>: …` |
 | workdir missing on the daemon's host | `EnvUnavailable: docker@<p> has no <path> to run a container: …` |
 
+These and the shortages above name a saved runtime `docker@<p>`, and docker's default here
+`docker` alone.
+
 A run killed outright leaves its container; the next run on that runtime from the same user
 and host removes it. To remove humanize containers by hand:
 
@@ -348,9 +358,10 @@ by several machines the same uid can belong to different users.
 
 ### Swarm environments {#swarm-environments}
 
-`-e ROLE=swarm@RUNTIME/WORKDIR` gives the role one service of its own on a docker swarm: one
-replica, `--restart-condition none`, created on the swarm's manager when the run reaches its
-environments and removed (`docker service rm`) when the run closes it. The swarm's scheduler
+`-e ROLE=swarm@RUNTIME/WORKDIR` (or `swarm/WORKDIR`, the swarm this machine manages) gives the
+role one service of its own on a docker swarm: one replica, `--restart-condition none`,
+created on the swarm's manager when the run reaches its environments and removed
+(`docker service rm`) when the run closes it. The swarm's scheduler
 puts its task on whichever node has room for what the role reserves; once the task is running
 its container is reached like any other, so everything downstream -- mirrors, the native
 harness, files, derived environments -- is as for a [docker environment](#docker-environments).
@@ -404,6 +415,9 @@ swarm@cluster: no node took it within 30s: no suitable node (insufficient resour
 | the node has no such workdir | `EnvUnavailable: swarm@<p>: no directory to give the task on the node it landed on: …` |
 | task failed, or not running within 600 s | `EnvUnavailable: swarm@<p>: the task of <service> is failed: …` |
 | the node's daemon not reachable | `EnvConnectionError: could not reach <p> over docker exec: …` |
+
+These and the shortages above name a saved runtime `swarm@<p>`, and the swarm this machine
+manages `swarm` alone.
 
 To remove humanize services by hand:
 
@@ -603,7 +617,7 @@ environment landed on.
 | Order | the list's, until one holds the role; each refused environment is closed |
 | Transitivity | none: a runtime reached by fallback never walks its own list, and an `-e` naming a runtime that is only someone else's fallback walks nothing unless it has a list of its own |
 | Workdir | the fallback runtime's saved `workdir`, else the path the `-e` gave |
-| Unsaved specs | `local@…`, `ssh@user@host/…`, `docker@local/…` (no saved runtime `local`): no fallback |
+| Unsaved specs | `local/…`, `ssh@[user@host]/…`, `docker/…`, `swarm/…`: no fallback |
 | Said | `hmz exec: <backend>:<A> cannot hold '<role>': <why>; using <backend>:<B>`, on stderr (a `notice` in the TUI) |
 | All refused | the last refusal's kind, naming every runtime tried and why: `ssh:a cannot hold 'box': …; ssh:b cannot hold 'box': …` |
 | Recorded | the epic's `envs` keeps the `-e` as given (what a picked-up run is given again, and what settings remember); `used` is where each role was put, written only where it differs |
@@ -724,7 +738,7 @@ it is:
 | `AnchoredConfig` with `shadow` unset, harness here | the workspace's own absolute path on this machine |
 | `-e ssh@…` session, harness here | the same: the workdir's path on this machine |
 | `DockerConfig` machine | `<tmp>/humanize-<random>/shadow`, removed with the container |
-| `-e docker@…` session, harness here | `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex of the workdir>`, removed with the container |
+| `-e docker[@…]/…` session, harness here | `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex of the workdir>`, removed with the container |
 | harness on another machine, `shadow` unset | `$HOME/.cache/humanize-mirrors/<16 hex>` there (`/tmp/humanize-mirrors/<16 hex>` in a container), kept between turns |
 
 A mirror path that already holds unrelated files, or was last used for another target, is

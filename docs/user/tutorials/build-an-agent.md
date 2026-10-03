@@ -93,19 +93,19 @@ Then run phase 1:
 export DEEPSEEK_API_KEY=sk-…
 hmz exec -f humanize1:gen-idea \
     -a drafter=dsh/deepseek-v4-pro:high \
-    -b cost=5 "$IDEA"
+    -p budget.cost=5 "$IDEA"
 ```
 
 ```sh [Claude Code]
 hmz exec -f humanize1:gen-idea \
     -a drafter=claude/claude-opus-5-5:high \
-    -b cost=5 "$IDEA"
+    -p budget.cost=5 "$IDEA"
 ```
 
 ```sh [Codex]
 hmz exec -f humanize1:gen-idea \
     -a drafter=codex/gpt-5.6-sol:high \
-    -b cost=5 "$IDEA"
+    -p budget.cost=5 "$IDEA"
 ```
 
 :::
@@ -139,7 +139,7 @@ A small terminal coding agent for deepseek-v4-flash. …
 
 1. **`-f humanize1:gen-idea`** names one flow of the `humanize1` module: `<flow>:<name>`.
 2. **`-a drafter=…`** gives its one role, the **drafter**, an agent.
-3. **`-b cost=5`** caps it at five dollars.
+3. **`-p budget.cost=5`** caps it at five dollars.
 4. **The draft** is in `.humanize/ideas/`. The drafter picked six different directions the idea
    could go, explored each against this repository and this machine, and wrote up one as the
    primary with the others as alternatives.
@@ -161,21 +161,21 @@ In the same terminal as step 2, so `$IDEA` and your key are still set:
 hmz exec -f humanize1:gen-plan \
     -a planner=dsh/deepseek-v4-pro:high \
     -a analyst=dsh/deepseek-v4-pro:high \
-    -b cost=10 "$IDEA"
+    -p budget.cost=10 "$IDEA"
 ```
 
 ```sh [Claude Code + Codex]
 hmz exec -f humanize1:gen-plan \
     -a planner=claude/claude-opus-5-5:high \
     -a analyst=codex/gpt-5.6-sol:high \
-    -b cost=10 "$IDEA"
+    -p budget.cost=10 "$IDEA"
 ```
 
 ```sh [Claude Code only]
 hmz exec -f humanize1:gen-plan \
     -a planner=claude/claude-opus-5-5:high \
     -a analyst=claude/claude-opus-5-5:high \
-    -b cost=10 "$IDEA"
+    -p budget.cost=10 "$IDEA"
 ```
 
 :::
@@ -228,7 +228,7 @@ and does not let the builder edit it.
 hmz exec -f humanize1:rlcr \
     -a builder=claude/claude-opus-5-5:high \
     -a reviewer=codex/gpt-5.6-sol:high \
-    -b duration=12h,cost=100 \
+    -p budget.duration=12h,budget.cost=100 \
     "build it"
 ```
 
@@ -236,7 +236,7 @@ hmz exec -f humanize1:rlcr \
 hmz exec -f humanize1:rlcr \
     -a builder=claude/claude-opus-5-5:high \
     -a reviewer=claude/claude-opus-5-5:high \
-    -b duration=12h,cost=100 \
+    -p budget.duration=12h,budget.cost=100 \
     "build it"
 ```
 
@@ -244,7 +244,7 @@ hmz exec -f humanize1:rlcr \
 hmz exec -f humanize1:rlcr \
     -a builder=codex/gpt-5.6-sol:high \
     -a reviewer=codex/gpt-5.6-sol:high \
-    -b duration=12h,cost=100 \
+    -p budget.duration=12h,budget.cost=100 \
     "build it"
 ```
 

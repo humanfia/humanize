@@ -84,6 +84,7 @@ from hmz.flows import (
 )
 
 from . import harnessing
+from .specs import spelled
 from .spi import HARNESS_CAPABILITIES, HookBridge
 
 if TYPE_CHECKING:
@@ -632,7 +633,7 @@ class HarnessDriver:
         if refused is None:  # nothing was asked, which an affinity of no entries asks
             return machine
         raise type(refused)(
-            f"{placement.backend}@{placement.provider}: nowhere its affinity "
+            f"{spelled(placement.backend, placement.provider)}: nowhere its affinity "
             f"({', '.join(affinity)}) names has room for {self._named()}'s harness; "
             f"the last: {refused}"
         ) from refused
@@ -658,16 +659,16 @@ class HarnessDriver:
           None where it can; otherwise what a session to be put there anyway is refused
           with, and why, in words.
         """
-        where = f"{placement.backend}@{placement.provider}"
+        at = spelled(placement.backend, placement.provider)
         async with self._asking:
             if anchor.target not in self._has:
-                self._has[anchor.target] = await self._has_cli(anchor, where)
+                self._has[anchor.target] = await self._has_cli(anchor, at)
             why = self._has[anchor.target]
             if why is not None or fence is None or fence.open:
                 return why
             key = (anchor.target, fence.online)
             if key not in self._fences:
-                self._fences[key] = await self._fenceable(anchor, fence, where)
+                self._fences[key] = await self._fenceable(anchor, fence, at)
             return self._fences[key]
 
     async def _has_cli(

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, NotRequired, Required, cast
 
+import pydantic
 import pytest
 from typing_extensions import ReadOnly
 
@@ -202,6 +203,24 @@ def test_what_is_no_declaration_is_refused(said: dict[str, Any]) -> None:
     given: dict[str, Any] = {"agents": Agents, "envs": Envs, "params": Params} | said
     with pytest.raises(FlowDefinitionError):
         flow(**given)(_sync_body)
+
+
+class _Budgeted(FlowParams):
+    budget: float = 1.0
+
+
+class _Aliased(FlowParams):
+    spend: float = pydantic.Field(1.0, alias="budget")
+
+
+@pytest.mark.parametrize("params", [_Budgeted, _Aliased], ids=lambda one: one.__name__)
+def test_a_param_called_budget_is_refused_for_the_runs_own(
+    params: type[FlowParams],
+) -> None:
+    """`-p budget.<limit>=` is what the run may spend, which no flow's param could be set by."""
+    body: Any = _sync_body
+    with pytest.raises(FlowDefinitionError, match=r"-p budget\.<limit>="):
+        flow(agents=Agents, envs=Envs, params=params)(body)
 
 
 def test_the_bare_collections_declare_nothing() -> None:

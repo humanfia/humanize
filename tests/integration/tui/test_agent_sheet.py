@@ -411,26 +411,26 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
         await driver.press("enter")
         await driver.pause()
         assert isinstance(app.screen, Placing)
-        assert "expected <role>=<backend>" in _said(app)
+        assert "'nowhere' is not a backend" in _said(app)
 
         await changes(
             app,
             driver,
             "spelled",
             *(["backspace"] * len("nowhere")),
-            *f"local@{tmp_path}",
+            *f"local{tmp_path}",
         )
         await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
-        assert f"local@{tmp_path}" in _value(app, "@repo")
+        assert f"local{tmp_path}" in _value(app, "@repo")
 
         await onto(app, driver, _SAVE)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
-    assert app._envs == {"repo": f"local@{tmp_path}"}
-    assert Settings(tmp_path).envs("placed") == {"repo": f"local@{tmp_path}"}
+    assert app._envs == {"repo": f"local{tmp_path}"}
+    assert Settings(tmp_path).envs("placed") == {"repo": f"local{tmp_path}"}
 
 
 @pytest.mark.timeout(60)
