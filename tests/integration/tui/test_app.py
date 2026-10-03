@@ -2507,6 +2507,48 @@ async def test_a_search_is_asked_for_and_left_rather_than_being_what_typing_does
 @unittest.mock.patch(
     "hmz.tui.app.installed",
     return_value={
+        "claude": (
+            Model("claude-sonnet-4-5", ("max",)),
+            Model("claude-opus-5", ("max",)),
+            Model("claude-sonnet-5", ("max",)),
+        )
+    },
+)
+async def test_a_model_typed_out_whole_is_found_above_one_that_only_holds_its_letters(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
+) -> None:
+    """`claude-sonnet-5` is spread through `claude-sonnet-4-5`, and is not what was meant.
+
+    Found under real load: the search found both and left them in the order the CLI listed
+    them, so the model typed out exactly came second and enter took the other one.
+    """
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_flows(app, driver)
+        await into_agent(app, driver)
+        await opens(app, driver, "model")
+        await until(lambda: isinstance(app.screen, Catalogue), driver)
+        sheet = cast("Catalogue", app.screen)
+        listing = sheet.query_one("#choices", OptionList)
+        await until(lambda: bool(listing.options), driver)
+
+        await onto(app, driver, _SEARCH)
+        await driver.press("enter")
+        await driver.press(*"claude-sonnet-5")
+        await driver.pause()
+        assert rows(app)[:2] == ["claude-sonnet-5", "claude-sonnet-4-5"]
+
+        # The start of a name comes before letters spread through one, and rows equally near
+        # keep the order they were listed in.
+        await driver.press(*["backspace"] * len("claude-sonnet-5"), *"sonnet")
+        await driver.pause()
+        assert rows(app)[:2] == ["claude-sonnet-4-5", "claude-sonnet-5"]
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch(
+    "hmz.tui.app.installed",
+    return_value={
         "claude": (Model("claude-opus-5", ("ultracode", "max", "high")),),
         "kimi": (Model("kimi-code/k3", ("max", "low"), swarms=True),),
     },

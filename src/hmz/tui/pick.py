@@ -941,6 +941,35 @@ class Sheet[T](ModalScreen[T | None]):
                 return True
         return False
 
+    def ranks(self, *fields: str) -> int:
+        """How near a row that :meth:`fits` comes to what was typed, the nearest being least.
+
+        A search finds by letters spread through a name, which is what makes a few of them
+        enough -- and what makes a long name holding every letter of a short one a match for
+        it. Left in the order the list came in, the model somebody typed out whole was found
+        below one that merely held its letters: `claude-sonnet-5` under `claude-sonnet-4-5`.
+        So what was typed is the name itself first, then the start of one, then a run of one,
+        and only then letters spread through one; rows equally near keep the list's own order.
+
+        Args:
+          fields: Everything the row says, as :meth:`fits` was given it.
+
+        Returns:
+          0 for a field that is what was typed, 1 for one it opens, 2 for one it is inside of,
+          and 3 for anything else -- which is every row, where nothing has been typed.
+        """
+        wanted = self._typed.lower()
+        if not wanted:
+            return 3
+        looking = [field.lower() for field in fields]
+        if wanted in looking:
+            return 0
+        if any(one.startswith(wanted) for one in looking):
+            return 1
+        if any(wanted in one for one in looking):
+            return 2
+        return 3
+
     def _seeking(self, *, here: bool, air: str = _ABOVE) -> Option:
         """The row a search is started from, which says what has been typed once one is.
 
@@ -4656,7 +4685,10 @@ class Picks(Sheet[str]):
         if self._rows is None:
             # Once: looking means reading a directory, and this is redrawn per keystroke.
             self._rows = self.rows()
-        shown = [row for row in self._rows if self.fits(row[1], row[2])]
+        shown = sorted(
+            (row for row in self._rows if self.fits(row[1], row[2])),
+            key=lambda row: self.ranks(row[1], row[2]),
+        )
         self._counting = len(str(max(len(shown), 1)))
         if self.ATOP:
             self._fill_atop(listing, shown)

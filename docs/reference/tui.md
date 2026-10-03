@@ -585,7 +585,7 @@ own.
 | Marks | `▸` opens something; `▾` drops its values; `✔` (green) the choice in force; `❯` the cursor. |
 | Set-apart rows | `search…`, `add …`, `save`, `set`, `done`, `check again`, `copy … here`, `manage flowverses`, …: unnumbered, each with a blank line above. Below the list, except on host pickers, where they sit above. |
 | Height | At most 14 rows, at least 3. |
-| Search | Case-insensitive subsequence of one field. `/flow`: flow name. Pick lists: label and about. `/epics`: flow, task, run name. Started from `search…` only; `esc cancel search` ends it. |
+| Search | Case-insensitive subsequence of one field. `/flow`: flow name. Pick lists: label and about, ordered by how near a field comes (equal, then starts with, then contains, then the subsequence alone), keeping the list's order within each. `/epics`: flow, task, run name. Started from `search…` only; `esc cancel search` ends it. |
 | Hints | `enter <verb>` for the row under the cursor (`open`, `choose` on a `▾` row, `change` on a written row of the params or budget sheet, `save`, `set`, `add`, `search`, `refresh`, `copy`, `done`, `type a host`), `←/→ place` on `/flow`'s list, `esc <verb>`. On a form's written row `type to edit` replaces the enter hint. While writing a row: `[shift+enter/ctrl+j new line · ]enter keep · esc undo`. |
 
 ### Held and immediate changes {#held-changes}
