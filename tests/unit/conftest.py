@@ -48,4 +48,5 @@ def _knows_none(feature: str) -> bool:
     del feature
     return False
 
+
 # Scratch: a change that touches Python, for the middle tier to run on.
