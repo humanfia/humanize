@@ -107,7 +107,8 @@ def tools(argv: list[str]) -> int: ...
   is one, reached as it says, and otherwise the destination `ssh` is handed; a `docker` one MUST
   be the docker runtime written down under that name, or `local` for docker's default here, and
   a `swarm` one the swarm runtime written down under that name, or `local` for the swarm this
-  machine manages, and anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
+  machine manages, and an `apple-container` one the runtime of Apple containers written down
+  under that name, or `local` for this Mac's, and anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
   with one, and the run MUST record the workdir it took.
 - Where every agent's harness runs MUST NOT be said on the line: it is the affinity of the
   runtime its work is on, as `runtime/flowing` says. A runtime's affinity with no room anywhere

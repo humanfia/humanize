@@ -140,7 +140,7 @@ model         = ? any text, may contain "/" and ":" ; non-empty ? ;
 effort        = ? any text without ":" ; "auto" means the CLI's default ? ;
 
 env           = identifier , "=" , backend , ( "@" , host )? , workdir? ;
-backend       = "local" | "ssh" | "docker" | "swarm" ;
+backend       = "local" | "ssh" | "docker" | "swarm" | "apple-container" ;
 host          = ? any text without "/"; may contain "@" and ":" ? ;
 workdir       = "/" , ? any text ? ;                       (* "/~" or "/~/…" is home-relative *)
 
@@ -224,7 +224,7 @@ Parsed by the regex `(?P<role>[^=]*)=(?P<backend>[^@/]*)(?:@(?P<provider>[^/]*))
 | Part | Rule |
 | --- | --- |
 | `<role>` | A Python identifier. |
-| `<backend>` | `local`, `ssh`, `docker` or `swarm`. |
+| `<backend>` | `local`, `ssh`, `docker`, `swarm` or `apple-container`. |
 | `<provider>` | `local`: must be empty (`local@/path`). `ssh`: required — the name of a saved ssh [runtime](/reference/machines#runtimes), else any destination `ssh` accepts (`host`, `user@host`, `host:port`, a config alias). `docker`: required — the name of a saved docker runtime, or `local` for docker's default daemon here; any other name is refused when the environment is opened. `swarm`: required — the name of a saved swarm runtime, or `local` for the swarm this machine manages; likewise. |
 | `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home. Omitted: the saved runtime's own workdir; a provider with none, or an unsaved host, is refused. For `docker`, a directory of the daemon's host, mounted into the container at the same path; for `swarm`, one every node its task may land on has, likewise. |
 
@@ -345,7 +345,7 @@ Stage 1–2 messages are preceded by the usage block.
 | a role twice in `-a` | `-a: the role '<role>' is given twice` |
 | an `-e` that does not match | `-e '<item>': expected <role>=<backend>[@<provider>]/<workdir>` |
 | an `-e` role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
-| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm` |
+| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm, apple-container` |
 | `ssh` with no host | `-e '<item>': ssh needs a host, as in ssh@host/workdir` |
 | `docker` with no host | `-e '<item>': docker needs a host, as in docker@local/workdir` |
 | `swarm` with no host | `-e '<item>': swarm needs a host, as in swarm@local/workdir` |
@@ -525,7 +525,7 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER[@ENDPOINT]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
+| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER[@ENDPOINT]`, `apple-container://CONTAINER`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
 | `--harness WHERE` | `$HUMANIZE_HARNESS`, else `local` | Where the agent process and its supervisor run: `local`, `same` (wherever `--target` is), or a target spelling. |
 | `--broker HOST` | `$HUMANIZE_RENDEZVOUS`, else this machine's outward-facing address | Where the two halves dial to be introduced, when harness and target differ. |
 | `--workspace PATH` | the current directory | The project directory as it exists on the target. |

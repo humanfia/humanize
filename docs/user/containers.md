@@ -3,9 +3,10 @@
 Give a flow's work a container when the agents need a toolchain, an operating system or a set
 of GPUs you do not have in your own shell. Use this page to put one of a flow's environments in
 a container of its own, on docker here or on a daemon elsewhere, with a share of that machine's
-CPUs, memory and GPUs, and to choose whether the agent's CLI runs here or in the container. Two
-other ways, the whole run inside a container and a container reached as an ssh host, are at the
-end, with a docker swarm that picks the node for you.
+CPUs, memory and GPUs, and to choose whether the agent's CLI runs here or in the container. On
+a Mac, [Apple's `container`](#apple-containers) does the same without docker. Two other ways,
+the whole run inside a container and a container reached as an ssh host, are at the end, with
+a docker swarm that picks the node for you.
 
 <div class="ct-ways">
   <div class="ct-way">
@@ -254,6 +255,53 @@ The first is a role at the default grant, refused before the flow starts with ex
 the second, a role granted everything on an image with no `claude`, which fails its first
 turn.
 
+## Apple containers on a Mac {#apple-containers}
+
+On a Mac with [Apple's `container`](https://github.com/apple/container) (macOS 26 on Apple
+silicon), `-e ROLE=apple-container@local/…` gives a role a container of its own without docker.
+Each container is a small Linux virtual machine; everything else is as for
+[a container per environment](#how-a-container-per-environment-works): the image, the directory
+mounted at its own path, the container started for the run and deleted after it.
+
+**1. Start it, and pull the image once:**
+
+```sh
+container system start
+container image pull python:3.12-slim
+```
+
+**2. Name it in the environment role.** `apple-container@local` is this Mac's containers with
+nothing saved:
+
+```sh
+hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
+    -e box=apple-container@local/Users/me/myproject \
+    -b duration=10m "Print this machine's OS, then fix add() in calc.py."
+```
+
+While it runs, `container list` shows the role's container, `humanize-local-box-…`; it is gone
+once the run ends.
+
+**The agent's CLI has to run in the container.** Running it here, supervised, needs Linux, and
+a Mac is not, so the default [affinity](#where-the-agent-s-cli-runs) only works with an image
+that has the CLI. Save the runtime with `self` in `harness runs on`, and an image with the CLI
+and its sign-in (see the warning above). A flow's own commands in the role, such as
+`await envs["box"].exec(["uname", "-s"])`, need neither.
+
+**To cap what runs may take, or change the image,** save it: `/settings runtimes`, **Add a
+runtime…**, then `apple containers`. The form is a docker host's, less the daemon: a name
+(`local` unless taken), `harness runs on`, `image`, `run args` for `container run`,
+`max containers`, `workdir`, `falls back to`, `cpus` and `memory`; `detect` fills in this Mac's.
+
+How it differs from docker:
+
+- **No GPUs.** A role asking for one is refused before any agent starts.
+- **Whole CPUs.** A role's CPUs and memory are its virtual machine's size; a role asking for
+  neither gets `container`'s default, 4 CPUs and 1 GiB, which counts against what a saved
+  runtime may hand out like any other container's.
+- **This Mac only.** There is no daemon elsewhere to name; the directory is one of this Mac's,
+  and a path holding a comma cannot be mounted.
+
 ## Variations
 
 ### The whole run in one container
@@ -385,6 +433,10 @@ Read [Security](/user/security).
 | `swarm@…: no directory to give the task on the node it landed on` | The node has no such directory. Share it to every node, or constrain the runtime to the nodes that have it. |
 | `swarm@… is in no active swarm` or `is a worker of its swarm` | The endpoint is not a swarm manager. Point it at one. |
 | services left behind after a run was killed | `docker service rm $(docker service ls -q --filter label=humanize=$(id -u))` on the manager. |
+| `apple-container@…: Apple's container was not found on this machine` | Install Apple's `container`, which needs macOS 26 on Apple silicon. |
+| `could not connect to apple-container@…: … apiserver is not running` | Run `container system start`. |
+| `apple-container@… has no GPU to hand out` | Apple's containers get no GPU. Use docker or an ssh host for that role. |
+| an Apple container's agent fails its first turn here | The CLI cannot be supervised on a Mac. Put `self` in the runtime's affinity, with an image that has the CLI. |
 
 More are in [Troubleshooting](/user/troubleshooting).
 
@@ -441,6 +493,8 @@ async def boxed(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
   saved daemon, and how a container is started
 - [Machines › Swarm environments](/reference/machines#swarm-environments): every field of a
   saved swarm, and how a task is placed and reached
+- [Machines › Apple container environments](/reference/machines#apple-container-environments):
+  every field of saved Apple containers, and how one is started
 - [Remote execution › Affinity](/reference/remote-execution#affinity)
 - [Security](/user/security)
 

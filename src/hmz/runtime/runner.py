@@ -154,6 +154,8 @@ def read_line(argv: list[str]) -> Line:
         "runtime NAME, or docker@local/abs/path on docker's default here; "
         "ROLE=swarm@NAME/abs/path for a task of its own on the saved swarm runtime NAME, "
         "or swarm@local/abs/path on the swarm this machine manages; "
+        "ROLE=apple-container@NAME/abs/path for an Apple container of its own on this Mac, "
+        "NAME a saved runtime or local; "
         "ROLE=ssh@NAME, docker@NAME or swarm@NAME alone for a saved runtime's own workdir. "
         "A role the runtime fills -- the workspace -- is never named",
     )

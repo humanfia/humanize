@@ -14,6 +14,9 @@ by an `ssh` put first on `PATH`, or by an ssh runtime written down with everythi
 and a docker context kept in a configuration directory of the test's own. Nothing of the user's
 `~/.ssh` or `~/.docker` is read or written by any of them. And a `docker` of the test's own that
 writes down what it is asked, for the integration tests, which never reach a daemon at all.
+
+Apple's `container` has the same two: a skip for a machine that cannot run one of its
+containers, and a `container` of the test's own that runs what it is handed here.
 """
 
 from __future__ import annotations
@@ -440,3 +443,106 @@ def standin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standin:
     # And a fresh memo of which machines hold the bundle, so each test pays for its own.
     monkeypatch.setattr(transport, "_PUSHED", set[tuple[str, str]]())
     return Standin(tmp_path / "docker.log", monkeypatch)
+
+
+# --------------------------------------------------------------------- Apple's `container`
+
+
+@pytest.fixture
+def apple() -> None:
+    """Apple's `container` running here and holding the image, or a skip.
+
+    For the system tests that start an Apple container for real, which only a Mac with
+    `container system start` run can.
+    """
+    try:
+        ready = subprocess.run(
+            ["container", "image", "inspect", IMAGE], capture_output=True, check=False
+        )
+    except OSError as reason:
+        pytest.skip(f"needs Apple's container command: {reason}")
+    if ready.returncode != 0:
+        pytest.skip(
+            f"needs Apple's container running and holding {IMAGE}: "
+            f"{ready.stderr.decode(errors='replace').strip()}"
+        )
+
+
+#: A `container` of the test's own, which writes down what it is asked and answers as Apple's
+#: does: `run` writes the name it was given as the id it made, `exec -i NAME` runs what it is
+#: handed here as a container would, `list` and `system status` say what the test left for
+#: them, and `delete` and `logs` do nothing but say so.
+APPLE_STANDIN = """\
+import json, os, sys
+argv = sys.argv[1:]
+with open(os.environ["STANDIN_LOG"], "a") as log:
+    log.write(json.dumps({"argv": argv}) + "\\n")
+command, rest = argv[0], argv[1:]
+if command == "run":
+    name = rest[rest.index("--name") + 1]
+    if "STANDIN_TAKEN" in os.environ:
+        sys.exit(f"Error: container with id {name} already exists")
+    with open(rest[rest.index("--cidfile") + 1], "w") as made:
+        made.write(name + "\\n")
+    if "STANDIN_REFUSE" in os.environ:
+        sys.exit("Error: failed to bootstrap the container")
+    print(name)
+elif command == "exec":
+    if "STANDIN_STOPPED" in os.environ:
+        sys.exit(f"Error: container {rest[1]} is not running")
+    os.environ["PATH"] = os.environ["STANDIN_CONTAINER"] + os.pathsep + os.environ["PATH"]
+    moved = os.environ["STANDIN_ROOT"]
+    words = [word.replace("/tmp/humanize", moved) for word in rest[2:]]
+    os.execvp(words[0], words)
+elif command == "list":
+    print(os.environ.get("STANDIN_LIST", "[]"))
+elif command == "system":
+    if "STANDIN_DOWN" in os.environ:
+        print("apiserver is not running and not registered with launchd")
+        sys.exit(1)
+    print(json.dumps({
+        "status": "running",
+        "host": {"cpus": int(os.environ.get("STANDIN_NCPU", "8"))},
+        "server": {"version": "1.5.0"},
+    }))
+elif command == "logs":
+    print("humanize: no python 3.12 or newer on this machine")
+"""
+
+
+def listed(
+    name: str, labels: dict[str, str], *, cpus: int = 4, memory: int = 1 << 30
+) -> dict[str, Any]:
+    """A running container, as `container list --format json` says one.
+
+    Args:
+      name: Its id.
+      labels: What it is labelled with.
+      cpus: The CPUs its virtual machine has: `container`'s default unless said.
+      memory: The bytes of memory, likewise.
+    """
+    return {
+        "configuration": {
+            "id": name,
+            "labels": labels,
+            "resources": {"cpuOverhead": 1, "cpus": cpus, "memoryInBytes": memory},
+        },
+        "id": name,
+        "status": {"state": "running"},
+    }
+
+
+@pytest.fixture
+def apple_standin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standin:
+    """A `container` of the test's own, first on `PATH`: Apple's, less the virtual machines."""
+    bin_ = tmp_path / "apple-bin"
+    bin_.mkdir()
+    container = bin_ / "container"
+    container.write_text(f"#!{sys.executable}\n{APPLE_STANDIN}")
+    container.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("STANDIN_LOG", str(tmp_path / "container.log"))
+    monkeypatch.setenv("STANDIN_ROOT", str(tmp_path / "container-tmp"))
+    containered(tmp_path / "container-bin", monkeypatch)
+    monkeypatch.setattr(transport, "_PUSHED", set[tuple[str, str]]())
+    return Standin(tmp_path / "container.log", monkeypatch)

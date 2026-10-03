@@ -1,13 +1,13 @@
 """The runtimes -- the machines a flow's environments may be put on -- and what each has.
 
-A runtime is an ssh host, a docker daemon or a docker swarm written down under a name, which
-an `-e` then names instead of spelling out how it is reached. The store is
-:mod:`hmz.coganchor.machines.store` and reading an ssh config is
+A runtime is an ssh host, a docker daemon, a docker swarm or this Mac's Apple containers
+written down under a name, which an `-e` then names instead of spelling out how it is reached.
+The store is :mod:`hmz.coganchor.machines.store` and reading an ssh config is
 :mod:`hmz.coganchor.machines.sshconfig`; both are reached from here, and so is asking one of
 them what it has -- which is the ssh probe a run itself makes, the docker daemon's own
-`docker info`, or a swarm manager's `docker info` and `docker node ls` -- so that a runtime
-written down one way is one every way in offers a moment later, and checked the same way
-wherever it is checked from.
+`docker info`, a swarm manager's `docker info` and `docker node ls`, or `container system
+status` -- so that a runtime written down one way is one every way in offers a moment later,
+and checked the same way wherever it is checked from.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.machines.sshconfig import SSHHost
     from hmz.coganchor.machines.store import (
+        AppleContainerRuntime,
         DockerRuntime,
         Runtime,
         SSHRuntime,
@@ -52,7 +53,7 @@ class Checked:
         which do; None where nobody could ask.
       gpu_memory: The bytes the smallest of those GPUs has, or 0 where nothing said.
       runtimes: The OCI runtimes a docker daemon offers, its default first.
-      version: The docker daemon's version.
+      version: The docker daemon's version, or Apple's container system's.
       short: What the runtime was written down as handing out and it has not got.
       nodes: A swarm's nodes that may be given a task -- ready, and not drained or paused --
         each by its host name; `cpus` and `memory` are what those have all told.
@@ -75,9 +76,9 @@ class Checked:
 class Runtimes:
     """Every runtime there is, how to make one, and asking one what it has.
 
-    A runtime is an ssh host, a docker daemon or a docker swarm saved under a name: used as an
-    environment when an `-e` names it, and moved off down its `fallback` -- other runtimes,
-    each `<backend>:<name>` -- where it cannot hold one.
+    A runtime is an ssh host, a docker daemon, a docker swarm or this Mac's Apple containers
+    saved under a name: used as an environment when an `-e` names it, and moved off down its
+    `fallback` -- other runtimes, each `<backend>:<name>` -- where it cannot hold one.
     """
 
     def all(self, backend: str = "") -> list[Runtime]:
@@ -96,8 +97,9 @@ class Runtimes:
         """Where one is kept, whether or not it has been made.
 
         Raises:
-          ValueError: If the backend is not `ssh`, `docker` or `swarm`, or the name is not one a
-            runtime may have -- which is what asks it of a name before it is made.
+          ValueError: If the backend is not `ssh`, `docker`, `swarm` or `apple-container`, or
+            the name is not one a runtime may have -- which is what asks it of a name before
+            it is made.
         """
         from hmz.coganchor.machines import store
 
@@ -107,7 +109,7 @@ class Runtimes:
         """One runtime, checked, and written nowhere.
 
         Args:
-          backend: `ssh`, `docker` or `swarm`.
+          backend: `ssh`, `docker`, `swarm` or `apple-container`.
           name: What it is to be called.
           **fields: The rest of it, by field, as `held()` writes them.
 
@@ -213,7 +215,8 @@ class Runtimes:
         memory and GPUs -- down the road a run takes to it, with nobody to type a password;
         a docker daemon is asked `docker info`, and what it was written down as handing out
         is held up against what it has; a swarm's manager is asked `docker info`, whether it
-        manages an active swarm, and `docker node ls`, which of its nodes may take a task.
+        manages an active swarm, and `docker node ls`, which of its nodes may take a task; and
+        Apple's container system is asked whether it is running, and held up against the Mac.
 
         Args:
           runtime: The runtime.
@@ -223,13 +226,19 @@ class Runtimes:
           What it said, or why it said nothing -- never raising, even for a runtime that
           can no longer be reached the way it was written down.
         """
-        from hmz.coganchor.machines.store import SSHRuntime, SwarmRuntime
+        from hmz.coganchor.machines.store import (
+            AppleContainerRuntime,
+            SSHRuntime,
+            SwarmRuntime,
+        )
 
         try:
             if isinstance(runtime, SSHRuntime):
                 return _ssh(runtime, seconds)
             if isinstance(runtime, SwarmRuntime):
                 return _swarm(runtime, seconds)
+            if isinstance(runtime, AppleContainerRuntime):
+                return _apple_container(runtime, seconds)
             return _docker(runtime, seconds)
         except (ValueError, OSError, RuntimeError) as error:
             return Checked(reached=False, said=str(error))
@@ -374,6 +383,36 @@ def _answering(
     """
     known = {id_ for pair in answered for id_ in pair}
     return tuple(one for one in gpus if one in known)
+
+
+def _apple_container(saved: AppleContainerRuntime, seconds: float) -> Checked:
+    """This Mac's Apple containers, asked `container system status`, and held up against it.
+
+    Raises:
+      OSError: If the container system could not be asked, or is not running.
+    """
+    from hmz.coganchor.machines.apple_container import capacity, status
+
+    said = status(seconds)
+    cpus, memory = capacity(said)
+    short: list[str] = []
+    if saved.cpus > cpus:
+        short.append(f"it is to hand out {saved.cpus:g} CPUs and has {cpus:g}")
+    if saved.memory > memory:
+        short.append(f"it is to hand out {saved.memory} bytes and has {memory}")
+    server = said.get("server")
+    version = (
+        cast("dict[str, Any]", server).get("version")
+        if isinstance(server, dict)
+        else ""
+    )
+    return Checked(
+        reached=True,
+        cpus=cpus,
+        memory=memory,
+        version=str(version or ""),
+        short=tuple(short),
+    )
 
 
 def _swarm(saved: SwarmRuntime, seconds: float) -> Checked:

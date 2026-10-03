@@ -2,8 +2,9 @@
 
 A runtime is one machine something can be put on, named by what somebody called it rather than
 by how it is reached: an ssh host with the login, port, key and jump host it takes, a docker
-daemon with the resources it may hand out, or a docker swarm whose manager schedules a task for
-each environment onto whichever of its nodes has room. A flow's environment is put on one
+daemon with the resources it may hand out, a docker swarm whose manager schedules a task for
+each environment onto whichever of its nodes has room, or this Mac's Apple containers with the
+share of it they may have. A flow's environment is put on one
 when an `-e` names it, and moved down the runtimes it falls back to where it cannot be held
 there. One directory per runtime, under
 `~/.humanize/runtimes/<backend>/<name>/`, holding `runtime.json`.
@@ -39,6 +40,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.transport import Endpoint
 
 __all__ = [
+    "APPLE_CONTAINER",
     "BACKENDS",
     "DOCKER",
     "HERE",
@@ -47,6 +49,7 @@ __all__ = [
     "SSH",
     "SWARM",
     "TYPED",
+    "AppleContainerRuntime",
     "DockerRuntime",
     "Runtime",
     "SSHRuntime",
@@ -70,7 +73,8 @@ __all__ = [
 SSH = "ssh"
 DOCKER = "docker"
 SWARM = "swarm"
-BACKENDS = (SSH, DOCKER, SWARM)
+APPLE_CONTAINER = "apple-container"
+BACKENDS = (SSH, DOCKER, SWARM, APPLE_CONTAINER)
 
 #: The two places a harness may be put that are not a runtime of their own, as an affinity
 #: names them: natively on the machine of the runtime the work is on, and on this machine,
@@ -620,8 +624,79 @@ def _destination(via: str) -> bool:
     return True
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AppleContainerRuntime:
+    """This Mac's Apple containers, and how much of the Mac they may have between them.
+
+    Apple's `container` runs each container as a small Linux virtual machine of its own, on
+    this Mac and no other: there is no daemon elsewhere to name, and no GPU to hand out.
+
+    Attributes:
+      name: What it is called, which is what an environment on it names.
+      image: What a container is started from where the flow says nothing.
+      run_args: What else `container run` is told.
+      cpus: How many CPUs its containers may be given all told, or 0 for as many as the Mac
+        has.
+      memory: How many bytes of memory, likewise.
+      max_containers: How many containers it may run at once, or 0 for no limit.
+      workdir: Where an `-e` naming it with no workdir works.
+      fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
+        one cannot hold it -- each `<backend>:<name>`.
+      made: How it was made, which is :data:`TYPED`.
+      affinity: Where the harness of an agent working on it runs, in the order tried: the
+        next only where the one before has no room. See :func:`affine` for an entry.
+    """
+
+    backend: ClassVar[str] = APPLE_CONTAINER
+
+    name: str
+    image: str = ""
+    run_args: tuple[str, ...] = ()
+    cpus: float = 0.0
+    memory: int = 0
+    max_containers: int = 0
+    workdir: str = ""
+    fallback: tuple[str, ...] = ()
+    made: str = TYPED
+    affinity: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _named(self.name)
+        _affinity(self)
+        if self.image and not re.fullmatch(r"[^\s]+", self.image):
+            raise ValueError(f"{self.name}: invalid image {self.image!r}")
+        for said in self.run_args:
+            if set(said) & set("\n\r\0"):
+                raise ValueError(
+                    f"{self.name}: argument {said!r} cannot contain newlines"
+                )
+        for amount, what in (
+            (self.cpus, "CPUs"),
+            (self.memory, "memory"),
+            (self.max_containers, "containers"),
+        ):
+            if amount < 0:
+                raise ValueError(f"{self.name}: {what} cannot be negative: {amount}")
+        _workdir(self.workdir)
+        _falls_back(APPLE_CONTAINER, self.name, self.fallback)
+        if self.made != TYPED:
+            raise ValueError(
+                f"{self.name}: made must be {TYPED} for Apple containers, "
+                f"not {self.made!r}"
+            )
+
+    @property
+    def at(self) -> Path:
+        """The directory it is kept in."""
+        return where(APPLE_CONTAINER, self.name)
+
+    def held(self) -> dict[str, Any]:
+        """It as it is written down."""
+        return {"backend": APPLE_CONTAINER, **_fields(self)}
+
+
 #: One runtime, of whichever backend.
-type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime
+type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime | AppleContainerRuntime
 
 
 def _fields(runtime: Runtime) -> dict[str, Any]:
@@ -744,7 +819,7 @@ def where(backend: str, name: str) -> Path:
     """The directory one runtime is kept in.
 
     Args:
-      backend: :data:`SSH`, :data:`DOCKER` or :data:`SWARM`.
+      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM` or :data:`APPLE_CONTAINER`.
       name: What the runtime is called.
 
     Returns:
@@ -763,7 +838,7 @@ def new(backend: str, name: str, **fields: Any) -> Runtime:
     """One runtime, checked, and written nowhere.
 
     Args:
-      backend: :data:`SSH`, :data:`DOCKER` or :data:`SWARM`.
+      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM` or :data:`APPLE_CONTAINER`.
       name: What it is called.
       **fields: The rest of it, by field -- as :meth:`SSHRuntime.held` writes them, lists and
         numbers as JSON has them.
@@ -777,9 +852,12 @@ def new(backend: str, name: str, **fields: Any) -> Runtime:
     """
     if backend not in BACKENDS:
         raise ValueError(f"{backend!r} is not a runtime backend: {', '.join(BACKENDS)}")
-    kind: type[Runtime] = {SSH: SSHRuntime, DOCKER: DockerRuntime}.get(
-        backend, SwarmRuntime
-    )
+    kind: type[Runtime] = {
+        SSH: SSHRuntime,
+        DOCKER: DockerRuntime,
+        SWARM: SwarmRuntime,
+        APPLE_CONTAINER: AppleContainerRuntime,
+    }[backend]
     known = {one.name: one for one in dataclasses.fields(kind)}
     given: dict[str, Any] = {"name": name}
     for key, value in fields.items():
@@ -825,7 +903,8 @@ def runtimes(backend: str = "") -> list[Runtime]:
     """Every runtime there is, or every one of a backend.
 
     Args:
-      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM`, or "" for every one.
+      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM`, :data:`APPLE_CONTAINER`, or ""
+        for every one.
 
     Returns:
       One apiece, by backend and then by name. A directory holding nothing readable, or
@@ -929,7 +1008,7 @@ def write(runtime: Runtime) -> Runtime:
     """
     if isinstance(runtime, SSHRuntime):
         _here(runtime.config, "the config file")
-    else:
+    elif not isinstance(runtime, AppleContainerRuntime):
         _here(runtime.tls_dir, "the TLS directory")
     at = where(runtime.backend, runtime.name)
     _kept(at)

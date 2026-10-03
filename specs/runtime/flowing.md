@@ -53,7 +53,8 @@ class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, rol
 class AgentSpec: ...  # role, harness, provider, model, effort, cli
 @dataclass(frozen=True, slots=True)
 class EnvSpec: ...  # role, backend, provider (a saved runtime's name, a host, or
-                    # `local` for docker's default or the swarm here), workdir
+                    # `local` for docker's default, the swarm or Apple's containers
+                    # here), workdir
 def parse_agents(values: Sequence[str]) -> list[AgentSpec]: ...
 def parse_envs(values: Sequence[str]) -> list[EnvSpec]: ...
 def fallbacks(spec: EnvSpec) -> list[EnvSpec]: ...  # what its saved runtime falls back to
@@ -159,7 +160,7 @@ class EnvRole:
     memory: int
     gpu_count: int
     gpu_memory: int
-    image: str  # a docker or swarm env's, or "" for its provider's
+    image: str  # a container env's, or "" for its provider's
     grant: Grant
     resources: bool
 @dataclass(frozen=True, slots=True, eq=False)
@@ -465,6 +466,29 @@ def under() -> Path: ...
 - Its service MUST be removed when the environment is closed, and one whose process on this
   host has gone MUST be removed by the next run on its provider.
 
+### Apple container environments
+
+- An `apple-container` environment MUST be a container of Apple's `container` of its own per
+  environment a run is given, on this Mac -- as the runtime its provider names shares it out,
+  `local` being this Mac's with nothing written down under that name -- and everything derived
+  from it MUST be in that container. It MUST be started from the role's `_image`, else the
+  provider's, else `python:3.12-slim`, with the workdir -- a directory of this Mac -- mounted at
+  its own path, and with nothing needed in the image but what a docker environment needs.
+- It MUST be given exactly the CPUs and memory its role declares as its size, `container`'s
+  own where it declares none, and the provider's arguments; it MUST be labelled as a docker
+  environment's container is; its driver MUST report what it was given. A role declaring GPUs
+  MUST raise `ResourceUnmet`, a container being given none.
+- Before any agent starts, what the role asks MUST be held against what its provider may hand
+  out -- what it was written down with, the Mac's own where that is 0 -- less what that
+  provider's running containers hold, each its virtual machine's size, and its container
+  limit; what is short MUST raise `ResourceUnmet` as for a docker environment, and no two runs on this machine MUST work it
+  out for one provider at once. No `container` here MUST raise `EnvUnavailable`, and a
+  container system that does not answer or is not running `EnvConnectionError`.
+- An agent working in one MUST be anchored to its container by `container exec` alone, its
+  harness put where the next section says.
+- Its container MUST be deleted when the environment is closed, and one whose process on this
+  host has gone MUST be deleted by the next run on its provider.
+
 ### Where the harness runs
 
 - A driver MUST put each session's harness where the affinity of the runtime its work is on
@@ -480,10 +504,10 @@ def under() -> Path: ...
   runtime's own machine, without room where its CLI is not there (`HarnessNotInstalled`) or it
   cannot hold the session's fence (`HarnessSandboxed`); `<backend>:<name>` on that runtime,
   opened as an environment of its own -- in its workdir, else the login's home over ssh, else
-  a directory humanize keeps for a daemon on this machine -- probed and closed with the run's,
-  acting on the work through the anchor, and without room where it cannot be opened or
-  reached, has no share left (`ResourceUnmet`), or the role is fenced at all, which a harness
-  on another machine cannot be held to. Where no entry has room, the last refusal MUST be
+  a directory humanize keeps for a daemon or Apple's containers on this machine -- probed and
+  closed with the run's, acting on the work through the anchor, and without room where it
+  cannot be opened or reached, has no share left (`ResourceUnmet`), or the role is fenced at
+  all, which a harness on another machine cannot be held to. Where no entry has room, the last refusal MUST be
   raised, naming the affinity; a machine that cannot be asked MUST raise as it is.
 - Before the flow is called, the affinity of every machine of the run MUST be walked for every
   agent, opening and probing every runtime a harness goes to, and one with no room anywhere

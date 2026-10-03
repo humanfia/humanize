@@ -18,7 +18,7 @@ machines) is [Remote execution](/reference/remote-execution).
 | **Machine** | A `MachineBase` made by `MachineConfig.create()`: brought up by `start()`, taken down by `stop()`. |
 | **Anchor** | The [`AnchorConfig`](/reference/remote-execution#anchorconfig) `start()` returns; every turn of the agent runs under it. |
 | **Environment** | A working directory on a machine that a flow role is given: a `LocalEnv`, or a role filled with `-e`. |
-| **Runtime** | An ssh host, a docker daemon or a docker swarm saved under a name in `$HUMANIZE_HOME/runtimes/`, so that `-e` can name it and an environment is put on it. |
+| **Runtime** | An ssh host, a docker daemon, a docker swarm or this Mac's Apple containers saved under a name in `$HUMANIZE_HOME/runtimes/`, so that `-e` can name it and an environment is put on it. |
 | **Endpoint** | The docker daemon a container is run on, spelled as `docker --host`/`--context` spell one. |
 | **Mirror** | The directory on the harness machine a supervised agent works in, reproducing the target's workspace. |
 | **Capability** | A word a machine setting, a machine or an anchor answers to (`remote`, `isolated`, …), or an environment mixin a driver serves. |
@@ -32,6 +32,7 @@ machines) is [Remote execution](/reference/remote-execution).
 | `None` (default) | on this machine, as ordinary processes | — | — | `None` |
 | `AnchoredConfig(anchor=…)` | at the anchor's target | never; the machine is already running | never | the anchor as written |
 | `DockerConfig(…)` | in a new container of the image | on the agent's first turn | when the agent is garbage-collected, or at interpreter exit | a `docker://` anchor, supervised, with a private mirror |
+| `AppleContainerConfig(…)` | in a new Apple container of the image, on this Mac | the same | the same | an `apple-container://` anchor, supervised, with a private mirror |
 
 Lifecycle rules, common to every setting:
 
@@ -140,6 +141,56 @@ and removes the temporary directory.
 
 <small>Defined in [`src/hmz/coganchor/machines/docker.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/docker.py), [`src/hmz/coganchor/machines/anchored.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/anchored.py).</small>
 
+### `AppleContainerConfig`
+
+A container of Apple's `container` on this Mac: a small Linux virtual machine of `image`,
+holding the workspace bind-mounted at its own path, running as this user. There is no
+endpoint, since `container` reaches this Mac's containers only, and no GPU.
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `image` | `str` | `"python:3.12"` | The image. Needs `/bin/sh` and Python >= 3.12; no sshd. |
+| `workspace` | `str \| None` | `None` (the current directory) | The project directory here. Mounted, not copied; a path holding a comma is refused, `container` having no way to quote one. |
+| `name` | `str \| None` | `None` (`humanize-<random>`) | The container's name, which is its id, matching `[a-zA-Z0-9][a-zA-Z0-9_.-]+`. |
+| `cpus` | `int \| None` | `None` (`container`'s default, 4) | `--cpus`: whole CPUs of the virtual machine. |
+| `memory` | `int \| None` | `None` (`container`'s default, 1 GiB) | `--memory`, in bytes, rounded up to a whole MiB. |
+| `run_args` | `tuple[str, ...]` | `()` | Extra `container run` arguments, placed before humanize's resource flags. |
+| `env` | `Mapping[str, str]` | `{}` | Variables set in the container. |
+| `labels` | `Mapping[str, str]` | `{}` | Extra labels. `humanize`, `humanize.cpus`, `humanize.memory` are dropped from it. |
+
+`start()` requires `container` on `PATH` (`FileNotFoundError: no container command here`) and
+the workspace a directory here, then runs:
+
+```text
+container run --detach --progress none
+  --cidfile <dir>/container
+  --name <name>
+  --label <key>=<value> ...              caller's labels, then humanize=<uid>,
+                                         humanize.cpus, humanize.memory
+  --user <uid>:<gid>
+  --workdir <workspace>
+  --env HOME=/tmp --env <env>...
+  --mount type=bind,source=<workspace>,target=<workspace>
+  [--mount type=bind,source=<workspace>,target=<its other name>]
+  <run_args>...
+  [--cpus N] [--memory BYTES]
+  <image>
+  /bin/sh -c '<first Python >= 3.12>' humanize -c 'import time; time.sleep(2**31)'
+```
+
+The second `--mount` is for a workspace under `/private/tmp`, `/private/var` or
+`/private/etc` (or `/tmp`, `/var`, `/etc`): the serving half reads the two spellings as one,
+so the container holds the workspace under both. It reaches the container as
+`apple-container://<name>` with the mirror at `<dir>/shadow` and observes it, as `DockerConfig`
+does. `stop()` runs `container delete --force <id from the cidfile>`.
+
+| `start()` error | Message |
+| --- | --- |
+| `container run` failed | `RuntimeError: could not start a container of <image>: <stderr>` |
+| a workspace path holding a comma | `ValueError: Apple's container cannot mount '<path>': a path holding a comma` |
+
+<small>Defined in [`src/hmz/coganchor/machines/apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/apple_container.py).</small>
+
 ## Endpoints {#endpoints}
 
 A docker endpoint names one daemon. `hmz.coganchor.transport.Endpoint.parse` reads:
@@ -184,9 +235,9 @@ every other role is filled by `-e`.
 | Part | Rule |
 | --- | --- |
 | `ROLE` | A Python identifier; each role at most once per run. |
-| `BACKEND` | `local`, `ssh`, `docker` or `swarm`. |
-| `PROVIDER` | `local`: none. `ssh`: a saved ssh [runtime](#runtimes), else `[user@]host[:port]` or an alias of the ssh config. `docker`: a saved docker runtime, or `local` for docker's default here. `swarm`: a saved swarm runtime, or `local` for the swarm this machine manages. May contain `@` (`user@host`). |
-| `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here, swarm with a manager here). Omitted: the saved runtime's `workdir`, which then must be set. |
+| `BACKEND` | `local`, `ssh`, `docker`, `swarm` or `apple-container`. |
+| `PROVIDER` | `local`: none. `ssh`: a saved ssh [runtime](#runtimes), else `[user@]host[:port]` or an alias of the ssh config. `docker`: a saved docker runtime, or `local` for docker's default here. `swarm`: a saved swarm runtime, or `local` for the swarm this machine manages. `apple-container`: a saved runtime of Apple containers, or `local` for this Mac's with nothing saved. May contain `@` (`user@host`). |
+| `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here, swarm with a manager here, apple-container). Omitted: the saved runtime's `workdir`, which then must be set. |
 
 Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 
@@ -194,10 +245,11 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | --- | --- |
 | not the shape above, or no workdir and none saved | `-e 'repo=ssh@nohost': expected <role>=<backend>[@<provider>]/<workdir>` |
 | role not an identifier | `-e '9r=local@/tmp': the role '9r' is not an identifier` |
-| unknown backend | `-e 'repo=bogus@x/y': 'bogus' is not a backend; one of local, ssh, docker, swarm` |
+| unknown backend | `-e 'repo=bogus@x/y': 'bogus' is not a backend; one of local, ssh, docker, swarm, apple-container` |
 | `ssh` without a host | `-e 'repo=ssh/y': ssh needs a host, as in ssh@host/workdir` |
 | `docker` without a provider | `-e 'repo=docker/y': docker needs a host, as in docker@local/workdir` |
 | `swarm` without a provider | `-e 'repo=swarm/y': swarm needs a host, as in swarm@local/workdir` |
+| `apple-container` without a provider | `-e 'repo=apple-container/y': apple-container needs a host, as in apple-container@local/workdir` |
 | `local` with a provider | `-e 'repo=local@h/y': local takes no host, as in local@/workdir` |
 | a role given twice | `-e: the role 'repo' is given twice` |
 | an empty item | `-e '<value>': an item is empty` |
@@ -214,6 +266,8 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | `docker@local/…` | a new container on docker's default here | the same, with provider `local` |
 | `swarm@NAME/…` | a new service of one task on `NAME`'s swarm, on whichever node has room | `target="docker://<container id>[@<the node's daemon>]"` once the task runs, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<service>/` |
 | `swarm@local/…` | a new service on the swarm this machine manages | the same, with provider `local` |
+| `apple-container@NAME/…` | a new Apple container on this Mac, out of what `NAME` may hand out | `target="apple-container://humanize-NAME-ROLE-<8 hex>"`, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<container>/` |
+| `apple-container@local/…` | a new Apple container on this Mac, with nothing saved | the same, with provider `local` |
 
 Where the harness goes for such a session (supervised here, native on the machine, or on
 another runtime) is decided by the `affinity` of the runtime it is on: see
@@ -231,6 +285,8 @@ A `local` environment's work always has its harness here.
 | an unknown swarm runtime | `docker swarm '<name>' not found: add one, or use the swarm this machine manages, swarm@local` |
 | a saved swarm runtime that cannot be read | `the docker swarm '<name>' cannot be read; fix or remove it: <dir>` |
 | `~/…` on a swarm managed elsewhere | `<workdir> is on a remote docker swarm, so it must be an absolute path` |
+| an unknown runtime of Apple containers | `apple-container host '<name>' not found: add one, or use the default apple-container@local` |
+| a saved runtime of Apple containers that cannot be read | `the apple-container host '<name>' cannot be read; fix or remove it: <dir>` |
 | a `~` workdir that climbs out of home | `<workdir> climbs out of the home directory it is under` |
 | a workdir neither absolute nor under `~` | `<workdir> is neither absolute nor under ~` |
 
@@ -247,6 +303,7 @@ shares that machine and its connection.
 | `ssh` | `SSHMachine` | the [serving half](/reference/remote-execution#bootstrapping-the-serving-half), bootstrapped over `ssh`, exporting `/` as `/` | one command (60 s) printing `home`, `state` (`${HUMANIZE_HOME:-$HOME/.humanize}`), CPUs, memory, `CUDA_VISIBLE_DEVICES`, `nvidia-smi` GPUs and whether `git` is on `PATH` |
 | `docker` | `DockerMachine` | the serving half over `docker exec -i` | the ssh probe, run in the container, after the container is started |
 | `swarm` | `SwarmMachine` | the serving half over `docker exec -i`, against the daemon of the node the task landed on | the ssh probe, run in the container, after the task is running |
+| `apple-container` | `AppleContainerMachine` | the serving half over `container exec -i` | the ssh probe, run in the container, after the container is started |
 
 - Nothing connects until the run probes its environments, which it does before any agent
   starts (and for every runtime an affinity puts a harness on too).
@@ -261,8 +318,8 @@ shares that machine and its connection.
       worktrees/<ref>-<random>/          a worktree added with no dir of its own
   ```
 
-  `<digest>` is 12 hex digits of BLAKE2b over the absolute path or id. A docker or swarm
-  environment's derived directories are inside its container and go with it.
+  `<digest>` is 12 hex digits of BLAKE2b over the absolute path or id. A docker, swarm or
+  Apple container environment's derived directories are inside its container and go with it.
 
 | Error | Meaning |
 | --- | --- |
@@ -413,6 +470,53 @@ docker service rm $(docker service ls -q --filter label=humanize=$(id -u))
 
 <small>Defined in [`src/hmz/runtime/flowing/environing_swarm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_swarm.py), [`src/hmz/coganchor/machines/swarm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/swarm.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_swarm_env`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Swarm environments).</small>
 
+### Apple container environments {#apple-container-environments}
+
+`-e ROLE=apple-container@RUNTIME/WORKDIR` gives the role one container of Apple's `container`
+on this Mac, a small Linux virtual machine of its own, started when the run reaches its
+environments and deleted when the run closes it. Everything else is as for a
+[docker environment](#docker-environments), but:
+
+| Aspect | Rule |
+| --- | --- |
+| Name | `humanize-<provider>-<role>-<8 hex>`, which is also the container's id |
+| Workdir | a directory of this Mac, bind-mounted at its own path; `~/…` is this user's home |
+| Limits | the role's `_cpu_count` and `_memory` as the virtual machine's size (`--cpus`, `--memory`); a role declaring neither gets `container`'s default; a role declaring `GPUEnvMixin` is refused, a container being given no GPU |
+| Arguments | the runtime's `run_args`; for the container an affinity's `apple-container:<name>` puts a harness in, `--cap-add SYS_PTRACE` before them |
+| Labels | as a docker environment's container's, less `humanize.gpus` |
+| Agents | anchored to the container over `container exec`, as the runtime's `affinity` says |
+
+Allocation holds an exclusive `flock` on `$HUMANIZE_HOME/runtimes/apple-container/.<name>.lock`
+until the container is up and labelled: `container system status` and `container list` (60 s
+each; humanize's containers are found by their labels, and each holds the size its virtual
+machine has, `container`'s default for one started with none), the removal of what a dead
+run of this user and host left (`container delete --force`), then what is left of the
+runtime's `cpus`, `memory` (each `0` meaning the Mac's CPUs, as `container system status`
+counts them, and its memory) and `max_containers`. Memory is rounded up to a whole MiB, the
+unit `container` sizes a virtual machine in. What is short raises `ResourceUnmet` as for
+docker:
+
+```text
+apple-container@mac has 2 of 8 CPUs free, and 'box' asks for 4 (6 CPUs held by …)
+apple-container@local has no GPU to hand out, Apple's containers being given none, and 'box' asks for 1
+```
+
+| Start failure | Error |
+| --- | --- |
+| no `container` here | `EnvUnavailable: apple-container@<p>: Apple's container was not found on this machine` |
+| `container system` not running | `EnvConnectionError: could not connect to apple-container@<p>: could not ask Apple's container system what it has: …` |
+| container would not start | `EnvUnavailable: apple-container@<p>: could not start a container of <image>: …` |
+
+The agent's CLI can only be supervised here on Linux, and a Mac is not: with the default (or
+`local`) affinity, a session in an Apple container whose image has no CLI fails its first turn.
+Put `self` in the runtime's affinity with an image that has the CLI, or another runtime that
+can hold the harness. See [Containers › Apple containers](/user/containers#apple-containers).
+
+To remove humanize's Apple containers by hand: `container list` shows them as
+`humanize-<provider>-<role>-<8 hex>`; `container delete --force <id>` removes one.
+
+<small>Defined in [`src/hmz/runtime/flowing/environing_apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_apple_container.py), [`src/hmz/coganchor/machines/apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/apple_container.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_apple_container_env`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Apple container environments).</small>
+
 ## Runtimes {#runtimes}
 
 A saved machine an environment may be put on: used as an environment when `-e` names it.
@@ -421,7 +525,7 @@ TUI on the Runtimes page of `/settings`.
 
 | Aspect | Rule |
 | --- | --- |
-| Location | `$HUMANIZE_HOME/runtimes/<backend>/<name>/runtime.json`, `<backend>` `ssh`, `docker` or `swarm` |
+| Location | `$HUMANIZE_HOME/runtimes/<backend>/<name>/runtime.json`, `<backend>` `ssh`, `docker`, `swarm` or `apple-container` |
 | Name | `[A-Za-z0-9][A-Za-z0-9._-]*` |
 | Modes | every directory humanize creates on the way `0700`; `runtime.json` `0600`, written to a temporary file and renamed |
 | Format | JSON object: `backend`, `name`, then every field of the runtime (tuples as arrays) |
@@ -539,6 +643,37 @@ that name, else `ssh://<via>`.
 }
 ```
 
+### Apple containers {#apple-containers}
+
+`hmz.coganchor.machines.store.AppleContainerRuntime`: this Mac's Apple containers, and how much
+of the Mac they may have between them.
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `name` | `str` | required | The runtime's name. |
+| `image` | `str` | `""` | Default image; no whitespace. |
+| `run_args` | `tuple[str, ...]` | `()` | Extra `container run` arguments; no newlines. |
+| `cpus` | `float` | `0.0` | CPUs its containers may be given all told; `0` for the Mac's. |
+| `memory` | `int` | `0` | Bytes, likewise; `0` for the Mac's memory. |
+| `max_containers` | `int` | `0` | Containers at once; `0` for no limit. |
+| `workdir` | `str` | `""` | Default workdir for `-e ROLE=apple-container@NAME`. |
+| `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
+| `made` | `str` | `"typed"` | Always `typed`. |
+| `affinity` | `tuple[str, ...]` | `()` | As for an ssh host. |
+
+```json
+{
+  "backend": "apple-container",
+  "name": "mac",
+  "image": "python:3.12-slim",
+  "cpus": 8.0,
+  "memory": 17179869184,
+  "max_containers": 4,
+  "workdir": "/Users/me/project",
+  "affinity": ["self"]
+}
+```
+
 ### Validation
 
 `store.new(backend, name, **fields)` builds and checks one without writing it; `add` refuses
@@ -546,7 +681,7 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 
 | Input | Message |
 | --- | --- |
-| backend not `ssh`, `docker` or `swarm` | `'bogus' is not a runtime backend: ssh, docker, swarm` |
+| backend not `ssh`, `docker`, `swarm` or `apple-container` | `'bogus' is not a runtime backend: ssh, docker, swarm, apple-container` |
 | bad name | `invalid runtime name '-x': must start with a letter or digit and contain only letters, digits, dots, dashes, and underscores` |
 | unknown field | `x: unknown ssh host setting 'bogus'` |
 | wrong type | `x: port cannot be '22'` |
@@ -568,10 +703,10 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | a swarm constraint comparing nothing | `x: invalid constraint 'node.labels.gpu': expected <attribute>==<value> or <attribute>!=<value>` |
 | a swarm GPU resource of more than one word | `x: invalid generic resource 'NVIDIA GPU'` |
 | a swarm node's bad host name, or a value neither a name nor a destination | `x: invalid node host name '-n'`, `x: node gpu-1: '<value>' is neither a saved ssh host nor [user@]host[:port]` |
-| a fallback entry not `<backend>:<name>` | `x: fallback 'gpu2' must be <backend>:<name>, the backend one of ssh, docker, swarm` |
+| a fallback entry not `<backend>:<name>` | `x: fallback 'gpu2' must be <backend>:<name>, the backend one of ssh, docker, swarm, apple-container` |
 | a fallback naming the runtime itself | `x: a runtime cannot fall back to itself` |
 | a fallback entry named twice | `x: fallback ssh:gpu2 is named twice` |
-| an affinity entry that is not `self`, `local` or `<backend>:<name>` | `x: 'here' is not where a harness runs: self, local or <ssh\|docker\|swarm>:<runtime name>` |
+| an affinity entry that is not `self`, `local` or `<backend>:<name>` | `x: 'here' is not where a harness runs: self, local or <ssh\|docker\|swarm\|apple-container>:<runtime name>` |
 | an affinity entry twice | `x: local is in its affinity twice` |
 | an affinity naming the runtime itself | `x: its affinity names itself; self is its own machine` |
 | `add` over an existing one | `ssh host 'gpu' already exists` |
@@ -635,6 +770,11 @@ inspect`. `nodes` is the host names of the nodes that may take a task (ready, av
 to hand out N bytes and has M`, and `no node advertises <gpu_resource>`. `gpus`, `usable` and
 `runtimes` are empty.
 
+Apple containers are checked with `container system status`: not reached, saying why, where it
+does not answer or is not running. `cpus` is the CPUs it counts, `memory` the Mac's, `version`
+the container system's; `short` says `it is to hand out N CPUs and has M` and `it is to hand out
+N bytes and has M`. `gpus`, `usable` and `runtimes` are empty.
+
 The ssh check runs the environment probe down the same `ssh` a run uses, in a new session with
 no terminal and `SSH_ASKPASS_REQUIRE=never`, so a host that wants a password fails instead of
 waiting.
@@ -662,7 +802,8 @@ ResourceUnmet: <flow>: 'box' needs 4 CPUs, and the environment given has 2
 to the declaration instead, and refused only when the runtime cannot hand it out. A swarm
 environment reserves the declaration of its node, as its limit too -- GPUs as the runtime's
 `gpu_resource` -- and is refused when the runtime or the swarm cannot
-([how](#swarm-environments)).
+([how](#swarm-environments)). An Apple container environment is sized to its CPUs and memory
+as a docker one is, and refused for any GPU ([how](#apple-container-environments)).
 
 ## Capabilities {#capabilities}
 
@@ -672,10 +813,10 @@ Each setting answers `capabilities` without starting anything.
 
 | Word | Meaning | Said by |
 | --- | --- | --- |
-| `remote` | Work lands through an anchor, not as ordinary processes here. A `local:` target counts. | `AnchoredConfig`, `DockerConfig`, `SwarmConfig` |
-| `isolated` | The tools a command finds are the image's. | `DockerConfig`, `SwarmConfig` |
-| `managed` | Started for the agent and taken down with it. | `DockerConfig`, `SwarmConfig` |
-| `linux`, `darwin` | The platform. | `DockerConfig` and `SwarmConfig` promise `linux`; any machine after `observe()` |
+| `remote` | Work lands through an anchor, not as ordinary processes here. A `local:` target counts. | `AnchoredConfig`, `DockerConfig`, `SwarmConfig`, `AppleContainerConfig` |
+| `isolated` | The tools a command finds are the image's. | `DockerConfig`, `SwarmConfig`, `AppleContainerConfig` |
+| `managed` | Started for the agent and taken down with it. | `DockerConfig`, `SwarmConfig`, `AppleContainerConfig` |
+| `linux`, `darwin` | The platform. | `DockerConfig`, `SwarmConfig` and `AppleContainerConfig` promise `linux`; any machine after `observe()` |
 | `anchor:supervised` | The agent runs under a supervisor; files and commands are answered from the target. | the anchor |
 | `anchor:native-cli` | The target's own CLI runs there. | the anchor, `native=True` |
 | `anchor:afar` | Supervised, with the harness on another machine; always with `anchor:supervised`. | the anchor, harness elsewhere |
@@ -723,8 +864,8 @@ it is:
 | --- | --- |
 | `AnchoredConfig` with `shadow` unset, harness here | the workspace's own absolute path on this machine |
 | `-e ssh@…` session, harness here | the same: the workdir's path on this machine |
-| `DockerConfig` machine | `<tmp>/humanize-<random>/shadow`, removed with the container |
-| `-e docker@…` session, harness here | `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex of the workdir>`, removed with the container |
+| `DockerConfig` or `AppleContainerConfig` machine | `<tmp>/humanize-<random>/shadow`, removed with the container |
+| `-e docker@…` or `-e apple-container@…` session, harness here | `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex of the workdir>`, removed with the container |
 | harness on another machine, `shadow` unset | `$HOME/.cache/humanize-mirrors/<16 hex>` there (`/tmp/humanize-mirrors/<16 hex>` in a container), kept between turns |
 
 A mirror path that already holds unrelated files, or was last used for another target, is
@@ -788,6 +929,15 @@ starting=600.0).create()` is the `Swarm` machine a swarm environment starts: its
 raises `Unplaced` (a `RuntimeError`) for a task no node took, and sets `placed` to the
 `Placed(node, container, daemon)` it landed on.
 
+`hmz.coganchor.machines.apple_container` has the same for this Mac's Apple containers:
+`allocations(labels=None, *, seconds=None)` reads an `Allocation` (with no GPUs) off every
+running container `container list --format json` lists with a `humanize` label, the rest of
+`labels` matched here since `container` filters nothing, its CPUs and memory the size
+`container list` says its virtual machine has (its labels where it says none);
+`status(seconds=None)` returns
+`container system status --format json` as a dict, raising `OSError` where it does not answer
+or is not running; and `capacity(status)` the CPUs it counts and the Mac's memory.
+
 ## Writing a machine of your own {#writing-a-machine-of-your-own}
 
 | Type | Contract |
@@ -850,11 +1000,12 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 ```python
 from hmz.coganchor.machines import (
     MachineConfig, MachineBase, AnchoredConfig, Anchored, DockerConfig, Docker,
-    SwarmConfig, Swarm, Allocation, allocations, info, gpus_listed, Mapped, Ran,
+    SwarmConfig, Swarm, AppleContainerConfig, AppleContainer, Allocation, allocations,
+    info, gpus_listed, Mapped, Ran,
 )
 from hmz.coganchor.machines.store import (
-    SSHRuntime, DockerRuntime, SwarmRuntime, new, add, write, find, runtimes, remove,
-    where, under, imports, daemon_of, node_of,
+    SSHRuntime, DockerRuntime, SwarmRuntime, AppleContainerRuntime, new, add, write, find,
+    runtimes, remove, where, under, imports, daemon_of, node_of,
 )
 from hmz.coganchor.transport import Endpoint
 from hmz.coganchor.agents import anchored
