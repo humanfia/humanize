@@ -145,7 +145,7 @@ What to look at, by number:
 | <kbd>ctrl+c</kbd> <kbd>ctrl+c</kbd> | at the prompt | Two presses within 3 seconds. The first only warns. |
 | `/stop` | at the prompt, reading every agent, or on the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Offered only while a flow runs and is not already stopping, and not on one conversation's or one outworlder's transcript. Typed there anyway, it says why it did nothing. |
 | <kbd>ctrl+c</kbd> | on an `hmz exec` line | One press. |
-| a budget | `-b` on `hmz exec`, or what a run may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
+| a budget | `-p budget.…` on `hmz exec`, or what a run may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
 
 ## What the next <kbd>ctrl+c</kbd> does
 
@@ -223,9 +223,10 @@ you save there is what the next run starts with; the running one keeps what it s
 
 ## Variations
 
-- **Stop at a budget, not by hand.** Give the run a `duration` or `cost` in `/flow`, or `-b` on
-  `hmz exec`, and it stops itself. With `graceful` on, the turn that is running finishes first.
-  See [Every run has a budget](/features/allowances).
+- **Stop at a budget, not by hand.** Give the run a `duration` or `cost` in `/flow`, or
+  `-p budget.duration=` or `budget.cost=` on `hmz exec`, and it stops itself. With `graceful`
+  on, the turn that is running finishes first. See [Every run has a
+  budget](/features/allowances).
 - **Stop from another terminal.** Run `hmz` in the same directory: it opens on the running flow.
   Then stop it there. See [Leaving it running](/user/leaving).
 - **Stop an unattended run.** One <kbd>ctrl+c</kbd> on the `hmz exec` line. See

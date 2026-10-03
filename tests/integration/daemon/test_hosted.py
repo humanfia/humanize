@@ -253,9 +253,7 @@ def test_a_host_terminated_takes_the_containers_of_its_runs_down_first(
     work = workspace / "work"
     work.mkdir()
     with hosted.link(name="starter") as link:
-        link.start(
-            "waits", "go", envs={"box": f"docker@local{work}"}, budget={"cost": 1}
-        )
+        link.start("waits", "go", envs={"box": f"docker{work}"}, budget={"cost": 1})
         assert until((work / "up.txt").exists)
 
     assert hosted.kill()

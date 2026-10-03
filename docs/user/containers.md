@@ -10,7 +10,7 @@ end, with a docker swarm that picks the node for you.
 <div class="ct-ways">
   <div class="ct-way">
     <p class="ct-name">A container per environment</p>
-    <p class="ct-type"><code>hmz exec … -e ROLE=docker@RUNTIME/…</code></p>
+    <p class="ct-type"><code>hmz exec … -e ROLE=docker[@RUNTIME]/…</code></p>
     <dl>
       <dt>agents run</dt><dd>here, with your sign-in, unless the image has their CLI (<a href="#where-the-agent-s-cli-runs">affinity</a>)</dd>
       <dt>commands run</dt><dd>in the container</dd>
@@ -30,7 +30,7 @@ end, with a docker swarm that picks the node for you.
   </div>
   <div class="ct-way">
     <p class="ct-name">A container as an ssh host</p>
-    <p class="ct-type"><code>hmz exec … -e ROLE=ssh@HOST/…</code></p>
+    <p class="ct-type"><code>hmz exec … -e ROLE=ssh@[HOST]/…</code></p>
     <dl>
       <dt>agents run</dt><dd>here, with your sign-in</dd>
       <dt>commands run</dt><dd>in the container</dd>
@@ -47,8 +47,8 @@ With docker running here and a flow that has a role for a container, such as
 
 ```sh
 hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
-    -e box=docker@local/home/me/myproject \
-    -b duration=10m "Print this machine's hostname and OS, then fix add() in calc.py."
+    -e box=docker/home/me/myproject \
+    -p budget.duration=10m "Print this machine's hostname and OS, then fix add() in calc.py."
 ```
 
 The agent's commands run in a fresh container, and its edits land in your directory:
@@ -73,15 +73,15 @@ The agent's commands run in a fresh container, and its edits land in your direct
 - **An image with Python 3.12 or newer** and `/bin/sh`. It needs no ssh server, no coding agent
   and no sign-in. With nothing said, `python:3.12-slim` is used.
 - **The directory on the daemon's host.** It is mounted into the container at the path it has,
-  so it has to exist there. For `docker@local` that is this machine.
+  so it has to exist there. For docker's default here, `docker/…`, that is this machine.
 - **A flow with a role for another machine.** The flows humanize and the official flowverse
   ship all work in the directory you start in. This page uses
   [`boxed`](#the-flow-used-on-this-page), a one-role flow you can save into your project.
 
 ## How a container per environment works
 
-A flow's environment role put on docker, with `-e role=docker@provider/workdir`, gets a
-container of its own for the run:
+A flow's environment role put on docker, with `-e role=docker/workdir` or
+`-e role=docker@provider/workdir`, gets a container of its own for the run:
 
 - **The image** is the one the flow declares for the role, else the saved daemon's `image`,
   else `python:3.12-slim`. `boxed` declares `python:3.12-slim`.
@@ -97,8 +97,9 @@ container of its own for the run:
   lands in `/home/me/myproject`. Because the copy is kept there rather than at the directory's
   own path, the directory may be your own checkout.
 
-`docker@local/…` is docker's default here with nothing saved. For a daemon elsewhere, a
-different image, or a cap on what a run may take, save the daemon under a name first.
+`docker/…`, naming no daemon, is docker's default here with nothing saved. For a daemon
+elsewhere, a different image, or a cap on what a run may take, save the daemon under a name
+first.
 
 ## Example: a daemon saved under a name
 
@@ -141,7 +142,7 @@ page](/user/settings#runtimes). Choose **Add a runtime…**, then `docker host`:
 ```sh
 hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
     -e box=docker@gpubox/home/me/myproject \
-    -b duration=10m "Install pytest, then make test_calc.py pass."
+    -p budget.duration=10m "Install pytest, then make test_calc.py pass."
 ```
 
 ```text
@@ -206,7 +207,7 @@ container:
 | `self` | in the container | passed by where the image has no CLI |
 | `docker:<name>` | in a second container of its own, on the daemon saved as `<name>` | that container needs the CLI |
 
-`docker@local` with nothing saved as `local` has no affinity, so it is always the default.
+`docker/…`, with nothing saved, has no affinity, so it is always the default.
 
 **The default** looks once per role and machine. With an image that has no coding agent, every
 role's CLI runs here, and the run says so: the transcript line `coder's harness runs here`.
@@ -264,7 +265,7 @@ and the agents' CLIs:
 ```sh
 docker run --rm -it -v "$PWD:$PWD" -w "$PWD" my-image-with-hmz \
     hmz exec -f ralph_loop -a agent=claude/claude-opus-5:max \
-    -b cost=20 "get the suite green"
+    -p budget.cost=20 "get the suite green"
 ```
 
 Every agent and every command runs in the container, and any flow works this way. The project
@@ -289,8 +290,8 @@ Host test-box
 ```sh{3} [hmz exec]
 hmz exec -f onbox \
     -a builder=claude/claude-opus-5:max -a reviewer=codex/gpt-5.6-sol:high \
-    -e box=ssh@test-box/home/me/box/myproject \
-    -b cost=20 "get the suite green"
+    -e box=ssh@[test-box]/home/me/box/myproject \
+    -p budget.cost=20 "get the suite green"
 ```
 
 :::
@@ -307,7 +308,7 @@ directory of *that* host, and has to exist there.
 
 ### A docker swarm {#a-docker-swarm}
 
-Where the machines are a docker swarm, let it choose the node: `-e ROLE=swarm@RUNTIME/…` gives
+Where the machines are a docker swarm, let it choose the node: `-e ROLE=swarm[@RUNTIME]/…` gives
 the role a service of one task on the swarm, which its scheduler puts on whichever node has room
 for what the role declares. The task reserves that much of its node and is limited to it, and
 everything else is as for a container here: the directory is mounted at its own path, the CLI
@@ -315,15 +316,15 @@ runs here by default, and the service is removed when the run ends.
 
 ```sh
 hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
-    -e box=swarm@local/shared/myproject \
-    -b duration=10m "Print this machine's hostname and OS, then fix add() in calc.py."
+    -e box=swarm/shared/myproject \
+    -p budget.duration=10m "Print this machine's hostname and OS, then fix add() in calc.py."
 ```
 
-`swarm@local` is the swarm this machine manages (`docker info` says `Swarm: active` and
-`Is Manager: true`). For one managed elsewhere, a cap on what its tasks may take, GPUs, or
-constraints on where they land, choose **Add a runtime…**, then `docker swarm`, on the
-[Runtimes page](/user/settings#runtimes) and set its manager the way a daemon's is set: a saved
-ssh host, `ssh://`, `tcp://` or a context.
+`swarm/…`, naming no swarm, is the one this machine manages (`docker info` says
+`Swarm: active` and `Is Manager: true`). For one managed elsewhere, a cap on what its tasks may
+take, GPUs, or constraints on where they land, choose **Add a runtime…**, then `docker swarm`,
+on the [Runtimes page](/user/settings#runtimes) and set its manager the way a daemon's is set:
+a saved ssh host, `ssh://`, `tcp://` or a context.
 
 - **The directory has to be on whichever node the task lands on**, at the same path: a shared
   filesystem every node mounts, or constraints (`node.labels.shared==true`,

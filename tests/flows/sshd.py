@@ -248,7 +248,7 @@ class Box:
     """Another machine: a container `ssh` reaches as `alias`, and what runs a command there.
 
     Attributes:
-      alias: What `ssh` and `-e box=ssh@<alias>/...` call it.
+      alias: What `ssh` and `-e box=ssh@[<alias>]/...` call it.
       container: The container's id.
       config: The ssh config naming `alias`, which the `ssh` first on `PATH` reads -- and
         which is what an ssh runtime is imported from.

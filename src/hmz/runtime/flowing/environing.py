@@ -951,8 +951,10 @@ class MachineEnvDriver:
         self._seen = seen
 
     def __repr__(self) -> str:
-        where = f"{self._machine.provider}:" if self._machine.provider else ""
-        return f"<{type(self).__name__} {self._machine.backend}@{where}{self._workdir}>"
+        from .specs import spelled
+
+        at = spelled(self._machine.backend, self._machine.provider, self._workdir)
+        return f"<{type(self).__name__} {at}>"
 
     # --- what it says about itself
 

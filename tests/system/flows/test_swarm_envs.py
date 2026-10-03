@@ -118,10 +118,15 @@ def swarm(daemon: None) -> str:
 
 @pytest.fixture
 def local(swarm: str) -> Iterator[str]:
-    """`local`: the swarm here, pinned to this node where it has others, as a runtime says."""
+    """The swarm here as `-e` names it: `swarm`, or `swarm@local` pinned to this node.
+
+    Pinned where the swarm has other nodes, by a runtime saved as `local`.
+    """
+    here = "swarm"
     if len(_docker("node", "ls", "--quiet").split()) > 1:
         store.write(store.SwarmRuntime(name="local", constraints=(swarm,)))
-    yield "local"
+        here = "swarm@local"
+    yield here
     left = _ours()
     if left:
         subprocess.run(
@@ -136,7 +141,7 @@ async def test_the_contract_holds_in_a_task_the_swarm_placed(
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
-    driver = _opened(f"slim=swarm@{local}{work}", "slim")
+    driver = _opened(f"slim={local}{work}", "slim")
 
     await probe(driver)
     (service,) = _ours()
@@ -158,7 +163,7 @@ async def test_the_contract_holds_in_a_task_the_swarm_placed(
 async def test_what_a_role_declares_is_reserved_and_is_the_limit(
     local: str, tmp_path: Path
 ) -> None:
-    driver = _opened(f"limited=swarm@{local}{tmp_path}", "limited")
+    driver = _opened(f"limited={local}{tmp_path}", "limited")
     try:
         await probe(driver)
         (service,) = _ours()
@@ -189,7 +194,7 @@ async def test_what_a_role_declares_is_reserved_and_is_the_limit(
 async def test_a_task_no_node_has_room_for_is_refused_and_its_service_removed(
     local: str, tmp_path: Path
 ) -> None:
-    driver = _opened(f"huge=swarm@{local}{tmp_path}", "huge")
+    driver = _opened(f"huge={local}{tmp_path}", "huge")
     began = time.monotonic()
     try:
         with pytest.raises(ResourceUnmet, match="no node of the swarm has 1000 CPUs"):
@@ -223,7 +228,7 @@ async def test_a_runtime_running_all_the_tasks_it_may_refuses_another(
 async def test_a_workdir_the_node_has_not_got_is_refused(
     local: str, tmp_path: Path
 ) -> None:
-    driver = _opened(f"slim=swarm@{local}{tmp_path / 'nowhere'}", "slim")
+    driver = _opened(f"slim={local}{tmp_path / 'nowhere'}", "slim")
     try:
         with pytest.raises(EnvUnavailable):
             await probe(driver)

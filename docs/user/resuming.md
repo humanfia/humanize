@@ -14,7 +14,7 @@ prompt and from a script, and checked that it went on counting where it left off
 ```
 
 ```sh [hmz exec]
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=2h \
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=2h \
     --resume "$(cat TASK.md)"
 ```
 
@@ -60,7 +60,11 @@ There are three ways in:
 | --- | --- | --- |
 | `/resume` at the prompt | the last run here of a flow that can be picked up | that run's own agents, environments, params, budget and task |
 | `/epics`, then **resume run** | any run you choose | the same: that run's own setup |
-| `hmz exec --resume` | the newest run of the `-f` flow here that saved something | the line's own `-a`, `-e`, `-p` and `-b` |
+| `hmz exec --resume` | the newest run of the `-f` flow here that saved something | the line's own `-a`, `-e` and `-p`, budget included |
+
+A run whose environments were written down as `local@/srv/x`, `docker@local/srv/x` or an ssh
+host nobody saved out of brackets is picked up on the same places, spelled as `-e` takes them:
+`local/srv/x`, `docker/srv/x`, `ssh@[host]/…`.
 
 ## Example: stop a Ralph loop on its budget, then carry it on
 
@@ -71,7 +75,7 @@ by itself.
 ```sh
 hmz exec -f ralph_loop \
     -a agent=claude/claude-haiku-4-5-20251001:low \
-    -b output_tokens=1500 \
+    -p budget.output_tokens=1500 \
     "$(cat TASK.md)"
 ```
 
@@ -101,7 +105,7 @@ hmz exec: stopped -- ralph_loop:ralph_loop: its budget's output tokens are spent
 ```sh
 hmz exec -f ralph_loop \
     -a agent=claude/claude-haiku-4-5-20251001:low \
-    -b output_tokens=800 \
+    -p budget.output_tokens=800 \
     --resume "$(cat TASK.md)"                                          # ④
 ```
 
@@ -127,7 +131,7 @@ hmz exec: stopped -- ralph_loop:ralph_loop: its budget's output tokens are spent
 3. **`hmz exec: stopped -- …`** names the limit that was reached, on stderr. A budget stopping
    a loop is the ordinary way for a loop to end, so the exit status is still `0`.
 4. **`--resume`** asks for the newest run of `ralph_loop` in this directory that saved
-   something. The rest of the line is read as usual: the `-a` and `-b` here are what the
+   something. The rest of the line is read as usual: the `-a` and `-p` here are what the
    carried-on run uses, so this is where you change the model or give it more room.
 5. **`round 4`**: the loop carried on from the count it had saved, not from 1. The agent
    found the tests already passing, because the files it fixed in round 1 are still in your
@@ -199,7 +203,7 @@ same reasons as `/resume` are given when it cannot.
 | Flows it called | Where they are called again the same way: the same flow, task, agents, environments and params. From the first call that differs, flows start afresh. |
 | Temporary copies and scratch directories | Yes, where they were. |
 | The agents' conversations | No. Each carried-on turn opens a fresh session. |
-| What the budget had spent | No. `--resume` runs under the new line's `-b`. `/resume` runs under the old run's budget, counted from zero. |
+| What the budget had spent | No. `--resume` runs under the new line's `-p budget.…`. `/resume` runs under the old run's budget, counted from zero. |
 
 ## Variations
 
@@ -207,7 +211,7 @@ same reasons as `/resume` are given when it cannot.
   differ from the first run. The flow at the top always picks up, so changing them does not
   start it over; leaving `--resume` off does.
 - **Give a longer leash.** Pick up an overnight loop that ran out of money with
-  `-b duration=8h,cost=40 --resume`.
+  `-p budget.duration=8h,budget.cost=40 --resume`.
 - **Start over on purpose.** Run the line without `--resume`. At the prompt, choose the flow
   and type the task as usual.
 
@@ -232,7 +236,7 @@ exit status 2:
 ```console
 $ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --resume "hi"
 hmz exec: error: chat does not support resuming, so there is no run to resume
-$ hmz exec -f ralph_loop -a agent=claude/claude-haiku-4-5-20251001:low -b cost=1 --resume "…"
+$ hmz exec -f ralph_loop -a agent=claude/claude-haiku-4-5-20251001:low -p budget.cost=1 --resume "…"
 hmz exec: error: ralph_loop has no run to resume here: none saved any progress
 ```
 

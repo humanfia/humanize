@@ -119,12 +119,12 @@ $local/twice add a subtract function to calc.py
 ```
 
 ```sh [Claude Code]
-hmz exec -f twice -a builder=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f twice -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "add a subtract function to calc.py"
 ```
 
 ```sh [Codex]
-hmz exec -f twice -a builder=codex/gpt-5.6-sol:high -b cost=1 \
+hmz exec -f twice -a builder=codex/gpt-5.6-sol:high -p budget.cost=1 \
     "add a subtract function to calc.py"
 ```
 
@@ -136,7 +136,7 @@ hmz exec -f twice -a builder=codex/gpt-5.6-sol:high -b cost=1 \
   starts it.
 - **On the command line**, `-a builder=…` fills the role by its name, as
   `CLI/MODEL:EFFORT`. Use a model your account can name: `/flow` lists them.
-- **`-b cost=1`** is the run's [budget](/features/allowances), in US dollars. `hmz exec`
+- **`-p budget.cost=1`** is the run's [budget](/features/allowances), in US dollars. `hmz exec`
   refuses to start a flow without one.
 
 This is a real run on Claude Code:
@@ -164,8 +164,8 @@ Read it turn by turn:
 
 - **`● builder is working`** opens a turn, labelled with the role that is taking it.
 - **`● Read(…)`, `● Edit(…)`, `● Bash(…)`** are the tools the agent reached for.
-- **`✻ input … · $0.02 · …`** is what the turn spent, which counts against `-b`. The dollar
-  figure appears where the model has a published price.
+- **`✻ input … · $0.02 · …`** is what the turn spent, which counts against the budget. The
+  dollar figure appears where the model has a published price.
 - **The line after it** is the turn's answer: the string `run` returned.
 - **`✻ Worked for 5s`** closes the turn. The second turn follows in the same conversation, and
   the run ends when `twice` returns.
@@ -239,7 +239,7 @@ uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
 | `hmz exec: error: …` | Why, and the fix |
 | --- | --- |
 | `twice needs an agent for 'builder'; specify each with -a ROLE=CLI/MODEL:EFFORT` | No `-a builder=…` on the line. Add it. |
-| `twice requires a budget: specify with -b duration=...,cost=...,output_tokens=...` | No `-b`. Add one, such as `-b cost=1`. |
+| `twice requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` | No budget. Add one, such as `-p budget.cost=1`. |
 | `twice: no flow is called 'twice', and it is not a path` | You are not in the project that holds `.humanize/flows/twice/`. `cd` into it, or pass `-f ./path/to/twice`. |
 | ``twice: a flow takes `ctx` as a keyword argument`` | The signature is missing one of its keyword arguments. Take all four, even the ones you do not use. |
 | `importing the flow at … failed: SyntaxError("'await' outside async function", …)` | `async` is missing from `def`. Write `async def`. |

@@ -138,7 +138,7 @@ async def steps(
 ### Run it
 
 ```sh
-hmz exec -f steps -a builder=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f steps -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "add subtract(a, b) to calc.py; add multiply(a, b) to calc.py"
 ```
 
@@ -278,7 +278,7 @@ async def aimed(
    the callee gets the run's own directory.
 
 ```sh
-hmz exec -f aimed -a builder=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f aimed -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "calc.py has a subtract function, and python3 check.py still prints ok"
 ```
 

@@ -17,7 +17,7 @@ review is the actor's next prompt, word for word.
 ```sh [hmz exec]
 hmz exec -f rlar \
     -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
-    -b duration=6h,cost=60 "$(cat TASK.md)"
+    -p budget.duration=6h,budget.cost=60 "$(cat TASK.md)"
 ```
 
 :::

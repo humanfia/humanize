@@ -241,7 +241,7 @@ async def test_the_contract_holds_in_a_task_on_the_manager(
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
-    driver = _opened(f"slim=swarm@local{work}", "slim")
+    driver = _opened(f"slim=swarm{work}", "slim")
 
     await probe(driver)
     await check_env_driver(driver)
@@ -393,7 +393,7 @@ async def test_a_workdir_the_node_has_not_got_is_unavailable(
             }
         ),
     )
-    driver = _opened(f"slim=swarm@local{tmp_path}", "slim")
+    driver = _opened(f"slim=swarm{tmp_path}", "slim")
     try:
         with pytest.raises(EnvUnavailable, match="no directory to give the task"):
             await probe(driver)
@@ -411,7 +411,7 @@ async def test_a_daemon_that_manages_no_swarm_is_unavailable(
 ) -> None:
     swarm.set("STANDIN_STATE", state)
     swarm.set("STANDIN_CONTROL", control)
-    driver = _opened(f"slim=swarm@local{tmp_path}", "slim")
+    driver = _opened(f"slim=swarm{tmp_path}", "slim")
     try:
         with pytest.raises(EnvUnavailable, match=said):
             await probe(driver)

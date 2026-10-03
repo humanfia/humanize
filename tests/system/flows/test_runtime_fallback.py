@@ -73,7 +73,7 @@ def _exec(flow: Path, spec: str, cwd: Path) -> subprocess.CompletedProcess[str]:
         [
             sys.executable,
             *("-Pm", "hmz", "exec", "-f", str(flow), "-e", spec),
-            *("-b", "cost=1", "go"),
+            *("-p", "budget.cost=1", "go"),
         ],
         cwd=cwd,
         capture_output=True,

@@ -172,7 +172,7 @@ async def test_the_contract_holds_in_a_container_with_no_sshd(
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
-    driver = _opened(f"slim=docker@local{work}", "slim")
+    driver = _opened(f"slim=docker{work}", "slim")
 
     await probe(driver)
     status, out, _ = await driver.exec(
@@ -208,7 +208,7 @@ async def test_worktrees_are_added_in_a_container_that_has_git(
     (repo / "file.txt").write_text("x\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-q", "-m", "first")
-    driver = _opened(f"full=docker@local{repo}", "full")
+    driver = _opened(f"full=docker{repo}", "full")
 
     await probe(driver)
     await check_env_driver(driver, repo=True)
@@ -218,7 +218,7 @@ async def test_worktrees_are_added_in_a_container_that_has_git(
 async def test_what_a_role_declares_is_the_containers_limit(
     daemon: None, tmp_path: Path
 ) -> None:
-    driver = _opened(f"limited=docker@local{tmp_path}", "limited")
+    driver = _opened(f"limited=docker{tmp_path}", "limited")
     try:
         await probe(driver)
         status, out, err = await driver.exec(
@@ -382,8 +382,8 @@ def _hmz(flow: Path, spec: str, task: str, cwd: Path) -> subprocess.Popen[str]:
             str(flow),
             "-e",
             spec,
-            "-b",
-            "cost=1",
+            "-p",
+            "budget.cost=1",
             task,
         ],
         cwd=cwd,
@@ -478,7 +478,7 @@ def test_a_run_terminated_mid_run_takes_its_container_down(
     flow = written(tmp_path / "flows", "waits", _WAITS)
     work = tmp_path / "work"
     work.mkdir()
-    run = _hmz(flow, f"box=docker@local{work}", "go", tmp_path)
+    run = _hmz(flow, f"box=docker{work}", "go", tmp_path)
     try:
         deadline = time.monotonic() + 240
         while not (work / "up.txt").exists():
@@ -601,7 +601,7 @@ def test_a_container_with_git_snapshots_and_rewinds(
     repo = tmp_path / "repo"
     _two_commits(repo)
 
-    run = _hmz(flow, f"repo=docker@local{repo}", "go", tmp_path)
+    run = _hmz(flow, f"repo=docker{repo}", "go", tmp_path)
     _, err = run.communicate(timeout=240)
 
     assert run.returncode == 0, err
@@ -621,7 +621,7 @@ def test_a_container_without_git_is_refused_before_the_flow_runs(
     repo = tmp_path / "repo"
     _two_commits(repo)
 
-    run = _hmz(flow, f"repo=docker@local{repo}", "go", tmp_path)
+    run = _hmz(flow, f"repo=docker{repo}", "go", tmp_path)
     _, refused = run.communicate(timeout=240)
 
     assert run.returncode == 2, refused
@@ -662,7 +662,7 @@ def test_a_worktree_is_added_only_in_a_container_that_has_git(
     repo = tmp_path / "repo"
     _two_commits(repo)
 
-    run = _hmz(flow, f"repo=docker@local{repo}", "go", tmp_path)
+    run = _hmz(flow, f"repo=docker{repo}", "go", tmp_path)
     _, err = run.communicate(timeout=240)
 
     if served:
@@ -804,7 +804,7 @@ def test_an_agent_of_every_cli_works_inside_its_container(
         pytest.skip("this machine is Debian, as the image is")
     model, effort = _cheapest(cli)
     try:
-        work = _boxed(cli, "docker@local", tmp_path / "boxed", model, effort)
+        work = _boxed(cli, "docker", tmp_path / "boxed", model, effort)
     except (HarnessThrottled, HarnessRefused) as spent:
         # A quota spent or a sign-in refused is the account's wherever the turn was taken,
         # and a turn taken here a moment later -- the next window of a rate limit -- would
@@ -812,7 +812,7 @@ def test_an_agent_of_every_cli_works_inside_its_container(
         pytest.skip(f"{cli}'s account would not take the turn: {spent}")
     except HarnessError as refused:
         try:
-            _boxed(cli, "local@", tmp_path / "here", model, effort)
+            _boxed(cli, "local", tmp_path / "here", model, effort)
         except HarnessError as here:
             pytest.skip(f"{cli} will not take a turn on this machine at all: {here}")
         raise AssertionError(

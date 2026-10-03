@@ -16,7 +16,7 @@ carry on rather than told the task again.
 
 ```sh [hmz exec]
 hmz exec -f continue_loop -a agent=kimi/kimi-code/k3:high \
-    -b duration=6h "$(cat TASK.md)"
+    -p budget.duration=6h "$(cat TASK.md)"
 ```
 
 :::

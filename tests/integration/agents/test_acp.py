@@ -422,8 +422,8 @@ def test_a_line_naming_an_added_cli_is_driven_as_that_cli(
             str(flow),
             "-a",
             f"builder={added}/m:as configured",
-            "-b",
-            "cost=1",
+            "-p",
+            "budget.cost=1",
             "hi",
         ]
     )

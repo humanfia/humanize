@@ -279,7 +279,7 @@ async def _reopens(app: Humanize, driver: Pilot[None]) -> Configures:
 async def test_a_duration_set_there_opens_again_as_it_was_written(
     flows: Path, typed: str, shown: str, held: datetime.timedelta
 ) -> None:
-    """In the units `-b duration=` reads, however long it is.
+    """In the units `-p budget.duration=` reads, however long it is.
 
     A duration of a million seconds or more once reopened as `1.0368e+06s`, which the sheet
     it was opened on then refused -- and the interface fell over opening it.

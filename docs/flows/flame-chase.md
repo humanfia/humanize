@@ -17,7 +17,7 @@ tree is all that passes between them.
 ```sh [hmz exec]
 hmz exec -f flame_chase \
     -a first_chaser=claude/claude-opus-5:max -a second_chaser=codex/gpt-5.6-sol:max \
-    -b duration=8h,cost=100 "$(cat TASK.md)"
+    -p budget.duration=8h,budget.cost=100 "$(cat TASK.md)"
 ```
 
 :::

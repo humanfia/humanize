@@ -120,7 +120,7 @@ takes in order.
 
 **Every example runs.** Before you push, write each file on the page into a scratch project,
 run it the way the page says, and run its tests. A flow's example runs on a real agent, on a
-small `-b`, and on the fake kit.
+small budget, and on the fake kit.
 
 ## The writing rules
 

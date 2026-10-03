@@ -15,7 +15,7 @@ the repository, so a run can go on for days without drowning in its own context.
 
 ```sh [hmz exec]
 hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high \
-    -b duration=6h,cost=50 "$(cat TASK.md)"
+    -p budget.duration=6h,budget.cost=50 "$(cat TASK.md)"
 ```
 
 :::
@@ -44,7 +44,7 @@ No params. The loop pauses 5 seconds between rounds.
 
 ## What ends it
 
-- **The [budget](/features/allowances).** Whichever limit of `-b` runs out first.
+- **The [budget](/features/allowances).** Whichever of its limits runs out first.
 - **Three rounds in a row that answer nothing.** A round whose turn fails counts as one that
   answered nothing, so a backend that refuses the account, or will not run the model, stops the
   run within three rounds instead of burning the budget's whole duration:
@@ -65,7 +65,7 @@ stopping: 3 rounds in a row answered with nothing
 Everything else the loop knows is in the repository, where it always was.
 
 A run stopped by its budget or by a stall is not over. Fix what stopped it, then run the same
-line again with `--resume` and a fresh `-b`. See [Picking a run up](/user/resuming).
+line again with `--resume` and a fresh budget. See [Picking a run up](/user/resuming).
 
 ## See also
 

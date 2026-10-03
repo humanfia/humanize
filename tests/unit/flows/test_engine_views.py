@@ -370,7 +370,7 @@ async def test_a_worktree_and_a_script_are_refused_up_front_where_their_tool_is_
     with pytest.raises(CapabilityMissing) as refused:
         await run_fake(plants, envs={"trees": FakeEnvDriver(capabilities=gitless)})
     assert str(refused.value).endswith(
-        "needs GitWorktreeEnvMixin, which local@/work does not support: "
+        "needs GitWorktreeEnvMixin, which local/work does not support: "
         "GitWorktreeEnvMixin needs git on the machine's PATH, and it has none"
     )
 

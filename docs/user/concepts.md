@@ -23,7 +23,7 @@ flow, where an actor works and a reviewer checks each of its turns:
 hmz exec -f rlar \
     -a actor=claude/claude-opus-5-5:high \
     -a reviewer=codex/gpt-5.6-sol:high \
-    -b duration=2h,cost=10 \
+    -p budget.duration=2h,budget.cost=10 \
     "fix the flaky payment test"
 ```
 
@@ -33,8 +33,8 @@ hmz exec -f rlar \
    [agent](#agent): a [backend](#backend) (`claude`, `codex`), a model, and an
    [effort](#effort) (`high`). With no `@`, each runs as the [provider](#provider) you signed
    the CLI in as.
-3. **`-b duration=2h,cost=10`** is the [budget](#budget): the run stops at two hours or ten
-   dollars, whichever comes first.
+3. **`-p budget.duration=2h,budget.cost=10`** is the [budget](#budget): the run stops at two
+   hours or ten dollars, whichever comes first.
 4. **The quoted line** is the task.
 
 While it runs, the actor keeps one [session](#session) and the reviewer opens a fresh one

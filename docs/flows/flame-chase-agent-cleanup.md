@@ -21,7 +21,7 @@ The same cleaner behind one agent is [ralph_loop_agent_cleanup](/flows/ralph-loo
 hmz exec -f flame_chase_agent_cleanup \
     -a first_chaser=claude/claude-opus-5:high -a second_chaser=codex/gpt-5.6-sol:high \
     -a cleaner=claude/claude-opus-5:high \
-    -p work_paths=src -b duration=12h,cost=100 "$(cat TASK.md)"
+    -p work_paths=src -p budget.duration=12h,budget.cost=100 "$(cat TASK.md)"
 ```
 
 :::

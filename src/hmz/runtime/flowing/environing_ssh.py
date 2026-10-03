@@ -25,7 +25,6 @@ import contextlib
 import errno
 import io
 import posixpath
-import re
 import shlex
 import signal
 import threading
@@ -45,6 +44,7 @@ from .environing import (
     gpus_of,
     started_error,
 )
+from .specs import DESTINATION
 from .spi import ENV_TOOLS, Placement
 
 if TYPE_CHECKING:
@@ -55,12 +55,6 @@ if TYPE_CHECKING:
     from hmz.coganchor.transport import Transport
 
 __all__ = ["PROBE_SCRIPT", "SSHMachine", "facts_of"]
-
-#: What an ssh destination may be: `host`, `user@host`, either with `:port`, or an alias of
-#: the user's ssh config. Never beginning with `-`, which `ssh` would read as an option.
-_PROVIDER = re.compile(
-    r"(?:[A-Za-z0-9_][A-Za-z0-9._%+-]*@)?[A-Za-z0-9_][A-Za-z0-9._-]*(?::[0-9]{1,5})?"
-)
 
 #: What `ssh` says of a host name nothing resolves, which is a host that is not there rather
 #: than one that could not be reached.
@@ -431,7 +425,7 @@ class SSHMachine(Machine):
           EnvUnavailable: If that is not an ssh destination.
         """
         super().__init__()
-        if not target and not _PROVIDER.fullmatch(provider):
+        if not target and not DESTINATION.fullmatch(provider):
             raise EnvUnavailable(
                 f"{provider!r} is not an ssh host, as [user@]host[:port]"
             )

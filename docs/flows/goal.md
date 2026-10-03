@@ -18,7 +18,7 @@ it is done.
 
 ```sh [hmz exec]
 hmz exec -f goal -a worker=claude/claude-opus-5:max \
-    -b duration=4h,cost=40 "$(cat TASK.md)"
+    -p budget.duration=4h,budget.cost=40 "$(cat TASK.md)"
 ```
 
 :::
@@ -50,8 +50,8 @@ No params.
 
 ::: warning The whole goal is one turn
 A budget lets the turn under way finish by default, and here that turn is the whole goal. If
-the budget is a hard ceiling, pass `-b graceful=false`, which cuts the goal off the moment a
-limit is reached.
+the budget is a hard ceiling, pass `-p budget.graceful=false`, which cuts the goal off the
+moment a limit is reached.
 :::
 
 ## Picking it up

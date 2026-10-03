@@ -172,17 +172,17 @@ def test_where_an_environment_is_kept_beside_what_the_agents_run(
     Settings(tmp_path).remember(
         "rlar",
         {"actor": Runs("claude/m:high")},
-        {"repo": "ssh@box/home/me/repo"},
+        {"repo": "ssh@[box]/home/me/repo"},
     )
 
     held = yaml.safe_load((home() / "settings.yaml").read_text())
     flows = held["workspaces"][str(tmp_path.resolve())]["flows"]
-    assert flows["rlar"]["envs"] == {"repo": "ssh@box/home/me/repo"}
-    assert Settings(tmp_path).envs("rlar") == {"repo": "ssh@box/home/me/repo"}
+    assert flows["rlar"]["envs"] == {"repo": "ssh@[box]/home/me/repo"}
+    assert Settings(tmp_path).envs("rlar") == {"repo": "ssh@[box]/home/me/repo"}
 
     # Choosing the agents again says nothing about where they work, so it changes nothing.
     Settings(tmp_path).remember("rlar", {"actor": Runs("codex/n:low")})
-    assert Settings(tmp_path).envs("rlar") == {"repo": "ssh@box/home/me/repo"}
+    assert Settings(tmp_path).envs("rlar") == {"repo": "ssh@[box]/home/me/repo"}
 
     # And an empty one is the way to say none, which erases it.
     Settings(tmp_path).remember("rlar", {"actor": Runs("codex/n:low")}, {})

@@ -114,12 +114,13 @@ def _ran(
     model: str = "m",
     timeout: float = 120.0,
 ) -> subprocess.CompletedProcess[str]:
-    """One `hmz exec` of the endless flow, under the budget `-b` says.
+    """One `hmz exec` of the endless flow, under the budget `-p budget.<limit>=` says.
 
     Args:
       tmp_path: Where the flow goes.
       said: The environment, out of the `stand_in` fixture.
-      budget: What `-b` says the run may spend, or "" for no `-b` at all.
+      budget: What the run may spend, each limit as `-p budget.` is followed by it --
+        `cost=1,duration=1h` -- or "" for no budget at all.
       model: What the stand-in CLI is told to run -- `m`, which the list beside it prices,
         unless a test wants one nobody prices.
       timeout: How long to give it before it is killed, for a run that never ends.
@@ -137,7 +138,11 @@ def _ran(
             str(tmp_path / "flows" / "forever"),
             "-a",
             f"worker=opencode/{model}:high",
-            *(["-b", budget] if budget else []),
+            *(
+                ["-p", ",".join(f"budget.{one}" for one in budget.split(","))]
+                if budget
+                else []
+            ),
             "go",
         ],
         capture_output=True,
@@ -234,7 +239,7 @@ def test_a_budget_that_cannot_be_read_stops_the_line_before_anything_runs(
     ran = _ran(tmp_path, stand_in, budget)
 
     assert ran.returncode == 2
-    assert "-b" in ran.stderr
+    assert "-p" in ran.stderr
     assert _how(stand_in) == []  # nothing ran at all
 
 

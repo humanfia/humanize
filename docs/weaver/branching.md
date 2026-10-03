@@ -114,7 +114,7 @@ async def twoways(
 ### Run it
 
 ```sh
-hmz exec -f twoways -a agent=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f twoways -a agent=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "Add subtract(a, b) to calc.py"
 ```
 

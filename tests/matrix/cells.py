@@ -90,11 +90,11 @@ ANY: Final = "any"
 #: grid's rows.
 FEATURES: dict[str, str] = {}
 
-#: What a run of one cell may spend, as `-b` and the SDK take it. Two caps rather than one: a
+#: What a run of one cell may spend, as `-p` and the SDK take it. Two caps rather than one: a
 #: cost cap over a model nobody prices is one nothing can read, and a token cap alone is one a
 #: model thinking out loud reaches without having done anything wrong -- so the tokens are
 #: generous and the money is small.
-BUDGET: Final = "cost=0.5,output_tokens=40000"
+BUDGET: Final = "budget.cost=0.5,budget.output_tokens=40000"
 _BUDGETED: Final = {"cost": 0.5, "output_tokens": 40000}
 
 #: The failures that are this machine's rather than humanize's: a provider that refused the
@@ -394,7 +394,7 @@ class Cell:
           agents: Each `-a`, or none for `worker` filled by this cell's place.
           envs: Each `-e`.
           params: Each `-p`.
-          budget: The `-b`, or "" for none.
+          budget: The `-p budget.<limit>=...`, or "" for none.
           resume: Whether to pick up the newest run of the flow here.
           as_json: Whether to read the run as NDJSON, which is how its events are checked.
           check: Whether a run that exits non-zero fails the cell.
@@ -412,7 +412,7 @@ class Cell:
         for one in params:
             argv += ["-p", one]
         if budget:
-            argv += ["-b", budget]
+            argv += ["-p", budget]
         if resume:
             argv.append("--resume")
         if as_json:

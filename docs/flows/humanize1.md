@@ -22,13 +22,13 @@ agreed on, and `rlcr` builds that plan under review until nothing is left to say
 
 ```sh [hmz exec]
 hmz exec -f humanize1:gen-idea -a drafter=claude/claude-opus-5:max \
-    -b cost=10 "add undo and redo to the editor"
+    -p budget.cost=10 "add undo and redo to the editor"
 hmz exec -f humanize1:gen-plan \
     -a planner=claude/claude-opus-5:max -a analyst=codex/gpt-5.6-sol:max \
-    -b cost=30 "add undo and redo to the editor"
+    -p budget.cost=30 "add undo and redo to the editor"
 hmz exec -f humanize1:rlcr \
     -a builder=claude/claude-opus-5:max -a reviewer=codex/gpt-5.6-sol:max \
-    -b duration=2d,cost=300 -p max=20 "build the plan"
+    -p budget.duration=2d,budget.cost=300 -p max=20 "build the plan"
 ```
 
 :::

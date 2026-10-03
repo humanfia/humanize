@@ -25,9 +25,9 @@ Type `hmz exec -f twice -a builder=claude/claude-opus-4-8:high "fix the build"` 
 Sleep 2500ms
 
 # The flow declares a role, `builder`, and nothing fills it.
-Type `hmz exec -f twice -b cost=5 "fix the build"` Enter
+Type `hmz exec -f twice -p budget.cost=5 "fix the build"` Enter
 Sleep 3s
 
 # And a flow that is not there.
-Type `hmz exec -f nosuchflow -a builder=claude/claude-opus-4-8:high -b cost=5 "fix the build"` Enter
+Type `hmz exec -f nosuchflow -a builder=claude/claude-opus-4-8:high -p budget.cost=5 "fix the build"` Enter
 Sleep 3s

@@ -65,7 +65,7 @@ async def test_the_ssh_driver_keeps_the_contract_over_real_ssh(
     (repo / "file.txt").write_text("x\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-q", "-m", "first")
-    (spec,) = parse_envs([f"repo=ssh@{ssh_host}{repo}"])
+    (spec,) = parse_envs([f"repo=ssh@[{ssh_host}]{repo}"])
     driver = open_env(spec)
     assert isinstance(driver, MachineEnvDriver)
     machine = driver._machine
@@ -84,7 +84,7 @@ async def test_the_ssh_driver_keeps_the_contract_over_real_ssh(
 
 @pytest.mark.timeout(300)
 async def test_a_home_relative_workdir_over_real_ssh(ssh_host: str) -> None:
-    (spec,) = parse_envs([f"home=ssh@{ssh_host}/~"])
+    (spec,) = parse_envs([f"home=ssh@[{ssh_host}]/~"])
     driver = open_env(spec)
     try:
         await probe(driver)
@@ -179,8 +179,8 @@ def test_a_flow_runs_end_to_end_on_a_runtime_imported_from_a_config(
             str(flow),
             "-e",
             f"box=ssh@{_ALIAS}{workdir}",
-            "-b",
-            "cost=1",
+            "-p",
+            "budget.cost=1",
             "hello",
         ]
     )

@@ -84,7 +84,8 @@ class Line(NamedTuple):
       agents: What each agent role is given, in the order the line wrote them.
       envs: What each environment role is given, likewise.
       params: Each param as the line wrote it, which the flow's own model reads.
-      budget: What the run may spend, or None where the line said nothing.
+      budget: What the run may spend, as its `-p budget.<limit>=` said, or None where the
+        line said nothing of it.
       resume: Whether to pick up the newest run of the flow here that can be.
       as_json: Whether a program is reading the run rather than a person.
     """
@@ -113,7 +114,7 @@ def read_line(argv: list[str]) -> Line:
 
     Raises:
       SystemExit: For a line that is not one, as argparse rejects it -- an unknown flag, no
-        flow or task, or an `-a`, `-e`, `-p` or `-b` that cannot be read.
+        flow or task, or an `-a`, `-e` or `-p` that cannot be read.
     """
     import argparse
 
@@ -147,15 +148,9 @@ def read_line(argv: list[str]) -> Line:
         action="append",
         default=[],
         metavar="ROLE=SPEC[,...]",
-        help="where an environment role is: ROLE=local@/abs/path or "
-        "ROLE=ssh@[user@]host[:port]/abs/path (ssh@host/~/path under the login's home), "
-        "HOST the name of a saved ssh runtime or one ssh resolves; "
-        "ROLE=docker@NAME/abs/path for a container of its own on the saved docker "
-        "runtime NAME, or docker@local/abs/path on docker's default here; "
-        "ROLE=swarm@NAME/abs/path for a task of its own on the saved swarm runtime NAME, "
-        "or swarm@local/abs/path on the swarm this machine manages; "
-        "ROLE=ssh@NAME, docker@NAME or swarm@NAME alone for a saved runtime's own workdir. "
-        "A role the runtime fills -- the workspace -- is never named",
+        help="where an environment role works: ROLE=BACKEND[@PROVIDER][/WORKDIR], "
+        "PROVIDER a saved runtime or, for ssh only, a host in brackets "
+        "(ssh@[me@box:22]/srv); none is this machine",
     )
     parser.add_argument(
         "-p",
@@ -163,16 +158,9 @@ def read_line(argv: list[str]) -> Line:
         action="append",
         default=[],
         metavar="KEY=VALUE[,...]",
-        help="a param of the flow; a value is read as the param's type, or as JSON",
-    )
-    parser.add_argument(
-        "-b",
-        "--budget",
-        action="append",
-        default=[],
-        metavar="KEY=VALUE[,...]",
-        help="what the run may spend: duration=1h30m, cost=5 (USD), output_tokens=200k, "
-        "graceful=false to stop a turn mid-way. Required, except for chat",
+        help="a flow param, read as its type or as JSON; budget.duration, budget.cost "
+        "(USD), budget.output_tokens and budget.graceful set what the run may spend, "
+        "required except for chat",
     )
     parser.add_argument(
         "--resume",
@@ -207,7 +195,7 @@ def read_line(argv: list[str]) -> Line:
             agents=tuple(parse_agents(args.agents)),
             envs=tuple(parse_envs(args.envs)),
             params=parse_params(args.params),
-            budget=parse_budget(args.budget) if args.budget else None,
+            budget=parse_budget(args.params),
             resume=args.resume,
             as_json=args.as_json,
         )
@@ -281,8 +269,8 @@ class Runner:
         if budget is None:
             if not builtin(impl):
                 raise Refused(
-                    f"{self._named} requires a budget: specify with -b "
-                    "duration=...,cost=...,output_tokens=..."
+                    f"{self._named} requires a budget: specify with -p "
+                    "budget.cost=...,budget.duration=...,budget.output_tokens=..."
                 )
             budget = Budget(cost=math.inf)
         self._budget = budget if isinstance(budget, Budget) else _budget(budget)
@@ -401,7 +389,7 @@ class Runner:
         Raises:
           Refused: For a role that cannot be given this.
         """
-        from hmz.runtime.flowing.specs import EnvSpec, SpecError, parse_envs
+        from hmz.runtime.flowing.specs import EnvSpec, SpecError, parse_envs, spelled
 
         named = self._named
         drivers: dict[str, EnvSpec | EnvDriver] = {}
@@ -436,8 +424,7 @@ class Runner:
                 specs[name] = str(said).partition("=")[2]
             else:
                 # As `-e` spells one, which a run picked up is given again.
-                workdir = str(said.workdir).lstrip("/")
-                specs[name] = f"{said.backend}@{said.provider}/{workdir}"
+                specs[name] = spelled(said.backend, said.provider, said.workdir)
         if missing := [
             one.name
             for one in self._declared.envs
@@ -445,7 +432,7 @@ class Runner:
         ]:
             raise Refused(
                 f"{named} needs an environment for {_roles(missing)}; specify "
-                "each with -e ROLE=BACKEND@RUNTIME/WORKDIR"
+                "each with -e ROLE=BACKEND[@PROVIDER]/WORKDIR"
             )
         return drivers, specs
 

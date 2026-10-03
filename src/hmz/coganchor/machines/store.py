@@ -44,6 +44,7 @@ __all__ = [
     "HERE",
     "IMPORTED",
     "SELF",
+    "SPELLING",
     "SSH",
     "SWARM",
     "TYPED",
@@ -60,6 +61,7 @@ __all__ = [
     "new",
     "node_of",
     "remove",
+    "respelled",
     "runtimes",
     "under",
     "where",
@@ -874,6 +876,52 @@ def fallbacks(backend: str, name: str) -> tuple[tuple[str, str], ...]:
         (kind, called)
         for kind, _, called in (one.partition(":") for one in found.fallback)
     )
+
+
+#: How what is kept spells an `-e`, written beside it: `2` since an `@` is written before a
+#: provider alone. What has no such mark was kept before, and is read through
+#: :func:`respelled` -- and only that: `ssh@gpu/x` kept since is the runtime `gpu` whatever
+#: becomes of it, where kept before it was the host `ssh` was handed if nothing was saved.
+SPELLING = 2
+
+
+def respelled(spec: str) -> str:
+    """An `-e` kept from before an `@` was a provider's alone, as `-e` spells it now.
+
+    Which turns on what is saved here. `ssh@gpu/x` is the runtime `gpu` where one is written
+    down under that name -- read or not -- and otherwise the host `ssh` was handed, which `-e`
+    takes in brackets now: `ssh@[gpu]/x`. `docker@local/x` and `swarm@local/x` are docker's
+    default here and the swarm this machine manages, `docker/x` and `swarm/x`, unless a
+    runtime of theirs is saved as `local`, which was taken first. `local@/x` is `local/x`.
+    For what was kept before :data:`SPELLING` was written beside it -- settings, and the record
+    of a run -- and for what a machine calls itself; never for a line, which is refused saying
+    the same.
+
+    Args:
+      spec: What followed `<role>=`.
+
+    Returns:
+      The spec as `-e` takes it now: the one given wherever it already was, or is none.
+    """
+    said = spec.strip()
+    cut = min((at for at in (said.find("@"), said.find("/")) if at >= 0), default=-1)
+    if cut < 0 or said[cut] != "@":
+        return spec  # no provider, which is no `@` to have been read the old way
+    backend = said[:cut].strip()
+    provider, slash, workdir = said[cut + 1 :].partition("/")
+    provider, at = provider.strip(), slash + workdir
+    if backend == "local" and not provider and at:
+        return f"{backend}{at}"
+    if backend not in BACKENDS or not provider or provider.startswith("["):
+        return spec
+    try:
+        if where(backend, provider).exists():
+            return spec
+    except ValueError:
+        pass  # a name no runtime may have, which a destination like `me@box` is
+    if backend == SSH:
+        return f"{backend}@[{provider}]{at}"
+    return f"{backend}{at}" if provider == "local" else spec
 
 
 def _read(backend: str, name: str) -> Runtime | None:

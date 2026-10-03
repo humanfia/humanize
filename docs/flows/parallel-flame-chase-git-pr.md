@@ -21,7 +21,7 @@ hmz exec -f parallel_flame_chase_git_pr \
     -a lane_1_actor_a=codex/gpt-5.6-sol:max,lane_1_actor_b=claude/claude-opus-5:max \
     -a lane_2_actor_a=claude/claude-opus-5:max,lane_2_actor_b=codex/gpt-5.6-sol:max \
     -a lane_3_actor_a=claude/claude-opus-5:max,lane_3_actor_b=codex/gpt-5.6-sol:max \
-    -b duration=12h,cost=500 "$(cat TASK.md)"
+    -p budget.duration=12h,budget.cost=500 "$(cat TASK.md)"
 ```
 
 :::
@@ -75,7 +75,7 @@ one: `git_pr_enabled` is `true`, and `global_knowledge_enabled`, `experiment_mem
 ## What ends it
 
 **The [budget](/features/allowances), or you.** The lanes go on for as long as the run does, so
-give `-b` a duration. When it runs out, the turns under way finish and are recorded, and the
+give it `budget.duration`. When it runs out, the turns under way finish and are recorded, and the
 run stops.
 
 ## Picking it up

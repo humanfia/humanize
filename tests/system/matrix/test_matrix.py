@@ -447,7 +447,7 @@ def test_exec_interrupt(cell: Cell) -> None:
     """
     argv = [
         *(sys.executable, "-Pm", "hmz", "exec", "-f", str(_one(cell))),
-        *("-a", cell.agent(), "-b", BUDGET, SLOW),
+        *("-a", cell.agent(), "-p", BUDGET, SLOW),
     ]
     running = subprocess.Popen(
         argv,
@@ -1291,7 +1291,7 @@ def test_budget(cell: Cell) -> None:
     ran = cell.exec(
         cell.flow("looped", LOOPED),
         "Reply with exactly one word: AGAIN",
-        budget="output_tokens=1",
+        budget="budget.output_tokens=1",
     )
 
     assert "hmz exec: stopped --" in ran.err, f"the cap never stopped the run\n{ran}"
@@ -1590,7 +1590,7 @@ def test_ssh_env(cell: Cell, ssh_box: Box) -> None:
         cell.flow("remote", REMOTE),
         "Use your shell tool to run exactly this command in your working directory: "
         "cp marker.txt landed.txt -- then reply with exactly one word: DONE",
-        envs=[f"box=ssh@{ssh_box.alias}{there}"],
+        envs=[f"box=ssh@[{ssh_box.alias}]{there}"],
         timeout=600,
     )
 
@@ -1708,7 +1708,7 @@ def _contained(cell: Cell, ran: Exec) -> dict[str, Any]:
 def test_docker_env(cell: Cell, daemon: None) -> None:
     """An agent given a container of an image with no sshd works inside it.
 
-    `-e box=docker@local/<dir>`: docker's default here, no runtime saved. The command runs in
+    `-e box=docker/<dir>`: docker's default here, no runtime saved. The command runs in
     the container, and says so three ways only a container can: its hostname, `/.dockerenv`,
     and the image's Debian rather than this machine's Ubuntu.
     """
@@ -1719,7 +1719,7 @@ def test_docker_env(cell: Cell, daemon: None) -> None:
     ran = cell.exec(
         cell.flow("boxed", BOXED),
         CONTAINED,
-        envs=[f"box=docker@local{there}"],
+        envs=[f"box=docker{there}"],
         timeout=600,
     )
 
@@ -1818,7 +1818,7 @@ def test_harness_placement(cell: Cell, daemon: None) -> None:
     assert "is not installed on docker@native" in refused.err, refused
     assert "Traceback" not in refused.err, refused
 
-    ran = cell.exec(boxed, CONTAINED, envs=[f"box=docker@local{there}"], timeout=600)
+    ran = cell.exec(boxed, CONTAINED, envs=[f"box=docker{there}"], timeout=600)
 
     _contained(cell, ran)
     run = read(epics(cell.workspace)[-1])
@@ -1935,11 +1935,11 @@ def test_fence_docker(cell: Cell, daemon: None) -> None:
         'then reply with exactly one word, DONE: echo IN > inside.txt; echo OUT > "$HOME/'
         'outside.txt"'
     )
-    ran = cell.exec(flow, asked, envs=[f"box=docker@local{there}"], timeout=600)
+    ran = cell.exec(flow, asked, envs=[f"box=docker{there}"], timeout=600)
     if not (there / "inside.txt").exists():
         # Once more where the agent reached for no tool at all, as `docker_gpu` does: the
         # cheapest models sometimes answer DONE and do nothing else.
-        ran = cell.exec(flow, asked, envs=[f"box=docker@local{there}"], timeout=600)
+        ran = cell.exec(flow, asked, envs=[f"box=docker{there}"], timeout=600)
 
     seen = cast(
         "dict[str, Any]", json.loads((cell.workspace / "seen.json").read_text())
@@ -2029,11 +2029,11 @@ def test_docker_gpu(cell: Cell, daemon: None) -> None:
         "directory, then reply with exactly one word, DONE: nvidia-smi -L > gpus.txt"
     )
     with _a_gpu(len(gpus)):
-        ran = cell.exec(flow, asked, envs=[f"box=docker@local{there}"], timeout=600)
+        ran = cell.exec(flow, asked, envs=[f"box=docker{there}"], timeout=600)
         if not ran.said("tool"):
             # Once more where the agent reached for no tool at all, as `tool_use` does:
             # the cheapest models sometimes answer DONE and do nothing else.
-            ran = cell.exec(flow, asked, envs=[f"box=docker@local{there}"], timeout=600)
+            ran = cell.exec(flow, asked, envs=[f"box=docker{there}"], timeout=600)
 
     landed = there / "gpus.txt"
     assert landed.is_file(), f"the agent wrote no gpus.txt\n{ran}"

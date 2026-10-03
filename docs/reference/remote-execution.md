@@ -302,12 +302,12 @@ affinity := [<entry>, ...]
 | `ssh:<name>`, `docker:<name>` | supervised on that saved runtime's machine, reaching the environment's machine through the anchor | it cannot be opened or reached (`EnvError`), has no share left, its container limit among it (`ResourceUnmet`), or the role's `Permission` fences anything (`HarnessSandboxed`) |
 
 - Entries are tried in order; the next only when the one before has no room. Where none has,
-  the last refusal is raised, of the same type, as `<backend>@<provider>: nowhere its affinity
-  (<entries>) names has room for <cli>'s harness; the last: <refusal>`. A machine that cannot
-  be asked (`HarnessUnrecoverable`) is raised as it is, not passed by.
+  the last refusal is raised, of the same type, as `<backend>[@<provider>]: nowhere its
+  affinity (<entries>) names has room for <cli>'s harness; the last: <refusal>`. A machine
+  that cannot be asked (`HarnessUnrecoverable`) is raised as it is, not passed by.
 - Work in a `local` environment always has its harness here. Work on a machine that is no saved
-  runtime (`ssh@` a host nobody saved, `docker@local` with nothing saved as `local`), or on a
-  runtime with an empty affinity, is placed by the [default](#default-resolution).
+  runtime (`ssh@[<host>]`, a host nobody saved; `docker/…` or `swarm/…`, this machine's), or
+  on a runtime with an empty affinity, is placed by the [default](#default-resolution).
 - The affinity read is the one of the runtime the session's placement names
   (`store.find(placement.backend, placement.provider)`), the one actually opened. A runtime a
   harness is put on is opened as it is: its own affinity is never walked.
@@ -357,7 +357,7 @@ declared permission, once the environments are probed and before the flow is cal
 there is `Refused`, which `hmz exec` prints as `hmz exec: error: <message>` with exit 2, and the
 answers are kept for the sessions. A session opened later is still refused as it opens, raised
 from its `spawn`. The refusals each entry is passed by with (`<where>` is
-`<backend>@<provider>` of the environment, e.g. `ssh@gpu-box`):
+`<backend>[@<provider>]` of the environment, e.g. `ssh@gpu-box`):
 
 | Error | Message | When |
 | --- | --- | --- |

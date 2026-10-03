@@ -34,7 +34,7 @@ async def run(task, *, agents, envs, params, ctx):
 """
 
 #: What every line here runs its one agent as, and what it may spend.
-LINE = ["-a", "one=claude/model:high", "-b", "cost=1"]
+LINE = ["-a", "one=claude/model:high", "-p", "budget.cost=1"]
 
 
 def test_the_workspace_is_the_one_it_was_given(tmp_path: pathlib.Path) -> None:

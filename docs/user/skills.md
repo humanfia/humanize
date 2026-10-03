@@ -51,7 +51,7 @@ ls .claude/skills                                # ①
 hmz exec -f rlar \
     -a actor=claude/claude-haiku-4-5-20251001:low \
     -a reviewer=claude/claude-haiku-4-5-20251001:low \
-    -b cost=0.3 "fix add() in calc.py" &         # ②
+    -p budget.cost=0.3 "fix add() in calc.py" &         # ②
 
 find .claude                                     # ③, once the reviewer has started
 wait; ls .claude                                 # ④, once the run has ended

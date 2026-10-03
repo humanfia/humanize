@@ -183,7 +183,7 @@ $yours/review the calc module
 ```
 
 ```sh [hmz exec]
-hmz exec -f yours/review -a reviewer=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f yours/review -a reviewer=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "the calc module"
 ```
 

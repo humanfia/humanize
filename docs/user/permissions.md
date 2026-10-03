@@ -129,7 +129,7 @@ builder of [`humanize1:rlcr`](/flows/humanize1) and the worker of
 role, and `hmz exec` checks before anything runs:
 
 ```sh
-hmz exec -f humanize1:rlcr -b cost=1 -a reviewer=codex/gpt-5.5:high \
+hmz exec -f humanize1:rlcr -p budget.cost=1 -a reviewer=codex/gpt-5.5:high \
     -a builder=grok/grok-4:high "add undo"                        # ①
 echo $?
 ```

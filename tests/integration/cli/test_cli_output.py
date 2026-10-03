@@ -323,7 +323,7 @@ def test_the_exec_line_says_who_is_reading_the_run(
     monkeypatch.chdir(tmp_path)
     flow = str(written(tmp_path, "loud", LOUD))
 
-    assert main(["exec", "-f", flow, "-b", "cost=1", "--json", "go"]) == 0
+    assert main(["exec", "-f", flow, "-p", "budget.cost=1", "--json", "go"]) == 0
     said = capsys.readouterr()
 
     # A flow that drives no agents says nothing, so there is nothing to write down -- and
@@ -331,5 +331,5 @@ def test_the_exec_line_says_who_is_reading_the_run(
     assert said.out == ""
     assert "a flow said this" in said.err
 
-    assert main(["exec", "-f", flow, "-b", "cost=1", "go"]) == 0
+    assert main(["exec", "-f", flow, "-p", "budget.cost=1", "go"]) == 0
     assert "a flow said this" in capsys.readouterr().out
