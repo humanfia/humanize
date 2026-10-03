@@ -1,0 +1,6 @@
+rules:
+  self-repository:
+    # `$/` is what zizmor asks for, and actionlint 1.7.12 refuses every workflow that uses it.
+    # Each `./` here is read after the checkout of the commit being run, which is what `$/`
+    # would name anyway.
+    disable: true

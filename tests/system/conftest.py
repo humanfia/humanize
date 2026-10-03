@@ -2,9 +2,10 @@
 
 A system test needs the real thing: a coding-agent CLI installed on this machine and driven `as
 local`, real ptrace and seccomp, real docker, real ssh, a real daemon fork, a real `node`. CI
-never runs this tree -- not because these tests are unimportant but because a runner cannot be
-relied on to have any of that, and a gate that goes red for what the machine is missing is a
-gate people learn to ignore.
+runs this tree once, on Linux, before a change reaches `main`, with docker, a swarm and `ssh
+localhost` set up for it and no coding agent installed. What a machine has not got is a skip
+that says so rather than a failure, there and anywhere else: a gate that goes red for what the
+machine is missing is a gate people learn to ignore.
 
 `agent` is a second gate inside this tree rather than a tier of its own: a system test that
 spends real tokens is skipped until somebody asks for it with `--run-agents`, while one that

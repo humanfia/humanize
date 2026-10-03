@@ -1,15 +1,19 @@
 # What CI pins, kept fresh. Monthly and grouped: one pull request per ecosystem when
-# something moves, rather than a stream of them. The `pre-commit-hooks` rev in
-# .pre-commit-config.yaml is not covered by either ecosystem -- `pre-commit autoupdate`
-# is still the way to move that one.
+# something moves, rather than a stream of them. And a week behind: a release that turns out to
+# be broken, or somebody else's, is usually pulled within days, before it is proposed here.
 
 version: 2
 
 updates:
+  # The workflows, and the action of this repository's own that they share.
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /.github/actions/*
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -20,6 +24,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     groups:
       python:
         patterns: ["*"]
@@ -27,11 +33,26 @@ updates:
       prefix: chore
       include: scope
 
+  # The hooks pre-commit fetches for itself. ruff and pyright are `uv`'s, above.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      hooks:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore
+
   # The documentation site, which is the one part of this repository that is not Python.
   - package-ecosystem: npm
     directory: /docs
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     groups:
       docs:
         patterns: ["*"]

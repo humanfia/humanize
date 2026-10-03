@@ -2,14 +2,14 @@
 
 A test's tier is the directory it is in, rather than a decorator somebody remembered to write.
 A decorator is a thing to forget, and one forgotten is a test in the wrong half of a gate: a
-system test that CI runs on a machine with no docker and no coding agent installed, or a unit
-test that quietly started spawning processes and is still counted in the fast suite. So each of
-`tests/unit`, `tests/integration` and `tests/system` marks everything beneath it from its own
-`conftest.py` -- `applied` below -- and `tests/test_tiers.py` fails the run if a marker and a
-directory ever disagree.
+system test that CI runs on every push, on a runner with no docker, or a unit test that quietly
+started spawning processes and is still counted in the fast suite. So each of `tests/unit`,
+`tests/integration` and `tests/system` marks everything beneath it from its own `conftest.py` --
+`applied` below -- and `tests/test_tiers.py` fails the run if a marker and a directory ever
+disagree.
 
 The three trees, and the one question that sorts a test between them -- *does it need something
-CI cannot be relied on to have?*
+a machine cannot be relied on to have?*
 
   `tests/unit`
     Imports `hmz`, calls it, asserts. No subprocess, no socket, no network, nothing written
@@ -21,24 +21,27 @@ CI cannot be relied on to have?*
     safe anywhere -- a loopback socket is not a system test, because every machine has one.
   `tests/system`
     The real thing: a coding-agent CLI installed on this machine, real ptrace and seccomp, real
-    docker, real ssh, a real daemon fork, a real `node`. Never run by CI.
+    docker, real ssh, a real daemon fork, a real `node`. CI runs it last, on Linux, with docker
+    and ssh set up and no coding agent installed, so what needs one skips.
 
 Which is what makes the trees worth the move: a run can name one.
 
     uv run pytest -m unit                  # a tier, on a machine that has everything
-    uv run pytest --ignore=tests/system    # everything CI can be relied on to run
+    uv run pytest tests/unit               # the same tier, the other two never imported
+    uv run pytest --ignore=tests/system    # everything a machine with nothing installed can run
 
-Those two are not two spellings of one thing, and CI names the directory on purpose. `-m "not
-system"` selects the same tests, but selecting happens after collecting: a deselected test has
-been imported already, and importing a system test is where a module that probes the machine as
-it loads does the probing. A red job about a tier that job never meant to run is the failure
-the trees exist to prevent, so the run that has to be dependable ignores the directory, and `-m`
-is left for a developer choosing what to run.
+The last two are not spellings of a `-m`, and CI names a directory -- one tier to a job, each
+beside `tests/test_tiers.py` -- on purpose. `-m "not system"` selects the same tests as the
+last, but selecting happens after collecting: a deselected test has been imported already, and
+importing a system test is where a module that probes the machine as it loads does the probing.
+A red job about a tier that job never meant to run is the failure the trees exist to prevent, so
+a run that has to be dependable names the tree it runs, and `-m` is left for a developer
+choosing what to run. `docs/contributing/ci.md` has which tier runs where.
 
 `agent` is a second gate inside `tests/system` rather than a fourth tier: a system test that
-spends real tokens has to be asked for by name with `--run-agents`, and one that only needs a
-real `node` or a real docker does not. It is registered and applied in `tests/conftest.py`,
-where the option that gates it has to live.
+spends real tokens has to be asked for by name with `--run-agents`, which CI never does, and one
+that only needs a real `node` or a real docker does not. It is registered and applied in
+`tests/conftest.py`, where the option that gates it has to live.
 
 Moving a test into a tree does not move what it was written against, and the two travel
 differently. A *helper* is imported by path -- `tests.stubs`, `tests.agents.standins`,
@@ -150,7 +153,7 @@ TIERS: Final[Mapping[str, str]] = {
     ),
     "system": (
         "system: needs the real thing -- an installed coding agent, ptrace, docker, ssh."
-        " Never run by CI"
+        " CI runs it on Linux, with no coding agent"
     ),
 }
 

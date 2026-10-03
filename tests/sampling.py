@@ -6,12 +6,12 @@ wedges the whole interpreter: the call it is inside does not come back and does 
 thread run either, so not even pytest's own per-test ceiling can end it. A run reaches the wall
 having said nothing, which is the one outcome a ceiling exists to prevent.
 
-For whoever runs the suite on a Mac, which CI no longer does -- 3.12 and 3.14 were seen hanging
-here too, about one run in three, and the second system was taken out over it. So this is what
-is known rather than the whole of what is wrong, and it is a thing to fix rather than a platform
-that cannot have it: the same file runs in two seconds on Linux, and profiling is off unless a
-workspace asks for it. Written down here rather than as a bare `skipif` in two files so that
-there is one place saying what is known and one place to delete when it is fixed.
+For whoever runs the suite on a Mac, as CI does before a change reaches `main` -- 3.12 and 3.14
+were seen hanging here too, about one run in three. So this is what is known rather than the
+whole of what is wrong, and it is a thing to fix rather than a platform that cannot have it: the
+same file runs in two seconds on Linux, and profiling is off unless a workspace asks for it.
+Written down here rather than as a bare `skipif` in two files so that there is one place saying
+what is known and one place to delete when it is fixed.
 """
 
 from __future__ import annotations

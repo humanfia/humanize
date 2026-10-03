@@ -71,11 +71,11 @@ _ASKS = hmz.coganchor.models.ask
 #: Every test this run collected, written down for the guard at `tests/test_tiers.py`.
 #:
 #: A test cannot otherwise see the collection it is part of. `request.session.items` is what is
-#: left after `-m` has thrown the rest away, so under `-m "not system"` -- which is what CI
-#: runs -- a check reading that would be checking exactly the tests it was already running, and
-#: a system test filed in the wrong tree would be invisible to the run that most needs to catch
-#: it. This is filled from a conftest's hook, and a conftest's hook is called before pytest's
-#: own selection: what is written down is the whole tree, whatever the run asked for.
+#: left after `-m` has thrown the rest away, so under `-m "not system"` a check reading that
+#: would be checking exactly the tests it was already running, and a system test filed in the
+#: wrong tree would be invisible to the run that most needs to catch it. This is filled from a
+#: conftest's hook, and a conftest's hook is called before pytest's own selection: what is
+#: written down is the whole tree, whatever the run asked for.
 COLLECTED: Final[list[pytest.Item]] = []
 
 

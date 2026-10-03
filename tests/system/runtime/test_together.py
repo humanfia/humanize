@@ -1,4 +1,4 @@
-"""The layers composed on a machine that can supervise a turn, which is the half CI cannot run.
+"""The layers composed on a machine that can supervise a turn, which not every machine can.
 
 The other half is `tests/integration/runtime/test_together.py`: one flow, two agents, a fake
 `claude` on PATH, and the trace gathered back off what they opened. Everything below runs that
@@ -6,7 +6,7 @@ same fake CLI through a layer the plain one does not reach -- an anchor, which p
 another machine, and a provider, which answers the paths a turn reads with somebody else's.
 Both are a seccomp filter and a ptrace supervisor around a real process, and a container
 without `CAP_SYS_PTRACE` has every module here and can supervise nothing, so these are a tier
-of their own rather than a skip inside a file CI runs.
+of their own rather than a skip inside a file every machine runs.
 """
 
 from __future__ import annotations

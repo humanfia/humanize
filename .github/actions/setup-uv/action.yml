@@ -1,0 +1,33 @@
+name: Set up uv
+description: >-
+  uv, one Python, and this project's environment made from uv.lock. The checkout is the
+  caller's, because the jobs that use this disagree about what one needs.
+
+inputs:
+  python-version:
+    description: The Python the environment is made with.
+    default: "3.12"
+  sync:
+    description: >-
+      What `uv sync --frozen` is given, such as `--all-extras` or `--only-dev`; `none` makes no
+      environment, for a job that runs nothing of this project's.
+    default: --all-extras
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      with:
+        enable-cache: true
+        python-version: ${{ inputs.python-version }}
+        # Every variant of `sync` below restores the same cache, so it is keyed apart by what
+        # was synced: otherwise the first job to finish decides what every other job restores.
+        cache-suffix: ${{ inputs.sync }}
+
+    - name: uv sync --frozen ${{ inputs.sync }}
+      if: inputs.sync != 'none'
+      shell: bash
+      env:
+        SYNC: ${{ inputs.sync }}
+      # Unquoted on purpose: `sync` is a list of flags, split on spaces.
+      run: uv sync --frozen $SYNC

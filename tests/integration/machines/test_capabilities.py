@@ -9,7 +9,7 @@ of a pipe, written in this tree -- so a platform reported by those really did cr
 still nothing was pulled, reached for or installed to get it.
 
 The other half is `tests/system/machines/test_capabilities.py`: the same promise made good on
-by a real container, which wants a docker daemon and so is not something CI runs.
+by a real container, which wants a docker daemon and so waits for CI's last tier.
 """
 
 from __future__ import annotations

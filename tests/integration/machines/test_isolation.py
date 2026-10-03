@@ -9,11 +9,12 @@ the machine are driven together, and everything on the far side of them is a sta
 here rather than something that had to be installed.
 
 The other half is `tests/system/machines/test_isolation.py`, which drives the same wiring
-against real containers: that one needs a docker daemon and a pulled image, so CI does not run
-it. What stays here is everything that can be answered without one -- including the refusal of
-a workspace that is not there, which `Docker.start` makes before it has reached for `docker`
-at all, and which is the whole point of its making it there: docker would have created the
-directory for you, owned by root, inside a tree this user owns.
+against real containers: that one needs a docker daemon and a pulled image, so only CI's last
+tier and a machine with docker run it. What stays here is everything that can be answered
+without one -- including the refusal of a workspace that is not there, which `Docker.start`
+makes before it has reached for `docker` at all, and which is the whole point of its making it
+there: docker would have created the directory for you, owned by root, inside a tree this user
+owns.
 """
 
 from __future__ import annotations
