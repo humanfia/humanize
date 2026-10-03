@@ -138,11 +138,11 @@ The `named_account` row always runs under an account made the second way.
 ## What it costs
 
 A cell takes one to three turns of a few words each, on the cheapest model its CLI takes, under
-`-b cost=0.5,output_tokens=40000`. The whole matrix is 423 cells: 35 rows for each of twelve
-CLIs, and 3 rows run once. A run of all of it spent about 29,000 output tokens, a dollar of it
-priced, and took under half an hour, as it did inside a whole `uv run pytest --run-agents`:
-the slowest column sets the time. The run prints what it spent, priced from the list your
-machine last fetched; a model nobody lists a price for counts as $0.
+`-p budget.cost=0.5,budget.output_tokens=40000`. The whole matrix is 423 cells: 35 rows for
+each of twelve CLIs, and 3 rows run once. A run of all of it spent about 29,000 output tokens,
+a dollar of it priced, and took under half an hour, as it did inside a whole
+`uv run pytest --run-agents`: the slowest column sets the time. The run prints what it spent,
+priced from the list your machine last fetched; a model nobody lists a price for counts as $0.
 
 Under `--run-agents`, xdist runs one CLI's cells one after another on one worker, and the CLIs
 side by side. Two turns into one CLI's local store at once can lose a write, and a provider

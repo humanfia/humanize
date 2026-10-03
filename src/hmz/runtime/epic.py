@@ -280,7 +280,9 @@ class Ran(NamedTuple):
         what it was rather than what can be done with it today.
       ref: The flow's canonical ref, which is what a run is picked up by whatever it was
         named as; "" for a run written before there was one.
-      envs: What it was given for each environment role, each as `-e` spells one.
+      envs: What it was given for each environment role, each as `-e` spells one -- now,
+        for a run written down before an `@` was a provider's alone, which is what picking
+        it up hands `-e` again.
       used: Where each environment role was put, as `-e` spells it: what `envs` says, but
         for a role moved down the fallback list of the runtime its `-e` named, which is the
         runtime that held it.
@@ -625,6 +627,8 @@ class Epic:
         #: The programs this run starts, sampled while it runs, or None for a run nobody
         #: asked to profile -- which is every run until somebody says otherwise.
         self._profiler = self._profiling() if profile else None
+        from hmz.coganchor.machines.store import SPELLING
+
         self.write(
             "began",
             flow=flow,
@@ -642,6 +646,7 @@ class Epic:
             ),
             params=dict(params or {}),
             **({"budget": dict(budget)} if budget is not None else {}),
+            spelling=SPELLING,
         )
 
     def _begin(self, at: Path, journal: str, workspace: Path, flow: str) -> None:
@@ -1130,6 +1135,11 @@ def read(epic: Path) -> Ran | None:
     envs = began.get("envs")
     envs = cast("list[Any]", envs if isinstance(envs, list) else [])
     used = began.get("used")
+    # As it was written, where it says how; one written before an `@` was a provider's alone
+    # as `-e` spells it now, which is what picking it up hands `-e` again.
+    from hmz.coganchor.machines.store import SPELLING
+
+    spelled = str if began.get("spelling") == SPELLING else _respelled
     params = began.get("params")
     budget = began.get("budget")
     return Ran(
@@ -1145,15 +1155,23 @@ def read(epic: Path) -> Ran | None:
         called=tuple(_calls(events)),
         resumable=bool(began.get("resumable")),
         ref=str(began.get("ref") or ""),
-        envs=tuple(str(one) for one in envs),
+        envs=tuple(spelled(one) for one in envs),
         used=tuple(
-            str(one)
+            spelled(one)
             for one in cast("list[Any]", used if isinstance(used, list) else envs)
         ),
         params=cast("dict[str, Any]", params) if isinstance(params, dict) else {},
         budget=cast("dict[str, Any]", budget) if isinstance(budget, dict) else None,
         picked_up=str(began.get("picked_up") or ""),
     )
+
+
+def _respelled(one: object) -> str:
+    """One `<role>=<env>` a run wrote down, as `-e` spells it now."""
+    from hmz.coganchor.machines.store import respelled
+
+    role, written, spec = str(one).partition("=")
+    return f"{role}={respelled(spec)}" if written else role
 
 
 def _calls(events: Sequence[dict[str, Any]]) -> list[Called]:

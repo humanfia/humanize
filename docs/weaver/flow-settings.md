@@ -132,7 +132,7 @@ async def polish(
 ::: code-group
 
 ```sh [Claude Code]
-hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     -p passes=1,focus=tests,commit=true "add a subtract function to calc.py"
 ```
 
@@ -214,9 +214,9 @@ twenty questions every morning.
 Every refusal happens before any agent starts, and costs nothing. Try one of each:
 
 ```sh
-hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -b cost=1 -p passes=9 "x"
-hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -b cost=1 -p message=hi "x"
-hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -b cost=1 -p colour=red "x"
+hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 -p passes=9 "x"
+hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 -p message=hi "x"
+hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 -p colour=red "x"
 ```
 
 ```text
@@ -312,9 +312,10 @@ flag of the tool it ports. Open it to see a large one:
 
 ## Pitfalls
 
-- **The budget is not a param.** What a run may spend is the run's: `-b` on the command line,
-  the budget row at the prompt. A flow that wants to know reads `ctx.budget`; one that wants
-  part of its work held to less gives that turn a `Budget` of its own. See [Every run has a
+- **The budget is not a param.** What a run may spend is the run's: `-p budget.<limit>=` on
+  the command line, the budget row at the prompt. No flow may have a param called `budget`.
+  A flow that wants to know reads `ctx.budget`; one that wants part of its work held to less
+  gives that turn a `Budget` of its own. See [Every run has a
   budget](/features/allowances).
 - **Give every field a default** unless the flow truly cannot run without it. A field with no
   default must be given on every `-p` line, and every flow that calls yours must pass it.

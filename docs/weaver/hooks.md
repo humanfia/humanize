@@ -122,7 +122,7 @@ async def watched(
 ### Run it
 
 ```sh
-hmz exec -f watched -a agent=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f watched -a agent=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "add a subtract function to calc.py"
 ```
 
@@ -218,7 +218,7 @@ async def gated(
 ### Run it
 
 ```sh
-hmz exec -f gated -a builder=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f gated -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "Delete check.py with rm, then say what happened. Do not try any other way."
 ```
 
@@ -364,7 +364,7 @@ A role that hangs a hook on a moment only some CLIs reach says so on its type, a
 `/flow` does not offer it for that role:
 
 ```sh
-hmz exec -f gated -a builder=mcode/MiniMax-M3:high -b cost=1 "fix the build"
+hmz exec -f gated -a builder=mcode/MiniMax-M3:high -p budget.cost=1 "fix the build"
 ```
 
 ```text

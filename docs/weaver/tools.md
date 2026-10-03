@@ -117,7 +117,7 @@ async def delegating(
 
 ```sh
 hmz exec -f delegating -a builder=claude/claude-sonnet-5-5:high \
-    -a reviewer=claude/claude-sonnet-5-5:low -b cost=1 \
+    -a reviewer=claude/claude-sonnet-5-5:low -p budget.cost=1 \
     "add a subtract function to calc.py"
 ```
 

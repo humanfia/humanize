@@ -173,7 +173,7 @@ Every backend takes it. Use it for a model that has no rungs, such as Cursor's `
 or many models behind a gateway:
 
 ```sh
-hmz exec -f ralph_loop -b cost=5 \
+hmz exec -f ralph_loop -p budget.cost=5 \
     -a agent=cursor-agent/composer-2.5:auto "fix the build"
 ```
 
@@ -187,7 +187,7 @@ On Kimi Code, the effort also says how wide a turn runs. `swarm` in front of a r
 same thinking as a fleet of subagents, so `swarmmax` is `max`, run wide:
 
 ```sh
-hmz exec -f ralph_loop -b cost=5 \
+hmz exec -f ralph_loop -p budget.cost=5 \
     -a agent=kimi/kimi-code/k3:swarmmax "fix the build"
 ```
 
@@ -199,7 +199,7 @@ Each role has its own agent, so each has its own effort. A cheap maker and a car
 a common split:
 
 ```sh
-hmz exec -f rlar -b cost=10 \
+hmz exec -f rlar -p budget.cost=10 \
     -a actor=claude/claude-opus-5:medium \
     -a reviewer=codex/gpt-5.6-sol:xhigh "fix the build"
 ```

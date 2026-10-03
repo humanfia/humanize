@@ -112,7 +112,7 @@ def shared(
         whatever its nodes have room for.
       asked: What the role asks: CPUs, bytes of memory, GPUs.
       held: What each of the runtime's running services already holds.
-      where: The runtime, as a message names it: `swarm@<name>`.
+      where: The runtime, as a message names it: `swarm@<name>`, or `swarm` here.
       role: The role, as a message names it.
 
     Raises:
@@ -212,6 +212,9 @@ class SwarmMachine(SSHMachine):
         self.name = name
         self.workdir = workdir
         self.stored = stored
+        #: What a message calls it, as `-e` names it: by the runtime's name, or by no
+        #: name at all for the swarm this machine manages.
+        self.spelled = f"swarm@{provider}" if stored is not None else "swarm"
         self.role = role_name
         self.asked = (
             (role.cpu_count, role.memory, role.gpu_count)
@@ -242,7 +245,7 @@ class SwarmMachine(SSHMachine):
         from hmz.coganchor.machines import SwarmConfig, store
         from hmz.coganchor.machines.swarm import Unplaced, services, swarm_of
 
-        where = f"swarm@{self.provider}"
+        where = self.spelled
         endpoint = self.endpoint
         stored = self.stored
         with _held(self.provider, store.SWARM):
@@ -326,7 +329,7 @@ class SwarmMachine(SSHMachine):
         if self._swarm is not None:
             return
         if self.closed:
-            raise EnvError(f"the swarm@{self.provider} task was stopped")
+            raise EnvError(f"the {self.spelled} task was stopped")
         starting = self._starting
         if starting is None:
             starting = asyncio.ensure_future(asyncio.to_thread(self._brought_up))

@@ -1,7 +1,7 @@
 """The command line: a flow, what each of its roles is given, its params, and its budget.
 
-    hmz exec -f FLOW -a ROLE=CLI[@PROVIDER]/MODEL:EFFORT -e ROLE=BACKEND@PROVIDER/WORKDIR
-             -p KEY=VALUE -b duration=...,cost=...,output_tokens=... [--resume] [--json] TASK
+    hmz exec -f FLOW -a ROLE=CLI[@PROVIDER]/MODEL:EFFORT -e ROLE=BACKEND[@PROVIDER]/WORKDIR
+             -p KEY=VALUE -p budget.cost=...,budget.duration=... [--resume] [--json] TASK
 
 Most of what is checked here drives no agent. A flow is handed views of its drivers and decides
 for itself whether to open a session, so a flow that only writes down what it was handed
@@ -130,7 +130,7 @@ async def keeps(task, *, agents, envs, params, ctx):
 BUILDER = "builder=claude/claude-haiku-4-5:high"
 
 #: What a line gives a run to spend, unless it is a line about budgets.
-BUDGET = ["-b", "cost=1"]
+BUDGET = ["-p", "budget.cost=1"]
 
 
 def _flow(tmp_path: Path, source: str = RECORD, name: str = "record") -> str:
@@ -174,9 +174,9 @@ def test_it_drives_the_flow_with_what_the_line_names(
                 "-a",
                 BUILDER,
                 "-p",
-                "rounds=3",
-                "-b",
-                "duration=1h,cost=2.5",
+                "rounds=3,budget.duration=1h",
+                "-p",
+                "budget.cost=2.5",
                 "the task",
             ]
         )
@@ -245,7 +245,7 @@ def test_an_environment_role_is_given_where_it_is(tmp_path: Path, here: Path) ->
             "-a",
             BUILDER,
             "-e",
-            f"there=local@{elsewhere}",
+            f"there=local{elsewhere}",
             *BUDGET,
             "task",
         ]
@@ -291,10 +291,10 @@ def test_where_a_harness_runs_is_no_flag_of_the_line(
         (["-p", "nope=1"], "nope"),
         (["-p", "rounds=many"], "rounds"),
         (["-a", "human=claude/m:high"], "assigned automatically by the runtime"),
-        (["-e", "here=local@/tmp"], "is the workspace"),
+        (["-e", "here=local/tmp"], "is the workspace"),
         (["-a", "nobody=claude/m:high"], "has no agent role 'nobody'"),
-        (["-e", "nowhere=local@/tmp"], "has no environment role 'nowhere'"),
-        (["-e", "there=local@/no/such/directory"], "no directory"),
+        (["-e", "nowhere=local/tmp"], "has no environment role 'nowhere'"),
+        (["-e", "there=local/no/such/directory"], "no directory"),
     ],
 )
 def test_what_the_flow_does_not_take_is_a_usage_error(
@@ -348,7 +348,33 @@ def test_a_run_is_given_a_budget_or_is_not_started(
 ) -> None:
     error = _refused(capsys, "-f", _flow(tmp_path), "-a", BUILDER, "task")
 
-    assert "requires a budget" in error
+    assert "requires a budget: specify with -p budget.cost=" in error
+    assert epics() == []
+
+
+@pytest.mark.parametrize(
+    ("said", "complaint"),
+    [
+        (["-b", "cost=1"], "unrecognized arguments"),
+        (["-p", "budget.nope=1"], "-p budget.nope: not a limit"),
+        (["-p", "budget=1"], "a budget is given a limit at a time"),
+        (["-p", "budget.cost=free"], "-p budget.cost"),
+        (["-e", "there=local@/tmp"], "write there=local/tmp"),
+        (["-e", "there=ssh@somehost/x"], "write there=ssh@[somehost]/x"),
+        (["-e", "there=docker@[x]/w"], "only ssh takes a host nobody saved"),
+    ],
+)
+def test_a_budget_or_an_environment_spelled_as_it_is_not_is_a_usage_error(
+    tmp_path: Path,
+    here: Path,
+    capsys: pytest.CaptureFixture[str],
+    said: list[str],
+    complaint: str,
+) -> None:
+    """`-b` is gone into `-p budget.<limit>=`, and `@` is written before a provider alone."""
+    error = _refused(capsys, "-f", _flow(tmp_path), "-a", BUILDER, *said, "task")
+
+    assert complaint in error
     assert epics() == []
 
 

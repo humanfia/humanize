@@ -965,9 +965,9 @@ whole messages only answers `""` if cut during its first.
 
 ### Allowances {#what-a-whole-run-may-spend}
 
-A flow run's `-b` is held by the flow runtime, which hands each turn what remains. For agents
-driven directly, `Ledger(Allowance(hours=0, tokens=0, dollars=0), agents)` assigned to
-`agent.allowance` stops every agent of the set when any cap is reached.
+A flow run's budget (`-p budget.<limit>=`) is held by the flow runtime, which hands each turn
+what remains. For agents driven directly, `Ledger(Allowance(hours=0, tokens=0, dollars=0),
+agents)` assigned to `agent.allowance` stops every agent of the set when any cap is reached.
 
 | `Allowance` field | Unit | `0` |
 | --- | --- | --- |

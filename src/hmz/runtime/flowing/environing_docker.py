@@ -259,7 +259,7 @@ def shared(
       asked: What the role asks.
       has: What the runtime may hand out, all told.
       held: What each of its running containers already holds.
-      where: The provider, as a message names it: `docker@<name>`.
+      where: The provider, as a message names it: `docker@<name>`, or `docker` here.
       role: The role, as a message names it.
 
     Returns:
@@ -494,6 +494,9 @@ class DockerMachine(SSHMachine):
         self.name = name
         self.workdir = workdir
         self.stored = stored
+        #: What a message calls it, as `-e` names it: by the runtime's name, or by no
+        #: name at all for docker's default here.
+        self.spelled = f"docker@{provider}" if stored is not None else "docker"
         self.role = role_name
         self.asked = (
             Asked(role.cpu_count, role.memory, role.gpu_count, role.gpu_memory)
@@ -522,7 +525,7 @@ class DockerMachine(SSHMachine):
         """
         from hmz.coganchor.machines import DockerConfig, allocations
 
-        where = f"docker@{self.provider}"
+        where = self.spelled
         endpoint = self.endpoint
         stored = self.stored
         with _held(self.provider):
@@ -604,7 +607,7 @@ class DockerMachine(SSHMachine):
         if self._docker is not None:
             return
         if self.closed:
-            raise EnvError(f"the docker@{self.provider} container was stopped")
+            raise EnvError(f"the {self.spelled} container was stopped")
         starting = self._starting
         if starting is None:
             starting = asyncio.ensure_future(asyncio.to_thread(self._brought_up))

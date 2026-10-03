@@ -21,7 +21,7 @@ hmz exec -f parallel_flame_chase \
     -a lane_1_actor_a=claude/claude-opus-5:max,lane_1_actor_b=codex/gpt-5.6-sol:max \
     -a lane_2_actor_a=claude/claude-opus-5:max,lane_2_actor_b=codex/gpt-5.6-sol:max \
     -a lane_3_actor_a=claude/claude-opus-5:max,lane_3_actor_b=codex/gpt-5.6-sol:max \
-    -b duration=12h,cost=500 "$(cat TASK.md)"
+    -p budget.duration=12h,budget.cost=500 "$(cat TASK.md)"
 ```
 
 :::
@@ -63,7 +63,7 @@ none of them is run as a `/goal`.
 ## What ends it
 
 **The [budget](/features/allowances), or you.** The lanes are scheduled again for as long as
-the run goes, so give `-b` a duration. When it runs out, the turns under way finish and are
+the run goes, so give it `budget.duration`. When it runs out, the turns under way finish and are
 recorded, and the run stops.
 
 A lane whose two turns in a row fail is held until the objective is replanned; the others go

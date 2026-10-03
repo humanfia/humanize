@@ -121,7 +121,7 @@ async def fanout(
 ### Run it
 
 ```sh
-hmz exec -f fanout -a agent=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f fanout -a agent=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "Add a one-line module docstring to this file. Change nothing else."
 ```
 
@@ -148,7 +148,7 @@ On a repository with two Python files, both turns start at once and finish in th
 - **The lines of both turns interleave**, each labelled with the role. At the prompt, the agent
   shows a count of its working conversations: see [Many conversations at
   once](/user/conversations).
-- **Each turn has its own `✻ input …` line**, and both count against the one `-b`.
+- **Each turn has its own `✻ input …` line**, and both count against the one budget.
 
 ## Check it worked
 
@@ -292,7 +292,7 @@ Code, Codex, Kimi Code and pi serve. See [Steering](/user/steering).
   `HarnessError`, and re-raise the rest, as `fanout` does.
 - **Spawn inside the semaphore.** Spawning every session up front holds them all open while
   they wait their turn.
-- **One budget for everything.** Every turn going at once spends from the same `-b`, so a wide
+- **One budget for everything.** Every turn going at once spends from the same budget, so a wide
   fan-out reaches it quickly.
 
 ## Next steps

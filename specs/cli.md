@@ -10,11 +10,12 @@ decides.
 ```shell
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
-         [-p|--params <key>=<value>[,...]]... [-b|--budget <limit>[,<limit>...]]...
-         [--resume] [--json] <task>
+         [-p|--params <param>[,<param>...]]... [--resume] [--json] <task>
 <ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>]#<flow>[:<name>]
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
-<env>    := <role>=<backend>@<provider>[/<workdir>]
+<env>    := <role>=<backend>[@<provider>][/<workdir>]
+<provider> := <name> | [<destination>]   # [<destination>] for ssh alone: [user@]host[:port]
+<param>  := <key>=<value> | budget.<limit>
 <limit>  := duration=<duration> | cost=<usd> | output_tokens=<count> | graceful=<bool>
 hmz internal <command> [<args>...]
 hmz internal anchor [<options>] <agent> [<args>...]
@@ -94,21 +95,31 @@ def tools(argv: list[str]) -> int: ...
   carrying objects alone -- and MUST NOT carry what only a terminal needed.
 - MUST say nothing to a program that a line for a person would not: an account is its variable names
   and never their values, a flowverse its URL with any secret taken out.
-- `hmz exec` MUST take every `-a`, `-e`, `-p` and `-b` on the line as one list apiece, however it
-  was broken up, and two roles given one spelling MUST be two agents.
+- `hmz exec` MUST take every `-a`, `-e` and `-p` on the line as one list apiece, however it was
+  broken up, and two roles given one spelling MUST be two agents.
+- What a run may spend MUST be given as `-p budget.<limit>=`, one item per limit, and nowhere else:
+  `budget` MUST be a param no flow may declare, and `budget` with no limit or with one that is
+  not a `<limit>` MUST be a usage error.
 - Every `<agent>` and `<env>` MUST name the role it fills. A role the flow does not declare, one
   given twice, a required role left unfilled, a role the runtime fills -- an `Outworlder`, a
   `LocalEnv` -- named at all, a param the flow does not take or cannot read, a spec that cannot be
   read, an agent whose harness is not the one its role names or does not serve what its role asks,
-  and a line with no `-b` -- for every flow but `chat`, which runs under `Budget(cost=inf)` -- MUST
+  and a line with no `-p budget.<limit>=` -- for every flow but `chat`, which runs under
+  `Budget(cost=inf)`, saying `-p budget.cost=` -- MUST
   each be a usage error before any agent has started, as MUST a flow that is not there or will not
   load, and `--resume` of a flow that cannot be picked up or has no run to pick up.
-- An `ssh` `<provider>` MUST be the runtime written down under that name where there
-  is one, reached as it says, and otherwise the destination `ssh` is handed; a `docker` one MUST
-  be the docker runtime written down under that name, or `local` for docker's default here, and
-  a `swarm` one the swarm runtime written down under that name, or `local` for the swarm this
-  machine manages, and anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
-  with one, and the run MUST record the workdir it took.
+- An `@` MUST be written only before a `<provider>`, and a `<name>` MUST be the runtime written
+  down under that name for that backend, reached as it says; one nobody saved MUST be refused. No
+  provider MUST be this machine -- `local`, docker's default here, the swarm this machine manages
+  -- and `local` MUST take none at all; `ssh` MUST take one, and MUST alone take a destination
+  nobody saved, in brackets, which MUST be handed to `ssh` as it is whatever is saved under that
+  name; brackets on any other backend MUST be refused. `/<workdir>` MAY be left off only for a
+  runtime written down with one, and the run MUST record the workdir it took.
+- A line spelling `<env>` as it was spelled before an `@` was a provider's alone -- `local@/x`,
+  `docker@local/x`, `swarm@local/x`, an ssh destination nobody saved out of brackets -- MUST be
+  refused saying how it is spelled now; one kept that way in settings or in a run's record MUST be
+  read as it is spelled now, and settings MUST be written again that way. What is kept since MUST
+  say so, and MUST be read as it was written whatever has become of the runtimes it names.
 - Where every agent's harness runs MUST NOT be said on the line: it is the affinity of the
   runtime its work is on, as `runtime/flowing` says. A runtime's affinity with no room anywhere
   for an agent MUST refuse the run before any agent has started.

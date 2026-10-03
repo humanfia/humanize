@@ -28,8 +28,8 @@ Two things make a goal:
 - **`GoalCommandAgentMixin` on the role's type.** A role says what it needs of an agent by the
   mixins on its type, and only a CLI with a goal feature can fill one that carries this mixin.
 
-Every turn the goal takes counts against the run's [budget](/features/allowances), so `-b` is
-what bounds a goal that never settles.
+Every turn the goal takes counts against the run's [budget](/features/allowances), so the
+budget is what bounds a goal that never settles.
 
 ## Example: the task as a goal
 
@@ -88,12 +88,12 @@ Write the objective as something the agent can check for itself:
 ::: code-group
 
 ```sh [Claude Code]
-hmz exec -f aim -a worker=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f aim -a worker=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "calc.py has a subtract function, and python3 check.py still prints ok"
 ```
 
 ```sh [Codex]
-hmz exec -f aim -a worker=codex/gpt-5.6-sol:high -b cost=1 \
+hmz exec -f aim -a worker=codex/gpt-5.6-sol:high -p budget.cost=1 \
     "calc.py has a subtract function, and python3 check.py still prints ok"
 ```
 
@@ -181,7 +181,7 @@ async def test_a_cli_without_goals_is_refused() -> None:
 A CLI without one is refused before the first turn, not an hour into a loop:
 
 ```sh
-hmz exec -f aim -a worker=mcode/MiniMax-M3:high -b cost=1 "fix the build"
+hmz exec -f aim -a worker=mcode/MiniMax-M3:high -p budget.cost=1 "fix the build"
 ```
 
 ```text
@@ -265,7 +265,7 @@ Tick each box in this file as you finish it.
 ```
 
 ```sh
-hmz exec -f ticked -a worker=claude/claude-sonnet-5-5:high -b cost=1 \
+hmz exec -f ticked -a worker=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "Do the first box of TASK.md, tick it, and stop there."
 ```
 

@@ -23,7 +23,7 @@ from hmz.flows import EnvBackendKind, EnvUnavailable
 from hmz.runtime.flowing.environing import MachineEnvDriver
 from hmz.runtime.flowing.environing_ssh import SSHMachine
 from hmz.runtime.flowing.environments import open_env
-from hmz.runtime.flowing.specs import EnvSpecError, parse_envs
+from hmz.runtime.flowing.specs import EnvSpec, EnvSpecError, parse_envs
 from hmz.sdk import Hmz
 
 #: Names a directory could hold and a runtime may not have.
@@ -662,13 +662,28 @@ def test_an_e_naming_a_stored_runtime_reaches_it_as_it_says() -> None:
     assert placement.machine.anchor.target == provider.target()
 
 
-def test_an_e_naming_no_stored_runtime_is_the_host_ssh_is_handed() -> None:
-    (spec,) = parse_envs(["box=ssh@me@gpu-box:22/srv"])
+def test_an_e_naming_a_host_in_brackets_is_the_host_ssh_is_handed() -> None:
+    """Even where a runtime is saved under the same name: the brackets are the host's."""
+    store.add(SSHRuntime(name="gpu-box", host="10.0.0.2"))
+
+    (spec,) = parse_envs(["box=ssh@[gpu-box]/srv"])
     driver = open_env(spec)
 
     assert isinstance(driver, MachineEnvDriver)
     assert isinstance(driver._machine, SSHMachine)
+    assert driver._machine.target == "ssh://gpu-box"
+    (spec,) = parse_envs(["box=ssh@[me@gpu-box:22]/srv"])
+    driver = open_env(spec)
+    assert isinstance(driver, MachineEnvDriver)
+    assert isinstance(driver._machine, SSHMachine)
     assert driver._machine.target == "ssh://me@gpu-box:22"
+
+
+def test_an_ssh_runtime_nobody_saved_is_refused_where_it_is_opened() -> None:
+    """A spec made by hand rather than read, which `-e` would have refused already."""
+    spec = EnvSpec("box", EnvBackendKind.SSH, "ghost", PurePosixPath("/srv"))
+    with pytest.raises(EnvUnavailable, match=r"ssh@\[ghost\]"):
+        open_env(spec)
 
 
 def test_an_e_naming_a_stored_runtime_that_cannot_be_read_is_refused() -> None:
@@ -681,14 +696,16 @@ def test_an_e_naming_a_stored_runtime_that_cannot_be_read_is_refused() -> None:
         open_env(spec)
 
 
-def test_an_e_naming_a_swarm_nobody_saved_is_refused_unless_it_is_the_one_here() -> (
+def test_an_e_naming_a_swarm_nobody_saved_is_refused_and_naming_none_is_the_one_here() -> (
     None
 ):
-    (named,) = parse_envs(["box=swarm@ghost/srv"])
+    with pytest.raises(EnvSpecError, match="no swarm runtime is saved as 'ghost'"):
+        parse_envs(["box=swarm@ghost/srv"])
+    named = EnvSpec("box", EnvBackendKind.SWARM, "ghost", PurePosixPath("/srv"))
     with pytest.raises(EnvUnavailable, match="docker swarm 'ghost' not found"):
         open_env(named)
 
-    (here,) = parse_envs(["box=swarm@local/srv"])
+    (here,) = parse_envs(["box=swarm/srv"])
     driver = open_env(here)
     assert isinstance(driver, MachineEnvDriver)
     assert driver.backend is EnvBackendKind.SWARM
@@ -701,7 +718,7 @@ def test_an_e_naming_a_swarm_elsewhere_with_a_workdir_under_home_is_refused() ->
     (spec,) = parse_envs(["box=swarm@far/~/proj"])
     with pytest.raises(EnvUnavailable, match="remote docker swarm"):
         open_env(spec)
-    assert parse_envs(["box=swarm@local/~/proj"])[0].provider == "local"
+    assert parse_envs(["box=swarm/~/proj"])[0].provider == ""
 
 
 def test_an_e_with_no_workdir_takes_the_one_its_runtime_was_given() -> None:
@@ -714,8 +731,12 @@ def test_an_e_with_no_workdir_takes_the_one_its_runtime_was_given() -> None:
     )
     assert parse_envs(["a=ssh@home"])[0].workdir == PurePosixPath("~/proj")
     assert parse_envs(["a=ssh@home"])[0].backend is EnvBackendKind.SSH
-    for said in ("a=ssh@none", "a=ssh@ghost", "a=ssh"):
-        with pytest.raises(EnvSpecError, match="expected"):
+    for said, why in (
+        ("a=ssh@none", "left off only for a runtime saved with one"),
+        ("a=ssh@ghost", "no ssh host is saved as 'ghost'"),
+        ("a=ssh", "ssh needs a host"),
+    ):
+        with pytest.raises(EnvSpecError, match=why):
             parse_envs([said])
 
 
@@ -758,8 +779,23 @@ def test_what_an_e_falls_back_to_works_where_its_runtime_says_or_where_it_was_to
     ]
 
 
+def test_a_list_falling_back_to_docker_local_falls_back_to_docker_here() -> None:
+    """The one name a list has for docker's default here, unless a runtime is saved so."""
+    from hmz.runtime.flowing.specs import fallbacks
+
+    store.write(DockerRuntime(name="main", fallback=("docker:local", "swarm:local")))
+    (spec,) = parse_envs(["work=docker@main/srv/x"])
+
+    assert [str(one) for one in fallbacks(spec)] == [
+        "work=docker/srv/x",
+        "work=swarm/srv/x",
+    ]
+    store.write(DockerRuntime(name="local"))
+    assert str(fallbacks(spec)[0]) == "work=docker@local/srv/x"
+
+
 @pytest.mark.parametrize(
-    "said", ["work=local@/srv/x", "work=ssh@me@h/srv/x", "work=docker@local/srv/x"]
+    "said", ["work=local/srv/x", "work=ssh@[me@h]/srv/x", "work=docker/srv/x"]
 )
 def test_an_e_naming_no_saved_runtime_falls_back_to_nothing(said: str) -> None:
     from hmz.runtime.flowing.specs import fallbacks

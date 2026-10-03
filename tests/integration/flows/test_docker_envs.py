@@ -136,7 +136,7 @@ async def test_the_docker_driver_keeps_the_contract(
     (repo / "file.txt").write_text("x\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-q", "-m", "first")
-    (spec,) = parse_envs([f"repo=docker@local{repo}"])
+    (spec,) = parse_envs([f"repo=docker{repo}"])
     driver = open_env(spec)
 
     await probe(driver)
@@ -574,7 +574,7 @@ def test_a_run_ended_by_a_terminate_or_a_hangup_takes_its_container_down(
     run = subprocess.Popen(
         [
             *(sys.executable, "-Pm", "hmz", "exec", "-f", str(flow)),
-            *("-e", f"box=docker@local{work}", "-b", "cost=1", "go"),
+            *("-e", f"box=docker{work}", "-p", "budget.cost=1", "go"),
         ],
         cwd=tmp_path,
         stdout=subprocess.PIPE,
@@ -609,7 +609,7 @@ def test_a_hangup_somebody_chose_to_ignore_is_still_ignored(
     run = subprocess.Popen(
         [
             *("nohup", sys.executable, "-Pm", "hmz", "exec", "-f", str(flow)),
-            *("-e", f"box=docker@local{work}", "-b", "cost=1", "go"),
+            *("-e", f"box=docker{work}", "-p", "budget.cost=1", "go"),
         ],
         cwd=tmp_path,
         stdout=subprocess.PIPE,

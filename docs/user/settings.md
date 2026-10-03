@@ -382,7 +382,7 @@ In `hmz`:
 hmz exec -f flame_chase \
     -a first_chaser=claude/claude-opus-5-5:max \
     -a second_chaser=claude@deepseek/deepseek-chat:high \
-    -b cost=20 "fix the build"
+    -p budget.cost=20 "fix the build"
 ```
 
 `flame_chase` has two agents take turns on one task. Here both run the same Claude Code: the
@@ -475,7 +475,7 @@ An agent never quietly runs as you instead. An account that is not there fails e
 that agent, naming it, and a bare `@` is refused before anything runs:
 
 ```console
-$ hmz exec -f ralph_loop -b duration=1h \
+$ hmz exec -f ralph_loop -p budget.duration=1h \
     -a agent=claude@gone/claude-opus-5-5:max "…"
 round 1
 round 1 failed: agent: no claude provider called 'gone'
@@ -831,7 +831,7 @@ then choose it for a role at [`/flow`](#choosing-one-for-a-role), or name it aft
 `-e`:
 
 ```sh
-hmz exec -f onbox -e box=ssh@gpu -b duration=1h "run the benchmarks"
+hmz exec -f onbox -e box=ssh@gpu -p budget.duration=1h "run the benchmarks"
 ```
 
 `ssh@gpu` with no directory works where `gpu` was saved to work. Reach for one when a machine
@@ -1007,7 +1007,9 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
 - `host` (`daemon` for a docker backend, once `-e` takes one) opens the runtimes of that
   backend saved here, with `add an
   ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `unsaved
-  host`: any host `ssh` reaches, as you would type it, saved nowhere.
+  host`: any host `ssh` reaches, as you would type it, saved nowhere, and spelled in brackets
+  (`ssh@[me@box:2222]/…`). For docker or a swarm, left empty it is this machine's
+  (`docker/…`).
 - `workdir` starts from where the runtime was saved to work. Left as it is, the spelling
   leaves it out (`ssh@gpu`), so the role goes on following the runtime when its workdir is
   corrected; type over it for another directory there (`ssh@gpu/~/other`).
@@ -1084,6 +1086,10 @@ role's model to it.
 When the flow changes, what was saved is checked against it again. A setting the flow has
 since dropped or renamed is asked for again, rather than carried over.
 
+Where each environment role works is kept as `-e` spells it. One kept as `local@/srv/x`,
+`docker@local/srv/x` or an ssh host nobody saved out of brackets is read, and kept from then
+on, as `local/srv/x`, `docker/srv/x` or `ssh@[host]/…`.
+
 ### Changing it
 
 Change it where you set it: in [`/flow`](/reference/tui). Choose the flow, set each agent and
@@ -1107,7 +1113,7 @@ directory is profiled too. What is recorded, and how to read it, is
 
 ### `hmz exec` starts from none of this
 
-What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p` and `-b`. An
+What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e` and `-p`. An
 unattended run inherits nothing from how this directory was last set up. It reads only two
 things from here:
 

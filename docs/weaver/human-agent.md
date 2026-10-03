@@ -98,7 +98,7 @@ you as `human`: every line you type goes to the assistant, and an empty line end
 From a command line, nobody is at a prompt, so the person is away. Name the assistant only:
 
 ```sh
-hmz exec -f talk -a assistant=claude/claude-sonnet-5-5:low -b cost=1 \
+hmz exec -f talk -a assistant=claude/claude-sonnet-5-5:low -p budget.cost=1 \
     "Read calc.py and tell me in one sentence what it is."
 ```
 
@@ -117,7 +117,7 @@ it was given. Naming the person is refused before anything runs:
 
 ```sh
 hmz exec -f talk -a assistant=claude/claude-sonnet-5-5:low,human=claude/claude-sonnet-5-5:low \
-    -b cost=1 "hello"
+    -p budget.cost=1 "hello"
 ```
 
 ```text
@@ -222,7 +222,7 @@ Each question takes the road [a coding agent's own question](/user/questions) ta
 Run from a command line, the person is away and the defaults decide. A real run:
 
 ```sh
-hmz exec -f settle -a builder=claude/claude-sonnet-5-5:low -b cost=1 \
+hmz exec -f settle -a builder=claude/claude-sonnet-5-5:low -p budget.cost=1 \
     "add a subtract function to calc.py"
 ```
 
@@ -316,7 +316,7 @@ async def scripted(
 6. **`talk` is handed the stand-in** as its `human`, and cannot tell it from a person.
 
 ```sh
-hmz exec -f scripted -a assistant=claude/claude-sonnet-5-5:low -b cost=1 \
+hmz exec -f scripted -a assistant=claude/claude-sonnet-5-5:low -p budget.cost=1 \
     "Read calc.py and tell me in one sentence what it is."
 ```
 

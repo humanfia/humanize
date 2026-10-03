@@ -1778,7 +1778,7 @@ _WRITTEN_IN = (("d", 86_400_000_000), ("h", 3_600_000_000), ("m", 60_000_000))
 
 
 def _units(duration: datetime.timedelta) -> str:
-    """A duration, written the way `-b duration=` reads one.
+    """A duration, written the way `-p budget.duration=` reads one.
 
     Counted in whole microseconds, which is all a duration holds, so that what is written is
     exactly what is read back however long it is: `12d`, `1h30m`, `1.5s`, `0s`.
@@ -9112,7 +9112,8 @@ class Hosts(Picks):
     The runtimes saved on the runtimes page of `/settings`, each with what reaches it.
     Adding one is the row above them, on the form that page opens, and it comes back chosen.
     For a role on ssh a host nobody saved is a row as well: `-e` takes any host `ssh`
-    reaches, and saving one under a name is a convenience rather than a condition.
+    reaches, in brackets, and saving one under a name is a convenience rather than a
+    condition. It comes back in its brackets, which is how `-e` tells it from a name saved.
     """
 
     ATOP: ClassVar = True
@@ -9205,7 +9206,7 @@ class Hosts(Picks):
 
     @work
     async def _types(self) -> None:
-        """Asks which host, and answers with it as it was typed."""
+        """Asks which host, and answers with it as it was typed, in brackets."""
         if self.opening():
             return
         showing = cast(
@@ -9213,14 +9214,13 @@ class Hosts(Picks):
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
         saved = any(one[0] == self._current for one in self._rows or [])
+        host = self._current.removeprefix("[").removesuffix("]")
         try:
-            said = await showing.push_screen_wait(
-                Unsaved("" if saved else self._current)
-            )
+            said = await showing.push_screen_wait(Unsaved("" if saved else host))
         finally:
             self.opened()
         if said:
-            self.dismiss(said)
+            self.dismiss(f"[{said}]")
 
 
 class Unsaved(Form[str]):
@@ -9265,9 +9265,10 @@ class Unsaved(Form[str]):
         said = self._typed_in.get(_HOST, "").strip()
         if not said:
             self._wrong = "host is required"
-        elif re.search(r"[\s/]", said):
+        elif re.search(r"[\s/\[\]]", said):
             self._wrong = (
-                f"{said!r} is not a valid host: cannot contain spaces or slashes"
+                f"{said!r} is not a valid host: cannot contain spaces, slashes or "
+                "brackets"
             )
         if self._wrong:
             self._fill()
@@ -9292,9 +9293,26 @@ def _spelled(role: str, spec: str) -> tuple[str, str, str] | None:
     except (SpecError, ValueError):
         return None
     # A directory the spec leaves out is its runtime's, followed rather than copied: `-e`
-    # fills it in from the runtime, and a spec read back must not have it written in.
-    kept = "/" in spec.partition("@")[2]
+    # fills it in from the runtime, and a spec read back must not have it written in. It is
+    # what follows the backend and the provider, neither of which holds a slash.
+    kept = "/" in (spec.partition("@")[2] if "@" in spec else spec)
     return one.backend.value, one.provider, str(one.workdir) if kept else ""
+
+
+def _saved_as(backend: str, name: str) -> bool:
+    """Whether a runtime of a backend is written down under a name, whether or not it reads.
+
+    Args:
+      backend: The backend.
+      name: The name, which may be no name a runtime could have.
+
+    Returns:
+      Whether something is kept there.
+    """
+    try:
+        return _hmz().runtimes.where(backend, name).exists()
+    except ValueError:
+        return False  # a name no runtime may have, which a host like `me@box` is
 
 
 #: The rows of the form an environment role is placed on, besides its workdir.
@@ -9380,23 +9398,34 @@ class Placing(Form[str]):
         """The rows, as `-e` spells them after `<role>=`, or "" where they say too little.
 
         Where the directory is still the one the runtime is saved with, it is left out, so
-        that the role goes on working wherever that runtime is saved to.
+        that the role goes on working wherever that runtime is saved to. No machine is this
+        one, for docker and the swarm as for `local`; and an ssh host nobody saved goes in
+        the brackets `-e` takes one in, however it came to be in the row.
         """
+        from hmz.runtime.flowing.specs import where
+
         backend, provider, workdir = (
             self._typed_in.get(one, "").strip()
             for one in (_BACKEND, _PROVIDER, _WORKDIR)
         )
+        found = None if backend == self._local else self._machine()
         if backend == self._local:
-            return f"{backend}@{workdir}" if workdir else ""
-        if not provider:
+            provider = ""
+        elif backend == _SSH and not provider:
             return ""
-        head = f"{backend}@{provider}"
-        found = self._machine()
+        elif (
+            backend == _SSH
+            and not provider.startswith("[")
+            and not _saved_as(backend, provider)
+        ):
+            # Saved means written down, read or not, as `-e` asks it: one that cannot be read
+            # is said to be so when it is opened, never dialled as a host of that name.
+            provider = f"[{provider}]"
         if _WORKDIR in self._fresh and found is not None and workdir == found.workdir:
             workdir = ""
         if not workdir:
-            return head
-        return head + (workdir if workdir.startswith("/") else f"/{workdir}")
+            return where(backend, provider) if provider else ""
+        return where(backend, provider, workdir)
 
     def _spells(self) -> None:
         """Spells the last row out of the rows above it, to be typed over."""
@@ -9429,9 +9458,11 @@ class Placing(Form[str]):
                     if provider and backend == _SSH
                     else "not saved in settings"
                     if provider
-                    else "choose a saved host, or add one",
+                    else "choose a saved host, or add one"
+                    if backend == _SSH
+                    else f"none: {backend} on this machine, or choose a saved one",
                     _OPENS_ONTO if backend in _KINDS else _WRITES,
-                    needed=not provider,
+                    needed=not provider and backend == _SSH,
                 )
             )
         rows.append(
@@ -9588,7 +9619,17 @@ class Placing(Form[str]):
         """Answers with where the role is, read as `-e` reads it, or with nowhere at all."""
         typed = self._typed_in
         spec = typed.get(_SPELLED, "").strip()
-        if not spec and any(
+        workdir = typed.get(_WORKDIR, "").strip()
+        if (
+            typed.get(_BACKEND) == self._local
+            and _SPELLED in self._fresh
+            and workdir
+            and not workdir.startswith(("/", "~"))
+        ):
+            # `-e` reads what follows `local` from its slash, so a relative one would be
+            # spelled as one under the root rather than refused.
+            self._wrong = f"{workdir!r} is not an absolute path on this machine"
+        elif not spec and any(
             typed.get(one, "").strip() for one in (_PROVIDER, _WORKDIR)
         ):
             missing = next((one for one in self.asked() if one.needed), None)

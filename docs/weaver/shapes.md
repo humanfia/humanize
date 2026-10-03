@@ -119,7 +119,7 @@ Put a different CLI in each role, so the reviewer does not share the builder's b
 
 ```sh
 hmz exec -f reviewed -a actor=claude/claude-sonnet-5-5:high \
-    -a reviewer=codex/gpt-5.6-sol:high -b cost=1 \
+    -a reviewer=codex/gpt-5.6-sol:high -p budget.cost=1 \
     "Add subtract(a, b) to calc.py, with a check for it in check.py."
 ```
 

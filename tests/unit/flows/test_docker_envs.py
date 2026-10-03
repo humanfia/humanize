@@ -1,11 +1,12 @@
 """A docker environment as it is declared, named, shared out and placed -- nothing started.
 
 What a role declares of a container -- its image, beside the resources every environment may
-declare -- is read once per type; `-e role=docker@<provider>/<workdir>` names a runtime written
-down or docker's default here; what a runtime may hand out is worked out against what its
-running containers already hold, arithmetic alone; and an agent working in one is anchored to
-the container rather than put on this machine. Starting a container, and what docker says of it,
-is the integration tier's against a stand-in and the system tier's against a daemon.
+declare -- is read once per type; `-e role=docker[@<provider>]/<workdir>` names a runtime
+written down or, naming none, docker's default here; what a runtime may hand out is worked out
+against what its running containers already hold, arithmetic alone; and an agent working in
+one is anchored to the container rather than put on this machine. Starting a container, and
+what docker says of it, is the integration tier's against a stand-in and the system tier's
+against a daemon.
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ from hmz.runtime.flowing.environing_docker import (
     shared,
 )
 from hmz.runtime.flowing.environments import open_env
-from hmz.runtime.flowing.specs import parse_envs
+from hmz.runtime.flowing.specs import EnvSpec, EnvSpecError, parse_envs
 
 
 class Trainer(
@@ -459,15 +460,17 @@ def test_a_docker_environment_names_a_runtime_written_down(tmp_path: Path) -> No
     store.add(store.DockerRuntime(name="gpubox", workdir=str(tmp_path)))
 
     (named,) = parse_envs(["box=docker@gpubox"])
-    (spelled,) = parse_envs([f"box=docker@local{tmp_path}"])
+    (spelled,) = parse_envs([f"box=docker{tmp_path}"])
 
     assert named.backend is EnvBackendKind.DOCKER
     assert (named.provider, named.workdir) == ("gpubox", PurePosixPath(tmp_path))
-    assert (spelled.provider, spelled.workdir) == ("local", PurePosixPath(tmp_path))
+    assert (spelled.provider, spelled.workdir) == ("", PurePosixPath(tmp_path))
 
 
 def test_a_docker_runtime_nobody_wrote_down_is_refused() -> None:
-    (spec,) = parse_envs(["box=docker@nowhere/srv/x"])
+    with pytest.raises(EnvSpecError, match="no docker runtime is saved as 'nowhere'"):
+        parse_envs(["box=docker@nowhere/srv/x"])
+    spec = EnvSpec("box", EnvBackendKind.DOCKER, "nowhere", PurePosixPath("/srv/x"))
 
     with pytest.raises(EnvUnavailable, match="docker host 'nowhere' not found"):
         open_env(spec)
@@ -486,7 +489,7 @@ def test_a_docker_runtime_that_cannot_be_read_says_so() -> None:
 def test_a_workdir_under_home_is_only_this_machines() -> None:
     store.add(store.DockerRuntime(name="far", endpoint="tcp://10.0.0.5:2375"))
     (far,) = parse_envs(["box=docker@far/~/x"])
-    (near,) = parse_envs(["box=docker@local/~/x"])
+    (near,) = parse_envs(["box=docker/~/x"])
 
     with pytest.raises(
         EnvUnavailable, match="remote docker host, so it must be an absolute path"
@@ -513,7 +516,7 @@ def test_a_container_is_started_as_its_role_says_and_named_for_it() -> None:
 
     driver = open_env(spec, trainer)
     bare = open_env(parse_envs(["plain=docker@gpubox/srv/x"])[0], plain)
-    default = open_env(parse_envs(["plain=docker@local/srv/x"])[0], plain)
+    default = open_env(parse_envs(["plain=docker/srv/x"])[0], plain)
 
     machine = _machine(driver)
     assert machine.image == "nvcr.io/nvidia/pytorch:25.01-py3"
@@ -530,7 +533,7 @@ def test_a_container_is_started_as_its_role_says_and_named_for_it() -> None:
 
 
 def test_an_agent_in_a_container_is_anchored_to_it_in_a_mirror_of_its_own() -> None:
-    (spec,) = parse_envs(["box=docker@local/srv/x"])
+    (spec,) = parse_envs(["box=docker/srv/x"])
     driver = open_env(spec)
 
     placement = driver.placement()

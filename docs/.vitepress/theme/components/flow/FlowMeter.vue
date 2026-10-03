@@ -14,6 +14,6 @@ withDefaults(defineProps<{ w: number; fill: number; bare?: boolean; words?: numb
     </g>
     <rect class="trough" x="0" y="-3.5" :width="w" height="7" rx="3.5" />
     <rect class="poured" x="0" y="-3.5" :width="Math.max(7, w * fill)" height="7" rx="3.5" />
-    <text v-if="!bare && words > 0" class="read mono" :x="w" y="20" :opacity="words < 1 ? words : undefined">{{ Math.round(fill * 100) }}% of -b spent</text>
+    <text v-if="!bare && words > 0" class="read mono" :x="w" y="20" :opacity="words < 1 ? words : undefined">{{ Math.round(fill * 100) }}% of budget spent</text>
   </g>
 </template>
