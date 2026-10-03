@@ -240,6 +240,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'Beat a benchmark', link: '/user/tutorials/take-home' },
+            { text: 'Kernel benchmarks on KCoral', link: '/user/kernel-benchmarks' },
             { text: 'Port a project', link: '/user/tutorials/port-a-project' },
             { text: 'Build a coding agent', link: '/user/tutorials/build-an-agent' },
           ],

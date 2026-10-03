@@ -34,6 +34,7 @@ step:
 | Tutorial | You learn | Takes |
 | --- | --- | --- |
 | [Beat a benchmark](/user/tutorials/take-home) | two agents taking turns, a task file, checking a result against cheating | an hour of you, hours of the machine |
+| [Kernel benchmarks on KCoral](/user/kernel-benchmarks) | select a local or remote GPU evaluator for an existing flow | a configured GPU service |
 | [Port a project](/user/tutorials/port-a-project) | an actor and a reviewer, a run that ends itself | about an hour |
 | [Build a coding agent](/user/tutorials/build-an-agent) | three flows in a row: idea, plan, build | an afternoon |
 
