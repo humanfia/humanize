@@ -162,7 +162,7 @@ order, then `env` for every backend but `dsh`.
 | | `zen` | — | `OPENCODE_API_KEY` • | |
 | `pi` | `login` | `pi` (interactive: `/login`, then `/exit`) | — | |
 | `qwen` | `login` | `qwen` (interactive: `/auth`, then `/quit`) | — | |
-| | `key` | — | `OPENAI_API_KEY` •, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) | |
+| | `key` | — | `OPENAI_API_KEY` •, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) | appends `--auth-type openai` |
 | every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
 
 - A model on an `mcode` `gateway` account is named `custom_provider:gateway/<id>`.
@@ -341,7 +341,7 @@ MiniMax Code needs its sessions kept to run fenced: see
 | Effect | Rule |
 | --- | --- |
 | Added | `provider.env`, on top of the inherited environment (`agent.environment()`). |
-| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `gateway` way has any. |
+| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `gateway` way and `qwen`'s `key` way (`--auth-type openai`) have any. |
 | Removed | `agent.hushed()`: every variable the backend would read an account from ([below](#variables-taken-away)), except those `provider.env` sets. |
 | Redirected | `provider.swaps()`, as [above](#how-a-credential-path-is-answered). |
 

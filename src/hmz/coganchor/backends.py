@@ -1928,6 +1928,9 @@ PROFILES = (
                         fixed="https://dashscope.aliyuncs.com/compatible-mode/v1",
                     ),
                 ),
+                # Said rather than left to be inferred: qwen-code 0.24 given only the two
+                # variables answers "No auth type is selected" and takes no turn at all.
+                args=("--auth-type", "openai"),
             ),
         ),
     ),

@@ -368,3 +368,19 @@ def test_what_a_backend_said_it_runs_goes_stale_a_week_after_it_was_asked(
         )
 
     assert Hmz().accounts.stale("grok") is stale
+
+
+def test_a_qwen_key_account_says_which_way_it_signs_in() -> None:
+    """qwen-code given only a key and a URL answers `No auth type is selected`."""
+    held = Hmz().accounts
+    key = held.way("qwen", "key")
+    assert key is not None
+
+    made = held.make(
+        "qwen",
+        "gw",
+        key,
+        {"OPENAI_API_KEY": "k", "OPENAI_BASE_URL": "https://gw.invalid"},
+    )
+
+    assert made.args == ("--auth-type", "openai")
