@@ -27,6 +27,7 @@ from hmz.coganchor.agents import (
     ClaudeCodeAgentConfig,
     ClaudeCodeSession,
     Event,
+    Failed,
     Question,
     Stopped,
 )
@@ -424,3 +425,40 @@ def test_being_stopped_at_the_prompt_is_being_stopped() -> None:
     agent.prompting = stops
     with pytest.raises(Stopped):
         agent.prompted()
+
+
+def test_a_failed_turn_names_the_cli_rather_than_the_line_that_wrapped_it() -> None:
+    """A turn is its CLI inside a fence and an account's supervisor, and that line is kilobytes.
+
+    Said whole, a codex rate limit was thirty-five lines of fence policy in the transcript
+    before the one sentence that said what happened.
+    """
+    wrapped = [
+        "/venv/bin/python",
+        "-Pm",
+        "hmz",
+        "internal",
+        "fence",
+        '--policy={"read": ["/usr", "/home/someone"]}',
+        "--",
+        "/venv/bin/python",
+        "-Pm",
+        "hmz",
+        "internal",
+        "cred",
+        "--map=/home/someone/.codex/auth.json=/elsewhere/auth.json",
+        "--",
+        "/usr/local/bin/codex",
+        "app-server",
+        "--stdio",
+    ]
+
+    said = str(Failed(1, wrapped, "", "429 Too Many Requests"))
+
+    assert said.startswith(
+        "Command 'codex app-server' returned non-zero exit status 1. 429 Too Many Requests"
+    )
+    assert "--policy" not in said
+    assert "/home/someone" not in said
+    # And a prompt the CLI was handed as an option is not a subcommand to name.
+    assert "fix it" not in str(Failed(1, ["grok", "--single=fix it"]))

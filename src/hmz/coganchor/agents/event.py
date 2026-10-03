@@ -8,9 +8,11 @@ into `Event`s, and that is all it has to import to do it.
 from __future__ import annotations
 
 import contextlib
+import re
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import PurePath
 from typing import IO, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -184,7 +186,11 @@ class Failed(subprocess.CalledProcessError):
         looking at this wants what the CLI actually said first, and what to do about it after.
         """
         said = [
-            super().__str__(),
+            # Named by the CLI rather than by the whole line that ran it: a turn is the CLI
+            # inside its fence and its account's supervisor, and that line -- a policy of
+            # every path and host, every path answered -- is kilobytes nobody can read past to
+            # what the CLI said. Said as Python says one, which is what reporting reads.
+            str(subprocess.CalledProcessError(self.returncode, _program(self.cmd))),
             _words(self.stderr),
             _plainly(self.output),
             self.reads(),
@@ -227,6 +233,29 @@ class Unrecoverable(Failed):
 #: How much of what a failed turn said is worth putting in the message. Enough for the
 #: sentence a CLI fails with, and not the transcript it failed part way through.
 _ENOUGH = 400
+
+
+def _program(cmd: str | Sequence[str]) -> str:
+    """The CLI a turn ran, and what it was told to be, out of the whole line that ran it.
+
+    Args:
+      cmd: The line, wrapped or not.
+
+    Returns:
+      The CLI's own name and its subcommand where the first word after it is one: what follows
+      the last `--` of the wrappers, which is where the CLI's own line starts.
+    """
+    if isinstance(cmd, str):
+        return cmd
+    argv = [str(one) for one in cmd]
+    if "--" in argv:
+        argv = argv[len(argv) - argv[::-1].index("--") :]
+    if not argv:
+        return ""
+    named = [PurePath(argv[0]).name]
+    if len(argv) > 1 and re.fullmatch(r"[a-z][a-z0-9-]*", argv[1]):
+        named.append(argv[1])
+    return " ".join(named)
 
 
 def _words(said: str | bytes | None) -> str:
