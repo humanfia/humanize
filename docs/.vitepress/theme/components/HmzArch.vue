@@ -8,8 +8,8 @@
 //   (`hmz/flows/builtin/`); the rest are the official flowverse (humanfia/flowverse), which
 //   the terminal interface fetches in the background each time it starts; and a project's
 //   `.humanize/flows` and `~/.humanize/flows` are offered as `local` and `user`.
-// - The backends are `PROFILES` in `hmz/coganchor/backends.py`, in the order `hmz exec --help`
-//   lists them. `dsh` is the one driven through a Python SDK rather than a CLI, signed in with
+// - The backends are `PROFILES` in `hmz/coganchor/backends.py`, in alphabetical order.
+//   `dsh` is the one driven through a Python SDK rather than a CLI, signed in with
 //   a DeepSeek API key rather than a login; it and `kimi` are the two with an extra of their
 //   own in `pyproject.toml`, and `[kimi]` adds a client, not the CLI. A CLI that speaks the
 //   Agent Client Protocol is added on the accounts page of `/settings`.

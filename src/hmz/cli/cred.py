@@ -49,8 +49,8 @@ def cred(argv: list[str]) -> int:
         action="append",
         default=[],
         dest="keeps",
-        help="map FROM to TO as --map does, but never by copying, for a session the "
-        "CLI appends to while reading it back; repeatable",
+        help="as --map, but never by copying, for sessions the CLI writes while reading "
+        "them back; FROM may hold a glob; repeatable",
     )
     parser.add_argument(
         "command",

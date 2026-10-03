@@ -35,8 +35,7 @@ def parser() -> ArgumentParser:
         # Wrapped by hand: the raw formatter below keeps the epilog's own line breaks,
         # and pays for that by not re-wrapping the description either.
         description="Run a coding agent on this machine that acts on another one.\n"
-        "humanize renders this line for every turn whose work lands\n"
-        "elsewhere; it is not one to type by hand.",
+        "humanize renders this line for remote turns; do not type it by hand.",
         epilog="What humanize renders looks like this:\n"
         "  hmz internal anchor --target ssh://build-box claude --model opus",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -52,16 +51,15 @@ def parser() -> ArgumentParser:
         "--harness",
         default=os.environ.get("HUMANIZE_HARNESS", "local"),
         metavar="WHERE",
-        help="where the agent process and its supervisor run: local, same (wherever "
-        "--target is), or a target spelling of their own (default: $HUMANIZE_HARNESS)",
+        help="where the agent and its supervisor run: local, same (as --target), or a "
+        "target URL of their own (default: $HUMANIZE_HARNESS)",
     )
     built.add_argument(
         "--broker",
         default=os.environ.get("HUMANIZE_RENDEZVOUS", ""),
         metavar="HOST",
-        help="the address the two halves dial to be introduced, where the harness and "
-        "the work are on different machines (default: whichever of this machine's "
-        "addresses faces outward)",
+        help="where the two halves meet when harness and target differ (default: "
+        "$HUMANIZE_RENDEZVOUS, else this machine's outward-facing address)",
     )
     built.add_argument(
         "--workspace",
@@ -79,8 +77,8 @@ def parser() -> ArgumentParser:
         "--shadow",
         metavar="PATH",
         default=os.environ.get("HUMANIZE_SHADOW"),
-        help="mirror directory on the machine the harness runs on (default: "
-        "$HUMANIZE_SHADOW, else --workspace, so paths match exactly)",
+        help="mirror directory on the harness's machine (default: $HUMANIZE_SHADOW, "
+        "else --workspace, so paths match)",
     )
     built.add_argument(
         "--local-path",
@@ -101,29 +99,29 @@ def parser() -> ArgumentParser:
         metavar="FROM=TO",
         action="append",
         default=[],
-        help="answer this path with that one -- the file it names, or everything "
-        "under the directory it names -- and keep what it is answered with local",
+        help="answer this path (a file, or a whole directory) with that one, kept "
+        "local",
     )
     built.add_argument(
         "--chdir",
         metavar="PATH",
-        help="where inside the workspace the agent starts, as the target names it "
-        "(default: the workspace itself)",
+        help="where in the workspace the agent starts, as the target names it "
+        "(default: the workspace)",
     )
     built.add_argument(
         "--private",
         metavar="NAME",
         action="append",
         default=[],
-        help="keep this variable out of what the agent's commands are run with on the "
-        "target: a credential it was given to reach its model provider is its own",
+        help="keep this variable, such as the agent's own model credential, out of "
+        "the commands it runs on the target",
     )
     built.add_argument(
         "--net",
         choices=["local", "remote"],
         default="local",
-        help="where the agent's own TCP connections go (default: local, so its "
-        "model provider stays reachable); commands always use the target's network",
+        help="where the agent's own TCP connections go (default: local); its commands "
+        "always use the target's network",
     )
     built.add_argument(
         "--net-allow",
@@ -140,51 +138,51 @@ def parser() -> ArgumentParser:
     built.add_argument(
         "--force",
         action="store_true",
-        help="use the mirror directory even if it already holds unrelated files",
+        help="use the mirror directory even if it holds unrelated files",
     )
     built.add_argument(
         "--native",
         action="store_true",
-        help="run the CLI already installed on the target rather than supervising one "
-        "here: no mirror, nothing traced, and this process carries its streams",
+        help="run the CLI installed on the target instead of supervising one here: "
+        "no mirror, no tracing",
     )
     built.add_argument(
         "--hush",
         metavar="NAME",
         action="append",
         default=[],
-        help="with --native, run the CLI on the target without this variable, whoever "
-        "left it there: a key in its shell profile would outrank the account it was given",
+        help="with --native, unset this variable for the CLI on the target, so its "
+        "shell profile cannot override its account",
     )
     built.add_argument(
         "--project",
         metavar="NAME=DIR",
         action="append",
         default=[],
-        help="with --native, put this directory of credentials on the target for the life "
-        "of the session and set NAME to where it landed; removed when the turn is over",
+        help="with --native, copy this credentials directory to the target for the "
+        "turn and set NAME to its path there",
     )
     built.add_argument(
         "--carry",
         metavar="DIR=PATH",
         action="append",
         default=[],
-        help="with --native, put this directory into the target's copy of the workspace at "
-        "PATH for the length of the turn -- which is how a flow's own skills get there",
+        help="with --native, put this directory at PATH in the target's workspace for "
+        "the turn",
     )
     built.add_argument(
         "--installs",
         metavar="LINE",
         default="",
-        help="with --native, the line that installs this CLI, said where the target has "
-        "nothing to run",
+        help="with --native, the line that installs this CLI, reported where the "
+        "target lacks it",
     )
     built.add_argument(
         "--fence",
         metavar="JSON",
         default=None,
-        help="hold the agent to this fence, on this machine and on the target: what "
-        "`hmz internal fence --policy` takes, drawn from its levels",
+        help="hold the agent to this fence here and on the target, as "
+        "`hmz internal fence --policy` takes it",
     )
     built.add_argument(
         "--check",

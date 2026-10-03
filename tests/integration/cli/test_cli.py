@@ -32,15 +32,14 @@ from hmz import cli
 COMMANDS = [
     # The two leaves that say whether humanize reports its own failures and where the answer
     # is kept: a command that cannot report a crash is a crash nobody hears about. And the
-    # reading of the line, which names the CLIs there are in its help -- the facts about the
-    # CLIs, and nothing else of that layer. Not the flow API, the engine or a driver: those
+    # reading of the line, whose help names a CLI or two by way of example rather than asking
+    # the CLIs' layer for every one. Not the flow API, the engine or a driver: those
     # are reached once the line is known to name a flow, and `--help` names none. And the
     # front door of the runtime, which is the one object every way in holds: it reaches a
     # layer only from inside the call that needs it, so naming it costs nothing but itself.
     (
         "exec",
         {
-            "hmz.coganchor.backends",
             "hmz.runtime.doing",
             "hmz.runtime.kept",
             "hmz.runtime.runner",

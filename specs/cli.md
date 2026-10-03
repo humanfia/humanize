@@ -75,6 +75,8 @@ def tools(argv: list[str]) -> int: ...
 - MUST gather every line humanize spawns for itself under `hmz internal`, MUST show both commands in
   the listing, MUST leave nothing it routes out of it, and MUST have each of those lines say in its
   own help that it is not one to type.
+- Every `--help` MUST read at a glance: a flag's help, a command's summary, a description and an
+  epilog MUST each be thirty words or fewer, with anything longer left to the reference docs.
 - MUST open the terminal interface for a line naming no command, MUST offer no command that opens it
   too, and MUST answer an unknown command with a usage error listing the commands. That line MUST say
   nothing about what to run: what was chosen at the prompt MUST be what the next line opens on.

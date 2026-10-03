@@ -30,6 +30,9 @@ hmz internal <command> [<args>...]     processes humanize spawns for itself
 
 `python -m hmz` is the same program. The console script is `hmz = "hmz.cli:main"`.
 
+Every `--help` is a summary: no flag's help, command summary, description or epilog runs past
+thirty words. This page is the full account of each.
+
 ## Routing {#routing}
 
 `hmz.cli.main(argv)` routes the line before any command's own parser sees it:

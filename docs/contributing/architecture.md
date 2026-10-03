@@ -205,6 +205,10 @@ uv run pytest tests/system/matrix --run-agents -m matrix -k mcode
    goes in `INTERNAL` instead, which `hmz internal` routes.
 3. **Its output through `cli/output.py`** where the command has a `--json`, so a stray `print`
    never lands in the stream a program reads.
+4. **A terse help.** Every flag's help, command summary, description and epilog is thirty words
+   or fewer; the detail goes in [CLI reference](/reference/cli). `tests/unit/cli/test_help.py`
+   reaches every parser through `main` and fails on anything longer. A subcommand a command
+   routes by hand, as `hmz internal anchor` routes `serve`, needs a line in its `ROUTES`.
 
 Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and with
 `uv run hmz <command> --help`.

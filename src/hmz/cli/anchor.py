@@ -160,9 +160,8 @@ def _serve(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="hmz internal anchor serve",
-        description="Run operations for an `hmz internal anchor` session on this "
-        "machine. The zipapp bootstrapped onto a target runs this command to handle "
-        "a session; do not run it manually.",
+        description="Serve `hmz internal anchor` sessions on this machine. humanize "
+        "starts this on a target; start it by hand only to --listen for a tcp:// target.",
     )
     parser.add_argument(
         "--export",

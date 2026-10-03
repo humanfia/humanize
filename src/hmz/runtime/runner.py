@@ -119,8 +119,6 @@ def read_line(argv: list[str]) -> Line:
     """
     import argparse
 
-    from hmz.coganchor import backends
-
     parser = argparse.ArgumentParser(
         prog="hmz exec", description="Run an agent flow in this directory."
     )
@@ -129,9 +127,8 @@ def read_line(argv: list[str]) -> Line:
         "--flow",
         required=True,
         metavar="FLOW",
-        help="the flow to run: one humanize ships or a flowverse holds, by name, a directory "
-        "or file of your own, or a git+URL#flow ref; `<flow>:<name>` for another flow of "
-        "the same module",
+        help="the flow to run: a name, a path, or git+URL#NAME; NAME:OTHER for another "
+        "flow in the same module",
     )
     parser.add_argument(
         "-a",
@@ -139,9 +136,8 @@ def read_line(argv: list[str]) -> Line:
         action="append",
         default=[],
         metavar="ROLE=SPEC[,...]",
-        help="what an agent role runs: ROLE=CLI[@PROVIDER]/MODEL[:EFFORT], several to one "
-        "option separated by commas, the option repeated as often as suits. CLI is one of "
-        f"{', '.join(sorted(one.name for one in backends.profiles()))}",
+        help="what an agent role runs: ROLE=CLI[@PROVIDER]/MODEL[:EFFORT], where CLI is "
+        "e.g. claude or codex; comma-separate or repeat for more roles",
     )
     parser.add_argument(
         "-e",
@@ -185,14 +181,14 @@ def read_line(argv: list[str]) -> Line:
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="pick up the newest run of this flow here, for a flow that can be picked up",
+        help="pick up the newest run of this flow here, if the flow can be picked up",
     )
     parser.add_argument(
         "--json",
         action="store_true",
         dest="as_json",
-        help="write the run as NDJSON on stdout -- one object per thing an agent says, "
-        "flushed as it is said -- for a program to read instead of a person",
+        help="write the run to stdout as NDJSON, one object per event, for a program "
+        "to read",
     )
     parser.add_argument(
         "task",
