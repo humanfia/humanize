@@ -13,6 +13,11 @@ import sys
 
 import pytest
 
+from tests.supervising import WITHOUT_BINDINGS
+
+if WITHOUT_BINDINGS:
+    pytest.skip(WITHOUT_BINDINGS, allow_module_level=True)
+
 from hmz.coganchor.fence.loopback import loopback
 
 

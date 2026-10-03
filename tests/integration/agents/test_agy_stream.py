@@ -25,7 +25,7 @@ from hmz.coganchor.agents import (
     Failed,
 )
 from hmz.coganchor.agents.event import Usage
-from hmz.coganchor.providers import Provider
+from hmz.coganchor.providers import Provider, redirect
 from tests.agents import standins
 from tests.stubs import HereAnchor
 
@@ -479,14 +479,17 @@ def test_a_refreshed_provider_credential_does_not_restart_the_process(
     def swaps(_provider: Provider) -> tuple[tuple[str, str], ...]:
         return (("/native/agy/token.json", str(token)),)
 
-    def command(_provider: Provider, argv: list[str] | tuple[str, ...]) -> list[str]:
-        # The supervisor answering those paths is tested where it lives; what is in
-        # question here is only whether the file's contents reach the restart decision.
+    def command(
+        _swaps: object, argv: list[str] | tuple[str, ...], *_: object
+    ) -> list[str]:
+        # The supervisor answering those paths is tested where it lives -- and only where a
+        # ptrace supervisor can run; what is in question here is only whether the file's
+        # contents reach the restart decision.
         return list(argv)
 
     monkeypatch.setattr(agy.agent, "node", node)
     monkeypatch.setattr(Provider, "swaps", swaps)
-    monkeypatch.setattr(Provider, "command", command)
+    monkeypatch.setattr(redirect, "command", command)
     session = agy.agent.new()
     session("first")
     token.write_text("refreshed credential")

@@ -22,6 +22,7 @@ from hmz.coganchor.fence import ALL, NONE, READ, Fence, wrapper
 from hmz.coganchor.fence.abroad import drawn, installed, told
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.proto import hello_fences
+from tests.supervising import bound
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -480,6 +481,7 @@ def test_an_anchored_agent_is_let_what_its_driver_grants_it() -> None:
     assert held.scopes == (ALL, READ, READ)
 
 
+@bound
 @pytest.mark.usefixtures("target")
 def test_an_agent_walled_in_here_offline_listens_as_the_wrapper_lets_it(
     tmp_path: Path,

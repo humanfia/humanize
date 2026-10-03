@@ -92,6 +92,11 @@ def _cannot_import() -> str:
 #: can. A module gated on this skips itself before reaching for the bindings.
 WITHOUT_BINDINGS = _cannot_import()
 
+#: The mark that leaves out a test reaching for those bindings where they will not import.
+bound = pytest.mark.skipif(
+    bool(WITHOUT_BINDINGS), reason=WITHOUT_BINDINGS or "the bindings import here"
+)
+
 
 def _cannot_trace() -> str:
     """Why a redirected run cannot be watched on this machine, or "" where one can.

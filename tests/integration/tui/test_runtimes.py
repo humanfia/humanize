@@ -66,7 +66,7 @@ from tests.integration.tui.test_app import (
     picks,
     rows,
 )
-from tests.stubs import written
+from tests.stubs import CPUS, written
 from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
@@ -275,7 +275,7 @@ async def test_an_ssh_host_is_added_on_one_form_and_asked_what_it_has(
         )
         # Asked what a run would ask it, down the road a run takes: its home, its CPUs.
         assert f"home {os.environ['HOME']}" in _under(app)
-        assert f"{len(os.sched_getaffinity(0))} CPUs" in _under(app)
+        assert f"{CPUS} CPUs" in _under(app)
         assert sheet.under() == "ssh/gpu"
         assert "me@gpu.example:2200 · key ~/.ssh/gpu" in _drawn(app)
         assert "ssh/gpu saved to" in "\n".join(sheet._told)

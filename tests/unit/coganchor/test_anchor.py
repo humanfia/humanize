@@ -23,6 +23,7 @@ from hmz import cli
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.argv import parser
 from hmz.coganchor.fence import ALL, READ, Fence
+from tests.supervising import bound
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -154,6 +155,7 @@ def test_a_harness_elsewhere_answers_the_workspaces_own_path_with_its_mirror() -
     assert _aliases(peer, mirror, f"{mirror}/project") == ()
 
 
+@bound
 def test_a_mirror_that_cannot_be_made_here_says_so_rather_than_what_it_failed_with(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

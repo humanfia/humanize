@@ -18,6 +18,7 @@ import pytest
 from hmz.coganchor.machines import store
 from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime
 from hmz.sdk import Hmz
+from tests.stubs import CPUS
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -167,7 +168,7 @@ def test_an_ssh_host_checked_says_what_a_run_would_learn(standins: Path) -> None
 
     assert checked.reached, checked.said
     assert checked.home == os.environ["HOME"]
-    assert checked.cpus == len(os.sched_getaffinity(0))
+    assert checked.cpus == CPUS
     assert checked.memory > 0
     asked = standins.read_text()  # one ssh, carrying the probe a run makes
     assert asked.count("-T -o BatchMode=no") == 1

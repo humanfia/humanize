@@ -21,6 +21,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import shlex
 import shutil
 import socket
 import subprocess
@@ -315,6 +316,7 @@ elif command == "info":
 elif command == "exec":
     if "STANDIN_STOPPED" in os.environ:
         sys.exit("Error response from daemon: container c0ffee is not running")
+    os.environ["PATH"] = os.environ["STANDIN_CONTAINER"] + os.pathsep + os.environ["PATH"]
     moved = os.environ["STANDIN_ROOT"]
     words = [word.replace("/tmp/humanize", moved) for word in rest[2:]]
     os.execvp(words[0], words)
@@ -333,6 +335,65 @@ elif command == "rm" and "STANDIN_RM_SECONDS" in os.environ:
     with open(os.environ["STANDIN_LOG"], "a") as log:
         log.write(json.dumps({"argv": ["removed", *rest], "DOCKER_HOST": None}) + "\\n")
 """
+
+
+#: The `python3` a stand-in container runs the bundle with: this machine's, except that it says
+#: it is Linux at the handshake, as a container does -- Docker Desktop's on a Mac included --
+#: whatever the machine running the tests is. Anything that is not the bundle is let through.
+_CONTAINER_PYTHON = """\
+#!/bin/sh
+case $1 in
+  *.pyz) exec {python} {linux} "$@" ;;
+esac
+exec {python} "$@"
+"""
+
+#: What runs the bundle there, with the handshake's platform the one thing changed.
+_LINUX = """\
+import sys, types
+
+sys.argv.pop(0)
+sys.path.insert(0, sys.argv[0])
+
+from hmz.coganchor.serve import server
+
+
+class _Linux(types.ModuleType):
+    def __getattr__(self, name):
+        return getattr(sys, name)
+
+
+server.sys = _Linux("sys")
+server.sys.platform = "linux"
+
+from hmz.cli import main
+
+raise SystemExit(main())
+"""
+
+
+def containered(at: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Has a stand-in `docker exec` run what it is handed as a container would.
+
+    Here rather than in a container, so on this machine, and so on a Mac when the tests run
+    on one -- where a target would otherwise say `darwin`, and be refused by a runtime whose
+    containers are Linux, as every docker daemon's are.
+
+    Args:
+      at: A directory of the test's own to put the container's `python3` in.
+      monkeypatch: What the stand-in is told where it is by.
+    """
+    at.mkdir()
+    linux = at / "linux.py"
+    linux.write_text(_LINUX)
+    python = at / "python3"
+    python.write_text(
+        _CONTAINER_PYTHON.format(
+            python=shlex.quote(sys.executable), linux=shlex.quote(str(linux))
+        )
+    )
+    python.chmod(0o755)
+    monkeypatch.setenv("STANDIN_CONTAINER", str(at))
 
 
 @dataclass
@@ -373,6 +434,7 @@ def standin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standin:
     monkeypatch.setenv("PATH", f"{bin_}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("STANDIN_LOG", str(tmp_path / "docker.log"))
     monkeypatch.setenv("STANDIN_ROOT", str(tmp_path / "container-tmp"))
+    containered(tmp_path / "container-bin", monkeypatch)
     # Docker's default here is this machine's, whatever the machine running the tests says.
     monkeypatch.delenv("DOCKER_HOST", raising=False)
     # And a fresh memo of which machines hold the bundle, so each test pays for its own.

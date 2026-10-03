@@ -15,6 +15,7 @@ machines are three suites now, all of which drive a stand-in agent.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -25,9 +26,17 @@ from hmz.runtime.flowing import ENTRY
 from hmz.runtime.flowing.skills import SKILLS
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Mapping, Sequence
     from pathlib import Path
+
+#: The CPUs a command started on this machine may run on, as `nproc` and humanize's own probe
+#: count them: those the process is pinned to where the kernel says (Linux), every one online
+#: where it does not (macOS).
+CPUS = (
+    len(os.sched_getaffinity(0))
+    if hasattr(os, "sched_getaffinity")
+    else os.cpu_count() or 1
+)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

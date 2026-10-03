@@ -14,8 +14,10 @@ from __future__ import annotations
 import asyncio
 import fcntl
 import os
+import shlex
 import stat
 import subprocess
+import sys
 import time
 from pathlib import Path, PurePosixPath
 
@@ -50,6 +52,7 @@ from hmz.runtime.flowing.fakes import run_fake
 from hmz.runtime.flowing.specs import parse_envs
 from hmz.runtime.flowing.spi import ENV_CAPABILITIES, Placement
 from tests.flows.contracts import check_env_driver
+from tests.stubs import CPUS
 
 #: Whether this process may read and write whatever it likes, which makes a permission test
 #: a test of nothing.
@@ -196,7 +199,7 @@ def test_a_directory_that_is_not_there_is_unavailable(tmp_path: Path) -> None:
 async def test_what_the_machine_has_is_what_the_kernel_says(tmp_path: Path) -> None:
     driver = _driver(tmp_path)
     await probe(driver)
-    assert driver.cpu_count == len(os.sched_getaffinity(0))
+    assert driver.cpu_count == CPUS
     assert driver.memory == psutil.virtual_memory().total
     assert driver.gpu_count >= 0
     assert driver.gpu_memory >= 0
@@ -280,8 +283,13 @@ async def test_a_timeout_kills_what_outlived_the_command_in_its_group(
     assert await _gone(child), "what the command left holding its output outlived it"
 
 
-#: A daemon that leaves the command's group and session, and keeps its output open.
-_DAEMON = "setsid sh -c 'echo $$ > daemon; exec sleep 30' & echo started"
+#: A daemon that leaves the command's group and session, and keeps its output open. Python's
+#: `setsid` rather than the command, which a Mac has not got.
+_DAEMON = (
+    f"{shlex.quote(sys.executable)} -c 'import os; os.setsid(); "
+    'os.write(os.open("daemon", os.O_WRONLY | os.O_CREAT), b"%d" % os.getpid()); '
+    'os.execvp("sleep", ["sleep", "30"])\' & echo started'
+)
 
 
 async def test_a_daemon_holding_a_command_s_output_does_not_hold_its_timeout(

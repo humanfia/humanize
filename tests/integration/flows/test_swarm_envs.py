@@ -42,6 +42,7 @@ from hmz.runtime.flowing.environments import open_env, probe
 from hmz.runtime.flowing.specs import parse_envs
 from hmz.sdk import Hmz
 from tests.flows.contracts import check_env_driver
+from tests.machines.fixtures import containered
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -108,6 +109,7 @@ elif command == "service" and rest[0] == "inspect":
 elif command == "run" and "--rm" in rest:
     print(said("STANDIN_OWNER", "4242 4343"))
 elif command == "exec":
+    os.environ["PATH"] = os.environ["STANDIN_CONTAINER"] + os.pathsep + os.environ["PATH"]
     moved = os.environ["STANDIN_ROOT"]
     words = [word.replace("/tmp/humanize", moved) for word in rest[2:]]
     os.execvp(words[0], words)
@@ -198,6 +200,7 @@ def swarm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Swarm:
     monkeypatch.setenv("PATH", f"{bin_}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("STANDIN_LOG", str(tmp_path / "docker.log"))
     monkeypatch.setenv("STANDIN_ROOT", str(tmp_path / "container-tmp"))
+    containered(tmp_path / "container-bin", monkeypatch)
     monkeypatch.setenv(
         "STANDIN_NODES",
         json.dumps(
