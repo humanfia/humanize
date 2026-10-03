@@ -1,0 +1,32 @@
+name: Question
+description: Ask how to do something the docs did not answer.
+title: "[Question]: "
+labels: ["question", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The [documentation](https://docs.humanfia.ai/humanize/) and
+        [Troubleshooting](https://docs.humanfia.ai/humanize/user/troubleshooting) answer most
+        questions faster than a person can. If you looked there and it was not, ask away: the
+        answer may become a page.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you are trying to do, and where you got stuck.
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      description: The commands you ran and the pages you read.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: |
+        What `hmz --version` prints. If you installed from git rather than a release, say so, and
+        when.
+      placeholder: hmz 0.1.0

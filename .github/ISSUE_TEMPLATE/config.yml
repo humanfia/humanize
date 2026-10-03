@@ -1,1 +1,11 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://docs.humanfia.ai/humanize/
+    about: A quickstart, a guide for each task, and the reference. Most questions end here.
+  - name: Troubleshooting
+    url: https://docs.humanfia.ai/humanize/user/troubleshooting
+    about: Paste the message you got and find what to do about it.
+  - name: Report a security vulnerability
+    url: https://github.com/humanfia/humanize/security/advisories/new
+    about: Privately, never in a public issue. SECURITY.md says what happens next.

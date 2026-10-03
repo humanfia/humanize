@@ -1,0 +1,22 @@
+# What an editor should do with a file here before pre-commit has to: the line endings, final
+# newline and whitespace the hooks in .pre-commit-config.yaml enforce, and the indents each
+# kind of file already uses. https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+# ruff's own line length is in pyproject.toml; this only draws the ruler.
+[*.{py,pyi}]
+indent_size = 4
+max_line_length = 88
+
+[{*.toml,*.sh,Dockerfile}]
+indent_size = 4
+
+[*.{yml,yaml,json,cff,ts,mts,mjs,vue,css}]
+indent_size = 2

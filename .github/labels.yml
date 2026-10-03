@@ -1,0 +1,143 @@
+# Every label of this repository, kept as code. The triage workflow syncs this file to the
+# repository's labels when it changes on main: a label here is created or updated there, and a
+# label renamed with `from_name` keeps the issues it is on. A label removed from this file is
+# not deleted -- that takes a person, since it takes the label off every issue that has it.
+# Format: https://github.com/crazy-max/ghaction-github-labeler#yaml-configuration
+
+# What a pull request is: read off its Conventional Commit title by the triage workflow.
+# Issues say what they are with GitHub's issue types (Bug, Feature, Task) instead.
+- name: type/feat
+  color: "#a2eeef"
+  description: A new feature
+- name: type/fix
+  color: "#d73a4a"
+  description: A bug fix
+- name: type/docs
+  color: "#0075ca"
+  description: Documentation only
+- name: type/perf
+  color: "#fbca04"
+  description: Faster or lighter, behaving the same
+- name: type/refactor
+  color: "#c5def5"
+  description: Restructured, behaving the same
+- name: type/test
+  color: "#c5def5"
+  description: Tests only
+- name: type/ci
+  color: "#c5def5"
+  description: CI workflows and their configuration
+- name: type/build
+  color: "#c5def5"
+  description: Packaging, the build, and dependencies
+- name: type/chore
+  color: "#c5def5"
+  description: Upkeep that changes nothing a user sees
+- name: type/style
+  color: "#c5def5"
+  description: Formatting only
+- name: type/revert
+  color: "#c5def5"
+  description: Reverts an earlier change
+- name: breaking
+  color: "#b60205"
+  description: Breaks something that worked before; the title has a `!`
+
+# Which part of the repository a pull request touches: put on by the triage workflow from
+# labeler.yml, and by hand on issues.
+- name: area/agents
+  color: "#1d76db"
+  description: "The coding agent CLIs humanize drives: src/hmz/coganchor/agents"
+- name: area/cli
+  color: "#1d76db"
+  description: "The hmz command line: src/hmz/cli"
+- name: area/coganchor
+  color: "#1d76db"
+  description: "Running agents: machines, providers, the fence: src/hmz/coganchor"
+- name: area/daemon
+  color: "#1d76db"
+  description: "The background daemon: src/hmz/daemon"
+- name: area/flows
+  color: "#1d76db"
+  description: "The flow API and the built-in flows: src/hmz/flows"
+- name: area/runtime
+  color: "#1d76db"
+  description: "Running flows, tracing and settings: src/hmz/runtime"
+- name: area/sdk
+  color: "#1d76db"
+  description: "The Python SDK: src/hmz/sdk"
+- name: area/tui
+  color: "#1d76db"
+  description: "The terminal interface: src/hmz/tui"
+- name: area/specs
+  color: "#1d76db"
+  description: "The contract the code is held to: specs/"
+- name: area/tests
+  color: "#1d76db"
+  description: "What the tests stand on: fixtures, stand-ins, tiers"
+- name: area/docs
+  color: "#1d76db"
+  description: "The documentation site and the README"
+- name: area/ci
+  color: "#1d76db"
+  description: "Workflows, pre-commit, dependabot, triage, and the repository's own settings files"
+- name: area/packaging
+  color: "#1d76db"
+  description: "pyproject.toml, uv.lock, the Python version, and the package's root"
+- name: area/community
+  color: "#1d76db"
+  description: "Contributing, governance, security policy, templates"
+
+# Where an issue stands. Every issue form adds needs-triage; a maintainer replaces it.
+- name: needs-triage
+  color: "#ededed"
+  description: Waiting for a maintainer to look at it
+- name: triage/accepted
+  color: "#8fc951"
+  description: Confirmed, and wanted
+- name: triage/needs-information
+  color: "#d4c5f9"
+  description: Waiting on the author for more information
+- name: triage/duplicate
+  color: "#cfd3d7"
+  description: Already reported elsewhere
+- name: triage/not-reproducible
+  color: "#cfd3d7"
+  description: Could not be made to happen
+
+# How soon an accepted issue should be worked on.
+- name: priority/critical
+  color: "#e11d21"
+  description: Breaks humanize for many people, or is a security fix; drop other work
+- name: priority/important
+  color: "#eb6420"
+  description: Worth doing in the next release
+- name: priority/backlog
+  color: "#fef2c0"
+  description: Wanted, when someone has time
+
+# For contributors looking for something to do. GitHub lists these two names on its contribute
+# page, so keep them exactly as they are.
+- name: good first issue
+  color: "#7057ff"
+  description: Small and well described; a good place to start
+- name: help wanted
+  color: "#008672"
+  description: A maintainer would welcome a pull request
+- name: question
+  color: "#d876e3"
+  description: Asks how to do something
+
+# Put on by dependabot, which names them itself: see dependabot.yml.
+- name: dependencies
+  color: "#0366d6"
+  description: Pull requests that update a dependency file
+- name: github_actions
+  color: "#000000"
+  description: Pull requests that update GitHub Actions code
+- name: python:uv
+  color: "#2b67c6"
+  description: Pull requests that update python:uv code
+- name: javascript
+  color: "#168700"
+  description: Pull requests that update javascript code

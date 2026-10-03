@@ -1,0 +1,20 @@
+# How to cite humanize. GitHub reads this file for the "Cite this repository" button.
+# Validate a change with `uvx cffconvert --validate`.
+cff-version: 1.2.0
+message: If you use humanize in your research, please cite it as below.
+type: software
+title: humanize
+abstract: The agent flow system for token maxxing.
+authors:
+  - given-names: Zijian
+    family-names: Zhang
+  - name: The humanize contributors
+    website: https://github.com/humanfia/humanize/graphs/contributors
+repository-code: https://github.com/humanfia/humanize
+url: https://docs.humanfia.ai/humanize/
+license: Apache-2.0
+keywords:
+  - coding agents
+  - agent flows
+  - LLM
+  - orchestration

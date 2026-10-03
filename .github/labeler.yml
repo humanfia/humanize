@@ -1,0 +1,131 @@
+# The area/* labels the triage workflow puts on a pull request, by the paths it changes: one
+# for each part of the repository it touches, so a reviewer can find the pull requests in
+# theirs. Every label named here is defined in labels.yml. Format:
+# https://github.com/actions/labeler#create-githublabeleryml
+#
+# A part's label covers its code, its tests in every tier, the helpers those tests share, and
+# its spec.
+
+area/agents:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/hmz/coganchor/agents/**
+          - src/hmz/coganchor/backends.py
+          - tests/**/agents/**
+          - tests/**/backends/**
+          - specs/coganchor/agents.md
+
+area/cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/hmz/__main__.py
+          - src/hmz/cli/**
+          - tests/**/cli/**
+          - specs/cli.md
+
+area/coganchor:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/hmz/coganchor/**
+          - tests/**/coganchor/**
+          - tests/**/machines/**
+          - tests/**/providers/**
+          - specs/coganchor/**
+
+area/daemon:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/hmz/daemon/**
+          - tests/**/daemon/**
+          - specs/daemon.md
+
+area/flows:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/hmz/flows/**
+          - tests/**/flows/**
+          - specs/flows.md
+
+area/runtime:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/hmz/runtime/**
+          - tests/**/runtime/**
+          - tests/**/tracing/**
+          - specs/runtime/**
+
+area/sdk:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/hmz/sdk/**
+          - tests/**/sdk/**
+          - specs/sdk.md
+
+area/tui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/hmz/tui/**
+          - tests/**/tui/**
+          - specs/tui.md
+
+area/specs:
+  - changed-files:
+      - any-glob-to-any-file: specs/**
+
+# What the tests stand on rather than the tests themselves: everything under tests/ outside
+# the three tier directories, every conftest.py, the mock LLM's tests, the regression matrix,
+# and the test that holds the layers to the layering table.
+area/tests:
+  - changed-files:
+      - all-globs-to-any-file:
+          - tests/**
+          - "!tests/{unit,integration,system}/**"
+      - any-glob-to-any-file:
+          - tests/**/conftest.py
+          - tests/*/test_llm.py
+          - tests/**/matrix/**
+          - tests/**/layering/**
+
+area/docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - README.md
+
+area/ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/workflows/**
+          - .github/actions/**
+          - .github/dependabot.yml
+          - .github/labeler.yml
+          - .github/labels.yml
+          - .pre-commit-config.yaml
+          - .editorconfig
+          - .gitattributes
+          - .gitignore
+
+area/packaging:
+  - changed-files:
+      - any-glob-to-any-file:
+          - pyproject.toml
+          - uv.lock
+          - .python-version
+          - src/hmz/__init__.py
+          - src/hmz/py.typed
+
+area/community:
+  - changed-files:
+      - any-glob-to-any-file:
+          - AGENTS.md
+          - CITATION.cff
+          - CLAUDE.md
+          - CODE_OF_CONDUCT.md
+          - CONTRIBUTING.md
+          - GOVERNANCE.md
+          - LICENSE
+          - SECURITY.md
+          - SUPPORT.md
+          - .github/CODEOWNERS
+          - .github/ISSUE_TEMPLATE/**
+          - .github/PULL_REQUEST_TEMPLATE.md

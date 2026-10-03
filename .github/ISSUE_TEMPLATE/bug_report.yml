@@ -1,35 +1,43 @@
 name: Bug Report
-description: File a bug report.
+description: Something in humanize does not work.
 title: "[Bug]: "
 type: bug
+labels: ["needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
-  - type: input
-    id: contact
-    attributes:
-      label: Contact Details
-      description: How can we get in touch with you if we need more info?
-      placeholder: ex. email@example.com
-    validations:
-      required: false
+        Thanks for taking the time to report this. Search the
+        [existing issues](https://github.com/humanfia/humanize/issues?q=is%3Aissue) first, in
+        case it is already known.
+
+        **A vulnerability does not go here.** Report it privately, as
+        [SECURITY.md](https://github.com/humanfia/humanize/blob/main/SECURITY.md) says.
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
-      description: Also tell us, what did you expect to happen?
-      placeholder: Tell us what you see!
-      value: "A bug happened!"
+      description: What you saw, and what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to make it happen
+      description: The command you ran or what you did in `hmz`, step by step.
+      placeholder: |
+        1. hmz exec -f chat -a assistant=claude/claude-opus-5:high "…"
+        2. …
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: Version
-      description: What version of our software are you running?
-      placeholder: ex. 0.1.0.dev1
+      description: |
+        What `hmz --version` prints. If you installed from git rather than a release, say so, and
+        when.
+      placeholder: hmz 0.1.0
     validations:
       required: true
   - type: dropdown
@@ -45,9 +53,10 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: harnesses
+    id: backends
     attributes:
-      label: What harnesses are you seeing the problem on?
+      label: What backends are you seeing the problem on?
+      description: The coding agent CLIs the flow's agents ran on, if any.
       multiple: true
       options:
         - claude
@@ -62,6 +71,7 @@ body:
         - mimo
         - cursor-agent
         - mcode
+        - an ACP CLI
         - Other
   - type: input
     id: flow
@@ -73,7 +83,9 @@ body:
     id: logs
     attributes:
       label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      description: |
+        Paste any relevant output. It is formatted as code, so no backticks are needed. Remove
+        API keys, tokens and anything else private first.
       render: shell
   - type: upload
     id: screenshots

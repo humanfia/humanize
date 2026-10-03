@@ -142,16 +142,17 @@ gh pr create --fill
 Without push access, run `gh repo fork --remote` first and push to your fork. `gh pr create`
 opens the pull request across it either way.
 
-Two workflows then run:
+These workflows then run:
 
 | | |
 | --- | --- |
 | `ci.yml` | `uv lock --check`, the same hooks over every file, `uv build`, and a start with no extras installed. Then `uv run pytest --ignore=tests/system`, on Python 3.12 on Linux |
 | `build-docs.yml` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` and `pnpm check:legible` |
+| `triage.yml` | Checks the title is a Conventional Commit, which `--fill` took from your commit, and labels the pull request from it and from the paths it changes |
 
 ## Check it worked
 
-`gh pr checks` shows both workflows on your pull request, and waits with `--watch`:
+`gh pr checks` shows the workflows on your pull request, and waits with `--watch`:
 
 ```sh
 gh pr checks --watch

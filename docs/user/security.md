@@ -226,8 +226,9 @@ falls back to `as local` quietly.
 
 ## Reporting a vulnerability
 
-Open a [bug report](https://github.com/humanfia/humanize/issues/new?template=bug_report.yml).
-Say in the title that it is a vulnerability, and leave the details out of the public thread.
+Report it privately, never in a public issue:
+[SECURITY.md](https://github.com/humanfia/humanize/blob/main/SECURITY.md) says how, what counts
+as a vulnerability, and when you will hear back.
 
 ## Next steps
 

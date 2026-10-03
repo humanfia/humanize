@@ -1,0 +1,30 @@
+name: Documentation
+description: A page of the docs is wrong, missing something, or hard to follow.
+title: "[Docs]: "
+labels: ["area/docs", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping the docs. For a small fix, a typo or a broken link, a pull request is
+        quicker: every page has an "Edit this page on GitHub" link at the bottom.
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The address of the page, or the file under `docs/`.
+      placeholder: https://docs.humanfia.ai/humanize/user/first-run
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong?
+      description: What the page says or leaves out, and why that misled you or held you up.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What should it say?
+      description: The fix you would make, if you have one in mind.

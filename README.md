@@ -39,10 +39,11 @@ Agents run with approvals bypassed, so start in a scratch repository. The
 
 ## Contributing
 
-Report a bug or request a feature through the
-[issue forms](https://github.com/humanfia/humanize/issues/new/choose), or open a pull request. See
-[Contributing](https://docs.humanfia.ai/humanize/contributing/) for how to set up and check a
-change.
+Pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) says how to propose one. Ask a
+question, report a bug or request a feature through the
+[issue forms](https://github.com/humanfia/humanize/issues/new/choose), and report a
+vulnerability privately, as [SECURITY.md](SECURITY.md) says. Everyone taking part follows the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

@@ -5,6 +5,12 @@ checked the way CI checks it, and with the rules every change is held to. Bugs a
 requests go through the [issue forms](https://github.com/humanfia/humanize/issues/new/choose);
 for a large change, open a feature request first.
 
+How a pull request is proposed and reviewed is in
+[CONTRIBUTING.md](https://github.com/humanfia/humanize/blob/main/CONTRIBUTING.md), and who
+decides, and how to become a reviewer or maintainer, in
+[GOVERNANCE.md](https://github.com/humanfia/humanize/blob/main/GOVERNANCE.md). Everyone taking
+part follows the [Code of Conduct](https://github.com/humanfia/humanize/blob/main/CODE_OF_CONDUCT.md).
+
 ::: tip First time here?
 [Your first patch](/contributing/tutorials/first-patch) takes one small change from clone to
 pull request, with every command written out.

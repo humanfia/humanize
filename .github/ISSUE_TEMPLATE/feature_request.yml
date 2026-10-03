@@ -2,6 +2,7 @@ name: Feature Request
 description: Suggest an idea.
 title: "[Feature]: "
 type: feature
+labels: ["needs-triage"]
 body:
   - type: markdown
     attributes:
@@ -9,6 +10,9 @@ body:
         Thanks for taking the time to suggest a feature. Search the
         [existing issues](https://github.com/humanfia/humanize/issues) first, in case it is
         already asked for.
+
+        A flow you wrote does not need one: keep it in a repository of your own, and list it in
+        [humanfia/flowverse](https://github.com/humanfia/flowverse) with a pull request there.
   - type: textarea
     id: problem
     attributes:
