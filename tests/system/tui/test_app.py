@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.coganchor import backends
 from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
@@ -33,6 +34,10 @@ if TYPE_CHECKING:
 @pytest.mark.skipif(
     importlib.util.find_spec("deepseek_harness") is None,
     reason="starts the dsh runtime, which the [dsh] extra installs",
+)
+@pytest.mark.skipif(
+    backends.program("dsh") is None,
+    reason="environment: the dsh program is not on this machine, only its SDK",
 )
 @pytest.mark.timeout(60)
 @unittest.mock.patch(
