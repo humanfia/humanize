@@ -258,3 +258,45 @@ def test_the_fence_loosens_nothing_opencode_asks_about_itself(home: Path) -> Non
     outside = table["external_directory"]
     assert isinstance(outside, dict)
     assert "/etc/passwd/*" not in outside
+
+
+@pytest.mark.parametrize(
+    ("kind", "config", "named"),
+    [
+        (OpencodeAgent, OpencodeAgentConfig, "opencode"),
+        (MimoCodeAgent, MimoCodeAgentConfig, "mimocode"),
+    ],
+)
+def test_the_gateway_its_configuration_declares_is_let_through_a_cut_network(
+    home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: type[OpencodeAgent],
+    config: type[OpencodeAgentConfig],
+    named: str,
+) -> None:
+    """A gateway model under `online=NONE` was refused its own model API."""
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    at = home / ".config" / named
+    at.mkdir(parents=True)
+    (at / f"{named}.json").write_text(
+        json.dumps(
+            {
+                "provider": {
+                    "nvgw": {"options": {"baseURL": "https://gw.example:8443/v1"}},
+                    "other": {"options": {"baseURL": "https://other.example/v1"}},
+                }
+            }
+        )
+    )
+    fence = _fence(home, _work(home), ALL, READ, READ, online=False)
+
+    gated = kind(config(model="nvgw/some/model", effort="low", fence=fence)).fenced()
+    plain = kind(
+        config(model="opencode/big-pickle", effort="low", fence=fence)
+    ).fenced()
+
+    assert gated is not None
+    assert plain is not None
+    assert "gw.example:8443" in gated.hosts
+    assert "other.example" not in gated.hosts
+    assert "gw.example:8443" not in plain.hosts

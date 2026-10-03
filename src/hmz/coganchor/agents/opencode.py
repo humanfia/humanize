@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -700,6 +701,43 @@ class OpencodeAgent(AgentBase):
     counts: ClassVar[frozenset[str]] = frozenset(_COUNTED) | {
         f"cache_{named}" for named in _CACHED
     }
+
+    #: What its configuration is called, in its directory under `$XDG_CONFIG_HOME`.
+    configured: ClassVar[str] = "opencode"
+
+    def fenced(self) -> Fence | None:
+        """The fence, with the model API this machine's configuration points the model at.
+
+        What pi's `models.json` is to pi (:meth:`hmz.coganchor.agents.PiAgent.fenced`), its
+        `opencode.json` is here: a provider of its own, at a `baseURL` written there and in no
+        variable. A gateway declared there was cut off at `online=NONE` with every other host,
+        and the turn could not reach its own model. Only the provider the model is named
+        under, and nothing where the file does not declare it.
+
+        Returns:
+          The fence, or None for an agent nobody said one for.
+        """
+        fence = super().fenced()
+        if fence is None:
+            return None
+        environ = self._environ() or os.environ
+        at = Path(environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+        named = self.configured
+        try:
+            said = json.loads(
+                (at / named / f"{named}.json").read_text(encoding="utf-8")
+            )
+            provider = self.config.model.partition("/")[0]
+            split = urllib.parse.urlsplit(
+                str(said["provider"][provider]["options"]["baseURL"])
+            )
+            host, port = (split.hostname or "").rstrip("."), split.port
+        # A file that is not there, or a provider it does not declare, is a built-in one.
+        except (OSError, ValueError, KeyError, TypeError):
+            return fence
+        if not host:
+            return fence
+        return fence.granting(hosts=[f"{host}:{port}" if port else host])
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> OpencodeSession:
         """Opens a new opencode session, in the directory it is given or in this one."""
