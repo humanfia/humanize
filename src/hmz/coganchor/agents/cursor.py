@@ -357,9 +357,11 @@ class CursorSession(CommandSessionBase):
             "--model",
             model,
             # The workspace it works in is a session's rather than a run's, and Cursor takes
-            # it as a flag rather than reading the directory it was started in.
+            # it as a flag rather than reading the directory it was started in. Said as the
+            # directory on the machine `cursor-agent` runs on: work on another machine is
+            # worked on here in its copy, and the far path is one this machine may not have.
             "--workspace",
-            self.cwd,
+            self._workspace(),
             *(_ANCHORED if _abroad(configured) else _PERMITTED[configured.permission]),
         ]
         if getattr(configured, "trust", True):

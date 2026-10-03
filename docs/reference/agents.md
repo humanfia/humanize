@@ -1307,6 +1307,8 @@ cursor-agent --print --output-format stream-json --workspace <dir> --model <id>
 | `approve_mcps` | `False` | `--approve-mcps` |
 | `add_dirs` | `()` | `--add-dir` per entry |
 
+- `--workspace` is the directory on the machine `cursor-agent` runs on: for work on another
+  machine with `cursor-agent` here, the copy of the work kept here, never the far path.
 - The effort and tier are written into the id: `composer-2.5` at `high` is
   `composer-2.5-high`, at the fast tier `composer-2.5-high-fast`. A name already carrying a rung
   is used as is. Bracket syntax (`gpt-5.2[effort=low]`) is not built.
