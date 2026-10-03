@@ -1,44 +1,42 @@
-name: Bug report
-description: Report something humanize does wrong
+name: Bug Report
+description: File a bug report.
 title: "[Bug]: "
-labels: ["bug"]
+type: bug
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report. Search the
-        [existing issues](https://github.com/humanfia/humanize/issues) first, in case it is
-        already known.
+        Thanks for taking the time to fill out this bug report!
+  - type: input
+    id: contact
+    attributes:
+      label: Contact Details
+      description: How can we get in touch with you if we need more info?
+      placeholder: ex. email@example.com
+    validations:
+      required: false
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
-      description: What you did, what you expected to happen, and what happened instead.
-      placeholder: Tell us what you see.
-    validations:
-      required: true
-  - type: textarea
-    id: reproduce
-    attributes:
-      label: Steps to reproduce
-      description: The commands you ran, and the flow if one was involved, so we can see it too.
-      placeholder: |
-        1. hmz exec -f chat -a assistant=claude/claude-opus-5:high "..."
-        2. ...
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+      value: "A bug happened!"
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: Version
-      description: What `hmz --version` prints.
-      placeholder: hmz 0.1.0
+      description: What version of our software are you running?
+      placeholder: ex. 0.1.0.dev1
     validations:
       required: true
   - type: dropdown
     id: os
     attributes:
-      label: Operating system
+      label: What operating systems are you seeing the problem on?
+      multiple: true
       options:
         - Linux
         - macOS
@@ -47,10 +45,9 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: agents
+    id: harnesses
     attributes:
-      label: Coding agents involved
-      description: Which coding-agent CLIs the run drove, if any.
+      label: What harnesses are you seeing the problem on?
       multiple: true
       options:
         - claude
@@ -65,7 +62,7 @@ body:
         - mimo
         - cursor-agent
         - mcode
-        - None
+        - Other
   - type: input
     id: flow
     attributes:
@@ -76,10 +73,12 @@ body:
     id: logs
     attributes:
       label: Relevant log output
-      description: Paste any relevant output. It is rendered as code, so no backticks are needed.
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
       render: shell
-  - type: textarea
-    id: context
+  - type: upload
+    id: screenshots
     attributes:
-      label: Additional context
-      description: Anything else that might help, such as screenshots or how you installed hmz.
+      label: Upload screenshots
+      description: If applicable, add screenshots to help explain your problem.
+    validations:
+      required: false

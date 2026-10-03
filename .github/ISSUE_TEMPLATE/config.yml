@@ -1,11 +1,1 @@
 blank_issues_enabled: false
-contact_links:
-  - name: Documentation
-    url: https://docs.humanfia.ai/humanize/
-    about: Read the documentation first; it opens with a quickstart.
-  - name: Contributing
-    url: https://docs.humanfia.ai/humanize/contributing/
-    about: How to set up a checkout and check a change before opening a pull request.
-  - name: Reporting a vulnerability
-    url: https://docs.humanfia.ai/humanize/user/security#reporting-a-vulnerability
-    about: Read this before reporting a vulnerability, so its details stay out of public view.

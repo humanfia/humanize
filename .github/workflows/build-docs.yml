@@ -1,11 +1,3 @@
-# The documentation site. Built on every change to it, and deployed to GitHub Pages from
-# main -- so a pull request finds out that a link is dead without anything being published.
-#
-# The GIFs under docs/public/demo are committed rather than rendered here: rendering one
-# wants a container with a coding agent CLI stand-in in it. See docs/tapes/README.md.
-
-name: docs
-
 on:
   push:
     branches: [main]
@@ -20,10 +12,6 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # A superseded pull request build is worth cancelling. A push to main is not: this group
-  # holds `deploy` too, and a run cancelled while `deploy-pages` is publishing leaves Pages
-  # with a deployment that never finished, which is a site that 404s until something else is
-  # pushed. Two pushes to main a minute apart is all that takes.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -53,25 +41,14 @@ jobs:
         working-directory: docs
         run: pnpm install --frozen-lockfile
 
-      # Fails on a dead internal link, which is the point: a page moved without its inbound
-      # links moving is a red build rather than a 404 somebody finds later.
       - name: Build
         working-directory: docs
         run: pnpm build
 
-      # VitePress checks that a link's page exists and stops there, so a `#fragment` written
-      # the way GitHub would slugify it passes the build and silently drops the reader at the
-      # top of the page. This is what catches that.
       - name: Every #fragment resolves
         working-directory: docs
         run: pnpm check:anchors
 
-      # A diagram's words are drawn at whatever size its camera and its viewBox leave them, and
-      # the build cannot see one shrink to a smudge on a phone. This takes every scene on the
-      # Flows and Features pages through, at phone and tablet widths, moving and held still,
-      # and fails on a word drawn under 11px or a page that scrolls sideways. It holds each
-      # scene at moment after moment of its timeline rather than playing it on a clock, so a
-      # slow runner gets the same answer as a fast one.
       - name: Install Chromium
         working-directory: docs
         run: pnpm exec playwright install --with-deps chromium
