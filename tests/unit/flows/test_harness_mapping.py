@@ -340,6 +340,17 @@ def test_every_driver_serves_exactly_its_harness_capabilities(
     assert (made.model, made.effort, made.provider) == ("m", "", "")
 
 
+def test_deepseek_harness_is_installed_where_its_package_is(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An SDK, not a program: no `dsh` on any PATH, and every dsh agent was refused for it."""
+    pytest.importorskip("deepseek_harness")
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setattr(backends, "elsewhere", lambda _command: None)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+
+    open_agent(_spec(HarnessKind.DSH))._check_installed()
+
+
 @pytest.mark.parametrize("harness", sorted(HarnessKind), ids=str)
 def test_each_capability_is_one_the_coganchor_driver_has(harness: HarnessKind) -> None:
     kind = _kind(harness)
