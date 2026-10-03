@@ -55,6 +55,7 @@ H/
 ~/.humanize/flows/                      your flows (flowverse `user`)
 <workspace>/.humanize/
 ├── flows/                              this project's flows (flowverse `local`)
+├── .gitignore                          `*.epic.tar.gz`, written by the first export if absent
 └── <epic>.epic.tar.gz                  exported runs
 ```
 
@@ -332,7 +333,10 @@ Like an epic's `sessions/`, it is the only copy of those conversations. Not used
 ### `<workspace>/.humanize/<epic>.epic.tar.gz`
 
 An [exported run](/reference/tracing#export). Written with `mkstemp` (mode `0600`) and renamed;
-exporting the same run again replaces it. Nothing in humanize imports one.
+exporting the same run again replaces it. Nothing in humanize imports one. Exporting here
+also writes `<workspace>/.humanize/.gitignore` (`*.epic.tar.gz`) where there is none, so a
+`git add -A` in the workspace, an agent's included, does not commit the archive; one already
+there is left as it is.
 
 ### `H/daemons/<name≤24>-<sha256(workspace)[:12]>/`
 

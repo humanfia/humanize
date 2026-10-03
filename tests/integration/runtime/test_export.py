@@ -22,6 +22,7 @@ key, which both mean a kernel that will hand over a tracee -- is in
 from __future__ import annotations
 
 import json
+import subprocess
 import tarfile
 from typing import TYPE_CHECKING, Any
 
@@ -264,7 +265,7 @@ def test_where_a_bundle_lands_beside_two_of_them_at_once(
     assert bundle(epic)[0] == at
     assert MANIFEST in held(at)
     # And nothing half-written is left beside it.
-    assert [one.name for one in at.parent.iterdir()] == [at.name]
+    assert sorted(one.name for one in at.parent.iterdir()) == [".gitignore", at.name]
 
 
 def test_a_directory_to_fill_that_is_not_there_yet_is_still_a_directory(
@@ -377,6 +378,29 @@ def test_where_a_bundle_lands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     (tmp_path / "somewhere").mkdir()
     assert bundle(epic, tmp_path / "somewhere")[0].parent == tmp_path / "somewhere"
     assert bundle(epic, tmp_path / "named.tgz")[0].name == "named.tgz"
+
+
+def test_a_bundle_left_in_the_project_is_kept_out_of_its_repository(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The agents work in that directory, and a loop's next `git add -A` would commit it."""
+    epic = _ran(tmp_path, monkeypatch)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+
+    bundle(epic)
+
+    seen = subprocess.run(
+        ["git", "-C", str(tmp_path), "status", "--porcelain", "--untracked-files=all"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert ".epic.tar.gz" not in seen
+
+    # And a `.gitignore` somebody wrote there is theirs.
+    (tmp_path / ".humanize" / ".gitignore").write_text("mine\n")
+    bundle(epic)
+    assert (tmp_path / ".humanize" / ".gitignore").read_text() == "mine\n"
 
 
 def test_a_directory_holding_no_run_is_nothing_to_export(tmp_path: Path) -> None:
