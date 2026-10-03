@@ -199,15 +199,19 @@ Qwen Code signed in:
 
 <Term title="hmz · the first launch">
 
-<pre>  <span class="p b">Report errors to humanize?</span> <span class="n">1</span>
-  <span class="m">Send error reports to help fix bugs. Sent: the error and where in humanize
-  it occurred; … Never sent: nothing you typed: no task, prompt, or command; …
-  You can change this later in /settings.</span>
-
-     <span class="p">❯ 1. yes</span>
-       <span class="d">2.</span> no
-
-  <span class="d">enter choose · esc ask again next time</span>
+<pre>  <span class="p">╭────────────────────────────────────────────────────────────────╮</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span>  <span class="p b">Report errors to humanize?</span>                                    <span class="p">│</span> <span class="n">1</span>
+  <span class="p">│</span>  <span class="m">Send error reports to help fix bugs. Sent: the error and</span>      <span class="p">│</span>
+  <span class="p">│</span>  <span class="m">where in humanize it occurred; … Never sent: nothing you</span>      <span class="p">│</span>
+  <span class="p">│</span>  <span class="m">typed: no task, prompt, or command; … You can change this</span>     <span class="p">│</span>
+  <span class="p">│</span>  <span class="m">later in /settings.</span>                                           <span class="p">│</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span>  <span class="sel"> Yes </span>  <span class="btn"> No </span>                                                   <span class="p">│</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">│</span>  <b>enter</b> yes   <b>esc</b> ask again next time                           <span class="p">│</span>
+  <span class="p">│</span>                                                                <span class="p">│</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────╯</span>
 
                                   <span class="m">assistant · qwen/qwen3-coder-plus:high</span> <span class="n">2</span>
 <span class="d">──────────────────────────────────────────────────────────────────────</span>
@@ -219,9 +223,11 @@ Qwen Code signed in:
 
 What to look at, by number:
 
-1. **The reporting question.** It says in full what a report carries and what it never does.
-   Answer either way: `/settings` changes it later, and <kbd>esc</kbd> asks again next time.
-   See [Reporting](/user/reporting).
+1. **The reporting question**, a box over the screen. It says in full what a report carries
+   and what it never does. Its answers are the two buttons: **Yes** has the focus, so
+   <kbd>enter</kbd> says yes, and <kbd>→</kbd> moves to **No**. Answer either way:
+   `/settings` changes it later, and <kbd>esc</kbd> asks again next time. See
+   [Reporting](/user/reporting).
 2. **The line above the prompt** names the agent humanize would start:
    `role · cli/model:effort`. Here the role is `assistant`, and the CLI is the first one
    humanize found that could say what it runs. Seeing a CLI and a model here is the proof that
@@ -303,8 +309,8 @@ is not on your `PATH`. Run `uv tool update-shell` or `pipx ensurepath`, and open
 ### A model I expected is missing
 
 What a CLI runs is asked once and remembered for a week, then asked again in the background. To
-ask now, open `/flow`, <kbd>enter</kbd> on a role, then on its `model` row, and choose
-`check again`.
+ask now, open `/flow`, <kbd>enter</kbd> on a role, then on its `model` row, and press
+**Check again** under the list.
 
 ### `dsh` or `kimi` is listed with an install command
 

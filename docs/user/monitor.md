@@ -88,21 +88,23 @@ const listed = [
 ]
 
 const place = [
-  '   [b]workspace[/]',
-  '   [m]An environment of the run: where its sessions work.[/]',
+  '  [m]monitor ›[/] [b B]workspace[/]',
+  '  [m]An environment of the run: where its sessions work.[/]',
   '',
-  '     [m]kind              [/]LOCAL[n]1[/]',
-  '     [m]target            [/]this machine',
-  '     [m]workdir           [/]/home/you/shop',
-  '     [m]grants            [/]nothing beyond running in it[n]2[/]',
-  '     [m]harness           [/]local: on this machine, in this workdir[n]3[/]',
-  '     [m]status            [/]1 of 3 sessions working',
-  '     [b]Sessions[/][n]4[/]',
-  ' [b]❯[/]   [c]● actor · session 1 · claude/claude-opus-5-5:high[/]',
-  '     [m]○ reviewer · session 1 · codex/gpt-5.6-sol:high[/]',
-  '     [m]○ reviewer · session 2 · codex/gpt-5.6-sol:high[/]',
+  `  [b]╭${'─'.repeat(W + 4)}╮[/]`,
+  '   [m]kind              [/]LOCAL[n]1[/]',
+  '   [m]target            [/]this machine',
+  '   [m]workdir           [/]/home/you/shop',
+  '   [m]grants            [/]nothing beyond running in it[n]2[/]',
+  '   [m]harness           [/]local: on this machine, in this workdir[n]3[/]',
+  '   [m]status            [/]1 of 3 sessions working',
+  '   [b]Sessions[/][n]4[/]',
+  '  [sel] ● actor · session 1 · claude/claude-opus-5-5:high [/]',
+  '   [m]○ reviewer · session 1 · codex/gpt-5.6-sol:high[/]',
+  '   [m]○ reviewer · session 2 · codex/gpt-5.6-sol:high[/]',
+  `  [b]╰${'─'.repeat(W + 4)}╯[/]`,
   '',
-  '   [m]enter read session · esc back[/]',
+  '  [B]enter[/] read session   [B]esc[/] back',
 ]
 
 const read = [
@@ -374,7 +376,8 @@ out:
 | `status` | How many of its sessions are working now, such as `1 of 3 sessions working`. |
 | `Sessions` | Each session working in it. <kbd>enter</kbd> or a click on one reads it. |
 
-The page stays live. <kbd>esc</kbd> goes back to the monitor.
+The page stays live. Its top line, `monitor › workspace`, is the way back: <kbd>esc</kbd>,
+<kbd>←</kbd>, <kbd>backspace</kbd> or a click on `monitor` returns to the monitor.
 
 ## Under the drawing
 

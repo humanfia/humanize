@@ -1,23 +1,23 @@
 """The sheets: which flow, how it is set up, what each of its agents runs, and how it goes.
 
-Drawn as Claude Code draws its own `/model`, which is the same question one step along: a rule
-of `▔` across the top, the question and a line about it indented three, the choices numbered
-with `❯` against the one under the cursor and a `✔` against the one already in force. A value
-that is one of a few -- an effort, a switch, a backend -- is picked out of every value it can
-take, dropped under its row (:mod:`hmz.tui.dropdown`), rather than stepped along with the
-arrows across: a value nobody has seen listed is a value nobody knows is there.
+Every one of them is drawn as `/settings` is (:mod:`hmz.tui.settings`), on a screen of its own:
+the way here across the top -- each menu it was opened from, any of them a click back to --
+then the question and a line about it, the list in a bordered box with the row under the
+cursor filled, a bar of buttons under it, and the keys under that. A value that is one of a
+few -- an effort, a switch, a backend -- is picked out of every value it can take, dropped under
+its row (:mod:`hmz.tui.dropdown`), rather than stepped along with the arrows across: a value
+nobody has seen listed is a value nobody knows is there.
 
 Two things are said in one place for the whole file. The keys are said at the bottom and
 nowhere else: :meth:`Sheet._footed` builds that row, so that `no key said twice on one sheet`
 is a rule about the whole row rather than about any line of it -- a sheet that wrote its own
 had no way of knowing it had said `esc` in the line about itself and `esc` again at the
-bottom. And whatever is to be done about a list rather than picked out of it -- saving what
-the menu holds, adding one more of what the list is of, being rid of what the sheet is about
--- is a row set apart from the choices and out of their numbering: numbered among them, saving
-read as one more thing to pick, and a menu whose way out looks like one of its answers is a
-menu nobody can see the way out of. `/settings` goes one further: each of its pages says what
-it does about its list as a list of :class:`Action`, drawn as a bar of buttons under the list
-(:mod:`hmz.tui.settings`), saving last, so that each page is laid out as the last one was.
+bottom. And whatever is to be done about a list rather than picked out of it -- searching it,
+adding one more of what it is of, asking again what it is of, being rid of what the sheet is
+about, answering a form, saving what the menu holds -- is a button under it rather than one
+of its rows: each sheet says those as a list of :class:`Action`, drawn in its order with the
+one that answers the menu last and apart, so that each menu is laid out as the last one was
+and its way out never looks like one more thing to pick.
 
 A flow is set up by role: each agent role it declares is a CLI, an account, a model and an
 effort (:class:`Agent`); each environment role is a backend, a machine and a directory there
@@ -42,6 +42,7 @@ import re
 import shlex
 import sys
 import textwrap
+from functools import partial
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -53,17 +54,19 @@ from typing import (
     cast,
     get_args,
     get_origin,
+    runtime_checkable,
 )
+from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from rich.markup import escape
 from textual import events, on, work
 from textual.await_complete import AwaitComplete
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.geometry import Offset
 from textual.screen import ModalScreen
-from textual.widgets import Label, OptionList
+from textual.widgets import Button, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from hmz.coganchor import backends
@@ -85,6 +88,8 @@ if TYPE_CHECKING:
 
     from pydantic.fields import FieldInfo
     from textual.app import App, ComposeResult
+    from textual.screen import Screen
+    from textual.widgets.button import ButtonVariant
 
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.backends import Model, Way
@@ -170,8 +175,7 @@ def called(roles: Sequence[str], at: int) -> str:
     return roles[at] if at < len(roles) else f"agent {at + 1} of {len(roles)}"
 
 
-#: What Claude Code rules the top of a sheet with, and how far in everything under it sits.
-_RULE = "▔"
+#: How far in a line under a heading sits.
 _INDENT = "   "
 
 #: The dot Claude Code separates the parts of a line with.
@@ -187,80 +191,17 @@ _INFORCE = "✔"
 #: a key to find out which one they are on is a reader the row did not tell.
 _OPENS, _DROPS = "▸", "▾"
 
-#: What the rows set below the choices are put up under. A numbered row is one of the things
-#: the list is asking about; these are what to do about the list itself -- search it, save
-#: what it is holding, add one more of what it is of, be rid of what the sheet is about -- so
-#: they are set apart, and a sheet that reads which row the cursor is on has to be able to
-#: tell them from the answers. Every one of them is a row rather than a letter: a menu has
-#: four keys and no more, so whatever a letter used to do is a row the arrows walk to.
-#:
-#: Each carries a byte no name has in it, because the rows above them are put up under names
-#: somebody chose: a flowverse may be called `add` and an account may be called `save`, and
-#: one taken for the row below the list is one that can never be opened.
+#: What the ids a sheet makes up for itself are put under, beside the ones its rows are put up
+#: under by name: the answer that takes a sheet's subject away, a row of a flow's roles that is
+#: no role. Each carries a byte no name has in it, because the names beside them are names
+#: somebody chose: a role may be called `budget` and an agent `another`, and one taken for the
+#: other is one that can never be opened.
 _APART_MARK = "\x1e"
-_SAVE = f"{_APART_MARK}save"
-_ADD = f"{_APART_MARK}add"
-_SEARCH = f"{_APART_MARK}search"
-#: Asking again what a list is of: fetching a flowverse again, asking a CLI what it runs.
-_AGAIN = f"{_APART_MARK}again"
-#: Answering a form with everything written into it: `done`, on every form.
-_DONE = f"{_APART_MARK}done"
-#: The row of the list a role's machine is chosen from that names an ssh host nobody saved,
-#: and the row of the form a docker daemon is written on that asks the daemon what it has.
-_UNSAVED = f"{_APART_MARK}unsaved"
-_DETECTS = f"{_APART_MARK}detects"
 
-#: And what the row that sets what a run may spend answers with. Set apart for the reason
-#: saving is: the rows of the flow menu's second page are the agents it drives, and what the
-#: run is allowed to cost is not one of them.
-_BUDGET = f"{_APART_MARK}budget"
-#: And the row beside it that says whether the run is profiled as well as traced: a thing
-#: about the run, as what it may spend is, rather than about any agent it drives.
-_PROFILING = f"{_APART_MARK}profile"
-
-#: What the row that takes a sheet's subject away answers with, on each of the submenus that
-#: has one. Where every row of a list opens onto what it is, taking one away belongs in there
-#: with everything else about it rather than on a key of the list -- so three sheets grew the
-#: same row, and one spelling is one thing for the sheet that opened them to read back.
+#: What a sheet whose subject can be taken away answers with when it is to go: an account, a
+#: runtime, a fallback rule. One spelling, so that it is one thing for the sheet that opened
+#: them to read back, and one no name can be.
 _TAKES_AWAY = f"{_APART_MARK}take-away"
-
-#: All of them together, for the sheets that keep which row the cursor was on: a row set
-#: apart is not one of the things being kept track of, and one taken for one would move the
-#: cursor off it the moment it was walked to.
-_APART = frozenset(
-    {
-        _SAVE,
-        _ADD,
-        _SEARCH,
-        _AGAIN,
-        _DONE,
-        _TAKES_AWAY,
-        _BUDGET,
-        _PROFILING,
-        _UNSAVED,
-        _DETECTS,
-    }
-)
-
-#: And what each of them is called, which is both the word on the row and what the row of
-#: keys says enter does while the cursor is on it: they are not answers to the question the
-#: list is asking, so what enter means on them is not what it means on the rows above them,
-#: and a row of keys saying `enter choose` over a row that saves is about some other row.
-_ON_APART = {
-    _SAVE: "save",
-    _ADD: "add",
-    _SEARCH: "search",
-    _AGAIN: "refresh",
-    _DONE: "done",
-    _TAKES_AWAY: "remove",
-    _BUDGET: "set",
-    _PROFILING: "switch",
-    _UNSAVED: "type a host",
-    _DETECTS: "detect",
-}
-
-#: The search row, as a row above a list is written down: it draws itself.
-_SEEK = (_SEARCH, "search…", "")
 
 #: How wide the column of names is before the line about each one starts. A model id
 #: may hold slashes of its own -- Kimi Code's and opencode's are `provider/id` -- and is
@@ -363,54 +304,99 @@ def reads(
     ]
 
 
+#: How every sheet is drawn, which is how `/settings` is: a screen of its own, the way here
+#: across the top, the list in a box whose border says whether the keys are in it, the row
+#: under the cursor filled rather than marked, and the buttons under it. Said as the default
+#: of :class:`Sheet` rather than of each sheet, so that it is one rule for all of them and a
+#: sheet that draws itself otherwise -- a box in the middle of the screen -- says only how.
 _SHEET = """
-Configures, Flows, Form {
-    align: center middle; background: $background; }
-#sheet { width: 100%; height: auto; padding: 0; }
-#rule { height: 1; color: $primary; }
-#asked { padding: 0 0 0 3; text-style: bold; color: $primary; }
-#about { padding: 0 3 1 3; color: $text-muted; width: 1fr; }
-/* The row above the list: the places a list of flows is one of. A sheet that is one list
-   says nothing here, and a label with nothing in it is a row nobody paid for. */
-#tabs { padding: 0 0 1 3; width: 1fr; }
-OptionList { border: none; background: $background; scrollbar-size: 0 0; padding: 0; }
-/* The marker says where the cursor is, so the row is not filled as well. */
-#choices > .option-list--option-highlighted {
-    background: $background; color: $foreground; text-style: none; }
+Sheet { align: left top; background: $background; }
+Sheet #sheet { width: 100%; height: 100%; padding: 1 2 0 2; }
+Sheet #top { height: 1; width: 100%; }
+Sheet #top .crumb { width: auto; color: $text-muted; }
+Sheet #top .crumb:hover { color: $primary; text-style: underline; }
+Sheet #top .crumb-sep { width: auto; color: $text-muted; }
+Sheet #asked { width: auto; padding: 0; text-style: bold; color: $primary; }
+Sheet #pending { width: 1fr; text-align: right; color: $warning; }
+Sheet #about { width: 100%; padding: 0 0 1 0; color: $text-muted; }
+Sheet #seek { display: none; border: round $primary; background: $background; }
+Sheet #choices {
+    height: 1fr; max-height: 100%; padding: 0; background: $background;
+    border: round $accent; scrollbar-size: 1 1; }
+Sheet #choices:focus { border: round $primary; background-tint: $background 0%; }
+Sheet #choices > .option-list--option-highlighted {
+    background: $block-cursor-blurred-background;
+    color: $block-cursor-blurred-foreground; text-style: none; }
+Sheet #choices:focus > .option-list--option-highlighted {
+    background: $block-cursor-background; color: $block-cursor-foreground;
+    text-style: bold; }
+Sheet #choices > .option-list--separator { color: $accent; }
+/* Where the pointer is, as a link is marked: the terminal's own colours have no shade of the
+   background to fill a row with, so a theme's hover fill is nothing there. */
+Sheet #choices > .option-list--option-hover { text-style: underline; }
 /* As wide as the sheet, so that what is said under the list and the keys under that wrap
    onto a second row rather than running off the side of a narrow terminal: a key nobody can
    see is a key nobody has. */
-#tuning { padding: 1 0 1 3; width: 1fr; }
-#keys { padding: 0 0 0 3; color: $text-muted; width: 1fr; }
-/* The fields carry their own indent, as the numbered rows above them do. */
-#said { padding: 0 0 1 0; }
+Sheet #tuning { width: 100%; height: auto; padding: 0 1; }
+Sheet #actions { width: 100%; height: auto; padding: 1 0 0 0; }
+/* Borderless in every state: the terminal's own colours give a button that cannot be
+   pressed a tall border of its own, which would make the bar three rows high. */
+Sheet #actions Button {
+    height: 1; min-width: 0; padding: 0 2; margin: 0 1 0 0; border: none !important;
+    background: $block-cursor-blurred-background;
+    color: $block-cursor-blurred-foreground; text-style: none; }
+Sheet #actions Button.-primary {
+    background: $success; color: $block-cursor-foreground; }
+Sheet #actions Button.-error {
+    background: $error; color: $block-cursor-foreground; }
+Sheet #actions Button:hover {
+    background: $block-cursor-background; color: $block-cursor-foreground; }
+Sheet #actions Button:focus {
+    background: $block-cursor-background; color: $block-cursor-foreground;
+    text-style: bold; }
+Sheet #actions Button:disabled {
+    background: $background; color: $text-muted; text-opacity: 100%;
+    text-style: none; }
+Sheet #actions #spacer { width: 1fr; height: 1; }
+Sheet #keys { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted; }
 """
 
 
 #: The one question that is not a sheet: a box in the middle of the screen, over the menu it
-#: is about rather than instead of it. A sheet is walked to and fills the width it is drawn
-#: in; this arrives, says one thing, and is answered in a keypress -- so it is drawn as the
-#: thing every terminal draws that as, which is a bordered box with the question in it. The
-#: parts a sheet has and this has no use for are taken away rather than left blank.
+#: is about rather than instead of it. A sheet is walked to and fills the screen; this
+#: arrives, says one thing, and is answered in a keypress -- so it is drawn as the thing every
+#: terminal draws that as, which is a bordered box with the question in it and its answers as
+#: buttons. The parts a sheet has and this has no use for are taken away rather than left
+#: blank. Said again by each box under its own name, as every rule in this file selects by the
+#: name of the sheet it is about -- and a rule apiece, since only the last selector of a list is
+#: scoped to the box.
 _POPUP = """
-Confirms { align: center middle; background: transparent; }
 #sheet { width: 66; max-width: 100%; height: auto; padding: 1 2; border: round $primary;
          background: $background; }
-#rule { display: none; }
+#top { height: auto; }
+#asked { width: 1fr; }
+#about { padding: 0; }
+#choices { display: none; }
 #tuning { display: none; }
-#asked { padding: 0; text-style: bold; color: $primary; }
-#about { padding: 0 0 1 0; color: $text-muted; width: 1fr; }
-OptionList { border: none; background: $background; scrollbar-size: 0 0; padding: 0; }
-#choices > .option-list--option-highlighted {
-    background: $background; color: $foreground; text-style: none; }
-#keys { padding: 1 0 0 0; color: $text-muted; width: 1fr; }
+#pending { display: none; }
+#spacer { display: none; }
 """
 
 
-#: The arrows across, as the row of keys says them. A menu has four keys and no more -- the
-#: arrows up and down walk the rows, these step between the lists a page is made of, enter
-#: opens the row under the cursor, drops its values under it or begins writing it, and esc
-#: steps back -- so nothing about working one has to be known before it is opened.
+def _popup(name: str) -> str:
+    """The box one question is drawn in, said under that question's own name.
+
+    Args:
+      name: The class of the question.
+
+    Returns:
+      Its stylesheet.
+    """
+    return f"{name} {{ align: center middle; background: transparent; }}\n{_POPUP}"
+
+
+#: The arrows across, as the row of keys says them: along the buttons under a list, between
+#: the lists a page is made of, and into what the row under the cursor opens and back out.
 _ACROSS = "←/→"
 
 #: The one chord left on any sheet, which breaks the line in the one row that takes a list of
@@ -436,62 +422,21 @@ class Key(NamedTuple):
     does: str
 
 
-def _said(*keys: Key) -> str:
-    """The row of keys under a sheet, built in the one place every sheet builds it.
-
-    In one place because `no key said twice on one sheet` is a rule about the whole row
-    rather than about any line of it: a sheet that wrote its own row said `esc` in what it
-    had written and said `esc` again in the search it appended to it.
-
-    Args:
-      keys: The keys, in the order they are reached for.
-
-    Returns:
-      The row, as plain words.
-    """
-    return _DOT.join(f"{one.key} {one.does}" for one in keys)
-
-
-#: Which side of a row set apart from the choices the row of air between them goes.
-_ABOVE, _BELOW = "above", "below"
-
 #: Where a search sends the cursor once letters have narrowed the list: its first row.
 _FIRST = "\x1ffirst"
 
 
-def _aired(row: str, air: str) -> str:
-    """One row with its row of air on the side it goes, or on neither.
-
-    Args:
-      row: The row, as markup.
-      air: `above`, `below`, or "" for none.
-
-    Returns:
-      The row with the air carried in it.
-    """
-    return f"\n{row}" if air == _ABOVE else f"{row}\n" if air == _BELOW else row
-
-
-#: The most rows of choices a sheet shows however tall the terminal is: a list longer than
-#: this is one that is walked rather than read.
-_MOST = 14
-#: The fewest it shortens to before giving up. A terminal with no room for three rows has no
-#: room for the sheet either, and a list shortened to nothing is not a list.
-_LEAST = 3
-
-
 class Body(Vertical):
-    """What a sheet is drawn down, which says when it has grown taller than the terminal.
+    """What a sheet is drawn down, which says when the terminal it is drawn in changed size.
 
-    A sheet is a question with its keys under it, and the one part of it that can be any
-    length is the list in the middle: every flow there is, every model a CLI runs. Drawn as
-    tall as it likes, that list pushes the keys off the bottom of a short terminal -- so the
-    column says when its height changes and the list is shortened to fit. Resize does not
-    bubble, so nothing else would hear about it.
+    The list is as tall as the screen leaves it and scrolls, so the keys under it stay on a
+    short terminal; but its rows are laid out across the width they are drawn in -- a line
+    about a row wraps under itself -- so a sheet has to hear when that changes. Resize does
+    not bubble, so nothing else would hear about it.
     """
 
     def on_resize(self) -> None:
-        """Tells whoever is holding this column that it is a different height now."""
+        """Tells whoever is holding this column that it is a different size now."""
         sheet = self.screen
         if isinstance(sheet, Sheet):
             sheet.shortens()
@@ -549,8 +494,121 @@ def switched(title: str, current: str, means: tuple[str, str] = ("", "")) -> Dro
     )
 
 
+def _shade(style: str, said: str, *, here: bool) -> str:
+    """Words in a colour, or in none on the row under the cursor.
+
+    That row is drawn in the cursor's own pair of colours, which carry their own contrast
+    whatever the terminal's are: grey or yellow words inside it are words on blue.
+
+    Args:
+      style: The colour, as markup names it.
+      said: The words, unescaped.
+      here: Whether they are on the row under the cursor.
+
+    Returns:
+      The words, as markup.
+    """
+    return escape(said) if here else f"[{style}]{escape(said)}[/]"
+
+
+def _chip(
+    value: str, moves: str, *, here: bool, caret: str = "", toggles: bool = False
+) -> tuple[str, int]:
+    """What a row says it is set to, as markup at the far end of it, and how many cells that is.
+
+    A switch is a dot that is filled while it is on; a value picked from a list says so with
+    the mark a `<select>` has, and one that opens a sheet of its own with the mark a link to
+    one has; one written where it stands is what was written, with the block the next letter
+    lands on while it is being written, and a dash while nothing is.
+
+    Args:
+      value: What it is set to, unescaped.
+      moves: :data:`_DROPS` for a value picked from a list, :data:`_OPENS` for one opened
+        onto, or "" for one written where it stands.
+      here: Whether it is the row under the cursor.
+      caret: What follows the value while it is being written, as markup one cell wide.
+      toggles: Whether the row is a switch, whose values are `on` and `off`.
+
+    Returns:
+      The markup, and its width.
+    """
+    if toggles:
+        dot = "●" if value == _YES else "○"
+        if value == _YES and not here:
+            return f"[$success]{dot}[/] {_YES} [$text-muted]{_DROPS}[/]", len(_YES) + 4
+        said = f"{dot} {value} {_DROPS}"
+        return _shade("$text-muted", said, here=here), len(said)
+    if not value and not moves and not caret:
+        return _shade("$text-muted", "—", here=here), 1
+    tail = (f" {moves}" if value else moves) if moves else ""
+    shown = escape(value) if here else f"[$secondary]{escape(value)}[/]"
+    return (
+        f"{shown}{caret}{_shade('$text-muted', tail, here=here) if tail else ''}",
+        len(value) + (1 if caret else 0) + len(tail),
+    )
+
+
+def _act(key: str) -> str:
+    """The id of the button an action is drawn as."""
+    return f"act-{key}"
+
+
+@runtime_checkable
+class Crumbed(Protocol):
+    """A screen that is a step of the way across the top of a menu opened over it.
+
+    Every sheet is, and so is the monitor: a menu says which ones it was opened from, and a
+    click on one goes back to it, as a breadcrumb on a web page does.
+    """
+
+    def crumb(self) -> str:
+        """What it is called on the way across the top, as markup."""
+        ...
+
+    def crumbs(self) -> list[str]:
+        """The levels of itself it is inside of now, outermost first, as markup."""
+        ...
+
+
+class _Crumb(NamedTuple):
+    """One step of the way across the top of a menu: what it says, and where it goes back to.
+
+    Attributes:
+      said: What it says, as markup.
+      screen: The menu it is a step of.
+      depth: How far inside itself that menu is to be left, counting its own levels.
+    """
+
+    said: str
+    screen: Screen[Any]
+    depth: int
+
+
+#: What the prompt is called, as the first step of the way across the top of a menu.
+_HOME = "hmz"
+
+
+class _Climb(NamedTuple):
+    """A walk back along the way across the top of a menu, to one step of it.
+
+    Attributes:
+      to: The step it goes back to.
+      left: The menus between still to be left on the way, the next of them first.
+    """
+
+    to: _Crumb
+    left: list[Screen[Any]]
+
+
+#: The walk back a click on the way across the top of a menu started, by interface. Kept
+#: outside any one menu, because the walk is made by the menus between: each leaves in turn as
+#: it comes back on top, as esc pressed on each would -- and only those, in that order, so
+#: that a menu coming back on top for any other reason ends the walk rather than carrying it.
+_CLIMBS: WeakKeyDictionary[App[Any], _Climb] = WeakKeyDictionary()
+
+
 class Sheet[T](ModalScreen[T | None]):
-    """One question drawn the way Claude Code draws one, answered by picking a line.
+    """One question on a screen of its own, drawn as `/settings` is and worked the same way.
 
     What answering it comes to is the sheet's own: a flow is a name, an agent is what it runs
     and where, and walking out without answering is None wherever it is asked. What is reached
@@ -559,39 +617,44 @@ class Sheet[T](ModalScreen[T | None]):
     picked out of it reads as a view that was there all along, which hides that anything was
     picked at all.
 
-    Four keys and no more: the arrows up and down walk the rows, the arrows across step
-    between the lists a page is made of where it has several, enter opens the row under the
-    cursor and esc steps back. Everything else a sheet does is a row of it -- searching,
-    adding, saving -- so that nothing has to be known before it is found. A row whose value is
-    one of a few has every one of them dropped under it by enter or a click, as `/settings`
-    has (:mod:`hmz.tui.dropdown`), and one is picked with enter or a click; a row that is
-    written is written where it stands: enter begins, typing changes it, enter keeps what it
-    now says and esc puts back what it said before.
+    Every menu has the same keys, so that nothing about working one has to be learned again on
+    the next: the arrows up and down walk the rows, enter opens the row under the cursor, esc
+    steps back -- out of a row being written or a search first -- the arrows across go into
+    what a row opens and back out again, as a file manager's do, or along the buttons, and
+    backspace goes back up to the menu this one was opened from. Tab moves between the search
+    box, the list and the buttons under it, and `/` opens the search where the list has one.
+    Whatever a sheet does about its list rather than to one row of it is one of those buttons
+    (:meth:`actions`), and every row, button and step of the way across the top is a click as
+    well. A row whose value is one of a few has every one of them dropped under it by enter or
+    a click (:mod:`hmz.tui.dropdown`); a row that is written is written where it stands: enter
+    begins, typing changes it, enter keeps what it now says and esc puts back what it said.
     """
 
-    CSS = _SHEET
-    # All of them priority, so that they are taken in the order they were pressed: a key the
-    # list under the cursor took for itself would be handled after one the sheet took, and
-    # enter then an arrow pressed quickly would step to the next list before the row was begun
-    # on.
+    DEFAULT_CSS = _SHEET
+    # The arrows, enter and esc priority, so that they are taken in the order they were pressed:
+    # a key the list under the cursor took for itself would be handled after one the sheet
+    # took, and enter then an arrow pressed quickly would step on before the row was begun on.
     BINDINGS: ClassVar = [
         Binding("escape", "back", "back", show=False, priority=True),
         Binding("up", "walk(-1)", "up", show=False, priority=True),
         Binding("down", "walk(1)", "down", show=False, priority=True),
         Binding("enter", "enter", "open", show=False, priority=True),
-        # Refused where they do nothing -- see :meth:`check_action` -- so that a sheet of one
-        # list lets them fall through.
+        # Refused while something is being typed -- see :meth:`check_action` -- so that the
+        # search box moves its own cursor with them.
         Binding("left", "across(-1)", "back", show=False, priority=True),
         Binding("right", "across(1)", "next", show=False, priority=True),
+        # And these two not priority at all: the search box and a row being written take
+        # them as typing before the sheet is asked. Backspace goes up a level, as it does in
+        # a file manager and a browser.
+        Binding("backspace", "up", "up", show=False),
+        Binding("slash", "search", "search", show=False),
     ]
 
-    #: Which row the marker was last drawn against. Putting the rows up moves the cursor,
-    #: which asks for them to be put up again -- and the message saying so is posted rather
-    #: than called, so a flag set around the drawing is already clear by the time it arrives.
-    #: What breaks the loop is having nothing to do: the marker is already where it goes.
+    #: Which row the cursor was last drawn on. Putting the rows up moves the cursor, which
+    #: asks for them to be put up again -- and the message saying so is posted rather than
+    #: called, so a flag set around the drawing is already clear by the time it arrives. What
+    #: breaks the loop is having nothing to do: the row is already drawn as the one it is on.
     _drawn: int | None = None
-    #: How many columns the numbering takes, so that every row starts in the same one.
-    _counting = 1
     #: How far in the column of values starts, which a list dropped under a row is dropped
     #: under.
     _values_at = 0
@@ -599,22 +662,18 @@ class Sheet[T](ModalScreen[T | None]):
     #: longer than a screen, and a list you walk to the end of to find one thing is one you
     #: read rather than use -- so there is somewhere for the letters to go.
     _typed: str = ""
-    #: Where the next search moved the cursor to, for a list whose search row is above it --
-    #: see :meth:`_sought` -- or "" where it moved nothing.
+    #: Where the next search moved the cursor to -- see :meth:`_sought` -- or "" where it
+    #: moved nothing.
     _seek = ""
-    #: Whether the letters are going there now. Asked for rather than assumed, from the row
-    #: that says `search`: a sheet where typing always searched would be one where a stray
-    #: letter quietly emptied the list.
+    #: Whether the search box is open. Asked for rather than assumed, with `/` or its button:
+    #: a sheet where typing always searched would be one where a stray letter quietly emptied
+    #: the list.
     _searching = False
     #: Which row is being written, by its id, or "" while none is. Writing one is begun on
     #: purpose, with enter, so that walking past a row can never change it.
     _editing = ""
     #: What the sheet held before that row was begun on, which esc puts back.
     _before: object = None
-    #: How many rows of choices there is room for, or None before it has been worked out.
-    #: Kept so that working it out again changes nothing where nothing has changed: setting
-    #: it is what changes the height that asks for it to be worked out.
-    _room: int | None = None
     #: Whether this sheet has answered already. A key pressed twice before the first press
     #: has been handled is two answers to one question, and the second of them pops the sheet
     #: underneath this one -- which is a crash on the first start, where the question about
@@ -626,20 +685,7 @@ class Sheet[T](ModalScreen[T | None]):
     #: first. See :meth:`opening`.
     _walking = False
 
-    #: What this sheet has put on letter keys, by action. They are the sheet's keys only
-    #: while nothing is being typed into a search -- see :meth:`check_action`. No menu has
-    #: any; what is drawn of a run rather than asked has.
-    LETTERS: ClassVar[frozenset[str]] = frozenset()
-
-    #: Whether this sheet's list is long enough to be searched, which gives it the row that
-    #: starts one.
-    SEARCHES: ClassVar[bool] = False
-
-    #: Whether the arrows across step between lists of this one page, for a sheet that has
-    #: several.
-    ASIDE: ClassVar[bool] = False
-
-    #: What the row that answers a form is called, for a sheet that is one. The same word on
+    #: What the button that answers a form says, for a sheet that is one. The same word on
     #: every form, so that the way out of one is found where it was found on the last.
     DONE: ClassVar[str] = "done"
 
@@ -650,11 +696,22 @@ class Sheet[T](ModalScreen[T | None]):
 
     #: The keys this sheet last said it had, as :meth:`_footed` drew them.
     _keyed: tuple[Key, ...] = ()
+    #: What the line under the list says about the button with the focus, while that is what
+    #: it says: what a sheet says there itself -- something wrong, something worth knowing --
+    #: comes first.
+    _hinted = ""
 
-    #: The most rows this sheet's list may grow to before the terminal is what limits it.
-    #: `_MOST` for a sheet that asks a question, since a list longer than that is one that is
-    #: walked rather than read; a sheet whose list is a picture of a run says otherwise.
-    TALLEST: ClassVar[int] = _MOST
+    def __init__(self) -> None:
+        """Starts with nothing drawn: no buttons, no keys, and nowhere it was opened from."""
+        super().__init__()
+        #: What the sheet does about its list now, which the buttons under it are.
+        self._acts: list[Action] = []
+        #: The keys the sheet last said its list had, before where the focus is was said too.
+        self._page_keys: tuple[Key, ...] = ()
+        #: The way across the top as it was last drawn.
+        self._crumbed: list[_Crumb] = []
+        #: How wide the screen was last drawn, which the rows are laid out across.
+        self._width = 0
 
     def check_action(
         self,
@@ -663,10 +720,9 @@ class Sheet[T](ModalScreen[T | None]):
     ) -> bool | None:
         """Whether one of this sheet's own keys is live now.
 
-        The arrows across only on a sheet whose one page is several lists, and not while a
-        row is being written. Anywhere else they are refused, so that they fall through to
-        whatever is under the sheet rather than being swallowed by it. And a key that is a
-        letter is the sheet's only while nothing is being typed into a search.
+        The arrows across, backspace and `/` are the search box's own while it has the focus,
+        and are not live while a row is being written either; and a search is started only
+        where the list has one.
 
         Args:
           action: What the key would do.
@@ -675,42 +731,311 @@ class Sheet[T](ModalScreen[T | None]):
         Returns:
           Whether to run it. A binding refused here is one the key falls through.
         """
+        typing = isinstance(self.focused, Input) or bool(self._editing)
         if action == "across":
-            return self.ASIDE and not self._editing
+            return not typing
+        if action == "up":
+            # Not on a row written where it stands either, which backspace is about to be
+            # the first key of fixing.
+            return not typing and not self._on_written()
+        if action == "search":
+            return not typing and self._searchable()
         if action in ("walk", "enter"):
             return bool(self.query("#choices"))
-        return not (self._searching and action in self.LETTERS)
+        return True
+
+    # -- Walking -------------------------------------------------------------------------------
 
     def action_walk(self, by: int) -> None:
-        """Walks the cursor a row up or down, unless the row it is on is being written.
+        """Walks the list, or comes back to it from the search box above it or the bar below.
+
+        A row being written is kept first, as walking off it with the focus does: what was
+        typed is what the row now says, and esc on it was the way to put it back.
 
         Args:
           by: One row down, or one up.
         """
+        focus = self.focused
         listing = self.query_one("#choices", OptionList)
+        if isinstance(focus, Input):
+            if by > 0:
+                listing.focus()
+            return
+        if isinstance(focus, Button):
+            if by < 0 and listing.display:
+                listing.focus()
+            return
+        if self._editing:
+            self._keeps_writing()
         if by < 0:
             listing.action_cursor_up()
         else:
             listing.action_cursor_down()
 
     def action_enter(self) -> None:
-        """Opens the row under the cursor, or drops, begins or keeps it -- see :meth:`pressed`."""
+        """Opens the row under the cursor, presses the button with the focus, or ends typing.
+
+        On a row that is the row's own: it drops, begins or keeps it -- see :meth:`pressed`.
+        """
+        focus = self.focused
+        if isinstance(focus, Input):
+            self.query_one("#choices", OptionList).focus()
+            return
+        if isinstance(focus, Button):
+            focus.press()
+            return
         self.query_one("#choices", OptionList).action_select()
 
     def action_across(self, by: int) -> None:
-        """Steps to the next of the lists this page is made of.
+        """Steps along the buttons, or into the row under the cursor and back out.
+
+        Along the bar while a button has the focus, round its ends. On the list, right goes
+        into what the row under the cursor opens and left comes back out to the menu this one
+        was opened from, as they do in a file manager that lists what is in the folder beside
+        the one it is in.
 
         Args:
           by: One on, or one back.
         """
-        self.aside(by)
+        focus = self.focused
+        if isinstance(focus, Button):
+            shown = self._buttons()
+            if focus in shown:
+                shown[(shown.index(focus) + by) % len(shown)].focus()
+            return
+        if by < 0:
+            if not self._on_written():
+                self.action_up()
+        elif self.enters(self.under()):
+            self.action_enter()
 
-    def aside(self, by: int) -> None:
-        """Steps to another of the lists this page is made of, for a sheet that has them.
+    def action_up(self) -> None:
+        """Goes back up to the menu this one was opened from, which is leaving this one.
+
+        Nothing on a menu opened from nowhere but the prompt: up from there is out of menus
+        altogether, which is esc's to do and says so.
+        """
+        if self._opened_from() is not None:
+            self.leaving()
+
+    def _on_written(self) -> bool:
+        """Whether the focus is on the list and the row under its cursor is a written one."""
+        focus = self.focused
+        return (focus is None or focus.id == "choices") and self.editable(self.under())
+
+    def enters(self, row: str) -> bool:
+        """Whether a row opens a menu of its own, which the arrow right then goes into.
 
         Args:
-          by: One on, or one back.
+          row: The row, by id.
+
+        Returns:
+          False, unless a sheet says otherwise.
         """
+        del row
+        return False
+
+    def _buttons(self) -> list[Button]:
+        """The buttons under the list that can be pressed now, in the order they stand."""
+        return [
+            one
+            for one in self.query_one("#actions", Horizontal).query(Button)
+            if one.display and not one.disabled
+        ]
+
+    def _settles_focus(self) -> None:
+        """Puts the focus on the list, or on the bar where the list has nothing to land on.
+
+        Which on a list with nothing in it is the button that adds the first thing.
+        """
+        listing = self.query_one("#choices", OptionList)
+        if listing.display and any(not one.disabled for one in listing.options):
+            listing.focus()
+            return
+        for one in self._buttons():
+            one.focus()
+            return
+        listing.focus()
+
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        """Keeps a row being written that the focus left, and says the keys again.
+
+        They are not the same on the list, the search box and the bar, and the row of keys
+        says what they are where the focus is.
+
+        Args:
+          event: What the focus went to.
+        """
+        if self._editing and event.widget is not self.query_one("#choices"):
+            self._keeps_writing()
+        self._footed(*self._page_keys)
+
+    # -- The way across the top ----------------------------------------------------------------
+
+    def crumb(self) -> str:
+        """What this sheet is called on the way across the top of a menu opened from it.
+
+        Returns:
+          Its question as it says it across its own top, unless it says something shorter.
+        """
+        return str(self.query_one("#asked", Label).content)
+
+    def crumbs(self) -> list[str]:
+        """The levels of itself this sheet is inside of now, for one that has levels.
+
+        Returns:
+          Nothing, unless a sheet says otherwise.
+        """
+        return []
+
+    def climbs_to(self, depth: int) -> None:
+        """Goes back out to one of this sheet's own levels, from a click on the way across.
+
+        Args:
+          depth: Which, counting from the outermost.
+        """
+
+    def _interface(self) -> App[None]:
+        """The interface this sheet is drawn over, as every sheet here reaches it."""
+        return cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+
+    def _opened_from(self) -> Screen[Any] | None:
+        """The menu this one was opened from, or None for one opened from the prompt."""
+        stack = self._interface().screen_stack
+        at = stack.index(self) if self in stack else 0
+        below = stack[at - 1] if at else None
+        return below if isinstance(below, Crumbed) else None
+
+    def _trail(self) -> list[_Crumb]:
+        """The way here: each menu this one was opened from, oldest first, and its own levels.
+
+        From the prompt itself, where the walk began there: the way out of every menu at once,
+        which is what esc pressed on each comes to -- and the one way out of a menu opened
+        from the prompt that a pointer has.
+
+        Returns:
+          A step apiece, all of them ways back.
+        """
+        stack = self._interface().screen_stack
+        made: list[_Crumb] = []
+        for screen in reversed(stack[: stack.index(self)] if self in stack else []):
+            if not isinstance(screen, Crumbed):
+                if screen is stack[0]:
+                    made.insert(0, _Crumb(_HOME, screen, 0))
+                break
+            levels = screen.crumbs()
+            made[:0] = [
+                *(_Crumb(said, screen, at) for at, said in enumerate(levels)),
+                _Crumb(screen.crumb(), screen, len(levels)),
+            ]
+            if not isinstance(screen, Sheet):
+                break  # the monitor, which was opened from the prompt
+        return [*made, *(_Crumb(one, self, at) for at, one in enumerate(self.crumbs()))]
+
+    def _draws_top(self) -> None:
+        """Says where this is across the top, each step a way back, and whether it is holding.
+
+        The labels are made the first time there are that many steps and kept after, hidden
+        where there are fewer: one taken away and made again under the same name in the same
+        breath is two of one name.
+        """
+        trail = self._trail()
+        if [one.said for one in trail] != [one.said for one in self._crumbed]:
+            top = self.query_one("#top", Horizontal)
+            steps = list(top.query(".crumb").results(Label))
+            between = list(top.query(".crumb-sep").results(Label))
+            for at in range(len(steps), len(trail)):
+                step = Label(id=f"crumb-{at}", classes="crumb")
+                sep = Label(" \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK} ")
+                sep.add_class("crumb-sep")
+                top.mount(step, sep, before="#asked")
+                steps.append(step)
+                between.append(sep)
+            for at, (step, sep) in enumerate(zip(steps, between, strict=True)):
+                step.display = sep.display = at < len(trail)
+                if at < len(trail):
+                    step.update(trail[at].said)
+        self._crumbed = trail
+        self.query_one("#pending", Label).update(
+            "● unsaved changes" if self._holding() else ""
+        )
+
+    def _holding(self) -> bool:
+        """Whether anything is held that saving would land, which only a menu that holds says."""
+        return False
+
+    def on_click(self, event: events.Click) -> None:
+        """Takes a click on a step of the way across the top as going back to it.
+
+        Args:
+          event: The click.
+        """
+        step = event.widget
+        if step is None or not step.has_class("crumb"):
+            return
+        at = int(str(step.id).removeprefix("crumb-"))
+        if at < len(self._crumbed):
+            self._climbs(self._crumbed[at])
+
+    def _climbs(self, to: _Crumb) -> None:
+        """Goes back to one step of the way here, leaving each menu between as esc would.
+
+        A menu between that is holding changes asks whether to save them, as leaving it any
+        other way would; the walk back stops there, whatever is answered.
+
+        Args:
+          to: The step.
+        """
+        if to.screen is self:
+            self.climbs_to(to.depth)
+            return
+        showing = self._interface()
+        stack = showing.screen_stack
+        between = stack[stack.index(to.screen) + 1 : stack.index(self)]
+        _CLIMBS[showing] = _Climb(to, between[::-1])
+        self._steps_up()
+
+    def _steps_up(self) -> None:
+        """Leaves, on the walk back to a step of the way here that is under this menu."""
+        showing = self._interface()
+        climb = _CLIMBS.get(showing)
+        if climb is None:
+            return
+        if not climb.left and not isinstance(climb.to.screen, Sheet):
+            # The monitor, which has no levels to be left at and no walk to carry on.
+            del _CLIMBS[showing]
+        self.closes()
+
+    def on_screen_resume(self) -> None:
+        """Carries a walk back to a step of the way here on, or ends it here.
+
+        Carried on only by the next of the menus it has to leave, and only once that is the
+        menu on top: what opened the one that just left may be about to open another.
+        """
+        showing = self._interface()
+        climb = _CLIMBS.get(showing)
+        if climb is None:
+            return
+        if climb.to.screen is self:
+            del _CLIMBS[showing]
+            self.climbs_to(climb.to.depth)
+        elif climb.left and climb.left[0] is self:
+            del climb.left[0]
+            self.call_after_refresh(self._climbs_on)
+        else:
+            del _CLIMBS[showing]
+
+    def _climbs_on(self) -> None:
+        """Leaves on the walk back, where this is still the menu on top; else ends the walk."""
+        if self.is_attached and self._interface().screen is self:
+            self._steps_up()
+        else:
+            _CLIMBS.pop(self._interface(), None)
+
+    # -- Rows that are changed where they stand ------------------------------------------------
 
     def editable(self, row: str) -> bool:
         """Whether a row is written where it stands rather than opened, which each sheet says.
@@ -804,8 +1129,15 @@ class Sheet[T](ModalScreen[T | None]):
         """
         return self.TYPES and self.editable(row)
 
+    def _keeps_writing(self) -> None:
+        """Keeps what the row being written now says, as walking off it does."""
+        self._editing = ""
+        if self.held() != self._before:
+            self.edited()
+        self._fill()
+
     def pressed(self) -> bool:
-        """Takes enter where it drops a row's values, begins or ends writing it, or searches.
+        """Takes enter where it drops a row's values, or begins or ends writing it.
 
         Asked by the list before it picks the row under the cursor, whether enter was pressed
         or the row was clicked: enter on a row whose values are dropped under it drops them,
@@ -823,10 +1155,6 @@ class Sheet[T](ModalScreen[T | None]):
             self._fill()
             return True
         row = self.under()
-        if row == _SEARCH:
-            if not self._searching:
-                self.action_search()
-            return True
         if row and self.drops(row):
             self._drops(row)
             return True
@@ -882,20 +1210,89 @@ class Sheet[T](ModalScreen[T | None]):
         self.kept(row)
         self._fill()
 
+    def on_key(self, event: events.Key) -> None:
+        """Takes a key as writing the row being changed, or as beginning to write it.
+
+        Writing only once a row has been begun on, with enter -- or, on a form, with the first
+        letter typed on one of its written rows: a list where typing always wrote is one where
+        a stray letter changes something nobody meant to.
+
+        Args:
+          event: The key.
+        """
+        if self._editing:
+            if self.writes(self._editing, event):
+                event.prevent_default()
+                event.stop()
+                self._fill()
+            return
+        focus = self.focused
+        row = self.under() if focus is None or focus.id == "choices" else ""
+        if (
+            row
+            and self.written(row)
+            and (event.key == "backspace" or (event.is_printable and event.character))
+        ):
+            # A letter on a written row of a form begins writing it, and is the first letter
+            # of what is written: begun exactly as enter begins it, so esc puts it back.
+            self._editing, self._before = row, self.held()
+            self.writes(row, event)
+            event.prevent_default()
+            event.stop()
+            self._fill()
+
+    # -- Searching -----------------------------------------------------------------------------
+
+    def _searchable(self) -> bool:
+        """Whether the list is searched, which a sheet says with a button under it."""
+        return self._acting(_ACT_SEARCH) is not None
+
+    def _searches(self) -> Action:
+        """The button a list is searched from, as `/` searches it."""
+        return Action(
+            _ACT_SEARCH,
+            "search…",
+            "narrow the list by what is typed",
+            self.action_search,
+        )
+
     def action_search(self) -> None:
-        """Starts narrowing the list by what is typed, until esc says to stop."""
+        """Opens the box a search is typed into, above the list, and puts the letters there."""
+        seek = self.query_one("#seek", Input)
         self._searching = True
-        self.query_one("#choices", OptionList).highlighted = 0
-        self._seek = _SEARCH
-        self._drawn = 0
+        seek.display = True
+        seek.focus()
+
+    @on(Input.Changed, "#seek")
+    def _seeks(self, event: Input.Changed) -> None:
+        """Narrows the list to what has been typed, as it is typed.
+
+        Args:
+          event: What the box says now.
+        """
+        event.stop()
+        self._typed = event.value
+        # On the first thing found while there is something typed; where it was, once not.
+        self._seek = _FIRST if event.value else ""
+        if event.value:
+            self.query_one("#choices", OptionList).highlighted = 0
+            self._drawn = 0
+        self._fill()
+
+    def _clears_search(self) -> None:
+        """Takes the search away, and the list back to all of itself, the cursor where it was."""
+        seek = self.query_one("#seek", Input)
+        with seek.prevent(Input.Changed):
+            seek.value = ""
+        seek.display = False
+        self._searching, self._typed = False, ""
         self._fill()
 
     def _sought(self, items: Sequence[str]) -> str | None:
-        """Where a search puts the cursor, on a list whose search row is above it.
+        """Where a search puts the cursor: on the first thing it found, once it found anything.
 
-        On the search row as it starts, so the letters are seen landing where they go, and
-        on the first thing they found once they have found something: enter then takes the
-        best of what is left, as it does on a list whose rows are below it.
+        Enter then takes the best of what is left, which is what somebody who typed a few
+        letters of it was looking for.
 
         Args:
           items: The things listed, by id, as the search has narrowed them.
@@ -906,7 +1303,7 @@ class Sheet[T](ModalScreen[T | None]):
         """
         seek, self._seek = self._seek, ""
         if seek == _FIRST:
-            return items[0] if items else _SEARCH
+            return items[0] if items else ""
         return seek or None
 
     def fits(self, *fields: str) -> bool:
@@ -965,124 +1362,197 @@ class Sheet[T](ModalScreen[T | None]):
             return 2
         return 3
 
-    def _seeking(self, *, here: bool, air: str = _ABOVE) -> Option:
-        """The row a search is started from, which says what has been typed once one is.
+    # -- What is done about the list -----------------------------------------------------------
 
-        With the block the next letter lands on, so that a search nothing has been typed into
-        yet still looks like one.
+    def actions(self) -> list[Action]:
+        """What this sheet does about its list rather than to one row of it, in its order.
 
-        Args:
-          here: Whether the cursor is on it.
-          air: Which side of it the row of air goes -- see :meth:`_apart`.
+        Drawn as the buttons under the list, the one that answers the menu -- saving it,
+        answering a form -- last and apart at the far end.
 
         Returns:
-          The row.
+          Nothing, unless a sheet says otherwise.
         """
-        mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
-        typed = (
-            f"   [$secondary]{escape(self._typed)}[/][reverse] [/reverse]"
-            if self._searching
-            else ""
-        )
-        return Option(
-            _aired(
-                f"{mark}{' ' * (self._counting + 2)}[$primary]search…[/]{typed}", air
-            ),
-            id=f"={_SEARCH}",
-        )
+        return []
 
-    def _atop(self, rows: Sequence[tuple[str, str, str]], *, here: str) -> list[Option]:
-        """The rows about a list, put above it, with a row of air between them and it.
+    def _acting(self, key: str) -> Action | None:
+        """The action of the sheet that a button is, by its key, or None for none."""
+        return next((one for one in self._acts if one.key == key), None)
 
-        Above rather than below: what is done about a list -- adding to it, searching it,
-        bringing more into it -- is found in the same place on each sheet that has them, and
-        on a list that is empty it is the whole of the sheet.
+    def _pointed(self) -> Action | None:
+        """The action of the button with the focus, or None where the focus is elsewhere."""
+        focus = self.focused
+        if not isinstance(focus, Button):
+            return None
+        return self._acting((focus.id or "").removeprefix("act-"))
 
-        Args:
-          rows: One `(id, what it is called, the line about it)` apiece, in order.
-          here: The id of the row the cursor is on.
+    def _shows_bar(self) -> None:
+        """Draws the actions the sheet said it has, as buttons in its order, and hides the rest.
 
-        Returns:
-          The rows.
+        A button is made the first time a sheet asks for its action and kept after: a bar made
+        again on every keystroke would be one that lost the focus of whoever was walking along
+        it. The last stands apart at the far end where it is the one that answers the menu.
         """
-        made: list[Option] = []
-        for at, (held, label, about) in enumerate(rows):
-            air = _BELOW if at == len(rows) - 1 else ""
-            made.append(
-                self._seeking(here=held == here, air=air)
-                if held == _SEARCH
-                else Option(
-                    self._apart(label, about, here=held == here, air=air),
-                    id=f"={held}",
+        bar = self.query_one("#actions", Horizontal)
+        spacer = bar.query_one("#spacer")
+        order = [_act(one.key) for one in self._acts]
+        for button in bar.query(Button):
+            button.display = button.id in order
+        apart = bool(self._acts) and self._acts[-1].variant == "primary"
+        for one in self._acts:
+            found = bar.query(f"#{_act(one.key)}")
+            if found:
+                button = found.first(Button)
+            else:
+                button = Button(one.label, id=_act(one.key), compact=True)
+                if apart and one is self._acts[-1]:
+                    bar.mount(button)
+                else:
+                    bar.mount(button, before=spacer)
+            button.label = one.label[:1].upper() + one.label[1:]
+            button.tooltip = one.about or None
+            button.disabled = not one.able()
+            button.variant = one.variant
+        # Put in the sheet's order only where they are not in it already: this is drawn on
+        # every keystroke, and a bar laid out again for nothing is a bar redrawn for nothing.
+        wanted = [*order[:-1], "spacer", *order[-1:]] if apart else [*order, "spacer"]
+        standing = [str(one.id) for one in bar.children if one.id in wanted]
+        if standing != wanted:
+            # Each after the one before it, which leaves them in order whatever order they
+            # were in: the ones hidden between them are hidden.
+            for at in range(1, len(wanted)):
+                bar.move_child(
+                    bar.query_one(f"#{wanted[at]}"),
+                    after=bar.query_one(f"#{wanted[at - 1]}"),
                 )
-            )
-        return made
+        bar.display = bool(self._acts)
+        focus = self.focused
+        if isinstance(focus, Button) and (not focus.display or focus.disabled):
+            self._settles_focus()
+
+    @on(Button.Pressed, "#actions Button")
+    def _acted(self, event: Button.Pressed) -> None:
+        """Does what the button pressed is for, as the sheet said.
+
+        Args:
+          event: The press.
+        """
+        event.stop()
+        act = self._acting((event.button.id or "").removeprefix("act-"))
+        if act is not None and act.able():
+            act.does()
+
+    # -- The keys ------------------------------------------------------------------------------
 
     def _footed(self, *keys: Key) -> None:
-        """Puts the row of keys under the list, which is where this sheet's keys are said.
+        """Draws the buttons and the way across the top, and says the keys, as things stand.
 
-        Every sheet writes its row here rather than building one of its own, because the rule
-        that matters about it is a rule about the whole row: a key said once in the line
-        about the sheet and again at the bottom is a key said twice, and a sheet that built
-        its own row had no way of knowing it had done that.
-
-        The row says what the keys do *now*. While a row is being written that is writing it
-        and nothing else. Otherwise enter is what the row under the cursor is, and esc comes
-        out of a running search before it leaves the sheet.
+        Every sheet writes its row of keys here rather than building one of its own, because
+        the rule that matters about it is a rule about the whole row: a key said once in the
+        line about the sheet and again at the bottom is a key said twice, and a sheet that
+        built its own row had no way of knowing it had done that. And every sheet calls this
+        last of all as it puts its rows up, so that what is drawn round the list is drawn from
+        what the list now is.
 
         Args:
-          keys: This sheet's keys, in the order they are reached for.
+          keys: This sheet's keys for its list, in the order they are reached for.
+        """
+        self._page_keys = keys
+        self._acts = self.actions()
+        self._shows_bar()
+        self._draws_top()
+        seek = self.query_one("#seek", Input)
+        if seek.display and not self._searching:
+            # Put away by the sheet rather than by esc -- a list turned to another of its
+            # pages -- which takes the letters with it.
+            with seek.prevent(Input.Changed):
+                seek.value = ""
+            seek.display = False
+        # Kept as well as drawn, so that `no key twice on one sheet` is a thing a test can
+        # read off the sheet rather than pick back out of a line of markup.
+        self._keyed = self._keys_for(keys)
+        self.query_one("#keys", Label).update(self.keys_line(self._keyed))
+        self._hints()
+
+    def _hints(self) -> None:
+        """Says under the list what the button with the focus does, where nothing else is.
+
+        What pointing at a button says is said for the keys as well: what answering a form
+        will do is worth reading before it is done, whichever way it is about to be done.
+        """
+        tuning = self.query_one("#tuning", Label)
+        now = str(tuning.content)
+        mine = bool(self._hinted) and now == self._hinted
+        act = self._pointed()
+        if act is not None and act.about and (mine or not now):
+            self._hinted = f"[$text-muted]{escape(act.about)}[/]"
+            tuning.update(self._hinted)
+        elif mine:
+            self._hinted = ""
+            tuning.update("")
+
+    def _keys_for(self, keys: Sequence[Key]) -> tuple[Key, ...]:
+        """What the keys do now, where the focus is: the list's, the search box's, or the bar's.
+
+        While a row is being written that is writing it and nothing else. On the list, enter
+        is what the row under the cursor is, and esc comes out of an open search before it
+        leaves the sheet.
+
+        Args:
+          keys: The sheet's keys for its list.
+
+        Returns:
+          The keys, in the order they are reached for.
         """
         if self._editing:
-            keys = (
+            return (
                 # The one chord, which only a row being written that takes a list has.
                 *(one for one in keys if one.key == _CHORD),
                 Key("enter", "keep"),
                 Key("esc", "undo"),
             )
-        else:
-            # What enter does on the row under the cursor, while the list is where enter
-            # goes: on a sheet with something else to focus, its keys are its own.
-            focus = self.focused
-            listed = focus is None or focus.id == "choices"
-            under = self.under() if listed and self.query("#choices") else ""
-            apart = under if under in _APART else ""
-            said = (
-                self.DONE
-                if apart == _DONE
-                else _ON_APART.get(apart)
-                or (
-                    "choose"
-                    if under and self.drops(under)
-                    else "change"
-                    if under and self.editable(under)
-                    else None
-                )
+        back = next((one for one in keys if one.key == "esc"), Key("esc", "back"))
+        focus = self.focused
+        if isinstance(focus, Input):
+            return (Key("enter", "to list"), Key("esc", "clear"))
+        if isinstance(focus, Button):
+            act = self._pointed()
+            return (
+                # What the button does, in its first word: `add`, `import`, `save`.
+                Key("enter", act.label.split()[0].rstrip("…") if act else "press"),
+                Key(_ACROSS, "move"),
+                *((Key("tab", "list"),) if self.query_one("#choices").display else ()),
+                back,
             )
-            if under and self.written(under):
-                # Typing is what writes it, so typing is what the row of keys says: enter
-                # begins it as well, which is the same thing done the long way round.
-                keys = (
-                    Key("type", "to edit"),
-                    *(one for one in keys if one.key != "enter"),
-                )
-            elif said:
-                keys = (
-                    Key("enter", said),
-                    *(one for one in keys if one.key != "enter"),
-                )
-            if self._searching:
-                keys = (
-                    *(one for one in keys if one.key != "esc"),
-                    Key("esc", "cancel search"),
-                )
-        # Kept as well as drawn, so that `no key twice on one sheet` is a thing a test can
-        # read off the sheet rather than pick back out of a line of markup.
-        self._keyed = keys
-        self.query_one("#keys", Label).update(self.keys_line(keys))
+        under = self.under()
+        said = (
+            "choose"
+            if under and self.drops(under)
+            else "change"
+            if under and self.editable(under)
+            else None
+        )
+        listed = [one for one in keys if one.key != "esc"]
+        if under and self.written(under):
+            # Typing is what writes it, so typing is what the row of keys says: enter begins
+            # it as well, which is the same thing done the long way round.
+            listed = [
+                Key("type", "to edit"),
+                *(one for one in listed if one.key != "enter"),
+            ]
+        elif said:
+            listed = [
+                Key("enter", said),
+                *(one for one in listed if one.key != "enter"),
+            ]
+        if self._searchable():
+            listed.append(Key("/", "search"))
+        if any(one.able() for one in self._acts):
+            listed.append(Key("tab", "actions"))
+        return (*listed, Key("esc", "clear search") if self._searching else back)
 
     def keys_line(self, keys: Sequence[Key]) -> str:
-        """The row of keys as it is drawn, which is plain words on every sheet but one.
+        """The keys with the key picked out from what it does, as a footer draws them.
 
         Args:
           keys: The keys, as :meth:`_footed` settled them.
@@ -1090,119 +1560,48 @@ class Sheet[T](ModalScreen[T | None]):
         Returns:
           The row, as markup.
         """
-        return _said(*keys)
+        return "   ".join(
+            f"[b $accent]{escape(one.key)}[/] {escape(one.does)}" for one in keys
+        )
 
-    def on_key(self, event: events.Key) -> None:
-        """Takes a key as writing the row being changed, or as narrowing the list.
-
-        Narrowing only once a search has been asked for, and writing only once a row has been
-        begun on: a list where typing always did either is one where a stray letter changes
-        something nobody meant to. The arrows walk it and enter takes what is under the
-        cursor, either way.
-
-        Args:
-          event: The key.
-        """
-        if self._editing:
-            if self.writes(self._editing, event):
-                event.prevent_default()
-                event.stop()
-                self._fill()
-            return
-        row = "" if self._searching else self.under()
-        if (
-            row
-            and self.written(row)
-            and (event.key == "backspace" or (event.is_printable and event.character))
-        ):
-            # A letter on a written row of a form begins writing it, and is the first letter
-            # of what is written: begun exactly as enter begins it, so esc puts it back.
-            self._editing, self._before = row, self.held()
-            self.writes(row, event)
-            event.prevent_default()
-            event.stop()
-            self._fill()
-            return
-        if not self._searching:
-            return
-        if event.key == "backspace":
-            self._typed = self._typed[:-1]
-        elif event.is_printable and event.character:
-            self._typed += event.character
-        else:
-            return
-        event.prevent_default()
-        event.stop()
-        self.query_one("#choices", OptionList).highlighted = 0
-        self._seek = _FIRST
-        self._drawn = 0
-        self._fill()
+    # -- Drawing -------------------------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
-        """The rule, the question, the strip, what there is to choose, what is tuned, the keys.
+        """The way here, the question, the search, the list, what it says, the bar, the keys.
 
-        Every sheet is made of the same parts whether or not it uses them. The strip of lists
-        above the choices is the one part that is taken away again where a sheet has none --
-        see :meth:`tabbed` -- so that a sheet which is one list is drawn as one list and
-        nothing moved down a row.
+        Every sheet is made of the same parts whether or not it uses them; the search box is
+        taken away until a search is asked for.
         """
         with Body(id="sheet"):
-            yield Label(id="rule")
-            yield Label(id="asked")
+            with Horizontal(id="top"):
+                yield Label(id="asked")
+                yield Label(id="pending")
             yield Label(id="about")
-            yield Label(id="tabs")
+            yield Input(placeholder="type to filter", id="seek")
             yield Choices(id="choices")
             yield Label(id="tuning")
+            with Horizontal(id="actions"):
+                yield Static(id="spacer")
             yield Label(id="keys")
 
     def on_mount(self) -> None:
-        """Rules the top of the sheet across, and asks."""
-        self.query_one("#choices", OptionList).styles.max_height = self.TALLEST
-        self.query_one("#rule", Label).update(_RULE * self.size.width)
-        # Gone rather than blank until a sheet says what its list is one of: a label with
-        # nothing in it still takes the row it is padded to.
-        self.tabbed("")
+        """Asks, and puts the focus where there is something to do."""
         self._ask()
-
-    def tabbed(self, said: str) -> None:
-        """Puts the row above the choices up, or takes it back where there is nothing for it.
-
-        Args:
-          said: What a sheet says the list is one of, as markup -- and "" for a sheet that is
-            one list of one thing.
-        """
-        showing = self.query_one("#tabs", Label)
-        showing.display = bool(said)
-        showing.update(said)
-
-    def on_resize(self) -> None:
-        """Rules the new width across, and shortens the list to the room left under it."""
-        if not self.query("#sheet"):
-            return  # resized before there is anything on it, which is nothing to fit
-        self.query_one("#rule", Label).update(_RULE * self.size.width)
-        self.shortens()
+        self._settles_focus()
 
     def shortens(self) -> None:
-        """Shortens the list until what is under it is inside the terminal.
+        """Lays the rows out again across a screen that changed width.
 
-        The list is what gives. Everything else on a sheet is a line or two -- what is being
-        asked, what it comes to, the keys -- and the rows are what there are a hundred of, so
-        a sheet that does not fit is a sheet whose list is too long for the terminal it is
-        drawn in rather than a sheet with too much on it. The keys are the last row, so they
-        are what falls off the bottom, and a key nobody can see is a key nobody has.
-
-        Called each time the column changes height, which is each time the list is put up
-        again, and each time the terminal changes size. It settles at once: how tall the rest
-        of the sheet is does not depend on how many rows the list is showing.
+        Nothing is shortened: the list is as tall as the screen leaves it, and scrolls.
         """
-        listing = self.query_one("#choices", OptionList)
-        column = self.query_one("#sheet", Body).outer_size.height
-        rest = column - listing.outer_size.height
-        room = max(_LEAST, min(self.TALLEST, self.size.height - rest))
-        if room == self._room:
-            return
-        self._room = room
-        listing.styles.max_height = room
+        width = self.size.width
+        if width != self._width and self.query("#choices"):
+            self._width = width
+            self._fill()
+
+    def _width_of(self, listing: OptionList) -> int:
+        """How many cells across the list has to lay its rows out in."""
+        return listing.scrollable_content_region.width or max(self.size.width - 6, 40)
 
     def action_back(self) -> None:
         """Puts back the row being changed, or comes out of the search, or leaves.
@@ -1216,13 +1615,7 @@ class Sheet[T](ModalScreen[T | None]):
             self._fill()
             return
         if self._searching:
-            self._searching, self._typed = False, ""
-            if self.under() == _SEARCH:
-                # Back on the rows, which the search is not one of.
-                self.query_one("#choices", OptionList).highlighted = 0
-                self._seek = _FIRST
-            self._drawn = 0
-            self._fill()
+            self._clears_search()
             return
         self.leaving()
 
@@ -1235,6 +1628,14 @@ class Sheet[T](ModalScreen[T | None]):
         """
         self.dismiss(None)
 
+    def closes(self) -> None:
+        """Leaves this sheet altogether, as the walk back along the way across the top does.
+
+        Which is leaving, for a sheet with no levels of its own that esc would step out of
+        first.
+        """
+        self.leaving()
+
     def _row(
         self,
         at: int,
@@ -1244,10 +1645,10 @@ class Sheet[T](ModalScreen[T | None]):
         here: bool,
         inforce: bool,
     ) -> str:
-        """One numbered choice, laid out as Claude Code lays one out.
+        """One thing on a list: its name and what it is, as a row of `/settings` lays one out.
 
         Args:
-          at: Which one it is, counting from zero.
+          at: Which one it is, which a list with a cursor drawn on it has no use for.
           label: What it is called.
           about: The line about it, which is said quietly.
           here: Whether the cursor is on it.
@@ -1256,76 +1657,104 @@ class Sheet[T](ModalScreen[T | None]):
         Returns:
           The row, as markup.
         """
-        mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
-        # Right-aligned, so that the tenth row starts where the ninth does.
-        number = f"{at + 1:>{self._counting}}."
-        named = escape(label) + (f" [$success]{_INFORCE}[/]" if inforce else "")
-        # Padded on what is shown rather than on what is written: markup is not columns.
-        pad = " " * max(
-            1,
-            _LABEL - len(label) - (2 if inforce else 0),
+        del at
+        named = f"[b]{escape(label)}[/]" + (
+            f" {_shade('$success', _INFORCE, here=here)}" if inforce else ""
+        )
+        shown = len(label) + (2 if inforce else 0)
+        pad = " " * max(1, _LABEL - shown)
+        # Wrapped here rather than by the list, so that a second line starts under the first
+        # rather than under the name: the column of what each thing is stays a column.
+        starts = 1 + max(_LABEL, shown + 1)
+        room = max(self._width_of(self.query_one("#choices", OptionList)) - starts, 20)
+        lines = textwrap.wrap(about, room, break_on_hyphens=False) or [""]
+        said = f"\n{' ' * starts}".join(
+            _shade("$text-muted", line, here=here) for line in lines
+        )
+        return f" {named}{pad}{said}"
+
+    def _setting(
+        self,
+        named: str,
+        chip: tuple[str, int],
+        about: str,
+        *,
+        here: bool,
+        inforce: bool = False,
+    ) -> str:
+        """One row that is set to something, as a row of `/settings` lays one out.
+
+        Its name, what it is set to at the far end of it -- so that what each row is set to is
+        read down one column whatever the names are -- and the line about it under both.
+
+        Args:
+          named: What it is called.
+          chip: What it is set to, as markup, and how many cells that takes -- see
+            :func:`_chip`.
+          about: The line about it, unescaped, or "" for none.
+          here: Whether the cursor is on it, which is the row a list of its values is
+            dropped under.
+          inforce: Whether it is the one already in force, ticked after its name.
+
+        Returns:
+          The row, as markup.
+        """
+        width = self._width_of(self.query_one("#choices", OptionList))
+        said, cells = chip
+        shown = len(named) + (2 if inforce else 0)
+        pad = max(2, width - 2 - shown - cells)
+        if here:
+            self._values_at = 1 + shown + pad
+        tick = f" {_shade('$success', _INFORCE, here=here)}" if inforce else ""
+        first = f" [b]{escape(named)}[/]{tick}{' ' * pad}{said}"
+        if not about:
+            return first
+        lines = textwrap.wrap(about, max(width - 4, 20), break_on_hyphens=False)
+        return "\n".join(
+            [first, *(f"   {_shade('$text-muted', line, here=here)}" for line in lines)]
+        )
+
+    def _card(
+        self,
+        icon: str,
+        title: str,
+        summary: str,
+        blurb: str,
+        *,
+        here: bool,
+        pending: bool = False,
+    ) -> str:
+        """One card of a menu's first screen: its mark, its name, what is in it, what it is for.
+
+        As a phone's settings open on their categories, and as `/settings` and `/flow` both do.
+
+        Args:
+          icon: One cell that tells it from the others at a glance.
+          title: What the page is called.
+          summary: What is in it, in a few words, at the far end.
+          blurb: What it is for, in a line under.
+          here: Whether the cursor is on it.
+          pending: Whether the page is holding a change that saving would land.
+
+        Returns:
+          The card, as markup.
+        """
+        width = self._width_of(self.query_one("#choices", OptionList))
+        said = f"{summary}  ● unsaved" if pending else summary
+        pad = " " * max(2, width - 5 - len(title) - len(said))
+        right = _shade("$text-muted", summary, here=here) + (
+            f"  {_shade('$warning', '● unsaved', here=here)}" if pending else ""
         )
         return (
-            f"{mark}[$text-muted]{number}[/] {named}{pad}"
-            f"[$text-muted]{escape(about)}[/]"
+            f" {_shade('$primary', icon, here=here)}  [b]{escape(title)}[/]{pad}{right}\n"
+            f"    {_shade('$text-muted', blurb, here=here)}"
         )
-
-    def _apart(
-        self, label: str, about: str = "", *, here: bool, air: str = _ABOVE
-    ) -> str:
-        """One row set apart from the choices rather than among them.
-
-        For the things that are not answers to the question the list is asking: saving what
-        the menu is holding, adding one more of whatever the list is of, being rid of what
-        the sheet is about. Numbered among the choices, saving read as one more thing to
-        pick -- and a menu whose way out looks like one of its answers is a menu nobody can
-        see the way out of.
-
-        The row of air between it and the choices is carried in the row itself rather than
-        being a row of its own: a blank row is somewhere the cursor can land.
-
-        Args:
-          label: What it is called.
-          about: The line about it, said quietly, or "" for one that says itself.
-          here: Whether the cursor is on it.
-          air: Whether the row of air goes above it, which is where it goes for the rows below
-            a list, below it, for the last of the rows above one, or nowhere, for a row with
-            another of its kind on the side the choices are.
-
-        Returns:
-          The row, as markup: out of the numbering, so that nothing about it reads as one of
-          the answers beside it.
-        """
-        mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
-        # Padded on what is shown rather than on what is written: markup is not columns.
-        pad = " " * max(1, _LABEL - len(label))
-        return _aired(
-            f"{mark}{' ' * (self._counting + 2)}[$primary]{escape(label)}[/]"
-            + (f"{pad}[$text-muted]{escape(about)}[/]" if about else ""),
-            air,
-        )
-
-    def _adding(self, about: str, *, here: bool) -> Option:
-        """The row one more of whatever the list is of is added from.
-
-        A row rather than a letter, for the reason saving is one: a key advertised at the
-        bottom of the screen is a key somebody has to read the bottom of the screen to find.
-        So adding is a thing on the list, where the arrows reach it.
-
-        Args:
-          about: What gets added, in a word or two.
-          here: Whether the cursor is on it.
-
-        Returns:
-          The row.
-        """
-        return Option(self._apart(_ON_APART[_ADD], about, here=here), id=f"={_ADD}")
 
     @on(OptionList.OptionHighlighted)
     def _moved(self, event: OptionList.OptionHighlighted) -> None:
-        """Redraws, so the marker sits beside the row the cursor moved to.
+        """Redraws, so the row the cursor moved to is drawn as the one it is on.
 
-        Only when it has moved somewhere the marker is not already: putting the rows up sets
+        Only when it has moved somewhere it was not already drawn: putting the rows up sets
         the cursor, which posts one of these, and redrawing on that would be one keypress and
         renders without end -- which is what a list that lags is.
 
@@ -1349,19 +1778,6 @@ class Sheet[T](ModalScreen[T | None]):
         if at is None or not 0 <= at < listing.option_count:
             return ""
         return str(listing.get_option_at_index(at).id or "").removeprefix("=")
-
-    def apart(self) -> str:
-        """Which of the rows set below the choices the cursor is on, or "" for none of them.
-
-        The id of the row, for a sheet whose rows are put up under what they answer with --
-        which is nearly all of them. A sheet that puts them up under something else says so
-        for itself, so that the row of keys can still say what enter does on one.
-
-        Returns:
-          One of :data:`_APART`, or "".
-        """
-        held = self.under()
-        return held if held in _APART else ""
 
     def opening(self) -> bool:
         """Whether a walk out of this sheet is already open, so this press is a second at it.
@@ -1421,10 +1837,10 @@ class Drafts[T](Sheet[T]):
 
     Which is what makes several pages one menu: going to another applies nothing, so what is
     read on the second page is what the first page is holding rather than what is written
-    down. Nothing lands until the menu is left and saving is confirmed -- and esc on a menu
-    holding changes asks, because walking out of one is a decision rather than a step back.
-    Saving is a row of the menu and the answer to that question, and nothing else: a key that
-    saved from anywhere would be one more key to know.
+    down. Nothing lands until the menu is saved, from the button that saves it or as the
+    answer to the question leaving it asks -- and esc on a menu holding changes asks, because
+    walking out of one is a decision rather than a step back. Saving is that button and that
+    answer and nothing else: a key that saved from anywhere would be one more key to know.
     """
 
     #: Whether anything has been changed since it opened, which is the whole of what esc has
@@ -1435,6 +1851,10 @@ class Drafts[T](Sheet[T]):
         """Says that something has been changed, so that esc asks before throwing it away."""
         self._changed = True
 
+    def _holding(self) -> bool:
+        """Whether anything has been changed, which is what saving would land."""
+        return self._changed
+
     def edited(self) -> None:
         """Takes a row changed and kept as a change the menu is holding."""
         self.changed()
@@ -1443,22 +1863,16 @@ class Drafts[T](Sheet[T]):
         """Answers with everything held, which each menu says for itself."""
         raise NotImplementedError
 
-    def _saves(self, about: str, *, here: bool) -> Option:
-        """The row the menu is saved from, set below the choices rather than among them.
-
-        Below them because it is not one of them: the rows of a menu are the things it is
-        asking about, and this is what to do with the lot of them. Numbered among the
-        answers it read as one more thing to pick, which is a menu whose way out is hidden in
-        plain sight.
-
-        Args:
-          about: What lands, in a word or two.
-          here: Whether the cursor is on it.
-
-        Returns:
-          The row.
-        """
-        return Option(self._apart(_ON_APART[_SAVE], about, here=here), id=f"={_SAVE}")
+    def _saves_all(self) -> Action:
+        """The button the whole menu is saved from, last on a menu that holds anything."""
+        return Action(
+            _ACT_SAVE,
+            "save",
+            "save all changes" if self._holding() else "nothing to save yet",
+            self.applied,
+            self._holding,
+            "primary",
+        )
 
     def leaving(self) -> None:
         """Asks whether to save what is held, and does whichever was asked for.
@@ -1466,18 +1880,24 @@ class Drafts[T](Sheet[T]):
         Nothing at all where nothing was changed: a walk in to look and out again is not a
         question anybody wants asked of them.
         """
-        if not self._changed:
+        self.closes()
+
+    def closes(self) -> None:
+        """Leaves altogether, asking first whether to save what is held, where anything is."""
+        if not self._holding():
             self.dismiss(None)
             return
         self.asks_to_save()
 
     @work
     async def asks_to_save(self) -> None:
-        """Puts the question up, and does what it is answered with."""
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
+        """Puts the question up, and does what it is answered with.
+
+        A walk back along the way across the top stops here, whatever is answered: it was a
+        click on somewhere else, and this is a question about here.
+        """
+        showing = self._interface()
+        _CLIMBS.pop(showing, None)
         said = await showing.push_screen_wait(Confirms())
         if said == _KEEP:
             self.applied()
@@ -1926,11 +2346,12 @@ def _always() -> bool:
 
 
 class Action(NamedTuple):
-    """One thing done about a page's list rather than to one thing on it: a button under it.
+    """One thing done about a sheet's list rather than to one thing on it: a button under it.
 
-    What a page of `/settings` does about its list -- adding to it, bringing more into it,
-    searching it, saving -- is said by the page as a list of these, in the order they stand,
-    and the bar under the list is drawn from that list and nothing else.
+    What a sheet does about its list -- adding to it, bringing more into it, asking again what
+    it is of, searching it, taking away what the sheet is about, answering it -- is said by the
+    sheet as a list of these, in the order they stand, and the bar under the list is drawn from
+    that list and nothing else.
 
     Attributes:
       key: What it is known by, which its button's id is made of: `act-<key>`.
@@ -1938,6 +2359,8 @@ class Action(NamedTuple):
       about: What it does, said when the button is pointed at.
       does: What pressing it does.
       able: Whether it can be pressed now: a save with nothing to save cannot.
+      variant: How its button is drawn: `primary` for the one that answers the menu, which
+        stands last and apart at the far end, and `error` for one that takes something away.
     """
 
     key: str
@@ -1945,13 +2368,21 @@ class Action(NamedTuple):
     about: str
     does: Callable[[], object]
     able: Callable[[], bool] = _always
+    variant: ButtonVariant = "default"
 
 
-#: What each button under a page of `/settings` is known by. Words rather than the ids of rows
-#: set apart, because a button is not a row of the list and its id cannot be taken for a name
-#: somebody chose.
+#: What each button under a list is known by: words, because a button is not a row of the
+#: list and its id cannot be taken for a name somebody chose.
 _ACT_ADD, _ACT_SPEAKS, _ACT_IMPORTS = "add", "speaks", "imports"
-_ACT_SEARCH, _ACT_SAVE = "search", "save"
+_ACT_SEARCH, _ACT_SAVE, _ACT_DONE = "search", "save", "done"
+#: Asking again what a list is of, naming an ssh host nobody saved, asking a daemon what it
+#: has, and taking away what a sheet is about.
+_ACT_AGAIN, _ACT_UNSAVED, _ACT_DETECT, _ACT_REMOVE = (
+    "again",
+    "unsaved",
+    "detect",
+    "remove",
+)
 
 
 class Pages(Drafts["Adjusted"]):
@@ -1968,8 +2399,8 @@ class Pages(Drafts["Adjusted"]):
     is done about the list -- `add …`, anything else that brings one in, search, and saving
     where the page holds anything until it is saved -- said as a list of :class:`Action`, which
     :class:`hmz.tui.settings.Adjusts` draws as the buttons under the list. Enter on something
-    listed opens its own menu, taking it away last; adding one opens a :class:`Form`, answered
-    from its `done` row.
+    listed opens its own menu; adding one opens a :class:`Form`, answered from its `done`
+    button.
     """
 
     def __init__(self) -> None:
@@ -2043,29 +2474,6 @@ class Pages(Drafts["Adjusted"]):
         else:
             self._saids[page] = said
 
-    def _holding(self) -> bool:
-        """Whether anything is held that saving would land."""
-        return self._changed
-
-    def _searches(self) -> Action:
-        """The button a page's list is searched from."""
-        return Action(
-            _ACT_SEARCH,
-            "search…",
-            "narrow the list by what is typed",
-            self.action_search,
-        )
-
-    def _saves_all(self) -> Action:
-        """The button the whole menu is saved from, last on a page that holds anything."""
-        return Action(
-            _ACT_SAVE,
-            "save",
-            "save all changes" if self._holding() else "nothing to save yet",
-            self.applied,
-            self._holding,
-        )
-
     def _put(self, listing: OptionList, rows: list[Option], landing: str) -> None:
         """Puts the rows up with the cursor on one of them, by its id.
 
@@ -2081,21 +2489,6 @@ class Pages(Drafts["Adjusted"]):
             (at for at, one in enumerate(rows) if one.id == f"={landing}"),
             next((at for at, one in enumerate(rows) if not one.disabled), None),
         )
-
-
-def _briefly(said: str, width: int) -> str:
-    """One flow's line about itself, clipped to the room the row has for it.
-
-    Args:
-      said: The line, which is the first line of what the flow says about itself and so is
-        as long as that sentence is.
-      width: How wide the sheet is.
-
-    Returns:
-      As much of it as fits beside the name, ending in an ellipsis where it was cut.
-    """
-    room = max(width - len(_INDENT) - _LABEL - 8, 20)
-    return said if len(said) <= room else f"{said[: room - 1].rstrip()}…"
 
 
 #: The three kinds of row a form is made of: one written into, one whose values are dropped
@@ -2125,10 +2518,10 @@ class Question(NamedTuple):
 
 
 class Form[T](Drafts[T]):
-    """A sheet written into rather than picked from: a row per question, and one that answers.
+    """A sheet written into rather than picked from: a row per question, a button to answer.
 
     Typing on a written row writes it, and enter keeps what was written and moves on to the
-    next row still to be answered, or to the one that answers the form where none is -- so a
+    next row still to be answered, or to the button that answers the form where none is -- so a
     form of three questions is three answers and an enter apiece, not an enter to begin each,
     an enter to keep it and an arrow to the next. A stepped row drops every value it can
     take under it on enter or a click, one picked with enter or a click and none with esc --
@@ -2136,8 +2529,9 @@ class Form[T](Drafts[T]):
     sheet of its own. Esc puts back a row being written, and on a form holding something asks
     whether to keep it, as every menu holding changes does.
 
-    Answered from its `done` row, whose line says what answering it will do: the same word on
-    every form, so the way out of one is where it was on the last.
+    Answered from its `done` button, last and apart under the list, which says what answering
+    it will do while it has the focus or the pointer: the same word in the same place on every
+    form, so the way out of one is where it was on the last.
     """
 
     TYPES: ClassVar = True
@@ -2215,23 +2609,29 @@ class Form[T](Drafts[T]):
         value = self._typed_in.get(one.held, "")
         return "•" * len(value) if one.secret else value
 
-    def beside(self) -> list[tuple[str, str, str]]:
-        """The rows set apart above the one that answers the form, for a form that has any.
+    def beside(self) -> list[Action]:
+        """What else the form does besides being answered, for a form that does anything else.
 
         Returns:
-          One `(id, what it is called, the line about it)` apiece.
+          The buttons, which stand before the one that answers it.
         """
         return []
 
-    def besides(self, held: str) -> None:
-        """Does what one of those rows does.
-
-        Args:
-          held: The row.
-        """
+    def actions(self) -> list[Action]:
+        """What else the form does, and answering it, last and apart."""
+        return [
+            *self.beside(),
+            Action(
+                _ACT_DONE,
+                self.DONE,
+                self.done_about(),
+                self.action_done,
+                variant="primary",
+            ),
+        ]
 
     def done_about(self) -> str:
-        """What answering the form will do, said on the row that answers it."""
+        """What answering the form will do, said beside the button that answers it."""
         return ""
 
     def note(self) -> str:
@@ -2239,43 +2639,18 @@ class Form[T](Drafts[T]):
         return ""
 
     def _fill(self) -> None:
-        """Puts the questions up, the rows set apart from them, and the row that answers."""
+        """Puts the questions up, a rule between two, and says what is wrong with them."""
         listing = self.query_one("#choices", OptionList)
         rows = self._now = self.asked()
-        apart = [*self.beside(), (_DONE, self.DONE, self.done_about())]
-        self._counting = len(str(max(len(rows), 1)))
-        at = min(listing.highlighted or 0, len(rows) + len(apart) - 1)
-        # Three columns sized to what is in them: what each row is called, what it holds,
-        # and what it asks. A column wide enough for the longest thing any form has is a
-        # form whose answers sit halfway across the screen from their questions.
-        named = max((len(one.named) for one in rows), default=0) + 2
-        self._values_at = len(_INDENT) + 2 + self._counting + 2 + named
-        wide = min(
-            max((len(self.shown(one)) + 3 for one in rows), default=0) + 2, _WIDEST
-        )
-        listing.set_options(
-            [
-                Option(
-                    self._line(seen, one, here=seen == at, named=named, wide=wide),
-                    id=f"={one.held}",
-                )
-                for seen, one in enumerate(rows)
-            ]
-            + [
-                Option(
-                    self._apart(
-                        label,
-                        about,
-                        here=len(rows) + seen == at,
-                        air=_ABOVE if not seen else "",
-                    ),
-                    id=f"={held}",
-                )
-                for seen, (held, label, about) in enumerate(apart)
-            ]
-        )
-        listing.highlighted = at
-        self._drawn = at
+        at = min(listing.highlighted or 0, max(len(rows) - 1, 0))
+        options: list[Option | None] = []
+        for seen, one in enumerate(rows):
+            if options:
+                options.append(None)
+            options.append(Option(self._line(one, here=seen == at), id=f"={one.held}"))
+        listing.set_options(options)
+        listing.highlighted = at if rows else None
+        self._drawn = listing.highlighted
         note = self.note()
         self.query_one("#tuning", Label).update(
             f"[$error]{escape(self._wrong)}[/]"
@@ -2301,53 +2676,33 @@ class Form[T](Drafts[T]):
             Key("esc", "back"),
         )
 
-    def _line(
-        self, at: int, one: Question, *, here: bool, named: int, wide: int
-    ) -> str:
-        """One question: what it is called, what it holds, and what it asks.
+    def _line(self, one: Question, *, here: bool) -> str:
+        """One question: what it is called, what it holds at the far end, and what it asks.
+
+        The row being written carries a block where the next letter goes -- a caret is what
+        says the letters are going somewhere -- and a row that drops its values or opens a
+        sheet of its own says which with its mark: a reader who has to press a key to find
+        out is a reader the row did not tell.
 
         Args:
-          at: Which one it is, counting from zero.
           one: The question.
           here: Whether the cursor is on it.
-          named: How wide the column of names is.
-          wide: How wide the column of answers is.
 
         Returns:
           The row, as markup.
         """
-        mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
-        number = f"{at + 1:>{self._counting}}."
-        value = self.shown(one)
-        # A block where the next letter goes, on the row being written and on no other: a
-        # caret is what says the letters are going somewhere.
         caret = (
             "[reverse] [/reverse]"
             if self._editing == one.held and one.kind == _WRITES
             else ""
         )
-        # And which of the other two kinds it is, said on the row: a reader who has to press
-        # a key to find out whether a row opens or drops is a reader the row did not tell.
-        moves = {_STEPS: f" {_DROPS}", _OPENS_ONTO: f" {_OPENS}"}.get(one.kind, "")
-        # Padded on what is shown rather than on what is written: markup is not columns.
-        label = escape(one.named) + " " * max(1, named - len(one.named))
-        room = wide - len(value) - (1 if caret else 0) - len(moves)
-        # Wrapped here rather than by the list, so that a second line starts under the first
-        # rather than under the edge: the column of what each row asks stays a column.
-        starts = len(_INDENT) + 2 + len(number) + 1 + named + wide - room + max(1, room)
-        # The list has no width of its own before it is first laid out; the screen's is it.
-        across = (
-            self.query_one("#choices", OptionList).scrollable_content_region.width
-            or self.size.width
-        )
-        lines = textwrap.wrap(one.about, max(across - starts, 20)) or [""]
-        about = f"\n{' ' * starts}".join(
-            f"[$text-muted]{escape(line)}[/]" for line in lines
-        )
-        return (
-            f"{mark}[$text-muted]{number}[/] {label}"
-            f"[$secondary]{escape(value)}[/]{caret}[$text-muted]{moves}[/]"
-            f"{' ' * max(1, room)}{about}"
+        moves = {_STEPS: _DROPS, _OPENS_ONTO: _OPENS}.get(one.kind, "")
+        toggles = one.kind == _STEPS and switch(self.choices(one.held))
+        return self._setting(
+            one.named,
+            _chip(self.shown(one), moves, here=here, caret=caret, toggles=toggles),
+            one.about,
+            here=here,
         )
 
     def _kind(self, row: str) -> str:
@@ -2462,13 +2817,16 @@ class Form[T](Drafts[T]):
         once the way in is chosen. Where there is none, a stepped row moves on to the row
         after it, which is usually what it decided -- the way in after the CLI -- and a
         written or opened one to the next written row nothing is in, which is one that may be
-        left blank and has not been yet, and then to the row that answers the form: a form
+        left blank and has not been yet, and then to the button that answers the form: a form
         whose rows are all answered is a form to be done with.
 
         Args:
           row: The row, by id.
         """
-        rows = self.asked()
+        # Put up first, so that the row moved on to is counted among rows that are there:
+        # the way in kept on an account's form is a form one row longer.
+        self._fill()
+        rows = self._now if self._now is not None else self.asked()
         at = next((seen for seen, one in enumerate(rows) if one.held == row), None)
         if at is None:
             return
@@ -2484,28 +2842,15 @@ class Form[T](Drafts[T]):
                 ),
                 None,
             )
-        # Past the questions is always `done`, and never a row set apart above it: keeping
-        # the last question must not leave enter over `take it away`.
-        self.query_one("#choices", OptionList).highlighted = (
-            onward
-            if onward is not None
-            else at + 1
-            if rows[at].kind == _STEPS and at + 1 < len(rows)
-            else len(rows) + len(self.beside())
-        )
-
-    def action_walk(self, by: int) -> None:
-        """Walks the cursor, keeping first whatever the row it leaves was being written to.
-
-        Args:
-          by: One row down, or one up.
-        """
-        if self._editing:
-            self._editing = ""
-            if self.held() != self._before:
-                self.edited()
-            self._fill()
-        super().action_walk(by)
+        if onward is None and rows[at].kind == _STEPS and at + 1 < len(rows):
+            onward = at + 1
+        if onward is not None:
+            self.query_one("#choices", OptionList).highlighted = onward
+            return
+        # Past the questions is always the button that answers the form, and never one beside
+        # it: keeping the last question must not leave enter over `remove`.
+        for done in self.query(f"#{_act(_ACT_DONE)}").results(Button):
+            done.focus()
 
     def on_paste(self, event: events.Paste) -> None:
         """Pastes an answer into a written row, begun on as typing into one begins it."""
@@ -2529,18 +2874,25 @@ class Form[T](Drafts[T]):
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Answers the form, does what a row set apart does, or opens an opened row.
+        """Opens an opened row, which is the one kind of row picking does anything to.
 
         Args:
           event: What was chosen.
         """
         held = str(event.option.id or "").removeprefix("=")
-        if held == _DONE:
-            self.action_done()
-        elif any(held == one for one, _, _ in self.beside()):
-            self.besides(held)
-        elif self._kind(held) == _OPENS_ONTO:
+        if self._kind(held) == _OPENS_ONTO:
             self.opens(held)
+
+    def enters(self, row: str) -> bool:
+        """Whether a row opens a sheet of its own, which the arrow right goes into.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for an opened row.
+        """
+        return self._kind(row) == _OPENS_ONTO
 
     def applied(self) -> None:
         """Saving a form on the way out of it is answering it."""
@@ -2549,11 +2901,6 @@ class Form[T](Drafts[T]):
     def action_done(self) -> None:
         """Answers with what was written, which each form says for itself."""
         raise NotImplementedError
-
-
-#: The widest the column of answers grows before a long one pushes its question along
-#: rather than every question on the form.
-_WIDEST = 36
 
 
 class Speaks(Form[str]):
@@ -2591,7 +2938,6 @@ class Speaks(Form[str]):
             "runs with its own configuration."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def action_done(self) -> None:
         """Answers with the command, once there is something to start."""
@@ -2630,12 +2976,11 @@ def _lasting(seconds: float) -> str:
     return f"{seconds / 60:.0f}m"
 
 
-#: How wide the column of setting names is, and the column of their values, so that a sheet
-#: of settings reads down three columns: what it is called, what it is, and what it is for.
-#: Wide enough for the longest name any flow here has, since a column that a name overruns
-#: is one the three of them stop lining up in.
+#: How wide the column of setting names is where what a flow was set up with is read back,
+#: so that it reads down two columns: what it is called, and what it is. Wide enough for the
+#: longest name any flow here has, since a column that a name overruns is one the two of them
+#: stop lining up in.
 _SETTING = 34
-_VALUE = 13
 
 
 class Budgeted(BaseModel):
@@ -2829,7 +3174,6 @@ class Configures(Drafts["BaseModel"]):
         self._about = about
         self._model = model
         self._fields = list(model.model_fields.items())
-        self._counting = len(str(len(self._fields)))
         #: Every value as text, which is what is shown and what is read back: one spelling
         #: of a setting, so that what is on screen is what the model is given.
         self._typed_in: dict[str, str] = {
@@ -2848,7 +3192,6 @@ class Configures(Drafts["BaseModel"]):
         self._whole = ""
         #: Which setting the cursor was last on, counting settings rather than rows: the
         #: headings between them are rows nothing can land on, so a row number is not one.
-        #: One past the last for the row that sets them all.
         self._was = 0
 
     def _ask(self) -> None:
@@ -2862,14 +3205,24 @@ class Configures(Drafts["BaseModel"]):
             )
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
+
+    def actions(self) -> list[Action]:
+        """Setting them all, which the model is asked whether it takes."""
+        return [
+            Action(
+                _ACT_DONE,
+                self.DONE,
+                "all of the above",
+                self.applied,
+                variant="primary",
+            )
+        ]
 
     def _fill(self) -> None:
-        """Puts the settings up, grouped, with the marker beside the one under the cursor."""
+        """Puts the settings up, grouped, a rule between two of one group."""
         listing = self.query_one("#choices", OptionList)
         at = self._at(listing.highlighted)
-        self._values_at = len(_INDENT) + 2 + self._counting + 2 + _SETTING
-        rows: list[Option] = []
+        rows: list[Option | None] = []
         group = ""
         for seen, (name, field) in enumerate(self._fields):
             under = _grouped(field)
@@ -2880,20 +3233,11 @@ class Configures(Drafts["BaseModel"]):
                 # A flow that grouped nothing gets neither, and reads as one list.
                 if group:
                     if rows:
-                        rows.append(Option("", disabled=True))
-                    rows.append(
-                        Option(f"{_INDENT}[$primary]{escape(group)}[/]", disabled=True)
-                    )
-            rows.append(Option(self._line(seen, name, here=seen == at), id=name))
-        rows.append(
-            Option(
-                self._apart(
-                    self.DONE, "all of the above", here=at == len(self._fields)
-                ),
-                id=f"={_DONE}",
-            )
-        )
-        listing.set_options(rows)
+                        rows[-1] = Option("", disabled=True)
+                    rows.append(Option(f" [$primary]{escape(group)}[/]", disabled=True))
+            rows.append(Option(self._line(name, here=seen == at), id=name))
+            rows.append(None)
+        listing.set_options(rows[:-1])
         listing.highlighted = self._row_of(at)
         self._drawn = listing.highlighted
         self.query_one("#tuning", Label).update(
@@ -2905,8 +3249,7 @@ class Configures(Drafts["BaseModel"]):
         """Which row of the list one setting is on, once the headings are counted.
 
         Args:
-          at: Which setting it is, counting from zero, or one past the last for the row that
-            sets them all.
+          at: Which setting it is, counting from zero.
 
         Returns:
           The row.
@@ -2931,16 +3274,13 @@ class Configures(Drafts["BaseModel"]):
           row: Where the cursor is, or None for a list nothing is highlighted in.
 
         Returns:
-          The setting, counting from zero, one past the last for the row that sets them all,
-          and the nearest one where the cursor is on a heading -- which is where it lands
-          when the list is first put up.
+          The setting, counting from zero, and the nearest one where the cursor is on a
+          heading -- which is where it lands when the list is first put up.
         """
         listing = self.query_one("#choices", OptionList)
         if row is not None and 0 <= row < listing.option_count:
             named = listing.get_option_at_index(row).id
-            if named == f"={_DONE}":
-                self._was = len(self._fields)
-            elif named is not None:
+            if named is not None:
                 self._was = next(
                     (
                         seen
@@ -2951,50 +3291,37 @@ class Configures(Drafts["BaseModel"]):
                 )
         return self._was
 
-    def _line(self, at: int, name: str, *, here: bool) -> str:
-        """One setting: what it is called, what it is set to, and what it is for.
+    def _line(self, name: str, *, here: bool) -> str:
+        """One setting: what it is called, what it is set to at the far end, what it is for.
 
         A setting being written carries a caret, where the next letter would land. Without it
         a blank one reads as a setting nothing can be typed into -- which is the one thing
         about this list that has to be visible, since a switch and a word look the same until
-        you try to type at one.
+        you try to type at one; the mark on one picked from a list is the other half of that.
 
         Args:
-          at: Which one it is, counting from zero.
           name: The field.
           here: Whether the cursor is on it.
 
         Returns:
           The row, as markup.
         """
-        mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
-        number = f"{at + 1:>{self._counting}}."
         value = self._typed_in[name]
         about = dict(self._fields)[name].description or ""
         # A value still selected whole is drawn reversed, as a selection is, and the next
         # letter replaces it rather than landing after it; there is no caret beside it.
-        whole = bool(value) and self._editing == name and self._whole == name
-        shown = (
-            f"[reverse]{escape(value)}[/reverse]"
-            if whole
-            else f"[$secondary]{escape(value)}[/]"
-        )
-        # A block where the next letter goes, drawn by reversing what is already there --
-        # the one thing a list in the terminal's own colours can show without naming one.
-        caret = "[reverse] [/reverse]" if self._editing == name and not whole else ""
-        # And the mark that says which rows drop their values under them, which is the other
-        # half of the same thing the caret is: a switch and a word look the same until you
-        # try one.
-        drops = f" {_DROPS}" if self._values(name) else ""
-        # Padded on what is shown rather than on what is written: markup is not columns,
-        # and the caret is one of them.
-        named = escape(name) + " " * max(1, _SETTING - len(name))
-        room = _VALUE - len(value) - (1 if caret else 0) - len(drops)
-        return (
-            f"{mark}[$text-muted]{number}[/] {named}"
-            f"{shown}{caret}[$text-muted]{drops}[/]"
-            f"{' ' * max(1, room)}[$text-muted]{escape(about)}[/]"
-        )
+        if value and self._editing == name and self._whole == name:
+            chip = (f"[reverse]{escape(value)}[/reverse]", len(value))
+        else:
+            values = self._values(name)
+            chip = _chip(
+                value,
+                _DROPS if values else "",
+                here=here,
+                caret="[reverse] [/reverse]" if self._editing == name else "",
+                toggles=switch(values),
+            )
+        return self._setting(name, chip, about, here=here)
 
     def _values(self, name: str) -> tuple[str, ...]:
         """What a setting is picked from, where it is one of a fixed few.
@@ -3114,16 +3441,6 @@ class Configures(Drafts["BaseModel"]):
         self._wrong = ""
         return True
 
-    @on(OptionList.OptionSelected)
-    def _took(self, event: OptionList.OptionSelected) -> None:
-        """Sets them all, from the row below them.
-
-        Args:
-          event: What was chosen.
-        """
-        if str(event.option.id or "").removeprefix("=") == _DONE:
-            self.applied()
-
     def applied(self) -> None:
         """Reads every setting back into the model, and answers with it if it takes them.
 
@@ -3145,10 +3462,11 @@ class Configures(Drafts["BaseModel"]):
 class Picks(Sheet[str]):
     """A question that is only a list of named things, answered by picking one of them.
 
-    Two of the sheets here are that and nothing else -- which CLI a new account is for, and
-    how to sign into it -- and two lists drawn two ways would read as two different kinds of
+    Most of the sheets a row of another opens are that and nothing else -- which CLI, which
+    account, which model -- and two lists drawn two ways would read as two different kinds of
     question. So the drawing is here, and each of them says only what it asks and what there
-    is to choose between.
+    is to choose between: the cursor opens on the one in force, and what is done about the
+    list -- adding to it, asking again what it is of, searching it -- is a button under it.
     """
 
     #: The question at the top of the sheet, and the line under it saying what choosing one
@@ -3156,20 +3474,16 @@ class Picks(Sheet[str]):
     asked = ""
     about = ""
 
-    #: What the row below the choices adds, in a word or two, for a list that is added to as
-    #: well as picked from -- and "" for one that is only picked from, which has no such row.
+    #: What the button under the list adds, in a word or two, for a list that is added to as
+    #: well as picked from -- and "" for one that is only picked from, which has no button.
     adds = ""
 
-    #: What the row that asks again what the list is of says, for a list that is read off
+    #: What the button that asks again what the list is of says, for a list that is read off
     #: something that can be asked again -- and "" for one that cannot.
     again = ""
 
-    SEARCHES: ClassVar = True
-
-    #: Whether the rows about the list go above it, as they do on everything a page of
-    #: `/settings` opens, rather than below it -- in which case the cursor opens on the
-    #: choice in force.
-    ATOP: ClassVar[bool] = False
+    #: Whether the list is long enough to be searched, which gives it the button and the key.
+    SEARCHES: ClassVar[bool] = True
 
     def __init__(self, current: str = "") -> None:
         """Initializes the choosing.
@@ -3203,7 +3517,6 @@ class Picks(Sheet[str]):
         self.query_one("#asked", Label).update(self.asked)
         self.query_one("#about", Label).update(self.about)
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def added(self) -> None:
         """Adds one more, for a list that is added to as well as picked from."""
@@ -3211,8 +3524,24 @@ class Picks(Sheet[str]):
     def asked_again(self) -> None:
         """Asks again what the list is of, for a list that can be."""
 
+    def actions(self) -> list[Action]:
+        """Adding one, asking again, and searching, for a list that does each."""
+        return [
+            *(
+                (Action(_ACT_ADD, f"add {self.adds}", "", self.added),)
+                if self.adds
+                else ()
+            ),
+            *(
+                (Action(_ACT_AGAIN, self.again, "", self.asked_again),)
+                if self.again
+                else ()
+            ),
+            *((self._searches(),) if self.SEARCHES else ()),
+        ]
+
     def _fill(self) -> None:
-        """Puts the rows up, with the marker beside the one the cursor is on."""
+        """Puts the rows up, the cursor where it was, or on the one in force as it opens."""
         listing = self.query_one("#choices", OptionList)
         if self._rows is None:
             # Once: looking means reading a directory, and this is redrawn per keystroke.
@@ -3221,69 +3550,8 @@ class Picks(Sheet[str]):
             (row for row in self._rows if self.fits(row[1], row[2])),
             key=lambda row: self.ranks(row[1], row[2]),
         )
-        self._counting = len(str(max(len(shown), 1)))
-        if self.ATOP:
-            self._fill_atop(listing, shown)
-            return
-        below = [
-            *((_SEARCH,) if self.SEARCHES else ()),
-            *((_ADD,) if self.adds else ()),
-            *((_AGAIN,) if self.again else ()),
-        ]
-        at = min(listing.highlighted or 0, max(len(shown) + len(below) - 1, 0))
-        rows = [
-            Option(
-                self._row(
-                    seen, label, about, here=seen == at, inforce=answer == self._current
-                ),
-                # Every row answers with a string and "" is one of the answers, which an id
-                # of its own keeps tellable from a row that was never chosen.
-                id=f"={answer}",
-            )
-            for seen, (answer, label, about) in enumerate(shown)
-        ]
-        for one in below:
-            here = at == len(rows)
-            rows.append(
-                self._seeking(here=here)
-                if one == _SEARCH
-                else self._adding(self.adds, here=here)
-                if one == _ADD
-                else Option(self._apart(self.again, here=here), id=f"={_AGAIN}")
-            )
-        listing.set_options(rows)
-        listing.highlighted = at if rows else None
-        self._drawn = at
-        said = self.nothing()
-        self.query_one("#tuning", Label).update(
-            f"[$text-muted]{said}[/]" if said else ""
-        )
-        self._footed(Key("enter", "choose"), Key("esc", "back"))
-
-    def above(self) -> list[tuple[str, str, str]]:
-        """The rows about the list, for one whose rows go above it: add, ask again, search.
-
-        Returns:
-          One `(id, what it is called, the line about it)` apiece, in order.
-        """
-        return [
-            *(((_ADD, f"add {self.adds}", ""),) if self.adds else ()),
-            *(((_AGAIN, self.again, ""),) if self.again else ()),
-            *((_SEEK,) if self.SEARCHES else ()),
-        ]
-
-    def _fill_atop(
-        self, listing: OptionList, shown: list[tuple[str, str, str]]
-    ) -> None:
-        """Puts the rows up under the rows about them, the cursor opening on the one in force.
-
-        Args:
-          listing: The list.
-          shown: The choices, as a search has narrowed them.
-        """
-        atop = self.above()
-        ids = [held for held, _, _ in atop] + [answer for answer, _, _ in shown]
-        sought = self._sought([answer for answer, _, _ in shown])
+        ids = [answer for answer, _, _ in shown]
+        sought = self._sought(ids)
         was = (
             (self.under() if sought is None else sought)
             if listing.option_count
@@ -3293,29 +3561,26 @@ class Picks(Sheet[str]):
             was
             if was in ids
             else self._current
-            if was is None and any(one[0] == self._current for one in shown)
-            else shown[0][0]
-            if shown
+            if was is None and self._current in ids
             else ids[0]
             if ids
             else ""
         )
         listing.set_options(
             [
-                *self._atop(atop, here=landing),
-                *(
-                    Option(
-                        self._row(
-                            seen,
-                            label,
-                            about,
-                            here=answer == landing,
-                            inforce=answer == self._current,
-                        ),
-                        id=f"={answer}",
-                    )
-                    for seen, (answer, label, about) in enumerate(shown)
-                ),
+                Option(
+                    self._row(
+                        seen,
+                        label,
+                        about,
+                        here=answer == landing,
+                        inforce=answer == self._current,
+                    ),
+                    # Every row answers with a string and "" is one of the answers, which an
+                    # id of its own keeps tellable from a row that was never chosen.
+                    id=f"={answer}",
+                )
+                for seen, (answer, label, about) in enumerate(shown)
             ]
         )
         listing.highlighted = ids.index(landing) if landing in ids else None
@@ -3328,21 +3593,12 @@ class Picks(Sheet[str]):
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Answers with what was picked, or does what a row below the choices does.
+        """Answers with what was picked.
 
         Args:
           event: What was chosen.
         """
-        held = str(event.option.id).removeprefix("=")
-        if held == _ADD:
-            self.added()
-            return
-        if held == _AGAIN:
-            self.asked_again()
-            return
-        if held == _SEARCH:  # started a search rather than answered
-            return
-        self.dismiss(held)
+        self.dismiss(str(event.option.id).removeprefix("="))
 
 
 def _hmz() -> Hmz:
@@ -3892,7 +4148,6 @@ class Signing(Form[Signs]):
             else "Required settings for this sign-in method."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def action_done(self) -> None:
         """Answers with the account, once everything its way in needs has been said.
@@ -3961,63 +4216,124 @@ class Signing(Form[Signs]):
 
 
 class Popup(Picks):
-    """A question that arrived rather than one somebody walked to.
+    """A question that arrived rather than one somebody walked to, answered with a button.
 
     Drawn as a box in the middle of the screen rather than as a sheet: a sheet is walked to
-    and fills the width it is drawn in, and this arrives over whatever was there, says one
-    thing and is answered in a keypress. Each of these says for itself what it asks and what
-    box it is drawn in; what is here is the one thing they all do, which is to be read rather
-    than searched.
+    and fills the screen, and this arrives over whatever was there, says one thing and is
+    answered in a keypress. Its answers are buttons, as a dialog's are: the arrows move between
+    them, enter or a click takes one, and esc or a click off the box takes none -- which each
+    of these says the meaning of for itself.
     """
 
-    #: None: two rows are read rather than narrowed, and a box in the middle of the screen
-    #: has no room for a row that searches.
+    #: None: two answers are read rather than narrowed.
     SEARCHES: ClassVar = False
+
+    #: What esc is here, which is answering nothing: the third answer, said as what it does.
+    ESC: ClassVar[str] = "back"
+
+    #: The answer most often given, drawn as the one that answers a menu is, or "" for none.
+    PRIMARY: ClassVar[str] = ""
 
     def _ask(self) -> None:
         """Says what is being asked, and takes back the line under it where there is none.
 
-        A box is a question and two answers. The line about it is a row of the box paid for,
+        A box is a question and its answers. The line about it is a row of the box paid for,
         so one with nothing in it is a blank row in the middle of the screen.
         """
         super()._ask()
         self.query_one("#about", Label).display = bool(self.about)
 
+    def _trail(self) -> list[_Crumb]:
+        """Nothing: a box over a menu is about that menu, which is still drawn under it."""
+        return []
+
+    def actions(self) -> list[Action]:
+        """The answers, each a button that answers with it."""
+        return [
+            Action(
+                answer,
+                label,
+                about,
+                partial(self.dismiss, answer),
+                variant="primary" if answer == self.PRIMARY else "default",
+            )
+            for answer, label, about in self.rows()
+        ]
+
+    def _fill(self) -> None:
+        """Puts the answers up, and says what esc is here."""
+        self._footed(Key("esc", self.ESC))
+
+    def _keys_for(self, keys: Sequence[Key]) -> tuple[Key, ...]:
+        """Enter, which takes the answer with the focus, and esc, which takes none.
+
+        Args:
+          keys: Esc, as this box says it.
+
+        Returns:
+          The keys: few, since the box is read in a second and its answers say themselves.
+        """
+        act = self._pointed()
+        return (*((Key("enter", act.label.split()[0]),) if act else ()), *keys)
+
+    def action_walk(self, by: int) -> None:
+        """Moves between the answers, there being no list to walk.
+
+        Args:
+          by: One on, or one back.
+        """
+        self.action_across(by)
+
+    def action_across(self, by: int) -> None:
+        """Moves between the answers, round the ends.
+
+        Args:
+          by: One on, or one back.
+        """
+        shown = self._buttons()
+        at = next((at for at, one in enumerate(shown) if one is self.focused), None)
+        if shown:
+            shown[(at + by if at is not None else 0) % len(shown)].focus()
+
+    def on_click(self, event: events.Click) -> None:
+        """Takes a click off the box as answering nothing, as esc is.
+
+        Args:
+          event: The click.
+        """
+        if event.widget is self:
+            self.leaving()
+
 
 class Confirms(Popup):
     """Whether to keep what a menu is holding, asked as it is walked out of.
 
-    A menu applies nothing until it is left, so leaving one is the moment the changes in it
+    A menu applies nothing until it is saved, so leaving one is the moment the changes in it
     either land or do not. Asked rather than assumed either way: what was changed took typing
     to change, and throwing it away silently is worse than one more question.
 
     Drawn as a box in the middle of the screen rather than as a sheet, because it is not one:
     a sheet is a question somebody walked to, and this is one that arrived over the menu they
     were walking out of. Two answers, since the third -- going back to the menu -- is what esc
-    already is everywhere else, and an answer that is also a key is a row that says the key is
-    not there.
+    already is everywhere else, and an answer that is also a key is a button that says the key
+    is not there.
     """
 
-    CSS = _POPUP
+    CSS = _popup("Confirms")
 
-    #: Five words for the whole box, keys and all: it arrives over a menu somebody has just
-    #: spent a minute in, it asks the one thing that is left, and either answer is a word.
-    #: Anything more is prose read at the moment nobody is reading.
+    #: Five words for the whole question, keys and all: it arrives over a menu somebody has
+    #: just spent a minute in, it asks the one thing that is left, and either answer is a
+    #: word. Anything more is prose read at the moment nobody is reading.
     asked = "Save?"
+
+    PRIMARY: ClassVar = _KEEP
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The two things there are to do about a menu holding changes."""
-        return [(_KEEP, "save", ""), (_DROP, "discard", "")]
-
-    def _fill(self) -> None:
-        """Puts the two answers up, and says what esc is here.
-
-        Esc is the third answer -- back to the menu, changing nothing -- so it says so. Every
-        other sheet leaves on it, and one that said `cancel` over a menu holding changes would
-        read as the one thing it is not.
-        """
-        super()._fill()
-        self._footed(Key("enter", "choose"), Key("esc", "back"))
+        return [
+            (_KEEP, "save", "save the changes and leave"),
+            (_DROP, "discard", "throw the changes away and leave"),
+        ]
 
 
 #: What to do about a flow that is running when the interface is being closed: stop it, let
@@ -4041,11 +4357,11 @@ class Leaves(Popup):
     this is one that arrived.
     """
 
-    #: The same box, said again for this class: every rule in this file selects by the name
-    #: of the sheet it is about, so a box drawn for another one is a rule of its own.
-    CSS = f"Leaves {{ align: center middle; background: transparent; }}\n{_POPUP}"
+    CSS = _popup("Leaves")
 
     asked = "A flow is running."
+
+    ESC: ClassVar = "stay"
 
     def __init__(self, *, held: bool) -> None:
         """Initializes the question.
@@ -4056,22 +4372,20 @@ class Leaves(Popup):
         """
         super().__init__()
         self._held = held
+        # The one line worth a word: that the run outlives this interface is the whole of
+        # what makes letting go of it an answer rather than a way of abandoning it.
+        self.about = (
+            "Detached, it keeps running: run `hmz` here to reattach." if held else ""
+        )
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The two answers, the second of which is whichever one is true here."""
         return [
-            (STOPS, "stop the flow and exit", ""),
-            # The one line worth a word: that the run outlives this interface is the whole of
-            # what makes letting go of it an answer rather than a way of abandoning it.
+            (STOPS, "stop the flow and exit", "stop it for everybody reading it"),
             (DETACHES, "detach and exit", "run `hmz` here to reattach")
             if self._held
-            else (STAYS, "cancel", ""),
+            else (STAYS, "cancel", "keep the interface open"),
         ]
-
-    def _fill(self) -> None:
-        """Puts the two answers up, and says what esc is here."""
-        super()._fill()
-        self._footed(Key("enter", "choose"), Key("esc", "stay"))
 
 
 #: The two answers to the question humanize asks about itself on a first start.
@@ -4112,12 +4426,13 @@ class Reports(Popup):
     next time rather than taken as a no.
     """
 
-    #: The same box, said again under this name, for the reason the one about a run being
-    #: left behind is: every rule in this file selects by the name of the sheet it is about,
-    #: so a box drawn for another one is a rule of its own.
-    CSS = f"Reports {{ align: center middle; background: transparent; }}\n{_POPUP}"
+    CSS = _popup("Reports")
 
     asked = "Report errors to humanize?"
+
+    ESC: ClassVar = "ask again next time"
+
+    PRIMARY: ClassVar = _REPORTS
 
     def __init__(self) -> None:
         """Initializes the question on its default answer, which is yes."""
@@ -4133,23 +4448,12 @@ class Reports(Popup):
     def rows(self) -> list[tuple[str, str, str]]:
         """The two answers, the one that helps first.
 
-        Two words and no line about either: what is sent and what never is, is said in the
-        question above them, and saying it again beside the answers would be the same list
-        twice in a box that is read in a second.
+        Two words: what is sent and what never is, is said in the question above them, and
+        saying it again beside the answers would be the same list twice in a box that is read
+        in a second.
         """
-        return [(_REPORTS, "yes", ""), (_QUIET, "no", "")]
+        return [(_REPORTS, "yes", "send error reports"), (_QUIET, "no", "send nothing")]
 
-    def _fill(self) -> None:
-        """Puts the two answers up, and says what esc is here."""
-        super()._fill()
-        self._footed(Key("enter", "choose"), Key("esc", "ask again next time"))
-
-
-#: How wide the column of aspect names is on the sheet one agent is set up on, and the column
-#: of their values, so that it reads down three columns: what is being said, what it is, and
-#: what it means. Wide enough for a model id, which is the longest of them by a distance.
-_ASPECT = 12
-_HOW = 34
 
 #: The account an agent runs as when nobody has chosen one, which is always the first row it
 #: is chosen from: the machine is signed in already, and that is what an agent nobody was
@@ -4238,7 +4542,6 @@ class Agent(Drafts[Runs]):
             "reasoning effort."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def _rows(self) -> list[tuple[str, str, str]]:
         """Every row this agent is made of: its id, what it is now, and what it means.
@@ -4257,23 +4560,38 @@ class Agent(Drafts[Runs]):
             rows.append((_SWARM, _YES if self._swarm else _NO, "run turns as a swarm"))
         return rows
 
+    def crumb(self) -> str:
+        """The role, which is what a menu opened from this one was opened for."""
+        return escape(self._named)
+
+    def actions(self) -> list[Action]:
+        """Saving the agent, once there is anything to save."""
+        return [self._saves_all()]
+
+    def enters(self, row: str) -> bool:
+        """Whether a row opens a sheet of its own: the CLI, the account and the model do.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for those three.
+        """
+        return row in (_CLI, _ACCOUNT, _MODEL)
+
     def _fill(self) -> None:
-        """Puts the rows up, with the marker beside the one the cursor is on."""
+        """Puts the rows up, a rule between two, and what became of asking a CLI under them."""
         listing = self.query_one("#choices", OptionList)
         rows = self._rows()
-        self._counting = len(str(max(len(rows), 1)))
-        self._values_at = len(_INDENT) + 2 + self._counting + 2 + _ASPECT
-        at = min(listing.highlighted or 0, len(rows))
-        listing.set_options(
-            [
-                Option(
-                    self._line(seen, held, value, about, here=seen == at),
-                    id=f"={held}",
-                )
-                for seen, (held, value, about) in enumerate(rows)
-            ]
-            + [self._saves("this agent", here=at == len(rows))]
-        )
+        at = min(listing.highlighted or 0, len(rows) - 1)
+        options: list[Option | None] = []
+        for seen, (held, value, about) in enumerate(rows):
+            if options:
+                options.append(None)
+            options.append(
+                Option(self._line(held, value, about, here=seen == at), id=f"={held}")
+            )
+        listing.set_options(options)
         listing.highlighted = at
         self._drawn = at
         self.query_one("#tuning", Label).update(
@@ -4281,11 +4599,10 @@ class Agent(Drafts[Runs]):
         )
         self._footed(Key("enter", "open"), Key("esc", "close"))
 
-    def _line(self, at: int, held: str, value: str, about: str, *, here: bool) -> str:
-        """One row: what is being said, what it is set to, and what it means.
+    def _line(self, held: str, value: str, about: str, *, here: bool) -> str:
+        """One row: what is being said, what it is set to at the far end, and what it means.
 
         Args:
-          at: Which one it is, counting from zero.
           held: What the row is called.
           value: What it is set to.
           about: The line about it, said quietly.
@@ -4294,29 +4611,15 @@ class Agent(Drafts[Runs]):
         Returns:
           The row, as markup.
         """
-        mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
-        number = f"{at + 1:>{self._counting}}."
         # Which of the two kinds of row this is, said on the row: one opens a sheet of its
         # own and one drops its values under it, and a reader who has to press a key to find
         # out which is a reader the row did not tell.
-        moves = (
-            f" {_DROPS}"
-            if self.drops(held)
-            else ""
-            if held in _DROPPED
-            else f" {_OPENS}"
-        )
+        moves = _DROPS if self.drops(held) else "" if held in _DROPPED else _OPENS
         # Called what the rest of humanize calls it -- an account -- whatever it is kept
-        # under. Padded on what is shown rather than on what is written: markup is not
-        # columns.
+        # under.
         said = "account" if held == _ACCOUNT else held
-        named = escape(said) + " " * max(1, _ASPECT - len(said))
-        room = _HOW - len(value) - len(moves)
-        return (
-            f"{mark}[$text-muted]{number}[/] {named}"
-            f"[$secondary]{escape(value)}[/][$text-muted]{moves}[/]"
-            f"{' ' * max(1, room)}[$text-muted]{escape(about)}[/]"
-        )
+        chip = _chip(value, moves, here=here, toggles=held == _SWARM)
+        return self._setting(said, chip, about, here=here)
 
     def _models(self) -> tuple[Model, ...]:
         """What the chosen CLI says it runs as the chosen account, read once per pair."""
@@ -4416,15 +4719,12 @@ class Agent(Drafts[Runs]):
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Opens the row under the cursor, or saves.
+        """Opens the row under the cursor.
 
         Args:
           event: What was chosen.
         """
         held = str(event.option.id or "").removeprefix("=")
-        if held == _SAVE:
-            self.applied()
-            return
         if held in (_CLI, _ACCOUNT, _MODEL):
             self._opens(held)
         elif held == _EFFORT:
@@ -4627,6 +4927,10 @@ class Accounts(Picks):
         self._backend = backend
         self._said = ""
 
+    def crumb(self) -> str:
+        """What the sheet an account is made on was opened from."""
+        return "account"
+
     def rows(self) -> list[tuple[str, str, str]]:
         """The machine's own first, and then every account that CLI has here."""
         found = _hmz().accounts.all(self._backend)
@@ -4670,7 +4974,7 @@ class Accounts(Picks):
         return f"{escape(self._backend)} has no saved accounts yet"
 
     def added(self) -> None:
-        """Makes one, which is what the row below the choices is for."""
+        """Makes one, which is what the button under the choices is for."""
         self._new()
 
     @work
@@ -4777,7 +5081,7 @@ class Catalogue(Picks):
         )
 
     def asked_again(self) -> None:
-        """Asks this CLI what it runs, from the row below the models."""
+        """Asks this CLI what it runs, from the button under the models."""
         self._refresh()
 
     @work
@@ -4832,8 +5136,6 @@ class Places(Picks):
     a search of one list finds and a walk of three sheets makes them answer in order. An
     account that has not said what it runs is a row of its own, and choosing it asks.
     """
-
-    ATOP: ClassVar = True
 
     def __init__(
         self,
@@ -4928,8 +5230,7 @@ class Places(Picks):
             cli, _, account = held.removeprefix(_UNASKED).partition(_HALVES)
             self._asks(cli, account)
             return
-        if held not in _APART:
-            self.dismiss(held)
+        self.dismiss(held)
 
     @work
     async def _asks(self, cli: str, account: str) -> None:
@@ -5089,20 +5390,19 @@ class Failing(Form["Step | str"]):
             return [_lasting(one) for one in _FOR]
         return ()
 
-    def beside(self) -> list[tuple[str, str, str]]:
+    def beside(self) -> list[Action]:
         """Taking it away, for a step already written."""
         if self._unwritten:
             return []
-        return [(_TAKES_AWAY, "remove", "removes this fallback rule when saved")]
-
-    def besides(self, held: str) -> None:
-        """Answers that it is to go.
-
-        Args:
-          held: The row, which is the one that takes it away.
-        """
-        if held == _TAKES_AWAY:
-            self.dismiss(_TAKES_AWAY)
+        return [
+            Action(
+                _ACT_REMOVE,
+                "remove",
+                "removes this fallback rule when saved",
+                partial(self.dismiss, _TAKES_AWAY),
+                variant="error",
+            )
+        ]
 
     def done_about(self) -> str:
         """What answering it does, which is hold it."""
@@ -5244,7 +5544,6 @@ class Failing(Form["Step | str"]):
             "configured, then fall back to another agent in a new conversation."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def action_done(self) -> None:
         """Answers with the step, once it says something and does not point at itself."""
@@ -5474,22 +5773,22 @@ def _falling(step: Step) -> str:
 
 #: What can be done to one account, which is what enter opens rather than what a row of
 #: letter keys does. Each of these is a question about the account under the cursor, and a
-#: menu of four is a menu; four keys nobody can see are four keys nobody presses. Being rid
-#: of one is the fourth and is spelled with the rest of them -- see :data:`_TAKES_AWAY`.
+#: menu of them is a menu; keys nobody can see are keys nobody presses. Being rid of one is
+#: the button under them -- see :data:`_TAKES_AWAY`.
 _CORRECTS, _SIGNS_IN = "corrects", "signs-in"
 
 
 class Account(Picks):
     """What to do with one account: correct it, sign it in, be rid of it.
 
-    Its own menu rather than a letter apiece on the list of accounts. They are three questions
-    about the account under the cursor, and a sheet whose keys are `l` and `r` is a sheet
-    whose keys have to be learned from a line at the bottom of it -- while enter, which every
-    list already means, was doing one of the three.
+    Its own menu rather than a letter apiece on the list of accounts. They are questions about
+    the account under the cursor, and a sheet whose keys are `l` and `r` is a sheet whose keys
+    have to be learned from a line at the bottom of it -- while enter, which every list
+    already means, was doing one of them.
 
-    Taking it away is the last of them rather than a key on the list before this: the row
-    that does it is read beside what the account is and what it is holding, which is what
-    somebody deciding to be rid of it is deciding about.
+    Taking it away is the button under them rather than a key on the list before this: it is
+    read beside what the account is and what it is holding, which is what somebody deciding
+    to be rid of it is deciding about, and apart from the rows that keep it.
 
     Where a failed turn goes and how many times over it is tried again are not among them.
     Those are things about the place a turn runs at rather than about the credentials it runs
@@ -5521,7 +5820,7 @@ class Account(Picks):
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """The three, none of which there is anything to do about for this machine's own."""
+        """The two, neither of which there is anything to do about for this machine's own."""
         if not self._name:
             return []
         return [
@@ -5535,13 +5834,22 @@ class Account(Picks):
                 "sign in again",
                 "run the CLI's sign-in again; takes over the terminal while running",
             ),
-            (
-                _TAKES_AWAY,
+        ]
+
+    def actions(self) -> list[Action]:
+        """Taking it away, or taking back taking it away, for any account humanize made."""
+        if not self._name:
+            return []
+        return [
+            Action(
+                _ACT_REMOVE,
                 "cancel removal" if self._gone else "remove",
-                "will be removed when /settings is saved"
+                "keep the account after all"
                 if self._gone
                 else "remove the account and its credentials when /settings is saved",
-            ),
+                partial(self.dismiss, _TAKES_AWAY),
+                variant="default" if self._gone else "error",
+            )
         ]
 
     def nothing(self) -> str:
@@ -6682,7 +6990,6 @@ class Hosting(Form["Runtime"]):
             "and never read."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
         """Everything the form says of the host besides its name, as the store takes it.
@@ -7034,18 +7341,16 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
         self.kept(_VIA)
         self._fill()
 
-    def beside(self) -> list[tuple[str, str, str]]:
-        """Asking the daemon what it has, above the row that answers the form."""
-        return [(_DETECTS, "detect", "detect host resources and fill them in")]
-
-    def besides(self, held: str) -> None:
-        """Asks the daemon what it has.
-
-        Args:
-          held: The row, which is the one that detects.
-        """
-        if held == _DETECTS:
-            self._detects()
+    def beside(self) -> list[Action]:
+        """Asking the daemon what it has, beside the button that answers the form."""
+        return [
+            Action(
+                _ACT_DETECT,
+                "detect",
+                "detect host resources and fill them in",
+                self._detects,
+            )
+        ]
 
     def _detected(self, said: _Had) -> dict[str, str]:
         """What detecting writes into each row it fills, by the row: "" for nothing.
@@ -7105,10 +7410,12 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
         )
         self.changed()
         self._fill()
-        # On the first of them, for the typing over.
+        # On the first of them, for the typing over, from the button that asked.
         rows = [one.held for one in self._now or []]
         if _CPUS in rows:
-            self.query_one("#choices", OptionList).highlighted = rows.index(_CPUS)
+            listing = self.query_one("#choices", OptionList)
+            listing.highlighted = rows.index(_CPUS)
+            listing.focus()
             self._fill()
 
     def kept(self, row: str) -> None:
@@ -7149,7 +7456,6 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
         )
         self.query_one("#about", Label).update(self.ABOUT)
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
         """Everything the form says of it besides its name, as the store takes it.
@@ -7488,18 +7794,16 @@ class Containing(Form["Runtime"]):
             Question(_MEMORY, "memory", "e.g. 16G; blank to use all of this Mac's"),
         ]
 
-    def beside(self) -> list[tuple[str, str, str]]:
-        """Asking what the Mac has, above the row that answers the form."""
-        return [(_DETECTS, "detect", "detect this Mac's resources and fill them in")]
-
-    def besides(self, held: str) -> None:
-        """Asks what the Mac has.
-
-        Args:
-          held: The row, which is the one that detects.
-        """
-        if held == _DETECTS:
-            self._detects()
+    def beside(self) -> list[Action]:
+        """Asking what the Mac has, beside the button that answers the form."""
+        return [
+            Action(
+                _ACT_DETECT,
+                "detect",
+                "detect this Mac's resources and fill them in",
+                self._detects,
+            )
+        ]
 
     @work
     async def _detects(self) -> None:
@@ -7529,10 +7833,12 @@ class Containing(Form["Runtime"]):
         self._noted = escape(f"detected {_has(said)}: auto-filled")
         self.changed()
         self._fill()
-        # On the first of them, for the typing over.
+        # On the first of them, for the typing over, from the button that asked.
         rows = [one.held for one in self._now or []]
         if _CPUS in rows:
-            self.query_one("#choices", OptionList).highlighted = rows.index(_CPUS)
+            listing = self.query_one("#choices", OptionList)
+            listing.highlighted = rows.index(_CPUS)
+            listing.focus()
             self._fill()
 
     def kept(self, row: str) -> None:
@@ -7578,7 +7884,6 @@ class Containing(Form["Runtime"]):
             "are limited to the resources configured here."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
         """Everything the form says of it besides its name, as the store takes it.
@@ -7645,7 +7950,7 @@ _HOSTED = "host:"
 
 
 class Importing(Form[Imported]):
-    """The hosts an ssh config names, each switched on or off, saved from the row that answers.
+    """The hosts an ssh config names, each switched on or off, saved from the button that answers.
 
     Read as `ssh -G` reads them -- the machine, the login, the port, the key, the jump host,
     `Include` and `Match` and all -- off the drawing path: it is a program. Each is switched
@@ -7776,7 +8081,6 @@ class Importing(Form[Imported]):
             "modified."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
         self._reads()
 
     @work(exclusive=True)
@@ -7806,9 +8110,8 @@ class Importing(Form[Imported]):
             )
         self._fill()
         if any(self._on(one.alias) for one in found):
-            # On the row that imports them, now that there are rows for it to be below.
-            self.query_one("#choices", OptionList).highlighted = len(found) + 1
-            self._fill()
+            # On the button that imports them, now that there is something to import.
+            self.query_one(f"#{_act(_ACT_DONE)}", Button).focus()
 
     def action_done(self) -> None:
         """Answers with the hosts switched on, once there are any."""
@@ -7835,10 +8138,10 @@ class Importing(Form[Imported]):
 class Machine(Picks):
     """What to do with one runtime: correct it, check it, or take it away.
 
-    Its own menu, as an account's is: three questions about the one under the cursor, taking
-    it away last. Each happens at once -- checking one runs `ssh` or `docker`, one corrected
-    is checked as it lands, and one taken away is a directory gone; a run already on it keeps
-    what it read as it started.
+    Its own menu, as an account's is: questions about the one under the cursor, and taking it
+    away the button under them. Each happens at once -- checking one runs `ssh` or `docker`,
+    one corrected is checked as it lands, and one taken away is a directory gone; a run
+    already on it keeps what it read as it started.
     """
 
     SEARCHES: ClassVar = False
@@ -7855,7 +8158,7 @@ class Machine(Picks):
         self.about = escape(_machine_line(one))
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """Correcting it, checking it, and taking it away."""
+        """Correcting it, and checking it."""
         return [
             (_CORRECTS, "edit", "edit saved settings"),
             (
@@ -7869,7 +8172,18 @@ class Machine(Picks):
                 if self._one.backend == _APPLE
                 else "check daemon resources against its limits",
             ),
-            (_TAKES_AWAY, "remove", "remove this host immediately"),
+        ]
+
+    def actions(self) -> list[Action]:
+        """Taking it away, which happens at once."""
+        return [
+            Action(
+                _ACT_REMOVE,
+                "remove",
+                "remove this host immediately",
+                partial(self.dismiss, _TAKES_AWAY),
+                variant="error",
+            )
         ]
 
 
@@ -7877,13 +8191,11 @@ class Hosts(Picks):
     """Which saved runtime of one backend a role's machine is -- or one more, added here.
 
     The runtimes saved on the runtimes page of `/settings`, each with what reaches it.
-    Adding one is the row above them, on the form that page opens, and it comes back chosen.
-    For a role on ssh a host nobody saved is a row as well: `-e` takes any host `ssh`
-    reaches, in brackets, and saving one under a name is a convenience rather than a
+    Adding one is the button under them, on the form that page opens, and it comes back
+    chosen. For a role on ssh a host nobody saved is a button as well: `-e` takes any host
+    `ssh` reaches, in brackets, and saving one under a name is a convenience rather than a
     condition. It comes back in its brackets, which is how `-e` tells it from a name saved.
     """
-
-    ATOP: ClassVar = True
 
     def __init__(
         self, backend: str, current: str = "", *, unsaved: bool = False
@@ -7911,6 +8223,10 @@ class Hosts(Picks):
             "saved there."
         )
 
+    def crumb(self) -> str:
+        """What the form a host is added on was opened from."""
+        return "host"
+
     def rows(self) -> list[tuple[str, str, str]]:
         """Every runtime of the backend saved here, each with what reaches it."""
         return [
@@ -7918,16 +8234,20 @@ class Hosts(Picks):
             for one in _hmz().runtimes.all(self._backend)
         ]
 
-    def above(self) -> list[tuple[str, str, str]]:
+    def actions(self) -> list[Action]:
         """Adding one, naming one nobody saved, and searching."""
-        rows = super().above()
+        made = super().actions()
         if self._unsaved:
-            at = 1 if self.adds else 0
-            rows.insert(
-                at,
-                (_UNSAVED, "unsaved host", "type any host ssh can reach"),
+            made.insert(
+                1 if self.adds else 0,
+                Action(
+                    _ACT_UNSAVED,
+                    "name a host…",
+                    "one nobody saved: any host ssh can reach",
+                    self._types,
+                ),
             )
-        return rows
+        return made
 
     def nothing(self) -> str:
         """What came of adding one, or that there is none saved yet."""
@@ -7958,19 +8278,6 @@ class Hosts(Picks):
                 self._fill()
             return
         self.dismiss(one.name)
-
-    @on(OptionList.OptionSelected)
-    def _took(self, event: OptionList.OptionSelected) -> None:
-        """Asks for a host nobody saved, where that is the row chosen.
-
-        Args:
-          event: What was chosen.
-        """
-        if str(event.option.id or "").removeprefix("=") != _UNSAVED:
-            return  # the list's own, which answers it
-        # Taken here and nowhere else: the list's own would answer with the row's id.
-        event.prevent_default()
-        self._types()
 
     @work
     async def _types(self) -> None:
@@ -8026,7 +8333,6 @@ class Unsaved(Form[str]):
             "host with a name, go to the runtimes page of /settings."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def action_done(self) -> None:
         """Answers with the host, once it is one."""
@@ -8382,7 +8688,6 @@ class Placing(Form[str]):
         if first is not None:
             self.query_one("#choices", OptionList).highlighted = first
             self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def action_done(self) -> None:
         """Answers with where the role is, read as `-e` reads it, or with nowhere at all."""
@@ -9022,8 +9327,6 @@ class Epics(Sheet[Doing]):
     where the run says where it is written down.
     """
 
-    SEARCHES: ClassVar = True
-
     def __init__(
         self,
         workspace: Path | None = None,
@@ -9070,7 +9373,6 @@ class Epics(Sheet[Doing]):
             "status, and session count."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def _about(self, ran: Ran) -> str:
         """What a row says about one run: what it was asked to do, how it went, and its size.
@@ -9088,14 +9390,33 @@ class Epics(Sheet[Doing]):
         # one whose older runs can be picked up now.
         return f"{held}{_DOT}resumable" if self._carries_on(ran) else held
 
+    def crumb(self) -> str:
+        """What the sheet a run is gone into on was opened from: the command."""
+        return "/epics"
+
+    def actions(self) -> list[Action]:
+        """Searching the runs."""
+        return [self._searches()]
+
+    def enters(self, row: str) -> bool:
+        """Every row is a run, which the arrow right goes into.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for a run.
+        """
+        return bool(row)
+
     def _fill(self) -> None:
-        """Puts the runs up, marked where the cursor is."""
+        """Puts the runs up, the first a search found or the one the cursor was on."""
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
-        # The row that searches is not a run, so a cursor on it is on none of them.
-        seeking = self.under() == _SEARCH
         shown = [one for one in self._ran if self.fits(one.flow, one.task, one.name)]
-        self._counting = len(str(max(len(shown), 1)))
+        sought = self._sought([one.name for one in shown])
+        if sought is not None:
+            self._was = sought
         if all(one.name != self._was for one in shown):
             self._was = shown[0].name if shown else ""
         listing.set_options(
@@ -9104,20 +9425,17 @@ class Epics(Sheet[Doing]):
                     self._row(
                         seen,
                         f"{_when(one.began)}{_DOT}{one.flow}",
-                        _briefly(self._about(one), self.size.width),
-                        here=not seeking and one.name == self._was,
+                        self._about(one),
+                        here=one.name == self._was,
                         inforce=False,
                     ),
                     id=f"={one.name}",
                 )
                 for seen, one in enumerate(shown)
             ]
-            + [self._seeking(here=seeking or not shown)]
         )
-        listing.highlighted = (
-            len(shown)
-            if seeking or not shown
-            else next((at for at, one in enumerate(shown) if one.name == self._was), 0)
+        listing.highlighted = next(
+            (at for at, one in enumerate(shown) if one.name == self._was), None
         )
         self._drawn = listing.highlighted
         said = self._said or ("" if self._ran else self._nothing())
@@ -9167,7 +9485,7 @@ class Epics(Sheet[Doing]):
         at = listing.highlighted
         if at is not None and 0 <= at < listing.option_count:
             named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
-            if named and named not in _APART:
+            if named:
                 self._was = named
 
     def _under(self) -> Ran | None:

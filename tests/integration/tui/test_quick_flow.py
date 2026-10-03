@@ -21,9 +21,9 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS, Editor
 from hmz.tui.complete import offered
-from hmz.tui.flows import Flows
-from hmz.tui.pick import _ACT_SAVE, _BUDGET, _DONE, Configures
-from tests.integration.tui.test_app import changes, opens
+from hmz.tui.flows import _BUDGET, Flows
+from hmz.tui.pick import _ACT_DONE, _ACT_SAVE, Configures
+from tests.integration.tui.test_app import changes, onto, opens
 from tests.stubs import ShellAgent, written
 from tests.tui.fixtures import asked, holding, link, pending, told, transcript, until
 
@@ -184,11 +184,13 @@ async def saves(app: Humanize, driver: Pilot[None]) -> None:
     sheet = cast("Flows", app.screen)
     await until(lambda: sheet._inside, driver)
     # A run of it is given a budget, which none of these flows has been yet: set on its row,
-    # as a duration, before the menu is saved.
+    # as a duration, and set from the button under the sheet that opens, before the menu is
+    # saved.
     await opens(app, driver, _BUDGET)
     await until(lambda: isinstance(app.screen, Configures), driver)
     await changes(app, driver, "duration", *"1h")
-    await opens(app, driver, _DONE)
+    await onto(app, driver, _ACT_DONE)
+    await driver.press("enter")
     await until(lambda: app.screen is sheet, driver)
     await opens(app, driver, _ACT_SAVE)
     await until(lambda: not isinstance(app.screen, Flows), driver)

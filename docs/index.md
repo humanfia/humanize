@@ -88,7 +88,7 @@ $ralph_loop Fix the bug in calc.py.
 </div>
 
 The first time, the flow's menu opens and holds your line. Pick the CLI, model and effort for
-its one role, `agent`, set a budget, and choose its `save` row: that
+its one role, `agent`, set a budget, and press its **Save** button: that
 saves the setup and starts the run. This directory remembers the setup: next time, the same line starts the run
 straight away.
 

@@ -19,21 +19,21 @@ import unittest.mock
 from typing import TYPE_CHECKING, cast
 
 import pytest
-from textual.widgets import Label, OptionList
+from textual.content import Content
+from textual.widgets import Button, Label, OptionList
 
 from hmz.coganchor.backends import Model
 from hmz.flows import Budget
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.flows import Flows
+from hmz.tui.flows import _BUDGET, _PROFILING, Flows
 from hmz.tui.pick import (
+    _ACT_AGAIN,
+    _ACT_DONE,
     _ACT_SAVE,
-    _AGAIN,
-    _BUDGET,
-    _DONE,
-    _PROFILING,
-    _SAVE,
+    _DROP,
+    _KEEP,
     Agent,
     Catalogue,
     Clis,
@@ -42,10 +42,12 @@ from hmz.tui.pick import (
     Placing,
 )
 from tests.integration.tui.test_app import (
+    bar,
     changes,
     drops,
     into_agent,
     keeps,
+    leaves,
     onto,
     opens,
     picks,
@@ -153,9 +155,16 @@ def _asked(app: Humanize) -> str:
 
 
 def _value(app: Humanize, held: str) -> str:
-    """What one row of the sheet on top is set to, as it is drawn."""
+    """What one row of the sheet on top is set to, as it reads.
+
+    A value too long for its column is wrapped under itself, so the lines it was broken over
+    are put back together -- and the markup taken off -- before anything is looked for in it.
+    """
     listing = app.screen.query_one("#choices", OptionList)
-    return str(listing.get_option_at_index(rows(app).index(held)).prompt)
+    prompt = str(listing.get_option_at_index(rows(app).index(held)).prompt)
+    return "".join(
+        line.strip() for line in Content.from_markup(prompt).plain.splitlines()
+    )
 
 
 def _said(app: Humanize) -> str:
@@ -171,13 +180,18 @@ async def _open(app: Humanize, driver: Pilot[None], flow: str) -> None:
     await into_agent(app, driver)
 
 
+def _saves(app: Humanize) -> Button:
+    """The button the sheet on top is saved from."""
+    return app.screen.query_one(f"#act-{_ACT_SAVE}", Button)
+
+
 async def _budgets(app: Humanize, driver: Pilot[None], duration: str) -> None:
     """Sets what a run may spend from its row on the roles page, as a duration."""
     await onto(app, driver, _BUDGET)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Configures), driver)
     await changes(app, driver, "duration", *duration)
-    await onto(app, driver, _DONE)
+    await onto(app, driver, _ACT_DONE)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Flows), driver)
 
@@ -196,8 +210,10 @@ async def test_one_agent_is_one_sheet_of_rows_in_the_order_they_depend(
         assert "builder" in _asked(app)
         # Four rows, and nothing else: what it may do and what it can are the flow's, where
         # it works is the environment's, and the skills it carries are its CLI's -- none of
-        # them is the agent's to be asked about here.
-        assert rows(app) == ["cli", "provider", "model", "effort", _SAVE]
+        # them is the agent's to be asked about here. Saving it is not one of the things it
+        # is, so it is the button under them rather than a fifth row.
+        assert rows(app) == ["cli", "provider", "model", "effort"]
+        assert bar(app) == [_ACT_SAVE]
         # The account nobody chose is always the first row of the list it is chosen from.
         assert "as local" in _value(app, "provider")
 
@@ -260,25 +276,34 @@ async def test_two_agents_are_two_rows_and_a_sheet_apiece(
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
+async def test_an_agent_saved_from_its_button_and_one_left_untouched_land_with_the_flow(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
     tmp_path: Path,
 ) -> None:
-    """A two-agent flow can be set up and saved without backing through either sheet."""
+    """A two-agent flow can be set up and saved without backing through either sheet.
+
+    An agent is saved from its button, which answers the sheet there and then rather than by
+    way of the question walking out of it asks. There is nothing to press on one nobody has
+    changed -- nothing to save -- so walking out of that one asks nothing at all.
+    """
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver, "pair")
+        assert _saves(app).disabled  # opened, and nothing changed yet
         await picks(app, driver, "effort", "max")
+        assert not _saves(app).disabled
 
-        await opens(app, driver, _SAVE)
+        await onto(app, driver, _ACT_SAVE)
+        await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
         assert rows(app) == ["0", "1", _BUDGET, _PROFILING]
 
         await onto(app, driver, "1")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
-        await opens(app, driver, _SAVE)
+        assert _saves(app).disabled
+        await leaves(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
 
         await _budgets(app, driver, "1h")
@@ -286,8 +311,8 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
-    # The builder was moved off the effort it opened on, and the reviewer saved as
-    # it opened.
+    # The builder was moved off the effort it opened on and saved, and the reviewer walked
+    # out of as it opened -- which the flow lands as it opened.
     chosen = {
         "builder": Runs("claude/claude-opus-5:max"),
         "reviewer": Runs("claude/claude-opus-5:high"),
@@ -353,15 +378,16 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_is_given_a_budget(
         await onto(app, driver, _BUDGET)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Configures), driver)
-        assert rows(app) == ["duration", "cost", "output_tokens", "graceful", _DONE]
+        assert rows(app) == ["duration", "cost", "output_tokens", "graceful"]
+        assert bar(app) == [_ACT_DONE]
         await changes(app, driver, "duration", *"soon")
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await driver.pause()
         assert isinstance(app.screen, Configures)  # not a duration, so not taken
         assert "not a duration" in _said(app)
         await changes(app, driver, "duration", *(["backspace"] * 4), *"90m")
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
         assert "stops at 1h30m" in _value(app, _BUDGET)
@@ -408,7 +434,8 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Placing), driver)
         await changes(app, driver, "spelled", *"nowhere")
-        await onto(app, driver, _DONE)
+        # The last question kept, which leaves the form's own button the next thing to do.
+        assert app.screen.focused is app.screen.query_one(f"#act-{_ACT_DONE}")
         await driver.press("enter")
         await driver.pause()
         assert isinstance(app.screen, Placing)
@@ -421,7 +448,7 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
             *(["backspace"] * len("nowhere")),
             *f"local{tmp_path}",
         )
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
         assert f"local{tmp_path}" in _value(app, "@repo")
@@ -477,7 +504,7 @@ async def test_the_question_on_the_way_out_is_two_answers_and_esc(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
 ) -> None:
-    """Going back to the menu is what esc is everywhere else, so it is not a row as well."""
+    """Going back to the menu is what esc is everywhere else, so it is not a button as well."""
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver, "here")
@@ -487,7 +514,10 @@ async def test_the_question_on_the_way_out_is_two_answers_and_esc(
         await until(lambda: isinstance(app.screen, Confirms), driver)
         sheet = app.screen
         assert isinstance(sheet, Confirms)
-        assert sheet.query_one("#choices", OptionList).option_count == 2
+        # Two buttons and no list, saving the one enter takes as the box comes up.
+        assert bar(app) == [_KEEP, _DROP]
+        assert not sheet.query_one("#choices").display
+        assert sheet.focused is sheet.query_one(f"#act-{_KEEP}")
 
         # And esc off it is the sheet again, holding what it was holding.
         await driver.press("escape")
@@ -629,7 +659,7 @@ async def codex_only(task: str, *, agents: Agents, envs: EnvCollection,
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_from_a_row(
+async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_from_a_button(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
 ) -> None:
@@ -639,11 +669,13 @@ async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_from_a
         await _open(app, driver, "here")
         await opens(app, driver, "model")
         await until(lambda: isinstance(app.screen, Catalogue), driver)
-        keys = str(app.screen.query_one("#keys", Label).content)
+        sheet = app.screen
+        assert isinstance(sheet, Catalogue)
 
-        # Asking again is a row below the models rather than a key.
-        assert rows(app)[-1] == _AGAIN
-        listing = app.screen.query_one("#choices", OptionList)
-        last = listing.get_option_at_index(listing.option_count - 1)
-        assert "check again" in str(last.prompt)
-        assert "ctrl" not in keys.lower()
+        # Asking again is done about the list rather than to a model on it, so it is a
+        # button under the models -- not a row among them, and not a key to know.
+        assert rows(app) == ["claude-opus-5"]
+        assert _ACT_AGAIN in bar(app)
+        again = sheet.query_one(f"#act-{_ACT_AGAIN}", Button)
+        assert "check again" in str(again.label).lower()
+        assert not any("ctrl" in one.key for one in sheet._keyed)

@@ -124,9 +124,11 @@ change you have not saved yet.
 
 ### How a page is laid out {#layout}
 
-Inside a page, the line across the top says where you are (`/settings › Accounts`), the list
-fills the screen, and under it is a bar of buttons. Every page is one of two kinds, and each
-kind is laid out the same way wherever it is.
+Inside a page, the line across the top says where you are (`hmz › /settings › Accounts`),
+each step of it a click back there, the list fills the screen, and under it is a bar of
+buttons. Every page is one of two kinds, and each kind is laid out the same way wherever it
+is. So is every other menu of `hmz` -- `/flow`, `/epics`, an agent, a form -- with the same
+keys ([TUI › Menus](/reference/tui#menus)).
 
 **A page of settings** (General, Workspace) is a row per setting under a heading of what it
 is about: its name, what it means under it, and its value at the far end. The one you change
@@ -147,12 +149,14 @@ far end where the page holds anything until it is saved. Runtimes holds nothing,
 what you type narrows it as you type, and the cursor goes to the first thing it finds;
 <kbd>enter</kbd> goes back to the list, and <kbd>esc</kbd> clears it. On a page with nothing
 listed yet, the focus opens on `Add …`. <kbd>enter</kbd> or a click on something listed opens
-**its own menu**: what can be done to that one thing, taking it away last.
+**its own menu**: what can be done to that one thing, with taking it away as a red
+**Remove** button under its rows.
 
-**A form** is what adding or correcting something opens: a row per question, then `done`, whose
-line says what answering it will do. Type on a written row to write it, no <kbd>enter</kbd>
-first; <kbd>enter</kbd> keeps it and moves the cursor on to the next row still to be answered,
-or to `done` once none is. A row marked `▾` drops its values under it, as on a page of
+**A form** is what adding or correcting something opens: a row per question, and under them a
+**Done** button that answers it, saying what answering will do when you point at it or it has
+the focus. Type on a written row to write it, no <kbd>enter</kbd> first; <kbd>enter</kbd>
+keeps it and moves the cursor on to the next row still to be answered, and after the last the
+focus moves to **Done**, so one more <kbd>enter</kbd> answers the form. A row marked `▾` drops its values under it, as on a page of
 settings; one marked `▸` opens a list to choose from. What a form can guess is written in for
 you (a name, a region): the first letter you type replaces it, and <kbd>backspace</kbd> trims
 it instead. A secret is drawn as bullets and never shown back. <kbd>esc</kbd> out of a form you wrote in asks whether to keep it.
@@ -161,14 +165,16 @@ The line under the list says what became of the last thing done on that page, an
 there when you go back into the page, as is the row the cursor was on.
 
 The last line of the screen always names the keys that work where the focus is, such as
-`enter open   / search   tab actions   esc back` on a list and
-`enter save   ←/→ move   tab list   esc back` on the buttons.
+`enter open   / search   tab actions   esc back` on a list,
+`enter save   ←/→ move   tab list   esc back` on the buttons, and
+`type to edit   tab actions   esc back` on a form's written row.
 
 ### When a change lands {#saving}
 
 What every page holds lands together, when you save: press **Save**, on any page or on the
-five of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and it asks **save** or
-**discard**; <kbd>esc</kbd> on that question takes you back. **Save** cannot be pressed until
+five of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
+middle of the screen asks **Save** or **Discard**; <kbd>esc</kbd> or a click off it takes you
+back. **Save** cannot be pressed until
 something is changed, and `● unsaved changes` across the top says when something is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
@@ -191,7 +197,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
 <Term title="/settings">
 
-<pre>  <span class="p b">/settings</span>
+<pre>  <span class="m">hmz ›</span> <span class="p b">/settings</span>
   <span class="m">Every setting humanize keeps. What you change is held until you save it.</span>
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
@@ -222,7 +228,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
 <Term title="/settings › General">
 
-<pre>  <span class="m">/settings ›</span> <span class="p b">General</span>
+<pre>  <span class="m">hmz › /settings ›</span> <span class="p b">General</span>
   <span class="m">How humanize behaves on this machine, in every directory.</span>
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
@@ -253,7 +259,7 @@ and <kbd>enter</kbd> on **Save**:
 
 <Term title="/settings › General">
 
-<pre>  <span class="m">/settings ›</span> <span class="p b">General</span>                               <span class="y">● unsaved changes</span> <span class="n">5</span>
+<pre>  <span class="m">hmz › /settings ›</span> <span class="p b">General</span>                         <span class="y">● unsaved changes</span> <span class="n">5</span>
   <span class="m">How humanize behaves on this machine, in every directory.</span>
   <span class="m">…</span>
    <b>Details</b>                                                      <span class="g">● on ▾</span>
@@ -366,8 +372,9 @@ In `hmz`:
    goes to the first of them. Type each answer and press <kbd>enter</kbd>; a secret shows as
    bullets. The name is written in for you (the way's own, unless an account is already called
    that); type over it to call it something else, `deepseek` here.
-4. Press <kbd>enter</kbd> on `done`. A way that is a login hands the terminal to the CLI's own
-   login until it is done.
+4. Once the last answer is kept, the focus is on **Done**, and the line under the list says
+   what it will do: press <kbd>enter</kbd>. A way that is a login hands the terminal to the
+   CLI's own login until it is done.
 5. Name the account after the CLI in `-a`:
 
 ```sh{3}
@@ -385,25 +392,41 @@ first as you are signed in, the second as `deepseek`.
 From `/settings accounts` with no account yet, an Anthropic API key is a dozen key presses and
 the key itself: <kbd>enter</kbd> on **Add an account**, <kbd>↓</kbd> <kbd>enter</kbd> to drop
 the ways, <kbd>↓</kbd> <kbd>↓</kbd> <kbd>enter</kbd> to pick `key`, type the key, and
-<kbd>enter</kbd>. The form now reads:
+<kbd>enter</kbd>. Nothing is left to answer, so the focus has moved on to **Done**:
 
 <Term title="/settings › Accounts › Add an account">
 
-<pre>   <span class="p b">Add an account</span>
-   <span class="m">A saved sign-in for one CLI, kept separate from the CLI's default and other
-   accounts. Secrets are masked and never shown.</span>
+<pre>  <span class="m">hmz › /settings › Accounts ›</span> <span class="p b">Add an account</span>             <span class="y">● unsaved changes</span>
+  <span class="m">A saved sign-in for one CLI, kept separate from the CLI's default and
+  other accounts. Secrets are masked and never shown.</span>
 
-     <span class="d">1.</span> cli                <span class="a">claude ▾</span>           <span class="m">installed here</span>
-     <span class="d">2.</span> way                <span class="a">key ▾</span>              <span class="m">an Anthropic API key, from the console</span> <span class="n">1</span>
-     <span class="d">3.</span> name               <span class="a">key</span>                <span class="m">account name</span> <span class="n">2</span>
-     <span class="d">4.</span> ANTHROPIC_API_KEY  <span class="a">••••••••••••••</span>     <span class="m">the API key</span> <span class="n">3</span>
-     <span class="d">5.</span> also for pi        <span class="a">on ▾</span>               <span class="m">installed here</span> <span class="n">4</span>
-     <span class="d">6.</span> also for opencode  <span class="a">on ▾</span>               <span class="m">installed here</span>
-     <span class="d">7.</span> also for mimo      <span class="a">on ▾</span>               <span class="m">installed here</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <b>cli</b>                                                            <span class="a">claude ▾</span>
+     <span class="m">installed here</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>way</b>                                                               <span class="a">key ▾</span> <span class="n">1</span>
+     <span class="m">an Anthropic API key, from the console</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>name</b>                                                                <span class="a">key</span> <span class="n">2</span>
+     <span class="m">account name</span>
+   ────────────────────────────────────────────────────────────────────────
+  <span class="hl"> <b>ANTHROPIC_API_KEY</b>                                        •••••••••••••• </span> <span class="n">3</span>
+  <span class="hl">   the API key                                                           </span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>also for pi</b>                                                      <span class="g">● on ▾</span> <span class="n">4</span>
+     <span class="m">installed here</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>also for opencode</b>                                                <span class="g">● on ▾</span>
+     <span class="m">installed here</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>also for mimo</b>                                                    <span class="g">● on ▾</span>
+     <span class="m">installed here</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
+   <span class="m">adds claude/key, for pi, opencode, mimo too</span>
 
-   <span class="p">❯</span>    <span class="p">done</span>                      <span class="m">adds claude/key, for pi, opencode, mimo too</span> <span class="n">5</span>
+                                                                     <span class="sel"> Done </span> <span class="n">5</span>
 
-   <span class="d">enter done · esc back</span></pre>
+  <b>enter</b> done   <b>←/→</b> move   <b>tab</b> list   <b>esc</b> back</pre>
 
 </Term>
 
@@ -414,9 +437,10 @@ the ways, <kbd>↓</kbd> <kbd>↓</kbd> <kbd>enter</kbd> to pick `key`, type the
 3. **The secret, as bullets.** It is never drawn back, here or on any later screen.
 4. **`also for …`.** The same key works in the other CLIs that take an Anthropic key, and each
    one installed here starts `on`. See [One account, several CLIs](#one-account-several-clis).
-5. **`done` says what it will do.** Read it before you press <kbd>enter</kbd>.
+5. **Done, with the focus.** The line under the list says what pressing it will do. Read it
+   before you press <kbd>enter</kbd>.
 
-<kbd>enter</kbd> on `done` makes the account at once; there is nothing to save. The Accounts
+<kbd>enter</kbd> on **Done** makes the account at once; there is nothing to save. The Accounts
 page now lists it under `claude`, and under each CLI it was copied to, beside `as local`:
 
 ```text
@@ -442,22 +466,24 @@ goes back to the prompt.
 ```text [at the prompt]
 /flow, choose the flow, enter on a role, then its account row:
 
-   Select the account to run as
+  hmz › /flow › Installed › ralph_loop › agent › Select the account to run as
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ as local ✔                use the account signed in on this machine      │
+  │ deepseek                  gateway · ANTHROPIC_AUTH_TOKEN,                │
+  │                           ANTHROPIC_BASE_URL                             │
+  │ work                      login                                          │
+  ╰──────────────────────────────────────────────────────────────────────────╯
 
-   ❯ 1. as local ✔                use the account signed in on this machine
-     2. deepseek                  gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
-     3. work                      login
+  Add an account  Search…
 
-        search…
-
-        add                       an account
+  enter choose   / search   tab actions   esc back
 ```
 
 :::
 
 - An agent with no account runs **`as local`**: the CLI signed in the way you signed it in
-  yourself.
-- At the prompt, that list's `add` row makes an account without leaving it. It is the same form
+  yourself. The list opens with the cursor on the account in force, ticked.
+- At the prompt, that list's **Add an account** button makes an account without leaving it. It is the same form
   as on the Accounts page, without the row that asks which CLI, and the new account comes back
   chosen. The agent's sheet then asks its CLI what it runs, without holding you up.
 - An account belongs to one CLI. What signs in to Claude Code is not what signs in to codex, so
@@ -496,13 +522,13 @@ ACP](/reference/agents#a-cli-of-your-own)), **Search…** and **Save**.
 
 <HmzCast name="accounts" alt="the Accounts page of /settings listing a claude account and as local, enter opening what can be done with the account" />
 
-<kbd>enter</kbd> on an account opens what you can do with it:
+<kbd>enter</kbd>, <kbd>→</kbd> or a click on an account opens what you can do with it, a menu of its own (`hmz › /settings › Accounts › claude/work`):
 
-| On the menu | What it does |
+| On its menu | What it does |
 | --- | --- |
 | **edit settings** | Asks its way's questions again, on the same form it was made on. Secrets are never shown back: leave one blank to keep it, or type a new one. Once saved, the account is asked again what models it runs, so a gateway moved offers the new one's. |
 | **sign in again** | Runs its login again. It owns the terminal while it does. |
-| **remove** | The account and its credentials. |
+| **Remove**, the button under them | The account and its credentials. Once held, the button reads **Cancel removal**, which keeps it after all. |
 
 Making an account and signing one in happen at once. Correcting and taking away are held
 until you [save the menu](#saving), and while one is held its row says `from the next
@@ -523,7 +549,7 @@ because it is installed here](/demo/alike.png)
 
 - Each starts **on** where that CLI is installed here, and off where it is not. Change one as any
   `▾` row: <kbd>enter</kbd> drops `on` and `off` under it, the other one under the cursor, and
-  <kbd>enter</kbd> takes it. `done` says which it will be copied to.
+  <kbd>enter</kbd> takes it. **Done** says which it will be copied to.
 - A copy takes **the same name**, so `claude/shared` becomes `pi/shared` and
   `opencode/shared` too. The name written in for you is one no account of any CLI has, so a
   copy never writes over another account; where you type one that does, the row says so.
@@ -539,7 +565,7 @@ happens in the background: the account's row says `checking models…`, you can 
 and the line under the list says how many models it named, or why it named none (a login that
 has not finished, a key it refused). A gateway account lists what the gateway itself serves.
 
-The list is what the `model` row offers at `/flow`. `check again` there asks again: do it when
+The list is what the `model` row offers at `/flow`. **Check again** under it asks again: do it when
 the model you want is missing, or when a failed turn says the list is out of date.
 
 ### When an account fails
@@ -604,38 +630,54 @@ then in DeepSeek if Codex fails too.
    <kbd>enter</kbd>. One form opens: the place that fails, the places it falls back to, and
    how it is tried again first.
 2. <kbd>enter</kbd> on `fails on` opens every place there is in one list: each installed CLI, as
-   each of its accounts, at each model it runs. `search…` at its top narrows it by any of the
+   each of its accounts, at each model it runs. **Search…** under it, or <kbd>/</kbd>, narrows it by any of the
    three (`opus`, `work`, `codex`). Choose one, and the cursor moves to `falls back to`.
 3. <kbd>enter</kbd> there and choose the first place that takes its turns. The place that
    fails is not offered, and `nowhere` is, first.
 4. A `then` row now follows it, showing `+ add`. <kbd>enter</kbd> on it and choose the next
    place. Add as many as you like; each is tried in turn.
 5. Pick `tries`, `policy` or `for` from the list each drops under it if you want a failed
-   turn tried again here first, then <kbd>enter</kbd> on `done`.
+   turn tried again here first, then **Done**.
 
 To change the chain, <kbd>enter</kbd> on any of its rows. Choosing `nowhere` takes that place
 off; choosing a place already further along swaps the two, which is how you reorder it. A
 place can be on the chain only once.
 
-The form, just before `done`:
+The form once `for` is picked, the last question, which moves the focus on to **Done**:
 
 <Term title="/settings › Fallback › Add fallback rule">
 
-<pre>   <span class="p b">Add fallback rule</span>
-   <span class="m">What happens when an agent cannot take a turn: retry as configured, then fall
-   back to another agent in a new conversation.</span>
+<pre>  <span class="m">hmz › /settings › Fallback ›</span> <span class="p b">Add fallback rule</span>          <span class="y">● unsaved changes</span>
+  <span class="m">What happens when an agent cannot take a turn: retry as configured, then
+  fall back to another agent in a new conversation.</span>
 
-     <span class="d">1.</span> fails on       <span class="a">claude/claude-opus-5-5 ▸</span>   <span class="m">the agent whose turns cannot run</span> <span class="n">1</span>
-     <span class="d">2.</span> falls back to  <span class="a">codex/gpt-5.6-sol ▸</span>        <span class="m">fallback agent for failed turns</span> <span class="n">2</span>
-     <span class="d">3.</span> then           <span class="a">dsh/deepseek-v4-flash ▸</span>    <span class="m">if that fails too</span>
-     <span class="d">4.</span> then           <span class="a">+ add ▸</span>                    <span class="m">add an agent to try after the ones above</span>
-     <span class="d">5.</span> tries          <span class="a">2 ▾</span>                        <span class="m">how many times to retry</span> <span class="n">3</span>
-     <span class="d">6.</span> policy         <span class="a">linear ▾</span>                   <span class="m">one second longer each time: 1s, 2s, 3s</span>
-     <span class="d">7.</span> for            <span class="a">no limit ▾</span>                 <span class="m">maximum time to keep retrying</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <b>fails on</b>                                       <span class="a">claude/claude-opus-5-5 ▸</span> <span class="n">1</span>
+     <span class="m">the agent whose turns cannot run</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>falls back to</b>                                       <span class="a">codex/gpt-5.6-sol ▸</span> <span class="n">2</span>
+     <span class="m">fallback agent for failed turns, in a new conversation</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>then</b>                                            <span class="a">dsh/deepseek-v4-flash ▸</span>
+     <span class="m">if that fails too, in a new conversation</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>then</b>                                                            <span class="a">+ add ▸</span>
+     <span class="m">add an agent to try after the ones above</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>tries</b>                                                               <span class="a">2 ▾</span> <span class="n">3</span>
+     <span class="m">how many times to retry a failed turn before falling back</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>policy</b>                                                         <span class="a">linear ▾</span>
+     <span class="m">one second longer each time: 1s, 2s, 3s</span>
+   ────────────────────────────────────────────────────────────────────────
+  <span class="hl"> <b>for</b>                                                          no limit ▾ </span>
+  <span class="hl">   maximum time to keep retrying                                         </span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
+   <span class="m">applies this fallback rule when /settings is saved</span>
 
-   <span class="p">❯</span>    <span class="p">done</span>                      <span class="m">applies this fallback rule when /settings is saved</span> <span class="n">4</span>
+                                                                     <span class="sel"> Done </span> <span class="n">4</span>
 
-   <span class="d">enter done · esc back</span></pre>
+  <b>enter</b> done   <b>←/→</b> move   <b>tab</b> list   <b>esc</b> back</pre>
 
 </Term>
 
@@ -643,7 +685,7 @@ And the page once it is added, before it is saved:
 
 <Term title="/settings › Fallback">
 
-<pre>  <span class="m">/settings ›</span> <span class="p b">Fallback</span>                                  <span class="y">● unsaved changes</span> <span class="n">5</span>
+<pre>  <span class="m">hmz › /settings ›</span> <span class="p b">Fallback</span>                            <span class="y">● unsaved changes</span> <span class="n">5</span>
   <span class="m">Where a turn falls back when an agent fails, tried in order. An agent
   is a CLI, an account and a model. A chain starts only from the agent it is
   written for. Saved rules apply from the next failed turn.</span>
@@ -667,13 +709,15 @@ What to look at, by number:
    a row of the chain it takes that place off.
 3. **`tries`, `policy`, `for`** retry here before moving on. `none` moves on at once. See
    [Trying again](#trying-again).
-4. **`done`** says when the rule applies: when `/settings` is saved.
+4. **Done**, with the focus. The line under the list says when the rule applies: when
+   `/settings` is saved.
 5. **`● unsaved changes`.** The rule is held. <kbd>tab</kbd> to **Save**, or leave with
-   <kbd>esc</kbd> and choose **save** when it asks.
+   <kbd>esc</kbd> and choose **Save** when it asks.
 6. **The rule, on one line.** The place, marked `✔` as a rule in force, how it retries, and
    where it goes.
 
-<kbd>enter</kbd> on a rule opens the same form for it, with `remove` above `done`.
+<kbd>enter</kbd> on a rule opens the same form for it, with a red **Remove** button before
+**Done**.
 
 **Check it worked.** Once saved, the transcript repeats the rule, and the next turn that fails
 reads it:
@@ -697,7 +741,7 @@ says, if it has one; where the turn goes after it is always the main place's cha
 `tries`, `policy` and `for`, on a rule's form, set how a failed turn is retried at this place
 before it moves on. They belong to the place, so they also apply when the place is reached as
 a stand-in on another rule's chain. <kbd>enter</kbd> or a click on each drops its values under it; pick
-one, then choose **done**:
+one, then choose **Done**:
 
 | Setting | Choices | What it is |
 | --- | --- | --- |
@@ -755,7 +799,7 @@ claude is rate-limited (the service asks it to slow down, with no quota spent; a
 ```
 
 Where there is something to do about it, the line says so in brackets: an account that needs
-signing in again, a CLI to install, or a model list to refresh with `check again`. Under
+signing in again, a CLI to install, or a model list to refresh with **Check again**. Under
 `hmz exec --json`, these lines are `notice` events.
 
 ::: details Antigravity (agy) fails with nothing said
@@ -837,7 +881,7 @@ Type `/settings runtimes`:
 
 <Term title="/settings · Runtimes">
 
-<pre>  <span class="m">/settings ›</span> <span class="p b">Runtimes</span>
+<pre>  <span class="m">hmz › /settings ›</span> <span class="p b">Runtimes</span>
   <span class="m">Saved ssh hosts, docker daemons with the resources each may hand out, docker
   swarms with what their tasks may reserve, and this Mac's Apple containers, used by
   name as flow environments in -e and /flow. Changes take effect immediately.</span>
@@ -860,19 +904,20 @@ Type `/settings runtimes`:
 
 - **Import the hosts you already have.** Press **Import ~/.ssh/config**. Each host your ssh
   config names is listed as `ssh -G` resolves it (the machine, the login, the port, the key,
-  the jump host), switched on unless it is saved already, and the cursor is on `done`: press
+  the jump host), switched on unless it is saved already, and the focus is on **Done**: press
   <kbd>enter</kbd>. From an empty page, where the focus opens on **Add a runtime…**, that is
   three key presses, <kbd>→</kbd> <kbd>enter</kbd> <kbd>enter</kbd>, however many hosts there
   are -- or two clicks.
 - **Add one by hand.** Press **Add a runtime…**: it drops the four kinds, `ssh host`,
   `docker host`, `docker swarm` and `apple containers`, over the button. Pick `ssh host`, type
-  `me@box.example.com:2200`, and choose `done`. The login and the port go to their own rows,
+  `me@box.example.com:2200`, and press **Done** (<kbd>tab</kbd> <kbd>enter</kbd>, or a click).
+  The login and the port go to their own rows,
   and the name is written in for you (`box`, the host's first label).
-- **Add a docker daemon.** Press **Add a runtime…** and pick `docker host`, then `detect` (two
-  <kbd>↑</kbd> from the first row): the daemon's CPUs, memory and GPUs are written in and the
+- **Add a docker daemon.** Press **Add a runtime…** and pick `docker host`, then **Detect**
+  (<kbd>tab</kbd> from the list): the daemon's CPUs, memory and GPUs are written in and the
   cursor is on the first of them. Type `16`, <kbd>enter</kbd>, `64G`, <kbd>enter</kbd>, `0`,
-  <kbd>enter</kbd>, and <kbd>enter</kbd> on `done`. From an empty page that is ten key presses
-  and what you typed.
+  <kbd>enter</kbd>, and the focus is on **Done**: <kbd>enter</kbd>. From an empty page that is
+  nine key presses and what you typed.
 
 <HmzCast name="runtimes" alt="the Runtimes page of /settings: ssh hosts and a docker daemon under a heading each, enter opening what can be done to one, then the form a docker daemon is added on" />
 
@@ -936,7 +981,7 @@ has room, and here once it has none), and what it may hand out:
 | memory | a number and a unit, in docker's units of 1024: `64G`, `512M`, `1.5T` | all it has |
 | gpus | device ids: `0, 1` | all it has |
 
-**`detect`** asks the daemon what it has and writes it into those three rows, for you to type
+**Detect**, a button beside **Done**, asks the daemon what it has and writes it into those three rows, for you to type
 less over; the first letter typed replaces what it wrote. Only the GPUs that answer are written
 in: a GPU that has failed since docker was set up for it is listed by the daemon still, and
 said in yellow (`1 of 2 GPUs answer; GPU 1 does not`). Where the daemon has less than a
@@ -961,7 +1006,7 @@ task may go:
 | gpu resource | the generic resource its nodes advertise GPUs as: `NVIDIA-GPU` | no GPUs |
 | cpus, memory | what all of its tasks together may reserve | no quota |
 
-**`detect`** writes in the CPUs and memory of the nodes that may take a task, all told. A
+**Detect** writes in the CPUs and memory of the nodes that may take a task, all told. A
 check says which those are -- `12 nodes: node01, node02, … and 4 more` -- and, in yellow, a
 quota more than they have or a GPU resource none of them advertises.
 
@@ -977,13 +1022,13 @@ them, each blank for all of this Mac's. **`detect`** writes those in from
 
 ### On one runtime
 
-<kbd>enter</kbd> on a runtime opens what can be done to it, all of it at once:
+<kbd>enter</kbd>, <kbd>→</kbd> or a click on a runtime opens what can be done to it, all of it at once:
 
-| On the menu | What it does |
+| On its menu | What it does |
 | --- | --- |
 | **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
 | **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A swarm's manager is asked which of its nodes may take a task, and what those have. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Each is given 30 seconds, in the background: the row says `checking…` until it answers. |
-| **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing, and so is a swarm whose manager or one of whose nodes it reached. |
+| **Remove**, the button under them | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing, and so is a swarm whose manager or one of whose nodes it reached. |
 
 ### Choosing one for a role {#choosing-one-for-a-role}
 
@@ -991,16 +1036,29 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
 
 <Term title="/flow · onbox">
 
-<pre><span class="p b">Environment for box</span>
+<pre>  <span class="m">hmz › onbox ›</span> <span class="p b">Environment for box</span>
+  <span class="m">The machine and working directory for this environment role. Choosing a
+  machine saved on the runtimes page of /settings by name includes its saved
+  working directory.</span>
 
-  <span class="d">1.</span> backend  <span class="a">ssh ▾</span>                   <span class="m">a machine reached over ssh</span>
-  <span class="d">2.</span> host     <span class="a">gpu ▸</span>                   <span class="m">from ~/.ssh/config · working directory: ~/work</span>
-  <span class="d">3.</span> workdir  <span class="a">~/work</span>                  <span class="m">leave blank to use saved default: ~/work</span>
-  <span class="d">4.</span> as -e    <span class="a">ssh@gpu</span>                 <span class="m">full -e spec: typing one sets the rows above</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <b>backend</b>                                                           <span class="a">ssh ▾</span>
+     <span class="m">a machine reached over ssh</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>host</b>                                                              <span class="a">gpu ▸</span>
+     <span class="m">from ~/.ssh/config · working directory: ~/work</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>workdir</b>                                                          <span class="a">~/work</span>
+     <span class="m">leave blank to use saved default: ~/work</span>
+   ────────────────────────────────────────────────────────────────────────
+  <span class="hl"> <b>as -e</b>                                                           ssh@gpu </span>
+  <span class="hl">   full -e spec: typing one sets the rows above                          </span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
+   <span class="m">sets box to ssh@gpu when the flow is saved</span>
 
-<span class="p">❯</span>    <span class="p">done</span>                   <span class="m">sets box to ssh@gpu when the flow is saved</span>
+                                                                     <span class="sel"> Done </span>
 
-<span class="d">enter done · esc back</span></pre>
+  <b>enter</b> done   <b>←/→</b> move   <b>tab</b> list   <b>esc</b> back</pre>
 
 </Term>
 
@@ -1008,18 +1066,17 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
   each with what it is. It starts on the first one anything is saved for, and the cursor on the
   first thing still to answer.
 - `host` (`daemon` for a docker backend, once `-e` takes one) opens the runtimes of that
-  backend saved here, with `add an
-  ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `unsaved
-  host`: any host `ssh` reaches, as you would type it, saved nowhere, and spelled in brackets
-  (`ssh@[me@box:2222]/…`). For docker, a swarm or Apple containers, left empty it is this machine's
-  (`docker/…`).
+  backend saved here, with **Add an ssh host** under them (the same form, and the new one comes
+  back chosen) and, for ssh, **Name a host…**: any host `ssh` reaches, as you would type it,
+  saved nowhere, and spelled in brackets (`ssh@[me@box:2222]/…`). For docker, a swarm or Apple
+  containers, left empty it is this machine's (`docker/…`).
 - `workdir` starts from where the runtime was saved to work. Left as it is, the spelling
   leaves it out (`ssh@gpu`), so the role goes on following the runtime when its workdir is
   corrected; type over it for another directory there (`ssh@gpu/~/other`).
 - `as -e` is all of it, as `-e` spells it. Type a whole spec there instead and the rows above
-  take it apart; one `-e` would refuse is refused on `done`, in the words `-e` refuses it in.
+  take it apart; one `-e` would refuse is refused on **Done**, in the words `-e` refuses it in.
 
-What `done` holds is saved with the flow, from the `save` row of `/flow`, and it is what the
+What **Done** holds is saved with the flow, from the **Save** button of `/flow`, and it is what the
 next `hmz` here opens on.
 
 ::: details From Python
@@ -1124,13 +1181,13 @@ happened as you asked, so there is nothing left for **Save** to do.
 
 A page opened with `/settings <page>` is still a page of `/settings`: the first <kbd>esc</kbd>
 goes back to the five cards, and the second closes the screen. With unsaved changes, the second
-asks **save** or **discard** first.
+asks **Save** or **Discard** first.
 
 ### `could not get models for claude as key: …`
 
 The new account was made, but its CLI could not list models with it: a key it refused, a
 login not finished, or a network that did not answer. The rest of the line is what the CLI
-said. Fix that, then choose `check again` on the `model` row of an agent that runs as the
+said. Fix that, then press **Check again** under the models of an agent that runs as the
 account.
 
 ### Every turn fails with `no claude provider called '…'`

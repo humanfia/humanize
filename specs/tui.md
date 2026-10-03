@@ -73,9 +73,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   is none to carry on, and refuse it, as it refuses picking any run up, while a flow is running
   or stopping.
 - MUST let a flow's agents be set up whatever is happening, but offer a flow choice only when idle.
-- MUST make `/flow` a screen of its own drawn as `/settings` is, its first screen two pages --
-  what is installed, and the flowverses -- opening on what is installed, or inside a flow named
-  to it, its way here across the top with every step a click back to it.
+- MUST make `/flow` a menu of pages, as `/settings` is, its first screen two pages -- what is
+  installed, and the flowverses -- opening on what is installed, or inside a flow named to it.
 - MUST list as installed only the flows humanize ships, the ones installed out of a flowverse
   and this project's and yours, under where each came from, each installed one with its release
   and with the newer one its index lists, the flow in force marked; and MUST offer updating,
@@ -201,24 +200,32 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   launch.
 - MUST ask once, at a first start and only with somebody there, whether humanize may report its
   own failures — what would be sent and what never would — unanswered if it is walked away from.
-- MUST hold what a menu changes until it is saved from its save row or button or saving is
-  confirmed on the way out, asking on the way out of one holding changes; anything that runs an
-  external command or writes to the board MUST apply at once instead, and a page that holds
-  nothing MUST have no save row or button.
+- MUST hold what a menu changes until it is saved from its save button or saving is confirmed
+  on the way out, asking on the way out of one holding changes; anything that runs an external
+  command or writes to the board MUST apply at once instead, and a page that holds nothing MUST
+  have no save button.
 - MUST answer a sheet once however many times its key is pressed.
-- MUST give a menu only `↑`/`↓`, `←`/`→`, `enter` and `esc`, `/settings` and `/flow` `tab`, `/`
-  and `backspace` as well, and on a form `/settings` opens typing, saying them on the screen in one
-  place: a row changed where it stands MUST change only between an `enter` -- or, on such a
-  form's written row, a letter -- that begins it and an `enter` that keeps it, `esc` putting it
-  back, and keeping one on such a form MUST move on to what is still to be answered; a value a
-  menu changes from a fixed few MUST instead be picked, with the keys or a click, from every value
-  it can take dropped under its row, `esc` or a click off it picking none, and never stepped with
-  `←`/`→`; whatever else a menu does -- search, add, fetch or ask again, copy, save -- MUST be a
-  row of it, and on each page of `/settings` and `/flow` a button under the list instead, with
-  saving last;
-  a search MUST be asked for from its row or button; every row, button and value of a menu MUST
-  be reachable by the keys and by a click alike; and such a form MUST be answered from a
-  row called `done` that says what answering it does.
+- MUST draw every menu as `/settings` is drawn, on a screen of its own -- or, for a question that
+  arrives rather than is walked to, a box in the middle of the screen answered by its buttons:
+  the way there across its top, each step a way back to it, a menu of pages -- `/settings`,
+  `/flow` -- a step per page it is inside of; its question and what it is for; its list, the row
+  under the cursor filled; whatever it does about that list rather than to one row of it --
+  search, add, install, fetch or ask again, copy, take away what the menu is about, answer a
+  form, save -- as a button under the list, the one that answers the menu last and apart; and
+  its keys under that, said in one place, for where the focus is.
+- MUST give every menu the same keys and only these: `↑`/`↓`, `←`/`→`, `enter`, `esc`,
+  `tab`/`shift+tab`, `backspace`, `/` where its list can be searched, and typing on a form. A
+  row changed where it stands MUST change only between an `enter` -- or, on a form's written
+  row, a letter -- that begins it and an `enter` that keeps it, `esc` putting it back, and
+  keeping one on a form MUST move on to what is still to be answered and then to the button
+  that answers it, `done`, which says what answering does; a value a menu changes from a fixed
+  few MUST instead be picked, with the keys or a click, from every value it can take dropped
+  under its row, `esc` or a click off it picking none, and never stepped with `←`/`→` or turned
+  over in place; and a search MUST be asked for, with `/` or its button, into a box above the
+  list.
+- MUST make every row, button, value and step of the way across the top of a menu reachable by
+  the keys and by the mouse alike: a click choosing, opening or pressing it, the pointer marking
+  what a click would take, and a click off a box or a dropped list answering nothing.
 - MUST give a selection back as the text written rather than the rows it was drawn on, let one go
   when what it was made against changes, and never scroll the transcript out from under a reader.
 
@@ -226,19 +233,19 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 
 | Key | Where | What it does |
 | --- | --- | --- |
-| `enter` | editor, sheets | send the line or take the offer; open the row under the cursor, drop its values or take one, or begin and keep writing it |
-| typing | `/settings` forms | on a written row, begin writing it |
+| `enter` | editor, sheets | send the line or take the offer; open the row under the cursor, drop its values or take one, begin and keep writing it, or press the button with the focus |
+| typing | forms | on a written row, begin writing it |
 | `shift+enter`, `ctrl+j` | editor, sheets | break the line |
 | `shift+tab`, `tab` | app | round the views forward and back |
-| `tab`, `shift+tab` | `/settings`, `/flow` | between the list, its search and the buttons under it |
-| `/` | `/settings`, `/flow` | search the page's list |
+| `tab`, `shift+tab` | sheets | between the list, its search and the buttons under it |
+| `/` | sheets | search the list, where it can be searched |
 | `esc` | sheets | one step back, out of a change or a search first; on a page of `/settings` or `/flow`, out to the page above it |
-| `backspace` | `/settings`, `/flow` | on a page, out to the page above it |
+| `backspace` | sheets | up to the menu this one was opened from, but the row's own on a written row; on a page of `/settings` or `/flow`, out to the page above it |
 | `←`, `→` | log, monitor | on an empty prompt: up to the monitor; back to the log last read |
 | `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
 | `space` | monitor | on an empty prompt: open an agent out to its sessions, or shut it |
 | `ctrl+t` | monitor | the graph or the list |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
-| `↑`, `↓` | sheets | walk the rows, round the ends; on a `/settings` form, keeping the row being written |
-| `←`, `→` | sheets | step between lists, round the ends; in `/settings` and `/flow`, into a page and back out, or along its buttons |
+| `↑`, `↓` | sheets | walk the rows, round the ends, keeping the row being written; back to the list from its search or its buttons; in a box, between its buttons |
+| `←`, `→` | sheets | along the buttons, round the ends; on the list, into what the row under the cursor opens and back up out of the menu, but not off a written row -- in `/settings` and `/flow`, into a page and back out |

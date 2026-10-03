@@ -346,23 +346,29 @@ Same as `ctrl+q`.
 | --- | --- |
 | no run going (and none stopping) | Leaves at once. |
 | a run stopping, host is a daemon | Leaves at once and sends `force` (closes the run's conversations). |
-| a run going | Opens the dialog below. |
+| a run going | Opens the [box](#boxes) below. |
 
 ```text
-A flow is running.
-
-❯ 1. stop the flow and exit
-  2. detach and exit              run `hmz` here to reattach
-
-enter choose · esc stay
+╭────────────────────────────────────────────────────────────────╮
+│                                                                │
+│  A flow is running.                                            │
+│  Detached, it keeps running: run `hmz` here to reattach.       │
+│                                                                │
+│  Stop the flow and exit   Detach and exit                      │
+│                                                                │
+│  enter stop   esc stay                                         │
+│                                                                │
+╰────────────────────────────────────────────────────────────────╯
 ```
 
-| Row | Effect |
-| --- | --- |
-| `stop the flow and exit` | In process: closes the host. Daemon: sends `force` (waits up to 10 s), then leaves. Stops the run for every frontend. |
-| `detach and exit` (daemon) | Closes btw and the link, and leaves. The run continues; claims are released; away settings remain. `hmz` here reads the run again from the top. |
-| `cancel` (in process; replaces `detach and exit`) | Stays. |
-| `esc` | Stays. |
+The second line only where a daemon holds the run.
+
+| Button | Tooltip | Effect |
+| --- | --- | --- |
+| `Stop the flow and exit` (focused) | `stop it for everybody reading it` | In process: closes the host. Daemon: sends `force` (waits up to 10 s), then leaves. Stops the run for every frontend. |
+| `Detach and exit` (daemon) | ``run `hmz` here to reattach`` | Closes btw and the link, and leaves. The run continues; claims are released; away settings remain. `hmz` here reads the run again from the top. |
+| `Cancel` (in process; replaces `Detach and exit`) | `keep the interface open` | Stays. |
+| `esc` · click outside the box | | Stays. |
 
 ## Starting a flow outright (`$`) {#starting-a-flow-outright}
 
@@ -475,13 +481,13 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | Attribution | Lines, answers and runs from another frontend carry ` · by <name>`. |
 | Readers | The monitor's `Reading` section lists every frontend where there is more than one. |
 | Arriving late | The run is read from its `started` record: what was said, asked and answered, and the current state. |
-| Stopping | `/stop`, `ctrl+c` twice and **stop the flow and exit** stop the run for everybody. |
+| Stopping | `/stop`, `ctrl+c` twice and **Stop the flow and exit** stop the run for everybody. |
 
 ## Keys {#keys}
 
 <RefFilter
   label="Filter keys: try esc, enter, or a screen"
-  :chips="['app', 'editor', 'offers', 'every menu', 'forms', '/settings', '/flow', 'dropdown', 'monitor']"
+  :chips="['app', 'editor', 'offers', 'every menu', 'forms', '/settings', '/flow', 'dropdown', 'boxes', 'monitor']"
 >
 
 | Where | Key | Condition | Action |
@@ -500,48 +506,49 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | offers | <kbd>↑</kbd> <kbd>↓</kbd> | offers open | Moves the highlight. |
 | offers | <kbd>tab</kbd> | offers open | Takes the highlight. |
 | offers | <kbd>esc</kbd> | offers open | Hides the offers until the text changes. |
-| every menu | <kbd>↑</kbd> <kbd>↓</kbd> | | Previous / next row, wrapping, skipping headings and spacers. Ignored while a row is being written on the params and budget sheets. |
-| every menu | <kbd>←</kbd> <kbd>→</kbd> | a sheet | Nothing: no value is stepped with them. |
-| every menu | <kbd>enter</kbd> · click | | On `search…`: starts a search. On a `▾` row: drops its values (see dropdown). On a written row: begins writing it; again: keeps it. Otherwise: selects the row. |
-| every menu | <kbd>esc</kbd> | | Puts back the row being written; else ends a running search; else leaves (asking [Save?](#save-box) if the menu holds changes). |
-| every menu | typing · <kbd>backspace</kbd> | a search is running | Narrows it; the cursor goes to the first match. |
+| every menu | <kbd>↑</kbd> <kbd>↓</kbd> | list focused | Previous / next row, wrapping, stepping over headings, rules and spacers. |
+| every menu | <kbd>enter</kbd> · click | list focused | On a `▾` row: drops its values (see dropdown). On a written row: begins writing it; again: keeps it. On a row that opens something: opens it. On a pick list: takes the row. |
+| every menu | <kbd>→</kbd> | list focused | Into what the row under the cursor opens, as `enter`: a card, a page or a listed thing of `/settings` and `/flow` (not a release, which `enter` installs), a `▸` row of a flow's roles, the agent sheet's `cli`, `account` and `model`, a form's `▸` row, a run of `/epics`. Nothing on other rows: no value is stepped with them. |
+| every menu | <kbd>←</kbd> <kbd>backspace</kbd> | list focused | Up out of the menu to the one it was opened from, leaving it as `esc` would. Nothing on a menu opened from the prompt, nor on a written row, where they are the row's. |
+| every menu | <kbd>esc</kbd> | | Puts back the row being written; else clears and hides the search box; else leaves (asking [Save?](#save-box) if the menu holds changes). |
+| every menu | <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous of: the search box (while shown), the list, each enabled button. |
+| every menu | <kbd>/</kbd> | list focused, a **Search…** button | Opens the search box above the list. |
+| every menu | typing · <kbd>backspace</kbd> · <kbd>←</kbd> <kbd>→</kbd> | search box | Edits it; the list narrows as typed and the cursor goes to the first match. |
+| every menu | <kbd>enter</kbd> <kbd>↓</kbd> | search box | To the list, keeping the filter. |
+| every menu | <kbd>←</kbd> <kbd>→</kbd> | a button focused | Previous / next enabled button, wrapping. |
+| every menu | <kbd>↑</kbd> | a button focused | To the list. |
+| every menu | <kbd>enter</kbd> · click | a button | Presses it. |
+| every menu | click | a step of the way across the top | Back to that menu, leaving each menu between as `esc` would; one holding changes asks [Save?](#save-box) and the walk stops there. `hmz` leaves every menu. |
+| every menu | pointer | a row, a button, a step | Marked as what a click would take; a button shows its tooltip. |
 | forms | typing · <kbd>backspace</kbd> · paste | on a written row | Begins writing it; the first character replaces a pre-filled value. Paste keeps the first line only (except `variables`). |
-| forms | <kbd>enter</kbd> | writing a row | Keeps it and moves to the next row still unanswered, else to `done`. |
-| forms | <kbd>↑</kbd> <kbd>↓</kbd> | writing a row | Keeps it and moves. |
+| forms | <kbd>enter</kbd> | writing a row | Keeps it and moves to the next row still unanswered; after the last, the focus moves to **Done**. Likewise after a value is picked or a `▸` row is answered. |
+| every menu | <kbd>↑</kbd> <kbd>↓</kbd> | writing a row | Keeps it and moves. |
 | forms | <kbd>esc</kbd> | writing a row | Puts it back. |
 | forms | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | writing `variables` | Newline. |
 | /settings | <kbd>enter</kbd> <kbd>→</kbd> · click | landing | Opens the page. |
 | /settings | <kbd>esc</kbd> | landing | Leaves, asking [Save?](#save-box) if anything is held. |
 | /settings | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click `/settings` | a page, list focused | Back to the landing screen. |
-| /settings | <kbd>/</kbd> | a page with search, list focused | Opens the search box. |
-| /settings | <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous of: search box (when shown), list, enabled buttons. |
-| /settings | <kbd>enter</kbd> <kbd>↓</kbd> | search box | To the list, keeping the filter. |
-| /settings | <kbd>esc</kbd> | search box | Clears and hides it. |
-| /settings | <kbd>←</kbd> <kbd>→</kbd> | a button focused | Previous / next enabled button, wrapping. |
-| /settings | <kbd>↑</kbd> | a button focused | To the list. |
-| /settings | <kbd>enter</kbd> · click | a button | Presses it. |
-| /flow | <kbd>enter</kbd> · click | list focused | Goes into the row: a card, a flow's roles (Installed), a flowverse, a flow's releases; on a role, `params` or `budget` opens its sheet; on a release installs it. |
-| /flow | <kbd>→</kbd> | list focused, first screen, Installed, Flowverses or one flowverse | As `enter`. |
-| /flow | <kbd>←</kbd> <kbd>backspace</kbd> · click a step across the top | list focused | Out to the page above. Not on the roles of a flow `/flow` was opened on. |
-| /flow | <kbd>esc</kbd> | list focused | Ends a search; else out to the page above; else leaves, asking [Save?](#save-box) if anything is held. |
-| /flow | <kbd>/</kbd> · <kbd>tab</kbd> · buttons | | As on /settings. |
+| /flow | <kbd>enter</kbd> · click | list focused | Goes into the row: a card, a flow's roles (Installed), a flowverse, a flow's releases; on a role, `params` or `budget` opens its sheet; on `profiling` drops `on` and `off`; on a release installs it. |
+| /flow | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click a step across the top | a page, list focused | Out to the page above (`esc` ends a search first). On the first screen, and on the roles of a flow `/flow` was opened on, they leave as on any menu. |
 | dropdown | <kbd>↑</kbd> <kbd>↓</kbd> | | Moves. An on/off dropdown opens on the value not in force. |
 | dropdown | <kbd>enter</kbd> · click | | Picks the value. |
 | dropdown | <kbd>esc</kbd> · click outside | | Picks nothing. |
+| boxes | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous button, wrapping. The first has the focus as the box opens. |
+| boxes | <kbd>enter</kbd> · click | a button | Presses it. |
+| boxes | <kbd>esc</kbd> · click outside the box | | Answers nothing: back to the menu ([Save?](#save-box)), stays ([exit](#leaving-and-letting-go)), asks again next time ([first start](#first-start)). |
 | monitor | <kbd>↑</kbd> <kbd>↓</kbd> | editor empty, offers closed | Previous / next node, wrapping. |
 | monitor | <kbd>enter</kbd> · click | editor empty | [Opens the node](#monitor-nodes). |
 | monitor | <kbd>space</kbd> | editor empty | Opens an agent out to its sessions, or shuts it. |
 | monitor | <kbd>→</kbd> | editor empty, offers closed | Back to the log last read. |
 | monitor | <kbd>ctrl+t</kbd> | always | Graph ↔ list. |
 | environment page | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>enter</kbd> · click | | Walk and read its sessions. |
-| environment page | <kbd>esc</kbd> | | Back to the monitor. |
-| exit dialog | <kbd>enter</kbd> / <kbd>esc</kbd> | | Choose / stay. |
+| environment page | <kbd>esc</kbd> <kbd>←</kbd> <kbd>backspace</kbd> · click `monitor` | | Back to the monitor. |
 | anywhere | drag · double click · triple click | | [Copies](#selecting-and-copying). |
 
 </RefFilter>
 
-Every menu shows its applicable keys on its bottom row, and only there. `esc` never opens the
-monitor and `←` never stops anything.
+Every menu says the keys that work where its focus is on its bottom row, and only there.
+`esc` never opens the monitor and `←` never stops anything.
 
 ### ctrl+c {#ctrl-c}
 
@@ -568,68 +575,129 @@ input-method commit arriving as one key report is not typed as raw escape text.
 
 ## Menus {#menus}
 
-`/epics` and the sheets `/flow` and `/settings` open are sheets over the log; `/flow` and
-`/settings` are screens of their own.
+Every menu is a screen of its own, drawn and worked the same way: `/flow`, `/epics`,
+`/settings`, every sheet opened from them, and the monitor's board-line editor and environment
+page. A question that arrives rather than is walked to -- [Save?](#save-box), the
+[first-start question](#first-start), the [exit question](#leaving-and-letting-go) -- is a
+[box](#boxes) in the middle of the screen instead.
 
 ### Anatomy {#menu-anatomy}
 
 <span id="the-menus-and-when-what-they-hold-lands"></span>
 
 ```text
-  <title>
+  hmz › <menu> › … › <title>                                 ● unsaved changes
   <about>
-  <page strip, if several>
-❯ 1. <label>   <value> <mark>   <about>
-  2. …
 
-     <set-apart row>    <about>
-  <message under the list>
-  <key hints>
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ type to filter                                                           │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ <name> ✔                  <about>                                        │
+  │ <name>                    <about, wrapped                                │
+  │                           under itself>                                  │
+  │ …                                                                        │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+   <message>
+
+  <Button>  <Button>                                                  <Answer>
+
+  <key> <does>   <key> <does>   …
+```
+
+A list of settings -- a form, the agent sheet, the params and budget sheets, the General and
+Workspace pages -- draws its rows this way instead:
+
+```text
+  │ <name>                                                         <value> ▸ │
+  │   <about>                                                                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ <name>                                                            ● on ▾ │
+  │   <about>                                                                │
 ```
 
 | Element | Rule |
 | --- | --- |
-| Marks | `▸` opens something; `▾` drops its values; `✔` (green) the choice in force; `❯` the cursor. |
-| Set-apart rows | `search…`, `add …`, `save`, `set`, `done`, `check again`, …: unnumbered, each with a blank line above. Below the list, except on host pickers, where they sit above. |
-| Height | At most 14 rows, at least 3. |
-| Search | Case-insensitive subsequence of one field. Pick lists: label and about, ordered by how near a field comes (equal, then starts with, then contains, then the subsequence alone), keeping the list's order within each. `/epics`: flow, task, run name. Started from `search…` only; `esc cancel search` ends it. |
-| Hints | `enter <verb>` for the row under the cursor (`open`, `choose` on a `▾` row, `change` on a written row of the params or budget sheet, `save`, `set`, `add`, `search`, `refresh`, `copy`, `done`, `type a host`), `esc <verb>`. On a form's written row `type to edit` replaces the enter hint. While writing a row: `[shift+enter/ctrl+j new line · ]enter keep · esc undo`. |
+| Way there | Across the top, ` › ` between steps: `hmz` (the prompt), or `monitor` for a menu opened over the monitor; each menu this one was opened from, and its levels (`/settings`, then the page); then this menu's title, bold. Every step before the title is a click back to it ([keys](#keys)). E.g. `hmz › /settings › Accounts`, `hmz › /flow › Flowverses › official`, `hmz › /flow › Installed › chat › assistant › Select a coding agent`, `monitor › Board entry`. |
+| `● unsaved changes` | At the right of the top line, yellow, while the menu holds a change ([held changes](#held-changes)). |
+| About | What the menu is for, under the title. Never names a key. |
+| Search box | Above the list, hidden until `/` or **Search…**; placeholder `type to filter`. |
+| List | In a rounded border, blue while it has the focus, dim otherwise. The row under the cursor is filled, bold while the list has the focus; no `❯`, no numbers. As tall as the screen leaves it; scrolls. Headings and the rules between rows are stepped over. |
+| Pick rows | `<name>[ ✔]  <about>`: the name bold, padded to 26; the about muted, wrapped under itself. |
+| Setting rows | The name at the left, the value at the far right, the about under both; a rule between rows. |
+| Values | `<value> ▸` opens a sheet of its own; `<value> ▾` drops its values; a switch reads `● on ▾` (green dot) or `○ off ▾`; an empty written value `—`; the row being written ends in a block caret. |
+| `✔` | Green: the choice in force. A pick list opens with the cursor on it. |
+| Message | One line under the list: what became of the last thing done, a refusal (red), a note; else, while a button has the focus, what that button does. |
+| Buttons | Whatever the menu does about its list rather than to one row: `Search…`, `Add …`, `Install more…`, `Install <version>`, `Update`, `Uninstall`, `Copy here`, `Fetch`, `Name a host…`, `Check again`, `Detect`, `Remove` / `Cancel removal`, …, in the menu's order; the one that answers the menu -- `Save`, `Done`, `Set` -- last and apart at the far right, green. `Remove` is red. A button that cannot be pressed now is dim (a `Save` with nothing held). Pointing at one shows its tooltip. No bar where a menu has no button. |
+| Search | Case-insensitive subsequence of one field, narrowing the list as typed. `/flow`: what a row names and says (a flow and its about, a flowverse and its URL, a release and its tag). Pick lists: label and about, ordered by how near a field comes (equal, then starts with, then contains, then the subsequence alone), keeping the list's order within each. `/epics`: flow, task, run name. `esc` clears and hides it. |
+| Keys | The last line: `<key> <does>` apart by three spaces, the key bold, for where the focus is. The list: `enter <verb>` for the row under the cursor (the menu's own, such as `open` or `choose`; `choose` on a `▾` row; `change` on a written row of the params or budget sheet; `type to edit` in its place on a form's written row), `[/ search   ][tab actions   ]esc <back\|close>`; `esc clear search` while a search narrows the list; `tab actions` only while a button can be pressed. A button: `enter <its first word>   ←/→ move   tab list   esc <back\|close>`. The search box: `enter to list   esc clear`. Writing a row: `[shift+enter/ctrl+j new line   ]enter keep   esc undo`. |
+
+### Boxes {#boxes}
+
+```text
+╭────────────────────────────────────────────────────────────────╮
+│                                                                │
+│  <question>                                                    │
+│  <about, where there is one>                                   │
+│                                                                │
+│  <Button>  <Button>                                            │
+│                                                                │
+│  enter <the focused button's first word>   esc <what it does>  │
+│                                                                │
+╰────────────────────────────────────────────────────────────────╯
+```
+
+66 columns wide at most, with a rounded blue border, in the middle of the screen over whatever
+was there, which stays drawn. No way there, no list and no message line: the question, and its
+answers as buttons, the first focused as it opens. Each button's tooltip says what it does.
+`esc` or a click outside the box answers nothing, and the keys say what that comes to.
 
 ### Held and immediate changes {#held-changes}
 
 | Menu | Held until saved | Applied at once |
 | --- | --- | --- |
 | `/flow`, roles, agent sheet, params, budget, environment form, unsaved host | the flow, its roles, params, budget and profiling | installing, updating, uninstalling; adding, fetching and removing a flowverse |
-| `/settings` Settings, Workspace, Fallback | everything | — |
+| `/settings` General, Workspace, Fallback | everything | — |
 | `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
 | `/settings` Runtimes; `/epics` | — | everything |
 | Monitor board | — | everything |
 
 ### Save? box {#save-box}
 
-Opened by `esc` out of a menu (or form) holding changes.
+Opened by leaving a menu (or form) that holds changes: `esc`, `←` or `backspace` out of it, or
+a click on a step of the way across the top. A [box](#boxes):
 
 ```text
-Save?
-❯ 1. save
-  2. discard
-enter choose · esc back
+╭────────────────────────────────────────────────────────────────╮
+│                                                                │
+│  Save?                                                         │
+│                                                                │
+│  Save  Discard                                                 │
+│                                                                │
+│  enter save   esc back                                         │
+│                                                                │
+╰────────────────────────────────────────────────────────────────╯
 ```
 
-`save` applies the menu, which may still refuse (the menu then stays, showing why);
-`discard` leaves without applying; `esc` returns to the menu.
+| Button | Tooltip | Effect |
+| --- | --- | --- |
+| `Save` (focused, green) | `save the changes and leave` | Applies the menu, which may still refuse (the menu then stays, showing why). On a form: answers it, as **Done** does. |
+| `Discard` | `throw the changes away and leave` | Leaves without applying. |
+| `esc` · click outside the box | | Back to the menu, holding what it held. |
+
+A walk back along the way across the top stops here, whatever is answered.
 
 ## `/flow` {#choosing-a-flow}
 
-A screen of its own, drawn and keyed as [`/settings`](#settings-page-layout) is: the way here
-across the top (`/flows › Installed › <flow>`), every step of it but the last a click back; the
-list in a box with a block cursor; the line under it; a bar of buttons, **Save** at the far end;
-the keys. `/flow` opens on **Installed**. What it holds -- the flow and its roles, params, budget
+A screen of its own, drawn and keyed as every menu is ([Anatomy](#menu-anatomy)), `/settings`
+among them: the way here across the top (`hmz › /flow › Installed › <flow>`), every step of it
+but the last a click back; the list in a box with a block cursor; the line under it; a bar of
+buttons, **Save** at the far end; the keys. `/flow` opens on **Installed**. What it holds -- the flow and its roles, params, budget
 and profiling -- lands together on **Save**; installing, updating, uninstalling, fetching, adding and
 removing happen at once.
 
 ```text
-  /flows › Installed
+  hmz › /flow › Installed
   Flows ready to run here: pick one to set it up and run it, or install more from a flowverse.
 
   ╭──────────────────────────────────────────────────────────────────────────────────────────╮
@@ -649,12 +717,12 @@ removing happen at once.
 
 | Page | Top line | About |
 | --- | --- | --- |
-| first screen | `/flows` | `Flows to run, and the flowverses more are installed from.` |
-| Installed | `/flows › Installed` | `Flows ready to run here: pick one to set it up and run it, or install more from a flowverse.` |
-| roles | `/flows › Installed › <flow>` (only `<flow>` when opened on it) | `Configure each role: an agent (CLI, account, model and effort) or an environment; then what the flow takes and what a run may spend.` |
-| Flowverses | `/flows › Flowverses` | `Indexes of flows to install, cloned under ~/.hmz/flowverses. Fetching, adding and removing one happen at once.` |
-| a flowverse | `/flows › Flowverses › <verse>` | `Flows <verse> lists, at their newest release. Open one for its others; installing happens at once.` |
-| a flow's releases | `/flows › Flowverses › <verse> › <flow>` | `Releases of <flow>, newest first. Pick one to install it, or to switch to it.` |
+| first screen | `hmz › /flow` | `Flows to run, and the flowverses more are installed from.` |
+| Installed | `hmz › /flow › Installed` | `Flows ready to run here: pick one to set it up and run it, or install more from a flowverse.` |
+| roles | `hmz › /flow › Installed › <flow>` (`hmz › <flow>` when opened on it) | `Configure each role: an agent (CLI, account, model and effort) or an environment; then what the flow takes and what a run may spend.` |
+| Flowverses | `hmz › /flow › Flowverses` | `Indexes of flows to install, cloned under ~/.hmz/flowverses. Fetching, adding and removing one happen at once.` |
+| a flowverse | `hmz › /flow › Flowverses › <verse>` | `Flows <verse> lists, at their newest release. Open one for its others; installing happens at once.` |
+| a flow's releases | `hmz › /flow › Flowverses › <verse> › <flow>` | `Releases of <flow>, newest first. Pick one to install it, or to switch to it.` |
 
 `● unsaved changes` stands at the right of the top line while the flow or its roles differ from
 what is saved. Keys: the `/flow` rows of [Keys](#keys). Leaving with changes asks
@@ -695,19 +763,19 @@ of the error>]` (red).
 ### Roles page {#roles-page}
 
 Opened from Installed, by `/flow <name>` and a `$` line naming a flow not set up, and, while a
-run is going, by `/flow` itself. The last three open on it alone: no way back across the top,
-`esc` leaves, and params are not asked.
+run is going, by `/flow` itself. The last three open on it alone: no page of `/flow` across the
+top, `esc` leaves, and params are not asked.
 
 | Row | Value | `enter` opens |
 | --- | --- | --- |
-| each agent role (declared order) | `<cli>/<model>:<effort>` or `not set`; under it `agent[ · as <account>]` | [agent sheet](#what-each-agent-is) |
-| each environment role | the `-e` spec after `<role>=`, or `not set`; under it `environment` | [environment form](#where-each-agent-works) |
-| `params` (flows that take any) | the params changed from their defaults, or `defaults` | [params sheet](#setting-a-flow-up) |
-| `budget` | `set` or `none`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
-| <span id="profiling-row"></span>`profiling` (straight under `budget`) | `on` or `off`, the flow's remembered value, else off; under it `samples the programs agents start` or `traced only` | nothing: `enter` turns it over; a run started is [profiled](/reference/tracing#profiling-a-run) where it is on |
+| each agent role (declared order) | `<cli>/<model>:<effort> ▸` or `not set ▸`; under it `agent[ · as <account>]` | [agent sheet](#what-each-agent-is) |
+| each environment role | the `-e` spec after `<role>=`, or `not set`, then `▸`; under it `environment` | [environment form](#where-each-agent-works) |
+| `params` (flows that take any) | the params changed from their defaults, or `defaults`, then `▸` | [params sheet](#setting-a-flow-up) |
+| `budget` | `set ▸` or `none ▸`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
+| <span id="profiling-row"></span>`profiling` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the programs agents start` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started is [profiled](/reference/tracing#profiling-a-run) where it is on |
 
 Button: **Save** (`save the flow and its roles`), which applies flow, roles, params, budget and
-profiling together. Keys `enter open   tab actions   esc <back|close>`. Roles filled by the runtime
+profiling together. Keys `enter open` (`enter choose` on `profiling`) `  tab actions   esc <back|close>`. Roles filled by the runtime
 (`Outworlder`, `LocalEnv`) are not rows. Messages:
 `<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
 nothing can be configured`.
@@ -727,9 +795,9 @@ files changed in the clone); under it the URL with credentials removed, `<n> flo
 
 | Button | Rule |
 | --- | --- |
-| **Add flowverse…** | Form `Add a flowverse` (`A git repository indexing flows: flows/<flow>/<version>/flow.yaml, one manifest per release. …`): `repository` (`a URL, or owner/repo for one on GitHub`), `name` (`flowverse name, or leave blank for the repository name`); `done` `clones its index; install flows from it next`. Refusals: `repository URL is required`; `'<x>' is not a flowverse name: letters, digits, dot, dash and underscore, starting with a letter or a digit`; reserved and taken names. Then `fetching <name>…`, `<name> is fetched`; the cursor goes to it. |
+| **Add flowverse…** | Form `Add a flowverse` (`A git repository indexing flows: flows/<flow>/<version>/flow.yaml, one manifest per release. …`): `repository` (`a URL, or owner/repo for one on GitHub`), `name` (`flowverse name, or leave blank for the repository name`); **Done** `clones its index; install flows from it next`. Refusals: `repository URL is required`; `'<x>' is not a flowverse name: letters, digits, dot, dash and underscore, starting with a letter or a digit`; reserved and taken names. Then `fetching <name>…`, `<name> is fetched`; the cursor goes to it. |
 | **Fetch again** (**Fetch** if never fetched) | Fetches the one under the cursor: `<name> is fetched`. Not a clone: `<name> is a directory that is not a clone of anything; remove it and add it again; there is nothing to fetch`. |
-| **Remove** | Not for `official`. Asks `Remove <name>?`: `remove` (`its index[ and <n> installed flow(s)]`) or `keep`. Then `<name> was removed`. |
+| **Remove** | Not for `official`. Asks, in a [box](#boxes), `Remove <name>?` (`Takes its index away[ and <n> installed flow(s)].`): **Remove** or **Keep**. Then `<name> was removed`. |
 | **Search…** | |
 
 `enter` or `→` on a card opens that flowverse.
@@ -765,17 +833,26 @@ otherwise `not set`.
 ### Agent sheet {#what-each-agent-is}
 
 ```text
-  Set up builder
+  hmz › /flow › Installed › chat › Set up assistant
   Configure this agent: select its CLI, account, model, and reasoning effort.
 
-❯ 1. cli         claude ▸                          coding agent CLI to use
-  2. account     as local ▸                        account to run as
-  3. model       claude-opus-5 ▸                   model to use
-  4. effort      high ▾                            reasoning effort
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ cli                                                             claude ▸ │
+  │   coding agent CLI to use                                                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ account                                                       as local ▸ │
+  │   account to run as                                                      │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ model                                                    claude-opus-5 ▸ │
+  │   model to use                                                           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ effort                                                            high ▾ │
+  │   reasoning effort                                                       │
+  ╰──────────────────────────────────────────────────────────────────────────╯
 
-     save                      this agent
+                                                                          Save
 
-  enter open · esc close
+  enter open   esc close
 ```
 
 | Row | Value | Kind | Rule |
@@ -784,8 +861,13 @@ otherwise `not set`.
 | `account` | name or `as local` | ▸ | [Account list](#account-list). Keeps the model. Needs a CLI: `choose a coding agent first; accounts belong to the CLI`. |
 | `model` | model or `—` | ▸ | [Model list](#what-each-agent-runs). Needs a CLI: `choose a coding agent first; models belong to the CLI`. A new model keeps the effort where it takes it, else the hardest, else `—`. |
 | `effort` | effort or `—` | ▾ | The model's ladder, hardest first. Needs a model that names its efforts: `choose a model first; efforts belong to the model`. |
-| `swarm` | `on`/`off` | ▾ | Only for a model that swarms (Kimi Code): `run turns as a swarm` / `run turns as one agent`. |
-| `save` | `this agent` | set apart | Returns the agent into the flow's draft. |
+| `swarm` | `● on`/`○ off` | ▾ | Only for a model that swarms (Kimi Code): `run turns as a swarm` / `run turns as one agent`. |
+
+| Element | Value |
+| --- | --- |
+| Title | `Set up <role>`; `<role>` as a step of the way across the top of what it opens |
+| Button | **Save** (`save all changes`): returns the agent into the flow's draft. Dim (`nothing to save yet`) until a row is changed; leaving an unchanged sheet leaves the role as it was. |
+| Keys | `enter open   [tab actions   ]esc close`; `enter choose` on `effort` and `swarm` |
 
 Choosing an account never asked for its models asks it: `checking models for <cli> as <account>…`, then the list or `could not get models for <cli> as <account>[: <why>]` (red).
 Permission, skills and required capabilities are the flow's, not rows.
@@ -798,8 +880,26 @@ Permission, skills and required capabilities are the flow's, not rows.
 | About | `The CLI for this agent. Accounts and models belong to the CLI, so choosing another resets them.` |
 | Rows | Alphabetical: `<cli>[ ✔]  <n> model(s)` or `no models reported yet`. Only CLIs installed here whose harness is the one the role names (if any) and that support every capability the role requires. |
 | Installable rows | `dsh` or `kimi` whose program is present but whose Python extra is missing, with the install line: `DeepSeek Harness is not installed; run: uv pip install --python <python> '<sdk>' 'python-dotenv>=1.2.3'; then reopen hmz` / `Kimi Code is installed, but the websockets package is not; run: uv pip install --python <python> 'websockets>=15,<18'; then reopen hmz`. |
-| Set apart | `search…` |
+| Buttons | **Search…** |
+| Keys | `enter choose   / search   tab actions   esc back` |
 | Empty | `<role> needs <harness>, <Capabilities>, and no coding agent installed here has that` / `no coding agent installed here can run this agent` |
+
+```text
+  hmz › /flow › Installed › chat › assistant › Select a coding agent
+  The CLI for this agent. Accounts and models belong to the CLI, so choosing
+  another resets them.
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ claude ✔                  2 models                                       │
+  │ codex                     5 models                                       │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+  Search…
+
+  enter choose   / search   tab actions   esc back
+```
+
+Every pick list below is drawn this way, opening with the cursor on the choice in force.
 
 ### Account list {#account-list}
 
@@ -808,9 +908,9 @@ Permission, skills and required capabilities are the flow's, not rows.
 | Title | `Select the account to run as` |
 | About | `Accounts belong to a specific CLI; each CLI has its own sign-ins. Sessions, settings, and skills belong to the CLI regardless of which account it runs as.` |
 | Rows | `as local   use the account signed in on this machine` first (dsh: `use credentials and the base URL saved by dsh, or environment variables`), then each account: `<way> · <VARS>`. |
-| Set apart | `search…`, `add   an account` |
+| Buttons | **Add an account**, **Search…** |
 | Empty | `<cli> has no saved accounts yet` |
-| `add` | The [account form](#making-an-account) with the CLI fixed (title `Add a <cli> account`). On success the account is chosen. `<name> was saved, but sign-in failed with exit code <n>` where its login failed. |
+| **Add an account** | The [account form](#making-an-account) with the CLI fixed (title `Add a <cli> account`; `account` as its step of the way across the top). On success the account is chosen. `<name> was saved, but sign-in failed with exit code <n>` where its login failed. |
 
 An agent whose account has since been removed fails its first turn, naming the account.
 
@@ -821,11 +921,11 @@ An agent whose account has since been removed fails its first turn, naming the a
 | Title | `Select a model for <cli>` |
 | About | `The model <cli> uses for this agent's turns, and its reasoning effort. These are the models last reported for this account.` |
 | Rows | `<model>[ ✔]  <efforts, hardest first>[ · swarms]` |
-| Set apart | `search…`, `check again` |
+| Buttons | **Check again**, **Search…** |
 | Messages | `checking <cli> for models…`; `<cli> has not reported any models[ as <account>] yet; select check again to query them`; `no models found for <cli>`; an error in red. |
 
 A list is fetched: at every start for each installed CLI's own account when never fetched or
-older than 7 days; when an account never asked is chosen; on `check again`.
+older than 7 days; when an account never asked is chosen; on **Check again**.
 
 ### Environment form {#where-each-agent-works}
 
@@ -841,7 +941,8 @@ older than 7 days; when an account never asked is chosen; on `check again`.
 | `host` (ssh, apple-container) · `daemon` (docker) · `swarm` (swarm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, `choose a saved host, or add one` (ssh), or `none: <backend> on this machine, or choose a saved one` (docker, swarm, apple-container: left empty, it is this machine). Absent for `local`. |
 | `workdir` | written | `absolute path on this machine` (local, and apple-container with nothing saved); `leave blank to use saved default: <dir>` (a runtime saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the runtime's workdir; while unchanged, the spec omits it. |
 | `as -e` | written | `full -e spec: typing one sets the rows above` |
-| `done` | | `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`. |
+
+Button: **Done**, `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`.
 
 The rows are composed as `-e` spells them: no provider for `local`, nor for docker, swarm or
 apple-container left on this machine (`docker/<workdir>`); an ssh host that is no saved runtime in brackets
@@ -857,12 +958,12 @@ where no workdir is given or saved). Partial answers: `fill in the <host|workdir
 | --- | --- |
 | Title | `Select the ssh host to use` / `Select the docker host to use` / `Select the docker swarm to use` / `Select the host for Apple containers to use` |
 | About | `Saved on the runtimes page of /settings; any host you add here is saved there.` |
-| Rows above the list | `add an ssh host` / `add a docker host` / `add a docker swarm` / `add a host for Apple containers` (the [runtime forms](#runtimes), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
+| Buttons | **Add an ssh host** / **Add a docker host** / **Add a docker swarm** / **Add a host for Apple containers** (the [runtime forms](#runtimes), saving at once and returning with it chosen; `host` as its step of the way across the top); **Name a host…** (ssh; `one nobody saved: any host ssh can reach`); **Search…** |
 | Empty | `no ssh host is saved yet` |
 
-`unsaved host` opens **Unsaved ssh host** (`Connects using your ssh config with no extra
+**Name a host…** opens **Unsaved ssh host** (`Connects using your ssh config with no extra
 settings. To save a host with a name, go to the runtimes page of /settings.`): one row
-`host   [user@]host[:port], or an alias in your ssh config`; `done` `assigns the role to this
+`host   [user@]host[:port], or an alias in your ssh config`; **Done** `assigns the role to this
 host without saving it`, as `ssh@[<host>]`; errors `host is required`, `'<x>' is not a valid
 host: cannot contain spaces, slashes or brackets`.
 
@@ -872,23 +973,26 @@ host: cannot contain spaces, slashes or brackets`.
 | --- | --- |
 | Title | `Set up <flow>` |
 | About | `Configure how this flow runs. Options and validation are defined by the flow itself.` |
-| Rows | `<n>. <field, padded to 34><value>[ ▾]  <field description>`; a heading per `json_schema_extra={"section": …}`. |
-| Set apart | `set   all of the above` |
+| Rows | Setting rows: the field at the left, its value at the far right (`—` where empty), its description under both; a heading per `json_schema_extra={"section": …}`, with a blank line above it. |
+| Button | **Set** (`all of the above`) |
+| Keys | `enter change   tab actions   esc back`; `enter choose` on a `▾` row |
 
 | Field type | Editing |
 | --- | --- |
-| `bool` | ▾ `on`/`off`, opening on the value not in force. |
+| `bool` | ▾ `● on`/`○ off`, opening on the value not in force. |
 | `Literal[…]` | ▾ in declared order. |
 | `int`, `float` | Typed. |
 | `str` | Typed. |
-| other (list, dict, model, `Enum`, `Optional` with `None`) | Shown as Python `str()`; edited as text; not accepted by `set`. |
+| other (list, dict, model, `Enum`, `Optional` with `None`) | Shown as Python `str()`; edited as text; not accepted by **Set**. |
 
 <kbd>enter</kbd> on a typed row begins writing it with its whole value selected, drawn
 reversed: the first character typed replaces the value and <kbd>backspace</kbd> clears it.
-After that, typing goes after what is there; `←` `→` do nothing.
+After that, typing goes after what is there; `←` `→` do nothing. Unlike on a form, typing on
+a row not begun does nothing -- nor do <kbd>backspace</kbd> and `←`, which on any written row
+are the row's rather than the way up out of the sheet.
 
-`set` validates with the flow's model; a refusal shows the first error as `<field>: <message>`.
-Equivalent on the command line: [`-p`](/reference/cli#writing-params).
+**Set** validates with the flow's model; a refusal shows the first error as `<field>: <message>`
+under the list. Equivalent on the command line: [`-p`](/reference/cli#writing-params).
 
 ### Budget sheet {#what-a-run-of-it-may-spend}
 
@@ -902,10 +1006,34 @@ Equivalent on the command line: [`-p`](/reference/cli#writing-params).
 | `duration` | written | `""` | `maximum run duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-p budget.duration`](/reference/cli#writing-a-budget); reopens in days, hours, minutes and seconds, e.g. `6h`, `12d`, `1m30s`) |
 | `cost` | written | `0.0` | `maximum cost in US dollars, 0 for no limit` |
 | `output_tokens` | written | `0` | `maximum output tokens, 0 for no limit` |
-| `graceful` | ▾ `on`/`off` | `on` | `finish the current turn when a limit is reached` |
+| `graceful` | ▾ `● on`/`○ off` | `on` | `finish the current turn when a limit is reached` |
 
-Typed rows are written as on the [params sheet](#setting-a-flow-up): the first character
-typed replaces the value.
+Button: **Set** (`all of the above`). Rows, keys and typing are as on the
+[params sheet](#setting-a-flow-up): the first character typed replaces the value.
+
+```text
+  hmz › /flow › Installed › ralph_loop › Set budget for ralph_loop
+  A run stops at whichever limit it reaches first; at least one limit is
+  required. Leave empty or 0 for no limit.
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ duration                                                             20m │
+  │   maximum run duration: 1h30m, 90s, PT2H; empty for no limit             │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ cost                                                                 0.5 │
+  │   maximum cost in US dollars, 0 for no limit                             │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ output_tokens                                                          0 │
+  │   maximum output tokens, 0 for no limit                                  │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ graceful                                                          ● on ▾ │
+  │   finish the current turn when a limit is reached                        │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+                                                                           Set
+
+  enter change   tab actions   esc back
+```
 
 | Refusal | Cause |
 | --- | --- |
@@ -927,15 +1055,19 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | Title | `Epics` |
 | About | `Every run of a flow in this directory, newest first: task, status, and session count.` |
 | Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|was left unfinished][ · resumable]`. `resumable`: the flow is resumable now and the run left a journal. A run in progress reads `was left unfinished`. |
-| Set apart | `search…` (flow, task, run name) |
+| Buttons | **Search…** (flow, task, run name) |
+| Keys | `enter open   / search   tab actions   esc close` |
 | Empty | `no flow has been run in this directory yet` |
 
-`enter` on a run opens it:
+`enter`, `→` or a click on a run opens it, a pick list of what can be done with it (`/epics` as
+its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←`, `backspace` or
+`esc` goes back to the runs.
 
 | Element | Value |
 | --- | --- |
 | Title | `<when> · <flow>` |
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).` |
+| Keys | `enter choose   esc back` |
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `export run` | `the entire run as an archive, with its trace`. Writes `./.humanize/<run>.epic.tar.gz` (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 
@@ -971,7 +1103,7 @@ Storage keys are in [Settings](/reference/settings).
 ### Landing screen {#settings-landing}
 
 ```text
-  /settings
+  hmz › /settings                                            ● unsaved changes
   Every setting humanize keeps. What you change is held until you save it.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
@@ -990,7 +1122,9 @@ Storage keys are in [Settings](/reference/settings).
   │ ⌂  Workspace                                        work/api · flow rlar │
   │    this directory: its flow, and forgetting it                           │
   ╰──────────────────────────────────────────────────────────────────────────╯
-                                                                      Save
+
+                                                                          Save
+
   enter open   tab actions   esc close
 ```
 
@@ -1010,14 +1144,18 @@ is held. Coming back out of a page puts the cursor on its card.
 
 | Element | Rule |
 | --- | --- |
-| Top line | `/settings › <Page>`; `/settings` is clickable (back to landing); `● unsaved changes` at the right while any page holds a change. |
+Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
+
+| Element | Rule |
+| --- | --- |
+| Top line | `hmz › /settings › <Page>`; `hmz` and `/settings` are clickable (`/settings`: back to the landing screen); `● unsaved changes` at the right while any page holds a change. |
 | Intro | Per page, below. |
 | List | Rows under headings, which the cursor steps over; scrollable. |
-| Buttons | Under the list, in the order below; label = the row's label capitalised; tooltip = its description. |
-| Search | `/` or **Search…**: a box above the list, placeholder `type to filter`, filters as typed (case-insensitive subsequence). Letters typed on the list do not search. Cleared on leaving the page. |
+| Buttons | Under the list, in the order below; tooltip = what it does. |
+| Search | Matches the fields below. Letters typed on the list do not search. Cleared on leaving the page. |
 | Message | One line under the list; kept, with the cursor row, while another page is read. |
 | Focus on open | The list, or the first enabled button where the list has nothing selectable. |
-| Hints | List: `enter <choose\|read\|open\|edit>   [/ search   ][tab actions   ]esc back`. Button: `enter <add\|search\|save\|import>   ←/→ move   tab list   esc back`. Search box: `enter to list   esc clear`. |
+| Keys | List: `enter <choose\|read\|open\|edit>   [/ search   ][tab actions   ]esc back`. Button: `enter <add\|search\|save\|import>   ←/→ move   tab list   esc back`. Search box: `enter to list   esc clear`. |
 
 | Page | Buttons | Search matches |
 | --- | --- | --- |
@@ -1085,17 +1223,19 @@ agent's next session.`
 | Row | `<name>  <way> · <VAR>, <VAR>` (names only), then ` · checking models…`, ` · edited`, ` · will be removed`, ` · from the next agent session` as they apply. |
 | Empty | `no accounts yet` |
 
-`enter` on an account opens `<cli>/<name>` (or `<cli> as local`): `Editing and removal take
-effect when /settings is saved; signing in happens immediately.`
+`enter`, `→` or a click on an account opens its menu,
+`hmz › /settings › Accounts › <cli>/<name>` (or `<cli> as local`): `Editing and removal take
+effect when /settings is saved; signing in happens immediately.` Keys: `enter choose   tab
+actions   esc back`.
 
-| Row | Description | Lands |
+| Row or button | Description | Lands |
 | --- | --- | --- |
 | `edit settings` | `ask the setup questions again` | on save. Secrets start blank (`leave blank to keep current value`). Copies for other CLIs start on. |
 | `sign in again` | `run the CLI's sign-in again; takes over the terminal while running` | at once. `<name> uses <way>, which has no command to run; edit its settings instead`; `sign-in for <name> failed with exit code <n>`. |
-| `remove` / `cancel removal` | `remove the account and its credentials when /settings is saved` / `will be removed when /settings is saved` | on save |
+| **Remove** (red) / **Cancel removal** | `remove the account and its credentials when /settings is saved` / `keep the account after all` | on save |
 
-`as local` offers no rows: `this is <cli> as local: humanize keeps no credentials for it, so
-you cannot edit, sign in, or remove it`. Where a failing turn goes is the
+`as local` offers no rows and no button: `this is <cli> as local: humanize keeps no
+credentials for it, so you cannot edit, sign in, or remove it`. Where a failing turn goes is the
 [Fallback page](#where-a-turn-goes-when-it-cannot-be-taken)'s, not an account's.
 
 On save the transcript says, per change: `<cli>/<name> and its credentials were removed`,
@@ -1121,7 +1261,40 @@ account`.
 | one per variable | written; secrets as `•` | The way's question. |
 | `variables` | written, secret | `environment variables, as NAME=VALUE, one per line`. Only for a way that asks nothing and runs no login. Multi-line. |
 | `also for <cli>` | ▾ on/off | Other CLIs the credentials can run; on where installed (new) or already copied (edit). ` · overwrites <cli>/<name>` where that exists. |
-| `done` | | `adds <cli>/<name>` / `updates <cli>/<name> once /settings is saved` / `signs <cli>/<name> in again`, `, running its login in the terminal`, `, for <x>, <y> too`. |
+
+Button: **Done**, which says what answering does (tooltip, and the line under the list while it
+has the focus): `adds <cli>/<name>` / `updates <cli>/<name> once /settings is saved` /
+`signs <cli>/<name> in again`, then `, running its login in the terminal`, `, for <x>, <y> too`.
+
+The form with its last question kept, the focus moved on to **Done**:
+
+```text
+  hmz › /settings › Accounts › Add an account                ● unsaved changes
+  A saved sign-in for one CLI, kept separate from the CLI's default and other
+  accounts. Secrets are masked and never shown.
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ cli                                                             claude ▾ │
+  │   installed here                                                         │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ way                                                                key ▾ │
+  │   an Anthropic API key, from the console                                 │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ name                                                                 key │
+  │   account name                                                           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ANTHROPIC_API_KEY                                         •••••••••••••• │
+  │   the API key                                                            │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ also for pi                                                       ● on ▾ │
+  │   installed here                                                         │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+   adds claude/key, for pi too
+
+                                                                          Done
+
+  enter done   ←/→ move   tab list   esc back
+```
 
 Refusals: `<cli> has no sign-in method named <way>`, `<cli> already has an account named <name>; edit it from its row, or choose a different name`, `<VAR> is required`, `fill in
 credentials to sign in`. Notes: `<cli> is not installed; install it to use this account`,
@@ -1138,7 +1311,7 @@ agent using this account`.
 Title `Add a CLI that speaks ACP`; intro `Any coding agent that supports the Agent Client
 Protocol, communicating over stdin and stdout using the command you provide. The protocol does
 not configure models or effort, so it runs with its own configuration.`; row `command` (`command
-to run the agent, e.g. my-agent --acp`); `done` `saves it as a backend`. Applied at once, named
+to run the agent, e.g. my-agent --acp`); **Done** `saves it as a backend`. Applied at once, named
 after the command's first word: `<name> added as a backend`; transcript ``<name> is saved as a
 backend: `<command>` starts it``. Refusals: `command is required`, `<x> is already a backend
 humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-your-own).
@@ -1163,12 +1336,13 @@ conversation.`
 | `tries` | ▾ | `none`, `1`, `2`, `3`, `5`, `8`, `13`, `21` | `none` |
 | `policy` | ▾ | `none` (`try again at once, with no wait at all`), `constant` (`the same wait every time: 1s, 1s, 1s`), `linear` (`one second longer each time: 1s, 2s, 3s`), `exponential` (`twice as long each time: 1s, 2s, 4s, 8s`), `exponential-jitter` (`exponential, each wait anywhere up to it -- for agents failing at once`), `fibonacci` (`the Fibonacci sequence: 1s, 1s, 2s, 3s, 5s`) | `exponential-jitter` |
 | `for` | ▾ | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` | `no limit` |
-| `remove` (edit) | | `removes this fallback rule when saved` | |
-| `done` | | `applies this fallback rule when /settings is saved` | |
+
+Buttons: **Remove** (editing a rule only; red; `removes this fallback rule when saved`), then
+**Done** (`applies this fallback rule when /settings is saved`).
 
 Place picker: `Select the agent that fails` / `Select the fallback agent for <place>`; `Here an
 agent is a CLI, an account and a model: what a turn can fail on. Search by any of the three.`
-Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
+Button **Search…**. Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
 for a fallback (never the failing place); `<cli>[@<account>]/…  models not reported yet; select
 to query them` for an account not yet asked. On a row of the chain, `nowhere` takes that place
 off it, and a place already further along the chain swaps with the one there (how the chain is
@@ -1196,13 +1370,14 @@ Runtimes](/reference/machines#runtimes).
 | swarm | `<endpoint> · <image> · on <constraint>, … · <cpus> CPUs, <mem>\|no limits · GPUs as <resource> · max <n> tasks` -- not its nodes |
 | all | ` · working directory: <dir>`; ` · checking…` while checked |
 
-`enter` on a runtime opens `<backend>/<name>`:
+`enter`, `→` or a click on a runtime opens its menu, `<backend>/<name>`, its about the row's
+description. Keys: `enter choose   tab actions   esc back`.
 
-| Row | Description | Effect |
+| Row or button | Description | Effect |
 | --- | --- | --- |
 | `edit` | `edit saved settings` | Its form, without `name`; checked after saving (`<backend>/<name> updated`). |
 | `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits`; swarm: `check the swarm's nodes against its quota` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …` -- for a swarm `answers: swarm <version>; <n> nodes: <a>, <b>, … and <k> more; <cpus> CPUs, <mem> all told`, naming the first 8 of the nodes that may take a task; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
-| `remove` | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`, and `<names> reached a swarm through this host; edit them` for a swarm whose endpoint or one of whose nodes it was. |
+| **Remove** (red) | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`, and `<names> reached a swarm through this host; edit them` for a swarm whose endpoint or one of whose nodes it was. |
 
 #### ssh host form {#ssh-form}
 
@@ -1222,8 +1397,9 @@ never read.`
 | `options` | `additional ssh options: KEYWORD=VALUE, …` |
 | `workdir` | `default working directory when -e specifies none: /abs or ~/path` |
 | `falls back to` | `runtimes to try in order if this one cannot: docker:box, ssh:gpu2`. Entries apart by commas, saved as the runtime's [`fallback`](/reference/machines#falling-back); its row then ends `· falls back to <entries>`. |
-| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>; blank for its CLI here, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
-| `done` | `adds ssh/<name>, and checks its resources` / `updates …` |
+| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>, swarm:<name>; blank for self where the CLI is there, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
+
+Button: **Done**, `adds ssh/<name>, and checks its resources` / `updates …`.
 
 Refusals: `an ssh host named <name> already exists; edit it from its row, or choose a
 different name`, `port: '<x>' must be a number`, `options: '<x>' is not KEYWORD=VALUE`, and a
@@ -1244,14 +1420,19 @@ it are limited to the resources configured here.`
 | `ssh address` | `the daemon on any host via ssh` | `address` (`[user@]host[:port]`) | `ssh://…` | address's first label |
 | `context` | `an existing docker context` | `context` (`docker context name`) | `context:<name>` | the context |
 
-Then `name` (add), `image` (`default image, unless specified by the flow`), `OCI runtime` (`e.g.
-nvidia; blank for daemon default`), `run args` (`extra arguments for docker run`), `max
-containers` (`max concurrent containers; blank for no limit`), `workdir` (`default working
-directory when -e specifies no directory`), `falls back to` (as on the [ssh host
-form](#ssh-form)), `harness runs on` (likewise), `cpus` (`max CPUs; blank to use all host CPUs`),
+Then `name` (add), `harness runs on` (as on the [ssh host form](#ssh-form)), `image` (`default
+image, unless specified by the flow`), `OCI runtime` (`e.g. nvidia; blank for daemon
+default`), `run args` (`extra arguments for docker run`), `max containers` (`max concurrent
+containers; blank for no limit`), `workdir` (`default working directory when -e specifies no
+directory`), `falls back to` (likewise), `cpus` (`max CPUs; blank to use all host CPUs`),
 `memory` (`e.g. 64G; blank to use all host memory`), `gpus` (`GPU IDs, e.g. 0, 1; blank to use
-all host GPUs`), `detect` (`detect host resources and fill them in`: `detecting resources on <endpoint>…`, then `detected …: auto-filled` with the cursor on `cpus` -- `gpus` written with only those that answer, and a yellow `<n> of <m> GPUs answer; …` where one does not -- or red `the daemon did
-not respond: …`), `done` (`adds docker/<name> and detects host resources`).
+all host GPUs`).
+
+Buttons: **Detect** (`detect host resources and fill them in`:
+`detecting resources on <endpoint>…`, then `detected …: auto-filled` with the focus back on the list and the cursor on
+`cpus`, keeping one moving on to the next it wrote in -- `gpus` written with only those that
+answer, and a yellow `<n> of <m> GPUs answer; …` where one does not -- or red `the daemon did
+not respond: …`), then **Done** (`adds docker/<name> and detects host resources`).
 
 Refusals: `a docker host named <name> already exists; …`, `memory: '<x>' must be a number and
 unit, such as 64G or 512M`, `cpus: '<x>' is not a number`, `max containers: '<x>' must be a
@@ -1267,7 +1448,8 @@ configured here.`
 
 `endpoint` and the rows under it are the [docker host form](#docker-form)'s, a manager's
 daemon in place of a docker host's -- `local` being the swarm this machine manages -- and so is
-the default name, `swarm` where a docker host's is `docker`. Then `name` (add), `image`
+the default name, `swarm` where a docker host's is `docker`. Then `name` (add), `harness runs
+on` (as on the ssh form), `image`
 (`default image, unless specified by the flow; every node pulls it`), `run args` (`extra
 arguments for docker service create`), `constraints` (`placement constraints, e.g.
 node.labels.gpu==true, …`, a comma apart), `max tasks` (`max concurrent tasks; blank for no
@@ -1276,10 +1458,10 @@ host name and the saved ssh host, or the `[user@]host[:port]`, that reaches it),
 (`default working directory, on every node, when -e specifies none`), `falls back to` (as
 on the ssh form), `gpu resource`
 (`generic resource nodes advertise GPUs as, e.g. NVIDIA-GPU`), `cpus` (`CPUs all tasks may
-reserve; blank for no quota`), `memory` (`e.g. 64G for all tasks; blank for no quota`),
-`detect` (as the docker host form's, writing in the CPUs and memory of the nodes that may take
-a task all told), `done` (`adds swarm/<name> and checks its nodes`). No `OCI runtime` and no
-`gpus`: a service is told neither.
+reserve; blank for no quota`), `memory` (`e.g. 64G for all tasks; blank for no quota`). No
+`OCI runtime` and no `gpus`: a service is told neither. Buttons: **Detect** (as the docker host
+form's, writing in the CPUs and memory of the nodes that may take a task all told), then
+**Done** (`adds swarm/<name> and checks its nodes`).
 
 Refusals: `a docker swarm named <name> already exists; …`, `max tasks: '<x>' must be a number`,
 `nodes: '<x>' is not HOSTNAME=SSH-HOST`, the store's own for a constraint that is not
@@ -1310,8 +1492,9 @@ its Host name and continues reading the config, which is never modified.` Row `f
 config to read: default, or another file`, pre-filled `~/.ssh/config`), then an on/off row per
 `Host` as `ssh -G` resolves it (`user@host:port · key … · through …`). A host starts **off**
 with the reason: `invalid host name`, `<alias> already uses the name <name>`, `a manually added
-host is already saved as <name>`, `already imported` (on re-imports it). `done`: `imports
-nothing until a host is selected` / `imports <a>, <b>` / `imports <n> hosts`. Refusals: `the
+host is already saved as <name>`, `already imported` (on re-imports it). Once the config is
+read and a host is on, the focus is on **Done**: `imports nothing until a host is selected` /
+`imports <a>, <b>` / `imports <n> hosts`. Refusals: `the
 config is still being read`, `select at least one host to import`, `<config>: <error>`. Result:
 `imported <names> from <config>[; left <a>, <b>]. Open a host to check it.` Imported hosts are
 not checked.
@@ -1329,15 +1512,23 @@ first column.
 
 ### First start {#first-start}
 
-Where neither `HUMANIZE_SENTRY` nor `settings.yaml` answers reporting:
+Where neither `HUMANIZE_SENTRY` nor `settings.yaml` answers reporting, a [box](#boxes):
 
 ```text
-Report errors to humanize?
-Send error reports to help fix bugs. Sent: <…>. Never sent: <…>. You can change this later in /settings.
-❯ 1. yes
-  2. no
-enter choose · esc ask again next time
+╭────────────────────────────────────────────────────────────────╮
+│                                                                │
+│  Report errors to humanize?                                    │
+│  Send error reports to help fix bugs. Sent: <…>. Never sent:   │
+│  <…>. You can change this later in /settings.                  │
+│                                                                │
+│  Yes  No                                                       │
+│                                                                │
+│  enter yes   esc ask again next time                           │
+│                                                                │
+╰────────────────────────────────────────────────────────────────╯
 ```
+
+`Yes` (focused, green; `send error reports`) and `No` (`send nothing`).
 
 Sent: the error and where in humanize it occurred; which flow was running, and what each agent
 was configured to run; which coding agents are installed, and account names; which skills and
@@ -1348,7 +1539,8 @@ session log; no files, directory names, or paths outside humanize itself; no key
 account credentials, not even environment variable names.
 
 Answering writes `enable_sentry` and says `error reporting enabled; use /settings to turn it
-off` or `error reporting disabled; use /settings to turn it on`. `esc` leaves it unanswered.
+off` or `error reporting disabled; use /settings to turn it on`. `esc` or a click outside the
+box leaves it unanswered, to be asked again at the next start.
 
 ## Monitor {#watching-the-run}
 
@@ -1477,9 +1669,10 @@ commands`, dropped from the **end** to fit.
 
 ### Environment page {#an-environment-s-page}
 
-Title: the environment's role (or kind). About: `An environment of the run: where its sessions
-work.` Redrawn every 0.5 s. Keys: `enter read session · esc back`. Gone from the run: `This
-environment is not in the run.`
+A menu over the monitor: `monitor › <role>`, the title being the environment's role (or kind).
+About: `An environment of the run: where its sessions work.` Redrawn every 0.5 s. Keys: `enter
+read session   esc back`; `←`, `backspace` or a click on `monitor` go back too. Gone from the
+run: `This environment is not in the run.`
 
 | Row | Value |
 | --- | --- |
@@ -1500,8 +1693,13 @@ Empty rows are omitted.
 
 Drawn only where the run keeps a board: a blank row, `Board · shared by you and the flow`, one
 `◈` row per line, `+ add entry`. Owners: `both` (no suffix), `user`, `flow` (read-only here).
-The entry sheet (`Board entry` or the key; `Shared by you and the flow. Neither waits for the
-other.`) asks `name` then `value`. Messages: `<name> saved to the board`, `<name> removed from
+The entry sheet, a menu over the monitor (`monitor › Board entry`, or `monitor › <key>` for a
+line already there; `Shared by you and the flow. Neither waits for the other.`), asks `name`
+then `value` on its one row, each ending in a block caret: typing writes and `backspace`
+deletes. `enter`, a click on the row, or its button -- **Next** (`name the entry, then say what
+it is`), then **Save** (`write the entry on the board; an empty one is taken off`) -- goes on.
+Keys: `type write   backspace delete   enter <continue to value|save, or remove if empty>
+tab actions   esc back`. Messages: `<name> saved to the board`, `<name> removed from
 the board` (saved empty), `nothing was entered, so nothing was saved`, `a board entry needs a
 name`, `<name> can only be changed by the flow`. Changes are sent at once. See
 [The mission board](/user/board).

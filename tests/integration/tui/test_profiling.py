@@ -3,8 +3,9 @@
 A row beside the budget's, on the page the flow's roles are on, because it is a thing about a
 run of the flow as what the run may spend is -- and remembered with it, per flow, rather than
 a setting of the workspace. What is checked is that the row says which it is without being
-opened, that enter turns it over, that it is written down with the flow and read back, and
-that the run started from the interface is asked to profile where it says so.
+opened, that it is switched as every switch is -- its two values dropped under it -- that it is
+written down with the flow and read back, and that the run started from the interface is asked
+to profile where it says so.
 """
 
 from __future__ import annotations
@@ -17,9 +18,9 @@ from textual.widgets import OptionList
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.flows import Flows
-from hmz.tui.pick import _ACT_SAVE, _PROFILING
-from tests.integration.tui.test_app import onto, rows
+from hmz.tui.flows import _PROFILING, Flows
+from hmz.tui.pick import _ACT_SAVE
+from tests.integration.tui.test_app import keyed, onto, picks, rows
 from tests.integration.tui.test_budget import _into
 from tests.integration.tui.test_budget import (
     flows as flows,  # noqa: PLC0414 -- a fixture
@@ -57,10 +58,13 @@ async def test_the_row_sits_under_the_budget_and_is_off_until_turned_on(
         sheet = await _into(app, driver, "local/quiet")
         assert "off" in _said(app)
 
+        # A switch, picked from the two dropped under it rather than turned over in place.
         await onto(app, driver, _PROFILING)
-        await driver.press("enter")
+        assert "enter choose" in keyed(app)
+        await picks(app, driver, _PROFILING, "on")
         await until(lambda: sheet._profile, driver)
         assert "on" in _said(app)
+        assert sheet._changed
         # Held until the menu is saved, as everything else on it is.
         assert Settings(tmp_path).profile("local/quiet") is False
 

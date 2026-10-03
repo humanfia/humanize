@@ -166,18 +166,21 @@ To carry on an **older** run than the last, open `/epics`. Runs you can pick up 
 Press <kbd>enter</kbd> on one and choose **resume run**:
 
 ```text
-   2026-09-30 05:38 · ralph_loop
-   …/epics/-tmp-hmzdocs-C-app/20260930T053826.667Z-55bb87
-   It stopped with 1 agent in 1 session.
+  hmz › /epics › 2026-09-30 05:38 · ralph_loop
+  …/epics/-tmp-hmzdocs-C-app/20260930T053826.667Z-55bb87
+  It stopped with 1 agent in 1 session.
 
-   ❯ 1. resume run                resume the flow from this run
-     2. export run                the entire run as an archive, with its trace
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ resume run                resume the flow from this run                  │
+  │ export run                the entire run as an archive, with its trace   │
+  ╰──────────────────────────────────────────────────────────────────────────╯
 
-   enter choose · esc back
+  enter choose   esc back
 ```
 
-The **resume run** row is there only when the flow, as it is today, can be picked up. The
-same reasons as `/resume` are given when it cannot.
+The **resume run** row is there only when the flow, as it is today, can be picked up. When it
+cannot, the line under the list says `<flow> is not resumable, so this run cannot be resumed`.
+<kbd>esc</kbd>, <kbd>←</kbd> or a click on `/epics` across the top goes back to the runs.
 
 ## Check that it worked
 
@@ -187,9 +190,17 @@ same reasons as `/resume` are given when it cannot.
   own session count:
 
   ```text
-     ❯ 1. 2026-09-30 05:40 · ralph_loop Make the tests in test_slug.py pass. … · 1 session · stopped ·…
-       2. 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. … · 1 session · stopped ·…
-       3. 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. … · 3 sessions · stopped
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ 2026-09-30 05:40 · ralph_loop Make the tests in test_slug.py pass. Change│
+  │                               slug.py only. · 1 session · stopped ·      │
+  │                               resumable                                  │
+  │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│
+  │                               slug.py only. · 1 session · stopped ·      │
+  │                               resumable                                  │
+  │ 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. Change│
+  │                               slug.py only. · 3 sessions · stopped ·     │
+  │                               resumable                                  │
+  ╰──────────────────────────────────────────────────────────────────────────╯
   ```
 
 - **The work is where it was.** Your files are as the earlier run left them. Temporary copies

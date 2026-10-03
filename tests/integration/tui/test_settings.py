@@ -304,6 +304,7 @@ async def test_the_first_start_asks_whether_humanize_reports_itself(
     from hmz.runtime import telemetry
     from hmz.tui import Humanize
     from hmz.tui.pick import Reports
+    from tests.integration.tui.test_app import bar
 
     monkeypatch.delenv(telemetry.SAYS, raising=False)
     monkeypatch.chdir(tmp_path)
@@ -314,9 +315,10 @@ async def test_the_first_start_asks_whether_humanize_reports_itself(
         # What goes and what does not, both, where the question is asked.
         assert "reports to help fix bugs" in said
         assert "nothing you typed" in said
-        # The answer that helps is the one the cursor opens on.
-        listing = app.screen.query_one("#choices", OptionList)
-        assert [str(one.id) for one in listing.options] == ["=on", "=off"]
+        # The two answers are buttons, and the one that helps is the one the focus opens on.
+        assert bar(app) == ["on", "off"]
+        await until(lambda: app.screen.focused is not None, driver)
+        assert app.screen.focused is app.screen.query_one("#act-on")
 
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Reports), driver)

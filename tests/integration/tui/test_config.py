@@ -20,8 +20,9 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.flows import Flows
-from hmz.tui.pick import _DONE, Agent, Configures, setting
+from hmz.tui.pick import _ACT_DONE, Agent, Configures, Key, setting
 from tests.integration.tui.test_app import (
+    bar,
     changes,
     ids,
     into_agent,
@@ -169,8 +170,8 @@ def _rows(app: Humanize) -> str:
 
 
 async def _sets(app: Humanize, driver: Pilot[None]) -> None:
-    """Answers the sheet a flow is set up on, from the row below its settings."""
-    await onto(app, driver, _DONE)
+    """Answers the sheet a flow is set up on, from the button under its settings."""
+    await onto(app, driver, _ACT_DONE)
     await driver.press("enter")
     await driver.pause()
 
@@ -461,8 +462,9 @@ async def test_a_flow_that_groups_nothing_is_one_list(flows: Path) -> None:
             sheet = app.screen
             assert isinstance(sheet, Configures)
 
-            # The two settings, and the row that sets them, and nothing else.
-            assert rows(app) == ["loud", "rounds", _DONE]
+            # The two settings and nothing else: what sets them is the button under them.
+            assert rows(app) == ["loud", "rounds"]
+            assert bar(app) == [_ACT_DONE]
             assert sheet.under() == "loud"
 
             await driver.press("down")
@@ -547,7 +549,7 @@ async def test_a_setting_that_is_written_carries_a_caret_under_the_cursor(
 
             # The cursor starts on a switch, whose values are dropped rather than written.
             assert "reverse" not in _under(app)
-            assert "enter choose" in str(sheet.query_one("#keys", Label).content)
+            assert Key("enter", "choose") in sheet._keyed
             await driver.press("enter")
             await until(lambda: isinstance(app.screen, Dropdown), driver)
             await driver.press("escape")
@@ -560,9 +562,9 @@ async def test_a_setting_that_is_written_carries_a_caret_under_the_cursor(
             await driver.press("enter")
             await driver.pause()
             assert "reverse" in _under(app)
-            assert "←/→" not in str(sheet.query_one("#keys", Label).content)
+            assert sheet._keyed == (Key("enter", "keep"), Key("esc", "undo"))
 
             # And it stays where the next letter would land as the value grows.
             await driver.press(*"here")
             await driver.pause()
-            assert "here[/][reverse] [/reverse]" in _under(app)
+            assert "here[reverse] [/reverse]" in _under(app)

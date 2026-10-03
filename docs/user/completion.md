@@ -136,7 +136,8 @@ you brought back from [history](/user/history).
 - **Go straight to a settings page.** `/settings ` offers its five pages: `/settings accounts`
   opens the Accounts page. See [Settings](/user/settings).
 - **Narrow a long menu.** The menus behind the commands list flows, models, accounts, runs and
-  fallbacks. Choose the `search…` row below the list and type: a row stays if the letters you
+  fallbacks. Press <kbd>/</kbd> or **Search…** and type into the box above the list: a row
+  stays if the letters you
   type appear in its name in that order, so `o5` finds `claude-opus-5-5`. On the menus of
   models, accounts and fallbacks, a name you type out whole, or the start of one, comes first:
   `claude-sonnet-5` lists `claude-sonnet-5` above `claude-sonnet-4-5`. <kbd>esc</kbd> leaves

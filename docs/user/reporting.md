@@ -27,33 +27,48 @@ The first time you open `hmz`, it asks. Nothing is sent until you say yes:
 │  environment variable names. You can change this later in      │
 │  /settings.                                                    │
 │                                                                │
-│     ❯ 1. yes                                                   │
-│       2. no                                                    │
+│  Yes  No                                                       │
 │                                                                │
-│  enter choose · esc ask again next time                        │
+│  enter yes   esc ask again next time                           │
 │                                                                │
 ╰────────────────────────────────────────────────────────────────╯
 ```
 
-To see or change your answer later, type `/settings` and open its first page, **Settings**:
+The answers are the two buttons. **Yes** has the focus as the box opens, so <kbd>enter</kbd>
+says yes; <kbd>→</kbd> moves to **No**, and <kbd>enter</kbd> then says no. <kbd>esc</kbd>, or a
+click outside the box, answers nothing, and `hmz` asks again next time.
+
+To see or change your answer later, type `/settings` and open its first page, **General**:
 
 ```text
-  /settings › Settings
-  Global settings for humanize on this machine.
+  hmz › /settings › General
+  How humanize behaves on this machine, in every directory.
 
-  │ Error reports                                                              ○ off ▾ │  ①
-  │   send error reports to humanize                                                   │
-  │────────────────────────────────────────────────────────────────────────────────────│
-  │ What is sent                                                                     ▸ │  ②
-  │   what error reports include and exclude                                           │
-  │────────────────────────────────────────────────────────────────────────────────────│
-  │ Details                                                                    ○ off ▾ │
-  │   show every tool call and all of the thinking                                     │
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ Display                                                                  │
+  │ Details                                                          ○ off ▾ │
+  │   show every tool call and all of the thinking                           │
+  │                                                                          │
+  │ Agents                                                                   │
+  │ /btw agent                                      the flow's first agent ▾ │
+  │   the agent /btw uses outside a session                                  │
+  │                                                                          │
+  │ Privacy                                                                  │
+  │ Error reports                                                    ○ off ▾ │  ①
+  │   send error reports to humanize                                         │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ What is sent                                                           ▸ │  ②
+  │   what error reports include and exclude                                 │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+                                                                          Save
+
+  enter choose   esc back
 ```
 
-1. **Error reports** is your answer. <kbd>enter</kbd> drops `on` and `off`; <kbd>tab</kbd>
-   reaches **Save**. The first page of `/settings` sums it up as `reports on` or
-   `reports off`.
+1. **Error reports** is your answer. <kbd>enter</kbd> on it drops `on` and `off`; once you
+   pick the other one, <kbd>tab</kbd> reaches **Save**. The General card of `/settings` sums
+   it up as `reports on` or `reports off`.
 2. **What is sent** reads out the same two lists as the question, and changes nothing.
 
 ## Before you start
@@ -172,7 +187,7 @@ The error and `flow.yaml` are illustrative: nobody crashed humanize to write thi
 
 | Where | What happens |
 | --- | --- |
-| `hmz`, the first time | It asks. <kbd>esc</kbd> leaves the question unanswered, and it asks again next time. |
+| `hmz`, the first time | It asks. <kbd>esc</kbd>, or a click outside the box, leaves the question unanswered, and it asks again next time. |
 | `hmz`, after that | It does what you answered. [`/settings`](/user/settings) changes it: **Error reports**, on its General page. A no stops reporting at once. |
 | `hmz exec` | It never asks. It reports only if you answered yes. |
 | a script using `hmz.sdk` | Nothing is reported unless the script calls `Hmz().reports()`, and then only if you answered yes. |
@@ -186,8 +201,7 @@ A machine nobody has asked sends nothing. Leaving the question unanswered is not
 
 ## Check your answer
 
-- **At the prompt:** `/settings` shows `reports on` or `reports off` against its Settings
-  page.
+- **At the prompt:** `/settings` shows `reports on` or `reports off` on its General card.
 - **On a machine set up by a script, or in CI:** set `HUMANIZE_SENTRY=off` where the runs
   start. Nothing in the settings file can then turn reporting on for them.
 

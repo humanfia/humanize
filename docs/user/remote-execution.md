@@ -202,46 +202,96 @@ The same run, set up in `hmz` rather than on a command line, with the host saved
 nothing about it has to be typed again.
 
 **1. Save the host.** `/settings runtimes` opens the [Runtimes
-page](/user/settings#runtimes). Choose **Add a runtime…**, then `ssh host`, type the host, and fill in only
-what your ssh config does not already say:
+page](/user/settings#runtimes). Choose **Add a runtime…**, then `ssh host`. Type the host, fill
+in only what your ssh config does not already say, and <kbd>tab</kbd> to **Done**. The line
+under the list says what pressing it will do:
 
 ```text
-   Add an ssh host
-   A machine where flow environments run. Connects using your ssh config plus settings configured
-   here. Keys are specified by path and never read.
-     1. host             build-box                  hostname, IP address, or user@host:port   ①
-     2. name             build-box                  name used in -e and /flow                 ②
-     3. user                                        username; leave blank to use your ssh config
-     4. port                                        leave blank to use your ssh config, or 22
-     5. identity file                               path to private key
-     6. proxy jump                                  jump host to connect through, if any
-     7. options                                     additional ssh options: KEYWORD=VALUE, …
-     8. workdir          /home/me/build/myproject   default working directory when -e …       ③
-     9. falls back to                               runtimes to try in order if this one cannot…
-  ❯ 10. harness runs on                             where an agent's harness runs, in order … ④
-        done                      adds ssh/build-box, and checks its resources
+  hmz › /settings › Runtimes › Add an ssh host               ● unsaved changes
+  A machine where flow environments run. Connects using your ssh config plus
+  settings configured here. Keys are specified by path and never read.
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ host                                                           build-box │  ①
+  │   hostname, IP address, or user@host:port                                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ name                                                           build-box │  ②
+  │   name used in -e and /flow                                              │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ user                                                                   — │
+  │   username; leave blank to use your ssh config                           │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ port                                                                   — │
+  │   leave blank to use your ssh config, or 22                              │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ identity file                                                          — │
+  │   path to private key                                                    │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ proxy jump                                                             — │
+  │   jump host to connect through, if any                                   │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ options                                                                — │
+  │   additional ssh options: KEYWORD=VALUE, …                               │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ workdir                                         /home/me/build/myproject │  ③
+  │   default working directory when -e specifies none: /abs or ~/path       │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ falls back to                                                          — │
+  │   runtimes to try in order if this one cannot: docker:box, ssh:gpu2      │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ harness runs on                                                        — │  ④
+  │   where an agent's harness runs, in order, the next only when one has no │
+  │   room: self, local, ssh:<name>, docker:<name>, swarm:<name>; blank for  │
+  │   self where the CLI is there, else local                                │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+   adds ssh/build-box, and checks its resources
+
+                                                                          Done
+
+  enter done   ←/→ move   tab list   esc back
 ```
 
-`done` saves it and reaches it at once, as a run would:
+**Done** saves it and reaches it at once, as a run would:
 
 ```text
- ssh
- build-box                 build-box · working directory: /home/me/build/myproject
- ssh/build-box answers: home /root; 64 CPUs, 2015G                                  ⑤
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ ssh                                                                      │
+  │ build-box                 build-box · working directory:                 │
+  │                           /home/me/build/myproject                       │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+   ssh/build-box answers: home /root; 64 CPUs, 2015G                           ⑤
 ```
 
 **2. Put the role on it.** `/flow local/onbox` opens the flow's setup. Its environment role is
 a row under its agents; <kbd>enter</kbd> on `box` opens a form of the parts `-e` takes after
-`box=`. Choose `build-box` on the `host` row and leave `workdir` blank to use the one it was
-saved with:
+`box=`, on the `host` row. <kbd>enter</kbd> there lists the saved ssh hosts: choose
+`build-box`. Its saved `workdir` comes with it, and while you leave that as it is, the spec
+leaves it out. Nothing is left to answer, so the focus moves on to **Done**:
 
 ```text
-   Environment for box
-     1. backend  ssh ▾             a machine reached over ssh
-     2. host     build-box ▸       build-box · working directory: /home/me/build/myproject
-     3. workdir                    leave blank to use saved default: /home/me/build/myproject
-     4. as -e    ssh@build-box     full -e spec: typing one sets the rows above
-   ❯    done                      sets box to ssh@build-box when the flow is saved
+  hmz › local/onbox › Environment for box                    ● unsaved changes
+  The machine and working directory for this environment role. Choosing a
+  machine saved on the runtimes page of /settings by name includes its saved
+  working directory.
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ backend                                                            ssh ▾ │
+  │   a machine reached over ssh                                             │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ host                                                         build-box ▸ │
+  │   build-box · working directory: /home/me/build/myproject                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ workdir                                         /home/me/build/myproject │
+  │   leave blank to use saved default: /home/me/build/myproject             │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ as -e                                                      ssh@build-box │
+  │   full -e spec: typing one sets the rows above                           │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+   sets box to ssh@build-box when the flow is saved
+
+                                                                          Done
+
+  enter done   ←/→ move   tab list   esc back
 ```
 
 **3. Save the flow, and type the task.**
@@ -272,16 +322,17 @@ saved with:
    host and its saved workdir.
 
 Your answers are kept with the flow's setup in this directory, like its agents. **Import
-~/.ssh/config** on the same page saves every `Host` your config names in one go, each still
-pointing at its `Host` so the config stays the one place it is written.
+~/.ssh/config** on the same page lists every `Host` your config names, each switched on unless
+its row says why not (`already imported`, say), with the focus on **Done**: <kbd>enter</kbd> saves them in one go, each
+still pointing at its `Host` so the config stays the one place it is written.
 
 ## Save a host under a name
 
 A host that needs more than a name (a login, a port, a key, a jump host) is worth saving once,
-as in [step 1 above](#example-set-it-up-at-the-prompt). On one saved host, **check** reaches it
-again, **edit** reopens its form, and **remove** forgets it. Saved hosts are offered by name on
-the `host` row of every environment form at `/flow`. What each field means is in
-[Machines › Runtimes](/reference/machines#runtimes).
+as in [step 1 above](#example-set-it-up-at-the-prompt). <kbd>enter</kbd> on one saved host
+opens its menu: `check` reaches it again, `edit` reopens its form, and the **Remove** button
+under them forgets it. Saved hosts are offered by name on the `host` row of every environment
+form at `/flow`. What each field means is in [Machines › Runtimes](/reference/machines#runtimes).
 
 A docker daemon is saved on the same page with **Add a runtime…** and `docker host`, and named with
 `-e box=docker@<name>/…`: see
@@ -299,8 +350,10 @@ runtime the work is on, not of the run: the `harness runs on` row of a saved hos
 only when the one before has no room:
 
 ```text
-     8. workdir          /home/me/build/myproject   default working directory when -e …
-   ❯ 9. harness runs on  docker:gpubox, local       where an agent's harness runs, in order …
+  │ harness runs on                                     docker:gpubox, local │
+  │   where an agent's harness runs, in order, the next only when one has no │
+  │   room: self, local, ssh:<name>, docker:<name>, swarm:<name>; blank for  │
+  │   self where the CLI is there, else local                                │
 ```
 
 | | *(blank)* | `local` | `self` | `ssh:<name>`, `docker:<name>` |
@@ -443,7 +496,7 @@ and the python.org installer put one, and says what it looked for if it finds no
   container of its own: see [Containers](/user/containers).
 - **A directory on this machine.** `-e box=local/srv/project` puts the role somewhere other
   than the workspace, on this machine.
-- **Another host when this one is down.** Fill in **falls back to** on a saved host's form
+- **Another host when this one is down.** Fill in `falls back to` on a saved host's form
   (`ssh:build-2, docker:box`): where `-e box=ssh@build-box/…` cannot reach `build-box`, the
   role goes to the first of those that it can, and the run says so —
   `hmz exec: ssh:build-box cannot hold 'box': …; using ssh:build-2`. Where the agent's CLI

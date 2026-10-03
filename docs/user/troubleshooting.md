@@ -401,7 +401,7 @@ first` is the same for the budget.
 **Fix.** Open the role's row, choose a CLI and a model, and save the agent. For the budget,
 open the `budget` row and set at least one limit.
 
-**Verify.** `save` closes the sheet, and the row shows what fills the role.
+**Verify.** **Save** closes the agent's sheet, and the role's row shows what fills it.
 
 ### `flow not set up; nothing started` {#nothing-was-set-up-so-nothing-was-started}
 
@@ -656,16 +656,16 @@ humanize's list of this account's models is out of date:
 
 ```
 (unlisted: the 3 models this account was last offered (asked 2026-09-10) still list it, so
-that list is stale; the "check again" row under its models checks again)
+that list is stale; the "check again" button under its models checks again)
 ```
 
 **Cause.** The account is signed in, but may not use that model. humanize never asks an account
 again on its own.
 
-**Fix.** In `/flow`, open the agent, open its `model` row, and choose `check again` to ask the
-CLI what this account runs now. Then choose one of those.
+**Fix.** In `/flow`, open the agent, open its `model` row, and press **Check again** under the
+models to ask the CLI what this account runs now. Then choose one of those.
 
-**Verify.** The model is in the list `check again` brings back, and the next turn goes through.
+**Verify.** The model is in the list **Check again** brings back, and the next turn goes through.
 
 ### `(retired: the model is gone or was never this account's; another place is what answers it)`
 
@@ -673,8 +673,8 @@ CLI what this account runs now. Then choose one of those.
 
 **Cause.** The CLI says there is no such model. No account of that CLI has it.
 
-**Fix.** Choose another model: `check again` under the agent's `model` row shows what the CLI
-runs.
+**Fix.** Choose another model: **Check again**, under the list the agent's `model` row opens,
+shows what the CLI runs.
 
 **Verify.** The next turn goes through on the new model.
 

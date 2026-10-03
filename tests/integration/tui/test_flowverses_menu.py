@@ -35,7 +35,7 @@ from hmz.tui.flows import (
     Flows,
     Removes,
 )
-from hmz.tui.pick import _ACT_ADD, _ACT_SEARCH, _DONE
+from hmz.tui.pick import _ACT_ADD, _ACT_DONE, _ACT_SEARCH
 from tests.integration.tui.test_app import bar, changes, ids, leaves, onto, rows
 from tests.tui.fixtures import transcript, until
 
@@ -192,13 +192,11 @@ def under(sheet: Flows) -> str:
 
 
 def crumbs(sheet: Flows) -> str:
-    """The way here across the top, as it reads."""
-    parts = ("#crumb-root", "#trail", "#crumb-sep", "#asked")
-    return "".join(
-        str(sheet.query_one(one, Label).render())
-        for one in parts
-        if sheet.query_one(one, Label).display
-    )
+    """The way here across the top, as it reads: each step back, then the page open."""
+    steps = [
+        str(one.content) for one in sheet.query(".crumb").results(Label) if one.display
+    ]
+    return SEP.join([*steps, str(sheet.query_one("#asked", Label).content)])
 
 
 @pytest.mark.timeout(60)
@@ -211,7 +209,7 @@ async def test_the_flowverses_are_a_page_of_the_flow_menu(mine: Shelf) -> None:
 
         # Indexes only: your own two directories are places flows are, not indexes.
         assert rows(app) == [OFFICIAL, "mine"]
-        assert crumbs(sheet) == SEP.join(["/flows", "Flowverses"])
+        assert crumbs(sheet) == SEP.join(["hmz", "/flow", "Flowverses"])
         drawn = str(
             sheet.query_one("#choices", OptionList).get_option(f"={OFFICIAL}").prompt
         )
@@ -237,7 +235,7 @@ async def test_a_release_is_installed_by_walking_down_to_it_with_the_keys(
         await until(lambda: sheet._page == VERSE, driver)
 
         assert rows(app) == ["demo"]
-        assert crumbs(sheet) == SEP.join(["/flows", "Flowverses", "mine"])
+        assert crumbs(sheet) == SEP.join(["hmz", "/flow", "Flowverses", "mine"])
         # Listed at its newest release, and not installed: not one of the flows to run yet.
         assert "0.1.0" in str(
             sheet.query_one("#choices", OptionList).get_option("=demo").prompt
@@ -247,7 +245,7 @@ async def test_a_release_is_installed_by_walking_down_to_it_with_the_keys(
         await driver.press("enter")
         await until(lambda: sheet._page == RELEASES, driver)
         assert rows(app) == ["0.1.0"]
-        assert crumbs(sheet) == SEP.join(["/flows", "Flowverses", "mine", "demo"])
+        assert crumbs(sheet) == SEP.join(["hmz", "/flow", "Flowverses", "mine", "demo"])
 
         await driver.press("enter")
         await until(lambda: "is installed" in under(sheet), driver)
@@ -365,8 +363,8 @@ async def test_the_whole_walk_is_a_click_apiece(mine: Shelf) -> None:
         sheet = cast("Flows", app.screen)
         await until(lambda: bool(ids(app)), driver)
 
-        # Up to the first screen by the first word across the top, and into the flowverses.
-        await driver.click("#crumb-root")
+        # Up to the first screen by its step across the top, and into the flowverses.
+        await driver.click("#crumb-1")
         await until(lambda: sheet._page == HOME, driver)
         await clicks(app, driver, VERSES)
         await until(lambda: sheet._page == VERSES, driver)
@@ -378,14 +376,13 @@ async def test_the_whole_walk_is_a_click_apiece(mine: Shelf) -> None:
         await until(lambda: "is installed" in under(sheet), driver)
         assert [one.version for one in shelf.installed("mine")] == ["0.1.0"]
 
-        # A step of the way here is a way back to it.
-        # The way above the page, a separator before each step: the flowverses four cells in,
-        # and the flowverse after them.
-        await driver.click("#trail", offset=(len(f"{SEP}Flowverses{SEP}") + 1, 0))
+        # A step of the way here is a way back to it: `hmz`, `/flow`, the flowverses, and
+        # the flowverse, before the flow open.
+        await driver.click("#crumb-3")
         await until(lambda: sheet._page == VERSE, driver)
-        await driver.click("#trail", offset=(4, 0))
+        await driver.click("#crumb-2")
         await until(lambda: sheet._page == VERSES, driver)
-        await driver.click("#crumb-root")
+        await driver.click("#crumb-1")
         await until(lambda: sheet._page == HOME, driver)
         await clicks(app, driver, INSTALLED)
         await until(lambda: sheet._page == INSTALLED, driver)
@@ -405,7 +402,7 @@ async def test_a_flowverse_is_added_from_a_form_and_removed_with_what_it_install
         await until(lambda: isinstance(app.screen, Fetches), driver)
         await changes(app, driver, "repository", *f"file://{mine.listed}")
         await changes(app, driver, "name", *"mine")
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(
             lambda: app.screen is sheet and "mine is fetched" in under(sheet), driver
@@ -419,9 +416,7 @@ async def test_a_flowverse_is_added_from_a_form_and_removed_with_what_it_install
         await onto(app, driver, "remove")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Removes), driver)
-        assert "1 installed flow" in str(
-            app.screen.query_one("#choices", OptionList).options[0].prompt
-        )
+        assert "1 installed flow" in str(app.screen.query_one("#about", Label).content)
         await driver.press("enter")
         await until(lambda: "mine was removed" in under(sheet), driver)
 
@@ -503,7 +498,7 @@ async def test_a_failed_fetch_is_said_under_the_list(tmp_path: Path) -> None:
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fetches), driver)
         await changes(app, driver, "repository", *f"file://{tmp_path}/nowhere")
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet and bool(under(sheet)), driver)
         await until(lambda: "fetching" not in under(sheet), driver)

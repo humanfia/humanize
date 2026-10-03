@@ -68,7 +68,7 @@ the cursor on `aot`, <kbd>tab</kbd> to **Copy here**, and press <kbd>enter</kbd>
 
 <Term title="hmz · /flow">
 
-<pre>  <span class="m">/flows ›</span> <span class="p b">Installed</span>
+<pre>  <span class="m">hmz › /flow ›</span> <span class="p b">Installed</span>
   <span class="m">…</span>
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
    <span class="p">official</span>

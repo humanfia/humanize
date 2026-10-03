@@ -80,7 +80,7 @@ Steps 3–5 are tried up to **3** times, **0.5 s** apart, while linking raises `
 process and prints the last `OSError` (below).
 
 Holding the runs in this process changes one thing a person sees: `/exit` with a flow running
-offers **cancel** instead of **detach and exit**. See
+offers **Cancel** instead of **Detach and exit**. See
 [TUI › `/exit`](/reference/tui#leaving-and-letting-go).
 
 ### Terminal preparation

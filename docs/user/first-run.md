@@ -157,7 +157,7 @@ here, the ones built into humanize first. Press <kbd>/</kbd>, type `ralph`, pres
 
 <Term title="hmz · /flow">
 
-<pre>  <span class="m">/flows ›</span> <span class="p b">Installed</span>
+<pre>  <span class="m">hmz › /flow ›</span> <span class="p b">Installed</span>
   <span class="m">Flows ready to run here: pick one to set it up and run it, or install more</span>
   <span class="m">from a flowverse.</span>
 
@@ -203,7 +203,7 @@ fills it with the first CLI it found, so the row already names one.
 
 <Term title="hmz · /flow › ralph_loop">
 
-<pre>  <span class="m">/flows › Installed ›</span> <span class="p b">ralph_loop</span>                          <span class="y">● unsaved changes</span>
+<pre>  <span class="m">hmz › /flow › Installed ›</span> <span class="p b">ralph_loop</span>                    <span class="y">● unsaved changes</span>
   <span class="m">Configure each role: an agent (CLI, account, model and effort) or an</span>
   <span class="m">environment; then what the flow takes and what a run may spend.</span>
 
@@ -214,7 +214,7 @@ fills it with the first CLI it found, so the row already names one.
    <b>budget</b>                                                           <span class="m">none ▸</span> <span class="n">2</span>
      <span class="m">what a run may spend: none set; a run needs one</span>
    ────────────────────────────────────────────────────────────────────────
-   <b>profiling</b>                                                         <span class="m">off ▸</span> <span class="n">3</span>
+   <b>profiling</b>                                                       <span class="m">○ off ▾</span> <span class="n">3</span>
      <span class="m">traced only</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
@@ -235,37 +235,54 @@ Press <kbd>enter</kbd> on `agent`. An agent is four rows:
 
 <Term title="hmz · /flow › ralph_loop › agent">
 
-<pre>   <span class="p b">Set up agent</span>
-   <span class="m">Configure this agent: select its CLI, account, model, and reasoning effort.</span>
+<pre>  <span class="m">hmz › /flow › Installed › ralph_loop ›</span> <span class="p b">Set up agent</span>
+  <span class="m">Configure this agent: select its CLI, account, model, and reasoning
+  effort.</span>
 
-     <span class="d">1.</span> cli         claude ▸                          <span class="m">coding agent CLI to use</span> <span class="n">1</span>
-     <span class="d">2.</span> account     as local ▸                        <span class="m">account to run as</span> <span class="n">2</span>
-     <span class="d">3.</span> model       claude-haiku-4-5-20251001 ▸       <span class="m">model to use</span> <span class="n">3</span>
-   <span class="p">❯ 4. effort      low ▾</span>                             <span class="m">reasoning effort</span> <span class="n">4</span>
-                    ╭─ effort ─────────────╮
-        save        │ ultracode            │
-                    │ max                  │
-                    │ xhigh                │
-                    │ high                 │
-   <span class="d">enter choose · es</span>│ medium               │
-                    │ low ✔                │
-                    ╰──────────────────────╯</pre>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <b>cli</b>                                                            <span class="a">claude ▸</span> <span class="n">1</span>
+     <span class="m">coding agent CLI to use</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>account</b>                                                      <span class="a">as local ▸</span> <span class="n">2</span>
+     <span class="m">account to run as</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>model</b>                                       <span class="a">claude-haiku-4-5-20251001 ▸</span> <span class="n">3</span>
+     <span class="m">model to use</span>
+   ────────────────────────────────────────────────────────────────────────
+  <span class="sel"> <b>effort</b>                                                            low ▾ </span> <span class="n">4</span>
+  <span class="sel">   reasoning effort                              </span><span class="p">╭─ effort ─────────────╮</span>
+                                                   <span class="p">│</span> ultracode            <span class="p">│</span>
+                                                   <span class="p">│</span> max                  <span class="p">│</span>
+                                                   <span class="p">│</span> xhigh                <span class="p">│</span>
+                                                   <span class="p">│</span> high                 <span class="p">│</span>
+                                                   <span class="p">│</span> medium               <span class="p">│</span>
+                                                   <span class="p">│</span><span class="sel"> low ✔                </span><span class="p">│</span>
+                                                   <span class="p">╰──────────────────────╯</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
+
+                                                                     <span class="m"> Save </span> <span class="n">5</span>
+
+  <b>enter</b> choose   <b>esc</b> close</pre>
 
 </Term>
 
 1. **`cli`**: the coding agent CLI that takes its turns. Only CLIs that can fill this role are
    listed. Choosing another clears the account and the model, since both belong to a CLI.
-2. **`account`**: `as local` is the CLI as you signed it in. `add` on its list makes another;
-   see [Accounts](/user/settings#accounts).
+2. **`account`**: `as local` is the CLI as you signed it in. **Add an account** under its list
+   makes another; see [Accounts](/user/settings#accounts).
 3. **`model`**: one of the models that CLI said it runs. The list shows each model's efforts
-   beside it, and `check again` asks the CLI again.
+   beside it, and **Check again** under it asks the CLI again.
 4. **`effort`**: how hard it thinks, from the model's own list. `▾` means <kbd>enter</kbd> or a
    click drops every effort the model takes under the row, hardest first, with `✔` on the one
    in force; <kbd>↑</kbd> <kbd>↓</kbd> and <kbd>enter</kbd>, or a click, pick one, and
    <kbd>esc</kbd> picks none. See [Efforts](/user/efforts).
+5. **Save** keeps the agent. It cannot be pressed until a row has changed.
 
-A row marked `▸` opens a list: <kbd>enter</kbd>, then pick. For a first run, pick a small
-model and a low effort, as here. Press <kbd>enter</kbd> on `save` to save the agent.
+A row marked `▸` opens a list: <kbd>enter</kbd> or <kbd>→</kbd>, then pick; each list opens on
+the choice in force. For a first run, pick a small model and a low effort, as here. Then
+<kbd>tab</kbd> to **Save** and press <kbd>enter</kbd> to save the agent. The line across the top
+is the way you came, `hmz › /flow › Installed › ralph_loop › Set up agent`: <kbd>esc</kbd> or a click on
+`ralph_loop` goes back there.
 
 A flow that has settings of its own asks for them before its roles. `ralph_loop` has none.
 
@@ -275,17 +292,27 @@ Press <kbd>enter</kbd> on `budget`:
 
 <Term title="hmz · /flow › ralph_loop › budget">
 
-<pre>   <span class="p b">Set budget for ralph_loop</span>
-   <span class="m">A run stops at whichever limit it reaches first; at least one limit is required. Leave empty or 0 for no limit.</span>
+<pre>  <span class="m">hmz › /flow › Installed › ralph_loop ›</span> <span class="p b">Set budget for ralph_loop</span> <span class="y">● unsaved changes</span>
+  <span class="m">A run stops at whichever limit it reaches first; at least one limit is
+  required. Leave empty or 0 for no limit.</span>
 
-     <span class="d">1.</span> duration                          20m          <span class="m">maximum run duration: 1h30m, 90s, PT2H; empty for no limit</span> <span class="n">1</span>
-   <span class="p">❯ 2. cost                              0.5</span>          <span class="m">maximum cost in US dollars, 0 for no limit</span> <span class="n">2</span>
-     <span class="d">3.</span> output_tokens                     0            <span class="m">maximum output tokens, 0 for no limit</span>
-     <span class="d">4.</span> graceful                          on ▾         <span class="m">finish the current turn when a limit is reached</span> <span class="n">3</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <b>duration</b>                                                            <span class="a">20m</span> <span class="n">1</span>
+     <span class="m">maximum run duration: 1h30m, 90s, PT2H; empty for no limit</span>
+   ────────────────────────────────────────────────────────────────────────
+  <span class="sel"> <b>cost</b>                                                                0.5 </span> <span class="n">2</span>
+  <span class="sel">   maximum cost in US dollars, 0 for no limit                            </span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>output_tokens</b>                                                         <span class="a">0</span>
+     <span class="m">maximum output tokens, 0 for no limit</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>graceful</b>                                                         <span class="g">● on ▾</span> <span class="n">3</span>
+     <span class="m">finish the current turn when a limit is reached</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
-        set                       <span class="m">all of the above</span> <span class="n">4</span>
+                                                                      <span class="btn"> Set </span> <span class="n">4</span>
 
-   <span class="d">enter change · esc back</span></pre>
+  <b>enter</b> change   <b>tab</b> actions   <b>esc</b> back</pre>
 
 </Term>
 
@@ -296,8 +323,8 @@ Press <kbd>enter</kbd> on `budget`:
    way.
 3. **`graceful`**: on lets the turn that is running finish when a limit is reached; off cuts
    it off. <kbd>enter</kbd> or a click drops the two under it, opening on the one it is not.
-4. **`set`** keeps all four. The `budget` row then reads `set`, and under it
-   `what a run may spend: stops at 20m, $0.50`.
+4. **Set** keeps all four: <kbd>tab</kbd> to it and press <kbd>enter</kbd>. The `budget` row
+   then reads `set`, and under it `what a run may spend: stops at 20m, $0.50`.
 
 The run stops at whichever limit it reaches first. If your account is billed by the token, set
 a `cost` as well as a `duration`. See [Every run has a budget](/features/allowances).
@@ -308,7 +335,7 @@ Press <kbd>tab</kbd> to reach **Save** under the roles, and <kbd>enter</kbd>. Th
 now reads `◉ ralph_loop`, and humanize says `enter a task to start the flow`.
 
 Nothing is applied before you save. <kbd>esc</kbd> steps back, and leaving `/flow` with changes
-in it asks `Save?`, with `save` and `discard`. A flow with no budget refuses to save, saying
+in it asks `Save?` in a box, with **Save** and **Discard**. A flow with no budget refuses to save, saying
 `this flow requires a budget: set the budget first`.
 
 ## 7. Say what to do

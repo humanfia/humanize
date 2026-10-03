@@ -1,10 +1,10 @@
 """`/flow`: the flows there are to run, where more come from, and what each one runs on.
 
-Drawn as `/settings` is (:mod:`hmz.tui.settings`): a screen of its own, the way here across
-the top with each step of it a way back, a list in a box with a block cursor, and what is done
-about the list rather than to one row of it -- installing, updating, searching, saving -- a bar
-of buttons under it. Enter or `→` goes into a row and esc, `←` or backspace comes back out, tab
-moves between the list, its search and the bar, and every one of those is a click as well.
+Drawn and worked as every menu is (:class:`hmz.tui.pick.Sheet`), `/settings` among them: a
+screen of its own, the way here across the top with each step of it a way back, a list in a box
+with a block cursor, and what is done about the list rather than to one row of it --
+installing, updating, searching, saving -- a bar of buttons under it. What is here is what is
+this menu's own: its pages, and what each does.
 
 Two pages under the first screen. **Installed** is what there is to run: the flows built into
 humanize, the ones installed out of a flowverse with the release each is at and a mark where a
@@ -20,22 +20,19 @@ Nothing reaches a network to draw a page. An index is read off the clone the las
 and fetching one is a button.
 """
 
-# The chrome is `/settings`' own, and so are the pieces it is drawn with.
+# The chrome is every sheet's own, and so are the pieces it is drawn with.
 # pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 
 import asyncio
-import textwrap
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 import semver
 from rich.markup import escape
-from textual import events, on, work
-from textual.binding import Binding
-from textual.containers import Horizontal
+from textual import on, work
 from textual.message import Message
-from textual.widgets import Button, Input, Label, OptionList, Static
+from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
 from hmz.runtime import telemetry
@@ -43,31 +40,34 @@ from hmz.runtime.kept import Runs, read_back
 
 from .pick import (
     _ACT_ADD,
+    _ACT_REMOVE,
     _ACT_SAVE,
-    _ACT_SEARCH,
     _APART_MARK,
-    _BUDGET,
     _DOT,
-    _FIRST,
+    _DROPS,
     _INFORCE,
-    _PROFILING,
-    _SHEET,
+    _NO,
+    _OPENS,
+    _YES,
     Action,
     Agent,
-    Body,
     Budgeted,
     Chosen,
     Configures,
-    Confirms,
     Declared,
     Drafts,
+    Drop,
     Form,
     Key,
     Placing,
+    Popup,
     Question,
     Sheet,
+    _chip,
     _hmz,
     _many,
+    _popup,
+    _shade,
     bad,
     budget_of,
     complete,
@@ -78,16 +78,14 @@ from .pick import (
     setting,
     settled,
     spent,
+    switched,
     why_not,
 )
-from .selecting import Choices
-from .settings import _SETTINGS, _shade
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
     from pydantic import BaseModel
-    from textual.app import App, ComposeResult
     from textual.await_complete import AwaitComplete
 
     from hmz.coganchor.backends import Model
@@ -118,9 +116,13 @@ _UP = {
     RELEASES: VERSE,
 }
 
-#: The row of the roles page that opens what the flow itself takes. Set apart, as the budget
-#: is, since a row id is otherwise an agent's place among the roles.
+#: The rows of the roles page that are about the run rather than any role: what the flow
+#: itself takes, what a run may spend, and whether it is profiled as well as traced. Each under
+#: a mark no name has, since a row id is otherwise an agent's place among the roles or an
+#: environment's name.
 _PARAMS = f"{_APART_MARK}params"
+_BUDGET = f"{_APART_MARK}budget"
+_PROFILING = f"{_APART_MARK}profile"
 
 #: What each button under a page is known by, beside the ones `/settings` has.
 _ACT_MORE, _ACT_UPDATE, _ACT_UNINSTALL, _ACT_COPY = (
@@ -129,7 +131,7 @@ _ACT_MORE, _ACT_UPDATE, _ACT_UNINSTALL, _ACT_COPY = (
     "uninstall",
     "copy",
 )
-_ACT_INSTALL, _ACT_FETCH, _ACT_REMOVE = "install", "fetch", "remove"
+_ACT_INSTALL, _ACT_FETCH = "install", "fetch"
 
 #: What says a row's flow is behind what its index lists, and what says a release is one.
 _NEWER, _PRE = "↑", "prerelease"
@@ -145,21 +147,6 @@ _CARDS = (
     (VERSES, "Flowverses", "⑂", "indexes of flows to install, update and add to"),
 )
 
-#: The chrome of `/settings`, the same rules under this menu's name, so that the two read as
-#: one interface: the way here across the top, the list in its box, the bar, the keys.
-_FLOWS = (
-    _SETTINGS.replace("Adjusts", "Flows")
-    + """
-Flows #trail { width: auto; padding: 0; color: $text-muted; link-color: $text-muted;
-    link-style: none; link-color-hover: $primary; link-style-hover: underline; }
-"""
-)
-
-
-def _act(key: str) -> str:
-    """The id of the button an action is drawn as."""
-    return f"act-{key}"
-
 
 @runtime_checkable
 class Lists(Protocol):
@@ -174,8 +161,14 @@ class Lists(Protocol):
         """Drops what was read off the disk and draws the list again."""
 
 
-class Removes(Confirms):
-    """Whether to take a flowverse away, and everything installed out of it with it."""
+class Removes(Popup):
+    """Whether to take a flowverse away, and everything installed out of it with it.
+
+    A box over the flowverses rather than a sheet, as every question that arrives is: what goes
+    with it said under the question, and the two answers its buttons.
+    """
+
+    CSS = _popup("Removes")
 
     def __init__(self, verse: str, flows: int) -> None:
         """Initializes the question.
@@ -186,12 +179,12 @@ class Removes(Confirms):
         """
         super().__init__()
         self.asked = f"Remove {verse}?"
-        self._flows = flows
+        gone = f" and {_many(flows, 'installed flow')}" if flows else ""
+        self.about = f"Takes its index away{gone}."
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Taking it away, or keeping it."""
-        gone = f"and {_many(self._flows, 'installed flow')}" if self._flows else ""
-        return [("yes", "remove", f"its index {gone}".strip()), ("no", "keep", "")]
+        return [("yes", "remove", "remove it now"), ("no", "keep", "keep it")]
 
 
 class Fetches(Form[tuple[str, str]]):
@@ -231,7 +224,6 @@ class Fetches(Form[tuple[str, str]]):
             "the flows you install from it are offered under the flowverse name."
         )
         self._fill()
-        self.query_one("#choices", OptionList).focus()
 
     def action_done(self) -> None:
         """Answers with where it is and what to call it, once there is somewhere to fetch."""
@@ -265,14 +257,6 @@ class Flows(Drafts[Chosen]):
     or when saving is confirmed on the way out. What is installed, updated, fetched or taken
     away lands as it is asked for.
     """
-
-    CSS = _SHEET + _FLOWS
-
-    BINDINGS: ClassVar = [
-        # Out a level, as esc is: the key a file manager and a browser both go up with.
-        Binding("backspace", "up", "back", show=False),
-        Binding("slash", "search", "search", show=False),
-    ]
 
     class Told(Message):
         """What was done as it was asked for -- installed, fetched, removed -- for the transcript.
@@ -391,12 +375,6 @@ class Flows(Drafts[Chosen]):
         self._busy = ""
         #: What is worth saying again in the transcript once the menu is done with.
         self._told: list[str] = []
-        #: What the page being drawn does about its list, which the buttons under it are.
-        self._acts: list[Action] = []
-        #: The keys the page last said it had, before where the focus is was said as well.
-        self._page_keys: tuple[Key, ...] = ()
-        #: How wide the screen was last drawn.
-        self._width = 0
 
     @property
     def _inside(self) -> bool:
@@ -540,59 +518,9 @@ class Flows(Drafts[Chosen]):
 
     # -- Opening and drawing -----------------------------------------------------------------
 
-    def compose(self) -> ComposeResult:
-        """The way here across the top, what the page is, the list, what it says, the bar, keys."""
-        with Body(id="sheet"):
-            yield Label(id="rule")
-            yield Label(id="tabs")
-            with Horizontal(id="top"):
-                yield Label("/flows", id="crumb-root")
-                yield Label(id="trail")
-                yield Label(
-                    " \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK} ", id="crumb-sep"
-                )
-                yield Label(id="asked")
-                yield Label(id="pending")
-            yield Label(id="about")
-            yield Input(placeholder="type to filter", id="seek")
-            yield Choices(id="choices")
-            yield Label(id="tuning")
-            with Horizontal(id="actions"):
-                # Saving at the far end, set apart from what is done to the list; the rest
-                # are put in front of it as each page asks for them.
-                yield Static(classes="spacer")
-                yield Button(
-                    "Save", id=_act(_ACT_SAVE), variant="primary", compact=True
-                )
-            yield Label(id="keys")
-
     def _ask(self) -> None:
         """Puts up the page it opened on."""
-        listing = self.query_one("#choices", OptionList)
-        # As tall as the screen leaves it: this is the whole screen, not a sheet over one.
-        listing.styles.max_height = None
         self._fill()
-        self._settles_focus()
-
-    def _settles_focus(self) -> None:
-        """Puts the focus on the list, or on the bar where the list has nothing to land on."""
-        listing = self.query_one("#choices", OptionList)
-        if any(not one.disabled for one in listing.options):
-            listing.focus()
-            return
-        for one in self._acts:
-            if one.able():
-                self.query_one(f"#{_act(one.key)}", Button).focus()
-                return
-        listing.focus()
-
-    def shortens(self) -> None:
-        """Lays the rows out across the screen again, where it changed width."""
-        width = self.size.width
-        if width != self._width:
-            self._width = width
-            if self.query("#choices"):
-                self._fill()
 
     def _key(self) -> str:
         """Which list the page drawn is, for remembering where its cursor was."""
@@ -612,12 +540,9 @@ class Flows(Drafts[Chosen]):
         """
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
-        self._said = ""
-        self._typed = ""
-        seek = self.query_one("#seek", Input)
-        seek.display = False
-        with seek.prevent(Input.Changed):
-            seek.value = ""
+        # A search goes with the page it was typed into, and the box with it.
+        self._said = self._typed = ""
+        self._searching = False
         listing.clear_options()
         self._drawn = None
         self._page = page
@@ -678,55 +603,15 @@ class Flows(Drafts[Chosen]):
         if landing:
             self._cursors[self._key()] = landing
 
-    def _width_of(self) -> int:
-        """How many cells across the list has to lay its rows out in."""
-        listing = self.query_one("#choices", OptionList)
-        return listing.scrollable_content_region.width or max(self.size.width - 6, 40)
-
-    def _card(
-        self,
-        named: str,
-        chip: str,
-        cells: int,
-        about: str,
-        *,
-        here: bool,
-        mark: str = "",
-    ) -> str:
-        """One row as a page of `/settings` draws one: name, value at the far end, line under.
-
-        Args:
-          named: What it is called.
-          chip: What it holds, as markup, at the far end.
-          cells: How wide that is on the screen.
-          about: The line under it, unescaped.
-          here: Whether the cursor is on it.
-          mark: What goes after the name -- the tick of the one in force -- as markup.
-
-        Returns:
-          The row, as markup.
-        """
-        width = self._width_of()
-        marked = 2 if mark else 0
-        pad = max(2, width - 2 - len(named) - marked - cells)
-        room = max(width - 4, 20)
-        line = textwrap.shorten(about, room, placeholder="…") if about else ""
-        return (
-            f" [b]{escape(named)}[/]{mark}{' ' * pad}{chip}\n"
-            f"   {_shade('$text-muted', line, here=here)}"
-        )
-
     def _fill(self) -> None:
-        """Puts up the page that is open, the way here, and the bar under it.
+        """Puts up the page that is open, what it is, and -- as it lands -- the bar under it.
 
         Where the cursor is is read first, since what the bar's buttons say and whether they
-        can be pressed is about the row it is on.
+        can be pressed is about the row it is on; each page ends with :meth:`_footed`, which
+        draws the bar and the way here from what the page now is.
         """
         self._follows(self.query_one("#choices", OptionList))
-        # Read twice: once for the keys the page says as it is drawn, and again once the page
-        # has landed its cursor, which is what an install button names the release by.
-        self._acts = self._actions()
-        self._draws_top()
+        self.query_one("#asked", Label).update(self.crumb())
         self.query_one("#about", Label).update(self._about())
         {
             HOME: self._fill_home,
@@ -736,57 +621,48 @@ class Flows(Drafts[Chosen]):
             VERSE: self._fill_verse,
             RELEASES: self._fill_releases,
         }[self._page]()
-        self._acts = self._actions()
-        self._shows_bar()
 
-    def _trail(self) -> list[tuple[str, str]]:
-        """The pages above the one open, past the first screen, and what each is called."""
-        if self._page == ROLES:
-            return [] if self._only else [(INSTALLED, "Installed")]
-        if self._page == VERSE:
-            return [(VERSES, "Flowverses")]
-        if self._page == RELEASES:
-            return [(VERSES, "Flowverses"), (VERSE, self._verse)]
-        return []
+    # -- The way across the top -------------------------------------------------------------
 
-    def _title(self) -> str:
-        """What the page open is called, at the end of the way here."""
+    def _path(self) -> list[str]:
+        """The pages above the one open, outermost first: none where it is the whole menu."""
+        if self._only:
+            return []
+        path: list[str] = []
+        up = _UP.get(self._page)
+        while up is not None:
+            path.insert(0, up)
+            up = _UP.get(up)
+        return path
+
+    def _title(self, page: str) -> str:
+        """What one page is called across the top."""
         return {
-            HOME: "",
+            HOME: "/flow",
             INSTALLED: "Installed",
             ROLES: self._flow,
             VERSES: "Flowverses",
             VERSE: self._verse,
             RELEASES: self._listed,
-        }[self._page]
+        }[page]
 
-    def _draws_top(self) -> None:
-        """Says where this is across the top: `/flows`, then each page on the way here.
+    def crumb(self) -> str:
+        """The page open, which is what a sheet opened from it -- an agent, a budget -- is in."""
+        return escape(self._title(self._page))
 
-        Every step of it but the last is a way back to that page, by a click.
+    def crumbs(self) -> list[str]:
+        """The pages on the way to the one open, each a way back to it."""
+        return [escape(self._title(page)) for page in self._path()]
+
+    def climbs_to(self, depth: int) -> None:
+        """Goes back to one of the pages on the way here, from a click on it across the top.
+
+        Args:
+          depth: Which, counting from the outermost.
         """
-        home = self._page == HOME
-        root = self.query_one("#crumb-root", Label)
-        root.display = not self._only
-        root.set_class(home, "home")
-        root.set_class(not home, "link")
-        sep = " \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK} "
-        steps = self._trail()
-        trail = self.query_one("#trail", Label)
-        trail.display = bool(steps)
-        trail.update(
-            "".join(
-                f"{sep}[@click=screen.crumb('{page}')]{escape(title)}[/]"
-                for page, title in steps
-            )
-        )
-        self.query_one("#crumb-sep", Label).display = not (home or self._only)
-        asked = self.query_one("#asked", Label)
-        asked.display = not home
-        asked.update(escape(self._title()))
-        self.query_one("#pending", Label).update(
-            "● unsaved changes" if self._changed else ""
-        )
+        path = self._path()
+        if depth < len(path):
+            self._goes(path[depth])
 
     def _about(self) -> str:
         """What the page open is for, in a line."""
@@ -817,24 +693,20 @@ class Flows(Drafts[Chosen]):
     def _fill_home(self) -> None:
         """Puts up a card per page: its mark, its name, what is in it, and what it is for."""
         landing = self._lands([page for page, _, _, _ in _CARDS], INSTALLED)
-        width = self._width_of()
         cards: list[Option | None] = []
         for page, title, icon, blurb in _CARDS:
-            here = page == landing
-            summary = self._summary(page)
-            pad = " " * max(2, width - 5 - len(title) - len(summary))
             cards.append(
                 Option(
-                    f" {_shade('$primary', icon, here=here)}  [b]{escape(title)}[/]"
-                    f"{pad}{_shade('$text-muted', summary, here=here)}\n"
-                    f"    {_shade('$text-muted', blurb, here=here)}",
+                    self._card(
+                        icon, title, self._summary(page), blurb, here=page == landing
+                    ),
                     id=f"={page}",
                 )
             )
             cards.append(None)
         self._put(cards[:-1], landing)
         self._tuned(self._said)
-        self._footed(Key("enter", "open"), Key("esc", "close"))
+        self._footed(Key("enter", "open"))
 
     def _summary(self, page: str) -> str:
         """What one card says is in it, in a few words."""
@@ -876,15 +748,15 @@ class Flows(Drafts[Chosen]):
                 group = heading
                 rows.append(Option(f" [$primary]{escape(heading)}[/]", disabled=True))
             here = one.name == landing
-            chip, cells = self._chip(one, here=here)
-            mark = (
-                f" {_shade('$success', _INFORCE, here=here)}"
-                if one.name == self._flow
-                else ""
-            )
             rows.append(
                 Option(
-                    self._card(one.name, chip, cells, one.about, here=here, mark=mark),
+                    self._setting(
+                        one.name,
+                        self._release_chip(one, here=here),
+                        one.about,
+                        here=here,
+                        inforce=one.name == self._flow,
+                    ),
                     id=f"={one.name}",
                 )
             )
@@ -894,9 +766,9 @@ class Flows(Drafts[Chosen]):
         if not shown:
             said = said or ("no matching flows" if self._typed else "no flows yet")
         self._tuned(said)
-        self._footed(Key("enter", "set up"), Key("esc", "back"))
+        self._footed(Key("enter", "set up"))
 
-    def _chip(self, offer: Offer, *, here: bool) -> tuple[str, int]:
+    def _release_chip(self, offer: Offer, *, here: bool) -> tuple[str, int]:
         """What a flow's row says at its far end: its release, and a newer one where listed.
 
         Args:
@@ -1070,12 +942,13 @@ class Flows(Drafts[Chosen]):
                 f"what a run may spend: {_spending(self._budget, unbounded=unbounded)}",
             )
         )
-        # Straight under the budget, the two of them about the run rather than any role.
+        # Straight under the budget, the two of them about the run rather than any role: a
+        # switch, its two values dropped under it as every switch's are.
         lines.append(
             (
                 _PROFILING,
                 "profiling",
-                "on" if self._profile else "off",
+                _YES if self._profile else _NO,
                 "samples the programs agents start" if self._profile else "traced only",
             )
         )
@@ -1083,32 +956,78 @@ class Flows(Drafts[Chosen]):
         rows: list[Option | None] = []
         for held, named, value, about in lines:
             here = held == landing
-            said = f"{value} ▸"
-            rows.append(
-                Option(
-                    self._card(
-                        named,
-                        _shade(
-                            "$text-muted"
-                            if value in ("not set", "none", "off")
-                            else "$secondary",
-                            said,
-                            here=here,
-                        ),
-                        len(said),
-                        about,
+            said = f"{value} {_OPENS}"
+            chip = (
+                _chip(value, _DROPS, here=here, toggles=True)
+                if held == _PROFILING
+                else (
+                    _shade(
+                        "$text-muted" if value in ("not set", "none") else "$secondary",
+                        said,
                         here=here,
                     ),
-                    id=f"={held}",
+                    len(said),
                 )
+            )
+            rows.append(
+                Option(self._setting(named, chip, about, here=here), id=f"={held}")
             )
             rows.append(None)
         self._put(rows[:-1], landing)
         said = self._said or ("" if roles or places else self._noagents())
         self._tuned(said)
-        self._footed(
-            Key("enter", "open"), Key("esc", "close" if self._only else "back")
+        self._footed(Key("enter", "open"))
+
+    def enters(self, row: str) -> bool:
+        """Whether the arrow right goes into a row: every row that opens something.
+
+        Not a release, which enter installs, nor the profiling switch, whose values drop.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for a card, a flow, a flowverse, and what a flow's roles page opens.
+        """
+        return bool(row) and self._page != RELEASES and not self.drops(row)
+
+    def drops(self, row: str) -> bool:
+        """Whether a row is the profiling switch of a flow's roles page.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for that switch.
+        """
+        return self._page == ROLES and row == _PROFILING
+
+    def dropping(self, row: str) -> Drop:
+        """The switch's two values, what each means, and which it is held at.
+
+        Args:
+          row: The switch, by id.
+
+        Returns:
+          The list, opening on the answer it is not, so that enter twice turns it round.
+        """
+        del row
+        return switched(
+            "profiling",
+            _YES if self._profile else _NO,
+            ("samples the programs agents start", "traced only"),
         )
+
+    def dropped(self, row: str, picked: str) -> None:
+        """Holds profiling at the value picked.
+
+        Args:
+          row: The switch, by id.
+          picked: `on` or `off`.
+        """
+        del row
+        self._profile = picked == _YES
+        self._said = ""
 
     def _noagents(self) -> str:
         """Why there is no role to set up, which is not always the same reason."""
@@ -1253,11 +1172,7 @@ class Flows(Drafts[Chosen]):
 
     async def _shown[T](self, sheet: Sheet[T]) -> T | None:
         """Puts a sheet up over this one and waits for what it answers."""
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        return await showing.push_screen_wait(sheet)
+        return await self._interface().push_screen_wait(sheet)
 
     def applied(self) -> None:
         """Answers with the flow, its roles and how it is set up, all of it at once.
@@ -1322,14 +1237,16 @@ class Flows(Drafts[Chosen]):
             state = self._standing(one)
             rows.append(
                 Option(
-                    self._card(
+                    self._setting(
                         one.name,
-                        _shade(
-                            "$warning" if state != "fetched" else "$text-muted",
-                            state,
-                            here=here,
+                        (
+                            _shade(
+                                "$warning" if state != "fetched" else "$text-muted",
+                                state,
+                                here=here,
+                            ),
+                            len(state),
                         ),
-                        len(state),
                         self._verse_about(one),
                         here=here,
                     ),
@@ -1339,7 +1256,7 @@ class Flows(Drafts[Chosen]):
             rows.append(None)
         self._put(rows[:-1] if rows else [], landing)
         self._tuned(self._said or ("no matching flowverses" if not verses else ""))
-        self._footed(Key("enter", "open"), Key("esc", "back"))
+        self._footed(Key("enter", "open"))
 
     def _standing(self, one: Flowverse) -> str:
         """Whether a flowverse's index is here, and whether anything was written into it.
@@ -1447,10 +1364,14 @@ class Flows(Drafts[Chosen]):
             here = name == landing
             newest = self._newest(listed, name)
             held = self._installs().get((self._verse, name))
-            chip, cells = self._listed_chip(newest.version, held, here=here)
             rows.append(
                 Option(
-                    self._card(name, chip, cells, newest.description, here=here),
+                    self._setting(
+                        name,
+                        self._listed_chip(newest.version, held, here=here),
+                        newest.description,
+                        here=here,
+                    ),
                     id=f"={name}",
                 )
             )
@@ -1458,7 +1379,7 @@ class Flows(Drafts[Chosen]):
         self._put(rows[:-1] if rows else [], landing)
         said = self._said or self._nothing_listed(listed, bool(flows))
         self._tuned(said)
-        self._footed(Key("enter", "releases"), Key("esc", "back"))
+        self._footed(Key("enter", "releases"))
 
     @staticmethod
     def _newest(listed: Index, name: str) -> Release:
@@ -1600,14 +1521,16 @@ class Flows(Drafts[Chosen]):
             said = "  ".join(marks)
             rows.append(
                 Option(
-                    self._card(
+                    self._setting(
                         one.version,
-                        _shade(
-                            "$success" if _INFORCE in said else "$text-muted",
-                            said,
-                            here=here,
+                        (
+                            _shade(
+                                "$success" if _INFORCE in said else "$text-muted",
+                                said,
+                                here=here,
+                            ),
+                            len(said),
                         ),
-                        len(said),
                         self._release_about(one),
                         here=here,
                     ),
@@ -1617,7 +1540,7 @@ class Flows(Drafts[Chosen]):
             rows.append(None)
         self._put(rows[:-1] if rows else [], landing)
         self._tuned(self._said or ("no matching releases" if not releases else ""))
-        self._footed(Key("enter", "install"), Key("esc", "back"))
+        self._footed(Key("enter", "install"))
 
     @staticmethod
     def _release_about(one: Release) -> str:
@@ -1810,166 +1733,23 @@ class Flows(Drafts[Chosen]):
 
     # -- Going in and out --------------------------------------------------------------------
 
-    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        """Whether one of this screen's keys is live now.
-
-        The arrows across, its letters and backspace are the search box's own while it has
-        the focus; and a search is started only where the page has one.
-
-        Args:
-          action: What the key would do.
-          parameters: What it would do it with.
-
-        Returns:
-          Whether to run it.
-        """
-        typing = isinstance(self.focused, Input)
-        if action == "across":
-            return not typing and not self._editing
-        if action == "search":
-            return not typing and self._acting(_ACT_SEARCH) is not None
-        if action == "up":
-            return not typing
-        return super().check_action(action, parameters)
-
     def action_up(self) -> None:
-        """Goes back out to the page this one is under."""
+        """Goes back out to the page this one is under -- or up out of the menu."""
         up = _UP.get(self._page)
         if up is not None and not self._only:
             self._goes(up)
-
-    def action_crumb(self, page: str) -> None:
-        """Goes back to one of the pages on the way here, as a click on its name across the top.
-
-        Args:
-          page: The page.
-        """
-        if page != self._page and not self._only:
-            self._goes(page)
+            return
+        super().action_up()
 
     def action_back(self) -> None:
-        """Comes out of a search, or out of the page, or leaves.
+        """Puts back a row, or comes out of a search, or out of the page, or leaves.
 
         Leaving asks first whether to save what is held, as every menu holding changes does.
         """
-        if self._typed or self.query_one("#seek", Input).display:
-            self._clears_search()
+        if not (self._editing or self._searching or self._only) and self._page in _UP:
+            self._goes(_UP[self._page])
             return
-        if self._page in _UP and not self._only:
-            self.action_up()
-            return
-        self.leaving()
-
-    def action_across(self, by: int) -> None:
-        """Steps along the bar, or goes into the row under the cursor, or back out.
-
-        Args:
-          by: One on, or one back.
-        """
-        focus = self.focused
-        if isinstance(focus, Button):
-            shown = [
-                one
-                for one in self.query_one("#actions", Horizontal).query(Button)
-                if one.display and not one.disabled
-            ]
-            if focus in shown:
-                shown[(shown.index(focus) + by) % len(shown)].focus()
-            return
-        if by < 0:
-            self.action_up()
-        elif self._page in (HOME, INSTALLED, VERSES, VERSE):
-            # Into what the row is a page of; a release, a role and a card's own sheet are
-            # opened with enter, being something done rather than somewhere gone.
-            self.action_enter()
-
-    def action_walk(self, by: int) -> None:
-        """Walks the list, or comes back to it from the search box above it or the bar below.
-
-        Args:
-          by: One row down, or one up.
-        """
-        focus = self.focused
-        listing = self.query_one("#choices", OptionList)
-        if isinstance(focus, Input):
-            if by > 0:
-                listing.focus()
-            return
-        if isinstance(focus, Button):
-            if by < 0:
-                listing.focus()
-            return
-        super().action_walk(by)
-
-    def action_enter(self) -> None:
-        """Opens the row under the cursor, presses the button with the focus, or ends typing."""
-        focus = self.focused
-        if isinstance(focus, Input):
-            self.query_one("#choices", OptionList).focus()
-            return
-        if isinstance(focus, Button):
-            focus.press()
-            return
-        super().action_enter()
-
-    def on_click(self, event: events.Click) -> None:
-        """Takes a click on the first word across the top as the way back to the first screen.
-
-        Args:
-          event: The click.
-        """
-        if event.widget is self.query_one("#crumb-root") and self._page != HOME:
-            self.action_crumb(HOME)
-
-    def on_descendant_focus(self) -> None:
-        """Says the keys again, which are not the same on the list, the search and the bar."""
-        if self._page_keys:
-            self._footed(*self._page_keys)
-
-    def leaving(self) -> None:
-        """Asks whether to save what is held, where anything is, and leaves."""
-        if not self._changed:
-            self.dismiss(None)
-            return
-        self.asks_to_save()
-
-    # -- Searching ---------------------------------------------------------------------------
-
-    def action_search(self) -> None:
-        """Opens the box a search is typed into, above the list, and puts the letters there."""
-        seek = self.query_one("#seek", Input)
-        seek.display = True
-        seek.focus()
-
-    @on(Input.Changed, "#seek")
-    def _seeks(self, event: Input.Changed) -> None:
-        """Narrows the list to what has been typed, as it is typed.
-
-        Args:
-          event: What the box says now.
-        """
-        self._typed = event.value
-        self._seek = _FIRST if event.value else ""
-        self._fill()
-
-    def _clears_search(self) -> None:
-        """Takes the search away, and the list back to all of itself."""
-        seek = self.query_one("#seek", Input)
-        with seek.prevent(Input.Changed):
-            seek.value = ""
-        seek.display = False
-        self._typed = ""
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
-
-    def _searches(self) -> Action:
-        """The button a page's list is searched from."""
-        return Action(
-            _ACT_SEARCH,
-            "search…",
-            "narrow the list by what is typed",
-            self.action_search,
-        )
+        super().action_back()
 
     def _saves_all(self) -> Action:
         """The button the flow and its roles are saved from.
@@ -1978,18 +1758,22 @@ class Flows(Drafts[Chosen]):
         there -- a flow named on `/flow <name>` and saved untouched is a flow chosen -- and
         elsewhere only while something is held.
         """
-        able = self._changed or self._page == ROLES
+
+        def able() -> bool:
+            return self._changed or self._page == ROLES
+
         return Action(
             _ACT_SAVE,
             "save",
-            "run this flow, set up as it is here" if able else "nothing to save yet",
+            "run this flow, set up as it is here" if able() else "nothing to save yet",
             self.applied,
-            lambda: self._changed or self._page == ROLES,
+            able,
+            "primary",
         )
 
     # -- The bar and the keys ----------------------------------------------------------------
 
-    def _actions(self) -> list[Action]:
+    def actions(self) -> list[Action]:
         """What the page open does about its list, in the order it stands."""
         if self._page == INSTALLED:
             return self._installed_actions()
@@ -2006,98 +1790,14 @@ class Flows(Drafts[Chosen]):
             return self._releases_actions()
         return [self._saves_all()] if self._changed else []
 
-    def _acting(self, key: str) -> Action | None:
-        """The action of the page drawn that a button is, by its key, or None for none."""
-        return next((one for one in self._acts if one.key == key), None)
-
-    def _shows_bar(self) -> None:
-        """Draws the actions the page said it has, as buttons in its order, and hides the rest.
-
-        A button is made the first time a page asks for its action and kept after, the save
-        button already standing at the far end: a bar made again on every keystroke would be
-        one that lost the focus of whoever was walking along it. And a button that can no
-        longer be pressed -- the install button while its install runs -- gives the focus back
-        to the list rather than to whichever button Textual would have passed it on to.
-        """
-        was = self.focused
-        bar = self.query_one("#actions", Horizontal)
-        spacer = bar.query_one(".spacer")
-        wanted = {_act(one.key) for one in self._acts}
-        for button in bar.query(Button):
-            button.display = button.id in wanted
-        order = [_act(one.key) for one in self._acts if one.key != _ACT_SAVE]
-        standing = [one.id for one in bar.query(Button) if one.id in order]
-        for one in self._acts:
-            found = bar.query(f"#{_act(one.key)}")
-            button = (
-                found.first(Button)
-                if found
-                else Button(one.label, id=_act(one.key), compact=True)
-            )
-            if not found:
-                bar.mount(button, before=spacer)
-            elif one.key != _ACT_SAVE and standing != order:
-                bar.move_child(button, before=spacer)
-            button.display = True
-            button.label = one.label[:1].upper() + one.label[1:]
-            button.tooltip = one.about or None
-            button.disabled = not one.able()
-        bar.display = bool(self._acts)
-        if any(
-            isinstance(one, Button) and (not one.display or one.disabled)
-            for one in (was, self.focused)
-        ):
-            self.query_one("#choices", OptionList).focus()
-
     def _footed(self, *keys: Key) -> None:
-        """Says the keys, for where the focus is as well as for the page.
+        """Says the keys, with esc saying whether it closes the menu or goes up a page.
 
         Args:
           keys: The page's keys, for its list.
         """
-        self._page_keys = keys
-        focus = self.focused
-        top = self._page == HOME or self._only
-        back = Key("esc", "close" if top else "back")
-        if isinstance(focus, Input):
-            keys = (Key("enter", "to list"), Key("esc", "clear"))
-        elif isinstance(focus, Button):
-            act = self._acting((focus.id or "").removeprefix("act-"))
-            keys = (
-                Key("enter", act.label.split()[0].rstrip("…") if act else "press"),
-                Key("←/→", "move"),
-                Key("tab", "list"),
-                back,
-            )
-        else:
-            keys = (
-                *(one for one in keys if one.key == "enter"),
-                *(
-                    (Key("/", "search"),)
-                    if self._acting(_ACT_SEARCH) is not None
-                    else ()
-                ),
-                *(
-                    (Key("tab", "actions"),)
-                    if any(one.able() for one in self._acts)
-                    else ()
-                ),
-                back,
-            )
-        super()._footed(*keys)
-
-    def keys_line(self, keys: Sequence[Key]) -> str:
-        """The keys with the key picked out from what it does, as a footer draws them.
-
-        Args:
-          keys: The keys.
-
-        Returns:
-          The row, as markup.
-        """
-        return "   ".join(
-            f"[b $accent]{escape(one.key)}[/] {escape(one.does)}" for one in keys
-        )
+        back = Key("esc", "close" if self._page == HOME or self._only else "back")
+        super()._footed(*(one for one in keys if one.key != "esc"), back)
 
     # -- Choosing ----------------------------------------------------------------------------
 
@@ -2134,29 +1834,12 @@ class Flows(Drafts[Chosen]):
         """
         if held == _BUDGET:
             self._budgets()
-        elif held == _PROFILING:
-            # Turned over where it stands rather than asked on a sheet: it is one of two.
-            self._profile = not self._profile
-            self.changed()
-            self._fill()
         elif held == _PARAMS:
             self._configures()
         elif held.startswith("@"):
             self._placing(held[1:])
         elif held.isdigit():
             self._configuring(int(held))
-
-    @on(Button.Pressed, "#actions Button")
-    def _acted(self, event: Button.Pressed) -> None:
-        """Does what the button pressed is for, as the page said.
-
-        Args:
-          event: The press.
-        """
-        event.stop()
-        act = self._acting((event.button.id or "").removeprefix("act-"))
-        if act is not None and act.able():
-            act.does()
 
     def dismiss(self, result: Chosen | None = None) -> AwaitComplete:
         """Answers, telling the interface what was done as it was asked for either way.
@@ -2168,11 +1851,7 @@ class Flows(Drafts[Chosen]):
           The waiting, as a sheet's own is.
         """
         if self._told and not self._answered:
-            showing = cast(
-                "App[None]",
-                self.app,  # pyright: ignore[reportUnknownMemberType]
-            )
-            showing.post_message(self.Told(tuple(self._told)))
+            self._interface().post_message(self.Told(tuple(self._told)))
         return super().dismiss(result)
 
 

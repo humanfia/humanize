@@ -1259,7 +1259,7 @@ class Humanize(App[None]):
         In the background and one at a time, because asking means starting a coding agent,
         or reaching the endpoint an account points one at: a prompt cannot wait on either, and
         six at once is six of them. A backend that will not answer is left alone rather than
-        retried -- the `check again` row under its models is what asks again.
+        retried -- the `check again` button under its models is what asks again.
         """
         import asyncio
 
