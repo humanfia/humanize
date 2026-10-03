@@ -276,6 +276,10 @@ up to run, your accounts, and the flowverses it fetched. Set `HUMANIZE_HOME` to 
 somewhere else. A project's own flows, and the runs you export from it, are in `.hmz/` in
 that project. The full list is in the [CLI reference](/reference/cli).
 
+Older versions used `~/.humanize/` and `.humanize/`. You don't have to do anything about
+them: humanize renames each one to `.hmz` the first time it looks there. If both are there,
+it uses `.hmz` and leaves the old one alone. See [Files](/reference/files#moved-from-humanize).
+
 ## Troubleshooting
 
 ### The line above the prompt reads only `assistant`

@@ -702,7 +702,7 @@ Variables these commands read. The complete list, with every layer's, is
 
 | Variable | Read by | Values | Effect |
 | --- | --- | --- | --- |
-| `HUMANIZE_HOME` | all | a path | Where humanize keeps what outlives a run. Default `~/.hmz`. Empty is unset. Not created until written. |
+| `HUMANIZE_HOME` | all | a path | Where humanize keeps what outlives a run. Default `~/.hmz`, which a `~/.humanize` is moved to. Empty is unset. Not created until written. |
 | `HUMANIZE_DAEMON` | `hmz` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |

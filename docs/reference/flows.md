@@ -1006,8 +1006,8 @@ against it and declare `GitEnvMixin` on the role.
 | `snapshots()` | The snapshot refs, oldest first by committer date (to the second; ties by name). Shared by every worktree of the repository. |
 
 The whole worktree is affected, whatever subdirectory the workdir is. Ignored files and a
-`.hmz/` at the worktree's top are neither recorded nor removed. Snapshots persist until
-`git update-ref -d refs/hmz/snapshots/<name>`.
+`.hmz/` (or a `.humanize/` not yet moved) at the worktree's top are neither recorded nor
+removed. Snapshots persist until `git update-ref -d refs/hmz/snapshots/<name>`.
 
 `RewindError` is raised for a workdir outside a git worktree, a ref git does not know, a name
 git refuses as a ref, a snapshot taken before the first commit rewound on a detached `HEAD`,

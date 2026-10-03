@@ -68,7 +68,7 @@ nothing.
 | Property | Type | Value |
 | --- | --- | --- |
 | `workspace` | `Path` | The project directory. |
-| `home` | `Path` | `$HUMANIZE_HOME`, else `~/.hmz`. Not created. |
+| `home` | `Path` | `$HUMANIZE_HOME`, else `~/.hmz` (a `~/.humanize` is moved there). Not created. |
 | `settings` | `hmz.runtime.settings.Settings` | What is remembered for this workspace and machine ([Settings](/reference/settings)). Internal type. |
 | `flows` | [`Flows`](#flows) | |
 | `verses` | [`Flowverses`](#flowverses) | The same object as `flows.verses`. |
