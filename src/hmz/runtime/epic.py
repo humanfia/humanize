@@ -54,7 +54,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import datetime
+import fcntl
 import json
+import os
 import re
 import shutil
 import threading
@@ -131,6 +133,12 @@ SESSIONS = "sessions"
 #: The engine's journal of a resumable run: what each flow call kept, and which calls ended.
 #: What `--resume` and `/resume` pick a run up from, kept beside the run it was written by.
 RESUME = "resume.jsonl"
+
+#: What a run holds locked for as long as it is going, which is what says it is going: the
+#: journal of a run under way reads exactly as the journal of one somebody stopped, and a
+#: run picked up while the run it is picked up from goes on is two loops on one directory.
+#: Held by the process, so a run killed outright lets go of it with its process.
+_HELD = ".held"
 
 #: Where the traces gathered of one run go, inside that run's own directory. A trace of a run
 #: belongs with the run: the sessions it points at and the state it left are already there.
@@ -438,9 +446,58 @@ def picks_up(epic: Path) -> bool:
 
     Returns:
       True where the run was of a resumable flow and got as far as writing its first call
-      down; False for any other run, and for one killed before it wrote anything.
+      down; False for any other run, for one killed before it wrote anything, and for one
+      still going -- a run picked up from one that goes on is two loops on one directory.
     """
-    return any(one.get("t") == "call" for one in _journal(epic))
+    return not _going(epic) and any(one.get("t") == "call" for one in _journal(epic))
+
+
+def _hold(at: Path) -> int | None:
+    """Holds what says a run is going, for as long as the descriptor is open.
+
+    Args:
+      at: The file.
+
+    Returns:
+      The descriptor, not inherited by anything the run starts -- an agent's process left
+      behind would otherwise keep the run going after it ended -- or None where it cannot be
+      held, which is a run that cannot say it is going rather than one that cannot run.
+    """
+    try:
+        held = os.open(at, os.O_RDWR | os.O_CREAT, 0o600)
+    except OSError:
+        return None
+    try:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(held)
+        return None
+    return held
+
+
+def _going(epic: Path) -> bool:
+    """Whether the run one epic is of is still going, here or in any other process.
+
+    Args:
+      epic: The epic's directory.
+
+    Returns:
+      True while the process running it holds it, and False for a run that ended, one whose
+      process went, and one written before runs held anything.
+    """
+    try:
+        held = os.open(epic / _HELD, os.O_RDONLY)
+    except OSError:
+        return False
+    try:
+        fcntl.flock(held, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    except OSError:
+        return False
+    finally:
+        os.close(held)
+    return False
 
 
 def state(epic: Path, flow: str = "") -> dict[str, Any]:
@@ -558,10 +615,11 @@ class Epic:
             (workspace or Path.cwd()).resolve(),
             flow,
         )
+        self._at.mkdir(parents=True, exist_ok=True)
+        self._held = _hold(self._at / _HELD)
         if picked_up is not None:
             # A copy rather than the file itself: the run it came from is closed, and the
             # engine compacts what it picks up before it appends to it.
-            self._at.mkdir(parents=True, exist_ok=True)
             with contextlib.suppress(OSError):
                 shutil.copyfile(picked_up / RESUME, self._at / RESUME)
         #: The programs this run starts, sampled while it runs, or None for a run nobody
@@ -610,6 +668,8 @@ class Epic:
         #: How it ended, where whoever is running it has said: "stopped" for a run stopped
         #: by hand or by what it was allowed to spend, rather than one that failed.
         self._how = ""
+        #: What says the run is going, held by a run and never by a call inside one.
+        self._held: int | None = None
 
     @property
     def path(self) -> Path:
@@ -712,6 +772,12 @@ class Epic:
             how=self._how
             or ("stopped" if stopped else "failed" if kind is not None else "done"),
         )
+        # Let go of once it says how it ended, never before: a run read as over while its
+        # end is still being written is a run picked up from the line before its last.
+        if (held := self._held) is not None:
+            self._held = None
+            with contextlib.suppress(OSError):
+                os.close(held)
 
     def called(self, flow: str, task: str = "", *, resumable: bool = False) -> Sub:
         """Opens the record of a flow this one called, beside this one's own.

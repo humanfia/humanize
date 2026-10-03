@@ -13,6 +13,8 @@ answers into it. Nothing here starts a coding agent.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -118,6 +120,40 @@ def test_the_last_run_of_a_flow_here_is_what_a_resumable_flow_picks_up(
     assert held.resumed(named) == ran
     assert held.picks_up(ran)
     assert held.resumed("a-flow-nobody-ran") is None
+
+
+def test_a_run_still_going_in_another_process_is_not_one_to_pick_up(
+    ran: Path, named: str
+) -> None:
+    """Its journal reads as a stopped run's, and picking it up is two loops on one directory.
+
+    `/epics` offered the flame_chase an `hmz exec` in another terminal was still running.
+    """
+    script = (
+        "import fcntl, os, sys, time\n"
+        f"held = os.open({str(ran / '.held')!r}, os.O_RDWR | os.O_CREAT)\n"
+        "fcntl.flock(held, fcntl.LOCK_EX)\n"
+        "print('held', flush=True)\n"
+        "sys.stdin.read()\n"
+    )
+    going = subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert going.stdout is not None
+        assert going.stdout.readline() == "held\n"
+        held = Hmz().epics
+
+        assert not held.picks_up(ran)
+        assert held.resumed(named) is None
+    finally:
+        going.communicate("")
+
+    # And once the process has gone, it is a run that ended, to be picked up as any is.
+    assert Hmz().epics.resumed(named) == ran
 
 
 def test_what_a_flow_left_behind_is_what_the_run_picking_it_up_is_handed(

@@ -319,6 +319,7 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | `epic.<flow>_<hex6>.jsonl` | one per flow call | [records](/reference/tracing#records-of-called-flows) |
 | `resume.jsonl` | resumable runs only; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
 | `profile.jsonl` | profiled runs only | [profile](/reference/tracing#profile-jsonl) |
+| `.held` | empty, `0600`; `flock`ed exclusively by the process running the run until `ended` is written | a run whose `.held` is locked is still going, and is not [picked up](/reference/cli#picking-a-run-up) |
 | `sessions/<cli>/…` | by the CLI itself, redirected | the CLI's own layout |
 | `traces/*.trace.json` | on demand; plain write | [Chrome trace](/reference/tracing#document) |
 

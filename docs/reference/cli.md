@@ -305,7 +305,8 @@ each session's harness went is recorded on the session in the epic as `local`, `
 ### Picking a run up (`--resume`) {#picking-a-run-up}
 
 `--resume` picks up the newest epic of the same flow (matched by canonical ref) in this
-workspace whose journal (`resume.jsonl`) holds at least one entry. The flow must be
+workspace whose journal (`resume.jsonl`) holds at least one entry and whose run is not still
+going (in another terminal, or held by `hmz`; see [`.held`](/reference/files)). The flow must be
 [resumable](/reference/flows#a-flow-that-can-be-picked-up). `-a`, `-e`, `-p` and `-b` are
 still read from the line; the budget counts from zero. The new run is a new epic and records
 the epic it `picked_up`. Without `--resume` every run starts from the top.
