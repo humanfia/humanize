@@ -197,19 +197,29 @@ def test_a_target_keeping_its_python_off_the_path_is_found_it_anyway(
     ``PATH`` for real, which is the same target as a Mac's: the bare names answer to nothing
     and only the places one is kept are left.
     """
+    said = "import sys; print(sys.version_info[0], sys.version_info[1])"
     kept = [
         candidate
         for candidate in PYTHON_CANDIDATES
-        if candidate.startswith("/") and os.access(candidate, os.X_OK)
+        if candidate.startswith("/")
+        and os.access(candidate, os.X_OK)
+        # One too old is passed over, as the bundle passes it over: Ubuntu 22.04's own
+        # /usr/bin/python3 is 3.10, and is no interpreter to find.
+        and tuple(
+            int(part)
+            for part in subprocess.run(
+                [candidate, "-c", said], capture_output=True, text=True, check=False
+            ).stdout.split()
+        )
+        >= MINIMUM_PYTHON
     ]
     if not kept:
         pytest.skip(
-            "this machine keeps no interpreter at any of the absolute candidates"
+            "this machine keeps no interpreter new enough at any of the absolute candidates"
         )
     empty = tmp_path / "empty"
     empty.mkdir()
 
-    said = "import sys; print(sys.version_info[0], sys.version_info[1])"
     result = subprocess.run(
         python_command(["-c", said]),
         capture_output=True,
