@@ -362,6 +362,9 @@ class ClaudeCodeSession(StreamSessionBase):
         #: and what each of those messages last said it had cost.
         self._fed: Counter[str] = Counter()
         self._seen: dict[str, Counter[str]] = {}
+        #: The message each agent on the stream is writing now, by the call it was started
+        #: under ("" for this one's own), since what closes one names no message.
+        self._messages: dict[str, str] = {}
         #: What the process now up was started to think at, so that a flow moving the effort
         #: mid-session is answered by starting one that thinks at the new one.
         self._at: str | None = None
@@ -823,11 +826,21 @@ class ClaudeCodeSession(StreamSessionBase):
           said: The `assistant` event, as read.
         """
         message: dict[str, Any] = said.get("message") or {}
-        usage: dict[str, Any] = message.get("usage") or {}
-        # Claude says the same message twice -- once for the thinking in it and once for the
-        # words -- and states the whole of what that request cost both times. So what one of
-        # these adds is the rise on the message it names, not the figure on it.
-        named = str(message.get("id") or "")
+        self._rose(str(message.get("id") or ""), message.get("usage") or {})
+
+    def _rose(self, named: str, usage: dict[str, Any]) -> None:
+        """Counts what one message now says it has cost, beyond what it said before.
+
+        Claude says the same message several times -- once for the thinking in it, once for
+        the words, once for each call -- and states the whole of what that request cost each
+        time, so what one of these adds is the rise on the message it names, not the figure
+        on it. Its output only as it stood when the message began, which is a handful of
+        tokens: what it came to is on the `message_delta` that closes it, read here too.
+
+        Args:
+          named: Claude's id for the message.
+          usage: What it says the message has cost, as Anthropic spells each kind.
+        """
         counted: Counter[str] = Counter(
             {
                 kind: int(usage.get(spelled) or 0)
@@ -843,10 +856,15 @@ class ClaudeCodeSession(StreamSessionBase):
                 if (tokens := counted[kind] - before[kind]) > 0
             }
         )
-        self._seen[named] = counted
+        # A request the first time its message is told of, and the same request after: what
+        # the rest add is what it came to, not another turn of the model in the average.
+        asked = named not in self._seen
+        # The most each kind has been said to be, since a `message_delta` names some kinds and
+        # not others: one it left out has not gone back to nothing.
+        self._seen[named] = before | counted
         if risen.total:
             self._fed.update(risen)
-            self._spends(risen)
+            self._spends(risen, turn=asked)
 
     def _settle(self, risen: Usage) -> None:
         """Adds whatever the turn's own total says was spent beyond what was counted live.
@@ -1153,9 +1171,10 @@ class ClaudeCodeSession(StreamSessionBase):
         arguments are the file. Between the two the turn says nothing whatever, which is a
         minute of silence on a large edit and reads from outside as an agent that has hung.
 
-        Nothing else is read from here. What was thought and what was said arrive whole on the
-        message Claude closes each part with, and that is the utterance rather than the
-        fragments of one -- a row per fragment is a paragraph broken into fifty answers.
+        Nothing else is read from here but what each message came to, which nothing else says.
+        What was thought and what was said arrive whole on the message Claude closes each part
+        with, and that is the utterance rather than the fragments of one -- a row per fragment
+        is a paragraph broken into fifty answers.
 
         Args:
           event: What the line carried, which is Anthropic's own streaming event.
@@ -1215,7 +1234,20 @@ class ClaudeCodeSession(StreamSessionBase):
                     if isinstance(whole, dict)
                     else "",
                 )
-            case _:  # a message starting or ending, and the fragments of words
+            case "message_start":
+                message = cast("dict[str, Any]", event.get("message") or {})
+                self._messages[under] = str(message.get("id") or "")
+            case "message_delta":
+                # What the message came to, which the messages carrying its parts never say:
+                # each states the output as it stood when the message began. Read as it
+                # lands, a turn writing a hundred thousand tokens is a turn the budget and
+                # the rate see writing them, rather than a few hundred and then the rest at
+                # the end -- past a cap that was meant to stop it on the way.
+                self._rose(
+                    self._messages.get(under, ""),
+                    cast("dict[str, Any]", event.get("usage") or {}),
+                )
+            case _:  # the fragments of words
                 pass
 
     def _called(self, marked: str, named: str, about_it: str) -> Iterator[Event]:
