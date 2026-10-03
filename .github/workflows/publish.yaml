@@ -1,0 +1,103 @@
+# Publishes a release to PyPI. Publishing a GitHub release is the one thing that starts it;
+# docs/contributing/releasing.md is how a maintainer gets there.
+#
+# PyPI trusts this file by its name and the `pypi` environment, through trusted publishing:
+# no token is stored anywhere, so renaming this file or the environment stops releases until
+# the publisher on PyPI is changed to match.
+
+name: publish
+
+on:
+  release:
+    types: [published]
+  # Builds and checks what a release would publish, and publishes nothing.
+  workflow_dispatch:
+
+permissions: {}
+
+# One run per release, and never one cancelled half-way through an upload.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          # Nothing restored from a cache another run wrote goes into what is published.
+          enable-cache: false
+
+      - name: The release is tagged with the version it publishes
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="$(uv version --short)"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::release $TAG publishes pyproject.toml's $version; tag it v$version"
+            exit 1
+          fi
+
+      - name: Build
+        run: uv build --no-sources
+
+      - name: PyPI will render the description
+        run: uvx twine@7.0.0 check --strict dist/*
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    # A fork's release, or a dry run, stops at the build.
+    if: github.repository == 'humanfia/humanize' && github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/hmz
+    permissions:
+      id-token: write # traded with PyPI for an upload token, and what the attestations are signed by
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          attestations: true
+
+  release-assets:
+    name: attach to the release
+    # After PyPI, so the release never offers files PyPI refused.
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # to upload to the release
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
