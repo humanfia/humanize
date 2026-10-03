@@ -572,8 +572,8 @@ network](/reference/providers#hosts-reachable-under-a-cut-network)).
 | `grok` | `cli-chat-proxy.grok.com`, `auth.x.ai`, `api.x.ai` |
 | `kimi` | `api.kimi.com`, `auth.kimi.com`, `api.kimi.ai`, `auth.kimi.ai`, `api.moonshot.ai`, `api.moonshot.cn` |
 | `mcode` | `agent.minimax.io`, `agent.minimaxi.com`, `agent.minimax.cn`, `api.minimax.io`, `api.minimaxi.com`, `account.minimax.io`, `account.minimax.cn` (a cut network is refused anyway) |
-| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com` |
-| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com` |
+| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`; plus the `options.baseURL` of the provider `opencode/opencode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
 | `pi` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`; plus the `baseUrl` of each provider pi's own `models.json` declares for the model |
 | `qwen` | `chat.qwen.ai`, `portal.qwen.ai`, `dashscope.aliyuncs.com`, `dashscope-intl.aliyuncs.com` |
 | an ACP CLI | its declared `hosts` |
@@ -1351,6 +1351,8 @@ below but `leader` set away from default sends the turn to
 - The `-p` prompt is one argument (`--single=…`); Linux caps an argument at 32 pages, so a
   prompt over 131062 bytes raises before the process starts.
 - `--include-partial-messages`, `--agent-profile` and `--plugin-dir` are not fields.
+- Every turn is run with `GROK_FOLDER_TRUST=0`: Grok Build reads a project's skills, the ones a
+  flow mounts under `.agents/skills` included, only from a folder it trusts.
 
 ### Kimi Code {#the-daemon-kimi-is-driven-through}
 
@@ -1369,7 +1371,8 @@ rung, thinking level and swarm width, and question ids.
 - Usage comes from `turn.step.completed` (`inputOther`, `output`, `inputCacheRead`,
   `inputCacheCreation`); the larger of the steps' sum and the session aggregate wins per kind.
 - A turn is over when the session is seen stopped twice, a wait apart, after it was seen to
-  start.
+  start. One whose `turn.ended` notification says `reason: failed` fails, with the daemon's
+  `error` message, rather than answering with nothing.
 - The fence goes up once, when the daemon starts; another fence or account starts a new daemon.
   With `online=False`, the port is chosen before start and is the only one in `listen`, and
   `WebSearch`/`FetchURL` are in `disabled_tools` regardless of `web_search`.

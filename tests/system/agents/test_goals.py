@@ -131,7 +131,13 @@ def test_codex_leaves_the_goal_on_the_thread(
 ) -> None:
     """A goal is thread state, so the thread is what is asked afterwards whether it had one."""
     monkeypatch.chdir(tmp_path)
-    agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="low"))
+    # Allowed to write, as the goal asks it to: left at codex's own defaults it ran read-only
+    # wherever `~/.codex/config.toml` did not already trust the folder, and gave up.
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="gpt-5.6-sol", effort="low", permission="workspace-write"
+        )
+    )
     session = agent.new()
     session.pursue(OBJECTIVE)
 

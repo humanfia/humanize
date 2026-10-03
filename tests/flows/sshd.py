@@ -31,6 +31,7 @@ anything there removes it. The sshd of the test's own is told to take the test's
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import socket
 import subprocess
@@ -121,6 +122,36 @@ def _unreachable() -> str | None:
     return None
 
 
+def _pythonless(host: str) -> str | None:
+    """Why `host` cannot run humanize's half of a run, or None where it can.
+
+    Every target needs a Python new enough for the bundle, looked for where a login shell over
+    `ssh` finds one: an Ubuntu 22.04 keeps a 3.10 there and nothing newer, however many a
+    developer keeps on their own `PATH`. That is the machine, and the test is skipped for it.
+    """
+    from hmz.coganchor.transport import python_command
+
+    try:
+        said = subprocess.run(
+            [
+                "ssh",
+                "-o",
+                "BatchMode=yes",
+                host,
+                shlex.join(python_command(["-c", ""])),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return f"`ssh {host}` could not be run: {error}"
+    if said.returncode and "no python" in said.stderr:
+        return said.stderr.strip()
+    return None
+
+
 def _free_port() -> int:
     with socket.socket() as probing:
         probing.bind(("127.0.0.1", 0))
@@ -153,6 +184,8 @@ def ssh_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     """A host a real `ssh` reaches without a password: localhost, or an sshd of our own."""
     why = _unreachable()
     if why is None:
+        if (old := _pythonless("localhost")) is not None:
+            pytest.skip(old)
         yield "localhost"
         return
     sshd = shutil.which("sshd") or shutil.which(
@@ -198,6 +231,8 @@ def ssh_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
             f"  SetEnv HUMANIZE_HOME={home()}\n  LogLevel ERROR\n",
             monkeypatch,
         )
+        if (old := _pythonless(ALIAS)) is not None:
+            pytest.skip(old)
         yield ALIAS
     finally:
         server.terminate()

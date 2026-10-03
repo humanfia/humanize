@@ -98,11 +98,8 @@ def build(
     )
     for pid, agent in enumerate(order, start=1):
         members = groups[agent]
-        events.append(
-            _meta(
-                pid, 0, "process_name", {"name": f"{agent} · {len(members)} sessions"}
-            )
-        )
+        opened = f"{len(members)} session{'' if len(members) == 1 else 's'}"
+        events.append(_meta(pid, 0, "process_name", {"name": f"{agent} · {opened}"}))
         events.append(_meta(pid, 0, "process_sort_index", {"sort_index": pid}))
         events.append(_meta(pid, 0, "process_labels", {"labels": label}))
         rows: list[list[Session]] = []

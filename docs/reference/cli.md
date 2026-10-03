@@ -305,7 +305,8 @@ each session's harness went is recorded on the session in the epic as `local`, `
 ### Picking a run up (`--resume`) {#picking-a-run-up}
 
 `--resume` picks up the newest epic of the same flow (matched by canonical ref) in this
-workspace whose journal (`resume.jsonl`) holds at least one entry. The flow must be
+workspace whose journal (`resume.jsonl`) holds at least one entry and whose run is not still
+going (in another terminal, or held by `hmz`; see [`.held`](/reference/files)). The flow must be
 [resumable](/reference/flows#a-flow-that-can-be-picked-up). `-a`, `-e`, `-p` and `-b` are
 still read from the line; the budget counts from zero. The new run is a new epic and records
 the epic it `picked_up`. Without `--resume` every run starts from the top.
@@ -361,6 +362,7 @@ Stage 1–2 messages are preceded by the usage block.
 | a role the runtime fills | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a`; `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
 | a required role unfilled | `<flow> needs an agent for '<role>'; specify each with -a ROLE=CLI/MODEL:EFFORT`; `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND@RUNTIME/WORKDIR` |
 | a role typed as one CLI given another | `<flow>: '<role>' requires <cli>, but got <cli>` |
+| an `@<provider>` naming no account of that CLI | `<flow>: '<role>' names no <cli> account called '<provider>'; make it on the accounts page of /settings` |
 | a CLI lacking a capability the role needs | `<flow>: '<role>' needs <Mixin>[, <Mixin>…], which <cli> does not support` |
 | an effort off the ladder | `<role>=<spec>: <cli> cannot be asked to think at '<effort>'; expected one of <ladder>` |
 | params the flow rejects | `<canonical ref>: <pydantic validation error>` |
@@ -401,7 +403,10 @@ One line (or block) per event, in order. `●` is `⏺` on macOS.
 | `took` | nothing | |
 
 Cost footer: `✻ <kind> <count>[ · <kind> <count>…] · [<money> · ]<model> · <agent>`, drawn
-only for a `result` carrying `spent`. Kinds in the order `input`, `output`, `cache_read`,
+only for a `result` carrying `spent`. `<model>` is the one model the result's `tokens` names,
+where it names exactly one (the model a [fallback](/user/settings#fallback) carried the turn
+to, or the one an alias resolved to), else the agent's configured model; it is also what the
+money is priced at. Kinds in the order `input`, `output`, `cache_read`,
 `cache_write`, `reasoning`, then any other alphabetically. Counts: `< 1000` as an integer,
 `< 1 000 000` as `<n.n>k`, else `<n.nn>M`. Money is omitted for a model with no known price;
 otherwise `$<n>` with no decimals from $100, two decimals from $0.01, four below, `$0.00` for

@@ -41,7 +41,7 @@ cd original_performance_takehome
 python tests/submission_tests.py
 ```
 
-You should see:
+Among the eight failures it reports, you should see:
 
 ```console
 Testing forest_height=10, rounds=16, batch_size=256
@@ -93,9 +93,9 @@ The rules, from the repository's own Readme:
 Where you are starting from: 147734 cycles.
 
 Each turn: measure first, make one substantial optimisation, measure again, and
-keep it only if the cycle count went down and the tests still pass. Write what
-you tried and what it measured into NOTES.md, so whoever takes the next turn
-does not repeat it.
+commit it only if the cycle count went down and the tests still pass. Write
+what you tried and what it measured into NOTES.md, and commit that too, so
+whoever takes the next turn does not repeat it.
 EOF
 git add -A && git commit -qm "the task"
 ```
@@ -106,12 +106,15 @@ git add -A && git commit -qm "the task"
    submissions on the first day were valid, because in each one a model had edited the tests.
    An agent that is never asked anything will find that shortcut, so name it, together with the
    command that proves nobody took it.
-2. **Measure, change, measure.** Without it, a turn can end believing it made
-   things faster.
+2. **Measure, change, measure, commit.** Without the measuring, a turn can end believing it
+   made things faster. Without the commit, a turn that backs out its own failed attempt with
+   `git checkout` backs out every earlier turn's work with it, since none of it was committed.
+   In a run of this tutorial without it, the second chaser's third turn did just that, and
+   took the kernel from 1,641 cycles back to 147,734.
 3. **`NOTES.md`.** Each turn starts from nothing, so anything worth carrying has
    to be written to a file.
 
-Committing the task means `git diff` later shows the agents' work and nothing of yours.
+Committing the task means `git log` later shows the agents' work and nothing of yours.
 
 ::: tip Checkpoint
 `git log --oneline -1` shows `the task`, and `git status` is clean.
@@ -284,9 +287,9 @@ Choose **export run**. The line under the list says where the archive went, in t
 the screen's title. Drag it into [ui.perfetto.dev](https://ui.perfetto.dev):
 
 ```
-process   first_chaser · 6 sessions
+process   first_chaser · claude-opus-5-5 · high · 6 sessions
   track     main ──▶ ▓▓▓▓▓     ▓▓▓▓▓▓     ▓▓▓▓     ▓▓▓▓▓▓
-process   second_chaser · 6 sessions
+process   second_chaser · gpt-5.6-sol · high · 6 sessions
   track     main ──▶      ▓▓▓▓▓      ▓▓▓▓▓     ▓▓▓▓▓
 ```
 

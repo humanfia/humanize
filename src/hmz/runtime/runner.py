@@ -318,6 +318,7 @@ class Runner:
         Raises:
           Refused: For a role that cannot be given this.
         """
+        from hmz.coganchor import providers
         from hmz.runtime.flowing.specs import AgentSpec, SpecError, parse_agents
         from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES
 
@@ -361,6 +362,17 @@ class Runner:
                     f"{named}: {name!r} needs "
                     f"{', '.join(sorted(one.__name__ for one in lacking))}, "
                     f"which {harness} does not support"
+                )
+            if (
+                isinstance(said, AgentSpec)
+                and said.provider
+                and providers.find(said.cli, said.provider) is None
+            ):
+                # A line naming an account nobody made is a line that was wrong, and is
+                # said before anything runs rather than as the traceback of the first turn.
+                raise Refused(
+                    f"{named}: {name!r} names no {said.cli} account called "
+                    f"{said.provider!r}; make it on the accounts page of /settings"
                 )
             drivers[name] = said
             if isinstance(said, AgentSpec):

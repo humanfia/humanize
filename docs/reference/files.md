@@ -55,6 +55,7 @@ H/
 ~/.humanize/flows/                      your flows (flowverse `user`)
 <workspace>/.humanize/
 ├── flows/                              this project's flows (flowverse `local`)
+├── .gitignore                          `*.epic.tar.gz`, written by the first export if absent
 └── <epic>.epic.tar.gz                  exported runs
 ```
 
@@ -318,6 +319,7 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | `epic.<flow>_<hex6>.jsonl` | one per flow call | [records](/reference/tracing#records-of-called-flows) |
 | `resume.jsonl` | resumable runs only; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
 | `profile.jsonl` | profiled runs only | [profile](/reference/tracing#profile-jsonl) |
+| `.held` | empty, `0600`; `flock`ed exclusively by the process running the run until `ended` is written | a run whose `.held` is locked is still going, and is not [picked up](/reference/cli#picking-a-run-up) |
 | `sessions/<cli>/…` | by the CLI itself, redirected | the CLI's own layout |
 | `traces/*.trace.json` | on demand; plain write | [Chrome trace](/reference/tracing#document) |
 
@@ -332,7 +334,10 @@ Like an epic's `sessions/`, it is the only copy of those conversations. Not used
 ### `<workspace>/.humanize/<epic>.epic.tar.gz`
 
 An [exported run](/reference/tracing#export). Written with `mkstemp` (mode `0600`) and renamed;
-exporting the same run again replaces it. Nothing in humanize imports one.
+exporting the same run again replaces it. Nothing in humanize imports one. Exporting here
+also writes `<workspace>/.humanize/.gitignore` (`*.epic.tar.gz`) where there is none, so a
+`git add -A` in the workspace, an agent's included, does not commit the archive; one already
+there is left as it is.
 
 ### `H/daemons/<name≤24>-<sha256(workspace)[:12]>/`
 

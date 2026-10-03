@@ -173,6 +173,10 @@ often new tokens reach it depends on the CLI:
 | `claude`, `codex`, `dsh`, `kimi`, `mcode` | <Badge type="tip" text="during the turn" /> as each request to the model comes back |
 | `agy`, `cursor-agent`, `grok`, `mimo`, `opencode`, `pi`, `qwen`, added CLIs | <Badge type="info" text="when the turn ends" /> all at once |
 
+What an agent of Claude Code's own (its `Agent` tool) spends is the exception: Claude says it
+only when the turn ends, so it arrives then, and a budget that is not graceful cannot stop a
+turn while one of those is working.
+
 The rate counts seconds on the clock, so the time a flow spends between turns counts too: a
 run that has stopped working reads as slowing down.
 

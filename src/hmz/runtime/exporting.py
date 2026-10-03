@@ -232,6 +232,8 @@ def bundle(
         raise ValueError(f"{epic} is not a run")
     landed = _lands(epic, at)
     landed.parent.mkdir(parents=True, exist_ok=True)
+    if at is None:
+        _unversioned(landed.parent)
     struck = _struck(ran)
     # What each session was logged to, found once. The manifest says what the archive
     # holds, and a second look would let it name a file the archive has not got: a log
@@ -356,6 +358,24 @@ def _now() -> str:
     return (
         datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     )
+
+
+def _unversioned(at: Path) -> None:
+    """Keeps the bundles written into a project's `.humanize/` out of its repository.
+
+    A bundle is the run's prompts and its agents' output, a few hundred kilobytes of it, and
+    it lands in the directory the agents work in: untracked there, the next `git add -A` of a
+    loop still running -- or of the person -- commits it. A `.gitignore` of humanize's own is
+    written once, where there is none; one somebody wrote is theirs and left alone.
+
+    Args:
+      at: The project's `.humanize/`.
+    """
+    with (
+        contextlib.suppress(OSError),
+        (at / ".gitignore").open("x", encoding="utf-8") as written,
+    ):
+        written.write("# runs exported here\n*.epic.tar.gz\n")
 
 
 def _lands(epic: Path, at: str | os.PathLike[str] | None) -> Path:

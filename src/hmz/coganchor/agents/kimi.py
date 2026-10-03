@@ -245,6 +245,9 @@ class _Updates:
         self._socket: ClientConnection | None = None
         self._contexts = contextlib.ExitStack()
         self.ended = False
+        #: What the daemon said the last turn failed of, or "" for one that did not: a turn
+        #: that failed stops the session as a turn that answered does, with nothing to say.
+        self.failed = ""
         #: Whether a question may be waiting to be answered. True to begin with and true
         #: again whenever this listener stops carrying events: what is not being told is
         #: asked for, which is the polling this backend ran on before there were
@@ -345,10 +348,13 @@ class _Updates:
                     # An agent beginning is not yet anything to read back: what it goes on
                     # to do is, and that arrives under its own name.
                     if main:
-                        self.ended = False
+                        self.ended, self.failed = False, ""
                 elif kind == "turn.ended":
                     if main:
                         self.ended = True
+                        ending = cast("dict[str, Any]", payload)
+                        if ending.get("reason") == "failed":
+                            self.failed = _erred(ending.get("error"))
                     return
                 elif (asks := _MEANS.get(str(kind))) is not None:
                     self.questioned = self.questioned or asks
@@ -1668,6 +1674,11 @@ class KimiCodeCLISession(SessionBase):
                             if message["role"] == "assistant" and text:
                                 answer = text
                                 break
+                        if stirred and settled and not busy and updates.failed:
+                            # Stopped as a turn that answered stops, and with nothing to say:
+                            # read as one, it was a loop going round on an empty turn as the
+                            # work of the turn before it.
+                            raise Failed(1, server._argv, answer, updates.failed)
                         if stirred and settled and not busy:
                             # Taken note of before it is passed on: a turn that landed is a session
                             # this agent opened, whether or not there is anywhere left to say so.
@@ -1709,6 +1720,24 @@ class KimiCodeCLISession(SessionBase):
                 if updates is not None:
                     updates.close()
                 self._running = _Running()
+
+
+def _erred(error: object) -> str:
+    """What the daemon said a failed turn failed of, in its own words where it gave any.
+
+    Args:
+      error: The `error` of a `turn.ended` frame, which the protocol leaves unshaped.
+
+    Returns:
+      Its message, or the whole of it written out, and something to say where it said nothing.
+    """
+    if isinstance(error, dict):
+        said = cast("dict[str, Any]", error)
+        if message := said.get("message") or said.get("errorMessage"):
+            return str(message)
+    if error:
+        return error if isinstance(error, str) else json.dumps(error)
+    return "the turn failed, and the daemon did not say why"
 
 
 def _free() -> int:

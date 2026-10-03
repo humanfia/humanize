@@ -87,7 +87,7 @@ from .hooks import EVERYWHERE, Moment
 
 if TYPE_CHECKING:
     import subprocess
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
 
     from pydantic import BaseModel
 
@@ -1233,6 +1233,19 @@ class GrokBuildAgent(AgentBase):
     #: `grok -p` run having no client to ask; a rung that falls to the command line is a rung
     #: `--always-approve` already settled, so there is nothing there to be asked about.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
+
+    def environment(self) -> Mapping[str, str]:
+        """The provider's variables, and the one that has Grok Build read a flow's skills.
+
+        Grok Build 1.0.46 reads a project's skills only out of a folder it was told to trust,
+        which a workspace a flow runs in has never been: the skills a flow mounts under
+        `.agents/skills` were there and never seen. `GROK_FOLDER_TRUST=0` takes the question
+        away, as a workspace humanize was told to work in is trusted already.
+
+        Returns:
+          The variables to add.
+        """
+        return {**super().environment(), "GROK_FOLDER_TRUST": "0"}
 
     def _serves(self, config: AgentConfig) -> None:
         """Refuses what the base class refuses, and a fenced agent set up to join the leader.

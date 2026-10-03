@@ -313,6 +313,54 @@ def test_the_next_turn_is_counted_from_where_the_last_one_left_off(
     assert session.spent().total == 1248  # which is what the two of them come to
 
 
+#: A `claude --print` whose message says, as each part of it is told, the output it had when it
+#: began -- a handful of tokens -- and says what it came to on the `message_delta` that closes
+#: it, as Claude really does. Then a second message, which is where a reader looks.
+_DELTAS = """
+import json, sys
+
+flags = dict(zip(sys.argv, sys.argv[1:]))
+print(json.dumps({"type": "system",
+                  "session_id": flags.get("--session-id") or flags["--resume"]}), flush=True)
+for line in sys.stdin:
+    for at, said in ((1, "first"), (2, "second")):
+        print(json.dumps({"type": "stream_event", "event": {"type": "message_start",
+              "message": {"id": "msg_%d" % at, "usage": {"input_tokens": 10,
+                                                         "output_tokens": 4}}}}), flush=True)
+        print(json.dumps({"type": "assistant", "message": {"id": "msg_%d" % at,
+              "usage": {"input_tokens": 10, "output_tokens": 4},
+              "content": [{"type": "text", "text": said}]}}), flush=True)
+        print(json.dumps({"type": "stream_event", "event": {"type": "message_delta",
+              "usage": {"input_tokens": 10, "output_tokens": 400}}}), flush=True)
+    print(json.dumps({"type": "result", "result": "second", "modelUsage": {"m": {
+        "inputTokens": 20, "outputTokens": 800}}}), flush=True)
+"""
+
+
+def test_what_a_message_came_to_is_counted_as_it_closes_rather_than_at_the_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A turn writing a hundred thousand tokens was counted as a few hundred until it ended.
+
+    So an `output_tokens` budget that was not graceful let it run on past its cap.
+    """
+    _install("claude", _DELTAS, tmp_path, monkeypatch)
+    session = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")).new()
+    seen: dict[str, float] = {}
+
+    for event in session.stream("hi"):
+        if event.kind == "text":
+            seen[event.text] = session.spent().output
+
+    # By the second message the first has closed at 400, not at the 4 it began with.
+    assert seen["second"] >= 400
+    # And the end settles up to what the turn says, counting nothing twice.
+    assert session.spent().output == 800
+    assert session.spent().input == 20
+    # Two requests of the model, however many times each was told of.
+    assert session.juice(over=60) == pytest.approx(400.0)
+
+
 def test_a_meter_says_what_an_average_turn_of_the_model_came_out_with() -> None:
     """A turn of the model -- one request and the answer to it -- not a turn of a flow."""
     meter = Meter()

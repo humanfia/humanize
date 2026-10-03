@@ -16,13 +16,21 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 import time
 from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.coganchor import backends, fallbacks, models, providers
-from hmz.coganchor.agents import AgentBase, AgentConfig, Event, Failed, Unrecoverable
+from hmz.coganchor.agents import (
+    AgentBase,
+    AgentConfig,
+    Event,
+    Failed,
+    SessionBase,
+    Unrecoverable,
+)
 from tests.stubs import ShellAgent, ShellSession
 from tests.stubs import ShellAgent as _Shell
 
@@ -49,10 +57,11 @@ def unwaiting(monkeypatch: pytest.MonkeyPatch) -> None:
     would be a suite nobody runs. What the wait *was* is on the event that says it.
     """
 
-    def slept(_seconds: float) -> None:
-        """Waits nothing at all."""
+    def slept(_session: SessionBase, _seconds: float) -> bool:
+        """Waits nothing at all, and was not cut short."""
+        return False
 
-    monkeypatch.setattr(time, "sleep", slept)
+    monkeypatch.setattr(SessionBase, "_sits", slept)
 
 
 #: A turn that says something on stderr and fails, writing down which account took it -- so a
@@ -304,6 +313,48 @@ def test_the_time_a_place_was_given_still_holds_over_a_long_wait(
     # Half a second was all it had, and the wait a rate limit asks for is longer than that:
     # one go, and no thirty seconds spent finding that out.
     assert _took(tally) == ["main"]
+
+
+@pytest.mark.timeout(20)
+def test_a_turn_cut_off_while_it_waits_out_a_rate_limit_ends_then(
+    accounts: None, tmp_path: Path
+) -> None:
+    """ctrl+c during the thirty seconds is the end of the turn, not thirty seconds later.
+
+    And said once: the interface asks again until the turn has ended, which read as twenty
+    cut-offs of one turn.
+    """
+    tally = tmp_path / "took.txt"
+    agent, narrated = _driving()
+    cuts: list[str] = []
+    agent.watch(
+        lambda _agent, _session, event: (
+            cuts.append(event.text) if event.text.startswith("cutting") else None
+        )
+    )
+    session = agent.new()
+    said: list[str] = []
+    turn = threading.Thread(
+        target=lambda: said.append(
+            session(_SAYING.format(at=tally, said="Error: 429 Too Many Requests"))
+        )
+    )
+    turn.start()
+    deadline = time.monotonic() + 10
+    while not narrated and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert narrated, "the rate limit was never waited out"
+
+    started = time.monotonic()
+    for _ in range(5):
+        session.interrupt(why="interrupted")
+    turn.join(timeout=10)
+
+    assert not turn.is_alive()
+    assert time.monotonic() - started < fallbacks.THROTTLED / 2
+    assert _took(tally) == ["main"]
+    assert said == [""]
+    assert len(cuts) == 1
 
 
 def test_a_model_that_is_gone_is_not_tried_again(

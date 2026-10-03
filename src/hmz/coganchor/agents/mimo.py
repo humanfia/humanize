@@ -78,6 +78,8 @@ class MimoCodeAgentConfig(OpencodeAgentConfig):
 class MimoCodeAgent(OpencodeAgent):
     """mimocode, driven through its own command line, one run per turn."""
 
+    configured: ClassVar[str] = "mimocode"
+
     def new(self, cwd: str | os.PathLike[str] | None = None) -> MimoCodeSession:
         """Opens a new mimocode session, in the directory it is given or in this one."""
         return MimoCodeSession(self, cwd)

@@ -282,6 +282,9 @@ def test_the_landlock_numbers_are_the_kernel_s_own() -> None:
     rights = dict(
         re.findall(r"#define LANDLOCK_ACCESS_(\w+)\s+\(1ULL << (\d+)\)", text)
     )
+    if missing := sorted({"FS_REFER", "FS_TRUNCATE", "NET_CONNECT_TCP"} - set(rights)):
+        # The libc's headers rather than the running kernel's, and they may be older.
+        pytest.skip(f"the landlock.h here predates {', '.join(missing)}")
 
     assert int(numbers["landlock_create_ruleset"]) == landlock._NR_CREATE_RULESET
     assert int(numbers["landlock_add_rule"]) == landlock._NR_ADD_RULE

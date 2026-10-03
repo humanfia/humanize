@@ -517,7 +517,7 @@ the end of each turn. An agent working on another machine reports at the end of 
 A failed turn ends with what the CLI said, then the kind of failure in brackets:
 
 ```text{2}
-Command '['claude', …]' returned non-zero exit status 1. 429 rate limit exceeded
+Command 'claude' returned non-zero exit status 1. 429 rate limit exceeded
 (throttled: this account has spent its quota; another one, or a wait, is what answers it)
 ```
 

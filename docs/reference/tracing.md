@@ -111,7 +111,7 @@ A trace with no session with actions and no program is
 
 | Chrome concept | Is |
 | --- | --- |
-| process (`pid`) | One agent, numbered from 1 in order of its first action; then one per profiled program. Named `<agent> · <n> sessions`, or `<program> · <pid>` for a program. |
+| process (`pid`) | One agent, numbered from 1 in order of its first action; then one per profiled program. Named `<agent> · <model>[ · <effort>] · <n> sessions` (`1 session` for one; the model and effort as the root session logged them, so one role on two models is two processes), or `<program> · <pid>` for a program. |
 | track (`tid`) | A row of one agent's sessions, `tid = row × 100 + lane` (row from 1). Rows are packed per depth: sessions of one depth that do not overlap share a row. Roots and sub-agents never share a row. |
 
 Row names:

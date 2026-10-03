@@ -23,6 +23,7 @@ from typing import Any
 import pytest
 
 from hmz.cli import main
+from hmz.coganchor import providers
 from hmz.runtime.doing.running import Run
 from hmz.runtime.epic import epics, read
 from hmz.runtime.flowing import BUILTIN_AT, ENTRY
@@ -199,6 +200,7 @@ def test_one_option_may_name_several_agents_and_every_option_adds_to_them(
     tmp_path: Path, here: Path
 ) -> None:
     flow = _flow(tmp_path)
+    providers.add("codex", "work")
 
     main(
         [
@@ -312,6 +314,25 @@ def test_what_the_flow_does_not_take_is_a_usage_error(
     assert (
         epics() == []
     )  # refused before any agent started, and before a run was written
+
+
+def test_an_account_nobody_made_is_a_usage_error(
+    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Said before anything runs, rather than as the traceback of the first turn."""
+    error = _refused(
+        capsys,
+        "-f",
+        _flow(tmp_path),
+        "-a",
+        "builder=claude@nobody/claude-haiku-4-5:high",
+        *BUDGET,
+        "task",
+    )
+
+    assert error.startswith("hmz exec: error:")
+    assert "'builder' names no claude account called 'nobody'" in error
+    assert epics() == []
 
 
 def test_a_required_role_left_out_is_a_usage_error(

@@ -27,8 +27,12 @@ import platform
 import re
 import struct
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 from tests.supervising import SUPPORTED_MACHINES, WITHOUT_BINDINGS
 
@@ -165,6 +169,17 @@ def audit_arch(machine: str) -> int:
     return elf_machines[name] | AUDIT_64BIT_LE
 
 
+def _newer_than_the_headers(names: Iterable[str], table: dict[str, int]) -> None:
+    """Skips, saying which, where the supervisor knows a call this machine's headers do not.
+
+    The headers are the libc's, not the running kernel's: Ubuntu 22.04's linux-libc-dev 5.15
+    has no `fchmodat2` under a 6.8 kernel that has. Checked against them, such a call is
+    nothing to compare, and is said rather than passed over.
+    """
+    if missing := sorted(set(names) - set(table)):
+        pytest.skip(f"the kernel headers here predate {', '.join(missing)}")
+
+
 def test_every_aarch64_syscall_number_is_the_one_the_generic_table_gives_it() -> None:
     """The table aarch64 uses is a header this machine has, whatever this machine is."""
     table = generic_syscalls()
@@ -172,6 +187,9 @@ def test_every_aarch64_syscall_number_is_the_one_the_generic_table_gives_it() ->
         field.name: getattr(AARCH64_NUMBERS, field.name)
         for field in AARCH64_NUMBERS.__dataclass_fields__.values()
     }
+    _newer_than_the_headers(
+        (name.lower() for name, number in named.items() if number >= 0), table
+    )
     assert {name: number for name, number in named.items() if number >= 0} == {
         name: table[name.lower()] for name in named if name.lower() in table
     }
@@ -199,6 +217,10 @@ def test_every_x86_64_syscall_number_is_the_one_this_machine_s_own_header_gives_
 ):
     """The architecture the suite runs on, checked the same way and not merely preserved."""
     table = x86_64_syscalls()
+    _newer_than_the_headers(
+        (field.name.lower() for field in X86_64_NUMBERS.__dataclass_fields__.values()),
+        table,
+    )
     for field in X86_64_NUMBERS.__dataclass_fields__.values():
         number = getattr(X86_64_NUMBERS, field.name)
         assert number == table[field.name.lower()], field.name

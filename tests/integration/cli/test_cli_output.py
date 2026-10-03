@@ -257,6 +257,28 @@ def test_the_footer_says_what_the_turn_cost_in_money_where_the_model_is_listed(
     assert f"{money(1000 / 1e6 * 1 + 40 / 1e6 * 5)}" in said
 
 
+def test_the_footer_names_and_prices_the_model_the_turn_ran_on(
+    priced: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A turn a fallback carried elsewhere was spent there, not at the model that failed."""
+    agent = ShellAgent(AgentConfig(model="retired", effort="high"), name="builder")
+    with Out() as out, Shown(out) as shown:
+        shown.heard(
+            agent,
+            None,
+            Event(
+                kind="result",
+                text="done",
+                tokens={priced: 1040},
+                spent=Usage(input=1000, output=40),
+            ),
+        )
+    said = capsys.readouterr().err
+
+    assert "retired" not in said
+    assert f"{money(1000 / 1e6 * 1 + 40 / 1e6 * 5)} · {priced} · builder" in said
+
+
 def test_a_run_written_for_a_program_is_one_object_per_thing_that_was_said(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

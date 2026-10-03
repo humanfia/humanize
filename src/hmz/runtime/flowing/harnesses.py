@@ -509,9 +509,18 @@ class HarnessDriver:
         """
         if self._installed:
             return
+        import importlib.util
+
         from hmz.coganchor import backends
 
-        if backends.program(self._program()) is None:
+        # DeepSeek Harness is a package rather than a program: what it installs is an SDK and
+        # the runtime it bundles, and no `dsh` on any PATH. Looked for as a program, it was
+        # never here, and every dsh agent whose harness runs on this machine was refused.
+        if (
+            importlib.util.find_spec("deepseek_harness") is None
+            if self._named() == "dsh"
+            else backends.program(self._program()) is None
+        ):
             raise HarnessNotInstalled(
                 f"{self._named()} is not installed here: "
                 f"{backends.installing(self._spec.cli)}"
