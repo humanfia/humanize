@@ -554,11 +554,11 @@ def test_a_flow_of_your_own_is_found_where_flows_live(
     from hmz.runtime.flowing import find, found
 
     home, project = tmp_path / "home", tmp_path / "project"
-    for where in (home / ".humanize/flows", project / ".humanize/flows"):
+    for where in (home / ".hmz/flows", project / ".hmz/flows"):
         where.mkdir(parents=True)
-    written(home / ".humanize/flows", "yours", RECORD)
-    written(project / ".humanize/flows", "theirs", RECORD)
-    written(project / ".humanize/flows", "chat", RECORD)  # a name humanize uses
+    written(home / ".hmz/flows", "yours", RECORD)
+    written(project / ".hmz/flows", "theirs", RECORD)
+    written(project / ".hmz/flows", "chat", RECORD)  # a name humanize uses
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.chdir(project)
 
@@ -570,17 +570,15 @@ def test_a_flow_of_your_own_is_found_where_flows_live(
     assert ("local", "local/chat") in named
     assert ("official", "chat") in named
     # `-f` still takes a bare name, and the nearest flow answering to it is what runs.
-    assert find("chat") == str((project / ".humanize/flows/chat" / ENTRY).resolve())
-    assert find("yours") == str((home / ".humanize/flows/yours" / ENTRY).resolve())
+    assert find("chat") == str((project / ".hmz/flows/chat" / ENTRY).resolve())
+    assert find("yours") == str((home / ".hmz/flows/yours" / ENTRY).resolve())
     # And a flow of humanize's own said outright is not one the project can stand in for.
     assert find("official/chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
-    assert find("user/yours") == str((home / ".humanize/flows/yours" / ENTRY).resolve())
-    assert find("local/chat") == str(
-        (project / ".humanize/flows/chat" / ENTRY).resolve()
-    )
+    assert find("user/yours") == str((home / ".hmz/flows/yours" / ENTRY).resolve())
+    assert find("local/chat") == str((project / ".hmz/flows/chat" / ENTRY).resolve())
     # A path is still a path, `~` and all: a flow being written lives wherever it is.
-    assert find("~/.humanize/flows/yours") == str(
-        (home / ".humanize/flows/yours" / ENTRY).resolve()
+    assert find("~/.hmz/flows/yours") == str(
+        (home / ".hmz/flows/yours" / ENTRY).resolve()
     )
     assert find("nowhere") == "nowhere"  # a path is taken as given
 
@@ -590,13 +588,13 @@ def test_a_flow_of_your_own_runs_by_name(
 ) -> None:
     """The point of finding it: `-f theirs` starts it, with no path said anywhere."""
     project = tmp_path / "project"
-    written(project / ".humanize/flows", "theirs", RECORD)
+    written(project / ".hmz/flows", "theirs", RECORD)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.chdir(project)
 
     assert main(["exec", "-f", "theirs", "-a", BUILDER, *BUDGET, "do it"]) == 0
 
-    seen = json.loads((project / ".humanize/flows/theirs/seen.json").read_text())
+    seen = json.loads((project / ".hmz/flows/theirs/seen.json").read_text())
     assert seen["task"] == "do it"
 
 

@@ -92,7 +92,7 @@ container of its own for the run:
   run before any agent starts.
 - **It goes when the run ends.** Every container humanize starts is labelled with your uid.
 - **The agent's CLI runs here by default**, supervised, working in a copy of the directory kept
-  under `~/.humanize/envs/mirrors/`. Every command it runs lands in the container through
+  under `~/.hmz/envs/mirrors/`. Every command it runs lands in the container through
   `docker exec`. That is why the tool lines above name a `…/envs/mirrors/…` path while the edit
   lands in `/home/me/myproject`. Because the copy is kept there rather than at the directory's
   own path, the directory may be your own checkout.
@@ -238,7 +238,7 @@ hmz exec: error: docker@gpubox: nowhere its affinity (self) names has room for c
 ```
 
 **`docker:<name>`** starts one more container just for the CLI, on that saved daemon, from its
-image (else `python:3.12-slim`), holding its saved workdir, or `~/.humanize/harness` for a
+image (else `python:3.12-slim`), holding its saved workdir, or `~/.hmz/harness` for a
 daemon on this machine saved without one. That container is given `--cap-add SYS_PTRACE`,
 which the CLI's supervisor needs there to hand each command's output back to it. It counts
 against that daemon's `max containers`: a daemon at its limit has no room, and the next place
@@ -391,7 +391,7 @@ More are in [Troubleshooting](/user/troubleshooting).
 ## The flow used on this page
 
 ::: details `boxed`: one agent at work in a container of its own
-Save it as `.humanize/flows/boxed/__init__.py` in your project, and it is offered as
+Save it as `.hmz/flows/boxed/__init__.py` in your project, and it is offered as
 `local/boxed`. What each line means is the [Weaver Guide's](/weaver/writing-a-flow) to explain.
 
 ```python

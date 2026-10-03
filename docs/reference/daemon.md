@@ -48,7 +48,7 @@ interface closes its runs, so `/exit` offers **cancel** instead of **detach and 
 
 ## Files {#files}
 
-Directory: `$HUMANIZE_HOME/daemons/<name>-<digest>/` (`~/.humanize/daemons/…`).
+Directory: `$HUMANIZE_HOME/daemons/<name>-<digest>/` (`~/.hmz/daemons/…`).
 
 | Part | Rule |
 | --- | --- |

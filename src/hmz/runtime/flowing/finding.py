@@ -4,7 +4,7 @@ A flow is named rather than pathed: `hmz exec -f ralph_loop` is a name, and a pa
 left for a flow that is nowhere any of them are kept. A name is looked for in the places flows
 come from, which is every [flowverse](verses.py) there is -- humanize's own, which is
 `official` and is the handful in the package together with the repository of the rest, whatever
-has been added, and the flows of your own in `.humanize/flows` here and in your home directory.
+has been added, and the flows of your own in `.hmz/flows` here and in your home directory.
 Those last two are `local` and `user`, and are flowverses like the rest of them.
 
 Which of them a bare name means is nearest first -- yours, then everybody else's -- so a flow

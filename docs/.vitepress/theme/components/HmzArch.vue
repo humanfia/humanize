@@ -7,7 +7,7 @@
 // - The flows are grouped by where they come from. `chat` is the one flow in the package
 //   (`hmz/flows/builtin/`); the rest are the official flowverse (humanfia/flowverse), which
 //   the terminal interface fetches in the background each time it starts; and a project's
-//   `.humanize/flows` and `~/.humanize/flows` are offered as `local` and `user`.
+//   `.hmz/flows` and `~/.hmz/flows` are offered as `local` and `user`.
 // - The backends are `PROFILES` in `hmz/coganchor/backends.py`, in the order `hmz exec --help`
 //   lists them. `dsh` is the one driven through a Python SDK rather than a CLI, signed in with
 //   a DeepSeek API key rather than a login; it and `kimi` are the two with an extra of their
@@ -65,8 +65,8 @@ const BANDS: Band[] = [
       {
         label: 'yours',
         chips: [
-          { text: '.humanize/flows', href: '/weaver/writing-a-flow', tag: 'local' },
-          { text: '~/.humanize/flows', href: '/weaver/writing-a-flow', tag: 'user' },
+          { text: '.hmz/flows', href: '/weaver/writing-a-flow', tag: 'local' },
+          { text: '~/.hmz/flows', href: '/weaver/writing-a-flow', tag: 'user' },
         ],
       },
     ],

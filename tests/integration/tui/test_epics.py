@@ -139,7 +139,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-home"))
-    where = tmp_path / ".humanize/flows"
+    where = tmp_path / ".hmz/flows"
     where.mkdir(parents=True)
     written(where, "counts", COUNTS)
     written(where, "plain", PLAIN)
@@ -319,7 +319,7 @@ async def test_exporting_a_run_carries_its_own_trace_in_the_archive(
 
         (epic,) = epics(workspace)
         (written,) = (epic / "traces").glob("*.trace.json")
-        at = workspace / ".humanize" / f"{epic.name}.epic.tar.gz"
+        at = workspace / ".hmz" / f"{epic.name}.epic.tar.gz"
         assert str(at) in _under(sheet)
 
         # And again, which is the same run again: one trace rather than a pile of identical
@@ -410,7 +410,7 @@ async def test_a_run_of_a_flow_marked_since_can_be_picked_up_too(
     assert not ran.resumable  # it was not, when it ran
 
     # And now it is: the same flow, marked, and taking what it is handed.
-    written(workspace / ".humanize/flows", "plain", COUNTS)
+    written(workspace / ".hmz/flows", "plain", COUNTS)
 
     app = Humanize()
     async with app.run_test() as driver:
@@ -439,7 +439,7 @@ async def test_resuming_from_inside_a_run_is_what_the_command_is(
     from tests.tui.fixtures import transcript
 
     _ran("plain", "go")
-    written(workspace / ".humanize/flows", "plain", COUNTS)
+    written(workspace / ".hmz/flows", "plain", COUNTS)
 
     app = Humanize()
     async with app.run_test() as driver:

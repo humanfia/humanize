@@ -70,11 +70,11 @@ Make `calc.py` a small calculator:
 
 Tick each box in this file as you finish it.
 EOF
-mkdir -p .humanize/flows/checklist
+mkdir -p .hmz/flows/checklist
 ```
 
 ```python
-# .humanize/flows/checklist/__init__.py
+# .hmz/flows/checklist/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -380,7 +380,7 @@ while True:
     state["turn"] = at
 ```
 
-**Start from an official loop.** Fork one into `.humanize/flows/` and change the copy. See
+**Start from an official loop.** Fork one into `.hmz/flows/` and change the copy. See
 [Flowverses](/weaver/flowverses).
 
 | Flow | Each round |

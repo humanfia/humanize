@@ -25,8 +25,8 @@ humanize keeps a clone of each flowverse you add, and reads flows from these pla
 
 | Place | Holds | Run as |
 | --- | --- | --- |
-| `local` | this project's `.humanize/flows/` | `local/review`, or `review` |
-| `user` | your `~/.humanize/flows/`, for every project | `user/review`, or `review` |
+| `local` | this project's `.hmz/flows/` | `local/review`, or `review` |
+| `user` | your `~/.hmz/flows/`, for every project | `user/review`, or `review` |
 | each flowverse you added | its `flows/` | `yours/review` |
 | `official` | [humanfia/flowverse](https://github.com/humanfia/flowverse), and the `chat` flow humanize ships | `rlar`, or `official/rlar` |
 
@@ -290,7 +290,7 @@ A flowverse added from a script can be run with `-f` at once.
 flowverse in the background, except one with edits made inside its clone, and a fetch you ask
 for resets even that. To change somebody else's flow, walk to it in `/flow` and choose
 `copy <flow> here`, or call `Hmz().flows.fork("yours/review")`. Either copies it into
-`.humanize/flows/review`, where your edits are yours to keep, and from then on `review` in that
+`.hmz/flows/review`, where your edits are yours to keep, and from then on `review` in that
 project means your copy.
 
 ::: danger Adding a flowverse is trusting that repository with this machine
@@ -305,14 +305,14 @@ would install as a package, and read [Security](/user/security) first.
 | --- | --- |
 | `rlar` | the nearest flow called `rlar`: yours if you have one, else humanize's |
 | `yours/review` | `review` from the flowverse you added as `yours`, and nothing else |
-| `local/review` | `review` in this project's `.humanize/flows` |
-| `user/review` | `review` in your `~/.humanize/flows`, for every project |
+| `local/review` | `review` in this project's `.hmz/flows` |
+| `user/review` | `review` in your `~/.hmz/flows`, for every project |
 | `./flows/review` | the flow at that path |
 | `git+…#review` | `review` from a repository by URL, at `@<rev>` if given, fetched for the run |
 
-A bare name is looked for **nearest first**: this project's `.humanize/flows`, then
-`~/.humanize/flows`, then the flowverses. So a flow of your own can stand in for one of
-humanize's by taking its name: `.humanize/flows/chat/` is what `-f chat` runs in that project.
+A bare name is looked for **nearest first**: this project's `.hmz/flows`, then
+`~/.hmz/flows`, then the flowverses. So a flow of your own can stand in for one of
+humanize's by taking its name: `.hmz/flows/chat/` is what `-f chat` runs in that project.
 `yours/review` names one place, so nothing can stand in for it.
 
 ## Calling it from another flow

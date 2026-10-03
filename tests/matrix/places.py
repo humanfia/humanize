@@ -10,7 +10,7 @@ word asked of each, and the first that answers is where every cell of that colum
 in, with nothing of humanize's standing between the two -- which is what the system tier is for.
 Where that does not answer (a CLI installed but signed out, one that only ever runs through a
 gateway), the column is run under one of the accounts this machine keeps in its own
-`~/.humanize/providers`, *borrowed*: made again in the test's own `HUMANIZE_HOME` through the
+`~/.hmz/providers`, *borrowed*: made again in the test's own `HUMANIZE_HOME` through the
 SDK's accounts facade, out of the variables and files the machine's account holds, and taken
 back off disk when the cell ends. Nothing of the machine's own store is written; it is read, and
 only for the account a candidate names. And never an account signed in with a login whose token
@@ -54,10 +54,10 @@ __all__ = [
 #: Where this machine keeps the accounts humanize was given, read -- never written -- to
 #: borrow one. The real home rather than `hmz.home()`, which the suite points at a directory
 #: of its own for every test.
-MACHINE = Path.home() / ".humanize" / "providers"
+MACHINE = Path.home() / ".hmz" / "providers"
 
 #: What this machine's CLIs last said they run as local, for a candidate list to fall back on.
-_KEPT = Path.home() / ".humanize" / "models"
+_KEPT = Path.home() / ".hmz" / "models"
 
 #: What a place is asked, and what it has to answer to be one.
 _ASKED = "Reply with exactly: OK"

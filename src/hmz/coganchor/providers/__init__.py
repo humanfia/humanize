@@ -2,7 +2,7 @@
 
 A provider is a named set of credentials for one backend: a subscription signed into, a key,
 an endpoint of somebody else's speaking that vendor's protocol. Each is kept in a directory of
-its own under `~/.humanize/providers/<cli>/<name>/`, and an agent configured with one runs its
+its own under `~/.hmz/providers/<cli>/<name>/`, and an agent configured with one runs its
 turns under it -- with that provider's variables, and reading its credentials out of that
 directory rather than out of the one the CLI keeps its own in.
 

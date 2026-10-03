@@ -183,7 +183,7 @@ def _agents(native: Path) -> None:
     added to the turn with `--add-dir`: agy runs the agent's commands in the first of its
     workspace roots by name, so a directory of humanize's added beside the session's took its
     place whenever it sorted first -- checked against agy 1.2.12 on 2026-09-29, where `pwd`
-    answered `~/.humanize/agy`. Its home is also the one place every fence already lets it
+    answered `~/.hmz/agy`. Its home is also the one place every fence already lets it
     read. Each is written whole wherever it is not already exactly as :data:`_DEFINED` says --
     through a file beside it, so that a turn starting while another process or thread writes it
     reads one or the other.

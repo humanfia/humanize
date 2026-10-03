@@ -271,9 +271,9 @@ the twelve above. See [Many backends, one agent](/features/backends).
 
 ## Where humanize keeps things
 
-Everything humanize remembers is under `~/.humanize/`: your runs, what each directory was set
+Everything humanize remembers is under `~/.hmz/`: your runs, what each directory was set
 up to run, your accounts, and the flowverses it fetched. Set `HUMANIZE_HOME` to keep it
-somewhere else. A project's own flows, and the runs you export from it, are in `.humanize/` in
+somewhere else. A project's own flows, and the runs you export from it, are in `.hmz/` in
 that project. The full list is in the [CLI reference](/reference/cli).
 
 ## Troubleshooting
@@ -329,11 +329,11 @@ pip uninstall hmz
 
 :::
 
-To also forget everything humanize remembered, your accounts included, remove `~/.humanize`,
+To also forget everything humanize remembered, your accounts included, remove `~/.hmz`,
 or wherever `HUMANIZE_HOME` points:
 
 ```sh
-rm -rf ~/.humanize
+rm -rf ~/.hmz
 ```
 
 The coding agent CLIs and their own logins stay as they are.

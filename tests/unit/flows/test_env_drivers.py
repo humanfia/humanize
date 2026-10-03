@@ -775,11 +775,11 @@ def test_gpus_are_counted_as_cuda_would_see_them() -> None:
 
 def test_what_a_host_says_about_itself_is_read() -> None:
     facts = facts_of(
-        "home=/home/me\nstate=/home/me/.humanize\ncpus=64\nmemkb=1024\n"
+        "home=/home/me\nstate=/home/me/.hmz\ncpus=64\nmemkb=1024\n"
         "cuda=1\ngpu=0, GPU-a, 100\ngpu=1, GPU-b, 200\n"
     )
     assert facts.home == PurePosixPath("/home/me")
-    assert facts.state == PurePosixPath("/home/me/.humanize")
+    assert facts.state == PurePosixPath("/home/me/.hmz")
     assert facts.resources == Resources(64, 1024 * 1024, 1, 200 * 1024 * 1024)
     darwin = facts_of("home=/Users/me\nstate=rel/state\ncpus=\nmemory=4096\n")
     assert darwin.state == PurePosixPath("/Users/me/rel/state")

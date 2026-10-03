@@ -164,7 +164,7 @@ which CLI does what, and the agent sheet at `/flow` offers only the CLIs that ca
 **Symptom.** `hmz exec` cannot find the flow `-f` names.
 
 **Cause.** Nothing offers a flow by that name. A name is looked up in this project's
-`.humanize/flows`, then in `~/.humanize/flows`, then among humanize's own flows and every
+`.hmz/flows`, then in `~/.hmz/flows`, then among humanize's own flows and every
 [flowverse](/weaver/flowverses) fetched here. Anything else is read as a path.
 
 **Fix.** Check the spelling against the names `/flow` offers, or give the flow's path, or its
@@ -324,8 +324,8 @@ installed, open `/flow` and give the role a CLI and a model.
 | Flow | Typed as |
 | --- | --- |
 | humanize's own, and the official flowverse's | `$ralph_loop` |
-| this project's, in `.humanize/flows` | `$local/twice` |
-| yours, in `~/.humanize/flows` | `$user/twice` |
+| this project's, in `.hmz/flows` | `$local/twice` |
+| yours, in `~/.hmz/flows` | `$user/twice` |
 | another flowverse's | `$<flowverse>/name` |
 
 **Fix.** Type `$` and let [completion](/user/completion) offer the names. A flowverse not

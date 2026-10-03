@@ -9,7 +9,7 @@ ssh. Everything a driver derives -- a subdirectory, a worktree, a temporary copy
 directory -- is another driver on the same machine object, so they share its connection.
 
 Where what a driver makes lives, on the machine it makes it on, under humanize's own home
-there (`hmz.home()` here, `${HUMANIZE_HOME:-~/.humanize}` over ssh)::
+there (`hmz.home()` here, `${HUMANIZE_HOME:-~/.hmz}` over ssh)::
 
     envs/<name>-<digest>/            one per workdir things are derived from
         clones/<id>-<digest>/        a temporary copy, kept until destroyed
@@ -264,7 +264,7 @@ cd -- "$top"
 #: are added to a copy of the index, so that its stat cache saves reading what did not change,
 #: kept beside the real one so that a split index finds what it shares. The commits are
 #: humanize's, whoever the repository says commits, and never signed. A workspace's own
-#: `.humanize/` -- its flows, what was exported there -- is left out, as if git ignored it.
+#: `.hmz/` -- its flows, what was exported there -- is left out, as if git ignored it.
 SNAPSHOT_SCRIPT = (
     _TO_TOP
     + r"""
@@ -282,7 +282,7 @@ head=$(git rev-parse -q --verify 'HEAD^{commit}') || head=
 on=${head:+-p $head}
 staged=$(GIT_INDEX_FILE=$held git write-tree)
 kept=$(git commit-tree --no-gpg-sign $on -m "hmz: the index at snapshot $1" "$staged")
-GIT_INDEX_FILE=$held git -c advice.addEmbeddedRepo=false add -A -- . ':(exclude).humanize'
+GIT_INDEX_FILE=$held git -c advice.addEmbeddedRepo=false add -A -- . ':(exclude).hmz'
 tree=$(GIT_INDEX_FILE=$held git write-tree)
 snap=$(git commit-tree --no-gpg-sign $on -p "$kept" -m "hmz: snapshot $1" "$tree")
 git update-ref -m "hmz: snapshot $1" "$ref" "$snap"
@@ -295,7 +295,7 @@ printf '%s\n' "$ref"
 #: A commit a snapshot ref points at is a snapshot, and its parents say what was checked out
 #: and what was in the index; any other commit is all three. The files are made the
 #: snapshot's or the commit's first, removing every other that git does not ignore --
-#: untracked repositories inside included, a workspace's own `.humanize/` not -- and the index
+#: untracked repositories inside included, a workspace's own `.hmz/` not -- and the index
 #: put back, so that a rewind git refuses halfway leaves what is checked out where it was.
 #: Only then is what is checked out -- the branch, or a detached `HEAD` -- moved, as `git
 #: reset` moves it, or made unborn again for a snapshot taken before the first commit, which
@@ -319,7 +319,7 @@ if [ -z "$head" ] && [ -z "$branch" ]; then
   exit 5
 fi
 git read-tree --reset -u "$sha"
-git clean -ffdq -e /.humanize
+git clean -ffdq -e /.hmz
 [ "$index" = "$sha" ] || git read-tree "$index"
 if [ -n "$head" ]; then
   git update-ref -m "hmz: rewind to $ref" HEAD "$head"

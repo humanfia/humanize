@@ -374,8 +374,8 @@ line:
 | The flow is | Name it |
 | --- | --- |
 | humanize's own | `$ralph_loop` |
-| in this project's `.humanize/flows/` | `$local/twice` |
-| in your `~/.humanize/flows/` | `$user/twice` |
+| in this project's `.hmz/flows/` | `$local/twice` |
+| in your `~/.hmz/flows/` | `$user/twice` |
 | in a flowverse you added | `$<flowverse>/<flow>` |
 
 A flow that is set up here starts at once. One that is not opens the menu on its roles, and

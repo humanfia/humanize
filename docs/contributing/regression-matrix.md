@@ -126,8 +126,8 @@ in order, and every cell of the column runs at the first that answers:
 
 1. **As local**, the CLI as you signed it in, at the cheapest model it takes.
 2. **An account this machine keeps**, where as local does not answer. The account is copied out
-   of `~/.humanize/providers` into the test's own home, through `hmz.sdk.Hmz().accounts`, and
-   removed when the cell ends. Nothing in `~/.humanize` is written. An account signed in with a
+   of `~/.hmz/providers` into the test's own home, through `hmz.sdk.Hmz().accounts`, and
+   removed when the cell ends. Nothing in `~/.hmz` is written. An account signed in with a
    login whose token refreshes itself (a file holding a refresh token) is never copied: it is
    passed over with `signs in with a token that refreshes itself`, since a copy refreshing
    apart from it would get the original revoked.
@@ -299,12 +299,12 @@ swarm: `docker swarm init` makes it one.
 the directory its shell started in, which has to be the environment's workdir. It runs with
 humanize's home under `~/.cache/humanize` rather than the suite's temporary directory
 (`home_kept_here`): a container's mirrors are kept under that home, and only a home inside a
-directory kept on this machine, as the default `~/.humanize` is, can show a mirror taken for
+directory kept on this machine, as the default `~/.hmz` is, can show a mirror taken for
 one of them.
 
 `test_frontends_tui` drives two `hmz` interfaces in a tmux of its own, and skips without
 `tmux`. `test_settings_accounts` fills the accounts form in with the `dsh` gateway account in
-`~/.humanize/providers`, read and never written, and takes the new account off disk after.
+`~/.hmz/providers`, read and never written, and takes the new account off disk after.
 :::
 
 - **A skipped column is not a passed one.** Read the reasons under the grid before you call a

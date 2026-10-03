@@ -620,7 +620,7 @@ enter choose · esc back
 | --- | --- |
 | Title | `Flow` |
 | About | `Choose a flow to run; you will type its task next. To run a flow from elsewhere, type its path.` |
-| Places (strip) | `official`, added flowverses alphabetically, `local` (`./.humanize/flows/`), `user` (`~/.humanize/flows/`); `local` and `user` only where they hold a flow. Opens on the place of the flow in force. While searching, only places with a match. |
+| Places (strip) | `official`, added flowverses alphabetically, `local` (`./.hmz/flows/`), `user` (`~/.hmz/flows/`); `local` and `user` only where they hold a flow. Opens on the place of the flow in force. While searching, only places with a match. |
 | Rows | `<n>. <name>[ ✔]  <first line of the flow's about>`. Cursor opens on the flow in force. |
 | Empty place | `not fetched yet; select manage flowverses below to fetch`, or `no flows yet`. |
 | Set-apart rows | `search…`; `copy <name> here   so you can edit it` (when the cursor was on a flow); `manage flowverses   the flowverses page of /settings`. |
@@ -630,7 +630,7 @@ enter choose · esc back
 | --- | --- |
 | open a place never fetched | Fetched in the background once per opening: `fetching <name>…`, then the list or a red error. |
 | `enter` on a flow | Loads what is remembered for it (if another flow), asks its [params](#setting-a-flow-up) if it declares any (also when re-choosing the same flow), then opens its [roles](#roles-page). |
-| `copy … here` | Copies the flow, what it imports and its skills into `./.humanize/flows/`: `copied to <path> -- you can edit it, and <name> now points to it`; errors `there is no flow called <x> to copy`, `there is already a flow of your own at <path>`; with no flow chosen `no flow selected to copy`. |
+| `copy … here` | Copies the flow, what it imports and its skills into `./.hmz/flows/`: `copied to <path> -- you can edit it, and <name> now points to it`; errors `there is no flow called <x> to copy`, `there is already a flow of your own at <path>`; with no flow chosen `no flow selected to copy`. |
 | `manage flowverses` | Opens `/settings` on Flowverses alone. Refused during a fetch: `flowverses open once the fetch completes`. |
 | a flow that fails to load | `<flow> failed to load[: <first line of the error>]` (red). |
 | search with no match | `no matching flows` |
@@ -839,7 +839,7 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | Title | `<when> · <flow>` |
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).` |
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
-| `export run` | `the entire run as an archive, with its trace`. Writes `./.humanize/<run>.epic.tar.gz` (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+| `export run` | `the entire run as an archive, with its trace`. Writes `./.hmz/<run>.epic.tar.gz` (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 
 ## `/resume` {#carrying-the-last-one-on-outright}
 
@@ -1211,7 +1211,7 @@ not checked.
 Intro: `Where flows come from: git repositories with a flows/ directory cloned under humanize's
 home, and your own flows read in place. Changes take effect immediately.` Rows: `official`
 (`humanfia/flowverse` on GitHub), added ones alphabetically, `local` (`your own flows in
-.humanize/flows`), `user` (`your own flows in ~/.humanize/flows`); a URL has credentials
+.hmz/flows`), `user` (`your own flows in ~/.hmz/flows`); a URL has credentials
 removed; ` · not fetched yet` where never fetched. Same store as
 [`Hmz().verses`](/reference/sdk#flowverses).
 
@@ -1219,7 +1219,7 @@ removed; ` · not fetched yet` where never fetched. Same store as
 | --- | --- |
 | **Add a flowverse** | Form `Add a flowverse`: `repository` (`a URL, or owner/repo for one on GitHub`), `name` (`flowverse name, or leave blank for the repository name`); `done` `clones the repository and adds its flows`. Refusals: `repository URL is required`; `'<x>' is not a flowverse name: letters, digits, dot, dash and underscore, starting with a letter or a digit`; reserved and taken names. |
 | `enter` on a flowverse | Sheet titled with its name: `Flows loaded from <source>. To run a flow, use /flow, which lists flows from all flowverses.` Rows above: `fetch again` (`fetch` if never fetched), `remove <name>` (`including all its flows`, added ones only), `search…`; then its flows. Fixed ones: `<name> is always listed and cannot be removed`. |
-| fetch | `fetching <name>…`, then `<name> is fetched` (also in the transcript), or the error. `local`/`user`: `local is read from .humanize/flows, so there is nothing to fetch`. Not a clone: `<name> is not a git clone, so there is nothing to fetch; remove it instead`. |
+| fetch | `fetching <name>…`, then `<name> is fetched` (also in the transcript), or the error. `local`/`user`: `local is read from .hmz/flows, so there is nothing to fetch`. Not a clone: `<name> is not a git clone, so there is nothing to fetch; remove it instead`. |
 | remove | At once: `<name> was removed` (red; also in the transcript). |
 
 ### Workspace page {#workspace-page}

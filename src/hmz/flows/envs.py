@@ -369,7 +369,7 @@ class GitEnvMixin(RewindableEnvMixin, Protocol):
 
     What is snapshotted and rewound is the whole worktree -- a workdir below its top along
     with the rest of it -- and the commit it has checked out and its index. Files git ignores
-    are neither recorded nor removed, and nor is a `.humanize/` at its top, where a
+    are neither recorded nor removed, and nor is a `.hmz/` at its top, where a
     workspace keeps its own flows.
     """
 

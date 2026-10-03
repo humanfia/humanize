@@ -19,7 +19,7 @@ Set CursorBlink false
 Set PlaybackSpeed 1.5
 
 Hide
-Type "cd /work/demo && mkdir -p /root/.humanize/flowverses/official/.git && clear" Enter
+Type "cd /work/demo && mkdir -p /root/.hmz/flowverses/official/.git && clear" Enter
 Type "hmz" Enter
 Wait+Screen /ctrl\+c exit/
 Show

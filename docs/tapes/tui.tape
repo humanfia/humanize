@@ -15,7 +15,7 @@ Hide
 # Opening the flows fetches whatever has never been fetched, and this image has no git to fetch
 # with, which `/flow` would say in red on camera: so `official` is marked as fetched out of frame,
 # as first-run.tape does.
-Type "cd /work/demo && mkdir -p /root/.humanize/flowverses/official/.git && clear" Enter
+Type "cd /work/demo && mkdir -p /root/.hmz/flowverses/official/.git && clear" Enter
 Show
 
 Sleep 500ms

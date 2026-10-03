@@ -244,7 +244,7 @@ shares that machine and its connection.
 | Backend | Machine | Reached by | Probe |
 | --- | --- | --- | --- |
 | `local` | `LocalMachine` | processes here | CPUs (`sched_getaffinity`), memory, GPUs by `nvidia-smi`, `git` on `PATH` |
-| `ssh` | `SSHMachine` | the [serving half](/reference/remote-execution#bootstrapping-the-serving-half), bootstrapped over `ssh`, exporting `/` as `/` | one command (60 s) printing `home`, `state` (`${HUMANIZE_HOME:-$HOME/.humanize}`), CPUs, memory, `CUDA_VISIBLE_DEVICES`, `nvidia-smi` GPUs and whether `git` is on `PATH` |
+| `ssh` | `SSHMachine` | the [serving half](/reference/remote-execution#bootstrapping-the-serving-half), bootstrapped over `ssh`, exporting `/` as `/` | one command (60 s) printing `home`, `state` (`${HUMANIZE_HOME:-$HOME/.hmz}`), CPUs, memory, `CUDA_VISIBLE_DEVICES`, `nvidia-smi` GPUs and whether `git` is on `PATH` |
 | `docker` | `DockerMachine` | the serving half over `docker exec -i` | the ssh probe, run in the container, after the container is started |
 | `swarm` | `SwarmMachine` | the serving half over `docker exec -i`, against the daemon of the node the task landed on | the ssh probe, run in the container, after the task is running |
 
@@ -838,7 +838,7 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 
 | Variable | Effect |
 | --- | --- |
-| `HUMANIZE_HOME` | Root of `runtimes/`, `envs/` (mirrors, derived directories here), `docker-ssh/` and `harness/`; default `~/.humanize`. On an ssh host, `${HUMANIZE_HOME:-$HOME/.humanize}` there is where derived directories go. |
+| `HUMANIZE_HOME` | Root of `runtimes/`, `envs/` (mirrors, derived directories here), `docker-ssh/` and `harness/`; default `~/.hmz`. On an ssh host, `${HUMANIZE_HOME:-$HOME/.hmz}` there is where derived directories go. |
 | `DOCKER_HOST`, `DOCKER_CONTEXT` | Used by the `local` endpoint; `DOCKER_HOST` decides whether `local` counts as here. Removed from every `docker` sent to any other endpoint, with `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`. |
 | `DOCKER_CONFIG` | Where docker reads `context:NAME` contexts (docker's own). |
 | `CUDA_VISIBLE_DEVICES` | Narrows the GPUs counted on a local or ssh machine, as CUDA does. |

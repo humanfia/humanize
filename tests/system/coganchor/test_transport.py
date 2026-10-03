@@ -43,7 +43,7 @@ def _bare() -> dict[str, str]:
 
     Small, but not empty of what the suite sets on itself: what is started over there is a
     whole `hmz`, and one that inherits none of :data:`_GUARDS` writes its record of this
-    temporary mirror into the real `~/.cache/humanize`, reads the real `~/.humanize` back,
+    temporary mirror into the real `~/.cache/humanize`, reads the real `~/.hmz` back,
     and reports a crash a test provoked on purpose. `tests/conftest.py` sets each of them
     for the process running the suite; this carries them into the process the suite starts.
     """

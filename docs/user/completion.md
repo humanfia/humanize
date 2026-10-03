@@ -110,8 +110,8 @@ fetched here, and your own. Each is offered under one name:
 | Where the flow comes from | Offered as |
 | --- | --- |
 | humanize itself, or the official flowverse | a bare name: `chat`, `ralph_loop` |
-| this project's `.humanize/flows/` | `local/twice` |
-| `~/.humanize/flows/` | `user/twice` |
+| this project's `.hmz/flows/` | `local/twice` |
+| `~/.hmz/flows/` | `user/twice` |
 | any other flowverse | `<flowverse>/<flow>` |
 
 ## The keys

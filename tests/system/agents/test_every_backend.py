@@ -50,7 +50,7 @@ pytestmark = pytest.mark.agent
 #: Read from the real home rather than through `hmz.coganchor.models`, which the suite points
 #: at a directory of its own: what is wanted here is what this machine's own sign-in may
 #: actually name, which is the whole subject.
-_KEPT = Path.home() / ".humanize" / "models"
+_KEPT = Path.home() / ".hmz" / "models"
 
 #: What to ask for. One word, no tools, nothing to think about: what is being tested is that
 #: a turn lands at all.

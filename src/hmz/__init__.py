@@ -17,6 +17,4 @@ def home() -> pathlib.Path:
     Returns:
       The directory. It is not made here: it is made by whatever writes into it.
     """
-    return pathlib.Path(
-        os.environ.get("HUMANIZE_HOME") or pathlib.Path.home() / ".humanize"
-    )
+    return pathlib.Path(os.environ.get("HUMANIZE_HOME") or pathlib.Path.home() / ".hmz")

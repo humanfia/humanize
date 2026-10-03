@@ -83,7 +83,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-home"))
-    where = tmp_path / ".humanize/flows"
+    where = tmp_path / ".hmz/flows"
     where.mkdir(parents=True)
     written(where, "plain", PLAIN)
     monkeypatch.chdir(tmp_path)
@@ -138,7 +138,7 @@ async def test_a_run_out_of_the_list_is_exported_from_the_menu_under_it(
         )
 
     (epic,) = epics(workspace)
-    at = workspace / ".humanize" / f"{epic.name}.epic.tar.gz"
+    at = workspace / ".hmz" / f"{epic.name}.epic.tar.gz"
     assert at.is_file()
     held = _held(at)
     # No transcript in this one: what is on the screen is not this run, which may be a week old.

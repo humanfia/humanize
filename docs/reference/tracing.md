@@ -291,7 +291,7 @@ gzip-compressed tar archive of a run:
 | Property | Value |
 | --- | --- |
 | Name | `<epic>.epic.tar.gz` |
-| Location | `output` if given (a file, or a directory — existing or ending in `/` — to put it in), else `<current directory>/.humanize/` |
+| Location | `output` if given (a file, or a directory — existing or ending in `/` — to put it in), else `<current directory>/.hmz/` |
 | Write | to `.<name>.<random>.new` (mode `0600`, kept), then renamed over; exporting a run again replaces the archive |
 | Refused | `ValueError: <dir> is not a run` for a directory holding no epic |
 

@@ -618,7 +618,7 @@ export const SCENES: Record<string, Scene> = {
         session: 'new',
         does: 'plan',
         inside: 6,
-        pass: tree('.humanize/ideas/<slug>.md', 'end'),
+        pass: tree('.hmz/ideas/<slug>.md', 'end'),
       },
     ],
     ends: [{ is: 'done', said: 'the draft is written' }, BUDGET],

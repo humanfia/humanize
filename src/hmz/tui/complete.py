@@ -2,7 +2,7 @@
 
 A command line is typed, never filled in on a form: `/` offers the commands, `/settings`
 its pages, and `/flow` the flows there are -- the ones humanize ships, the ones every
-flowverse fetched here holds, and the ones under `.humanize/flows` here or in your home
+flowverse fetched here holds, and the ones under `.hmz/flows` here or in your home
 directory. So does `$`, which is the flow said outright rather than chosen from a menu: the
 same list, under the sigil that starts one. A flow anywhere else is a path, and a path is
 typed: looking for one would mean reading every Python file below here to see which declare a

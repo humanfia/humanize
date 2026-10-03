@@ -94,11 +94,11 @@ git add -A && git commit -qm "roman numerals, one way"
 Start from the shape of `twice`, with two roles instead of one:
 
 ```sh
-mkdir -p .humanize/flows/build_under_test
+mkdir -p .hmz/flows/build_under_test
 ```
 
 ```python
-# .humanize/flows/build_under_test/__init__.py
+# .hmz/flows/build_under_test/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -256,7 +256,7 @@ Now replace the body of the function with a loop. This is the whole file, as it 
 when you are done:
 
 ```python
-# .humanize/flows/build_under_test/__init__.py
+# .hmz/flows/build_under_test/__init__.py
 from pydantic import BaseModel, ConfigDict, Field
 
 from hmz.flows import (
@@ -496,10 +496,10 @@ before you commit.
 
 The run above cost real money and took minutes. The flow's own decisions (red goes back to the
 builder, green goes to a fresh reviewer, notes are passed on word for word) can be tested in
-milliseconds on fakes. Save this under `.humanize/tests/`:
+milliseconds on fakes. Save this under `.hmz/tests/`:
 
 ```python
-# .humanize/tests/test_build_under_test.py
+# .hmz/tests/test_build_under_test.py
 from hmz.flows import PermissionKind
 from hmz.sdk import fakes
 
@@ -541,7 +541,7 @@ async def test_the_notes_are_the_next_prompt() -> None:
 
 ```sh
 uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
-    --with pytest-asyncio pytest -q -o asyncio_mode=auto .humanize/tests
+    --with pytest-asyncio pytest -q -o asyncio_mode=auto .hmz/tests
 ```
 
 ```text
@@ -559,7 +559,7 @@ uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
    fresh.
 7. **The reviewer's grant** is what `_permission` declared, whatever CLI fills the role.
 
-**Why `.humanize/tests/`:** pytest skips directories whose names start with `.`, so the
+**Why `.hmz/tests/`:** pytest skips directories whose names start with `.`, so the
 `python -m pytest -q` the flow runs never collects the flow's own tests. Put them in `tests/`
 and every round would try to import `hmz` in the project's Python, and fail.
 [Testing a flow](/weaver/testing-flows) has the rest of the kit.

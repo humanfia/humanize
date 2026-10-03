@@ -1121,7 +1121,7 @@ installed CLI that can run without further setup, at the first model that CLI li
 `high` where the model offers it.
 
 ::: details Where it is kept
-General and Workspace are one file, `~/.humanize/settings.yaml` (under `$HUMANIZE_HOME` if you
+General and Workspace are one file, `~/.hmz/settings.yaml` (under `$HUMANIZE_HOME` if you
 set that). Deleting it makes every directory start over, turns details off, and asks the
 reporting question again.
 :::

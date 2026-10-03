@@ -32,7 +32,7 @@ provider's directory. Two agents of one CLI can therefore run as two accounts at
 The rest of humanize's home is in [Files](/reference/files).
 
 ```text
-$HUMANIZE_HOME/                         default ~/.humanize
+$HUMANIZE_HOME/                         default ~/.hmz
 ├── providers/<cli>/<name>/             one account
 │   ├── provider.json                   what it is
 │   ├── models.json                     what it was last found to run

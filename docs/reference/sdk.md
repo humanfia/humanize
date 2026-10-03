@@ -68,7 +68,7 @@ nothing.
 | Property | Type | Value |
 | --- | --- | --- |
 | `workspace` | `Path` | The project directory. |
-| `home` | `Path` | `$HUMANIZE_HOME`, else `~/.humanize`. Not created. |
+| `home` | `Path` | `$HUMANIZE_HOME`, else `~/.hmz`. Not created. |
 | `settings` | `hmz.runtime.settings.Settings` | What is remembered for this workspace and machine ([Settings](/reference/settings)). Internal type. |
 | `flows` | [`Flows`](#flows) | |
 | `verses` | [`Flowverses`](#flowverses) | The same object as `flows.verses`. |
@@ -255,7 +255,7 @@ A run, or a request to a host, refused before anything of it ran. `str(error)` i
 | `about(named: str)` | `str` | The flow's one-line description, or `""`. |
 | `declared(named: str \| PathLike)` | [`Declaration`](#declaration) | Imports the flow. Raises the flow API's `FlowException` for a flow that cannot load. |
 | `resumes(named: str \| PathLike)` | `bool` | Whether it is [resumable](/reference/flows#a-flow-that-can-be-picked-up). Imports the flow. |
-| `fork(named: str, into: str \| PathLike \| None = None)` | `str` | Copies the flow, what it imports and its skills into `./.humanize/flows/` (or `into`). Returns the directory. `ValueError`: not a flow, or already a copy here. `OSError`: cannot copy. |
+| `fork(named: str, into: str \| PathLike \| None = None)` | `str` | Copies the flow, what it imports and its skills into `./.hmz/flows/` (or `into`). Returns the directory. `ValueError`: not a flow, or already a copy here. `OSError`: cannot copy. |
 | `running()` | `tuple[LiveCall, ...]` | Every flow call in progress in this process, oldest first. |
 
 ```python
@@ -280,7 +280,7 @@ for offer in Hmz().flows.all():
 | `standing(one: Flowverse)` | `str` | The clone's commit, or `""`. |
 | `where(name: str)` | `Path` | Its directory, fetched or not. |
 | `plain(url: str)` | `str` | `url` with credentials removed. |
-| `whence(one: Flowverse, nowhere: str = "-")` | `str` | Displayable origin: the credential-free URL; `your own flows in .humanize/flows` for `local`; `nowhere` for a directory with no readable origin. |
+| `whence(one: Flowverse, nowhere: str = "-")` | `str` | Displayable origin: the credential-free URL; `your own flows in .hmz/flows` for `local`; `nowhere` for a directory with no readable origin. |
 
 ## `Accounts` {#accounts}
 
@@ -364,7 +364,7 @@ places tried after it, in order.
 | `state(epic, flow: str = "")` | `dict[str, Any]` | A resumable flow's kept `ctx.state`: the run's own flow, or another by canonical ref. |
 | `traced(epic, *, output=None, start=None, end=None)` | `tuple[Path, dict]` | Gathers the run's own sessions into a Chrome trace. Default `output`: the epic's `traces/`, named for the moment. `start`/`end`: any wording `dateparser` reads. [Tracing](/reference/tracing#from-python). |
 | `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None, kept=None)` | `dict` | The same collector for any sessions. `sessions=None`: every session of the workspace; empty iterable: none. `kept`: directories of kept sessions to read (default: everywhere humanize keeps them). |
-| `bundled(epic, *, output=None, transcript=None)` | `tuple[Path, dict]` | One `.epic.tar.gz` of the whole run, credentials struck out. Default `output`: `./.humanize/`. Returns the path and its manifest. [Exporting a run](/user/export). |
+| `bundled(epic, *, output=None, transcript=None)` | `tuple[Path, dict]` | One `.epic.tar.gz` of the whole run, credentials struck out. Default `output`: `./.hmz/`. Returns the path and its manifest. [Exporting a run](/user/export). |
 
 ## `Host` {#host}
 

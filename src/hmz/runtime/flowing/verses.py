@@ -2,7 +2,7 @@
 
 A flowverse is a git repository with a `flows/` directory in it: one directory per flow, each
 with the `__init__.py` that is the flow, whatever it imports beside it and the `skills/` it
-brings. It is cloned into `~/.humanize/flowverses/<name>/`, and every flow in it is offered
+brings. It is cloned into `~/.hmz/flowverses/<name>/`, and every flow in it is offered
 under that name. Only that directory is read, so a repository is free to be a repository
 around it -- a README, a pyproject, a test suite -- without any of it being taken for a flow
 and run to find out.
@@ -10,7 +10,7 @@ and run to find out.
 Three are always there, and none of them can be added or taken away. `official` is humanize's
 own, and is there whether or not it has been fetched yet: a list that only mentioned it once
 somebody had thought to add it would be a list that hid what there is. And `local` and `user`
-are the flows of your own: `.humanize/flows` here, and the one in your home directory.
+are the flows of your own: `.hmz/flows` here, and the one in your home directory.
 
 `official` is the one that is read from two places at once. `chat` is in the package, because
 an interface that has never reached a network still has to have something to open talking to;
@@ -81,8 +81,8 @@ USER = "user"
 #: wherever humanize is being run, and `~` is whoever is running it, neither of which is
 #: settled when this is imported.
 MINE = {
-    LOCAL: ".humanize/flows",
-    USER: "~/.humanize/flows",
+    LOCAL: ".hmz/flows",
+    USER: "~/.hmz/flows",
 }
 
 #: The names a flowverse cannot be added under, being the three that are always listed. One is
