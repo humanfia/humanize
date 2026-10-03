@@ -26,8 +26,9 @@ from hmz.runtime.flowing import verses as store
 from hmz.tui import Humanize
 from hmz.tui.pick import (
     _ACT_ADD,
+    _ACT_DONE,
+    _ACT_SAVE,
     _AGAIN,
-    _DONE,
     _TAKES_AWAY,
     _WHENCE,
     Fetches,
@@ -106,7 +107,7 @@ async def _fetches(app: Humanize, driver: Pilot[None], named: str) -> None:
 
 
 async def _adding(app: Humanize, driver: Pilot[None]) -> Fetches:
-    """Opens the form a flowverse is added from, off the row below the list."""
+    """Opens the form a flowverse is added from, off the button under the list."""
     await onto(app, driver, _ACT_ADD)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Fetches), driver)
@@ -136,10 +137,11 @@ async def test_every_place_flows_come_from_is_listed(theirs: Path) -> None:
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
 
-        # Adding one above them, as what is done about a list is on every page of
-        # `/settings`, and no row to save from: nothing on this page is held.
+        # Adding one under them, as what is done about a list is on every page of
+        # `/settings`, and no button to save from: nothing on this page is held.
         assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER]
         assert _ACT_ADD in bar(app)
+        assert _ACT_SAVE not in bar(app)
         drawn = str(
             sheet.query_one("#choices", OptionList).get_option(f"={LOCAL}").prompt
         )
@@ -271,7 +273,7 @@ async def test_one_is_added_from_here(theirs: Path) -> None:
 
         await _adding(app, driver)
         await changes(app, driver, "repository", *str(theirs))
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         await until(lambda: "theirs" in rows(app), driver)
@@ -289,7 +291,7 @@ async def test_a_flowverse_with_no_repository_named_is_refused_where_it_was_type
         await _open(app, driver)
         sheet = await _adding(app, driver)
 
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await driver.pause()
 
@@ -309,7 +311,7 @@ async def test_a_name_that_is_not_one_is_refused_before_anything_is_cloned() -> 
 
         await changes(app, driver, "repository", *"somewhere")
         await changes(app, driver, "name", *"../..")
-        await onto(app, driver, _DONE)
+        await onto(app, driver, _ACT_DONE)
         await driver.press("enter")
         await driver.pause()
 
@@ -507,4 +509,6 @@ async def test_keeping_the_repository_moves_on_to_the_name_it_may_be_given() -> 
             "enter", "enter"
         )  # begun and kept blank: the repository's own
         await driver.pause()
-        assert sheet.under() == _DONE
+        # And that was the last of it, so on to the button that answers the form.
+        assert sheet.under() == "name"
+        assert sheet.focused is sheet.query_one(f"#act-{_ACT_DONE}")

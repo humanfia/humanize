@@ -14,7 +14,9 @@ searching it, adding to it, bringing more into it, saving -- is a bar of buttons
 as lazygit and gh-dash put what a panel does beside the panel rather than among its rows. Tab
 moves between the two. A value is changed by picking it out of every value it can take,
 dropped under its row (:mod:`hmz.tui.dropdown`), as Textual's `Select` and Charm's `huh` do,
-rather than stepped along with the arrows. And every one of those is a click as well.
+rather than stepped along with the arrows. And every one of those is a click as well. All of
+that is how every sheet of :mod:`hmz.tui.pick` is drawn and worked, this one first among them;
+what is here is what is this menu's own: its pages, and its first screen of them.
 
 What is changed is still held until it is saved, from the bar or from the question leaving
 asks: the pages that are lists of things are the classes of :mod:`hmz.tui.pick` this is made
@@ -26,16 +28,13 @@ of, which say what a list of accounts or machines does, and this is where they a
 
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, NamedTuple, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from rich.markup import escape
-from textual import events, on, work
-from textual.binding import Binding
-from textual.containers import Horizontal
+from textual import on, work
 from textual.message import Message
-from textual.widgets import Button, Input, Label, OptionList, Static
+from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
 from hmz.runtime import telemetry
@@ -45,43 +44,39 @@ from hmz.runtime.telemetry import KEPT, SAYS, SENT
 from .dropdown import Dropdown, Value
 from .pick import (
     _ACCOUNTS,
-    _ACT_SAVE,
-    _ACT_SEARCH,
     _APART_MARK,
     _DIRECTORY,
     _DOT,
+    _DROPS,
     _EVERYWHERE,
     _FALLBACK,
-    _FIRST,
-    _INFORCE,
-    _LABEL,
     _MACHINES,
     _NO,
-    _SHEET,
+    _OPENS,
     _VERSES,
     _YES,
     Action,
     Adjusted,
     Agent,
-    Body,
     Drop,
     Fallbacks,
     Flowverses,
     Key,
     Machines,
     Providers,
+    _chip,
     _complete,
     _hmz,
     _many,
+    _shade,
     _shortly,
     switched,
 )
-from .selecting import Choices
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from textual.app import App, ComposeResult
+    from textual.app import App
     from textual.await_complete import AwaitComplete
 
     from hmz.coganchor.backends import Model
@@ -177,11 +172,6 @@ _NEXT_LAUNCH = "takes effect on next launch"
 _NEXT_BTW = "takes effect on next /btw"
 
 
-def _act(key: str) -> str:
-    """The id of the button an action is drawn as."""
-    return f"act-{key}"
-
-
 class _Setting(NamedTuple):
     """One row of the general or the workspace page.
 
@@ -209,23 +199,6 @@ def _word(on: bool | None) -> str:  # noqa: FBT001 -- a switch is one
     return {True: _YES, False: _NO, None: "not set"}[on]
 
 
-def _shade(style: str, said: str, *, here: bool) -> str:
-    """Words in a colour, or in none on the row under the cursor.
-
-    That row is drawn in the cursor's own pair of colours, which carry their own contrast
-    whatever the terminal's are: grey or yellow words inside it are words on blue.
-
-    Args:
-      style: The colour, as markup names it.
-      said: The words, unescaped.
-      here: Whether they are on the row under the cursor.
-
-    Returns:
-      The words, as markup.
-    """
-    return escape(said) if here else f"[{style}]{escape(said)}[/]"
-
-
 #: What each switch's two values mean, said beside them on the list dropped under it.
 _MEANS = {
     _SENTRY: ("send error reports", "send nothing"),
@@ -233,52 +206,6 @@ _MEANS = {
     _PROFILES: ("profile what runs here start", "trace them only"),
     _FORGET: ("clear saved settings here", "keep them"),
 }
-
-
-_SETTINGS = """
-Adjusts { align: left top; background: $background; }
-Adjusts #sheet { width: 100%; height: 100%; padding: 1 2 0 2; }
-Adjusts #rule { display: none; }
-Adjusts #tabs { display: none; }
-Adjusts #top { height: 1; width: 100%; }
-Adjusts #crumb-root { width: auto; color: $text-muted; }
-Adjusts #crumb-root.home { color: $primary; text-style: bold; }
-Adjusts #crumb-root.link:hover { color: $primary; text-style: underline; }
-Adjusts #crumb-sep { width: auto; color: $text-muted; }
-Adjusts #asked { width: auto; padding: 0; text-style: bold; color: $primary; }
-Adjusts #pending { width: 1fr; text-align: right; color: $warning; }
-Adjusts #about { width: 100%; padding: 0 0 1 0; color: $text-muted; }
-Adjusts #seek { display: none; border: round $primary; background: $background; }
-Adjusts #choices {
-    height: 1fr; max-height: 100%; padding: 0; background: $background;
-    border: round $accent; scrollbar-size: 1 1; }
-Adjusts #choices:focus { border: round $primary; background-tint: $background 0%; }
-Adjusts #choices > .option-list--option-highlighted {
-    background: $block-cursor-blurred-background;
-    color: $block-cursor-blurred-foreground; text-style: none; }
-Adjusts #choices:focus > .option-list--option-highlighted {
-    background: $block-cursor-background; color: $block-cursor-foreground;
-    text-style: bold; }
-Adjusts #choices > .option-list--separator { color: $accent; }
-Adjusts #tuning { width: 100%; height: auto; padding: 0 1; }
-Adjusts #actions { width: 100%; height: auto; padding: 1 0 0 0; }
-Adjusts #actions Button {
-    height: 1; min-width: 0; padding: 0 2; margin: 0 1 0 0; border: none;
-    background: $block-cursor-blurred-background;
-    color: $block-cursor-blurred-foreground; text-style: none; }
-Adjusts #actions Button.-primary {
-    background: $success; color: $block-cursor-foreground; }
-Adjusts #actions Button:hover {
-    background: $block-cursor-background; color: $block-cursor-foreground; }
-Adjusts #actions Button:focus {
-    background: $block-cursor-background; color: $block-cursor-foreground;
-    text-style: bold; }
-Adjusts #actions Button:disabled {
-    background: $background; color: $text-muted; text-opacity: 100%;
-    text-style: none; }
-Adjusts #actions .spacer { width: 1fr; height: 1; }
-Adjusts #keys { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted; }
-"""
 
 
 class Adjusts(Providers, Machines, Fallbacks, Flowverses):
@@ -298,14 +225,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     so once it is saved. What runs a command of its own -- making an account, signing one in,
     saving or checking a machine, fetching a flowverse -- happens as it is asked for.
     """
-
-    CSS = _SHEET + _SETTINGS
-
-    BINDINGS: ClassVar = [
-        # Out a level, as esc is: the key a file manager and a browser both go up with.
-        Binding("backspace", "up", "back", show=False),
-        Binding("slash", "search", "search", show=False),
-    ]
 
     class Settled(Message):
         """Says what the settings menu was answered with, to whoever applies it.
@@ -371,80 +290,13 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         self._only = only and page is not None
         #: The row each page's cursor was last on, by id, for when it is gone back into.
         self._cursors: dict[int, str] = {}
-        #: What the page being drawn does about its list, which the buttons under it are.
-        self._acts: list[Action] = []
-        #: The keys the page last said it had, before where the focus is was said as well.
-        self._page_keys: tuple[Key, ...] = ()
-        #: How wide the names of the general and workspace pages' rows are: where values start.
-        self._values_at = 0
-        #: How wide the screen was last drawn, which the cards are laid out across.
-        self._width = 0
-
-    def compose(self) -> ComposeResult:
-        """The way here across the top, the page, the list, what it says, the bar, the keys.
-
-        The rule and the titles every sheet has are there, and not shown: a screen of its own
-        is ruled by its edges, and the pages are its first screen rather than tabs over one.
-        """
-        with Body(id="sheet"):
-            yield Label(id="rule")
-            yield Label(id="tabs")
-            with Horizontal(id="top"):
-                yield Label("/settings", id="crumb-root")
-                yield Label(
-                    " \N{SINGLE RIGHT-POINTING ANGLE QUOTATION MARK} ", id="crumb-sep"
-                )
-                yield Label(id="asked")
-                yield Label(id="pending")
-            yield Label(id="about")
-            yield Input(placeholder="type to filter", id="seek")
-            yield Choices(id="choices")
-            yield Label(id="tuning")
-            with Horizontal(id="actions"):
-                # Saving at the far end, set apart from what is done to the list; the rest
-                # are put in front of it as the pages ask for them -- see :meth:`_shows_bar`.
-                yield Static(classes="spacer")
-                yield Button(
-                    "Save", id=_act(_ACT_SAVE), variant="primary", compact=True
-                )
-            yield Label(id="keys")
 
     def _ask(self) -> None:
         """Reads the pages that are lists, and puts up whichever is open."""
-        listing = self.query_one("#choices", OptionList)
-        # As tall as the screen leaves it: this is the whole screen, not a sheet over one.
-        listing.styles.max_height = None
         self._read_accounts()
         self._read_machines()
         self._read_verses()
         self._fill()
-        self._settles_focus()
-
-    def _settles_focus(self) -> None:
-        """Puts the focus on the list, or on the bar where the list has nothing to land on.
-
-        Which on a page with nothing in it is the button that adds the first thing.
-        """
-        listing = self.query_one("#choices", OptionList)
-        if any(not one.disabled for one in listing.options):
-            listing.focus()
-            return
-        for one in self._acts:
-            if one.able():
-                self.query_one(f"#{_act(one.key)}", Button).focus()
-                return
-        listing.focus()
-
-    def shortens(self) -> None:
-        """Lays the cards out across the screen again, where it changed width.
-
-        Nothing is shortened: the list is as tall as the screen leaves it, and scrolls.
-        """
-        width = self.size.width
-        if width != self._width:
-            self._width = width
-            if self.query("#choices"):
-                self._fill()
 
     # -- Going in and out ----------------------------------------------------------------------
 
@@ -464,6 +316,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._cursors[self._tab] = self._was
         self._said = ""
         self._typed = ""
+        self._searching = False
         seek = self.query_one("#seek", Input)
         seek.display = False
         with seek.prevent(Input.Changed):
@@ -493,148 +346,61 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._said = said
 
     def action_up(self) -> None:
-        """Goes back out to the screen of pages, from inside one."""
+        """Goes back out to the screen of pages, from inside one -- or up out of the menu."""
         if not self._home and not self._only:
             self._opens(None)
+            return
+        super().action_up()
 
     def action_back(self) -> None:
         """Comes out of a search, or out of the page, or leaves.
 
         Leaving asks first whether to save what is held, as every menu holding changes does.
         """
-        if self._typed or self.query_one("#seek", Input).display:
-            self._clears_search()
-            return
-        if not self._home and not self._only:
+        if not (self._searching or self._home or self._only):
             self._opens(None)
             return
-        self.leaving()
+        super().action_back()
 
-    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        """Whether one of this screen's keys is live now.
+    def enters(self, row: str) -> bool:
+        """Whether the arrow right goes into a row: a card, or a thing a page lists.
 
-        The arrows across are the search box's own while it has the focus, as are its letters
-        and backspace; and a search is started only where the page has one.
+        Not a setting of the general or workspace page, whose values are dropped under it.
 
         Args:
-          action: What the key would do.
-          parameters: What it would do it with.
+          row: The row, by id.
 
         Returns:
-          Whether to run it.
+          True for a card, and for a row of a page that is a list.
         """
-        typing = isinstance(self.focused, Input)
-        if action == "across":
-            return not typing
-        if action == "search":
-            return not typing and self._acting(_ACT_SEARCH) is not None
-        if action == "up":
-            return not typing
-        return super().check_action(action, parameters)
+        return bool(row) and (
+            self._home or self._tab in (_ACCOUNTS, _MACHINES, _FALLBACK, _VERSES)
+        )
 
-    def action_across(self, by: int) -> None:
-        """Steps along the bar, or goes into the card under the cursor, or back out.
+    # -- The way across the top -----------------------------------------------------------
 
-        Right goes in and left comes out, as they do in a file manager that lists what is in
-        the folder beside the one it is in; along the bar they move between its buttons.
+    def crumb(self) -> str:
+        """`/settings`, or the page open in it, which is what a menu opened from it is in."""
+        return "/settings" if self._home else escape(_PAGES[self._tab].title)
+
+    def crumbs(self) -> list[str]:
+        """`/settings`, while a page of it is open and it is more than that page."""
+        return [] if self._home or self._only else ["/settings"]
+
+    def climbs_to(self, depth: int) -> None:
+        """Goes back out to the screen of pages, from a click on `/settings` across the top.
 
         Args:
-          by: One on, or one back.
+          depth: Which level: the first is the screen of pages.
         """
-        focus = self.focused
-        if isinstance(focus, Button):
-            shown = [
-                one
-                for one in self.query_one("#actions", Horizontal).query(Button)
-                if one.display and not one.disabled
-            ]
-            if focus in shown:
-                shown[(shown.index(focus) + by) % len(shown)].focus()
-            return
-        if self._home and by > 0:
-            self.action_enter()
-        elif not self._home and by < 0:
-            self.action_up()
-
-    def action_walk(self, by: int) -> None:
-        """Walks the list, or comes back to it from the search box above it or the bar below.
-
-        Args:
-          by: One row down, or one up.
-        """
-        focus = self.focused
-        listing = self.query_one("#choices", OptionList)
-        if isinstance(focus, Input):
-            if by > 0:
-                listing.focus()
-            return
-        if isinstance(focus, Button):
-            if by < 0:
-                listing.focus()
-            return
-        super().action_walk(by)
-
-    def action_enter(self) -> None:
-        """Opens the row under the cursor, presses the button with the focus, or ends typing."""
-        focus = self.focused
-        if isinstance(focus, Input):
-            self.query_one("#choices", OptionList).focus()
-            return
-        if isinstance(focus, Button):
-            focus.press()
-            return
-        super().action_enter()
-
-    def on_click(self, event: events.Click) -> None:
-        """Takes a click on the first word across the top as the way back out.
-
-        Args:
-          event: The click.
-        """
-        if event.widget is self.query_one("#crumb-root") and not self._home:
-            self.action_up()
-
-    def on_descendant_focus(self) -> None:
-        """Says the keys again, which are not the same on the list, the search and the bar."""
-        if self._page_keys:
-            self._footed(*self._page_keys)
-
-    # -- Searching ---------------------------------------------------------------------------
-
-    def action_search(self) -> None:
-        """Opens the box a search is typed into, above the list, and puts the letters there."""
-        seek = self.query_one("#seek", Input)
-        seek.display = True
-        seek.focus()
-
-    @on(Input.Changed, "#seek")
-    def _seeks(self, event: Input.Changed) -> None:
-        """Narrows the list to what has been typed, as it is typed.
-
-        Args:
-          event: What the box says now.
-        """
-        self._typed = event.value
-        # On the first thing found while there is something typed; where it was, once not.
-        self._seek = _FIRST if event.value else ""
-        self._fill()
-
-    def _clears_search(self) -> None:
-        """Takes the search away, and the list back to all of itself, the cursor where it was."""
-        seek = self.query_one("#seek", Input)
-        with seek.prevent(Input.Changed):
-            seek.value = ""
-        seek.display = False
-        self._typed = ""
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
+        if not depth and not self._home:
+            self._opens(None)
 
     # -- Drawing -----------------------------------------------------------------------------
 
     def _fill(self) -> None:
         """Puts up the screen of pages, or the page that is open, and the bar under it."""
-        self._acts = self._actions()
-        self._draws_top()
+        self.query_one("#asked", Label).update(self.crumb())
         self.query_one("#about", Label).update(
             _HOME_ABOUT
             if self._home
@@ -660,21 +426,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._fill_verses()
         else:
             self._fill_own()
-        self._shows_bar()
-
-    def _draws_top(self) -> None:
-        """Says where this is across the top: `/settings`, and the page inside it."""
-        root = self.query_one("#crumb-root", Label)
-        root.display = not self._only
-        root.set_class(self._home, "home")
-        root.set_class(not self._home, "link")
-        self.query_one("#crumb-sep", Label).display = not (self._home or self._only)
-        asked = self.query_one("#asked", Label)
-        asked.display = not self._home
-        asked.update(_PAGES[self._tab].title)
-        self.query_one("#pending", Label).update(
-            "● unsaved changes" if self._holding() else ""
-        )
 
     def _summary(self, page: int) -> str:
         """What one page's card says is in it, in a few words."""
@@ -705,10 +456,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         if page == _FALLBACK:
             return self._steps != self._steps_was
         return False
-
-    def _width_of(self, listing: OptionList) -> int:
-        """How many cells across the list has to lay its rows out in."""
-        return listing.scrollable_content_region.width or max(self.size.width - 6, 40)
 
     def _holding(self) -> bool:
         """Whether any page is holding a change that saving would land.
@@ -838,9 +585,8 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     def _chip(one: _Setting, *, here: bool) -> tuple[str, int]:
         """What a row says it is set to, as markup, and how many cells that takes.
 
-        A switch is a dot that is filled while it is on; a value picked from a list says it
-        is one with the mark a `<select>` has; a row that opens says so; one that is only
-        read is only its value.
+        A switch and a value picked from a list are drawn as on any sheet; a row that opens
+        says so; one that is only read is only its value, quietly.
 
         Args:
           one: The row.
@@ -849,24 +595,10 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         Returns:
           The markup, and its width.
         """
-        if one.kind == _SWITCH:
-            dot = "●" if one.value == _YES else "○"
-            if one.value == _YES and not here:
-                return f"[$success]{dot}[/] {_YES} [$text-muted]▾[/]", len(_YES) + 4
-            said = f"{dot} {one.value} ▾"
-            return _shade("$text-muted", said, here=here), len(said)
-        if one.kind == _PICK:
-            said = f"{one.value} ▾"
-            return (
-                (
-                    escape(said)
-                    if here
-                    else f"[$secondary]{escape(one.value)}[/] [$text-muted]▾[/]"
-                ),
-                len(said),
-            )
+        if one.kind in (_SWITCH, _PICK):
+            return _chip(one.value, _DROPS, here=here, toggles=one.kind == _SWITCH)
         if one.kind == _SAYS:
-            return _shade("$text-muted", "▸", here=here), 1
+            return _chip("", _OPENS, here=here)
         return _shade("$text-muted", one.value, here=here), len(one.value)
 
     def _fill_own(self) -> None:
@@ -929,37 +661,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         does = {_SWITCH: "choose", _PICK: "choose", _SAYS: "read"}.get(kind)
         self._footed(*((Key("enter", does),) if does else ()), Key("esc", "back"))
 
-    def _row(
-        self, at: int, label: str, about: str, *, here: bool, inforce: bool
-    ) -> str:
-        """One thing on a page's list: its name and what it is, and no number.
-
-        Args:
-          at: Which one it is, which a list with a cursor drawn on it has no use for.
-          label: What it is called.
-          about: The line about it.
-          here: Whether the cursor is on it.
-          inforce: Whether it is marked as in force.
-
-        Returns:
-          The row, as markup.
-        """
-        del at
-        named = f"[b]{escape(label)}[/]" + (
-            f" {_shade('$success', _INFORCE, here=here)}" if inforce else ""
-        )
-        shown = len(label) + (2 if inforce else 0)
-        pad = " " * max(1, _LABEL - shown)
-        # Wrapped here rather than by the list, so that a second line starts under the first
-        # rather than under the name: the column of what each thing is stays a column.
-        starts = 1 + max(_LABEL, shown + 1)
-        room = max(self._width_of(self.query_one("#choices", OptionList)) - starts, 20)
-        lines = textwrap.wrap(about, room) or [""]
-        said = f"\n{' ' * starts}".join(
-            _shade("$text-muted", line, here=here) for line in lines
-        )
-        return f" {named}{pad}{said}"
-
     def _lands(self, items: Sequence[str]) -> str:
         """Lands the cursor as a page does, and the focus with it on something just added.
 
@@ -978,7 +679,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self.call_after_refresh(self.query_one("#choices", OptionList).focus)
         return landing
 
-    def _actions(self) -> list[Action]:
+    def actions(self) -> list[Action]:
         """What the screen of pages, or the page open, does about its list, in the order it stands.
 
         Saving on the screen of pages and on every page that holds anything, and nothing else
@@ -993,96 +694,14 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             _VERSES: self._verse_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
 
-    def _acting(self, key: str) -> Action | None:
-        """The action of the page drawn that a button is, by its key, or None for none."""
-        return next((one for one in self._acts if one.key == key), None)
-
-    def _shows_bar(self) -> None:
-        """Draws the actions the page said it has, as buttons in its order, and hides the rest.
-
-        A button is made the first time a page asks for its action and kept after, the save
-        button already standing at the far end: a bar made again on every keystroke would be
-        one that lost the focus of whoever was walking along it.
-        """
-        bar = self.query_one("#actions", Horizontal)
-        spacer = bar.query_one(".spacer")
-        wanted = {_act(one.key) for one in self._acts}
-        for button in bar.query(Button):
-            button.display = button.id in wanted
-        # Put in the page's order only where they are not in it already: this is drawn on
-        # every keystroke, and a bar laid out again for nothing is a bar redrawn for nothing.
-        order = [_act(one.key) for one in self._acts if one.key != _ACT_SAVE]
-        standing = [one.id for one in bar.query(Button) if one.id in order]
-        for one in self._acts:
-            found = bar.query(f"#{_act(one.key)}")
-            button = (
-                found.first(Button)
-                if found
-                else Button(one.label, id=_act(one.key), compact=True)
-            )
-            if not found:
-                bar.mount(button, before=spacer)
-            elif one.key != _ACT_SAVE and standing != order:
-                bar.move_child(button, before=spacer)
-            button.display = True
-            button.label = one.label[:1].upper() + one.label[1:]
-            button.tooltip = one.about or None
-            button.disabled = not one.able()
-        bar.display = bool(self._acts)
-        focus = self.focused
-        if isinstance(focus, Button) and (not focus.display or focus.disabled):
-            self.query_one("#choices", OptionList).focus()
-
     def _footed(self, *keys: Key) -> None:
-        """Says the keys, for where the focus is as well as for the page.
+        """Says the keys, with esc saying whether it closes the menu or comes out of a page.
 
         Args:
           keys: The page's keys, for its list.
         """
-        self._page_keys = keys
-        focus = self.focused
         back = Key("esc", "close" if self._home or self._only else "back")
-        if isinstance(focus, Input):
-            keys = (Key("enter", "to list"), Key("esc", "clear"))
-        elif isinstance(focus, Button):
-            act = self._acting((focus.id or "").removeprefix("act-"))
-            keys = (
-                # What the button does, in its first word: `add`, `import`, `save`.
-                Key("enter", act.label.split()[0].rstrip("…") if act else "press"),
-                Key("←/→", "move"),
-                Key("tab", "list"),
-                back,
-            )
-        else:
-            keys = (
-                *(one for one in keys if one.key == "enter"),
-                *(
-                    (Key("/", "search"),)
-                    if self._acting(_ACT_SEARCH) is not None
-                    else ()
-                ),
-                *(
-                    (Key("tab", "actions"),)
-                    # A save button with nothing to save cannot be tabbed to.
-                    if any(one.able() for one in self._acts)
-                    else ()
-                ),
-                back,
-            )
-        super()._footed(*keys)
-
-    def keys_line(self, keys: Sequence[Key]) -> str:
-        """The keys with the key picked out from what it does, as a footer draws them.
-
-        Args:
-          keys: The keys.
-
-        Returns:
-          The row, as markup.
-        """
-        return "   ".join(
-            f"[b $accent]{escape(one.key)}[/] {escape(one.does)}" for one in keys
-        )
+        super()._footed(*(one for one in keys if one.key != "esc"), back)
 
     # -- Doing -------------------------------------------------------------------------------
 
@@ -1098,18 +717,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._opens(PAGES.index(held))
             return
         self._takes(held)
-
-    @on(Button.Pressed, "#actions Button")
-    def _acted(self, event: Button.Pressed) -> None:
-        """Does what the button pressed is for, as the page said.
-
-        Args:
-          event: The press.
-        """
-        event.stop()
-        act = self._acting((event.button.id or "").removeprefix("act-"))
-        if act is not None and act.able():
-            act.does()
 
     def _takes(self, held: str) -> None:
         """Does what one row is for, which each page says for itself.

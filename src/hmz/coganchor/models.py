@@ -16,7 +16,7 @@ where it will not answer, or where what came back is not a list of models.
 
 Asking means starting a coding agent, or reaching somebody's endpoint, and both cost seconds a
 prompt has not got. So nothing is asked at a prompt: an account is asked the moment it is made,
-`ask` is what asks again -- the `check again` row on the sheet that lists what a backend
+`ask` is what asks again -- the `check again` button on the sheet that lists what a backend
 runs, where somebody chose something and is waiting on the answer -- and everything else
 reads what was kept. A catalogue that has never been asked for is empty rather than guessed
 at: a model nobody can run is worse than a list somebody has to fill.

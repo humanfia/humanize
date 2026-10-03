@@ -34,7 +34,7 @@ const board = [
       ...said('todo removed from the board', '[n]5[/]'),
     ],
     caption:
-      '<kbd>enter</kbd> opens the line; delete what it says and <kbd>enter</kbd> again takes it off at once. There is nothing to save.',
+      '<kbd>enter</kbd> opens the line on a sheet of its own, <code>monitor › todo</code>; delete what it says and <kbd>enter</kbd> again (or <strong>Save</strong>) takes it off at once. Nothing else waits to be saved.',
   },
 ]
 </script>
@@ -106,10 +106,15 @@ itself changes at the same moment, in every interface reading the run.
 | Key | Does |
 | --- | --- |
 | <kbd>↑</kbd> <kbd>↓</kbd> | Move between the lines, as between the boxes above them. |
-| <kbd>enter</kbd> on `+ add entry` | Put up a line: type its name, <kbd>enter</kbd>, then what it says, <kbd>enter</kbd>. |
-| <kbd>enter</kbd> on a line | Change what it says, then <kbd>enter</kbd>. Saved empty, the line is taken off. |
+| <kbd>enter</kbd> on `+ add entry` | Put up a line, on a sheet over the monitor, `monitor › Board entry`: type its name, <kbd>enter</kbd> (or **Next**), then what it says, <kbd>enter</kbd> (or **Save**). |
+| <kbd>enter</kbd> on a line | Change what it says, on the sheet `monitor › <name>`, then <kbd>enter</kbd> (or **Save**). Saved empty, the line is taken off. |
 | <kbd>esc</kbd> | While writing a line: back, changing nothing. |
 | <kbd>→</kbd> | Back to the log. |
+
+On the sheet, typing writes and <kbd>backspace</kbd> deletes; <kbd>tab</kbd> reaches its one
+button, **Next** while it asks the name and **Save** once it asks what the line says. Its last
+line says the keys: `type write   backspace delete   enter continue to value   tab actions   esc back`
+while it asks the name.
 
 A board line never stops the run, and nothing waits for it. To give a running flow more work,
 edit the file it reads each round instead; see [Loops](/weaver/loops).

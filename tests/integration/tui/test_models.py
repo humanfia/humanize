@@ -1,8 +1,8 @@
 """The models a sheet offers, which are the ones its CLI said it runs as the chosen account.
 
 Nothing is written down, so a list is only ever as good as the last time somebody asked --
-which is what the row on this sheet that asks again is for, and what making an account
-does on its own.
+which is what the button under this sheet's list that asks again is for, and what making an
+account does on its own.
 
 Driven headlessly, as every test of the interface is, so what is checked is where a keystroke
 lands rather than how it is drawn.
@@ -20,8 +20,8 @@ from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import _AGAIN, _APART, Agent, Catalogue, Clis
-from tests.integration.tui.test_app import into_agent, keeps, onto, opens, rows
+from hmz.tui.pick import _ACT_AGAIN, Agent, Catalogue, Clis
+from tests.integration.tui.test_app import bar, into_agent, keeps, onto, opens, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -119,19 +119,19 @@ def _value(app: Humanize, held: str) -> str:
 
 
 def _rows(app: Humanize) -> int:
-    """How many models are on the sheet, less the rows set below them."""
-    return len([one for one in rows(app) if one not in _APART])
+    """How many models are on the sheet."""
+    return len(rows(app))
 
 
 async def _asks_again(app: Humanize, driver: Pilot[None]) -> None:
-    """Asks the CLI again what it runs, from the row below the models."""
-    await onto(app, driver, _AGAIN)
+    """Asks the CLI again what it runs, from the button under the models."""
+    await onto(app, driver, _ACT_AGAIN)
     await driver.press("enter")
 
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=UNASKED)
-async def test_a_cli_that_has_not_said_what_it_runs_says_which_row_asks_it(
+async def test_a_cli_that_has_not_said_what_it_runs_says_which_button_asks_it(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
 ) -> None:
@@ -143,18 +143,18 @@ async def test_a_cli_that_has_not_said_what_it_runs_says_which_row_asks_it(
         assert _rows(app) == 0
         await until(lambda: "has not reported any models" in _under(app), driver)
         assert "select check again" in _under(app)
-        assert _AGAIN in rows(app)
+        assert _ACT_AGAIN in bar(app)
         assert "ctrl" not in _under(app)
 
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=UNASKED)
-async def test_the_row_asks_the_cli_and_puts_up_what_it_says(
+async def test_the_button_asks_the_cli_and_puts_up_what_it_says(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Which is the whole of what the row is for: the list was short, and now it is not."""
+    """Which is the whole of what the button is for: the list was short, and now it is not."""
     import hmz.coganchor.models
 
     def says(cli: str, provider: str = "", seconds: float = 0.0) -> tuple[Model, ...]:

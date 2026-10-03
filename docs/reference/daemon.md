@@ -44,7 +44,7 @@ Notation: [Conventions](/reference/#conventions).
 | `hmz exec` | No host. |
 
 A host in the interface's process is reached through the same `Link` class; closing that
-interface closes its runs, so `/exit` offers **cancel** instead of **detach and exit**.
+interface closes its runs, so `/exit` offers **Cancel** instead of **Detach and exit**.
 
 ## Files {#files}
 

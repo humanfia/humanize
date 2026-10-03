@@ -474,7 +474,7 @@ def test_a_model_refused_says_what_humanize_last_kept_and_when_it_kept_it(
         "the 1 models this account was last offered (asked 2026-09-10) still list it"
         in said
     )
-    assert 'the "check again" row under its models checks again' in said
+    assert 'the "check again" button under its models checks again' in said
 
 
 def test_a_model_no_catalogue_here_has_says_it_is_not_in_the_one_kept(

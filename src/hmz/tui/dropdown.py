@@ -90,6 +90,7 @@ class Dropdown(ModalScreen[str | None]):
         border-title-color: $primary; border-title-style: bold;
     }
     Dropdown > OptionList > .option-list--option { padding: 0 1; }
+    Dropdown > OptionList > .option-list--option-hover { text-style: underline; }
     """
 
     BINDINGS: ClassVar = [Binding("escape", "dismiss(None)", "cancel", show=False)]
