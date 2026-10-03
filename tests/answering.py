@@ -8,8 +8,8 @@ that backend answers it.
 Here rather than in a conftest for the reason `tests/stubs.py` gives -- a conftest is a pytest
 plugin rather than a module to import from -- and here rather than inside one test module
 because asking a backend splits across two tiers. Asking a CLI is a stand-in on PATH and a
-process of its own, which CI runs; asking it *as an account* is a supervised turn, which needs
-a kernel that will hand over a tracee and so is left out of CI. The two halves are
+process of its own, which any machine runs; asking it *as an account* is a supervised turn,
+which needs a kernel that will hand over a tracee and so is a system test. The two halves are
 `tests/integration/backends/test_models.py` and `tests/system/backends/test_models.py`, and a
 stand-in written down twice is a backend's answer that gets corrected in one copy.
 """

@@ -2,7 +2,8 @@
 
 A unit test imports `hmz`, calls it and asserts. No subprocess, no socket, no network, nothing
 written anywhere but `tmp_path`. It runs in milliseconds on any machine that can import the
-package, which is what lets CI run this tree on every Python and both systems it claims.
+package, which is what lets CI run this tree on every push, before anything slower -- and, once a
+change is headed for `main`, on every Python and both systems the package claims.
 
 The marker is put on from here rather than written on each file, so that moving a test into
 this directory is all there is to filing it: see `tests/tiers.py` for why a tier is a directory,

@@ -154,6 +154,11 @@ addopts = ["--strict-markers", "--strict-config", "-ra", "-n", "auto"]
 # which wins over this.
 timeout = 300
 
+[tool.coverage.run]
+# CI measures each tier on each runner and adds the counts up, and a file is the same file on
+# Linux and macOS only once it is named from the checkout rather than from where a runner put it.
+relative_files = true
+
 [tool.ruff]
 # The formatter wraps at 88; `pycodestyle` below lets prose the formatter cannot
 # split run to 100 rather than forcing a reflow of every docstring in the tree.
@@ -210,12 +215,6 @@ ignore = [
 "docs/tapes/stage.py" = ["INP001"]
 # And the one that plays a tape into a terminal, run the same way, which says what it wrote.
 "docs/tapes/cast.py" = ["INP001", "T201"]
-# The capacity rig, which is measured with rather than shipped. Each of its files is run by
-# path and imported by nothing, so there is nothing for an `__init__.py` to do; it reports by
-# printing, which is the only channel a program under an anchor has; and it names paths the way
-# the layer it is measuring names them, because what it is counting is syscalls and `pathlib`
-# is a different number of them.
-"bench/**" = ["INP001", "T201", "PTH"]
 # The syscall layer's domain type is the string path: it reads them out of ptrace
 # registers and puts them on a wire, so `pathlib` would only convert them twice. Named
 # rather than the whole of `coganchor`, which also holds the drivers and the facts about
