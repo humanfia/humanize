@@ -112,16 +112,18 @@ def tools(argv: list[str]) -> int: ...
   load, and `--resume` of a flow that cannot be picked up or has no run to pick up.
 - An `@` MUST be written only before a `<provider>`, and a `<name>` MUST be the runtime written
   down under that name for that backend, reached as it says; one nobody saved MUST be refused. No
-  provider MUST be this machine -- `local`, docker's default here, the swarm this machine manages
-  -- and `local` MUST take none at all; `ssh` MUST take one, and MUST alone take a destination
-  nobody saved, in brackets, which MUST be handed to `ssh` as it is whatever is saved under that
-  name; brackets on any other backend MUST be refused. `/<workdir>` MAY be left off only for a
-  runtime written down with one, and the run MUST record the workdir it took.
+  provider MUST be this machine -- `local`, docker's default here, the swarm this machine manages,
+  this Mac's Apple containers -- and `local` MUST take none at all; `ssh` MUST take one, and MUST
+  alone take a destination nobody saved, in brackets, which MUST be handed to `ssh` as it is
+  whatever is saved under that name; brackets on any other backend MUST be refused. `/<workdir>`
+  MAY be left off only for a runtime written down with one, and the run MUST record the workdir it
+  took.
 - A line spelling `<env>` as it was spelled before an `@` was a provider's alone -- `local@/x`,
-  `docker@local/x`, `swarm@local/x`, an ssh destination nobody saved out of brackets -- MUST be
-  refused saying how it is spelled now; one kept that way in settings or in a run's record MUST be
-  read as it is spelled now, and settings MUST be written again that way. What is kept since MUST
-  say so, and MUST be read as it was written whatever has become of the runtimes it names.
+  `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, an ssh destination nobody saved out
+  of brackets -- MUST be refused saying how it is spelled now; one kept that way in settings or in
+  a run's record MUST be read as it is spelled now, and settings MUST be written again that way.
+  What is kept since MUST say so, and MUST be read as it was written whatever has become of the
+  runtimes it names.
 - Where every agent's harness runs MUST NOT be said on the line: it is the affinity of the
   runtime its work is on, as `runtime/flowing` says. A runtime's affinity with no room anywhere
   for an agent MUST refuse the run before any agent has started.

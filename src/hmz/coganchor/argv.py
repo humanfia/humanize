@@ -44,8 +44,8 @@ def parser() -> ArgumentParser:
         "--target",
         default=os.environ.get("HUMANIZE_TARGET", "local"),
         metavar="URL",
-        help="ssh://HOST, docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, "
-        "peer://TICKET@HOST:PORT, or local[:DIR] (default: $HUMANIZE_TARGET)",
+        help="ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, "
+        "tcp://HOST:PORT, peer://TICKET@HOST:PORT, or local[:DIR] (default: $HUMANIZE_TARGET)",
     )
     built.add_argument(
         "--harness",

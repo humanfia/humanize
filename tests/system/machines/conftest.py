@@ -9,6 +9,6 @@ running.
 
 from __future__ import annotations
 
-from tests.machines.fixtures import context, daemon, forwarded, sshd
+from tests.machines.fixtures import apple, context, daemon, forwarded, sshd
 
-__all__ = ["context", "daemon", "forwarded", "sshd"]
+__all__ = ["apple", "context", "daemon", "forwarded", "sshd"]

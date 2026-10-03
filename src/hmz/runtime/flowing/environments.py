@@ -3,15 +3,15 @@
 :func:`open_env` makes the driver for an `-e`, and :func:`local_env` the one for the workspace
 a run was started in, which is what fills a `LocalEnv` role. Both are
 :class:`~hmz.runtime.flowing.environing.MachineEnvDriver`, over this machine, over a host
-reached with ssh, over a container of its own on a docker daemon, or over one a docker swarm
-placed on whichever of its nodes had room, and all serve every environment capability. None
-touches the network: an ssh host is reached, and a container started or a swarm's service
-created, the first time something is asked of it, and :func:`probe` is how to ask before
-anything else -- which the ways in do for every environment a run is given, so that
-`available` and the resources a machine has are known, and a container has taken its share of
-its runtime, before a flow's requirements are checked against them. :func:`settle` is that
-probe for an environment an `-e` named, moving it down the fallback list of the runtime it
-named where that runtime cannot hold it.
+reached with ssh, over a container of its own on a docker daemon, over one a docker swarm
+placed on whichever of its nodes had room, or over an Apple container of its own on this Mac,
+and all serve every environment capability. None touches the network: an ssh host is reached,
+and a container started or a swarm's service created, the first time something is asked of
+it, and :func:`probe` is how to ask before anything else -- which the ways in do for every
+environment a run is given, so that `available` and the resources a machine has are known,
+and a container has taken its share of its runtime, before a flow's requirements are checked
+against them. :func:`settle` is that probe for an environment an `-e` named, moving it down
+the fallback list of the runtime it named where that runtime cannot hold it.
 
 What a driver derives lives under `envs/` in humanize's home on its machine;
 :mod:`hmz.runtime.flowing.environing` says how, and why there.
@@ -52,9 +52,11 @@ def open_env(
         `ssh@name/~/path` for one on the host a saved ssh runtime names, and
         `ssh@[user@host:port]/...` -- or an alias of the ssh config in the brackets -- on
         one nobody saved; `docker@name/abs/path` for a container of its own on the daemon a
-        saved docker runtime names, `docker/...` on docker's default here; or
+        saved docker runtime names, `docker/...` on docker's default here;
         `swarm@name/abs/path` for a task of its own on the swarm a saved swarm runtime names,
-        `swarm/...` on the swarm this machine manages.
+        `swarm/...` on the swarm this machine manages; or `apple-container@name/abs/path` for
+        an Apple container of its own on this Mac, as a saved runtime of that backend shares
+        it out, `apple-container/...` with nothing saved.
       role: What the environment is for, as its flow declares it: a container is started
         from its image and given its resources. None asks for nothing.
       traced: Whether a harness is to run there, supervising its agent: a container is
@@ -65,13 +67,15 @@ def open_env(
 
     Raises:
       EnvUnavailable: If the workdir is known not to exist -- which for this machine is
-        looked at now -- the host is no ssh destination, or no docker or swarm runtime is
-        written down under that name.
+        looked at now -- the host is no ssh destination, or no docker, swarm or Apple
+        container runtime is written down under that name.
     """
     if spec.backend is EnvBackendKind.DOCKER:
         return _docker_env(spec, role, traced=traced)
     if spec.backend is EnvBackendKind.SWARM:
         return _swarm_env(spec, role, traced=traced)
+    if spec.backend is EnvBackendKind.APPLE_CONTAINER:
+        return _apple_container_env(spec, role, traced=traced)
     if spec.backend is EnvBackendKind.SSH:
         from hmz.coganchor.machines import store
 
@@ -196,6 +200,45 @@ def _swarm_env(
             )
         workdir = PurePosixPath(Path(str(workdir)).expanduser())
     machine = SwarmMachine(
+        spec.provider or LOCAL,
+        workdir,
+        stored=stored,
+        role=role,
+        named=spec.role,
+        traced=traced,
+    )
+    return MachineEnvDriver(machine, workdir)
+
+
+def _apple_container_env(
+    spec: EnvSpec, role: EnvRole | None, *, traced: bool = False
+) -> EnvDriver:
+    """The driver for an Apple container of its own on this Mac.
+
+    Raises:
+      EnvUnavailable: If no runtime of that backend is written down under that name -- none
+        named being this Mac's containers with nothing saved.
+    """
+    from hmz.coganchor.machines import store
+
+    from .environing_apple_container import LOCAL, AppleContainerMachine
+
+    stored = store.find(store.APPLE_CONTAINER, spec.provider)
+    if stored is not None and not isinstance(stored, store.AppleContainerRuntime):
+        stored = None
+    if stored is None and spec.provider:
+        if _unreadable(spec.provider, store.APPLE_CONTAINER):
+            raise EnvUnavailable(
+                f"the {spec.backend} host {spec.provider!r} cannot be read; fix or "
+                f"remove it: {store.where(store.APPLE_CONTAINER, spec.provider)}"
+            )
+        raise EnvUnavailable(
+            f"{spec.backend} host {spec.provider!r} not found: add one, or name none "
+            f"for this Mac's own, as {spec.backend}/<workdir>"
+        )
+    # Under the home of this machine's user, which is the one the containers run on.
+    workdir = PurePosixPath(Path(str(tidy_workdir(spec.workdir))).expanduser())
+    machine = AppleContainerMachine(
         spec.provider or LOCAL,
         workdir,
         stored=stored,

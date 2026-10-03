@@ -152,6 +152,35 @@ def services(
     seconds: float | None = None,
 ) -> list[Allocation]: ...
 
+# apple_container.py -- a container of Apple's `container`, a Linux VM of its own on this Mac
+CONTAINER: str  # the command that drives them: `container`
+
+@dataclass(frozen=True, kw_only=True)
+class AppleContainerConfig(MachineConfig):
+    image: str = "python:3.12"
+    workspace: str | None = None
+    name: str | None = None
+    cpus: int | None = None     # whole CPUs of its virtual machine
+    memory: int | None = None   # bytes
+    run_args: tuple[str, ...] = ()  # what else `container run` is told, ahead of the image
+    env: Mapping[str, str] = field(default_factory=dict[str, str])
+    labels: Mapping[str, str] = field(default_factory=dict[str, str])
+    @property
+    def capabilities(self) -> frozenset[str]: ...
+    def create(self) -> AppleContainer: ...
+
+class AppleContainer(MachineBase):
+    def __init__(self, config: AppleContainerConfig) -> None: ...
+    def start(self) -> AnchorConfig: ...
+    def stop(self) -> None: ...
+
+def allocations(
+    labels: Mapping[str, str] | None = None, *, seconds: float | None = None
+) -> list[Allocation]: ...
+def status(seconds: float | None = None) -> dict[str, Any]: ...  # `container system status`
+def capacity(said: Mapping[str, Any]) -> tuple[float, int]: ...  # its CPUs, the Mac's memory
+def mounted(workspace: str) -> list[str]: ...  # a `--mount` per name a Mac gives it
+
 # mapped.py -- the workspace on that machine, as a flow's own Python reaches it
 @dataclass(frozen=True, slots=True)
 class Ran:
@@ -192,7 +221,8 @@ class Mapped:
 SSH = "ssh"
 DOCKER = "docker"
 SWARM = "swarm"
-BACKENDS = (SSH, DOCKER, SWARM)
+APPLE_CONTAINER = "apple-container"
+BACKENDS = (SSH, DOCKER, SWARM, APPLE_CONTAINER)
 SELF = "self"  # an affinity's entry for a harness natively on the runtime's own machine
 HERE = "local"  # and for one on this machine, anchored to it
 TYPED = "typed"
@@ -268,7 +298,24 @@ class SwarmRuntime:
     def daemon(self) -> Endpoint: ...
     def held(self) -> dict[str, Any]: ...
 
-type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AppleContainerRuntime:
+    backend: ClassVar[str] = APPLE_CONTAINER
+    name: str
+    image: str = ""
+    run_args: tuple[str, ...] = ()  # what else `container run` is told
+    cpus: float = 0.0  # what its containers may be given all told; 0 for the Mac's
+    memory: int = 0
+    max_containers: int = 0
+    workdir: str = ""
+    fallback: tuple[str, ...] = ()
+    made: str = TYPED
+    affinity: tuple[str, ...] = ()
+    @property
+    def at(self) -> Path: ...
+    def held(self) -> dict[str, Any]: ...
+
+type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime | AppleContainerRuntime
 
 def affine(entry: str) -> tuple[str, str] | None: ...  # (backend, name), None for self/local
 def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint: ...
@@ -364,6 +411,18 @@ def hosts(
 - `services` MUST read the labels back for every one of humanize's services on a swarm, as
   `allocations` does for containers, and `nodes` MUST say every node, ready only where it may
   be given a task; both MUST raise `OSError` for a manager they could not ask.
+- An Apple container MUST come to the words a docker container does, MUST be given the project
+  directory itself at the path it has on this Mac -- and at its other name too where a Mac
+  gives it one under `/private` -- refusing one that is not there or whose path `container`
+  cannot mount, and MUST run as the calling user. Its anchor MUST name it as
+  `apple-container://<name>`, reached by `container exec` on this machine; a container `start`
+  made MUST be given the serving half afresh, and `stop` MUST delete only the container
+  `container` said it made. Its memory MUST be a whole MiB, no less than asked. What it was
+  given MUST be written on it under `CPUS` and `MEMORY`, as on a docker container, and never
+  taken from the caller's labels; `allocations` MUST say, for every running container of
+  humanize's here, `container` filtering nothing, the size its virtual machine has, and the
+  labels only where `container` says none; both it and `status` MUST raise `OSError` where
+  `container` could not be asked, did not answer within `seconds`, or is not running.
 - `Mapped` MUST reach the machine down the same road a turn takes, and MUST take a path either
   as the machine names it or relative to the workspace.
 - `Mapped.run` MUST answer with the exit status and everything written on both streams, MUST
@@ -374,8 +433,8 @@ def hosts(
 
 ### Runtimes
 
-- A runtime is a machine saved under a name -- an ssh host, a docker daemon or a docker swarm --
-  that a flow's
+- A runtime is a machine saved under a name -- an ssh host, a docker daemon, a docker swarm or
+  this Mac's Apple containers -- that a flow's
   environment is put on when an `-e` names it. It MUST NOT be anything a flow sees: a flow's
   environments stay `Env`s whatever runtime they were put on.
 - One runtime MUST be one directory under `~/.humanize/runtimes/<backend>/<name>/`,
@@ -394,6 +453,7 @@ def hosts(
   that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount;
   a swarm runtime with the same, or a constraint that compares nothing, a generic resource of
   no single word, or a node reached by neither a runtime's name nor an ssh destination;
+  a runtime of Apple containers with an image of more than one word or a negative amount;
   and any of them with an affinity entry that is none of `self`, `local` and
   `<backend>:<name>`, one named twice, or one naming the runtime itself, which is `self`; or
   with a fallback entry that is not `<backend>:<name>` of a backend there is and a name a

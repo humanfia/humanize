@@ -1,14 +1,16 @@
 """Getting a :class:`~hmz.coganchor.proto.Channel` to ``serve`` on the target.
 
-Five ways in, and they are two kinds of thing.
+Six ways in, and they are two kinds of thing.
 
-Three of them *start* the serving half and take the pipe they started it down. ``local[:REAL]``
+Four of them *start* the serving half and take the pipe they started it down. ``local[:REAL]``
 runs it as a child of this process, where ``REAL`` is the directory standing in for the
-target's copy of the workspace; ``ssh://[user@]host[:port]`` and
-``docker://container[@endpoint]`` ship a self-contained zipapp of coganchor to the far side and
-run it there, needing nothing installed but a Python 3. Those three differ in one thing only --
-how a command is run over there -- so they are one road with three prefixes, and :class:`Road`
-is that road. A container's prefix names the daemon holding it, which :class:`Endpoint` is.
+target's copy of the workspace; ``ssh://[user@]host[:port]``, ``docker://container[@endpoint]``
+and ``apple-container://container`` ship a self-contained zipapp of coganchor to the far side
+and run it there, needing nothing installed but a Python 3. Those four differ in one thing only
+-- how a command is run over there -- so they are one road with four prefixes, and :class:`Road`
+is that road. A docker container's prefix names the daemon holding it, which :class:`Endpoint`
+is; an Apple container's names none, Apple's `container` reaching the containers of this Mac
+and no other.
 
 Two of them *find* a serving half somebody else started. ``tcp://host:port`` dials one left
 listening. ``peer://TICKET@BROKER:PORT`` meets one through
@@ -72,6 +74,10 @@ REMOTE_CACHE = "$HOME/.cache/humanize"
 
 #: And in a container, which may have no home directory to speak of and is one user's anyway.
 CONTAINER_CACHE = "/tmp/humanize"  # noqa: S108
+
+#: What an Apple container's target is spelled with: `apple-container://NAME`, a container of
+#: this Mac's, which Apple's `container` reaches and no daemon stands between.
+APPLE = "apple-container"
 
 #: Where a harness put on another machine keeps its mirror of the workspace. *Beside* the
 #: archive's cache rather than inside it, and that is not a matter of taste: `~/.cache/humanize`
@@ -493,7 +499,7 @@ class Target:
         """Reads a target spelling.
 
         Args:
-          spec: One of the five, as the command line and the settings both write them.
+          spec: One of the six, as the command line and the settings both write them.
 
         Returns:
           The target it names.
@@ -520,6 +526,10 @@ class Target:
                 endpoint = Endpoint.parse(where)
                 spelled = "" if endpoint == Endpoint() else str(endpoint)
                 return cls("docker", host=container, path=spelled)
+        if spec.startswith(f"{APPLE}://"):
+            container = spec[len(f"{APPLE}://") :]
+            if container and not set("@/?#") & set(container):
+                return cls(APPLE, host=container)
         if spec.startswith("tcp://"):
             host, _, port = spec[len("tcp://") :].rpartition(":")
             if not host or not port.isdigit():
@@ -532,8 +542,8 @@ class Target:
             return cls("peer", host=met.host, port=met.port, path=met.ticket)
         raise ValueError(
             f"unsupported target {spec!r}; expected ssh://HOST, "
-            "docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, peer://TICKET@HOST:PORT or "
-            "local[:PATH]"
+            f"docker://CONTAINER[@ENDPOINT], {APPLE}://CONTAINER, tcp://HOST:PORT, "
+            "peer://TICKET@HOST:PORT or local[:PATH]"
         )
 
     def describe(self) -> str:
@@ -547,6 +557,8 @@ class Target:
             return said
         if self.scheme == "docker":
             return f"docker://{self.host}" + (f"@{self.path}" if self.path else "")
+        if self.scheme == APPLE:
+            return f"{APPLE}://{self.host}"
         if self.scheme == "tcp":
             return f"tcp://{self.host}:{self.port}"
         if self.scheme == "peer":
@@ -631,11 +643,11 @@ def ssh_flags(options: Sequence[tuple[str, str]]) -> tuple[str, ...]:
 class Road:
     """How a command is run on the machine a target names.
 
-    The one thing the three bootstrapping targets differ in, and so the one thing written
+    The one thing the four bootstrapping targets differ in, and so the one thing written
     down per target rather than per caller. Given an argv it answers with the argv *this*
     machine runs to have it happen over there: nothing at all for a local target, an `ssh`
-    carrying one quoted string for a host, a `docker exec` carrying argv straight through for
-    a container.
+    carrying one quoted string for a host, a `docker exec` or a `container exec` carrying argv
+    straight through for a container.
 
     Attributes:
       target: The machine.
@@ -691,6 +703,14 @@ class Road:
             return cls(
                 target,
                 tuple(target.endpoint.docker("exec", "-i", target.host)),
+                quotes=False,
+                cache=CONTAINER_CACHE,
+                mirrors=CONTAINER_MIRRORS,
+            )
+        if target.scheme == APPLE:
+            return cls(
+                target,
+                ("container", "exec", "-i", target.host),
                 quotes=False,
                 cache=CONTAINER_CACHE,
                 mirrors=CONTAINER_MIRRORS,
@@ -834,13 +854,15 @@ class Road:
         not running; why it could not -- that there is no Python it can use, and where it was
         looked for -- was said on the way out and is in the log and nowhere else.
         """
-        if self.target.scheme != "docker":
+        if self.target.scheme == "docker":
+            asking = self.target.endpoint.docker(
+                "logs", "--tail", "3", self.target.host
+            )
+        elif self.target.scheme == APPLE:
+            asking = ["container", "logs", "-n", "3", self.target.host]
+        else:
             return ""
-        said = subprocess.run(
-            self.target.endpoint.docker("logs", "--tail", "3", self.target.host),
-            capture_output=True,
-            check=False,
-        )
+        said = subprocess.run(asking, capture_output=True, check=False)
         if said.returncode != 0:
             # There is no container to have said anything, or no daemon to ask -- which is
             # what the error being written already says, and saying it twice says less.

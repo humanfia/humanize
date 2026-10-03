@@ -91,6 +91,7 @@ host in brackets; leave it off for this machine:
 | `ssh@build-box` | the workdir the host saved as `build-box` was saved with |
 | `docker@gpubox/home/me/myproject` | a [container of its own](/user/containers#try-it-a-container-per-environment) on the docker daemon saved as `gpubox`, holding that directory of the daemon's host |
 | `docker/home/me/myproject` | the same, on docker's default here, with nothing saved |
+| `apple-container/Users/me/myproject` | an [Apple container](/user/containers#apple-containers) of its own on this Mac, holding that directory |
 | `local/srv/project` | a directory on this machine |
 
 Every session the flow opens in `box` works on the host: the files it reads and writes are the

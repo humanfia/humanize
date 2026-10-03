@@ -143,7 +143,7 @@ model         = ? any text, may contain "/" and ":" ; non-empty ? ;
 effort        = ? any text without ":" ; "auto" means the CLI's default ? ;
 
 env           = identifier , "=" , backend , ( "@" , ( runtime | "[" , host , "]" ) )? , workdir? ;
-backend       = "local" | "ssh" | "docker" | "swarm" ;
+backend       = "local" | "ssh" | "docker" | "swarm" | "apple-container" ;
 runtime       = ? the name of a runtime saved for that backend ? ;
 host          = ? [user@]host[:port], or an ssh config alias; ssh only ? ;
 workdir       = "/" , ? any text ? ;                       (* "/~" or "/~/…" is home-relative *)
@@ -231,18 +231,19 @@ Parsed by the regex
 | Part | Rule |
 | --- | --- |
 | `<role>` | A Python identifier. |
-| `<backend>` | `local`, `ssh`, `docker` or `swarm`. |
-| `<provider>` | Absent: this machine — a directory here for `local`, docker's default daemon here for `docker`, the swarm this machine manages for `swarm`. `local` takes no provider at all; `ssh` always takes one. `@<name>`: the [runtime](/reference/machines#runtimes) saved under that name for that backend; a name nothing is saved under is refused. `@[<host>]`, for `ssh` only: a host nobody saved, `[user@]host[:port]` or an alias of the ssh config, handed to `ssh` as it is; it never stands for a saved runtime and has no fallback list. |
-| `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home. Omitted: the saved runtime's own workdir, refused where no runtime is named or it was saved with none. For `docker`, a directory of the daemon's host, mounted into the container at the same path; for `swarm`, one every node its task may land on has, likewise. |
+| `<backend>` | `local`, `ssh`, `docker`, `swarm` or `apple-container`. |
+| `<provider>` | Absent: this machine — a directory here for `local`, docker's default daemon here for `docker`, the swarm this machine manages for `swarm`, this Mac's [Apple containers](/user/containers#apple-containers) with nothing saved for `apple-container`. `local` takes no provider at all; `ssh` always takes one. `@<name>`: the [runtime](/reference/machines#runtimes) saved under that name for that backend; a name nothing is saved under is refused. `@[<host>]`, for `ssh` only: a host nobody saved, `[user@]host[:port]` or an alias of the ssh config, handed to `ssh` as it is; it never stands for a saved runtime and has no fallback list. |
+| `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home. Omitted: the saved runtime's own workdir, refused where no runtime is named or it was saved with none. For `docker`, a directory of the daemon's host, mounted into the container at the same path; for `swarm`, one every node its task may land on has, likewise; for `apple-container`, a directory of this Mac, mounted likewise. |
 
-`local/home/me/repo`, `docker/srv/repo` and `swarm/srv/repo` are this machine;
-`ssh@gpu-box/~/repo`, `docker@gpubox/srv/repo` and `swarm@cluster/srv/repo` are saved
-runtimes, and `ssh@gpu-box` alone is the workdir `gpu-box` was saved with;
-`ssh@[me@far.host:2222]/srv/repo` is a host nobody saved. A spelling `-e` refuses with a hint
-— `local@/x`, `docker@local/x`, `swarm@local/x`, an unsaved ssh host out of brackets — is
-read as the one the hint gives where it was kept in [settings](/reference/settings) or an
-[epic](/reference/tracing#epics) (`docker@local`, `swarm@local` only where no runtime is saved
-as `local`).
+`local/home/me/repo`, `docker/srv/repo`, `swarm/srv/repo` and `apple-container/Users/me/repo`
+are this machine; `ssh@gpu-box/~/repo`, `docker@gpubox/srv/repo`, `swarm@cluster/srv/repo` and
+`apple-container@mac/Users/me/repo` are saved runtimes, and `ssh@gpu-box` alone is the workdir
+`gpu-box` was saved with; `ssh@[me@far.host:2222]/srv/repo` is a host nobody saved. A spelling
+`-e` refuses with a hint — `local@/x`, `docker@local/x`, `swarm@local/x`,
+`apple-container@local/x`, an unsaved ssh host out of brackets — is read as the one the hint
+gives where it was kept in [settings](/reference/settings) or an
+[epic](/reference/tracing#epics) (`docker@local`, `swarm@local`, `apple-container@local` only
+where no runtime is saved as `local`).
 
 Roles the runtime fills — `LocalEnv` roles, which are the workspace — are never given. After
 parsing, every environment is opened and probed before the flow is called; an unreachable one,
@@ -366,14 +367,14 @@ Stage 1–2 messages are preceded by the usage block.
 | an `-e` that does not match | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
 | no `/<workdir>`, and no runtime saved with one | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one` |
 | an `-e` role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
-| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm` |
+| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm, apple-container` |
 | `ssh` with no host | `-e '<item>': ssh needs a host: ssh@<saved host>/<workdir>, or ssh@[user@host:port]/<workdir> for a host not saved` |
 | `ssh` naming a host nobody saved, out of brackets | `-e '<item>': no ssh host is saved as '<name>'; write <role>=ssh@[<name>]/<workdir> for a host not saved` |
 | a bracketed host that is not one | `-e '<item>': '<host>' is not an ssh host, as [user@]host[:port]` |
-| brackets on `docker` or `swarm` | `-e '<item>': only ssh takes a host nobody saved; <backend>@<name> names a <backend> runtime saved on the runtimes page of /settings` |
-| `docker@local`, `swarm@local`, nothing saved as `local` | `-e '<item>': <backend> on this machine names no provider; write <role>=<backend>/<workdir>` |
-| `docker` or `swarm` naming a runtime nobody saved | `-e '<item>': no <backend> runtime is saved as '<name>'; save one on the runtimes page of /settings, or write <role>=<backend>/<workdir> for <backend> on this machine` |
-| `docker@` or `swarm@` with nothing after it | `-e '<item>': an @ is written only before a provider; write <role>=<backend>/<workdir>` |
+| brackets on `docker`, `swarm` or `apple-container` | `-e '<item>': only ssh takes a host nobody saved; <backend>@<name> names a <backend> runtime saved on the runtimes page of /settings` |
+| `docker@local`, `swarm@local`, `apple-container@local`, nothing saved as `local` | `-e '<item>': <backend> on this machine names no provider; write <role>=<backend>/<workdir>` |
+| `docker`, `swarm` or `apple-container` naming a runtime nobody saved | `-e '<item>': no <backend> runtime is saved as '<name>'; save one on the runtimes page of /settings, or write <role>=<backend>/<workdir> for <backend> on this machine` |
+| `docker@`, `swarm@` or `apple-container@` with nothing after it | `-e '<item>': an @ is written only before a provider; write <role>=<backend>/<workdir>` |
 | `local` with an `@` | `-e '<item>': local takes no provider; write <role>=local/<workdir>` |
 | a role twice in `-e` | `-e: the role '<role>' is given twice` |
 | a `-p` without `key=` | `-p '<item>': expected <key>=<value>` |
@@ -550,7 +551,7 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER[@ENDPOINT]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
+| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER[@ENDPOINT]`, `apple-container://CONTAINER`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
 | `--harness WHERE` | `$HUMANIZE_HARNESS`, else `local` | Where the agent process and its supervisor run: `local`, `same` (wherever `--target` is), or a target spelling. |
 | `--broker HOST` | `$HUMANIZE_RENDEZVOUS`, else this machine's outward-facing address | Where the two halves dial to be introduced, when harness and target differ. |
 | `--workspace PATH` | the current directory | The project directory as it exists on the target. |

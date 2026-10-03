@@ -8,6 +8,7 @@ that machine it asks for.
 from __future__ import annotations
 
 from .anchored import Anchored, AnchoredConfig
+from .apple_container import AppleContainer, AppleContainerConfig
 from .base import MachineBase, MachineConfig
 from .docker import (
     Allocation,
@@ -25,6 +26,8 @@ __all__ = [
     "Allocation",
     "Anchored",
     "AnchoredConfig",
+    "AppleContainer",
+    "AppleContainerConfig",
     "Docker",
     "DockerConfig",
     "MachineBase",

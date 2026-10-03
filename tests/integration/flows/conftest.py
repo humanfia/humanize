@@ -7,6 +7,6 @@ rather than where a test declares its arguments.
 
 from __future__ import annotations
 
-from tests.machines.fixtures import (
-    standin,  # pyright: ignore[reportUnusedImport]  # noqa: F401
-)
+from tests.machines.fixtures import apple_standin, standin
+
+__all__ = ["apple_standin", "standin"]

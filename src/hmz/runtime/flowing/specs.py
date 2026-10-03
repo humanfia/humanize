@@ -111,7 +111,7 @@ class EnvSpec:
       provider: The runtime saved under this name for that backend; for ssh alone, a host
         nobody saved, in the brackets `-e` writes one in -- `[me@gpu-box:2222]`; or "" for
         this machine: a directory here, docker's default here, the swarm this machine
-        manages.
+        manages, this Mac's Apple containers.
       workdir: The directory there: absolute, or `~/...` under the home of whoever ssh
         logs in as. A docker one is a directory of the daemon's host, and a swarm one a
         directory of whichever node its task lands on.
@@ -153,12 +153,16 @@ DESTINATION = re.compile(
     r"(?:[A-Za-z0-9_][A-Za-z0-9._%+-]*@)?[A-Za-z0-9_][A-Za-z0-9._-]*(?::[0-9]{1,5})?"
 )
 
-#: What docker and the swarm called their default here, before an `-e` naming no provider was
-#: one on this machine: still how their machines here are known.
+#: What docker, the swarm and Apple's containers called their default here, before an `-e`
+#: naming no provider was one on this machine: still how their machines here are known.
 _HERE = "local"
 
 #: The backends that have a default here as well as runtimes saved under names.
-_HERES = (EnvBackendKind.DOCKER, EnvBackendKind.SWARM)
+_HERES = (
+    EnvBackendKind.DOCKER,
+    EnvBackendKind.SWARM,
+    EnvBackendKind.APPLE_CONTAINER,
+)
 
 
 def _items(values: Sequence[str], flag: str, refused: type[SpecError]) -> Iterator[str]:
@@ -221,16 +225,19 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
     `ssh@gpu-box/~/repo` one under the home directory there; `docker@gpubox/srv/repo` one of
     the host of the docker daemon saved as `gpubox`, which hands the role a container of its
     own; `swarm@cluster/srv/repo` one of whichever node of the swarm saved as `cluster` places
-    the role's task. Naming none is this machine: `local/home/me/repo` is a directory here --
-    `local` takes no provider at all --, `docker/srv/repo` one of docker's default here, and
-    `swarm/srv/repo` one of the swarm this machine manages. ssh always names one, and alone
-    takes a host nobody saved, in brackets: `ssh@[me@gpu-box:2222]/srv/repo`. `ssh@gpu-box`,
-    `docker@gpubox` or `swarm@cluster` alone is the workdir that runtime was saved with.
+    the role's task; `apple-container@mac/Users/me/repo` one of this Mac's that an Apple
+    container of its own holds, out of what the runtime saved as `mac` may hand out. Naming
+    none is this machine: `local/home/me/repo` is a directory here -- `local` takes no provider
+    at all --, `docker/srv/repo` one of docker's default here, `swarm/srv/repo` one of the
+    swarm this machine manages, and `apple-container/Users/me/repo` one an Apple container
+    holds with nothing saved. ssh always names one, and alone takes a host nobody saved, in
+    brackets: `ssh@[me@gpu-box:2222]/srv/repo`. `ssh@gpu-box`, `docker@gpubox`,
+    `swarm@cluster` or `apple-container@mac` alone is the workdir that runtime was saved with.
 
     What `-e` took before an `@` was a provider's alone -- `local@/...`, `docker@local/...`,
-    `swarm@local/...`, an ssh host nobody saved out of brackets -- is refused, saying how it is
-    spelled now: :func:`hmz.coganchor.machines.store.respelled` is what reads it where it was
-    written down.
+    `swarm@local/...`, `apple-container@local/...`, an ssh host nobody saved out of brackets --
+    is refused, saying how it is spelled now: :func:`hmz.coganchor.machines.store.respelled`
+    is what reads it where it was written down.
 
     Args:
       values: What each `-e` was given.
@@ -398,9 +405,10 @@ def where(backend: str, provider: str, workdir: str | PurePosixPath = "") -> str
 def spelled(backend: str, provider: str, workdir: str | PurePosixPath = "") -> str:
     """Where a driver works, as `-e` spells it, for a message or a record to say.
 
-    A machine calls itself what `-e` once did: `local` for docker's default here and the swarm
-    this machine manages, and an ssh host nobody saved by the host alone. Those are spelled as
-    `-e` takes them now -- `docker/...`, `ssh@[host]/...` -- which turns on what is saved here.
+    A machine calls itself what `-e` once did: `local` for docker's default here, the swarm
+    this machine manages and this Mac's Apple containers, and an ssh host nobody saved by the
+    host alone. Those are spelled as `-e` takes them now -- `docker/...`, `ssh@[host]/...` --
+    which turns on what is saved here.
 
     Args:
       backend: Which kind of machine.
@@ -422,9 +430,10 @@ def fallbacks(spec: EnvSpec) -> list[EnvSpec]:
     role: in that runtime's saved workdir where it has one, and otherwise in the workdir given.
     Only the runtime the `-e` names is read: one fallen back to is never walked on down its
     own list. A spec naming no saved runtime -- this machine, docker's default here, an ssh
-    host in brackets -- falls back to nothing. An entry `docker:local` or `swarm:local` is
-    docker's default here or the swarm this machine manages, where nothing of theirs is saved
-    as `local`: the one name a list has for them.
+    host in brackets -- falls back to nothing. An entry `docker:local`, `swarm:local` or
+    `apple-container:local` is docker's default here, the swarm this machine manages or this
+    Mac's Apple containers, where nothing of theirs is saved as `local`: the one name a list
+    has for them.
 
     Args:
       spec: The environment, as `-e` gave it.
