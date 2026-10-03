@@ -52,6 +52,36 @@ def test_an_account_written_without_a_way_in_is_the_one_that_is_only_variables()
     assert written.way == providers.ENV.name
 
 
+def test_an_account_rewritten_with_its_answers_alone_keeps_the_arguments_its_way_adds() -> (
+    None
+):
+    """Codex's gateway is a URL on the command line: corrected, it is the new URL there.
+
+    Which is what the accounts page's `edit settings` does, answers and no arguments. Written
+    with none, the account was one whose turns asked api.openai.com with no key at all.
+    """
+    held = Hmz().accounts
+    gateway = held.way("codex", "gateway")
+    assert gateway is not None
+    held.make(
+        "codex",
+        "gw",
+        gateway,
+        {"CODEX_PROVIDER_URL": "https://old.invalid/v1", "CODEX_PROVIDER_KEY": "k"},
+    )
+
+    written = held.write(
+        "codex",
+        "gw",
+        "gateway",
+        {"CODEX_PROVIDER_URL": "https://new.invalid/v1", "CODEX_PROVIDER_KEY": "k"},
+    )
+
+    assert "model_providers.humanize.base_url=https://new.invalid/v1" in written.args
+    assert "model_provider=humanize" in written.args
+    assert not any("old.invalid" in one for one in written.args)
+
+
 def test_every_account_is_listed_and_one_backend_s_are_listed_alone() -> None:
     held = Hmz().accounts
     held.write("claude", "first")

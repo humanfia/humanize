@@ -102,7 +102,8 @@ class Accounts:
           name: What it is called.
           way: The way it was made by, or "" for the one that is only variables.
           env: What a turn under it is run with.
-          args: What to add to the backend's own command line.
+          args: What to add to the backend's own command line, or () for what its way adds,
+            filled from `env`.
 
         Returns:
           The account, as it is now written down.
@@ -112,8 +113,15 @@ class Accounts:
           OSError: If the directory cannot be made or the file cannot be written.
         """
         from hmz.coganchor import providers
+        from hmz.coganchor.providers import login
 
         if way:
+            # A way whose arguments are its answers -- codex's gateway names its URL on the
+            # command line, not in a variable -- is an account whose arguments go stale with
+            # the answers: a URL corrected and its arguments dropped would be an account that
+            # quietly asks the vendor itself, with no key, rather than the gateway.
+            if not args and (made := login.way_of(cli, way)) is not None:
+                args = tuple(providers.filled(one, env or {}) for one in made.args)
             return providers.add(cli, name, way, env, args)
         return providers.add(cli, name, env=env, args=args)
 
