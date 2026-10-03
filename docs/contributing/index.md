@@ -70,7 +70,7 @@ change that could reach more than one CLI, run
 
 | | Your machine | CI |
 | --- | --- | --- |
-| the pre-commit hooks | ✓ | ✓ every push |
+| the pre-commit hooks | ✓ | ✓ every push; `pyright` and the workflow linters from a pull request on |
 | `tests/unit/` | ✓ | ✓ every push |
 | `tests/integration/` | ✓ | ✓ every pull request |
 | `tests/system/` | ✓ with `--run-agents` for the real CLIs | ✓ on the way to `main`: Linux, no CLIs |

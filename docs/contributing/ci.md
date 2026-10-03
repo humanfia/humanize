@@ -5,7 +5,9 @@ and pull request runs `.github/workflows/ci.yml`, and how much of it runs grows 
 the change is to `main`.
 
 Wait for one check: **`ci-ok`**. It is green when every job that ran passed. A job the change
-did not need is skipped, and a skipped job does not count against it.
+did not need is skipped, and a skipped job does not count against it. Only a run headed for
+`main` reports `ci-ok`; the others report `ci-ok (push tier)` or `ci-ok (pr tier)`, so the
+quick run a push to your branch starts can never pass for the one your pull request needs.
 
 ## How it works
 
@@ -29,7 +31,7 @@ for its tests:
 plan ─▶ changes ─┬─▶ lint ────────┬─▶ typecheck ─▶ unit ─▶ integration ─▶ system ─▶ coverage
                  ├─▶ workflows ───┘
                  ├─▶ lint ─▶ build ─▶ smoke
-                 └─▶ docs ─▶ deploy, from a push to main
+                 └─▶ docs
 plan ─▶ dependency-review
 every job ─▶ ci-ok
 ```
@@ -44,7 +46,7 @@ every job ─▶ ci-ok
 | `system` | `tests/system`, on Linux, without `--run-agents` | `uv run pytest tests/system` |
 | `coverage` | Every test job's coverage, added up | |
 | `build`, `smoke` | The package builds and PyPI would take it; the wheel, with no extras, starts on each system and Python | `uv build` |
-| `docs` | The site builds, every `#fragment` resolves, every word is legible on a phone | [Working on these docs](/contributing/docs) |
+| `docs` | The site builds, every `#fragment` resolves, every word is legible on a phone. A push to `main` builds and deploys it from `build-docs.yml` instead | [Working on these docs](/contributing/docs) |
 | `dependency-review` | No dependency the pull request adds has a known vulnerability | |
 
 The `system` runner has docker, a docker swarm and `ssh localhost`, and no coding agent CLI. A
@@ -71,11 +73,13 @@ coverage with a table by file. The whole report is the run's `coverage` artifact
   who has one.
 - **`system` skips a test that runs on your machine.** It needs something that runner has not
   got, and the summary at the end of the job's log says what. A skip is not a failure.
+- **A pull request has no `ci-ok` after you moved it onto `main`.** The tier is read when a
+  run starts, and the last one ran for the old base. Push again to start one for `main`.
 
 ## Other workflows
 
 Two more report to the repository's Security tab rather than to `ci-ok`: `codeql.yml` scans
-the Python and the workflows on every pull request into `main` and weekly, and `scorecard.yml`
+the Python and the workflows on every pull request into `main`, every push to it and weekly, and `scorecard.yml`
 scores the repository against the [OpenSSF Scorecard](https://scorecard.dev) checks on every
 push to `main` and weekly.
 

@@ -132,7 +132,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # No extras: `uv run` below makes the environment the hooks need, which is the project
+      # and its dev group.
       - uses: ./.github/actions/setup-uv
+        with:
+          sync: none
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -160,6 +164,8 @@ jobs:
           persist-credentials: false
 
       - uses: ./.github/actions/setup-uv
+        with:
+          sync: --only-dev
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -167,14 +173,14 @@ jobs:
           key: pre-commit-workflows-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
       - name: actionlint
-        run: uv run --frozen pre-commit run actionlint --all-files
+        run: uv run --frozen --no-sync pre-commit run actionlint --all-files
 
       - name: zizmor
         env:
           # Online, which a commit hook is not: whether a pinned commit is really the tag it
           # says, and whether an action is one with an advisory against it.
           GH_TOKEN: ${{ github.token }}
-        run: uv run --frozen pre-commit run zizmor --all-files
+        run: uv run --frozen --no-sync pre-commit run zizmor --all-files
 
   typecheck:
     name: typecheck
@@ -407,7 +413,8 @@ jobs:
 
       - run: uv build
 
-      # What PyPI would refuse, or render badly from the README, refused here instead.
+      # What PyPI would refuse, or render badly from the README, refused here instead. The newest
+      # twine rather than a pinned one, since what it stands in for is what PyPI takes today.
       - run: uvx twine check --strict dist/*
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -456,9 +463,14 @@ jobs:
   docs:
     name: docs
     needs: [plan, changes]
-    if: needs.plan.outputs.tier == 'full' && needs.changes.outputs.docs == 'true'
-    # The build is read-only. The other two are for the deploy that follows a push to `main`,
-    # which a called workflow can only be handed, never take for itself.
+    # Not a push to `main`: `build-docs.yml` runs on that itself, one at a time, so that the
+    # site deployed last is the newest. Everywhere else the build is checked here, as a gate.
+    if: >-
+      needs.plan.outputs.tier == 'full'
+      && needs.changes.outputs.docs == 'true'
+      && github.event_name != 'push'
+    # The build is read-only. The other two are for the deploy a push to `main` makes, which a
+    # caller has to be able to hand that workflow even where it never runs.
     permissions:
       contents: read
       pages: write
@@ -477,7 +489,11 @@ jobs:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
 
   ci-ok:
-    name: ci-ok
+    # `ci-ok` is the full tier's alone. A branch with a pull request open is pushed to as well,
+    # and both runs report on the same commit: were the push run's `ci-ok` green, it could stand
+    # in for the pull request's. A pull request moved onto `main` after its run is in the same
+    # place, and has no `ci-ok` until it is pushed to again.
+    name: ${{ needs.plan.outputs.tier == 'full' && 'ci-ok' || format('ci-ok ({0} tier)', needs.plan.outputs.tier) }}
     if: always()
     needs:
       - plan
