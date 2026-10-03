@@ -1,14 +1,27 @@
-# The documentation site, built and checked, and deployed from `main`. Run by `ci.yml` wherever
-# its full tier runs and `docs/` changed, so a broken page holds up `ci-ok` like anything else;
-# or by hand, which builds without deploying.
+# The documentation site, built and checked, and deployed from `main`. A push to `main` that
+# changed it builds and deploys here; `ci.yml` calls this to build it everywhere else its full
+# tier runs, so a broken page holds up `ci-ok` like anything else. By hand, it builds.
 
 name: build-docs
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-docs.yml
+      - docs/**
   workflow_call:
   workflow_dispatch:
 
 permissions: {}
+
+# One at a time on `main`, so the site deployed last is the newest commit's, and a newer push
+# waiting replaces an older one waiting. Named for this file rather than for `github.workflow`,
+# which in a called workflow is the caller's: sharing its group would leave this run waiting
+# on the one that called it.
+concurrency:
+  group: build-docs-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -60,8 +73,8 @@ jobs:
 
   deploy:
     name: deploy
-    # Called by `ci.yml`, this is the event that started it: a push to `main` deploys, and a
-    # pull request, the merge queue, a nightly run or one by hand only builds.
+    # Called by `ci.yml`, the event is the one that started it: a pull request, the merge
+    # queue, a nightly run or one by hand only builds.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest

@@ -1,11 +1,14 @@
 # GitHub's code scanning, over the Python and over the workflows themselves. On a pull request
-# to `main`, so an alert is raised on the change that brings it; and weekly, for the queries
-# that learned something since. Results land in the repository's Security tab.
+# to `main`, so an alert is raised on the change that brings it; on a push to it, which is what
+# the next pull request's alerts are told apart from; and weekly, for the queries that learned
+# something since. Results land in the repository's Security tab.
 
 name: codeql
 
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
   schedule:
     - cron: "41 4 * * 1"
