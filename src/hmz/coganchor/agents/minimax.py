@@ -230,9 +230,11 @@ class MiniMaxCodeSession(CommandSessionBase):
             "-",
             # The workspace is a session's rather than a run's, and a session carried on is
             # refused one it was not opened in -- so it is said, not left to the directory
-            # the command happens to start in.
+            # the command happens to start in. Said as the directory on the machine `mcode`
+            # runs on: work on another machine is worked on here in its copy, and the far
+            # path is one this machine may not have at all.
             "--cwd",
-            self.cwd,
+            self._workspace(),
             *_PERMITTED[configured.permission],
         ]
         if configured.model:

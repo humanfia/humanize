@@ -1394,6 +1394,8 @@ mcode exec --output-format stream-json --input - --cwd <dir> [--model <model>]
 
 No fields of its own.
 
+- `--cwd` is the directory on the machine `mcode` runs on: for work on another machine with
+  `mcode` here, the copy of the work kept here, never the far path.
 - The session is continued with `--session` and the id its first turn's lines carry.
 - `--effort` is sent only where the account's catalogue lists the rung for the model (only
   `minimax/MiniMax-M3.1-Flash-Preview` takes rungs).
