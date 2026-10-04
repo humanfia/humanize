@@ -121,6 +121,12 @@ for at in range(1, {PIECES} + 1):
 """
 
 
+#: A command line each stand-in refuses at once, which it is run with as soon as it is
+#: written: macOS checks an executable the first time it runs, which takes a third of a
+#: second and more, longer than the clocks here give a turn to say anything.
+_REFUSED = {"pi": ["--unheard-of"], "opencode": ["run", "--unheard-of"]}
+
+
 def _install(
     named: str, script: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Path:
@@ -134,6 +140,7 @@ def _install(
     fake = binaries / named
     fake.write_text(f"#!{sys.executable}\n{standins.refusing(named)}{script}")
     fake.chmod(0o755)
+    subprocess.run([fake, *_REFUSED[named]], capture_output=True, check=False)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     return fake
 
