@@ -40,8 +40,9 @@ Which part of the version to bump:
 
 ## Step 1: Run the regression matrix
 
-CI runs every tier but the system tier. The matrix is the part of the system tier that drives
-every feature through every CLI you have, so run it on the commit you are about to release:
+CI runs the system tier with no coding agent CLI installed. The matrix is the part of it that
+drives every feature through every CLI you have, so run it on the commit you are about to
+release:
 
 ```sh
 uv run pytest tests/system/matrix --run-agents -m matrix

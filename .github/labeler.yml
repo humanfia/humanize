@@ -101,6 +101,7 @@ area/ci:
           - .github/labeler.yml
           - .github/labels.yml
           - .github/release.yml
+          - .github/zizmor.yml
           - .pre-commit-config.yaml
           - .editorconfig
           - .gitattributes
