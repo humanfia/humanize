@@ -26,9 +26,6 @@ take turns on it for hours, while you check their progress against a number that
 - **Make one run first.** [Your first run](/user/first-run), or the
   [quickstart on the home page](/#run-a-flow), shows you a flow working in a scratch
   repository. This tutorial assumes you have seen that.
-- **Open `hmz` once.** `flame_chase` comes from the official
-  [flowverse](/weaver/flowverses), a git repository of flows, and opening `hmz` in any directory
-  is what fetches it. `hmz exec` does not fetch it for you. Leave with `/exit`.
 - **Have Python 3 and git.** The benchmark is a Python script.
 - **Set aside a budget.** The command below allows up to eight hours and $100. Lower `cost=` if
   your account is billed by the token and you want to spend less.
@@ -310,16 +307,6 @@ Perfetto shows two processes, `first_chaser` and `second_chaser`, with alternati
 :::
 
 ## Troubleshooting
-
-### It says the official flowverse has not been fetched yet
-
-```console
-hmz exec: error: flame_chase: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
-```
-
-`hmz` fetches flowverses in the background each time it opens, and `hmz exec` does not. Run
-`hmz`, wait a moment, and run the line again. If it is still refused, type
-`/settings flowverses` in `hmz`, open `official`, and choose `fetch`.
 
 ### The number does not move for several turns
 

@@ -8,6 +8,8 @@ Have every round of work reviewed, and stop when the reviewer agrees it is done.
 in one session that remembers; a fresh reviewer reads the repository after each round, and its
 review is the actor's next prompt, word for word.
 
+<Badge type="tip" text="ships with humanize" />
+
 ::: code-group
 
 ```text [at the prompt]

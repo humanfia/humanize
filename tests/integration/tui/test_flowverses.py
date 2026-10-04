@@ -22,10 +22,11 @@ import pytest
 from textual.widgets import Label, OptionList
 
 from hmz.coganchor.backends import Model
-from hmz.runtime.flowing import ENTRY, OFFICIAL
+from hmz.runtime.flowing import BUILTIN_AT, ENTRY, OFFICIAL
 from hmz.runtime.flowing import verses as store
 from hmz.tui import Humanize
 from hmz.tui.pick import _FORK, _SEARCH, Agent, Configures, Flows
+from tests.flows.kit import SHIPPED
 from tests.integration.tui.test_app import into_agent, onto
 from tests.stubs import written
 from tests.tui.fixtures import until
@@ -156,7 +157,7 @@ async def test_the_strip_is_the_places_flows_come_from() -> None:
         # And it opens on the place the flow it is set up on came from, which is humanize's.
         assert sheet._where == OFFICIAL
         # The half of it that is in the package, nothing having been fetched here.
-        assert _rows(sheet) == ["chat"]
+        assert _rows(sheet) == list(SHIPPED)
 
 
 @pytest.mark.timeout(60)
@@ -168,7 +169,7 @@ async def test_the_arrows_step_between_the_places(theirs: Path) -> None:
         sheet = await _open(app, driver)
 
         assert _places(sheet) == [OFFICIAL, "theirs"]
-        assert _rows(sheet) == ["chat"]
+        assert _rows(sheet) == list(SHIPPED)
 
         await driver.press("right")
         await until(lambda: sheet._where == "theirs", driver)
@@ -190,8 +191,9 @@ async def test_a_search_steps_to_the_places_it_found_something_in() -> None:
 
         await onto(app, driver, _SEARCH)
         await driver.press("enter")
-        await driver.press(*"cha")
+        await driver.press(*"chat")
         await until(lambda: _rows(sheet) == ["chat"], driver)
+        assert _rows(sheet) == ["chat"]
 
         # Only the places holding one, so that nothing steps through empty lists.
         assert _places(sheet) == [OFFICIAL]
@@ -273,7 +275,8 @@ async def test_what_was_never_fetched_is_fetched_as_the_menu_opens(
         assert sheet._where == OFFICIAL
 
         # What came down is offered beside the half that was already here, under the one name.
-        await until(lambda: _rows(sheet) == ["chat", "loop"], driver)
+        await until(lambda: _rows(sheet) == sorted((*SHIPPED, "loop")), driver)
+        assert _rows(sheet) == sorted((*SHIPPED, "loop"))
 
 
 @pytest.mark.timeout(60)
@@ -484,29 +487,31 @@ async def test_a_flow_is_copied_here_to_be_changed(
     looked in first, so from then on that name means the copy.
     """
     monkeypatch.chdir(tmp_path)
+    # The last of humanize's own, which is the one the cursor leaves on its way down.
+    last = SHIPPED[-1]
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
-        await onto(app, driver, "official\x1fchat")
+        await onto(app, driver, f"official\x1f{last}")
         # The row below the flows copies the one the cursor was last on, and says which.
         await onto(app, driver, _FORK)
-        assert "copy chat here" in str(
+        assert f"copy {last} here" in str(
             sheet.query_one("#choices", OptionList).get_option(f"={_FORK}").prompt
         )
 
         await driver.press("enter")
         await until(lambda: "copied to" in _under(sheet), driver)
 
-        assert "chat now points to it" in _under(sheet)
+        assert f"{last} now points to it" in _under(sheet)
         # And it is a flow of your own from here on, listed where your own are.
         await _steps(app, driver, "local")
-        assert _rows(sheet) == ["local/chat"]
+        assert _rows(sheet) == [f"local/{last}"]
 
-    at = tmp_path / ".humanize" / "flows" / "chat"
-    assert "one agent, one session" in (at / "__init__.py").read_text()
+    at = tmp_path / ".humanize" / "flows" / last
+    assert (at / ENTRY).read_text() == (BUILTIN_AT / last / ENTRY).read_text()
     from hmz.runtime.flowing import find
 
-    assert find("chat") == str(at / "__init__.py")
+    assert find(last) == str(at / ENTRY)
 
 
 @pytest.mark.timeout(60)

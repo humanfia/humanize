@@ -252,8 +252,8 @@ class Runner:
             workspace.
           params: The flow's params, as its model or as a mapping of values -- strings from
             `-p` among them -- or None for its defaults.
-          budget: What the run may spend. Only a flow humanize ships may be run without one,
-            under `Budget(cost=inf)`.
+          budget: What the run may spend. Only `chat` may be run without one, under
+            `Budget(cost=inf)`.
           profile: Whether to sample the programs the agents start while the run goes, as
             well as trace them. Off unless asked, since it is a sampler running for as long
             as the flow does.
@@ -269,7 +269,7 @@ class Runner:
             run to pick up that is not there or of a flow that cannot be picked up.
         """
         from hmz.flows import Budget, FlowException
-        from hmz.runtime.flowing import builtin, resolved
+        from hmz.runtime.flowing import privileged, resolved
         from hmz.runtime.flowing.specs import EnvSpec as Spec
 
         self._named = str(flow)
@@ -288,7 +288,7 @@ class Runner:
         except FlowException as why:
             raise Refused(str(why)) from why
         if budget is None:
-            if not builtin(impl):
+            if not privileged(impl):
                 raise Refused(
                     f"{self._named} requires a budget: specify with -b "
                     "duration=...,cost=...,output_tokens=..."

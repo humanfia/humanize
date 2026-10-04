@@ -2,10 +2,9 @@
 // A flow is Python, played out: it declares its roles, each role is filled with an agent, its
 // loop sends each turn to a session -- a fresh one each round, or one kept -- with ordinary
 // code between the turns, and another flow can call it, handing down only the roles it
-// declared. Pick a flow to watch its loop. Each loop is the one the flow really runs:
-// `chat` from `src/hmz/flows/builtin/chat/`, and `ralph_loop`, `stateful_ralph` and `rlar`
-// from the official flowverse (`humanfia/flowverse`, `flows/<name>/__init__.py`). What a
-// called flow is handed is `specs/flows.md`. The CLIs in the sockets are only examples.
+// declared. Pick a flow to watch its loop. Each loop is the one the flow really runs, and all
+// four ship with humanize: `src/hmz/flows/builtin/<name>/__init__.py`. What a called flow is
+// handed is `specs/flows.md`. The CLIs in the sockets are only examples.
 import { computed, nextTick, ref } from 'vue'
 import { withBase } from 'vitepress'
 

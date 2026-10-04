@@ -1511,8 +1511,8 @@ class Chosen(NamedTuple):
       envs: Where each of its environment roles is, by role, as `-e` spells one.
       params: What the flow itself is set up with, or None for a flow that takes no params
         and one that was left at its defaults.
-      budget: What a run of it may spend, or None for none -- which only a flow humanize
-        ships may be run with.
+      budget: What a run of it may spend, or None for none -- which only `chat` may be run
+        with.
       profile: Whether a run of it profiles the programs its agents start, as well as
         tracing them.
     """
@@ -1534,8 +1534,8 @@ class Declared(NamedTuple):
       envs: The environment roles somebody names a place for. A `LocalEnv` role is the
         workspace a run is started in, and is not among them either.
       params: What the flow can be set up with.
-      unbounded: Whether a run of it needs no budget: a flow humanize ships -- `chat`, a
-        conversation, which stops when the person does.
+      unbounded: Whether a run of it needs no budget, which is `chat` alone: a conversation,
+        which stops when the person does.
       resumable: Whether a run of it can be picked up where it left off.
       outworlders: The `Outworlder` roles, by name, in the order the flow declares them:
         whoever is at this prompt, once apiece, each with a transcript of what it asks.
@@ -1571,13 +1571,13 @@ def declared_of(flow: str) -> Declared | None:
       Its roles, params and marks, and None where reading the flow raised at all -- which is
       a flow to report rather than a reason for a menu not to draw.
     """
-    from hmz.runtime.flowing import builtin, resolved
+    from hmz.runtime.flowing import privileged, resolved
 
     try:
         # Loaded once, and asked both questions: loading a flow reads its directory.
         impl = resolved(flow)
         said = impl.describe()
-        unbounded = builtin(impl)
+        unbounded = privileged(impl)
     except Exception:  # noqa: BLE001 -- a flow that will not load is still not a crash
         return None
     return Declared(
@@ -2915,8 +2915,8 @@ class Flows(Drafts[Chosen]):
 
         Unless something a run needs has not been answered: an agent that names no model is
         a run that stops on its first turn, an environment nobody said the place of is a run
-        refused before it starts, and so is a run given no budget -- which only a flow
-        humanize ships may be. Each is said where it would be answered.
+        refused before it starts, and so is a run given no budget -- which only `chat` may
+        be. Each is said where it would be answered.
         """
         declared = self._declared
         missing = [

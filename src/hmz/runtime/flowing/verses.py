@@ -12,13 +12,14 @@ own, and is there whether or not it has been fetched yet: a list that only menti
 somebody had thought to add it would be a list that hid what there is. And `local` and `user`
 are the flows of your own: `.humanize/flows` here, and the one in your home directory.
 
-`official` is the one that is read from two places at once. `chat` is in the package, because
-an interface that has never reached a network still has to have something to open talking to;
-everything else humanize offers is in the repository, where it can change without a release.
-Which of the two a flow is in is humanize's business rather than anybody else's, so both are
-offered under the one name: `chat` and `rlar` are each one of humanize's flows, said the same
-way, and `official/chat` resolves the same as `official/rlar`. The package's own wins a name
-they both hold -- the one that is always there beats the one a fetch could take away.
+`official` is the one that is read from two places at once. `chat` and the six loops beside it
+are in the package, because a machine that has never reached a network still has to have
+something to open talking to and a loop to leave running; everything else humanize offers is in
+the repository, where it can change without a release. Which of the two a flow is in is
+humanize's business rather than anybody else's, so both are offered under the one name: `chat`
+and `aot` are each one of humanize's flows, said the same way, and `official/chat` resolves the
+same as `official/aot`. The package's own wins a name they both hold -- the one that is always
+there beats the one a fetch could take away.
 
 Those last two are places rather than repositories -- nothing fetches them, and what is in one
 is whatever you put there -- but they are flowverses all the same, because everything that goes

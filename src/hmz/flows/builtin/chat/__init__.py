@@ -14,7 +14,7 @@ way, on a harness that asks.
 
 The agent is whatever harness was chosen, with everything that harness can do: `chat` declares
 a plain `Agent` -- one allowed the web -- because it talks to any of them, and the runtime hands
-the flows humanize ships the harness's full view. It is the one flow that runs with no budget
+it, and no other flow, the harness's full view. It is the one flow that runs with no budget
 of its own -- a conversation ends when you stop talking, and the runtime runs it under
 `Budget(cost=inf)`.
 
@@ -79,8 +79,8 @@ async def chat(
     *,
     agents: Agents,
     envs: Envs,
-    params: Params,  # noqa: ARG001 -- a flow takes its params whether or not it has any
-    ctx: FlowContext,  # noqa: ARG001 -- likewise its context
+    params: Params,
+    ctx: FlowContext,
 ) -> None:
     """Talks to one agent for as long as you keep answering it."""
     assistant, human = agents["assistant"], agents["human"]

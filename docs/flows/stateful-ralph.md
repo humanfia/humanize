@@ -7,6 +7,8 @@ pageClass: hmz-feature
 Leave one agent on a task it has to remember. One session holds the whole run and is sent the
 task again every round, so the agent keeps every approach it has already ruled out.
 
+<Badge type="tip" text="ships with humanize" />
+
 ::: code-group
 
 ```text [at the prompt]

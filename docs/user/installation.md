@@ -269,8 +269,9 @@ Until it has a key, humanize lists `dsh` but does not pick it for you. Its model
 hmz exec -f chat -a assistant=dsh/deepseek-v4-flash:high "say hello"
 ```
 
-`chat` ships with humanize. A flow from a flowverse, such as `ralph_loop`, needs `hmz` opened
-once first: that is what fetches flowverses, and `hmz exec` does not.
+`chat` and the six loops [FlowBench scores](/flows/#the-loops-side-by-side) ship with
+humanize. A flow from a flowverse, such as `humanize1`, needs `hmz` opened once first: that is
+what fetches flowverses, and `hmz exec` does not.
 
 A `dsh` agent works with full access whatever its flow declares. See
 [Security](/user/security).

@@ -71,6 +71,7 @@ if TYPE_CHECKING:
         inside,
         offered,
         offers,
+        privileged,
         resolved,
         within,
     )
@@ -207,6 +208,7 @@ __all__ = [
     "parse_duration",
     "parse_envs",
     "parse_params",
+    "privileged",
     "probe",
     "resolved",
     "run_fake",
@@ -302,6 +304,7 @@ _WRITTEN = {
     "parse_duration": "hmz.runtime.flowing.specs",
     "parse_envs": "hmz.runtime.flowing.specs",
     "parse_params": "hmz.runtime.flowing.specs",
+    "privileged": "hmz.runtime.flowing.finding",
     "probe": "hmz.runtime.flowing.environments",
     "resolved": "hmz.runtime.flowing.finding",
     "run_fake": "hmz.runtime.flowing.fakes",

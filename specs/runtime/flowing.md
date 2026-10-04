@@ -266,6 +266,7 @@ def inside(named_: str) -> str: ...  # which of the flows a module holds
 def about(named_: str) -> str: ...
 def resolved(named_: str) -> FlowImpl: ...  # the flow a way in runs, loaded
 def builtin(flow: FlowImpl) -> bool: ...  # whether humanize ships it
+def privileged(flow: FlowImpl) -> bool: ...  # whether it is the package's own `chat`
 def fork(named_: str, into: str | os.PathLike[str] | None = None) -> str: ...
 
 # skills.py -- what a flow brings its agents; `CARD`, `SKILLS` and `Loaded` come from
@@ -509,7 +510,8 @@ def under() -> Path: ...
 - `resolved` MUST load what a way in names -- a name, `<flowverse>/<flow>`, either with
   `:<inside>`, a path, or a VCS ref, fetched on the calling thread -- MUST say so where a
   name nothing answers to could have come from a flowverse not fetched yet, and MUST mark the
-  flows humanize ships with `full_view`; nothing else is.
+  package's own `chat` with `full_view`; nothing else is, the other flows humanize ships
+  included.
 - `brought` MUST bring the flow's own skills first and the ones it named after, the flow's own
   winning a shared name, and MUST raise where one cannot be fetched rather than at the turn.
 - `fork` MUST copy the whole of a flow and MUST refuse a name already taken rather than write

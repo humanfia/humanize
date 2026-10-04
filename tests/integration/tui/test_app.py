@@ -1445,11 +1445,13 @@ async def test_an_agent_that_stops_to_ask_reaches_the_prompt(asking: Path) -> No
         set_up(app, "chat", {"assistant": Runs("claude/m:high")})
         await driver.press(*"start")
         await driver.press("enter")
-        await until(lambda: "Which way?" in transcript(app), driver)
+        # Waited for to its last option: the agent says the question as it stops to ask,
+        # before the flow puts it to whoever is outside the run with what it offers.
+        await until(lambda: "2. right" in transcript(app), driver)
 
         # The question and what it offers are shown, and the next line typed is the answer.
+        assert "Which way?" in transcript(app)
         assert "left" in transcript(app)
-        assert "right" in transcript(app)
         await driver.press(*"right")
         await driver.press("enter")
         await until(lambda: "updatedInput" in app._last_answer, driver)

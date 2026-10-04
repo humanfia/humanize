@@ -4,9 +4,10 @@
 // deliberately is not that.
 //
 // Held to the code:
-// - The flows are grouped by where they come from. `chat` is the one flow in the package
-//   (`hmz/flows/builtin/`); the rest are the official flowverse (humanfia/flowverse), which
-//   the terminal interface fetches in the background each time it starts; and a project's
+// - The flows are grouped by where they come from. `chat` and the six loops FlowBench scores
+//   are in the package (`hmz/flows/builtin/`); the rest are the official flowverse
+//   (humanfia/flowverse), which the terminal interface fetches in the background each time it
+//   starts; and a project's
 //   `.humanize/flows` and `~/.humanize/flows` are offered as `local` and `user`.
 // - The backends are `PROFILES` in `hmz/coganchor/backends.py`, in alphabetical order.
 //   `dsh` is the one driven through a Python SDK rather than a CLI, signed in with
@@ -51,14 +52,22 @@ const BANDS: Band[] = [
     owns: 'what the work is: which agents take turns, what each is asked, and when it stops',
     tone: 'var(--hmz-lane-3)',
     groups: [
-      { label: 'in humanize', chips: [{ text: 'chat', href: '/flows/chat' }] },
+      {
+        label: 'in humanize',
+        chips: [
+          { text: 'chat', href: '/flows/chat' },
+          { text: 'ralph_loop', href: '/flows/ralph-loop' },
+          { text: 'rlar', href: '/flows/rlar' },
+          { text: 'flame_chase', href: '/flows/flame-chase' },
+          { text: 'and three more', href: '/flows/', apart: true },
+        ],
+      },
       {
         label: 'the official flowverse, fetched each time hmz starts',
         chips: [
-          { text: 'ralph_loop', href: '/flows/ralph-loop' },
-          { text: 'stateful_ralph', href: '/flows/stateful-ralph' },
-          { text: 'rlar', href: '/flows/rlar' },
-          { text: 'flame_chase', href: '/flows/flame-chase' },
+          { text: 'humanize1', href: '/flows/humanize1' },
+          { text: 'parallel_flame_chase', href: '/flows/parallel-flame-chase' },
+          { text: 'aot', href: '/flows/aot' },
           { text: 'and more', href: '/flows/', apart: true },
         ],
       },

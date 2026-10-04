@@ -28,7 +28,7 @@ humanize keeps a clone of each flowverse you add, and reads flows from these pla
 | `local` | this project's `.humanize/flows/` | `local/review`, or `review` |
 | `user` | your `~/.humanize/flows/`, for every project | `user/review`, or `review` |
 | each flowverse you added | its `flows/` | `yours/review` |
-| `official` | [humanfia/flowverse](https://github.com/humanfia/flowverse), and the `chat` flow humanize ships | `rlar`, or `official/rlar` |
+| `official` | [humanfia/flowverse](https://github.com/humanfia/flowverse), and `chat` and the six loops humanize ships | `aot`, or `official/aot` |
 
 `official`, `local` and `user` are always there and cannot be taken away. A flowverse is
 fetched when you add it, when you ask, and in the background when you open `hmz`. `hmz exec`
@@ -338,7 +338,7 @@ repository for the run and adds nothing.
 
 **Pin a version.** `official` follows the default branch of
 [humanfia/flowverse](https://github.com/humanfia/flowverse). To hold a run to one version of a
-flow, name it by commit: `-f 'git+https://github.com/humanfia/flowverse@<sha>#rlar'`.
+flow, name it by commit: `-f 'git+https://github.com/humanfia/flowverse@<sha>#aot'`.
 
 **Start from somebody else's.** Copy their flow into your project with `copy <flow> here`,
 change it, then move the directory into your own flowverse's `flows/` to publish it.
@@ -346,10 +346,10 @@ change it, then move the directory into your own flowverse's `flows/` to publish
 ## Pitfalls
 
 - **Not fetched yet.** `hmz exec` fetches nothing, so on a fresh machine a flow from `official`
-  is refused until it has been fetched:
+  that humanize does not ship is refused until it has been fetched:
 
   ```text
-  hmz exec: error: rlar: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
+  hmz exec: error: aot: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
   ```
 
   Open `hmz` once, or in CI call `Hmz().verses.fetch("official")` first.

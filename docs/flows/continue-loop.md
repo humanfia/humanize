@@ -8,6 +8,8 @@ Send the task once, then keep saying "continue" to the same session, which is wh
 a prompt would type. The agent keeps its whole conversation, and every round it is told to
 carry on rather than told the task again.
 
+<Badge type="tip" text="ships with humanize" />
+
 ::: code-group
 
 ```text [at the prompt]

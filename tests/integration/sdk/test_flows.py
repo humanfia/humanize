@@ -21,6 +21,7 @@ import pytest
 from hmz.flows import FlowNotFound
 from hmz.runtime.flowing import ENTRY, FLOWS, LOCAL, OFFICIAL, USER
 from hmz.sdk import Hmz
+from tests.flows.kit import SHIPPED
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -186,7 +187,7 @@ def test_a_place_that_has_not_been_fetched_holds_nothing_rather_than_failing() -
 
     if official.fetched:
         pytest.skip("humanize's own flowverse has been fetched on this machine")
-    assert [one.name for one in verses.holds(official)] == ["chat"]
+    assert [one.name for one in verses.holds(official)] == list(SHIPPED)
 
 
 def test_what_was_signed_into_a_url_is_not_what_is_printed_of_it() -> None:
