@@ -59,7 +59,7 @@ H/
 M/
 ├── prices.json                         the price table
 ├── models/<cli>/<account>.json         model catalogues, `_local` for the CLI's own sign-in
-├── harness/                            workdir of a harness an affinity puts on a docker daemon here
+├── harness/                            workdir of a harness an affinity puts on a docker daemon or Apple containers here
 ├── pinned/<blake2b-8(url)>/<sha>/      checkouts of git+ refs and of releases installed
 ├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories a never-installed flow names by URL
 ├── .<backend>.<name>.lock              held while a run allocates from a runtime
@@ -230,7 +230,7 @@ On the machine an environment is on; `<state>` is `H` here and
 | `…/clones/<…>.part.<pid>/`, `….part.gone….<pid>/` | a copy being made; one being removed | transient |
 | `…/scratch/<id>-<blake2b(id)>/` | a scratch directory | as copies |
 | `…/worktrees/<ref\|head>-<hex8>/` | a `derive_worktree` with no `dir` | **never removed** |
-| `envs/mirrors/<container>/<digest>/` | the local mirror of a `docker` environment's workdir | removed with the container |
+| `envs/mirrors/<container>/<digest>/` | the local mirror of a `docker` or `apple-container` environment's workdir | removed with the container |
 | `envs/mirrors/<service>/<digest>/` | the local mirror of a `swarm` environment's workdir | removed with the service |
 
 Names are deterministic, so a resumed run finds the same copy. `envs/` may be deleted while
@@ -245,7 +245,9 @@ never removed by humanize.
 `humanize-<provider>-<role>-<hex8>` and labelled `humanize=<uid>`, `humanize.provider`,
 `humanize.role`, `humanize.host`, `humanize.pid`, and `humanize.cpus`, `humanize.memory`,
 `humanize.gpus` where set. Only the workdir is bind-mounted. A `swarm` environment's service is
-named and labelled the same way, on the swarm its runtime's manager manages.
+named and labelled the same way, on the swarm its runtime's manager manages, and an
+`apple-container` environment's container likewise, less `humanize.gpus`, by Apple's `container`
+on this Mac.
 
 ### `M/harness/`
 
@@ -300,7 +302,7 @@ Every path in this section is safe to delete while humanize is not running.
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
 | `$TMPDIR/humanize-<uid>/daemon.log` (`0600`) | what belongs to no run: the daemon's stdout and stderr, and a host process's before it holds a run; what belongs to a run is the epic's [`host.log`](#h-epics-ws-stamp-hex6) | kept, never rotated |
 | `$TMPDIR/humanize-<uid>/models/<cli>/<name>.json`, `_local.json` | [model catalogues](#model-catalogues) of each account and of the CLI's own sign-in | an account's when it is removed; the rest kept |
-| `$TMPDIR/humanize-*` | a docker environment's cid file and machine shadow | with the container |
+| `$TMPDIR/humanize-*` | a docker or Apple container environment's cid file and machine shadow | with the container |
 | `$TMPDIR/humanize-<uid>/.<backend>.<name>.lock` | empty; held with `flock(LOCK_EX)` while containers of a docker or Apple container runtime are sized and started, or services of a swarm counted, created and waited for, so two runs on this machine never allocate from one runtime at once | kept |
 | `${XDG_RUNTIME_DIR:-$TMPDIR}/humanize-ssh-<uid>/%C[-<hex8>]` (`0700`) | ssh control sockets ([`HUMANIZE_SSH_REUSE`](/reference/environment#humanize-ssh-reuse)) | 120 s after last use |
 | `/dev/shm/hmz-<pid>-<hex16>-*/<n>.<file>` (`0700`/`0600`) | credential copies staged for a turn (≤ 1 MiB each) | on close; dead-pid directories swept |

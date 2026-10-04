@@ -288,9 +288,9 @@ class Fallbacks:
   `<user>/<flow>` for one of `official`'s, `@<flowverse>/[<user>/]<flow>` for one of another
   index's.
 - Checking a runtime MUST ask an ssh host what a run asks it on the way in, down
-  the same road, a docker daemon its own `docker info`, and a swarm's manager its `docker info`
+  the same road, a docker daemon its own `docker info`, a swarm's manager its `docker info`
   -- refusing one that manages no active swarm -- and its nodes, totalling what those that may
-  take a task have; it MUST NOT wait longer than it was
+  take a task have, and Apple's containers their `container system status`; it MUST NOT wait longer than it was
   given, MUST NOT ask anybody for a password, and MUST answer a runtime that said nothing with
   why rather than raise.
 - A trace of one run MUST be gathered here rather than by whoever asked for it, by the ids the

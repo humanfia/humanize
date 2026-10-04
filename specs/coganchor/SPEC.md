@@ -459,7 +459,8 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   where it can run instead, and MUST ask that only of the harness's machine — where the account
   goes too. `check` MUST answer what a target is without running anything on it.
 - A target MUST be `ssh://[USER@]HOST[:PORT]`, `docker://CONTAINER[@ENDPOINT]`,
-  `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, and an endpoint `local`,
+  `apple-container://CONTAINER`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`,
+  and an endpoint `local`,
   `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`, `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` or
   `context:NAME`; a container naming none, or `local`, MUST be held by docker's default as this
   process's environment leaves it. Every `docker` on a container's road MUST name any other

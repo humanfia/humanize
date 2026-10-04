@@ -269,7 +269,7 @@ runs](/user/remote-execution#where-the-agent-runs).
 
 **Verify.** The usage line is gone.
 
-### `build-box: 'somewhere' is not where a harness runs: self, local or <ssh|docker|swarm>:<runtime name>`
+### `build-box: 'somewhere' is not where a harness runs: self, local or <ssh|docker|swarm|apple-container>:<runtime name>`
 
 **Symptom.** Saving a host or a daemon on the runtimes page, or `Hmz().runtimes.new(…)`, is
 refused with this, or with `… is in its affinity twice` or `… its affinity names itself; self
@@ -1045,7 +1045,7 @@ listening before you upgraded.
 
 **Verify.** The turn starts.
 
-### `unsupported target '…'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]`
+### `unsupported target '…'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]`
 
 **Symptom.** A target is refused.
 

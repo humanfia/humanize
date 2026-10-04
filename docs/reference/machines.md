@@ -584,7 +584,7 @@ runtimes:
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=ssh@NAME`: absolute, `~` or `~/…`. |
 | `fallback` | `tuple[str, ...]` | `()` | Saved runtimes, each `<backend>:<name>`, to move an environment to in order when this one cannot hold it: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | `typed` or `imported`. |
-| `affinity` | `tuple[str, ...]` | `()` | Where the harness of an agent working on it runs, in the order tried: `self`, `local`, `ssh:<name>`, `docker:<name>`. Empty: on it where its CLI is, else here. See [Remote execution › Affinity](/reference/remote-execution#affinity). |
+| `affinity` | `tuple[str, ...]` | `()` | Where the harness of an agent working on it runs, in the order tried: `self`, `local`, `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`. Empty: on it where its CLI is, else here. See [Remote execution › Affinity](/reference/remote-execution#affinity). |
 
 `target()` is `ssh://[user@]<alias or host>[:port][?F=…&HostName=…&IdentityFile=…&ProxyJump=…&<options>]`.
 These options come before humanize's own `ssh` options, and `ssh` keeps the first value it

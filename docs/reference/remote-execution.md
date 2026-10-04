@@ -81,6 +81,7 @@ machine in `AnchorConfig.harness`.
 | `local:DIR` | this machine, with `DIR` standing in for the far side's copy of the workspace | as `local` | yes | none |
 | `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` | a host reached with the system `ssh` | the serving half is bootstrapped over `ssh` and spoken to on its pipes | yes | POSIX `/bin/sh`, Python >= 3.12 |
 | `docker://CONTAINER[@ENDPOINT]` | a running container | the serving half is bootstrapped with `docker exec -i`, running as the container's user | yes | `docker` here; `/bin/sh` and Python >= 3.12 in the container |
+| `apple-container://CONTAINER` | a running Apple container on this Mac | the serving half is bootstrapped with `container exec -i`, running as the container's user | yes | Apple's `container` here; `/bin/sh` and Python >= 3.12 in the container |
 | `tcp://HOST:PORT` | a serving half [left listening](#serving-a-target) | a TCP connection, `TCP_NODELAY`, 30 s connect timeout | no | a served target and its token |
 | `peer://TICKET@HOST:PORT` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting `TICKET` | no | written by humanize only |
 
@@ -94,12 +95,13 @@ Parsing rules:
   double-quoted where it contains whitespace), except `F`, passed as `-F VALUE`.
 - `docker://`: the container name ends at the first `@`; the rest is a docker
   [endpoint](/reference/machines#endpoints). An endpoint of `local` is the same target as none.
+- `apple-container://`: the container name, holding no `@`, `/`, `?` or `#`.
 - `tcp://`: `HOST:PORT` split at the last `:`; the port must be digits.
 - `peer://`: `TICKET@HOST:PORT`; brackets around an IPv6 host are stripped.
 
 | Input | `ValueError` message |
 | --- | --- |
-| an unknown scheme | `unsupported target 'bogus://x'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]` |
+| an unknown scheme | `unsupported target 'bogus://x'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]` |
 | `tcp://` without a numeric port | `malformed target 'tcp://h'; expected tcp://HOST:PORT` |
 | an ssh option that is not one | `malformed target 'ssh://h?Bad-Key=1'; Bad-Key='1' is not an ssh option` |
 | an ssh query that does not parse | `malformed target '<spec>'; expected ssh://HOST?KEYWORD=VALUE&...` |
@@ -108,7 +110,7 @@ Parsing rules:
 
 ### Bootstrapping the serving half
 
-For `local`, `ssh://` and `docker://`, humanize starts `hmz internal anchor serve --stdio
+For `local`, `ssh://`, `docker://` and `apple-container://`, humanize starts `hmz internal anchor serve --stdio
 --export WORKSPACE[:REAL]` on the far side and speaks the protocol over its stdin and stdout.
 
 | Step | Behaviour |
@@ -292,14 +294,14 @@ places for the harness of an agent whose work is on it.
 
 ```text
 affinity := [<entry>, ...]
-<entry>  := self | local | ssh:<name> | docker:<name>
+<entry>  := self | local | ssh:<name> | docker:<name> | swarm:<name> | apple-container:<name>
 ```
 
 | Entry | The harness | No room when |
 | --- | --- | --- |
 | `local` | supervised here, anchored to the environment's machine | never |
 | `self` | native on the environment's machine | the CLI is missing there (`HarnessNotInstalled`), or the machine cannot hold the session's fence (`HarnessSandboxed`) |
-| `ssh:<name>`, `docker:<name>` | supervised on that saved runtime's machine, reaching the environment's machine through the anchor | it cannot be opened or reached (`EnvError`), has no share left, its container limit among it (`ResourceUnmet`), or the role's `Permission` fences anything (`HarnessSandboxed`) |
+| `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` | supervised on that saved runtime's machine, reaching the environment's machine through the anchor | it cannot be opened or reached (`EnvError`), has no share left, its container limit among it (`ResourceUnmet`), or the role's `Permission` fences anything (`HarnessSandboxed`) |
 
 - Entries are tried in order; the next only when the one before has no room. Where none has,
   the last refusal is raised, of the same type, as `<backend>[@<provider>]: nowhere its
@@ -314,14 +316,15 @@ affinity := [<entry>, ...]
 - A runtime entry is opened (`hmz.runtime.flowing.affinity.Harbors`) once per run, shared by
   every role, as an environment of role `harness` with no resources asked, in its saved
   workdir, else `~` over ssh, else an empty `$TMPDIR/humanize-<uid>/harness` (created by
-  the run) for a docker daemon on this machine; any other daemon saved without a workdir has no room. It is probed
+  the run) for a docker daemon on this machine or this Mac's Apple containers; any other
+  runtime saved without a workdir has no room. It is probed
   before the flow is called and closed with the run's environments. A container for it is
   started with `--cap-add SYS_PTRACE`: without it, docker's default seccomp profile refuses the
   `pidfd_getfd` the supervisor borrows each command's descriptors with, and a command whose
   output goes to a socket (opencode's, Claude Code's stdin) is run with that output lost.
 - An affinity is checked when the runtime is made: an entry that is none of the above, one
   named twice, or one naming the runtime itself is a `ValueError`
-  (`<name>: '<entry>' is not where a harness runs: self, local or <ssh|docker|swarm>:<runtime name>`,
+  (`<name>: '<entry>' is not where a harness runs: self, local or <ssh|docker|swarm|apple-container>:<runtime name>`,
   `<name>: <entry> is in its affinity twice`, `<name>: its affinity names itself; self is its
   own machine`). An entry naming a runtime nobody saved is accepted, and has no room.
 
@@ -679,7 +682,7 @@ hmz internal anchor serve --export VIRTUAL[:REAL] [--export ...]
 
 | Mode | Serves | Started by |
 | --- | --- | --- |
-| `--stdio` | one session on stdin/stdout; fds 0 and 1 are pointed at `/dev/null` for the rest of the process | humanize, for `local`, `ssh://` and `docker://` targets |
+| `--stdio` | one session on stdin/stdout; fds 0 and 1 are pointed at `/dev/null` for the rest of the process | humanize, for `local`, `ssh://`, `docker://` and `apple-container://` targets |
 | `--listen [HOST:]PORT` | every TCP connection, one thread each, until interrupted; prints `hmz internal anchor serve listening HOST PORT` on stderr | a person, for `tcp://` targets |
 | `--peer TICKET@HOST:PORT` | one session met at a broker | humanize, for a harness on a third machine |
 

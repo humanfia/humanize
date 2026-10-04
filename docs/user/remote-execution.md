@@ -108,7 +108,7 @@ places tried in order.
 | --- | --- |
 | `self` | on the host itself, where the CLI is installed there and can hold the role's fence |
 | `local` | here, reaching the host's files and commands |
-| `ssh:<name>`, `docker:<name>` | on another saved runtime, reaching the host's work from there |
+| `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` | on another saved runtime, reaching the host's work from there |
 
 With no affinity, and on a host nobody saved, the CLI runs on the host where it is installed
 there and here otherwise. Work in the workspace always has its harness here. The places are

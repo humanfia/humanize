@@ -1699,8 +1699,8 @@ run: `This environment is not in the run.`
 
 | Row | Value |
 | --- | --- |
-| `kind` | `LOCAL`, `SSH`, `DOCKER` |
-| `target` | the ssh host or docker runtime, or `this machine` |
+| `kind` | `LOCAL`, `SSH`, `DOCKER`, `SWARM`, `APPLE-CONTAINER` |
+| `target` | the ssh host or container runtime, or `this machine` |
 | `workdir` | as the run reported it |
 | `set up as` | the role's `-e` spelling |
 | `image` | the image the flow declares for the role |
