@@ -43,7 +43,7 @@ At mount, in the background, the interface:
 | Asks installed backends for models | Each installed CLI's own account whose model list was never fetched or is older than 7 days. Failures are logged only. |
 | Fetches flowverses | Every flowverse index with a URL (cloning `official` the first time) whose clone holds no local edits, one at a time. Installed flows are not touched. A fetch that brings new commits makes open flow lists re-read. Then, where any installed flow's index lists a newer release, prints once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`. |
 | Looks for a run to resume | Decides whether [`/resume`](#resume) is listed. |
-| Refreshes prices | `$HUMANIZE_HOME/prices.json` from `HUMANIZE_PRICES` (default `https://openllmprices.com/data/prices.json`) when older than 24 h; at most one attempt an hour, 20 s timeout. |
+| Refreshes prices | `$TMPDIR/humanize-<uid>/prices.json` from `HUMANIZE_PRICES` (default `https://openllmprices.com/data/prices.json`) when older than 24 h; at most one attempt an hour, 20 s timeout. |
 | Asks the reporting question | Only where unanswered: [First start](#first-start). |
 
 ## Screen {#the-screen}
@@ -1773,7 +1773,7 @@ Textual.
 
 | Variable | Effect |
 | --- | --- |
-| `HUMANIZE_HOME` | Location of `settings.yaml`, `history.jsonl`, `prices.json`, and everything else. |
+| `HUMANIZE_HOME` | Location of `settings.yaml`, `history.jsonl`, and everything else not this machine's alone ([Files › Roots](/reference/files#roots)). |
 | `HUMANIZE_DAEMON` | `off`/`0`/`no`: [runs held in process](/reference/cli#where-runs-are-held). |
 | `HUMANIZE_NAME` | This frontend's name before `@tui`. |
 | `HUMANIZE_SENTRY` | `on`/`1`/`true`/`yes` or `off`/`0`/`false`/`no`: answers reporting for this process. |

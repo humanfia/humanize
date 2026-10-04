@@ -11,7 +11,7 @@ Every file and directory humanize reads or writes: under its home, under a works
 | **user flows** | `~/.hmz/flows` | Always the literal `~`; does **not** follow `HUMANIZE_HOME`. |
 | **workspace** | `<workspace>/.hmz/` | `<workspace>` is the directory `hmz` runs in. Not added to `.gitignore`. A `<workspace>/.humanize/` is [moved here](#moved-from-humanize). |
 | **cache** | `~/.cache/humanize/` | Does not follow `HUMANIZE_HOME`. |
-| **machine** | `<tmp>/humanize-<uid>/` | Python's `tempfile.gettempdir()` (`$TMPDIR`, else `/tmp`) and the user's id: what is this machine's alone, which a home directory several machines share must not hold. Made `0700`; refused if anyone else can write it. See [Temporary](#temporary). |
+| **machine** (`M` below) | `<tmp>/humanize-<uid>/` | Python's `tempfile.gettempdir()` (`$TMPDIR`, else `/tmp`) and the user's id: what is this machine's alone, which a home directory several machines share must not hold: caches, scratch copies, sockets. Made `0700` by the first look at it; refused if anyone else can write it. A cleaner of temporary files may empty it; everything in it is made again when next needed. See [Temporary](#temporary). |
 | **a remote machine's home** | `${HUMANIZE_HOME:-$HOME/.hmz}` in the login shell there | Holds `envs/` for `ssh` environments. A `$HOME/.humanize` there is [moved here](#moved-from-humanize). |
 
 ### Moved from `.humanize`
@@ -47,7 +47,6 @@ H/
 ├── history.jsonl                       lines typed at the TUI prompt
 ├── fallbacks.json                      where a failed turn goes next
 ├── acp.json                            CLIs added by hand (ACP)
-├── prices.json                         the price table
 ├── models/<cli>.json                   model catalogue of the CLI's own sign-in
 ├── providers/<cli>/<name>/             accounts
 │   ├── provider.json
@@ -65,9 +64,12 @@ H/
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
 │   └── mirrors/<container or service>/<digest>/
-├── harness/                            workdir of a harness an affinity puts on a docker daemon here
 ├── epics/<ws>/<stamp>-<hex6>/          one run
-├── sessions/<cli>/                     sessions of agents no run drives
+└── sessions/<cli>/                     sessions of agents no run drives
+
+M/
+├── prices.json                         the price table
+├── harness/                            workdir of a harness an affinity puts on a docker daemon here
 ├── compiled/{pi,qwen}/                 Node compile caches
 ├── docker-ssh/<sha256[:16]>/ssh        ssh shim for docker over ssh
 └── patched/<cli>-<pid>-<rand>/         patched CLI copies (unused in production)
@@ -133,7 +135,7 @@ hand: the hosts it may reach with `online` `NONE`, and extra paths it may write)
 `.acp.json.<random>.new`, fsynced and renamed; a new file gets the umask's mode, an existing
 one keeps its own. Deleting it forgets every added CLI.
 
-### `H/prices.json`
+### `M/prices.json` {#h-prices-json}
 
 ```json
 {"source": "https://openllmprices.com/data/prices.json", "etag": "…", "fetched": 1790000000.0,
@@ -338,11 +340,12 @@ never removed by humanize.
 `humanize.gpus` where set. Only the workdir is bind-mounted. A `swarm` environment's service is
 named and labelled the same way, on the swarm its runtime's manager manages.
 
-### `H/harness/`
+### `M/harness/`
 
-The workdir of a harness an affinity puts on a docker runtime whose daemon is on this machine
-and that was saved without a workdir ([Harness placement](/reference/flows#harness-placement));
-created by the run.
+An empty directory mounted as the workdir of a harness an affinity puts on a docker runtime
+whose daemon is on this machine, or on an Apple container, saved without a workdir
+([Harness placement](/reference/flows#harness-placement)): a container needs a directory of
+this user's on the host to mount. Created by the run; nothing is written into it by humanize.
 
 ## Runs
 
@@ -382,9 +385,9 @@ there is left as it is.
 
 | Path | Is |
 | --- | --- |
-| `H/compiled/pi/`, `H/compiled/qwen/` | `NODE_COMPILE_CACHE` for pi and Qwen Code; written by Node |
-| `H/docker-ssh/<sha256[:16]>/ssh` | shim for `docker` over `ssh://` with options; directory and file `0700` |
-| `H/patched/<cli>-<pid>-<rand>/` | `0700`; directories of dead processes are removed |
+| `M/compiled/pi/`, `M/compiled/qwen/` | `NODE_COMPILE_CACHE` for pi and Qwen Code; written by Node |
+| `M/docker-ssh/<sha256[:16]>/ssh` | shim for `docker` over `ssh://` with options; directory and file `0700`; touched on each use, written again if gone |
+| `M/patched/<cli>-<pid>-<rand>/` | `0700`; directories of dead processes are removed |
 | `~/.cache/humanize/shadows/<sha256(path)[:16]>.json` | `{"shadow": "<abs path>", "target": "<target>"}` per mirror; moved by [`HUMANIZE_SHADOWS`](/reference/environment#humanize-shadows); never removed |
 
 Every path in this section is safe to delete while humanize is not running.
@@ -430,7 +433,7 @@ when their content changes.
 ## Retention
 
 Nothing prunes `epics/`, `sessions/`, `flowverses/.pinned/`, `skills/`, worktrees under
-`envs/`, snapshot refs, `compiled/`, `docker-ssh/` or `history.jsonl`.
+`envs/`, snapshot refs, `M/compiled/`, `M/docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
 Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
 `$TMPDIR/humanize-<uid>.pyz` and `.stamp` an earlier humanize shared between checkouts.

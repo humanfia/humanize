@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from hmz import home
+from hmz import home, machine
 from hmz.coganchor.machines import AnchoredConfig, store
 from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime, SwarmRuntime
 from hmz.coganchor.transport import Endpoint, Target, ssh_flags
@@ -627,13 +627,17 @@ def test_a_daemon_behind_a_stored_ssh_host_is_dialled_as_that_host_says() -> Non
     said = keyed.docker("ps")
     (path,) = [one for one in said if one.startswith("PATH=")]
     shim = Path(path.removeprefix("PATH=").split(":")[0])
-    assert shim.parent == home() / "docker-ssh"
+    assert shim.parent == machine() / "docker-ssh"
     assert said[said.index("docker") :] == ["docker", "--host", "ssh://gpu", "ps"]
     assert "exec ssh -o 'IdentityFile=~/.ssh/k' \"$@\"" in (shim / "ssh").read_text()
     assert _mode(shim / "ssh") == 0o700
     # The same options are the same `ssh`, written once.
     assert [one for one in store.daemon_of("ssh:keyed").docker("ps") if "PATH=" in one]
-    assert len(list((home() / "docker-ssh").iterdir())) == 1
+    assert len(list((machine() / "docker-ssh").iterdir())) == 1
+    # And written again where a cleaner of the temporary directory took it away since.
+    (shim / "ssh").unlink()
+    assert store.daemon_of("ssh:keyed").docker("ps")
+    assert (shim / "ssh").is_file()
     with pytest.raises(ValueError, match="ssh host 'ghost' not found"):
         store.daemon_of("ssh:ghost")
 

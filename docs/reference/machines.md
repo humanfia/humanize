@@ -210,8 +210,8 @@ A docker endpoint names one daemon. `hmz.coganchor.transport.Endpoint.parse` rea
 - Any other: `env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u
   DOCKER_CERT_PATH docker (--host HOST | --context NAME) [--tlsverify --tlscacert DIR/ca.pem
   --tlscert DIR/cert.pem --tlskey DIR/key.pem] ARGV`.
-- `ssh://` with options: `PATH` is prefixed with `$HUMANIZE_HOME/docker-ssh/<16 hex>/`, which
-  holds an `ssh` script (mode `0700`) that runs the real `ssh` with the options first. The
+- `ssh://` with options: `PATH` is prefixed with `$TMPDIR/humanize-<uid>/docker-ssh/<16 hex>/`,
+  which holds an `ssh` script (mode `0700`) that runs the real `ssh` with the options first. The
   digest is of the rendered flags.
 
 A daemon that is `here` sees this machine's files: the workspace is checked locally and the
@@ -1005,7 +1005,7 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 
 | Variable | Effect |
 | --- | --- |
-| `HUMANIZE_HOME` | Root of `runtimes/`, `envs/` (mirrors, derived directories here), `docker-ssh/` and `harness/`; default `~/.hmz`. On an ssh host, `${HUMANIZE_HOME:-$HOME/.hmz}` there is where derived directories go. |
+| `HUMANIZE_HOME` | Root of `runtimes/` and `envs/` (mirrors, derived directories here); default `~/.hmz`. `docker-ssh/` and `harness/` are in `$TMPDIR/humanize-<uid>/` instead. On an ssh host, `${HUMANIZE_HOME:-$HOME/.hmz}` there is where derived directories go. |
 | `DOCKER_HOST`, `DOCKER_CONTEXT` | Used by the `local` endpoint; `DOCKER_HOST` decides whether `local` counts as here. Removed from every `docker` sent to any other endpoint, with `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`. |
 | `DOCKER_CONFIG` | Where docker reads `context:NAME` contexts (docker's own). |
 | `CUDA_VISIBLE_DEVICES` | Narrows the GPUs counted on a local or ssh machine, as CUDA does. |

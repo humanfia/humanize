@@ -341,7 +341,7 @@ def test_a_patched_copy_has_the_edit_and_its_bytecode_cleared(tmp_path: Path) ->
 
 def test_a_patch_whose_site_has_moved_leaves_no_copy_behind(tmp_path: Path) -> None:
     """A site the fingerprint found but the patch cannot is a bundle to leave whole."""
-    from hmz import home
+    from hmz import machine
 
     profile = _bundled(
         tmp_path, "cli", b'VERSION:"1.2.3"; run();', says=b'VERSION:"1.2.3"'
@@ -355,7 +355,7 @@ def test_a_patch_whose_site_has_moved_leaves_no_copy_behind(tmp_path: Path) -> N
     assert held is None
     # Nothing was left in the directory patches are made in -- the copy that could not be
     # patched is removed rather than handed back half-done.
-    made = home() / "patched"
+    made = machine() / "patched"
     assert not made.exists() or not any(made.iterdir())
 
 
@@ -393,9 +393,9 @@ def test_a_copy_left_by_a_process_that_is_gone_is_swept_before_a_new_one(
     tmp_path: Path,
 ) -> None:
     """A run killed outright collects nothing, so the next one reaps what its dead pid left."""
-    from hmz import home
+    from hmz import machine
 
-    made = home() / "patched"
+    made = machine() / "patched"
     made.mkdir(parents=True)
     # A copy named for a process id nothing is running under -- a run that was killed.
     dead = made / "claude-2147483646-abcdef"

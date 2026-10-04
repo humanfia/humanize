@@ -1005,7 +1005,7 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
 - `juice(over=WINDOW)`: output tokens per model request; `0.0` for a window with none.
 - The `result` event's `spent` is the turn's usage and `tokens` its per-model totals.
 - `hmz.coganchor.prices.cost(usage, model)` prices a `Usage` kind by kind; `price(model)`
-  returns the `Price`. Both read `$HUMANIZE_HOME/prices.json` (fetched from
+  returns the `Price`. Both read `$TMPDIR/humanize-<uid>/prices.json` (fetched from
   `https://openllmprices.com/data/prices.json`, refreshed after 24 h; `HUMANIZE_PRICES`
   points elsewhere or turns fetching off with `off`) and return `None` for an unlisted model.
 - The TUI's running cost reads the CLIs' own logs as they are written, for `claude`, `codex`,
@@ -1448,7 +1448,7 @@ pi --mode rpc --model <model> --session-id <id> [--fork <parent>] [--thinking <r
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `compiled` | `True` | `NODE_COMPILE_CACHE` at `$HUMANIZE_HOME/compiled/pi` unless already set; not for anchored turns |
+| `compiled` | `True` | `NODE_COMPILE_CACHE` at `$TMPDIR/humanize-<uid>/compiled/pi` unless already set; not for anchored turns |
 | `context_files` | `True` | `False` is `--no-context-files` |
 | `extensions` | `True` | `False` is `--no-extensions` |
 | `offline` | `False` | `--offline`; forced under `online` `NONE` |
@@ -1469,7 +1469,7 @@ one.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `headless_defaults` | `True` | writes Qwen's system-defaults layer with `general.preventSystemSleep: false` and `general.enableAutoUpdate: false` |
-| `compile_cache` | `True` | `NODE_COMPILE_CACHE` at `$HUMANIZE_HOME/compiled/qwen` unless set; not for anchored turns |
+| `compile_cache` | `True` | `NODE_COMPILE_CACHE` at `$TMPDIR/humanize-<uid>/compiled/qwen` unless set; not for anchored turns |
 | `partial_messages` | `False` | `--include-partial-messages` |
 
 - The effort is a settings file named by `QWEN_CODE_SYSTEM_SETTINGS_PATH`, one per effort,
@@ -1603,7 +1603,7 @@ The variables the agent layer reads or sets. Every variable humanize reads is li
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
-| `HUMANIZE_HOME` | everything | humanize's home (default `~/.hmz`): `providers/`, `sessions/`, `acp.json`, `fallbacks.json`, `prices.json`, `compiled/` |
+| `HUMANIZE_HOME` | everything | humanize's home (default `~/.hmz`): `providers/`, `sessions/`, `acp.json`, `fallbacks.json`; `prices.json` and `compiled/` are in `$TMPDIR/humanize-<uid>/` |
 | `HUMANIZE_WATCHDOG` | the watchdog | seconds of silence allowed; `0` or less disables it |
 | `HUMANIZE_SESSIONS` | session keeping | `off`, `0` or `no`: sessions stay in the CLI's home |
 | `HUMANIZE_PRICES` | `prices` | the price list's URL or path; `off`, `0`, `no`, `none` or empty disables fetching |
@@ -1616,7 +1616,7 @@ Set by drivers on a turn:
 | --- | --- | --- |
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | `claude` | `1` |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT`, `HMZ_PRELOAD_IN` | `kimi`, `pi`, `qwen`, `mimo` | the runtime-report preload, only while a `PRE_TOOL_USE` hook is hung |
-| `NODE_COMPILE_CACHE` | `pi`, `qwen` | `$HUMANIZE_HOME/compiled/<cli>`, unless already set |
+| `NODE_COMPILE_CACHE` | `pi`, `qwen` | `$TMPDIR/humanize-<uid>/compiled/<cli>`, unless already set |
 | `QWEN_CODE_SYSTEM_SETTINGS_PATH` | `qwen` | the per-effort settings file |
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`, `mimo` | the permission table |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` | `1` where the fence hides `~/.claude.json` |

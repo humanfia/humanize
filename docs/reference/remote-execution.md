@@ -313,8 +313,8 @@ affinity := [<entry>, ...]
   harness is put on is opened as it is: its own affinity is never walked.
 - A runtime entry is opened (`hmz.runtime.flowing.affinity.Harbors`) once per run, shared by
   every role, as an environment of role `harness` with no resources asked, in its saved
-  workdir, else `~` over ssh, else `$HUMANIZE_HOME/harness` (created by the run) for a docker
-  daemon on this machine; any other daemon saved without a workdir has no room. It is probed
+  workdir, else `~` over ssh, else an empty `$TMPDIR/humanize-<uid>/harness` (created by
+  the run) for a docker daemon on this machine; any other daemon saved without a workdir has no room. It is probed
   before the flow is called and closed with the run's environments. A container for it is
   started with `--cap-add SYS_PTRACE`: without it, docker's default seccomp profile refuses the
   `pidfd_getfd` the supervisor borrows each command's descriptors with, and a command whose

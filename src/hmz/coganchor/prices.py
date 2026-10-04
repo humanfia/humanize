@@ -3,7 +3,8 @@
 A token count says how much work was done and nothing about what it came to. The unit prices
 are somebody else's to keep -- they change on the vendors' own schedule, and a list written
 down in here would be wrong the week after it was written -- so they are fetched from
-OpenLLMPrices, which is one JSON file of them, and kept under humanize's own home.
+OpenLLMPrices, which is one JSON file of them, and kept in humanize's directory for this
+machine.
 
 Two rules hold this whole module up. **Nothing here may cost a prompt its responsiveness**:
 `price` and `cost` read what was already kept and never reach for the network, and fetching
@@ -29,7 +30,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz import home
+from hmz import machine
 from hmz.coganchor import atomic
 
 if TYPE_CHECKING:
@@ -144,11 +145,12 @@ def where() -> pathlib.Path:
     """Where what was fetched is kept.
 
     Returns:
-      The file, under humanize's own home. It holds the newest version of the list and
-      nothing else: the source carries three years of dated snapshots, and what a run costs
-      is what it costs today.
+      The file, under humanize's directory for this machine: it is a copy of what anybody can
+      fetch again, not anything of yours for machines sharing a home to share. It holds the
+      newest version of the list and nothing else: the source carries three years of dated
+      snapshots, and what a run costs is what it costs today.
     """
-    return home() / "prices.json"
+    return machine() / "prices.json"
 
 
 def price(model: str) -> Price | None:
@@ -345,7 +347,11 @@ def _fetch(whence: str) -> bool:
     Returns:
       Whether what is kept is now the source's.
     """
-    kept = where()
+    try:
+        kept = where()
+    except OSError:
+        # Nowhere of this user's alone to keep it on this machine: nothing kept, nothing failed.
+        return False
     _sweeps(kept)
     held = _held(kept)
     # The etag only where it belongs to the source being asked. Replayed at another, a 304
@@ -573,7 +579,11 @@ def _index() -> dict[str, Price]:
       One entry per way of spelling a model that is listed, which is what `price` looks in.
     """
     global _listing, _read_from  # noqa: PLW0603 -- one list per process, held beside it
-    kept = where()
+    try:
+        kept = where()
+    except OSError:
+        # The machine's directory is not this user's alone, so nothing in it is read as theirs.
+        return {}
     try:
         stamp = kept.stat().st_mtime
     except OSError:

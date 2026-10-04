@@ -566,10 +566,10 @@ def under() -> Path: ...
   runtime's own machine, without room where its CLI is not there (`HarnessNotInstalled`) or it
   cannot hold the session's fence (`HarnessSandboxed`); `<backend>:<name>` on that runtime,
   opened as an environment of its own -- in its workdir, else the login's home over ssh, else
-  a directory humanize keeps for a daemon or Apple's containers on this machine -- probed and
-  closed with the run's, acting on the work through the anchor, and without room where it
-  cannot be opened or reached, has no share left (`ResourceUnmet`), or the role is fenced at
-  all, which a harness on another machine cannot be held to. Where no entry has room, the last refusal MUST be
+  an empty directory in `hmz.machine()` for a daemon or Apple's containers on this machine --
+  probed and closed with the run's, acting on the work through the anchor, and without room
+  where it cannot be opened or reached, has no share left (`ResourceUnmet`), or the role is
+  fenced at all, which a harness on another machine cannot be held to. Where no entry has room, the last refusal MUST be
   raised, naming the affinity; a machine that cannot be asked MUST raise as it is.
 - Before the flow is called, the affinity of every machine of the run MUST be walked for every
   agent, opening and probing every runtime a harness goes to, and one with no room anywhere

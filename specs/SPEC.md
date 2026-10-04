@@ -18,9 +18,11 @@ def machine() -> pathlib.Path: ...
   overridable per machine by `HUMANIZE_HOME`, and MUST NOT create the directory.
 - `here` MUST answer where humanize keeps what is one project's own, and MUST NOT create the
   directory.
-- `machine` MUST answer where humanize keeps what is this machine's alone: one directory per
-  user in the machine's temporary directory, never in `home`, which machines may share. It
-  MUST create it private, and MUST refuse one somebody else could write.
+- `machine` MUST answer where humanize keeps what is this machine's alone, and what it can
+  make again -- a cache, a scratch copy, a fetched list -- which a cleaner of temporary files
+  may take: one directory per user in the machine's temporary directory, never in `home`,
+  which machines may share. It MUST create it private, and MUST refuse one somebody else could
+  write.
 - `home` and `here` MUST each move the directory they answer with from where it was before,
   `.humanize` beside it, the first time it is asked in a process: in one rename, only while
   nothing is at the new place -- where both are, the old one MUST be left as it is and not

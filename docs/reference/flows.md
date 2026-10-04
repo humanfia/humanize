@@ -1697,7 +1697,7 @@ work is on, an ordered list whose next entry is tried only where the one before 
 
 The affinity is the one of the runtime actually opened for the work; a runtime a harness is
 put on is opened as an environment of its own (its workdir, else `~` over ssh, else
-`$HUMANIZE_HOME/harness` for a daemon here), probed before the flow is called and closed with
+`$TMPDIR/humanize-<uid>/harness` for a daemon here), probed before the flow is called and closed with
 the run, and its own affinity is never walked.
 
 **Probing.** Placement is settled once per agent role and machine. "The CLI is there" is
