@@ -1518,7 +1518,8 @@ async def test_a_role_is_put_on_saved_apple_containers_as_on_a_docker_host(
     async with app.run_test() as driver:
         form = await _placing(app, driver)
         assert form._typed_in["backend"] == "apple-container"
-        assert form.under() == "provider"
+        # None named is this Mac's with nothing saved, so the workdir is what is asked.
+        assert form.under() == "workdir"
 
         await _opens(app, driver, "provider", Hosts)
         assert rows(app)[0] == _ADD
@@ -1533,3 +1534,26 @@ async def test_a_role_is_put_on_saved_apple_containers_as_on_a_docker_host(
         await _saves(app, driver)
 
     assert Settings(tmp_path).envs("placed") == {"box": "apple-container@mac"}
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_a_role_on_apple_containers_here_names_no_runtime(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+    placed: Path,
+) -> None:
+    """This Mac's with nothing saved is apple-container with no `@`, as docker's is."""
+    del placed
+    app = Humanize()
+    async with app.run_test() as driver:
+        form = await _placing(app, driver)
+        await picks(app, driver, "backend", "apple-container")
+        assert form._typed_in["provider"] == ""
+        assert "apple-container on this machine" in _drawn(app)
+        await _types(app, driver, "workdir", "/Users/me/work")
+        assert form._typed_in["spelled"] == "apple-container/Users/me/work"
+        await _done(app, driver)
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        assert cast("Flows", app.screen)._envs == {
+            "box": "apple-container/Users/me/work"
+        }

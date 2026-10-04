@@ -130,7 +130,7 @@ async def test_the_apple_container_driver_keeps_the_contract(
     (repo / "file.txt").write_text("x\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-q", "-m", "first")
-    (spec,) = parse_envs([f"repo=apple-container@local{repo}"])
+    (spec,) = parse_envs([f"repo=apple-container{repo}"])
     driver = open_env(spec)
 
     await probe(driver)
@@ -214,13 +214,13 @@ def test_a_role_asking_more_than_is_left_is_refused_before_any_agent_starts(
     )
     work = tmp_path / "work"
     work.mkdir()
-    runner, agent = _run(tmp_path, f"apple-container@local{work}")
+    runner, agent = _run(tmp_path, f"apple-container{work}")
 
     with pytest.raises(Refused) as refused:
         runner.run("go")
 
     assert str(refused.value) == (
-        "apple-container@local has 1 of 8 CPUs free, and 'box' asks for 2 "
+        "apple-container has 1 of 8 CPUs free, and 'box' asks for 2 "
         "(3 CPUs held by busy, pid 4242 on elsewhere; 4 CPUs held by unsized, pid 4343 "
         "on elsewhere)"
     )
@@ -250,7 +250,7 @@ def test_what_a_run_that_died_left_behind_is_taken_down(
     )
     work = tmp_path / "work"
     work.mkdir()
-    runner, _ = _run(tmp_path, f"apple-container@local{work}")
+    runner, _ = _run(tmp_path, f"apple-container{work}")
 
     runner.run("go")
 
@@ -280,9 +280,9 @@ def test_a_container_system_that_is_not_running_refuses_the_run(
     apple_standin.set("STANDIN_DOWN", "1")
     work = tmp_path / "work"
     work.mkdir()
-    runner, agent = _run(tmp_path, f"apple-container@local{work}")
+    runner, agent = _run(tmp_path, f"apple-container{work}")
 
-    with pytest.raises(Refused, match="could not connect to apple-container@local"):
+    with pytest.raises(Refused, match="could not connect to apple-container: "):
         runner.run("go")
 
     assert _started(apple_standin) == []

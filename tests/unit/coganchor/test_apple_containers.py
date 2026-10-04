@@ -90,6 +90,16 @@ def test_any_runtime_may_fall_back_to_apple_containers_or_put_a_harness_on_them(
     assert str(onward) == "work=apple-container@mac/Users/me/work"
 
 
+def test_a_list_falling_back_to_apple_container_local_falls_back_to_this_macs() -> None:
+    """The one name a list has for this Mac's with nothing saved, unless one is saved so."""
+    store.write(DockerRuntime(name="main", fallback=("apple-container:local",)))
+    (spec,) = parse_envs(["work=docker@main/srv/x"])
+
+    assert [str(one) for one in fallbacks(spec)] == ["work=apple-container/srv/x"]
+    store.write(AppleContainerRuntime(name="local"))
+    assert [str(one) for one in fallbacks(spec)] == ["work=apple-container@local/srv/x"]
+
+
 # ------------------------------------------------------------------------------- the road
 
 
@@ -294,11 +304,11 @@ def test_a_container_system_that_is_not_running_says_so(
 
 
 def test_where_an_e_puts_a_role_on_apple_containers_is_this_macs_path() -> None:
-    (spec,) = parse_envs(["box=apple-container@local/Users/me/work"])
+    (spec,) = parse_envs(["box=apple-container/Users/me/work"])
 
     assert (spec.backend, spec.provider, spec.workdir) == (
         EnvBackendKind.APPLE_CONTAINER,
-        "local",
+        "",
         PurePosixPath("/Users/me/work"),
     )
-    assert str(spec) == "box=apple-container@local/Users/me/work"
+    assert str(spec) == "box=apple-container/Users/me/work"

@@ -969,8 +969,9 @@ def respelled(spec: str) -> str:
 
     Which turns on what is saved here. `ssh@gpu/x` is the runtime `gpu` where one is written
     down under that name -- read or not -- and otherwise the host `ssh` was handed, which `-e`
-    takes in brackets now: `ssh@[gpu]/x`. `docker@local/x` and `swarm@local/x` are docker's
-    default here and the swarm this machine manages, `docker/x` and `swarm/x`, unless a
+    takes in brackets now: `ssh@[gpu]/x`. `docker@local/x`, `swarm@local/x` and
+    `apple-container@local/x` are docker's default here, the swarm this machine manages and
+    this Mac's Apple containers, `docker/x`, `swarm/x` and `apple-container/x`, unless a
     runtime of theirs is saved as `local`, which was taken first. `local@/x` is `local/x`.
     For what was kept before :data:`SPELLING` was written beside it -- settings, and the record
     of a run -- and for what a machine calls itself; never for a line, which is refused saying

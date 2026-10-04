@@ -83,7 +83,7 @@ class GPUEnvMixin:
 
 class ImageEnvMixin:
     _image: ClassVar[str] = ""
-    # What a docker or swarm env's container is started from: "" for the provider's image,
+    # What a docker, swarm or Apple container env's container is started from: "" for the provider's image,
     # else `python:3.12-slim`. Says nothing of an env that is not a container.
 
 class GitWorktreeEnvMixin:

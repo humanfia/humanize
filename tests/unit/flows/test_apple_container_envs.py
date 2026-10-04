@@ -1,7 +1,7 @@
 """An Apple container environment as it is named, shared out and placed -- nothing started.
 
-`-e role=apple-container@<provider>/<workdir>` names a runtime written down or this Mac's
-containers with nothing saved; what a runtime may hand out is worked out against what its
+`-e role=apple-container[@<provider>]/<workdir>` names a runtime written down or, naming none,
+this Mac's containers with nothing saved; what a runtime may hand out is worked out against what its
 running containers already hold, with what `container` says stood in for; and an agent working
 in one is anchored to the container. Starting one is the integration tier's against a stand-in
 and the system tier's against Apple's own.
@@ -35,7 +35,7 @@ from hmz.runtime.flowing.environing import MachineEnvDriver
 from hmz.runtime.flowing.environing_apple_container import AppleContainerMachine
 from hmz.runtime.flowing.environing_docker import IMAGE, TRACING, Asked
 from hmz.runtime.flowing.environments import open_env
-from hmz.runtime.flowing.specs import EnvSpecError, parse_envs
+from hmz.runtime.flowing.specs import EnvSpec, EnvSpecError, parse_envs
 
 
 class Builder(Env, ShellEnvMixin, CPUEnvMixin, MemoryEnvMixin, ImageEnvMixin):
@@ -77,27 +77,44 @@ def test_an_e_names_a_runtime_written_down_or_this_macs_with_nothing_saved(
     store.add(store.AppleContainerRuntime(name="mac", workdir=str(tmp_path)))
 
     (named,) = parse_envs(["box=apple-container@mac"])
-    (spelled,) = parse_envs([f"box=apple-container@local{tmp_path}"])
+    (spelled,) = parse_envs([f"box=apple-container{tmp_path}"])
 
     assert named.backend is EnvBackendKind.APPLE_CONTAINER
     assert (named.provider, named.workdir) == ("mac", PurePosixPath(tmp_path))
-    assert (spelled.provider, spelled.workdir) == ("local", PurePosixPath(tmp_path))
+    assert (spelled.provider, spelled.workdir) == ("", PurePosixPath(tmp_path))
     assert _machine(open_env(named)).stored == store.find("apple-container", "mac")
     assert _machine(open_env(spelled)).stored is None
 
 
-def test_an_e_naming_no_provider_is_refused_as_dockers_is() -> None:
-    with pytest.raises(EnvSpecError, match=r"as in apple-container@local/workdir"):
-        parse_envs(["box=apple-container/srv/x"])
+@pytest.mark.parametrize(
+    ("said", "why"),
+    [
+        (
+            "box=apple-container@local/srv/x",
+            "names no provider; write box=apple-container/srv/x",
+        ),
+        ("box=apple-container@[mac]/srv/x", "only ssh takes a host nobody saved"),
+        ("box=apple-container@/srv/x", "an @ is written only before a provider"),
+    ],
+)
+def test_an_e_is_refused_where_dockers_would_be(said: str, why: str) -> None:
+    with pytest.raises(EnvSpecError, match=why):
+        parse_envs([said])
 
 
 def test_a_runtime_nobody_wrote_down_is_refused() -> None:
-    (spec,) = parse_envs(["box=apple-container@nowhere/srv/x"])
+    with pytest.raises(
+        EnvSpecError, match="no apple-container runtime is saved as 'nowhere'"
+    ):
+        parse_envs(["box=apple-container@nowhere/srv/x"])
+    spec = EnvSpec(
+        "box", EnvBackendKind.APPLE_CONTAINER, "nowhere", PurePosixPath("/srv/x")
+    )
 
     with pytest.raises(
         EnvUnavailable,
-        match="apple-container host 'nowhere' not found: add one, or use the default "
-        "apple-container@local",
+        match="apple-container host 'nowhere' not found: add one, or name none for "
+        "this Mac's own, as apple-container/<workdir>",
     ):
         open_env(spec)
 
@@ -113,7 +130,7 @@ def test_a_runtime_that_cannot_be_read_says_so() -> None:
 
 
 def test_a_workdir_under_home_is_under_this_users_home() -> None:
-    (spec,) = parse_envs(["box=apple-container@local/~/x"])
+    (spec,) = parse_envs(["box=apple-container/~/x"])
 
     assert open_env(spec).workdir == PurePosixPath(Path.home() / "x")
 
@@ -129,9 +146,7 @@ def test_a_container_is_started_as_its_role_says_and_named_for_it() -> None:
         parse_envs(["builder=apple-container@mac/srv/x"])[0], roles["builder"]
     )
     bare = open_env(parse_envs(["plain=apple-container@mac/srv/x"])[0], roles["plain"])
-    default = open_env(
-        parse_envs(["plain=apple-container@local/srv/x"])[0], roles["plain"]
-    )
+    default = open_env(parse_envs(["plain=apple-container/srv/x"])[0], roles["plain"])
 
     machine = _machine(driver)
     assert machine.image == "debian:13"
@@ -148,7 +163,7 @@ def test_a_container_is_started_as_its_role_says_and_named_for_it() -> None:
 
 
 def test_an_agent_in_a_container_is_anchored_to_it_in_a_mirror_of_its_own() -> None:
-    (spec,) = parse_envs(["box=apple-container@local/srv/x"])
+    (spec,) = parse_envs(["box=apple-container/srv/x"])
     driver = open_env(spec)
 
     placement = driver.placement()
@@ -255,7 +270,7 @@ def test_a_container_holding_a_harness_may_borrow_its_agents_descriptors(
     mac: tuple[_Started, list[Allocation]],
 ) -> None:
     started, _ = mac
-    (spec,) = parse_envs(["harness=apple-container@local/srv/x"])
+    (spec,) = parse_envs(["harness=apple-container/srv/x"])
 
     _machine(open_env(spec, traced=True))._brought_up()
     _machine(open_env(spec))._brought_up()
@@ -294,9 +309,9 @@ def test_a_role_asking_for_a_gpu_is_refused_there_being_none(
     mac: tuple[_Started, list[Allocation]],
 ) -> None:
     started, _ = mac
-    (spec,) = parse_envs(["trainer=apple-container@local/srv/x"])
+    (spec,) = parse_envs(["trainer=apple-container/srv/x"])
 
-    with pytest.raises(ResourceUnmet, match="has no GPU to hand out"):
+    with pytest.raises(ResourceUnmet, match=r"^apple-container has no GPU to hand out"):
         _machine(open_env(spec, _roles()["trainer"]))._brought_up()
 
     assert started.made == []
@@ -311,7 +326,7 @@ def test_no_container_command_here_is_said_before_anything_is_asked(
     monkeypatch.setattr(
         "hmz.runtime.flowing.environing_apple_container.shutil.which", nowhere
     )
-    (spec,) = parse_envs(["box=apple-container@local/srv/x"])
+    (spec,) = parse_envs(["box=apple-container/srv/x"])
 
     with pytest.raises(EnvUnavailable, match="Apple's container was not found"):
         _machine(open_env(spec))._brought_up()

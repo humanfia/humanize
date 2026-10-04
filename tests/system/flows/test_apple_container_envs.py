@@ -117,7 +117,7 @@ async def test_the_contract_holds_in_an_apple_container_with_no_sshd(
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
-    driver = _opened(f"slim=apple-container@local{work}", "slim")
+    driver = _opened(f"slim=apple-container{work}", "slim")
 
     await probe(driver)
     status, out, err = await driver.exec(
@@ -142,7 +142,7 @@ async def test_the_contract_holds_in_an_apple_container_with_no_sshd(
 async def test_what_a_role_declares_is_its_virtual_machines_size_and_is_counted(
     tmp_path: Path,
 ) -> None:
-    driver = _opened(f"limited=apple-container@local{tmp_path}", "limited")
+    driver = _opened(f"limited=apple-container{tmp_path}", "limited")
     try:
         await probe(driver)
         (mine,) = [one for one in _listed() if one["configuration"]["id"] in _ours()]

@@ -299,6 +299,7 @@ def test_a_saved_runtime_alone_is_the_workdir_it_was_saved_with() -> None:
         ("repo=ssh@h]/x", "expected"),
         ("repo=docker@[h]/x", "only ssh takes a host nobody saved"),
         ("repo=swarm@[h]/x", "only ssh takes a host nobody saved"),
+        ("repo=apple-container@[h]/x", "only ssh takes a host nobody saved"),
         ("repo=local@[h]/x", "local takes no provider"),
         ("repo=docker@ghost/x", "no docker runtime is saved as 'ghost'"),
         ("repo=swarm@ghost/x", "no swarm runtime is saved as 'ghost'"),
@@ -321,6 +322,7 @@ def test_what_is_not_an_environment_is_refused_saying_why(
         ("r=docker@local/w", "write r=docker/w"),
         ("r=docker@/w", "write r=docker/w"),
         ("r=swarm@local/w", "write r=swarm/w"),
+        ("r=apple-container@local/w", "write r=apple-container/w"),
         ("r=ssh@somehost/x", "write r=ssh@[somehost]/x for a host not saved"),
         ("r=ssh@me@host:2222/~/x", "write r=ssh@[me@host:2222]/~/x"),
         ("r=ssh@somehost", "write r=ssh@[somehost]/<workdir>"),
@@ -364,6 +366,7 @@ def test_an_environment_role_given_twice_is_refused() -> None:
         "repo=docker/srv/x",
         "repo=swarm@cluster/srv/x",
         "repo=swarm/srv/x",
+        "repo=apple-container/Users/me/x",
     ],
 )
 def test_an_environment_is_written_back_as_it_is_read(written: str) -> None:
@@ -378,6 +381,7 @@ def test_an_environment_is_written_back_as_it_is_read(written: str) -> None:
         ("local@/home/me", "local/home/me"),
         ("docker@local/srv/x", "docker/srv/x"),
         ("swarm@local/srv/x", "swarm/srv/x"),
+        ("apple-container@local/srv/x", "apple-container/srv/x"),
         ("ssh@me@h:2222/~/x", "ssh@[me@h:2222]/~/x"),
         ("ssh@unsaved/srv", "ssh@[unsaved]/srv"),
         ("ssh@gpu-box/srv", "ssh@gpu-box/srv"),
