@@ -204,8 +204,8 @@ and a negative cap (`a budget cannot be less than nothing`).
 
 ### Catalogues
 
-`hmz.coganchor.models` keeps what each account runs in `models.json`
-([Providers › `models.json`](/reference/providers#models-json)). It is asked when an account is
+`hmz.coganchor.models` keeps what each account runs in a cache on this machine
+([Providers › Model catalogues](/reference/providers#models-json)). It is asked when an account is
 made, when refreshed from the TUI's models sheet, and by the TUI at start-up, in the background,
 for each installed backend whose machine's-own catalogue is missing or older than 7 days. It
 is asked as a turn of that account is taken: under its paths, with its variables and without

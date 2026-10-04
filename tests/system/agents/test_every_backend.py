@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -47,10 +49,10 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.agent
 
 #: Where this machine keeps what each backend last said it runs as whoever is signed into it.
-#: Read from the real home rather than through `hmz.coganchor.models`, which the suite points
-#: at a directory of its own: what is wanted here is what this machine's own sign-in may
-#: actually name, which is the whole subject.
-_KEPT = Path.home() / ".hmz" / "models"
+#: Read from the machine's real temporary directory, taken before the suite points it at one
+#: of its own, rather than through `hmz.coganchor.models`: what is wanted here is what this
+#: machine's own sign-in may actually name, which is the whole subject.
+_KEPT = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}" / "models"
 
 #: What to ask for. One word, no tools, nothing to think about: what is being tested is that
 #: a turn lands at all.
@@ -111,7 +113,7 @@ def _models(cli: str) -> list[tuple[str, str]]:
       Up to :data:`_TRIES` pairs of model and effort.
     """
     try:
-        said = json.loads((_KEPT / f"{cli}.json").read_text(encoding="utf-8"))
+        said = json.loads((_KEPT / cli / "_local.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pytest.skip(f"nothing has asked {cli} what it runs on this machine")
     held = cast("dict[str, Any]", said) if isinstance(said, dict) else {}
