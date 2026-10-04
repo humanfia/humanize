@@ -32,9 +32,8 @@ class Daemons:
           workspace: The project directory, or None for wherever this is being run.
 
         Returns:
-          It, or None where nothing is being held there -- which is what a directory left
-          behind by a daemon whose process has gone reads as, a socket file outliving the
-          process that bound it.
+          It, or None where nothing is being held there -- which is what a daemon whose
+          process has gone reads as, a socket file outliving the process that bound it.
         """
         from hmz import daemon
 

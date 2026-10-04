@@ -114,13 +114,13 @@ gone is cleaned with the rest.
 
 | Condition | `OSError` text |
 | --- | --- |
-| an older humanize's daemon (protocol not `2`), or a host it left holding the workspace | `[Errno 98] ` + `older(daemon)` (`EADDRINUSE`) |
+| an older humanize's daemon (protocol not `2`), or a host it left holding the workspace | `[Errno <EADDRINUSE>] ` + `older(daemon)` (98 on Linux, 48 on macOS) |
 | the daemon or the new host reported a failure | the reported text, e.g. `the run could not be held: <why>` |
 | no daemon is listening after the wait | `this machine's daemon did not come up` |
 | no host is listed after both tries | `the runs in <workspace> did not come up` |
 
-Two callers racing to start the daemon: the loser's lock fails (`[Errno 11] Resource
-temporarily unavailable`), and `host()` uses the winner. Two racing to start a host of one
+Two callers racing to start the daemon: the loser's lock fails (`EAGAIN`: `[Errno 11] Resource
+temporarily unavailable` on Linux, `[Errno 35]` on macOS), and `host()` uses the winner. Two racing to start a host of one
 workspace: the daemon refuses the second (`the runs in <workspace> are already held`), and
 `host()` returns the first.
 
@@ -332,7 +332,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | `type` | Fields |
 | --- | --- |
 | `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `profile` (bool), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
-| `opened` | `role`, `key` (`<role>/<n>`), `agent` (agent id), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono` |
+| `opened` | `role`, `key` (`<role>/<n>`), `agent` (agent id), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono`, `wall` (Unix time) |
 | `event` | `key`, `session` (`key` where the event names a conversation, else `""`), `agent`, `cli`, `model`, `ident` (backend's conversation id, `""` until named), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono`. Same fields as [`hmz exec --json`](/reference/cli#ndjson). |
 | `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`) |
 | `answered` | `question`, `role`, `by`, `client`, `text` (the option chosen, or the text) |

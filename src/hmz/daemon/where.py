@@ -45,7 +45,7 @@ __all__ = [
 #: The socket a frontend reaches the runs through, inside the daemon's directory.
 SOCKET = "daemon.sock"
 
-#: What is written down about the daemon there: which process, which workspace, since when.
+#: What is written down about the daemon there: which process, since when, of which protocol.
 RECORD = "daemon.json"
 
 #: Where whatever belongs to no run goes: what the daemon could not say to a frontend -- a
@@ -168,7 +168,7 @@ def connects(where: Path, seconds: float | None = None) -> socket.socket:
 def _logged(where: Path, about: str) -> None:
     """Writes down beside the socket what there was no terminal to say.
 
-    The daemon's own log, written here rather than through :func:`hmz.daemon.serve.logged`:
+    The daemon's own log, written here rather than through :func:`hmz.daemon.carrying.logged`:
     every other module of this package reaches for this one, so this one reaches for none of
     them.
 
