@@ -132,9 +132,14 @@ def test_a_file_that_is_not_one_is_a_workspace_with_nothing_remembered(
 
     assert kept.flow == ""
     assert kept.agents("chat") == {}
-    # And it is written over rather than kept.
+    # And one that is no mapping at all is left for whoever wrote it to correct, the change
+    # remembered for as long as what made it is.
     kept.remember("chat", {"assistant": Runs("claude/m:high")})
-    assert Settings(tmp_path).agents("chat") == {"assistant": Runs("claude/m:high")}
+    assert kept.agents("chat") == {"assistant": Runs("claude/m:high")}
+    if written.strip() in ("[]", ": : :"):
+        assert (home() / "settings.yaml").read_text() == written
+    else:
+        assert Settings(tmp_path).agents("chat") == {"assistant": Runs("claude/m:high")}
 
 
 def test_an_agent_an_older_humanize_wrote_down_reads_as_nothing_remembered(

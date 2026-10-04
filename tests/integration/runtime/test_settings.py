@@ -13,17 +13,17 @@ import multiprocessing
 import os
 from typing import TYPE_CHECKING
 
+import pytest
 import yaml
 
 from hmz import home
-from hmz.runtime import settings
+from hmz.coganchor import backends, fallbacks, settings
+from hmz.coganchor.machines import store
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 #: How many processes write at once, and how many times each.
 WRITERS = 6
@@ -131,19 +131,50 @@ def test_forgetting_an_empty_entry_is_still_forgetting_one(tmp_path: Path) -> No
     assert Settings(tmp_path).forget() is True
 
 
-def test_a_file_broken_since_it_was_read_is_not_written_back_as_one_change(
+def test_a_file_broken_since_it_was_read_is_left_for_whoever_is_correcting_it(
     tmp_path: Path,
 ) -> None:
-    """What this holds goes back with the change, rather than the change alone."""
+    """Not written over with what this holds, which is older than what they typed since."""
     Settings(tmp_path).remember("chat", {"assistant": Runs("claude/m:high")})
     kept = Settings(tmp_path)
     (home() / "settings.yaml").write_text("workspaces: [unclosed\n")
 
     kept.detailing(on=True)
 
-    again = Settings(tmp_path)
-    assert again.details is True
-    assert again.agents("chat") == {"assistant": Runs("claude/m:high")}
+    assert (home() / "settings.yaml").read_text() == "workspaces: [unclosed\n"
+    assert kept.details is True  # remembered for as long as this is
+
+
+def test_what_the_other_pages_of_settings_keep_is_one_file_with_the_rest(
+    tmp_path: Path,
+) -> None:
+    """Fallbacks, added CLIs and runtimes are parts of the same file, kept by every write."""
+    kept = Settings(tmp_path)
+    fallbacks.points("claude/opus", ["codex/gpt"])
+    backends.remember("", ["my-agent", "--acp"])
+    store.add(store.SSHRuntime(name="gpu", host="10.0.0.2"))
+
+    kept.detailing(on=True)  # holding the file as it was before any of them
+
+    held = settings.read()
+    assert held["details"] is True
+    assert held["fallbacks"][0]["to"] == ["codex/gpt"]
+    assert held["clis"] == {"my-agent": ["my-agent", "--acp"]}
+    assert held["runtimes"]["ssh"]["gpu"]["host"] == "10.0.0.2"
+    assert sorted(one.name for one in home().iterdir()) == [
+        ".settings.yaml.lock",
+        "settings.yaml",
+    ]
+
+
+def test_a_file_that_cannot_be_read_is_not_written_over_by_the_other_pages() -> None:
+    home().mkdir(parents=True)
+    (home() / "settings.yaml").write_text("workspaces: [unclosed\n")
+
+    with pytest.raises(OSError, match="cannot be read"):
+        fallbacks.points("claude/opus", ["codex/gpt"])
+
+    assert (home() / "settings.yaml").read_text() == "workspaces: [unclosed\n"
 
 
 def test_a_writer_that_never_lets_go_is_waited_for_and_then_gone_round(

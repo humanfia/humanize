@@ -42,21 +42,15 @@ collide, e.g. `/a/b.c` and `/a/b-c`). Timestamps written into files are UTC,
 
 ```
 H/
-├── settings.yaml                       what each workspace was set up to run; machine settings
+├── settings.yaml                       everything /settings sets: workspaces, machine settings, fallbacks, added CLIs, runtimes
 ├── .settings.yaml.lock                 held by each writer of settings.yaml
 ├── history.jsonl                       lines typed at the TUI prompt
-├── fallbacks.json                      where a failed turn goes next
-├── acp.json                            CLIs added by hand (ACP)
 ├── prices.json                         the price table
 ├── models/<cli>.json                   model catalogue of the CLI's own sign-in
 ├── providers/<cli>/<name>/             accounts
 │   ├── provider.json
 │   ├── models.json
 │   └── home/ user/ config/             credential files the CLI writes
-├── runtimes/                           was env-providers/; moved on first use
-│   ├── ssh/<name>/runtime.json
-│   ├── docker/<name>/runtime.json, docker/.<name>.lock
-│   └── swarm/<name>/runtime.json, swarm/.<name>.lock
 ├── flowverses/
 │   ├── official/  <name>/              index clones
 │   └── .pinned/<blake2b-8(url)>/<sha>/ checkouts of git+ refs and of releases installed
@@ -83,15 +77,16 @@ H/
 
 ### `H/settings.yaml`
 
-[Settings](/reference/settings) is the schema. Written by `hmz.runtime.settings.Settings`.
+[Settings](/reference/settings) is the schema. Written through `hmz.coganchor.settings`: by
+`hmz.runtime.settings.Settings`, and by the fallbacks, added CLIs and runtimes.
 
 | Property | Value |
 | --- | --- |
 | Format | YAML (`yaml.safe_dump`, key order kept); read with `yaml.safe_load` |
-| Write | under the lock: re-read, this writer's one change made to it ([rules](/reference/settings#file-behaviour)), written to `.settings.yaml.<random>.new` (`mkstemp`; mode `0600` for a new file, the existing file's otherwise), fsynced, renamed over |
+| Write | under the lock: re-read, this writer's one change made to it ([rules](/reference/settings#file-behaviour)), written to `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsynced, renamed over |
 | Lock | `flock(LOCK_EX)` on `H/.settings.yaml.lock` (`0600`, opened read-only, kept) for each write, waited for up to 30 s and then gone without; released by the kernel if the writer dies. Readers take no lock. |
 | Unreadable, missing, not a mapping | read as empty; never an error |
-| Write failure | ignored |
+| Write failure, or unreadable at a write | not written over; ignored by `Settings`, `OSError` for a fallback, added CLI or runtime |
 | Removed | never; `forget` removes one workspace's entry |
 
 ### `H/history.jsonl`
@@ -103,35 +98,6 @@ H/
 | Rules | appended; blank lines and a repeat of the previous line are not written; no size limit |
 | Read | at TUI start: this workdir's lines, or every line if it has none |
 | Safe to delete | yes |
-
-### `H/fallbacks.json`
-
-[Fallback](/user/settings#fallback) chains. JSON array:
-
-```json
-[{"spec": "claude@work/claude-opus-5", "to": ["codex/gpt-5.6-sol", "dsh/deepseek-v4-flash"],
-  "tries": 3, "policy": "exponential", "timeout": 600.0}]
-```
-
-| Field | Type | |
-| --- | --- | --- |
-| `spec` | `str` | `CLI[@ACCOUNT]/MODEL` the entry applies to |
-| `to` | `[str]` | the chain: where the turn goes next, in order. A plain string, as older versions wrote, reads as that place followed by each place the older rows went on to from it, and is written back as a list |
-| `tries` | `int` | retries before falling |
-| `policy` | `str` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci` |
-| `timeout` | `float` | seconds |
-
-Written to `.fallbacks.json.<random>.new` (`0600`), fsynced and renamed; invalid entries are
-dropped on read, and so are places in `to` that cannot be read, name the entry's own `spec`, or
-repeat an earlier one.
-
-### `H/acp.json`
-
-CLIs added on the Accounts page, driven over ACP. A JSON object from name to either an argv
-list or `{"command": [...], "hosts": [...], "state": [...]}` (`hosts`, `state` are set by
-hand: the hosts it may reach with `online` `NONE`, and extra paths it may write). Written to
-`.acp.json.<random>.new`, fsynced and renamed; a new file gets the umask's mode, an existing
-one keeps its own. Deleting it forgets every added CLI.
 
 ### `H/prices.json`
 
@@ -204,60 +170,6 @@ Removing an account deletes its directory.
 
 Written by older versions to hold the CLI's own sign-in's account fallback. No longer read;
 safe to delete.
-
-### `H/runtimes/`
-
-[Runtimes](/reference/machines#runtimes). Directories `0700`; each
-`runtime.json` written to `.runtime.json.<random>.new` (`0600` from creation), fsynced and
-renamed. A file that does not validate is skipped.
-
-Formerly `H/env-providers/`, each file `provider.json`. When `H/runtimes/` does not exist, the
-first look for it renames `H/env-providers/` to it in one step, locks and all; a
-`provider.json` left in a runtime's directory is read where there is no `runtime.json`, and
-removed when that runtime is next written. Where both directories exist, `H/env-providers/` is
-left alone and not read.
-
-`ssh/<name>/runtime.json`:
-
-| Field | Type |
-| --- | --- |
-| `backend` | `"ssh"` |
-| `name`, `host`, `user`, `identity_file`, `proxy_jump`, `alias`, `config`, `workdir` | `str` |
-| `port` | `int` |
-| `options` | `{str: str}` |
-| `fallback` | `[str]`, each `<backend>:<name>` |
-| `made` | `"typed"` or `"imported"` |
-
-`docker/<name>/runtime.json`:
-
-| Field | Type |
-| --- | --- |
-| `backend` | `"docker"` |
-| `name`, `tls_dir`, `image`, `runtime`, `workdir` | `str` |
-| `endpoint` | `local`, `unix://…`, `tcp://…`, `ssh://…`, `ssh:<ssh runtime>`, `context:<name>` |
-| `run_args`, `gpus`, `fallback` | `[str]` |
-| `cpus` | `float` |
-| `memory`, `gpu_memory`, `max_containers` | `int` |
-| `made` | `"typed"` |
-
-`docker/.<name>.lock`: empty; held with `flock(LOCK_EX)` while containers of that runtime are
-sized and started, so two runs never allocate from one runtime at once. Never deleted.
-
-`swarm/<name>/runtime.json`:
-
-| Field | Type |
-| --- | --- |
-| `backend` | `"swarm"` |
-| `name`, `tls_dir`, `image`, `gpu_resource`, `workdir` | `str` |
-| `endpoint` | a swarm manager, as a docker runtime's `endpoint` |
-| `run_args`, `constraints`, `fallback` | `[str]` |
-| `cpus` | `float` |
-| `memory`, `max_tasks` | `int` |
-| `nodes` | `{str: str}`: a node's host name to a saved ssh runtime's name or `[user@]host[:port]` |
-| `made` | `"typed"` |
-
-`swarm/.<name>.lock`: as `docker/.<name>.lock`, held while services of that runtime are
-counted, created and waited for until their task runs.
 
 ## Flows
 
@@ -402,6 +314,7 @@ Every path in this section is safe to delete while humanize is not running.
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
 | `$TMPDIR/humanize-<uid>/daemon.log` (`0600`) | what belongs to no run: the daemon's stdout and stderr, and a host process's before it holds a run; what belongs to a run is the epic's [`host.log`](#h-epics-ws-stamp-hex6) | kept, never rotated |
 | `$TMPDIR/humanize-*` | a docker environment's cid file and machine shadow | with the container |
+| `$TMPDIR/humanize-<uid>/.<backend>.<name>.lock` | empty; held with `flock(LOCK_EX)` while containers of a docker or Apple container runtime are sized and started, or services of a swarm counted, created and waited for, so two runs on this machine never allocate from one runtime at once | kept |
 | `${XDG_RUNTIME_DIR:-$TMPDIR}/humanize-ssh-<uid>/%C[-<hex8>]` (`0700`) | ssh control sockets ([`HUMANIZE_SSH_REUSE`](/reference/environment#humanize-ssh-reuse)) | 120 s after last use |
 | `/dev/shm/hmz-<pid>-<hex16>-*/<n>.<file>` (`0700`/`0600`) | credential copies staged for a turn (≤ 1 MiB each) | on close; dead-pid directories swept |
 

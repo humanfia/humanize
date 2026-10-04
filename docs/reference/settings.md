@@ -10,9 +10,9 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | Store | File | Scope | Edited on `/settings` page | Reference |
 | --- | --- | --- | --- | --- |
 | settings | `H/settings.yaml` | this machine, and per workspace | Settings, Workspace (and `/flow`) | this page |
-| accounts | `H/providers/<cli>/<name>/provider.json`, `H/acp.json` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
-| runtimes | `H/runtimes/{ssh,docker}/<name>/runtime.json` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
-| fallbacks | `H/fallbacks.json` | this machine | Fallback | [Files](/reference/files#h-fallbacks-json) |
+| accounts | `H/providers/<cli>/<name>/provider.json`; CLIs added by hand under [`clis`](#clis) in `H/settings.yaml` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
+| runtimes | [`runtimes`](#runtimes) in `H/settings.yaml` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
+| fallbacks | [`fallbacks`](#fallbacks) in `H/settings.yaml` | this machine | Fallback | this page |
 | flowverses | `H/flowverses/<name>/` (index clones), `H/installed/<name>/<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
 
 `H` is `$HUMANIZE_HOME`, else `~/.hmz`. A workspace is identified by its absolute,
@@ -44,6 +44,17 @@ enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
 spelling: 2                        # how envs are spelled; written with every change
+fallbacks:                         # this machine; the Fallback page
+- spec: claude@work/claude-opus-5
+  to: [codex/gpt-5.6-sol, dsh/deepseek-v4-flash]
+  tries: 3
+  policy: exponential
+  timeout: 600.0
+clis:                              # this machine; added on the Accounts page
+  my-agent: [my-agent, --acp]
+runtimes:                          # this machine; the Runtimes page
+  ssh:
+    gpu-box: {host: 10.0.0.2, user: you, port: 0, ...}
 ```
 
 ### Machine settings
@@ -96,15 +107,81 @@ still validate; a budget is remembered unless the flow runs without one. Otherwi
 opens to ask. `profile` goes with the rest. `hmz exec` and `Hmz().run` never read `flows`; they
 use only their own arguments (`--profile`, `profile=True`).
 
+### `fallbacks`
+
+[Fallback](/user/settings#fallback) chains, written by `/settings` › Fallback and
+`Hmz().fallbacks`. A list, one entry per place:
+
+| Field | Type | |
+| --- | --- | --- |
+| `spec` | `str` | `CLI[@ACCOUNT]/MODEL` the entry applies to |
+| `to` | `[str]` | the chain: where the turn goes next, in order |
+| `tries` | `int` | retries before falling |
+| `policy` | `str` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci` |
+| `timeout` | `float` | seconds |
+
+Invalid entries are dropped on read, and so are places in `to` that cannot be read, name the
+entry's own `spec`, or repeat an earlier one.
+
+### `clis`
+
+CLIs added on the Accounts page, driven over ACP. A mapping from name to either an argv list
+or `{command: [...], hosts: [...], state: [...]}` (`hosts`, `state` are set by hand: the hosts
+it may reach with `online` `NONE`, and extra paths it may write). Removing the key forgets
+every added CLI.
+
+### `runtimes`
+
+[Runtimes](/reference/machines#runtimes), written by `/settings` › Runtimes and
+`Hmz().runtimes`: `runtimes.<backend>.<name>`, `<backend>` `ssh`, `docker`, `swarm` or
+`apple-container`. The backend and the name are where the entry is, whatever it says; an
+entry that does not validate is skipped.
+
+`ssh`:
+
+| Field | Type |
+| --- | --- |
+| `host`, `user`, `identity_file`, `proxy_jump`, `alias`, `config`, `workdir` | `str` |
+| `port` | `int` |
+| `options` | `{str: str}` |
+| `fallback`, `affinity` | `[str]`, each `<backend>:<name>` (`affinity` also `self`, `local`) |
+| `made` | `"typed"` or `"imported"` |
+
+`docker`:
+
+| Field | Type |
+| --- | --- |
+| `tls_dir`, `image`, `runtime`, `workdir` | `str` |
+| `endpoint` | `local`, `unix://…`, `tcp://…`, `ssh://…`, `ssh:<ssh runtime>`, `context:<name>` |
+| `run_args`, `gpus`, `fallback`, `affinity` | `[str]` |
+| `cpus` | `float` |
+| `memory`, `gpu_memory`, `max_containers` | `int` |
+| `made` | `"typed"` |
+
+`swarm`:
+
+| Field | Type |
+| --- | --- |
+| `tls_dir`, `image`, `gpu_resource`, `workdir` | `str` |
+| `endpoint` | a swarm manager, as a docker runtime's `endpoint` |
+| `run_args`, `constraints`, `fallback`, `affinity` | `[str]` |
+| `cpus` | `float` |
+| `memory`, `max_tasks` | `int` |
+| `nodes` | `{str: str}`: a node's host name to a saved ssh runtime's name or `[user@]host[:port]` |
+| `made` | `"typed"` |
+
+`apple-container`: `image`, `workdir` (`str`), `run_args`, `fallback`, `affinity` (`[str]`),
+`cpus` (`float`), `memory`, `max_containers` (`int`), `made` (`"typed"`).
+
 ## File behaviour
 
 | Behaviour | Rule |
 | --- | --- |
 | Missing, unreadable, invalid YAML, not a mapping | read as empty; never prevents a start |
 | Unknown keys | kept at the top level and in a workspace entry; a flow's entry is replaced whole when `/flow` is saved |
-| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, or one workspace removed); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is written over with what this writer holds plus the change. |
+| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace removed, or the whole of `fallbacks`, `clis` or one runtime); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is never written over: it is left for whoever is editing it to correct. |
 | Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params`, `budget` and `profile` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
-| Write failure | ignored: the change is held in memory by that writer and not written |
+| Write failure, or a file that does not read as a mapping | a `Settings` holds the change in memory and writes nothing; a fallback, added CLI or runtime is refused with `OSError` |
 
 ## `/settings` rows
 

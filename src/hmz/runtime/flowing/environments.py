@@ -92,7 +92,7 @@ def open_env(
             if _unreadable(spec.provider):
                 raise EnvUnavailable(
                     f"the ssh host {spec.provider!r} cannot be read; fix or remove "
-                    f"it: {store.where(store.SSH, spec.provider)}"
+                    f"it: {_kept(store.SSH, spec.provider)}"
                 )
             raise EnvUnavailable(
                 f"no ssh host is saved as {spec.provider!r}: add it on the runtimes page "
@@ -125,7 +125,7 @@ def _docker_env(
         if _unreadable(spec.provider, store.DOCKER):
             raise EnvUnavailable(
                 f"the docker host {spec.provider!r} cannot be read; fix or "
-                f"remove it: {store.where(store.DOCKER, spec.provider)}"
+                f"remove it: {_kept(store.DOCKER, spec.provider)}"
             )
         raise EnvUnavailable(
             f"docker host {spec.provider!r} not found: add one, or name none for "
@@ -178,7 +178,7 @@ def _swarm_env(
         if _unreadable(spec.provider, store.SWARM):
             raise EnvUnavailable(
                 f"the docker swarm {spec.provider!r} cannot be read; fix or "
-                f"remove it: {store.where(store.SWARM, spec.provider)}"
+                f"remove it: {_kept(store.SWARM, spec.provider)}"
             )
         raise EnvUnavailable(
             f"docker swarm {spec.provider!r} not found: add one, or name none for the "
@@ -230,7 +230,7 @@ def _apple_container_env(
         if _unreadable(spec.provider, store.APPLE_CONTAINER):
             raise EnvUnavailable(
                 f"the {spec.backend} host {spec.provider!r} cannot be read; fix or "
-                f"remove it: {store.where(store.APPLE_CONTAINER, spec.provider)}"
+                f"remove it: {_kept(store.APPLE_CONTAINER, spec.provider)}"
             )
         raise EnvUnavailable(
             f"{spec.backend} host {spec.provider!r} not found: add one, or name none "
@@ -249,6 +249,13 @@ def _apple_container_env(
     return MachineEnvDriver(machine, workdir)
 
 
+def _kept(backend: str, name: str) -> str:
+    """Where the runtime of that name is written down, as somebody correcting it finds it."""
+    from hmz.coganchor import settings
+
+    return f"runtimes.{backend}.{name} in {settings.where()}"
+
+
 def _unreadable(name: str, backend: str = "ssh") -> bool:
     """Whether something is written down as the runtime of that name, and cannot be read.
 
@@ -258,7 +265,7 @@ def _unreadable(name: str, backend: str = "ssh") -> bool:
     from hmz.coganchor.machines import store
 
     try:
-        return store.where(backend, name).exists()
+        return store.saved(backend, name)
     except ValueError:
         return False  # a name no runtime may have, which is a host
 

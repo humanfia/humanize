@@ -1,21 +1,23 @@
-"""A runtime on disk: written down, read back, listed, reached, taken away.
+"""A runtime in the settings: written down, read back, listed, reached, taken away.
 
-The store touches a filesystem and nothing else -- it reaches no machine and starts no process
--- so what is checked here is that a runtime survives the round trip, that a listing is what
-can actually be used, that what no runtime could be is refused before it is a directory, and
-that what is written down comes to exactly the `ssh` and `docker` command lines it says.
+The store touches a file and nothing else -- it reaches no machine and starts no process -- so
+what is checked here is that a runtime survives the round trip, that a listing is what can
+actually be used, that what no runtime could be is refused before it is written down, and that
+what is written down comes to exactly the `ssh` and `docker` command lines it says.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import json
 import stat
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 import pytest
+import yaml
 
 from hmz import home
+from hmz.coganchor import settings
 from hmz.coganchor.machines import AnchoredConfig, store
 from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime, SwarmRuntime
 from hmz.coganchor.transport import Endpoint, Target, ssh_flags
@@ -48,6 +50,20 @@ def _mode(at: Path) -> int:
     return stat.S_IMODE(at.stat().st_mode)
 
 
+def _kept(backend: str) -> dict[str, Any]:
+    """The runtimes of one backend as the settings file holds them, by name."""
+    return yaml.safe_load(settings.where().read_text())["runtimes"][backend]
+
+
+def _put(backend: str, name: str, said: object) -> None:
+    """Writes one entry into the settings as somebody editing them by hand might."""
+
+    def change(held: dict[str, Any]) -> None:
+        held.setdefault("runtimes", {}).setdefault(backend, {})[name] = said
+
+    settings.changes(change)
+
+
 def test_an_ssh_runtime_is_read_back_as_it_was_written_down() -> None:
     written = store.add(
         SSHRuntime(
@@ -64,10 +80,7 @@ def test_an_ssh_runtime_is_read_back_as_it_was_written_down() -> None:
     )
 
     assert store.find("ssh", "gpu") == written
-    held = json.loads((home() / "runtimes/ssh/gpu/runtime.json").read_text())
-    assert held == {
-        "backend": "ssh",
-        "name": "gpu",
+    assert _kept("ssh")["gpu"] == {
         "host": "10.0.0.2",
         "user": "me",
         "port": 2222,
@@ -143,7 +156,7 @@ def test_a_swarm_runtime_is_read_back_as_it_was_written_down() -> None:
     )
     assert read.held()["nodes"] == {"worker1": "gpu1", "worker2": "me@10.0.0.7:2222"}
     assert read.held()["backend"] == "swarm"
-    assert read.at == store.under() / "swarm" / "cluster"
+    assert read.at == settings.where()
 
 
 @pytest.mark.parametrize(
@@ -183,13 +196,11 @@ def test_a_swarm_node_is_reached_as_a_saved_ssh_host_says_or_as_its_destination(
         store.node_of("-oProxyCommand=x")
 
 
-def test_every_level_is_this_users_alone() -> None:
+def test_the_file_is_this_users_alone() -> None:
     """What a runtime says is where somebody's machines are, and how they are logged into."""
     store.add(SSHRuntime(name="gpu", host="gpu"))
 
-    for at in (home(), store.under(), store.under() / "ssh", store.where("ssh", "gpu")):
-        assert _mode(at) == 0o700, at
-    assert _mode(store.where("ssh", "gpu") / "runtime.json") == 0o600
+    assert _mode(settings.where()) == 0o600
 
 
 def test_every_runtime_is_listed_by_backend_and_then_by_name() -> None:
@@ -207,51 +218,22 @@ def test_every_runtime_is_listed_by_backend_and_then_by_name() -> None:
 
 
 def test_nothing_is_listed_where_nothing_has_ever_been_written_down() -> None:
-    assert not store.under().exists()
+    assert not settings.where().exists()
     assert store.runtimes() == []
     assert store.find("ssh", "gpu") is None
 
 
-def test_what_was_kept_as_environment_providers_is_moved_and_read() -> None:
-    """The directory they were kept in moves in one piece, and an old file is read as it is."""
-    old = home() / "env-providers"
-    (old / "docker" / "foo").mkdir(parents=True)
-    (old / "docker" / "foo" / "provider.json").write_text(
-        json.dumps({"backend": "docker", "name": "foo", "cpus": 2})
-    )
-    (old / "docker" / ".foo.lock").write_text("")
-
-    assert store.runtimes() == [DockerRuntime(name="foo", cpus=2.0)]
-    assert not old.exists()
-    assert (home() / "runtimes" / "docker" / ".foo.lock").exists()
-    at = store.where("docker", "foo")
-    assert (at / "provider.json").exists()
-
-    store.write(DockerRuntime(name="foo", cpus=4))
-    assert sorted(one.name for one in at.iterdir()) == ["runtime.json"]
-    assert store.find("docker", "foo") == DockerRuntime(name="foo", cpus=4.0)
-
-
-def test_what_is_kept_now_is_not_written_over_by_what_was_kept_before() -> None:
-    store.add(SSHRuntime(name="new", host="h"))
-    (home() / "env-providers" / "ssh" / "old").mkdir(parents=True)
-
-    assert [one.name for one in store.runtimes()] == ["new"]
-    assert (home() / "env-providers").exists()
-
-
-def test_a_directory_holding_nothing_usable_is_not_a_runtime() -> None:
-    folder = store.add(SSHRuntime(name="usable", host="h")).at.parent
+def test_an_entry_holding_nothing_usable_is_not_a_runtime() -> None:
+    store.add(SSHRuntime(name="usable", host="h"))
     for name, said in (
-        ("broken", "{ not json"),
-        ("listed", '["not", "a", "mapping"]'),
-        ("wrong", json.dumps({"host": "", "alias": ""})),  # neither: no runtime
-        ("unknown", json.dumps({"host": "h", "colour": "red"})),
+        ("broken", "{ not a mapping"),
+        ("listed", ["not", "a", "mapping"]),
+        ("wrong", {"host": "", "alias": ""}),  # neither: no runtime
+        ("unknown", {"host": "h", "colour": "red"}),
+        ("empty", None),
+        (".hidden", {"host": "h"}),
     ):
-        (folder / name).mkdir()
-        (folder / name / "runtime.json").write_text(said)
-    (folder / "empty").mkdir()
-    (folder / ".hidden").mkdir()
+        _put("ssh", name, said)
 
     assert [one.name for one in store.runtimes()] == ["usable"]
     for name in ("broken", "listed", "wrong", "unknown", "empty", ".hidden"):
@@ -259,11 +241,9 @@ def test_a_directory_holding_nothing_usable_is_not_a_runtime() -> None:
 
 
 def test_where_a_runtime_is_kept_is_what_it_is() -> None:
-    """The place is the answer; the file only describes it, and may describe it wrongly."""
-    at = store.add(SSHRuntime(name="mine", host="h")).at
-    (at / "runtime.json").write_text(
-        json.dumps({"backend": "docker", "name": "other", "host": "there"})
-    )
+    """The place is the answer; the entry only describes it, and may describe it wrongly."""
+    store.add(SSHRuntime(name="mine", host="h"))
+    _put("ssh", "mine", {"backend": "docker", "name": "other", "host": "there"})
 
     assert store.find("ssh", "mine") == SSHRuntime(name="mine", host="there")
 
@@ -271,17 +251,17 @@ def test_where_a_runtime_is_kept_is_what_it_is() -> None:
 @pytest.mark.parametrize("name", _NOT_NAMES)
 def test_a_name_that_is_not_a_name_is_refused(name: str) -> None:
     with pytest.raises(ValueError, match="invalid runtime name"):
-        store.where("ssh", name)
+        store.saved("ssh", name)
     with pytest.raises(ValueError, match="invalid runtime name"):
         SSHRuntime(name=name, host="h")
     with pytest.raises(ValueError, match="invalid runtime name"):
         store.remove("docker", name)
     assert store.find("ssh", name) is None
-    assert not store.under().exists()
+    assert not settings.where().exists()
 
 
 def test_a_backend_that_is_not_one_is_refused() -> None:
-    for doing in (store.where, store.new, store.remove):
+    for doing in (store.saved, store.new, store.remove):
         with pytest.raises(ValueError, match="not a runtime backend"):
             doing("local", "mine")
     assert store.find("local", "mine") is None
@@ -297,10 +277,11 @@ def test_adding_one_already_there_is_refused_and_writing_one_replaces_it() -> No
 
 
 def test_one_is_taken_away_whole() -> None:
-    at = store.add(SSHRuntime(name="gpu", host="a")).at
+    store.add(SSHRuntime(name="gpu", host="a"))
 
     assert store.remove("ssh", "gpu")
-    assert not at.exists()
+    assert not store.saved("ssh", "gpu")
+    assert "gpu" not in _kept("ssh")
     assert not store.remove("ssh", "gpu")
 
 
@@ -405,8 +386,7 @@ def test_an_affinity_is_kept_in_order_and_read_back() -> None:
 
     assert written.affinity == ("docker:b", "self", "ssh:gpu", "local")
     assert store.find("docker", "a") == written
-    held = json.loads((home() / "runtimes/docker/a/runtime.json").read_text())
-    assert held["affinity"] == ["docker:b", "self", "ssh:gpu", "local"]
+    assert _kept("docker")["a"]["affinity"] == ["docker:b", "self", "ssh:gpu", "local"]
     assert store.affine("docker:b") == ("docker", "b")
     assert store.affine("swarm:cluster") == ("swarm", "cluster")
     swarm = store.new("swarm", "cluster", affinity=["swarm:other", "docker:a", "local"])
@@ -450,7 +430,7 @@ def test_an_import_keeps_the_affinity_it_was_given() -> None:
     assert again.affinity == ("local",)
 
 
-def test_what_json_holds_is_read_as_the_field_holds_it() -> None:
+def test_what_the_file_holds_is_read_as_the_field_holds_it() -> None:
     made = store.new("ssh", "gpu", host="h", port=22.0, options={"A": 1})
 
     assert made == SSHRuntime(name="gpu", host="h", port=22, options={"A": "1"})
@@ -590,14 +570,12 @@ def test_a_runtime_whose_home_has_gone_is_listed_and_checked_without_raising() -
         ("docker", "d", "tls_dir", f"{_NOBODY}/certs"),
         ("ssh", "s", "config", f"{_NOBODY}/config"),
     ):
-        at = store.where(backend, name)
-        at.mkdir(parents=True)
         held = (
             {"endpoint": "tcp://10.0.0.3:2376"}
             if backend == "docker"
             else {"host": "h"}
         )
-        (at / "runtime.json").write_text(json.dumps({**held, field: path}))
+        _put(backend, name, {**held, field: path})
 
     listed = store.runtimes()
 
@@ -688,8 +666,8 @@ def test_an_ssh_runtime_nobody_saved_is_refused_where_it_is_opened() -> None:
 
 def test_an_e_naming_a_stored_runtime_that_cannot_be_read_is_refused() -> None:
     """Rather than taken for a host of that name, which is somewhere nobody meant."""
-    at = store.add(SSHRuntime(name="gpu", host="10.0.0.2")).at
-    (at / "runtime.json").write_text("{ broken")
+    store.add(SSHRuntime(name="gpu", host="10.0.0.2"))
+    _put("ssh", "gpu", "{ broken")
 
     (spec,) = parse_envs(["box=ssh@gpu/srv"])
     with pytest.raises(EnvUnavailable, match="'gpu' cannot be read"):

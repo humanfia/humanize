@@ -22,8 +22,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
+import yaml
 
-from hmz.coganchor import backends, fallbacks
+from hmz.coganchor import backends, fallbacks, settings
 from hmz.coganchor.agents import (
     AcpAgent,
     AcpAgentConfig,
@@ -471,7 +472,9 @@ def test_a_cli_written_down_under_another_name_is_still_read_back(
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HUMANIZE_HOME", str(home))
-    (home / "acp.json").write_text(json.dumps({"ernie": ["frank", "--acp"]}))
+    (home / "settings.yaml").write_text(
+        yaml.safe_dump({"clis": {"ernie": ["frank", "--acp"]}})
+    )
 
     assert backends.speaking() == {"ernie": ("frank", "--acp")}
     assert backends.named("ernie") is not None
@@ -720,10 +723,10 @@ def test_a_cut_network_with_no_host_to_leave_is_refused_saying_what_to_declare(
     added: str, tmp_path: Path
 ) -> None:
     """A CLI that cannot reach its own model takes no turn: refused where it is made."""
-    with pytest.raises(Unfenced, match='"hosts"') as raised:
+    with pytest.raises(Unfenced, match="hosts: ") as raised:
         _agent(added, fence=_fenced(tmp_path, online=False))
 
-    assert "acp.json" in str(raised.value)
+    assert "settings.yaml" in str(raised.value)
     # Online, there is no host to know.
     assert _agent(added, fence=_fenced(tmp_path)).fenced() is not None
 
@@ -731,13 +734,15 @@ def test_a_cut_network_with_no_host_to_leave_is_refused_saying_what_to_declare(
 def test_the_hosts_and_state_declared_where_it_was_added_are_what_the_fence_leaves(
     added: str, tmp_path: Path
 ) -> None:
-    backends._spoken().write_text(
-        json.dumps(
+    settings.where().write_text(
+        yaml.safe_dump(
             {
-                added: {
-                    "command": [added, "--acp"],
-                    "hosts": ["api.mine.test"],
-                    "state": ["~/.my-agent"],
+                "clis": {
+                    added: {
+                        "command": [added, "--acp"],
+                        "hosts": ["api.mine.test"],
+                        "state": ["~/.my-agent"],
+                    }
                 }
             }
         )

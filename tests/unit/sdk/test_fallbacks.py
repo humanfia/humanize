@@ -15,9 +15,8 @@ whichever way in wrote them.
 
 from __future__ import annotations
 
-import json
-
 import pytest
+import yaml
 
 from hmz import home
 from hmz.sdk import Hmz
@@ -152,41 +151,36 @@ def test_one_place_given_as_a_string_is_a_chain_of_one() -> None:
     assert held.points("claude/opus", "").to == ()
 
 
-def test_a_step_an_older_humanize_wrote_with_one_place_is_read_as_a_chain_of_one() -> (
-    None
-):
+def test_a_step_is_written_into_the_settings_beside_what_else_they_hold() -> None:
     home().mkdir(parents=True, exist_ok=True)
-    (home() / "fallbacks.json").write_text(
-        json.dumps([{"spec": "claude/opus", "to": "codex/gpt", "tries": 0}]),
-        encoding="utf-8",
-    )
+    (home() / "settings.yaml").write_text("details: true\n", encoding="utf-8")
 
-    held = Hmz().fallbacks
+    Hmz().fallbacks.points("claude/opus", ["codex/gpt"])
 
-    assert held.chain("claude/opus") == ["claude/opus", "codex/gpt"]
-    # And it is written back as the list it now is the next time it is written at all.
-    held.retrying("claude/opus", 2, held.default, 0.0)
-    written = json.loads((home() / "fallbacks.json").read_text(encoding="utf-8"))
-    assert written[0]["to"] == ["codex/gpt"]
+    written = yaml.safe_load((home() / "settings.yaml").read_text(encoding="utf-8"))
+    assert written["details"] is True
+    assert written["fallbacks"][0]["to"] == ["codex/gpt"]
 
 
 def test_what_a_hand_edited_chain_cannot_mean_is_dropped_and_the_rest_kept() -> None:
     home().mkdir(parents=True, exist_ok=True)
-    (home() / "fallbacks.json").write_text(
-        json.dumps(
-            [
-                {
-                    "spec": "claude/opus",
-                    "to": [
-                        "codex/gpt",
-                        "claude/opus",
-                        "definitely-not-a-backend/whatever",
-                        7,
-                        "codex/gpt",
-                        "agy/pro",
-                    ],
-                }
-            ]
+    (home() / "settings.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "fallbacks": [
+                    {
+                        "spec": "claude/opus",
+                        "to": [
+                            "codex/gpt",
+                            "claude/opus",
+                            "definitely-not-a-backend/whatever",
+                            7,
+                            "codex/gpt",
+                            "agy/pro",
+                        ],
+                    }
+                ]
+            }
         ),
         encoding="utf-8",
     )
@@ -240,28 +234,3 @@ def test_a_step_taken_away_is_a_place_that_falls_back_nowhere_again() -> None:
     assert held.all() == []
     # And there is nothing left to take away a second time.
     assert not held.clear("claude/opus")
-
-
-def test_steps_an_older_humanize_linked_one_to_the_next_read_as_the_chain_they_made() -> (
-    None
-):
-    """Such a file walked from one row to the next; read as the chain, it still reaches all."""
-    home().mkdir(parents=True, exist_ok=True)
-    (home() / "fallbacks.json").write_text(
-        json.dumps(
-            [
-                {"spec": "claude/opus", "to": "codex/gpt"},
-                {"spec": "codex/gpt", "to": "agy/pro"},
-                {"spec": "agy/pro", "to": "claude/opus"},
-                {"spec": "kimi/k2", "to": ["codex/gpt"]},
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    held = Hmz().fallbacks
-
-    assert held.chain("claude/opus") == ["claude/opus", "codex/gpt", "agy/pro"]
-    assert held.chain("codex/gpt") == ["codex/gpt", "agy/pro", "claude/opus"]
-    # A chain written as a list is one somebody wrote whole, and is not walked on from.
-    assert held.chain("kimi/k2") == ["kimi/k2", "codex/gpt"]

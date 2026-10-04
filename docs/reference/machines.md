@@ -18,7 +18,7 @@ machines) is [Remote execution](/reference/remote-execution).
 | **Machine** | A `MachineBase` made by `MachineConfig.create()`: brought up by `start()`, taken down by `stop()`. |
 | **Anchor** | The [`AnchorConfig`](/reference/remote-execution#anchorconfig) `start()` returns; every turn of the agent runs under it. |
 | **Environment** | A working directory on a machine that a flow role is given: a `LocalEnv`, or a role filled with `-e`. |
-| **Runtime** | An ssh host, a docker daemon, a docker swarm or this Mac's Apple containers saved under a name in `$HUMANIZE_HOME/runtimes/`, so that `-e` can name it and an environment is put on it. |
+| **Runtime** | An ssh host, a docker daemon, a docker swarm or this Mac's Apple containers saved under a name under `runtimes` in `$HUMANIZE_HOME/settings.yaml`, so that `-e` can name it and an environment is put on it. |
 | **Endpoint** | The docker daemon a container is run on, spelled as `docker --host`/`--context` spell one. |
 | **Mirror** | The directory on the harness machine a supervised agent works in, reproducing the target's workspace. |
 | **Capability** | A word a machine setting, a machine or an anchor answers to (`remote`, `isolated`, …), or an environment mixin a driver serves. |
@@ -282,16 +282,16 @@ A `local` environment's work always has its harness here.
 | --- | --- |
 | `local` workdir not a directory | `there is no directory <path> on this machine` |
 | ssh destination not a destination | `'<provider>' is not an ssh host, as [user@]host[:port]` |
-| a saved ssh runtime that cannot be read | `the ssh host '<name>' cannot be read; fix or remove it: <dir>` |
+| a saved ssh runtime that cannot be read | `the ssh host '<name>' cannot be read; fix or remove it: runtimes.<backend>.<name> in <settings.yaml>` |
 | an unknown ssh runtime | `no ssh host is saved as '<name>': add it on the runtimes page of /settings, or name a host not saved as ssh@[<name>]` |
 | an unknown docker runtime | `docker host '<name>' not found: add one, or name none for docker's default here, as docker/<workdir>` |
-| a saved docker runtime that cannot be read | `the docker host '<name>' cannot be read; fix or remove it: <dir>` |
+| a saved docker runtime that cannot be read | `the docker host '<name>' cannot be read; fix or remove it: runtimes.<backend>.<name> in <settings.yaml>` |
 | `~/…` on a docker daemon elsewhere | `<workdir> is on a remote docker host, so it must be an absolute path` |
 | an unknown swarm runtime | `docker swarm '<name>' not found: add one, or name none for the swarm this machine manages, as swarm/<workdir>` |
-| a saved swarm runtime that cannot be read | `the docker swarm '<name>' cannot be read; fix or remove it: <dir>` |
+| a saved swarm runtime that cannot be read | `the docker swarm '<name>' cannot be read; fix or remove it: runtimes.<backend>.<name> in <settings.yaml>` |
 | `~/…` on a swarm managed elsewhere | `<workdir> is on a remote docker swarm, so it must be an absolute path` |
 | an unknown runtime of Apple containers | `apple-container host '<name>' not found: add one, or name none for this Mac's own, as apple-container/<workdir>` |
-| a saved runtime of Apple containers that cannot be read | `the apple-container host '<name>' cannot be read; fix or remove it: <dir>` |
+| a saved runtime of Apple containers that cannot be read | `the apple-container host '<name>' cannot be read; fix or remove it: runtimes.<backend>.<name> in <settings.yaml>` |
 | a `~` workdir that climbs out of home | `<workdir> climbs out of the home directory it is under` |
 | a workdir neither absolute nor under `~` | `<workdir> is neither absolute nor under ~` |
 
@@ -354,7 +354,7 @@ run closes it.
 | Derived environments | inside the same container |
 
 Allocation, done while holding an exclusive `flock` on
-`$HUMANIZE_HOME/runtimes/docker/.<name>.lock` until the container is up and labelled:
+`$TMPDIR/humanize-<uid>/.docker.<name>.lock` until the container is up and labelled:
 
 1. `docker info` and `docker ps`/`inspect` of containers labelled `humanize.provider=<provider>`
    (60 s per question).
@@ -434,7 +434,7 @@ harness, files, derived environments -- is as for a [docker environment](#docker
 | Reached | `docker exec` against: the daemon the runtime's `nodes` names for the node's host, else the manager's own where the task landed on the manager, else `ssh://<the node's address>` (docker's ssh transport, as this machine's `ssh` resolves it) |
 
 Allocation, done while holding an exclusive `flock` on
-`$HUMANIZE_HOME/runtimes/swarm/.<name>.lock` until the task runs:
+`$TMPDIR/humanize-<uid>/.swarm.<name>.lock` until the task runs:
 
 1. `docker info` of the manager: `Swarm.LocalNodeState` must be `active` and
    `Swarm.ControlAvailable` true, else `EnvUnavailable`.
@@ -500,7 +500,7 @@ run closes it. Everything else is as for a
 | Labels | as a docker environment's container's, less `humanize.gpus` |
 | Agents | anchored to the container over `container exec`, as the runtime's `affinity` says |
 
-Allocation holds an exclusive `flock` on `$HUMANIZE_HOME/runtimes/apple-container/.<name>.lock`
+Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.apple-container.<name>.lock`
 until the container is up and labelled: `container system status` and `container list` (60 s
 each; humanize's containers are found by their labels, and each holds the size its virtual
 machine has, `container`'s default for one started with none), the removal of what a dead
@@ -542,30 +542,28 @@ TUI on the Runtimes page of `/settings`.
 
 | Aspect | Rule |
 | --- | --- |
-| Location | `$HUMANIZE_HOME/runtimes/<backend>/<name>/runtime.json`, `<backend>` `ssh`, `docker`, `swarm` or `apple-container` |
+| Location | `runtimes.<backend>.<name>` in `$HUMANIZE_HOME/settings.yaml`, `<backend>` `ssh`, `docker`, `swarm` or `apple-container`; see [Settings](/reference/settings#runtimes) |
 | Name | `[A-Za-z0-9][A-Za-z0-9._-]*` |
-| Modes | every directory humanize creates on the way `0700`; `runtime.json` `0600`, written to a temporary file and renamed |
-| Format | JSON object: `backend`, `name`, then every field of the runtime (tuples as arrays) |
-| Reading | a directory whose file is missing, unparseable or invalid is skipped by `all()`; `-e` naming it is refused as unreadable |
-| Migration | formerly these were environment providers under `$HUMANIZE_HOME/env-providers/`, each in `provider.json`: the first look at `runtimes/` while it does not exist renames `env-providers/` to it whole (docker locks included); a `provider.json` is read where there is no `runtime.json`, and removed when the runtime is next written. If both directories exist, `env-providers/` is ignored. |
+| Modes | the settings file's: `0600` when it is made, written to a temporary file and renamed |
+| Format | a mapping of every field of the runtime (tuples as lists) |
+| Reading | an entry that is not a mapping or is invalid is skipped by `all()`; `-e` naming it is refused as unreadable |
 
-```json
-{
-  "backend": "ssh",
-  "name": "gpu",
-  "host": "10.0.0.2",
-  "user": "me",
-  "port": 2222,
-  "identity_file": "~/.ssh/gpu",
-  "proxy_jump": "me@bastion",
-  "options": {"ServerAliveInterval": "15"},
-  "alias": "",
-  "config": "",
-  "workdir": "~/project",
-  "fallback": ["docker:box", "ssh:gpu2"],
-  "made": "typed",
-  "affinity": ["self", "docker:gpubox", "local"]
-}
+```yaml
+runtimes:
+  ssh:
+    gpu:
+      host: 10.0.0.2
+      user: me
+      port: 2222
+      identity_file: ~/.ssh/gpu
+      proxy_jump: me@bastion
+      options: {ServerAliveInterval: '15'}
+      alias: ''
+      config: ''
+      workdir: ~/project
+      fallback: ['docker:box', 'ssh:gpu2']
+      made: typed
+      affinity: [self, 'docker:gpubox', local]
 ```
 
 ### An ssh host {#an-ssh-host}
@@ -1005,7 +1003,7 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 
 | Variable | Effect |
 | --- | --- |
-| `HUMANIZE_HOME` | Root of `runtimes/`, `envs/` (mirrors, derived directories here), `docker-ssh/` and `harness/`; default `~/.hmz`. On an ssh host, `${HUMANIZE_HOME:-$HOME/.hmz}` there is where derived directories go. |
+| `HUMANIZE_HOME` | Root of `settings.yaml` (whose `runtimes` are the runtimes), `envs/` (mirrors, derived directories here), `docker-ssh/` and `harness/`; default `~/.hmz`. On an ssh host, `${HUMANIZE_HOME:-$HOME/.hmz}` there is where derived directories go. |
 | `DOCKER_HOST`, `DOCKER_CONTEXT` | Used by the `local` endpoint; `DOCKER_HOST` decides whether `local` counts as here. Removed from every `docker` sent to any other endpoint, with `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`. |
 | `DOCKER_CONFIG` | Where docker reads `context:NAME` contexts (docker's own). |
 | `CUDA_VISIBLE_DEVICES` | Narrows the GPUs counted on a local or ssh machine, as CUDA does. |

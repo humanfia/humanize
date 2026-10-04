@@ -23,7 +23,7 @@ ROUNDS = 200
 def test_many_writers_at_once_leave_a_whole_file_and_nothing_beside_it(
     tmp_path: Path,
 ) -> None:
-    at = tmp_path / "acp.json"
+    at = tmp_path / "settings.yaml"
     atomic.writes(at, "{}\n")
     spawning = multiprocessing.get_context("spawn")
     workers = [
@@ -46,7 +46,7 @@ def test_many_writers_at_once_leave_a_whole_file_and_nothing_beside_it(
     assert [one.exitcode for one in workers] == [0] * WRITERS
     assert seen
     assert json.loads(at.read_text(encoding="utf-8"))["round"] == ROUNDS - 1
-    assert [one.name for one in tmp_path.iterdir()] == ["acp.json"]
+    assert [one.name for one in tmp_path.iterdir()] == ["settings.yaml"]
 
 
 def _writes(at: str, n: int) -> None:
@@ -91,13 +91,13 @@ def test_a_mode_asked_for_is_the_mode_it_has(tmp_path: Path) -> None:
 
 
 def test_a_write_that_fails_leaves_nothing_beside_it(tmp_path: Path) -> None:
-    at = tmp_path / "gone" / "fallbacks.json"
+    at = tmp_path / "gone" / "settings.yaml"
     with pytest.raises(FileNotFoundError):
         atomic.writes(at, "{}\n")
     at.parent.mkdir()
-    (at.parent / "fallbacks.json").mkdir()  # a directory where the file is to go
+    (at.parent / "settings.yaml").mkdir()  # a directory where the file is to go
 
     with pytest.raises(OSError, match="directory"):
         atomic.writes(at, "{}\n")
 
-    assert [one.name for one in at.parent.iterdir()] == ["fallbacks.json"]
+    assert [one.name for one in at.parent.iterdir()] == ["settings.yaml"]

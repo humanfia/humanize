@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz import machine
 from hmz.coganchor.machines import store
 from hmz.flows import EnvBackendKind
 from hmz.runtime import Refused
@@ -270,7 +271,7 @@ def test_a_lock_per_runtime_is_held_beside_the_runtimes(
 
     runner.run("go")
 
-    assert (store.under() / "apple-container" / ".mac.lock").is_file()
+    assert (machine() / ".apple-container.mac.lock").is_file()
     assert [one.name for one in store.runtimes("apple-container")] == ["mac"]
 
 

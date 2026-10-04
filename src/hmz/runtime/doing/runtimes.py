@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from pathlib import Path
 
     from hmz.coganchor.machines.sshconfig import SSHHost
     from hmz.coganchor.machines.store import (
@@ -93,8 +92,8 @@ class Runtimes:
 
         return store.find(backend, name)
 
-    def where(self, backend: str, name: str) -> Path:
-        """Where one is kept, whether or not it has been made.
+    def saved(self, backend: str, name: str) -> bool:
+        """Whether one is written down under that name, whether or not it reads.
 
         Raises:
           ValueError: If the backend is not `ssh`, `docker`, `swarm` or `apple-container`, or
@@ -103,7 +102,7 @@ class Runtimes:
         """
         from hmz.coganchor.machines import store
 
-        return store.where(backend, name)
+        return store.saved(backend, name)
 
     def new(self, backend: str, name: str, **fields: Any) -> Runtime:
         """One runtime, checked, and written nowhere.

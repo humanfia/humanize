@@ -34,14 +34,12 @@ the conversation that was running, and only a turn with no tries left leaves it.
 
 from __future__ import annotations
 
-import json
 import math
 import random
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz import home
-from hmz.coganchor import atomic, backends
+from hmz.coganchor import backends, settings
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -69,11 +67,10 @@ __all__ = [
     "waits",
 ]
 
-#: What the file every step is written down in is called. One file rather than one per step:
-#: a chain is read whole every time it is read at all -- a turn that failed asks where it
-#: goes, and the answer is the walk rather than the step -- and a directory of one-line files
-#: would be a directory to walk to answer it.
-_HELD = "fallbacks.json"
+#: Where in humanize's settings every step is written down: one list rather than one entry
+#: per step, because a chain is read whole every time it is read at all -- a turn that failed
+#: asks where it goes, and the answer is the walk rather than the step.
+_HELD = "fallbacks"
 
 #: The first wait, which every policy is written in terms of. A second is short enough that a
 #: turn nobody is watching is not held up by it and long enough that a service which has just
@@ -407,46 +404,35 @@ def falls() -> list[Falls]:
     """Every place written down, in the order they were written.
 
     Returns:
-      One apiece. Empty where nothing has been written down, where the file has gone, and
-      where what is there cannot be read -- a file somebody edited by hand into something
-      else is a file to correct rather than the end of every run on this machine.
+      One apiece. Empty where nothing has been written down, and where what is there cannot
+      be read -- a file somebody edited by hand into something else is a file to correct
+      rather than the end of every run on this machine.
     """
-    at = home() / _HELD
-    try:
-        held = json.loads(at.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
+    return _read(settings.read().get(_HELD))
+
+
+def _read(held: object) -> list[Falls]:
+    """Every place one reading of the settings holds, in the order they were written."""
     if not isinstance(held, list):
         return []
-    rows = [
-        cast("dict[str, Any]", one)
-        for one in cast("list[object]", held)
-        if isinstance(one, dict)
-    ]
-    # The steps an older humanize wrote, one place to the next, which it walked from one row
-    # to the row of the place it named. Read as the chain they came to, so that a file written
-    # before chains were lists still reaches every place it reached -- and is written back as
-    # one the next time anything is.
-    linked = {
-        reads(str(one.get("spec") or "")): reads(one["to"])
-        for one in rows
-        if isinstance(one.get("to"), str)
-    }
     found: list[Falls] = []
     seen: set[str] = set()
-    for one in rows:
+    for one in cast("list[object]", held):
+        if not isinstance(one, dict):
+            continue
+        row = cast("dict[str, Any]", one)
         # Read back through the same reading that wrote them: a file edited by hand holds
         # whatever somebody typed, and a step naming a CLI there is none of is a step that
         # could only fail the turn it was asked about.
-        said = reads(str(one.get("spec") or ""))
+        said = reads(str(row.get("spec") or ""))
         if not said or said in seen:
             continue
         step = Falls(
             said,
-            _onwards(said, one.get("to"), linked),
-            tries=_counted(one.get("tries")),
-            policy=str(one.get("policy") or DEFAULT),
-            timeout=_seconds(one.get("timeout")),
+            _onwards(said, row.get("to")),
+            tries=_counted(row.get("tries")),
+            policy=str(row.get("policy") or DEFAULT),
+            timeout=_seconds(row.get("timeout")),
         )
         if not step.says():
             continue
@@ -488,6 +474,7 @@ def points(said: str, to: Sequence[str]) -> Falls:
         would be a turn that could never run out of places to go, and one naming a place
         twice is a place tried twice for nothing; each is refused where it is written rather
         than found by the turn that needed it.
+      OSError: If the settings cannot be read, or written.
     """
     if isinstance(to, str):
         to = [to] if to.strip() else []
@@ -530,6 +517,7 @@ def retrying(said: str, tries: int, policy: str, timeout: float) -> Falls:
         number is one no waiting can be made of -- a negative, or seconds that are infinite
         or not a number. All of them are a line to correct rather than something for the
         turn that needed it to find out about.
+      OSError: If the settings cannot be read, or written.
     """
     from_ = reads(said)
     if not from_:
@@ -540,8 +528,8 @@ def retrying(said: str, tries: int, policy: str, timeout: float) -> Falls:
             f"{', '.join(one.name for one in POLICIES)}"
         )
     # `inf` and `nan` are both greater than nothing as far as `< 0` is concerned, and both
-    # go into the file as a bare `Infinity` or `NaN` -- a token JSON does not have, so a
-    # step written with one is a file no strict reader takes back. No limit at all is 0.0.
+    # are a wait that never ends rather than a limit: neither is ever passed. No limit at all
+    # is 0.0.
     if (
         tries < 0
         or not math.isfinite(tries)
@@ -564,13 +552,23 @@ def clear(said: str) -> bool:
 
     Returns:
       Whether there was one to take away.
+
+    Raises:
+      OSError: If the settings cannot be read, or written.
     """
     from_ = reads(said)
-    kept = [one for one in falls() if one.spec != from_]
-    if not from_ or len(kept) == len(falls()):
+    if not from_ or all(one.spec != from_ for one in falls()):
         return False
-    _writes(kept)
-    return True
+    found: list[bool] = []
+
+    def change(held: dict[str, Any]) -> None:
+        was = _read(held.get(_HELD))
+        kept = [one for one in was if one.spec != from_]
+        found.append(len(kept) < len(was))
+        held[_HELD] = _written(kept)
+
+    settings.changes(change)
+    return any(found)
 
 
 def chain(said: str) -> list[str]:
@@ -648,32 +646,21 @@ def _fibonacci(over: int) -> int:
     return held
 
 
-def _onwards(said: str, to: object, linked: dict[str, str]) -> tuple[str, ...]:
-    """The places one place falls back to, as they were written down.
+def _onwards(said: str, to: object) -> tuple[str, ...]:
+    """The places one place falls back to, as they were written down, in the order tried.
 
-    A list, in the order they are tried -- or a single string, which is how a step was written
-    before a place could fall back along more than one: the place it names, and then each place
-    the older steps went on to from there, which is the chain such a file always meant. Whatever
-    of it cannot be read as a place, names this place, or names one a second time is dropped
-    rather than the whole step: a file edited by hand holds whatever somebody typed, and the
-    places that are readable are still where somebody meant the turn to go.
+    Whatever of it cannot be read as a place, names this place, or names one a second time is
+    dropped rather than the whole step: a file edited by hand holds whatever somebody typed,
+    and the places that are readable are still where somebody meant the turn to go.
 
     Args:
       said: The place it is written against, already read.
       to: What was written as where it goes.
-      linked: Every step written as a single string, by the place it was written against.
 
     Returns:
       The places, readable, distinct and none of them this one.
     """
-    if isinstance(to, str):
-        held: list[object] = [reads(to)]
-        # Walked until it comes round or runs out, and only through steps of the same older
-        # spelling: a chain written as a list is a chain somebody wrote whole.
-        while (after := linked.get(cast("str", held[-1]), "")) and after not in held:
-            held.append(after)
-    else:
-        held = cast("list[object]", to) if isinstance(to, list) else []
+    held = cast("list[object]", to) if isinstance(to, list) else []
     onwards: list[str] = []
     for one in held:
         at = reads(one) if isinstance(one, str) else ""
@@ -686,8 +673,8 @@ def _counted(said: object) -> int:
     """One count as it was written down, and none at all for anything that is not one."""
     try:
         # OverflowError beside the rest because a file holds whatever somebody typed, and a
-        # number too big to be a count is one of the things they can type: `Infinity`, which
-        # `json` reads, and `1e400`, which is JSON and comes back as the same infinity. A
+        # number too big to be a count is one of the things they can type: `.inf`, which
+        # YAML reads as infinity, and `1.0e+400`, which comes back as the same one. A
         # count nothing can be made of is no count rather than the end of every run here.
         held = int(cast("int", said))
     except (OverflowError, TypeError, ValueError):
@@ -718,35 +705,26 @@ def _keeps(step: Falls) -> Falls:
     Returns:
       It, so that whoever asked for the change is holding what was written.
     """
-    kept = [one for one in falls() if one.spec != step.spec]
-    if step.says():
-        kept.append(step)
-    _writes(kept)
+
+    def change(held: dict[str, Any]) -> None:
+        kept = [one for one in _read(held.get(_HELD)) if one.spec != step.spec]
+        if step.says():
+            kept.append(step)
+        held[_HELD] = _written(kept)
+
+    settings.changes(change)
     return step
 
 
-def _writes(steps: Iterable[Falls]) -> None:
-    """Writes every step out whole, so that a file read while it is written is one of the two.
-
-    Args:
-      steps: What to write down.
-    """
-    at = home() / _HELD
-    at.parent.mkdir(parents=True, exist_ok=True)
-    said = (
-        json.dumps(
-            [
-                {
-                    "spec": one.spec,
-                    "to": list(one.to),
-                    "tries": one.tries,
-                    "policy": one.policy,
-                    "timeout": one.timeout,
-                }
-                for one in steps
-            ],
-            indent=2,
-        )
-        + "\n"
-    )
-    atomic.writes(at, said, mode=0o600)
+def _written(steps: Iterable[Falls]) -> list[dict[str, Any]]:
+    """Every step as the settings hold it."""
+    return [
+        {
+            "spec": one.spec,
+            "to": list(one.to),
+            "tries": one.tries,
+            "policy": one.policy,
+            "timeout": one.timeout,
+        }
+        for one in steps
+    ]

@@ -153,7 +153,6 @@ def test_an_environment_kept_the_old_way_is_read_and_written_as_e_spells_it_now(
     from hmz.coganchor.machines import store
     from hmz.coganchor.machines.store import SSHRuntime
 
-    store.add(SSHRuntime(name="gpu", host="10.0.0.2"))
     kept = {
         "workspaces": {
             str(tmp_path.resolve()): {
@@ -178,6 +177,7 @@ def test_an_environment_kept_the_old_way_is_read_and_written_as_e_spells_it_now(
     file = home() / "settings.yaml"
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_text(yaml.safe_dump(kept))
+    store.add(SSHRuntime(name="gpu", host="10.0.0.2"))  # into the same file
 
     now = {
         "here": "local/srv/x",

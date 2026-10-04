@@ -320,8 +320,7 @@ type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime | AppleContainerRuntime
 def affine(entry: str) -> tuple[str, str] | None: ...  # (backend, name), None for self/local
 def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint: ...
 def node_of(via: str) -> str: ...  # ssh:<name> for a saved ssh runtime, else ssh://<via>
-def under() -> Path: ...
-def where(backend: str, name: str) -> Path: ...
+def saved(backend: str, name: str) -> bool: ...  # written down, whether or not it reads
 def new(backend: str, name: str, **fields: Any) -> Runtime: ...
 def runtimes(backend: str = "") -> list[Runtime]: ...
 def find(backend: str, name: str) -> Runtime | None: ...
@@ -437,13 +436,9 @@ def hosts(
   this Mac's Apple containers -- that a flow's
   environment is put on when an `-e` names it. It MUST NOT be anything a flow sees: a flow's
   environments stay `Env`s whatever runtime they were put on.
-- One runtime MUST be one directory under `~/.hmz/runtimes/<backend>/<name>/`,
-  holding `runtime.json`, this user's alone at every level and written whole. The backend and
-  the name MUST be where it is kept, whatever the file says.
-- What was written down as environment providers, under `~/.hmz/env-providers/` in
-  `provider.json`, MUST still be found: where `runtimes/` is not there, the first look for it
-  MUST move `env-providers/` there whole, in one rename; a `provider.json` MUST be read where
-  there is no `runtime.json`, and MUST be gone once that runtime is written again.
+- One runtime MUST be one entry under `runtimes: <backend>: <name>:` in humanize's settings
+  file, written as `hmz.coganchor.settings` writes every part of it. The backend and the name
+  MUST be where it is kept, whatever the entry says.
 - A name MUST be one path component of letters, digits, dot, dash and underscore; anything else
   MUST be refused where it is given and MUST NOT be listed. A runtime that cannot be read, or
   that no runtime could be, MUST NOT be listed either.

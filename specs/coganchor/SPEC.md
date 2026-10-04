@@ -249,6 +249,12 @@ def named(policy: str) -> Policy | None: ...
 def answers(fault: str) -> Answer: ...
 def waits(policy: str, attempt: int, base: float = BASE) -> float: ...
 
+# settings.py -- humanize's one settings file: everything `/settings` sets, in `settings.yaml`
+def where() -> pathlib.Path: ...
+def reading() -> dict[str, Any] | None: ...  # None for a file there that is no mapping
+def read() -> dict[str, Any]: ...  # and nothing for one
+def changes(change: Callable[[dict[str, Any]], None]) -> dict[str, Any]: ...
+
 # proto.py -- the wire, and the only module of this package the serving half may name
 PROTOCOL_VERSION: int
 CHUNK_SIZE: int
@@ -519,9 +525,7 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   read under a backend's own accounting of the turn.
 - A place MUST be `CLI[@ACCOUNT]/MODEL` and no more; one naming a CLI no backend answers to MUST be
   refused where written; a place's chain MUST be an ordered list of places, never its own place
-  and never one place twice, `points` raising `ValueError` for either and for one it cannot read,
-  and a single place written as a string by an older humanize MUST read as that place and each
-  place the older rows went on to from it, which is the chain such a file walked;
+  and never one place twice, `points` raising `ValueError` for either and for one it cannot read;
   `chain` MUST answer with that place first and then its own chain, and with that place alone
   where it heads none -- however many chains it is a step of -- never walking on to the chains of
   the places on it; and nothing MUST be retried by default, `answers` answering for a fault
@@ -534,3 +538,10 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   a new session, MUST carry the skills the flow gave the agent it left, and MUST be answered back
   through the session that asked. A stand-in MUST be configured exactly as the agent that could not
   run was; a setting the CLI taking over cannot be told MUST make it no stand-in.
+- Everything `/settings` sets but an account MUST be kept in the one file `settings.where`
+  names, `settings.yaml` in humanize's home, and in no file of its own: the chains a failed turn
+  falls back along under `fallbacks`, the CLIs added by hand under `clis` and the runtimes under
+  `runtimes`, beside what `runtime` keeps there. Every write MUST make its own change to the file as it is under a lock
+  every writer takes, leaving every other part as it found it, MUST put the file in place whole,
+  MUST leave a new one this user's alone and one already there the mode it has, and MUST NOT
+  write over one that cannot be read.

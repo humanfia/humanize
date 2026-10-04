@@ -18,7 +18,7 @@ from textual import events
 from textual.content import Content
 from textual.widgets import Button, Label, OptionList, Static
 
-from hmz.coganchor import providers
+from hmz.coganchor import providers, settings
 from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
@@ -953,7 +953,7 @@ def test_what_an_agent_runs_as_is_kept_and_read_back(tmp_path: Path) -> None:
         "actor": Runs("claude/m:high", "deepseek"),
         "reviewer": Runs("codex/n:low"),
     }
-    held = Settings(tmp_path)._read()
+    held = settings.read()
     agents = held["workspaces"][str(tmp_path.resolve())]["flows"]["rlar"]["agents"]
     assert agents["actor"] == "claude@deepseek/m:high"
     # An agent nobody named one for says nothing -- and reads back as this machine's own.

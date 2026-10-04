@@ -16,6 +16,7 @@ from typing import cast
 
 import pytest
 
+from hmz.coganchor import settings
 from hmz.coganchor.machines import AnchoredConfig, gpus_listed, store
 from hmz.coganchor.machines.docker import CDI, Allocation
 from hmz.coganchor.transport import Endpoint, Target
@@ -477,9 +478,8 @@ def test_a_docker_runtime_nobody_wrote_down_is_refused() -> None:
 
 
 def test_a_docker_runtime_that_cannot_be_read_says_so() -> None:
-    at = store.where("docker", "broken")
-    at.mkdir(parents=True)
-    (at / "runtime.json").write_text("{")
+    settings.where().parent.mkdir(parents=True, exist_ok=True)
+    settings.where().write_text("runtimes:\n  docker:\n    broken: [not, a, runtime]\n")
     (spec,) = parse_envs(["box=docker@broken/srv/x"])
 
     with pytest.raises(EnvUnavailable, match="cannot be read"):

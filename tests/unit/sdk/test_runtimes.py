@@ -38,7 +38,8 @@ def test_a_runtime_made_from_here_is_one_the_store_reads_back() -> None:
     assert envs.find("ssh", "gpu") == made
     assert envs.all() == [made, box]
     assert envs.all("docker") == [box]
-    assert envs.where("ssh", "gpu") == made.at
+    assert envs.saved("ssh", "gpu")
+    assert not envs.saved("ssh", "elsewhere")
 
 
 def test_a_name_already_taken_is_refused_by_add_and_written_over_by_write() -> None:

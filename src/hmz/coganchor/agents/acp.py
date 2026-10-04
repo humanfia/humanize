@@ -1355,15 +1355,15 @@ class AcpAgent(AgentBase):
         fence = config.fence
         if fence is None or fence.online or fence.hosts:
             return
-        from hmz.coganchor import backends
+        from hmz.coganchor import backends, settings
 
         cli = getattr(config, "cli", "") or self.backend
         if backends.declared(cli)[0]:
             return
         raise Unfenced(
             f"{cli}: this permission cuts the network, and nothing says which hosts {cli}'s "
-            f"model is at to leave it; declare them where it was added, in "
-            f"{backends._spoken()}, as "  # noqa: SLF001 -- where it was added
-            f'"{cli}": {{"command": [...], "hosts": ["api.example.com"], '
-            f'"state": ["~/.{cli}"]}} -- or grant it online ALL'
+            f"model is at to leave it; declare them where it was added, under clis in "
+            f"{settings.where()}, as "
+            f"{cli}: {{command: [...], hosts: [api.example.com], "
+            f"state: [~/.{cli}]}} -- or grant it online ALL"
         )

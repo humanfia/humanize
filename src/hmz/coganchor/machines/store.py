@@ -6,12 +6,8 @@ daemon with the resources it may hand out, a docker swarm whose manager schedule
 each environment onto whichever of its nodes has room, or this Mac's Apple containers with the
 share of it they may have. A flow's environment is put on one
 when an `-e` names it, and moved down the runtimes it falls back to where it cannot be held
-there. One directory per runtime, under
-`~/.hmz/runtimes/<backend>/<name>/`, holding `runtime.json`.
-
-They were once kept under `~/.hmz/env-providers/`, each in a `provider.json`; the first
-look for them moves that directory where they are kept now, and one still in a `provider.json`
-is read from it until it is next written.
+there. One entry per runtime, under `runtimes: <backend>: <name>:` in humanize's settings,
+beside everything else `/settings` sets.
 
 Nothing here reaches a machine. What one is when it is asked is
 :mod:`hmz.runtime.doing.runtimes`'s, and reading the user's ssh config is
@@ -21,18 +17,14 @@ what is in each".
 
 from __future__ import annotations
 
-import contextlib
 import dataclasses
-import json
 import os
 import re
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from hmz import home
-from hmz.coganchor import atomic
+from hmz.coganchor import settings
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -66,8 +58,7 @@ __all__ = [
     "remove",
     "respelled",
     "runtimes",
-    "under",
-    "where",
+    "saved",
     "write",
 ]
 
@@ -92,12 +83,8 @@ IMPORTED = "imported"
 #: reads as something else, which cannot climb out of the directory it names.
 _NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 
-#: What the file a runtime is written down in is called.
-_HELD = "runtime.json"
-
-#: What it was called when a runtime was an environment provider, read where it is still all
-#: there is.
-_WAS = "provider.json"
+#: Where in humanize's settings the runtimes are written down, by backend and then by name.
+_HELD = "runtimes"
 
 #: A host, a login or an ssh config alias: a word `ssh` takes as one, never read as an option.
 _WORD = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._%+-]*\Z")
@@ -321,8 +308,8 @@ class SSHRuntime:
 
     @property
     def at(self) -> Path:
-        """The directory it is kept in."""
-        return where(SSH, self.name)
+        """The file it is kept in."""
+        return settings.where()
 
     def destination(self) -> str:
         """What `ssh` is given to connect to: the alias where there is one, else the host."""
@@ -454,8 +441,8 @@ class DockerRuntime:
 
     @property
     def at(self) -> Path:
-        """The directory it is kept in."""
-        return where(DOCKER, self.name)
+        """The file it is kept in."""
+        return settings.where()
 
     def daemon(self) -> Endpoint:
         """The daemon this one is, as every `docker` for it is pointed at it.
@@ -580,8 +567,8 @@ class SwarmRuntime:
 
     @property
     def at(self) -> Path:
-        """The directory it is kept in."""
-        return where(SWARM, self.name)
+        """The file it is kept in."""
+        return settings.where()
 
     def daemon(self) -> Endpoint:
         """The manager's daemon, as every `docker` for the swarm is pointed at it.
@@ -689,8 +676,8 @@ class AppleContainerRuntime:
 
     @property
     def at(self) -> Path:
-        """The directory it is kept in."""
-        return where(APPLE_CONTAINER, self.name)
+        """The file it is kept in."""
+        return settings.where()
 
     def held(self) -> dict[str, Any]:
         """It as it is written down."""
@@ -803,37 +790,29 @@ def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
 # ---------------------------------------------------------------------------- the store
 
 
-def under() -> Path:
-    """Where every runtime is kept, whether or not anything is.
-
-    Where they were kept when they were environment providers is moved here the first time
-    this is asked and nothing is here yet: in one rename, so that a second asking at the same
-    moment finds either all of them here or none moved.
-    """
-    at = home() / "runtimes"
-    if not at.exists():
-        with contextlib.suppress(OSError):  # nothing to move, or moved a moment ago
-            (home() / "env-providers").rename(at)
-    return at
-
-
-def where(backend: str, name: str) -> Path:
-    """The directory one runtime is kept in.
+def saved(backend: str, name: str) -> bool:
+    """Whether a runtime of a backend is written down under a name, whether or not it reads.
 
     Args:
       backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM` or :data:`APPLE_CONTAINER`.
       name: What the runtime is called.
 
-    Returns:
-      The path, whether or not anything is there yet.
-
     Raises:
       ValueError: If the backend is not one of them, or the name is not one a runtime may
-        have.
+        have -- which is what asks it of a name before it is made.
     """
     if backend not in BACKENDS:
         raise ValueError(f"{backend!r} is not a runtime backend: {', '.join(BACKENDS)}")
-    return under() / backend / _named(name)
+    return _named(name) in _of(settings.read(), backend)
+
+
+def _of(held: dict[str, Any], backend: str) -> dict[str, Any]:
+    """The runtimes of one backend in one reading of the settings, by name."""
+    kept = held.get(_HELD)
+    found = (
+        cast("dict[str, Any]", kept).get(backend) if isinstance(kept, dict) else None
+    )
+    return cast("dict[str, Any]", found) if isinstance(found, dict) else {}
 
 
 def new(backend: str, name: str, **fields: Any) -> Runtime:
@@ -909,23 +888,21 @@ def runtimes(backend: str = "") -> list[Runtime]:
         for every one.
 
     Returns:
-      One apiece, by backend and then by name. A directory holding nothing readable, or
-      under a name no runtime could be made under, is not one and is left out.
+      One apiece, by backend and then by name. An entry holding nothing readable, or under
+      a name no runtime could be made under, is not one and is left out.
     """
+    kept = settings.read()
     held: list[Runtime] = []
     for kind in BACKENDS:
         if backend and kind != backend:
             continue
-        try:
-            names = sorted(
-                one.name for one in (under() / kind).iterdir() if one.is_dir()
-            )
-        except OSError:
-            continue
         held.extend(
             one
-            for named in names
-            if _NAMED.match(named) and (one := _read(kind, named)) is not None
+            for named, said in sorted(
+                ((str(each), said) for each, said in _of(kept, kind).items()),
+                key=lambda one: one[0],
+            )
+            if _NAMED.match(named) and (one := _read(kind, named, said)) is not None
         )
     return held
 
@@ -934,7 +911,7 @@ def find(backend: str, name: str) -> Runtime | None:
     """The runtime of a backend called this, or None -- for a name none could have too."""
     if backend not in BACKENDS or not _NAMED.match(name):
         return None
-    return _read(backend, name)
+    return _read(backend, name, _of(settings.read(), backend).get(name))
 
 
 def fallbacks(backend: str, name: str) -> tuple[tuple[str, str], ...]:
@@ -995,7 +972,7 @@ def respelled(spec: str) -> str:
     if backend not in BACKENDS or not provider or provider.startswith("["):
         return spec
     try:
-        if where(backend, provider).exists():
+        if saved(backend, provider):
             return spec
     except ValueError:
         pass  # a name no runtime may have, which a destination like `me@box` is
@@ -1004,18 +981,12 @@ def respelled(spec: str) -> str:
     return f"{backend}{at}" if provider == "local" else spec
 
 
-def _read(backend: str, name: str) -> Runtime | None:
+def _read(backend: str, name: str, said: object) -> Runtime | None:
     """One runtime read back, or None where nothing readable is there.
 
-    The backend and the name are where it is kept, whatever the file says: the place is the
-    answer, and the file only describes it.
+    The backend and the name are where it is kept, whatever the entry says: the place is the
+    answer, and the entry only describes it.
     """
-    kept = under() / backend / name
-    try:
-        held = kept / _HELD if (kept / _HELD).exists() else kept / _WAS
-        said = json.loads(held.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
     if not isinstance(said, dict):
         return None
     fields = {
@@ -1059,10 +1030,17 @@ def write(runtime: Runtime) -> Runtime:
         _here(runtime.config, "the config file")
     elif not isinstance(runtime, AppleContainerRuntime):
         _here(runtime.tls_dir, "the TLS directory")
-    at = where(runtime.backend, runtime.name)
-    _kept(at)
-    _writes(at / _HELD, json.dumps(runtime.held(), indent=2) + "\n")
-    (at / _WAS).unlink(missing_ok=True)
+    saved(runtime.backend, runtime.name)  # which refuses a name no runtime may have
+    entry = {
+        key: value
+        for key, value in runtime.held().items()
+        if key not in ("backend", "name")
+    }
+
+    def change(held: dict[str, Any]) -> None:
+        _making(_making(held, _HELD), runtime.backend)[runtime.name] = entry
+
+    settings.changes(change)
     return runtime
 
 
@@ -1075,28 +1053,24 @@ def remove(backend: str, name: str) -> bool:
     Raises:
       ValueError: If the backend or the name is not one there could be.
     """
-    at = where(backend, name)
-    if not at.is_dir():
+    if not saved(backend, name):
         return False
-    shutil.rmtree(at)
-    return True
+    found: list[bool] = []
+
+    def change(held: dict[str, Any]) -> None:
+        kept = _of(held, backend)
+        found.append(name in kept)
+        kept.pop(name, None)
+
+    settings.changes(change)
+    return any(found)
 
 
-def _kept(at: Path) -> None:
-    """Makes a directory and every one above it that is missing, each this user's alone."""
-    made: list[Path] = []
-    for one in (at, *at.parents):
-        if one.exists():
-            break
-        made.append(one)
-    for one in reversed(made):
-        one.mkdir(exist_ok=True)
-        one.chmod(0o700)  # set rather than asked for, which the umask would take from
-
-
-def _writes(at: Path, said: str, mode: int = 0o600) -> None:
-    """Writes a file whole, readable by its owner alone from the moment it exists."""
-    atomic.writes(at, said, mode=mode)
+def _making(held: dict[str, Any], key: str) -> dict[str, Any]:
+    """One mapping in another, made where it is not there or is not a mapping."""
+    if not isinstance(held.get(key), dict):
+        held[key] = {}
+    return cast("dict[str, Any]", held[key])
 
 
 # ------------------------------------------------------------------------ an ssh config

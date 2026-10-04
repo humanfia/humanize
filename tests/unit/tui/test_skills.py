@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from hmz.coganchor import settings
 from hmz.coganchor.agents.skills import Skill, skills
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
@@ -257,7 +258,7 @@ def test_a_workspace_writes_down_no_skills_of_its_own(tmp_path: Path) -> None:
     kept.remember("rlar", {"actor": Runs("claude/m:high")})
 
     assert Settings(tmp_path).agents("rlar") == {"actor": Runs("claude/m:high")}
-    held = Settings(tmp_path)._read()
+    held = settings.read()
     agents = held["workspaces"][str(tmp_path.resolve())]["flows"]["rlar"]["agents"]
     assert agents["actor"] == "claude/m:high"  # the word `-a` takes, and nothing else
 

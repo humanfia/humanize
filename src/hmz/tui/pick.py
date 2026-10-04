@@ -5740,15 +5740,19 @@ class Fallbacks(Pages):
         held = {one.spec: one for one in self._steps}
         for gone in was:
             if gone not in held:
-                steps.clear(gone)
-                told.append(f"[dim]{escape(gone)} has no fallback[/dim]")
+                try:
+                    steps.clear(gone)
+                except OSError as why:  # settings that cannot be read, or written
+                    told.append(f"hmz: {escape(str(why))}")
+                else:
+                    told.append(f"[dim]{escape(gone)} has no fallback[/dim]")
         for said, step in held.items():
             if was.get(said) == step:
                 continue
             try:
                 steps.points(said, step.to)
                 steps.retrying(said, step.tries, step.policy, step.timeout)
-            except ValueError as why:
+            except (OSError, ValueError) as why:
                 told.append(f"hmz: {escape(str(why))}")
             else:
                 told.append(f"[dim]{escape(said)} {escape(_falling(step))}[/dim]")
@@ -8384,7 +8388,7 @@ def _saved_as(backend: str, name: str) -> bool:
       Whether something is kept there.
     """
     try:
-        return _hmz().runtimes.where(backend, name).exists()
+        return _hmz().runtimes.saved(backend, name)
     except ValueError:
         return False  # a name no runtime may have, which a host like `me@box` is
 

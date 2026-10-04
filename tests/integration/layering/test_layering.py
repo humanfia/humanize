@@ -84,8 +84,14 @@ ALLOWED: dict[str, set[str]] = {
     # interface writes them and a command line has to be able to read them without loading
     # the interface to do it -- and it names `kept` because an agent is written down the
     # same way wherever it is written down. And it names the runtimes' store, for the one
-    # thing an environment kept the old way turns on: whether the name it holds is saved.
-    "hmz.runtime.settings": {"hmz.runtime.kept", "hmz.coganchor.machines.store"},
+    # thing an environment kept the old way turns on: whether the name it holds is saved --
+    # and the file itself, which is `coganchor`'s, since the fallbacks, the CLIs added by hand
+    # and the runtimes `coganchor` keeps are written into it too.
+    "hmz.runtime.settings": {
+        "hmz.runtime.kept",
+        "hmz.coganchor.machines.store",
+        "hmz.coganchor.settings",
+    },
     # What humanize reports about itself, which every layer may do and none of them may be
     # reached into to do: what goes with a report is handed over as a callable by whoever
     # knows it. So this names only the setting that says whether to report at all.

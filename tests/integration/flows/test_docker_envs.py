@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz import machine
 from hmz.coganchor.machines import store
 from hmz.flows import EnvBackendKind
 from hmz.runtime import Refused
@@ -323,7 +324,7 @@ def test_a_lock_per_runtime_is_held_beside_the_runtimes(
         workspace=tmp_path,
     ).run("go")
 
-    assert (store.under() / "docker" / ".gpubox.lock").is_file()
+    assert (machine() / ".docker.gpubox.lock").is_file()
     assert [one.name for one in store.runtimes("docker")] == ["gpubox"]
 
 

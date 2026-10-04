@@ -367,7 +367,7 @@ def _saved(backend: str, name: str) -> bool:
     from hmz.coganchor.machines import store
 
     try:
-        return store.where(str(backend), name).exists()
+        return store.saved(str(backend), name)
     except ValueError:
         return False  # a backend nothing is saved for, or a name no runtime may have
 

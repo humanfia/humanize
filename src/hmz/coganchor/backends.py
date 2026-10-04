@@ -26,7 +26,7 @@ import time
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -2342,30 +2342,22 @@ PROFILES = (
 )
 
 
-#: Where the CLIs somebody added themselves are written down, under humanize's own home. A
-#: file rather than a setting of one workspace: a CLI is installed on a machine, and a flow
+#: Where in humanize's settings the CLIs somebody added themselves are written down. A setting
+#: of the machine rather than of one workspace: a CLI is installed on a machine, and a flow
 #: run in the next directory along is run against the same one.
 #:
 #: One entry per CLI, by name: the command that starts it, as a list -- or, for a CLI to be
-#: held to a flow's permission, an object whose `command` is that list, whose `hosts` are
+#: held to a flow's permission, a mapping whose `command` is that list, whose `hosts` are
 #: what it cannot take a turn without reaching while the flow grants no network, and whose
 #: `state` is where it keeps what it writes as it runs. The protocol says neither, so they are
 #: the person's to write down; see :func:`declared`.
-_SPOKEN = "acp.json"
+_SPOKEN = "clis"
 
 
-def _spoken() -> Path:
-    """Where the added CLIs are kept."""
-    from hmz import home
-
-    return home() / _SPOKEN
-
-
-#: What was read out of the added-backends file last time, and the moment the file carried
-#: then. Held because this is asked far more often than it changes: every turn builds a
-#: watchdog, every keystroke of a sheet that lists backends asks again, and each ask was
-#: opening and parsing the file afresh. Re-read when the file under it has moved, which is
-#: what `remember` and `forget` do -- the only two things that write it.
+#: What was read out of the settings last time, and the moment the file carried then. Held
+#: because this is asked far more often than it changes: every turn builds a watchdog, every
+#: keystroke of a sheet that lists backends asks again, and each ask was opening and parsing
+#: the file afresh. Re-read when the file under it has moved, which every write of it does.
 _added: dict[str, tuple[str, ...]] | None = None
 _added_at: tuple[int, int] | None = None
 #: What each of those was declared to reach and to keep, read in the same pass.
@@ -2387,10 +2379,12 @@ def speaking() -> dict[str, tuple[str, ...]]:
       at all where none has been added or where what was written cannot be read back -- a
       file nobody can read is a list to fill rather than a reason to refuse to start.
     """
-    import json
+    # Read where it is asked, never at import: the settings are YAML, which is not the
+    # standard library's to read.
+    from hmz.coganchor import settings
 
     global _added, _added_at, _declared
-    at = _spoken()
+    at = settings.where()
     try:
         moved = at.stat()
         stamp = (moved.st_mtime_ns, moved.st_size)
@@ -2400,11 +2394,7 @@ def speaking() -> dict[str, tuple[str, ...]]:
         return {}
     if _added is not None and stamp == _added_at:
         return _added
-    try:
-        held = json.loads(at.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        _added, _added_at, _declared = {}, stamp, {}
-        return {}
+    held = settings.read().get(_SPOKEN)
     if not isinstance(held, dict):
         _added, _added_at, _declared = {}, stamp, {}
         return {}
@@ -2421,8 +2411,11 @@ def speaking() -> dict[str, tuple[str, ...]]:
             continue
         given = tuple(str(one) for one in cast("list[object]", argv))
         if given:
-            found[name] = given
-            declared[name] = (_strings(said.get("hosts")), _strings(said.get("state")))
+            found[str(name)] = given
+            declared[str(name)] = (
+                _strings(said.get("hosts")),
+                _strings(said.get("state")),
+            )
     _added, _added_at, _declared = found, stamp, declared
     return found
 
@@ -2447,25 +2440,44 @@ def declared(name: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     return _declared.get(name, ((), ()))
 
 
-def _write(held: Mapping[str, Sequence[str]]) -> None:
-    """Writes the added CLIs down, keeping what each was declared to need."""
-    import json
+def _write(name: str, argv: Sequence[str] | None) -> bool:
+    """Writes one added CLI down, or takes it away, and every other as the file has it now.
 
-    from hmz.coganchor import atomic
+    Args:
+      name: What it was added under.
+      argv: The command that starts it, keeping what it was declared to need; None to take
+        it away.
 
-    entries: dict[str, object] = {}
-    for one, argv in held.items():
-        hosts, state = declared(one)
-        entries[one] = (
-            {"command": list(argv), "hosts": list(hosts), "state": list(state)}
-            if hosts or state
-            else list(argv)
+    Returns:
+      Whether it was there already.
+    """
+    from hmz.coganchor import settings
+
+    found: list[bool] = []
+
+    def change(settled: dict[str, Any]) -> None:
+        held = settled.get(_SPOKEN)
+        entries = (
+            dict(cast("dict[str, object]", held)) if isinstance(held, dict) else {}
         )
-    at = _spoken()
-    at.parent.mkdir(parents=True, exist_ok=True)
-    # Whole and then moved into place, so that a list read while it is being written is
-    # either the old one or the new one and never half of each.
-    atomic.writes(at, json.dumps(entries, indent=2) + "\n")
+        found.append(name in entries)
+        was = entries.pop(name, None)
+        said = cast("dict[str, object]", was) if isinstance(was, dict) else {}
+        hosts, state = _strings(said.get("hosts")), _strings(said.get("state"))
+        if argv is None:
+            pass
+        elif hosts or state:
+            entries[name] = {
+                "command": list(argv),
+                "hosts": list(hosts),
+                "state": list(state),
+            }
+        else:
+            entries[name] = list(argv)
+        settled[_SPOKEN] = entries
+
+    settings.changes(change)
+    return any(found)
 
 
 def remember(name: str, command: Sequence[str]) -> str:
@@ -2493,6 +2505,7 @@ def remember(name: str, command: Sequence[str]) -> str:
       ValueError: If it has no command, if it was called something the command is not, or if
         it would shadow a backend humanize already drives -- two backends answering to one
         name is a name nobody can resolve.
+      OSError: If the settings cannot be read, or written.
     """
     named_as = name.strip()
     argv = [str(one) for one in command if str(one).strip()]
@@ -2512,9 +2525,7 @@ def remember(name: str, command: Sequence[str]) -> str:
             f"an added CLI is called what it runs, so {argv[0]} is added as {runs} "
             f"rather than as {named_as}"
         )
-    held = dict(speaking())
-    held[named_as] = tuple(argv)
-    _write(held)
+    _write(named_as, argv)
     return named_as
 
 
@@ -2526,13 +2537,13 @@ def forget(name: str) -> bool:
 
     Returns:
       Whether there was one to take away.
+
+    Raises:
+      OSError: If the settings cannot be read, or written.
     """
-    held = dict(speaking())
-    if name not in held:
+    if name not in speaking():
         return False
-    del held[name]
-    _write(held)
-    return True
+    return _write(name, None)
 
 
 #: What is assumed about a backend nothing at all is written down about -- a stand-in written

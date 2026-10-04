@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from hmz import home
+from hmz.coganchor import settings
 from hmz.coganchor.machines import AppleContainerConfig, apple_container, store
 from hmz.coganchor.machines.store import AppleContainerRuntime, DockerRuntime
 from hmz.coganchor.transport import CONTAINER_CACHE, Road, Target
@@ -41,7 +41,7 @@ def test_a_runtime_of_apple_containers_is_read_back_as_it_was_written_down() -> 
     store.add(written)
 
     assert store.find("apple-container", "mac") == written
-    assert written.at == home() / "runtimes" / "apple-container" / "mac"
+    assert written.at == settings.where()
     assert written.held()["backend"] == "apple-container"
     assert store.runtimes("apple-container") == [written]
     held = {k: v for k, v in written.held().items() if k not in ("backend", "name")}

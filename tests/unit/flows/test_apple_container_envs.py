@@ -14,6 +14,7 @@ from typing import Any, cast
 
 import pytest
 
+from hmz.coganchor import settings
 from hmz.coganchor.machines import AnchoredConfig, apple_container, store
 from hmz.coganchor.machines.docker import Allocation
 from hmz.coganchor.transport import Target
@@ -120,9 +121,10 @@ def test_a_runtime_nobody_wrote_down_is_refused() -> None:
 
 
 def test_a_runtime_that_cannot_be_read_says_so() -> None:
-    at = store.where("apple-container", "broken")
-    at.mkdir(parents=True)
-    (at / "runtime.json").write_text("{")
+    settings.where().parent.mkdir(parents=True, exist_ok=True)
+    settings.where().write_text(
+        "runtimes:\n  apple-container:\n    broken: [not, a, runtime]\n"
+    )
     (spec,) = parse_envs(["box=apple-container@broken/srv/x"])
 
     with pytest.raises(EnvUnavailable, match="cannot be read"):

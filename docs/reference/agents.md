@@ -529,7 +529,7 @@ fence, for these reasons:
 | `mimo`, `opencode` | neither confines its shell; the permission table additionally denies `edit` outside writable paths, `read`/`external_directory` outside readable ones (only where `system` is `NONE`), and web tools where `online` is `NONE` |
 | `pi` | no gate and no sandbox; `--offline` under `online` `NONE` |
 | `qwen` | `--sandbox` is a container or Seatbelt; its rules hold its own tools only; generated settings live under one `hmz-qwen-*` temporary directory granted read-only |
-| an ACP CLI | nothing is known of it; declared `hosts` and `state` in `acp.json` are granted |
+| an ACP CLI | nothing is known of it; declared `hosts` and `state` under `clis` in `settings.yaml` are granted |
 
 ### When a fence is refused {#when-a-fence-is-refused}
 
@@ -1083,7 +1083,7 @@ place, in the same conversation, and then each place of the fallback chain, in o
 ### Retries
 
 A place is `CLI[@ACCOUNT]/MODEL` (`agent.spec`). Retries are set per place in
-`$HUMANIZE_HOME/fallbacks.json`, by `Hmz().fallbacks.retrying(place, tries, policy, timeout)` or
+`fallbacks` in `$HUMANIZE_HOME/settings.yaml`, by `Hmz().fallbacks.retrying(place, tries, policy, timeout)` or
 the Fallback page of `/settings`. Nothing is retried by default.
 
 | Policy | Waits (base 1 s, each capped at 60 s) |
@@ -1482,20 +1482,18 @@ one.
 
 Any agent speaking the [Agent Client Protocol](https://agentclientprotocol.com) can be added as
 a backend, from the TUI (`/settings accounts` → `add a custom CLI`) or with
-`backends.remember(name, command)`. It is written to `$HUMANIZE_HOME/acp.json` and is a backend
-in every workspace from the next prompt.
+`backends.remember(name, command)`. It is written under `clis` in
+`$HUMANIZE_HOME/settings.yaml` and is a backend in every workspace from the next prompt.
 
-`acp.json` is a JSON object keyed by name; each value is the command (an array of strings), or
-an object:
+`clis` is a mapping keyed by name; each value is the command (a list of strings), or a
+mapping:
 
-```json
-{
-  "my-agent": {
-    "command": ["my-agent", "--acp"],
-    "hosts": ["api.my-agent.example"],
-    "state": ["~/.my-agent"]
-  }
-}
+```yaml
+clis:
+  my-agent:
+    command: [my-agent, --acp]
+    hosts: [api.my-agent.example]
+    state: [~/.my-agent]
 ```
 
 | Key | Meaning |
@@ -1505,7 +1503,7 @@ an object:
 | `state` | paths it writes its state to, granted whatever `user` says; none: nothing of the home is writable |
 
 `backends.declared(name)` returns `(hosts, state)`; `backends.forget(name)` removes one. An
-unreadable file reads as no added CLIs.
+unreadable settings file reads as no added CLIs.
 
 | `remember` refusal | `ValueError` message |
 | --- | --- |
@@ -1603,7 +1601,7 @@ The variables the agent layer reads or sets. Every variable humanize reads is li
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
-| `HUMANIZE_HOME` | everything | humanize's home (default `~/.hmz`): `providers/`, `sessions/`, `acp.json`, `fallbacks.json`, `prices.json`, `compiled/` |
+| `HUMANIZE_HOME` | everything | humanize's home (default `~/.hmz`): `settings.yaml`, `providers/`, `sessions/`, `prices.json`, `compiled/` |
 | `HUMANIZE_WATCHDOG` | the watchdog | seconds of silence allowed; `0` or less disables it |
 | `HUMANIZE_SESSIONS` | session keeping | `off`, `0` or `no`: sessions stay in the CLI's home |
 | `HUMANIZE_PRICES` | `prices` | the price list's URL or path; `off`, `0`, `no`, `none` or empty disables fetching |
