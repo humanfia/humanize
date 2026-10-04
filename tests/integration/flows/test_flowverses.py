@@ -499,7 +499,7 @@ def test_an_installed_flow_is_offered_under_the_name_of_the_index_it_came_out_of
 
 
 def test_an_installed_flow_runs_by_that_name(theirs: Path) -> None:
-    """Which is the whole point of installing one: `-f theirs/loop` is a flow to run."""
+    """Which is the whole point of installing one: `-f @theirs/loop` is a flow to run."""
     from hmz.runtime.flowing.fakes import FakeAgentDriver, run_fake
 
     store.add(str(theirs))
