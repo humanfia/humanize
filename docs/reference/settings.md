@@ -13,7 +13,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | accounts | `H/providers/<cli>/<name>/provider.json`, `H/acp.json` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
 | runtimes | `H/runtimes/{ssh,docker}/<name>/runtime.json` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
 | fallbacks | `H/fallbacks.json` | this machine | Fallback | [Files](/reference/files#h-fallbacks-json) |
-| flowverses | `H/flowverses/<name>/` (index clones), `H/installed/<name>/<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
+| flowverses | `H/flowverses/<name>/index/` (index clones), `H/flowverses/<name>/installed/<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
 
 `H` is `$HUMANIZE_HOME`, else `~/.hmz`. A workspace is identified by its absolute,
 symlink-resolved path.

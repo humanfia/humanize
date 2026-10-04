@@ -413,11 +413,13 @@ def test_a_fenced_turn_takes_the_lock_beside_its_home_where_its_sessions_are_kep
         home=tmp_path,
     )
 
-    fenced = dict(MiniMaxCodeAgent(replace(_CONFIG, fence=fence))._keeping_swaps())
-    unfenced = dict(MiniMaxCodeAgent(_CONFIG)._keeping_swaps())
+    agents = MiniMaxCodeAgent(replace(_CONFIG, fence=fence)), MiniMaxCodeAgent(_CONFIG)
+    for one in agents:
+        one.keeps = tmp_path / "kept"
+    fenced, unfenced = (dict(one._keeping_swaps()) for one in agents)
 
     lock = f"{home}.lock"
-    assert fenced[lock].endswith("/mcode/minimax.lock")
+    assert fenced[lock] == f"{tmp_path}/kept/mcode/minimax.lock"
     assert lock not in unfenced
     assert f"{home}/v2/sqlite" in unfenced
 
@@ -431,14 +433,14 @@ def _fence(at: Path) -> Fence:
     )
 
 
-def test_a_fenced_turn_keeping_no_session_still_takes_the_lock_where_they_would_be(
+def test_a_fenced_turn_keeping_no_session_takes_the_lock_in_this_machine_s_own_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`HUMANIZE_SESSIONS=off` keeps no session, and the lock is answered all the same."""
+    """An agent no run drives keeps no session, and the lock is answered all the same."""
+    from hmz import machine
     from hmz.coganchor.providers import redirect
 
     monkeypatch.setattr(redirect, "supervises", lambda: True)
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
     home = tmp_path / "minimax"
     monkeypatch.setenv("MINIMAX_DATA_DIR", str(home))
     agent = MiniMaxCodeAgent(replace(_CONFIG, fence=_fence(tmp_path)))
@@ -447,9 +449,9 @@ def test_a_fenced_turn_keeping_no_session_still_takes_the_lock_where_they_would_
     argv = agent.spawned(["mcode", "exec"])
 
     lock = f"{home}.lock"
-    instead = f"{tmp_path}/humanize/sessions/mcode/minimax.lock"
+    instead = str(machine() / "mcode" / "minimax.lock")
     assert dict(agent._keeping_swaps()) == {lock: instead}
-    # One lock for every agent of the run, since they share the one home it guards.
+    # One lock for every agent of the machine, since they share the one home it guards.
     assert dict(other._keeping_swaps()) == {lock: instead}
     # Made before the turn is spawned, which is what lets the lock be made in it.
     assert os.path.isdir(os.path.dirname(instead))  # noqa: PTH112, PTH120

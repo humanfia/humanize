@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -43,7 +45,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.agent
 
 #: Where this machine keeps what each backend last said it runs as whoever is signed into it.
-_KEPT = Path.home() / ".hmz" / "models"
+_KEPT = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}" / "models"
 
 #: One word, no tools: what is being tested is where a turn keeps itself, not what it says.
 _ASKED = "Reply with exactly: OK"
@@ -71,7 +73,7 @@ _CHUNK = 1 << 20
 def _models(cli: str) -> list[tuple[str, str]]:
     """What to try running one backend at, best first, each at the least effort it takes."""
     try:
-        said = json.loads((_KEPT / f"{cli}.json").read_text(encoding="utf-8"))
+        said = json.loads((_KEPT / cli / "_local.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pytest.skip(f"nothing has asked {cli} what it runs on this machine")
     held = cast("dict[str, Any]", said) if isinstance(said, dict) else {}

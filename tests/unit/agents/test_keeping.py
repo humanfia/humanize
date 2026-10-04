@@ -1,9 +1,9 @@
 """Where an agent's sessions are kept, and what a turn of it is spawned as to keep them there.
 
-Every session humanize runs is kept in a directory of humanize's own rather than in the CLI's
-home -- the run's epic for an agent a run drives, humanize's home for one driven by hand -- and
-what does the keeping is the supervisor a turn under an account already runs in, answering the
-CLI's session paths and nothing else of its home. What is checked here is the command line that
+Every session a run drives is kept in the run's epic rather than in the CLI's home -- one driven
+by hand is nobody's run, and stays where its CLI keeps it -- and what does the keeping is the
+supervisor a turn under an account already runs in, answering the CLI's session paths and
+nothing else of its home. What is checked here is the command line that
 comes to and the directory an agent says its sessions are in, read off objects in this process:
 nothing is spawned, so the supervisor is taken to be one this machine can run, whatever machine
 this is. The supervisor itself is `tests/system/providers/test_redirect.py`, and a real CLI kept
@@ -55,21 +55,18 @@ def _kept(argv: list[str]) -> list[str]:
     return [one for one in argv if one.startswith("--keep=")]
 
 
-def test_an_agent_nobody_gave_an_account_is_supervised_for_its_sessions(
+def test_an_agent_no_run_drives_keeps_its_sessions_where_the_cli_does(
     claude: Path,
 ) -> None:
-    """The account this machine is signed into answers no credential, and still keeps."""
+    """Nobody's run, so nothing of humanize's own to keep them in."""
     agent = ClaudeCodeAgent(CONFIG)
 
     argv = agent.spawned(["claude", "--print"])
 
-    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "cred"]
-    # And then the CLI's own line, as it would have been run: wherever PATH names it.
-    assert argv[argv.index("--") + 2 :] == ["--print"]
-    kept = home() / "sessions" / "claude"
-    assert f"--keep={claude / 'projects'}={kept / 'projects'}" in _kept(argv)
-    assert not [one for one in argv if one.startswith("--map=")]
-    assert agent.kept() == kept
+    assert not _kept(argv)
+    assert agent.keeps is None
+    assert agent.kept() == claude
+    assert not (home() / "sessions").exists()
 
 
 def test_an_agent_a_run_drives_keeps_its_sessions_in_that_run(
@@ -86,13 +83,14 @@ def test_an_agent_a_run_drives_keeps_its_sessions_in_that_run(
 
 
 def test_a_turn_under_an_account_swaps_its_credentials_and_keeps_its_sessions(
-    claude: Path,
+    claude: Path, tmp_path: Path
 ) -> None:
     """One supervisor, answering both: a process has one tracer."""
     providers.add("claude", "work", "key", {"ANTHROPIC_API_KEY": "sk-nothing"})
     agent = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(model="m", effort="high", provider="work")
     )
+    agent.epic = Run(tmp_path / "epic" / "sessions")
 
     argv = agent.spawned(["claude"])
 
@@ -137,6 +135,37 @@ def test_a_fork_into_another_agent_is_kept_where_the_conversation_is(
     assert side.epic is None  # kept there, and written down nowhere
 
 
+def test_an_agent_that_kept_its_sessions_where_the_cli_does_goes_on_keeping_them_there(
+    claude: Path, tmp_path: Path
+) -> None:
+    """Handed to a run afterwards, it would otherwise look for them in the run."""
+    agent = ClaudeCodeAgent(CONFIG)
+    agent.spawned(["claude"])
+
+    agent.epic = Run(tmp_path / "epic" / "sessions")
+
+    assert agent.keeps is None
+    assert not _kept(agent.spawned(["claude"]))
+    with pytest.raises(ValueError, match="cannot be carried on"):
+        agent.keeps = tmp_path / "elsewhere"
+
+
+def test_a_fork_of_a_conversation_no_run_drives_stays_where_the_cli_keeps_it(
+    claude: Path, tmp_path: Path
+) -> None:
+    """Into an agent a run drives, which would otherwise keep it where its CLI cannot read it."""
+    agent, side = ClaudeCodeAgent(CONFIG), ClaudeCodeAgent(CONFIG)
+    side.epic = Run(tmp_path / "epic" / "sessions")
+    session = agent.new()
+    session._adopt("the-conversation")
+
+    session.fork(into=side)
+
+    assert side.keeps is None
+    assert not _kept(side.spawned(["claude"]))
+    assert side.kept() == claude
+
+
 def test_where_an_agent_keeps_its_sessions_is_settled_by_its_first_process(
     claude: Path, tmp_path: Path
 ) -> None:
@@ -158,7 +187,8 @@ def test_a_fork_into_an_agent_keeping_its_sessions_elsewhere_is_refused(
     """It could not carry the conversation on from where that is kept."""
     agent, other = ClaudeCodeAgent(CONFIG), ClaudeCodeAgent(CONFIG)
     agent.epic = Run(tmp_path / "epic" / "sessions")
-    other.spawned(["claude"])  # keeping its own in humanize's home from here on
+    other.epic = Run(tmp_path / "other" / "sessions")
+    other.spawned(["claude"])  # keeping its own in the other run from here on
     session = agent.new()
     session._adopt("the-conversation")
 

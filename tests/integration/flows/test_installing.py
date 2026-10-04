@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 import pytest
 
+from hmz import machine
 from hmz.runtime.flowing import ENTRY, resolved
 from hmz.runtime.flowing import index as indexing
 from hmz.runtime.flowing import verses as store
@@ -592,7 +593,7 @@ def test_an_install_that_cannot_be_had_is_refused_before_anything_is_fetched(
         install("theirs", "a")
 
     assert _left() == []
-    assert not (store.under() / ".pinned").exists()
+    assert not (machine() / "pinned").exists()
 
 
 def test_a_flow_another_installed_flow_needs_is_not_uninstalled(

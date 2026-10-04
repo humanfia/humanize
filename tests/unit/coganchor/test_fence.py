@@ -362,6 +362,7 @@ def _policy(argv: list[str]) -> Fence:
 @pytest.mark.usefixtures("enforceable")
 def test_a_fenced_turn_is_spawned_inside_the_wrapper(tmp_path: Path) -> None:
     agent = _agent(_fence(tmp_path))
+    agent.keeps = tmp_path / "kept"
 
     argv = agent.spawned(["claude", "--print"])
 
@@ -374,7 +375,7 @@ def test_a_fenced_turn_is_spawned_inside_the_wrapper(tmp_path: Path) -> None:
     assert policy.tmp == str(tmp_path / "scratch")
     # What the agent needs besides its scopes: its state, and its sessions' directory.
     assert policy.allows(Path("~/.claude/settings.json").expanduser(), write=True)
-    assert policy.allows(agent.keeps / "claude", write=True)
+    assert policy.allows(tmp_path / "kept" / "claude", write=True)
 
 
 @pytest.mark.usefixtures("enforceable")
@@ -399,14 +400,15 @@ def test_the_fence_is_outside_the_supervisor_that_keeps_sessions(
     monkeypatch.delenv(KEEPING, raising=False)
     monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: True)
     agent = _agent(_fence(tmp_path))
+    agent.keeps = tmp_path / "kept"
 
     argv = agent.spawned(["claude", "--print"])
 
     assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     inner = argv[argv.index("--") + 1 :]
     assert inner[:5] == [sys.executable, "-Pm", "hmz", "internal", "cred"]
-    assert _policy(argv).allows(agent.keeps / "claude", write=True)
-    assert not _policy(argv).allows(agent.keeps / "codex", write=True)
+    assert _policy(argv).allows(tmp_path / "kept" / "claude", write=True)
+    assert not _policy(argv).allows(tmp_path / "kept" / "codex", write=True)
 
 
 @pytest.mark.usefixtures("enforceable")

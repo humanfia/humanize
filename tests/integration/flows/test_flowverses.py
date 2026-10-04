@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -216,7 +217,9 @@ def test_it_may_be_called_something_else_here(theirs: Path) -> None:
     added = store.add(str(theirs), "mine")
 
     assert added.name == "mine"
-    assert (store.under() / "mine" / FLOWS / "loop" / "0.1.0" / RELEASE).is_file()
+    assert (
+        store.where("mine") / store.INDEX / FLOWS / "loop" / "0.1.0" / RELEASE
+    ).is_file()
     assert index("mine").flows() == ["loop", "review"]
 
 
@@ -283,6 +286,27 @@ def test_fetching_one_that_was_never_fetched_clones_it(
     assert store.flows(official) == list(SHIPPED)
 
 
+def test_one_whose_clone_is_gone_still_offers_what_was_installed_out_of_it(
+    theirs: Path,
+) -> None:
+    """The clone and what was installed are siblings, so one may go without the other.
+
+    What was installed is what runs, and is still offered under its flowverse's name; the
+    flowverse is listed as one with nowhere to fetch from, and says so when it is fetched.
+    """
+    store.add(str(theirs))
+    install("theirs", "loop")
+    shutil.rmtree(store.where("theirs") / store.INDEX)
+
+    (one,) = [one for one in flowverses() if one.name == "theirs"]
+    assert (one.url, one.fetched) == ("", False)
+    assert _offered("theirs") == ["theirs/loop"]
+    with pytest.raises(ValueError, match="no clone of an index in it"):
+        store.fetch("theirs")
+    assert store.remove("theirs")
+    assert not store.where("theirs").exists()
+
+
 def test_one_that_was_added_may_be_taken_away(theirs: Path) -> None:
     store.add(str(theirs))
 
@@ -302,6 +326,7 @@ def test_taking_one_away_takes_away_what_was_installed_out_of_it(theirs: Path) -
 
     assert store.remove("theirs")
 
+    assert not store.where("theirs").exists()  # the clone and what was installed, both
     assert not kept("theirs").exists()
     assert installed() == []
     assert _offered("theirs") == []
@@ -336,7 +361,7 @@ def test_two_callers_cloning_one_place_leave_a_whole_clone_behind(
     copy thrown away, which is the invariant; who won is not something a caller can see and is
     not something asserted here. Both threads are real and both call the real clone.
     """
-    at = store.where("theirs")
+    at = store.where("theirs") / store.INDEX
     at.parent.mkdir(parents=True, exist_ok=True)
     runs = store._git
     turn = threading.Lock()
@@ -400,7 +425,7 @@ def test_half_a_clone_in_the_way_is_taken_away_rather_than_taken_for_one(
     has been shown not to be a repository, and a caller that cleared the place beforehand
     would be clearing away whatever another caller had finished writing into it.
     """
-    at = store.where("theirs")
+    at = store.where("theirs") / store.INDEX
     (at / ".git").mkdir(parents=True)
     (at / ".git" / "config").write_text("[core]\n\trepositoryformatversion = 0\n")
 
@@ -424,17 +449,17 @@ def test_a_copy_a_killed_clone_left_beside_the_place_is_swept_up_by_the_next(
     thing the copy-and-move is there to stop -- so a fresh one is left alone, and what goes is
     what is older than the longest a clone is given before it is called off.
     """
-    under = store.under()
-    under.mkdir(parents=True, exist_ok=True)
-    killed = under / ".theirs.abcdef"
+    beside = store.where("theirs")
+    beside.mkdir(parents=True, exist_ok=True)
+    killed = beside / f".{store.INDEX}.abcdef"
     killed.mkdir()
     (killed / "half-written").write_text("what git had got to\n")
     long_ago = time.time() - 10 * 60
     os.utime(killed, (long_ago, long_ago))
-    live = under / ".theirs.fedcba"
+    live = beside / f".{store.INDEX}.fedcba"
     live.mkdir()
 
-    store.clone(str(theirs), store.where("theirs"))
+    store.clone(str(theirs), beside / store.INDEX)
 
     assert not killed.exists()
     assert live.is_dir()  # somebody else's clone, still being written

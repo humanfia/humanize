@@ -110,9 +110,9 @@ def _turn(overrides: tuple[tuple[str, str], ...]) -> tuple[str, int]:
     said = list(session.stream("Reply with exactly: OK. Use no tools."))
     assert said[-1].kind == "result", said[-1]
     assert session.id
-    return session.id, _window_codex_reported(
-        session.id, started, agent.kept() / "sessions"
-    )
+    kept = agent.kept()
+    assert kept is not None
+    return session.id, _window_codex_reported(session.id, started, kept / "sessions")
 
 
 @pytest.fixture

@@ -95,10 +95,10 @@ def test_a_fork_into_another_agent_reads_its_parent_back_where_it_is_kept(
 
 
 @traced
-def test_an_agent_no_run_drives_keeps_its_sessions_in_humanize_s_own_home(
+def test_an_agent_no_run_drives_keeps_its_sessions_where_its_cli_does(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Driven by hand is nobody's run, and still nothing the CLI keeps at home."""
+    """Driven by hand is nobody's run, and nothing of humanize's own is kept for it."""
     from hmz import home
 
     config = standing_in(tmp_path, monkeypatch)
@@ -108,8 +108,8 @@ def test_an_agent_no_run_drives_keeps_its_sessions_in_humanize_s_own_home(
     session = agent.new()
     assert session("Reply with the single word: alone") == "alone"
 
-    kept = home() / "sessions" / "claude"
-    assert agent.kept() == kept
-    assert logged(kept, tmp_path.resolve(), session.id).is_file()
-    assert not (config / "projects").exists()
+    assert agent.keeps is None
+    assert agent.kept() == config
+    assert logged(config, tmp_path.resolve(), session.id).is_file()
+    assert not (home() / "sessions").exists()
     agent.stop()

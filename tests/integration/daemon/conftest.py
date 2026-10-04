@@ -8,7 +8,7 @@ and the test after it would find a host it never began.
 
 from __future__ import annotations
 
-from tests.daemon.fixtures import held, left, older, workspace
+from tests.daemon.fixtures import held, older, workspace
 from tests.machines.fixtures import standin
 
-__all__ = ["held", "left", "older", "standin", "workspace"]
+__all__ = ["held", "older", "standin", "workspace"]

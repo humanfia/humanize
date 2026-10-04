@@ -6,15 +6,15 @@ it was cut from, and the directory of it the flow is in. The index holds no code
 it is ever imported: reading one is reading YAML, and fetching one again changes what may be
 installed and never what runs.
 
-What runs is a copy of the release somebody chose, kept under humanize's home at
-`installed/<flowverse>/<flow>/` and read from there by everything that looks a flow up. The
-directory is named after the flow so that what a flow loads beside itself -- `humanize1`, from
-inside `recursive_lean_prover` -- is found where it is found in the repository the two came
-from: the installed flows of one flowverse are each other's neighbours. It carries a record of
-what it was installed from, written into it before it is moved into place, so that what is there
-and what it says it is arrive in one move rather than two writes -- which is all the registry
-there is, and why two installs racing each other leave a whole flow behind rather than half of
-one beside a record of the other.
+What runs is a copy of the release somebody chose, kept beside the clone of its index at
+`flowverses/<flowverse>/installed/<flow>/` and read from there by everything that looks a flow
+up. The directory is named after the flow so that what a flow loads beside itself --
+`humanize1`, from inside `recursive_lean_prover` -- is found where it is found in the repository
+the two came from: the installed flows of one flowverse are each other's neighbours. It carries
+a record of what it was installed from, written into it before it is moved into place, so that
+what is there and what it says it is arrive in one move rather than two writes -- which is all
+the registry there is, and why two installs racing each other leave a whole flow behind rather
+than half of one beside a record of the other.
 
 A release may name other flows of the same index it needs, each by a SemVer range. Installing
 it installs the newest release of each that the range takes, unless one already installed
@@ -46,9 +46,7 @@ from pydantic import (
     model_validator,
 )
 
-from hmz import home
-
-from .verses import FLOWS, OFFICIAL, named
+from .verses import FLOWS, INSTALLED, OFFICIAL, named, under
 
 if TYPE_CHECKING:
     from .verses import Flowverse
@@ -361,6 +359,8 @@ class Installed(BaseModel):
       subdir: The directory of the repository the flow was copied out of.
       dependencies: What the release said it needs, which uninstalling and installing others
         are checked against.
+      skills: The skills its roles name by a URL, each to the ones installing it fetched into
+        its own `skills/` -- which a run of it reads from there, as it does the flow's own.
     """
 
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -373,6 +373,7 @@ class Installed(BaseModel):
     ref: str = ""
     subdir: str = ""
     dependencies: dict[str, str] = Field(default_factory=dict[str, str])
+    skills: dict[str, list[str]] = Field(default_factory=dict[str, list[str]])
 
     @field_validator("version")
     @classmethod
@@ -419,7 +420,7 @@ def kept(verse: str) -> Path:
     Returns:
       The directory, whether or not anything has been installed into it.
     """
-    return home() / "installed" / verse
+    return under() / verse / INSTALLED
 
 
 def split(called: str) -> tuple[str, str]:
@@ -519,12 +520,18 @@ def installed(verse: str = "") -> list[Installed]:
     Returns:
       One apiece, by flowverse and then by name.
     """
-    roots = [kept(verse)] if verse else _directories(home() / "installed")
+    roots = (
+        [kept(verse)] if verse else [kept(one.name) for one in _directories(under())]
+    )
     found: list[Installed] = []
     for root in roots:
         for at in _directories(root):
             one = _record(at)
-            if one is not None and one.verse == root.name and one.name == at.name:
+            if (
+                one is not None
+                and one.verse == root.parent.name
+                and one.name == at.name
+            ):
                 found.append(one)
     return found
 
@@ -667,7 +674,8 @@ def install(verse: str, flow: str, version: str = "") -> list[Installed]:
     Raises:
       ValueError: For anything :func:`plan` refuses, and a release whose repository has no
         flow where it says.
-      OSError: If a repository cannot be fetched, or the flow cannot be copied into place.
+      OSError: If a repository, or a skill a flow's roles name by a URL, cannot be fetched, or
+        the flow cannot be copied into place.
     """
     done: list[Installed] = []
     for one in plan(verse, flow, version):
@@ -694,12 +702,14 @@ def _put(verse: str, one: Release) -> Installed:
 
     Raises:
       ValueError: If its repository has no flow where it says.
-      OSError: If the repository cannot be fetched, or the flow cannot be copied.
+      OSError: If the repository, or a skill its roles name by a URL, cannot be fetched, or
+        the flow cannot be copied.
     """
     from hmz.flows import FlowNotFound
 
     from .finding import ENTRY
     from .loading import pinned
+    from .skills import packed
 
     try:
         checkout = pinned(one.url, one.commit).resolve()
@@ -714,16 +724,6 @@ def _put(verse: str, one: Release) -> Installed:
             f"{one.repo} at {one.commit[:12]} has no flow in {one.subdir or 'its root'}: "
             f"neither {ENTRY} nor {one.name}.py"
         )
-    record = Installed(
-        verse=verse,
-        name=one.name,
-        version=one.version,
-        commit=one.commit,
-        repo=one.repo,
-        ref=one.ref,
-        subdir=one.subdir,
-        dependencies=one.dependencies,
-    )
     root = kept(verse)
     root.mkdir(parents=True, exist_ok=True)
     _swept(root, one.name)
@@ -744,6 +744,25 @@ def _put(verse: str, one: Release) -> Installed:
             # that every installed flow is the one shape and has somewhere to keep its record.
             held.mkdir()
             shutil.copy2(alone, held / ENTRY)
+        try:
+            # Fetched now, into the copy, so that a run of the installed flow reads every skill
+            # it works by out of the flow and reaches no network for one.
+            skills = packed(held)
+        except OSError as why:
+            raise OSError(
+                f"{verse}/{one.name} {one.version} names a skill that cannot be fetched: {why}"
+            ) from why
+        record = Installed(
+            verse=verse,
+            name=one.name,
+            version=one.version,
+            commit=one.commit,
+            repo=one.repo,
+            ref=one.ref,
+            subdir=one.subdir,
+            dependencies=one.dependencies,
+            skills=skills,
+        )
         (held / RECORD).write_text(record.model_dump_json(indent=2), encoding="utf-8")
         _moved(held, root / one.name, holding)
     finally:
