@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 import psutil
 import pytest
@@ -271,6 +272,42 @@ async def test_a_cancelled_command_is_killed_with_its_children(tmp_path: Path) -
     with pytest.raises(asyncio.CancelledError):
         await running
     assert await _gone(child), "a cancelled command's child outlived it"
+
+
+async def test_a_command_cancelled_as_it_is_started_is_killed_with_its_children(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cancelled with its pipes connected and its start not yet returned.
+
+    Where a loaded loop can leave it, and where asyncio kills the command alone.
+    """
+    loop = asyncio.get_running_loop()
+    connect = loop.connect_read_pipe
+    written, connected = asyncio.Event(), asyncio.Event()
+    pipes = 0
+
+    async def held(*args: Any, **kwargs: Any) -> Any:
+        nonlocal pipes
+        pipes += 1
+        if pipes == 2:
+            # The second pipe, once the command has started its child.
+            await written.wait()
+        made = await connect(*args, **kwargs)
+        if pipes == 2:
+            connected.set()
+        return made
+
+    monkeypatch.setattr(loop, "connect_read_pipe", held)
+    running = asyncio.create_task(
+        _driver(tmp_path).exec("sleep 30 & echo $! > child; wait", timeout=0)
+    )
+    child = await _pid_in(tmp_path / "child")
+    written.set()
+    await connected.wait()
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+    assert await _gone(child), "a command cancelled as it started left its child"
 
 
 async def test_a_timeout_kills_what_outlived_the_command_in_its_group(

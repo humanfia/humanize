@@ -376,8 +376,12 @@ class LocalMachine(Machine):
 
     async def start(self, argv: Sequence[str], cwd: PurePosixPath) -> _LocalRun:
         loop = asyncio.get_running_loop()
-        try:
-            transport, collected = await loop.subprocess_exec(
+        # Started apart from whoever waits on it: cancelled while its pipes are still being
+        # connected, the command already running, asyncio kills the command alone and leaves
+        # what it started. So it finishes starting, and is then killed whole, as a command
+        # cancelled once started is.
+        starting = asyncio.ensure_future(
+            loop.subprocess_exec(
                 lambda: _Collected(loop),
                 *argv,
                 cwd=str(cwd),
@@ -386,6 +390,15 @@ class LocalMachine(Machine):
                 stderr=subprocess.PIPE,
                 start_new_session=True,
             )
+        )
+        try:
+            transport, collected = await asyncio.shield(starting)
+        except asyncio.CancelledError:
+            with contextlib.suppress(OSError):
+                run = _LocalRun(*await starting)
+                await run.kill()
+                run.release()
+            raise
         except OSError as error:
             raise started_error(error, argv, str(cwd)) from error
         return _LocalRun(transport, collected)
