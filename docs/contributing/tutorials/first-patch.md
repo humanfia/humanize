@@ -71,6 +71,8 @@ check yaml...............................................................Passed
 fix end of files.........................................................Passed
 mixed line ending........................................................Passed
 trim trailing whitespace.................................................Passed
+Lint GitHub Actions workflow files.......................................Passed
+zizmor...................................................................Passed
 uv lock --check..........................................................Passed
 ruff check...............................................................Passed
 ruff format..............................................................Passed
@@ -129,7 +131,8 @@ The hooks run again as you commit, and a commit they fix is not made: `git add` 
 changed and commit again.
 
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `feat`, `fix`, `docs`,
-`refactor`, `test`, `chore` or `ci`, then the package or docs section as the scope. A `!`
+`refactor`, `test`, `perf`, `style`, `build`, `ci`, `chore` or `revert`, then the package or
+docs section as the scope. A `!`
 before the colon marks a breaking change. The change and its tests go in one commit.
 
 ## Step 6: open the pull request
@@ -147,8 +150,9 @@ CI then runs everything a change to `main` is held to, for what your change touc
 
 | | |
 | --- | --- |
-| `lint`, `typecheck` | The same hooks over every file, and `pyright` |
-| `unit`, `integration`, `system` | Each tier of the tests, on Linux and macOS and Python 3.12 to 3.14; `tests/system` on Linux alone |
+| `lint`, `workflows`, `typecheck` | The same hooks over every file: `actionlint` and `zizmor` in `workflows`, `pyright` in `typecheck` |
+| `unit`, `integration`, `system` | Each tier of the tests, on Linux and Python 3.12 to 3.14; `tests/system` on Linux 3.12 alone |
+| `unit + integration` | The first two tiers on macOS, a job per Python |
 | `build`, `smoke` | `uv build`, and the wheel started with no extras installed |
 | `docs` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` and `pnpm check:legible` |
 | `ci-ok` | Green when every job that ran passed |

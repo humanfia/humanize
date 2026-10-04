@@ -18,11 +18,12 @@ the jobs before it passed.
 | --- | --- | --- |
 | a push to a branch | `lint`, `unit` | Linux, Python 3.12 |
 | a pull request into a branch other than `main` | and `workflows`, `typecheck`, `integration` | Linux, Python 3.12 |
-| a pull request into `main`, the merge queue, a push to `main`, nightly, or a run by hand | and `system`, `build`, `smoke`, `docs`, `coverage`, `dependency-review`, and `unit + integration` on macOS | Linux and macOS, Python 3.12, 3.13 and 3.14 |
+| a pull request into `main`, the merge queue, a push to `main`, nightly, or a run by hand | and `system`, `build`, `smoke`, `docs`, `coverage`, `dependency-review` (a pull request's alone), and `unit + integration` on macOS | Linux and macOS, Python 3.12, 3.13 and 3.14 |
 
 A job runs only when the change touched what it checks. A change to `docs/` alone runs `lint`
 and `docs` and nothing in Python, and a change to Python alone does not build the site. The
-nightly run and a run by hand check everything.
+nightly run and a run by hand check everything, and so does a run whose change cannot be
+worked out, such as a push to a branch deleted before its run began.
 
 The tests wait for `lint` and `typecheck`, so a change that fails either never takes a runner
 for its tests. Past those two, the tiers start together, and none of them waits on another:
@@ -143,7 +144,7 @@ None of these reports to `ci-ok`. On a pull request, wait for `title` from `titl
 | `title.yml` | every pull request | `title` checks the title is a Conventional Commit |
 | `codeql.yml` | a pull request into `main`, a push to it, and weekly | Scans the Python and the workflows, into the repository's Security tab |
 | `scorecard.yml` | a push to `main`, and weekly | Scores the repository against the [OpenSSF Scorecard](https://scorecard.dev) checks, into the Security tab |
-| `publish.yaml` | a published release, or a dry run by hand | Builds the package and publishes it to PyPI: [Releasing](/contributing/releasing) |
+| `publish.yaml` | a pushed `v*` tag, or a dry run by hand | Builds the wheel and sdist with GoReleaser onto a draft GitHub release, publishes them to PyPI, then publishes the release: [Releasing](/contributing/releasing) |
 
 ## Next steps
 

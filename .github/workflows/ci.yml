@@ -104,6 +104,10 @@ jobs:
 
       - if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
         id: filter
+        # A push's branch is fetched by name, and one merged and deleted before its run got
+        # here is not there to fetch. A comparison that cannot be made is a run with nothing
+        # to compare against, which checks everything, as the outputs above say.
+        continue-on-error: true
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           # The workflow and the action that set Python up are in each list they run, so a
