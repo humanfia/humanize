@@ -31,6 +31,7 @@ from typing import (
     Literal,
     Protocol,
     Self,
+    cast,
     overload,
 )
 
@@ -5719,9 +5720,44 @@ class AgentBase(ABC):
 
 
 def _naming(at: Path, session_id: str) -> list[Path]:
-    """Every file under a CLI's kept sessions that is one conversation's: its id in its path."""
-    return [
-        path
-        for path in sorted(at.rglob("*"))
-        if path.is_file() and session_id in path.relative_to(at).as_posix()
-    ]
+    """Every file under a CLI's kept sessions that is one conversation's, lineage and all.
+
+    A conversation's files carry its id in their path. One cut from another -- Codex's
+    `thread/fork`, which a resumed or carried-on thread is -- says so on its first line, as
+    `forked_from_id`, and is read back only with the one it came from beside it: so the
+    files of every conversation up that line are its files too.
+    """
+    found: list[Path] = []
+    seen: set[str] = set()
+    wanted = [session_id]
+    files = [path for path in sorted(at.rglob("*")) if path.is_file()]
+    while wanted:
+        one = wanted.pop()
+        if one in seen:
+            continue
+        seen.add(one)
+        mine = [path for path in files if one in path.relative_to(at).as_posix()]
+        found += [path for path in mine if path not in found]
+        for path in mine:
+            parent = _forked_from(path)
+            if parent:
+                wanted.append(parent)
+    return found
+
+
+def _forked_from(path: Path) -> str | None:
+    """The conversation a kept one was cut from, as its first line says, if it says so."""
+    if path.suffix != ".jsonl":
+        return None
+    try:
+        with path.open(encoding="utf-8") as stream:
+            first = json.loads(stream.readline() or "null")
+    except (OSError, ValueError):
+        return None
+    if not isinstance(first, dict):
+        return None
+    line = cast("dict[str, object]", first)
+    payload = line.get("payload")
+    meta = cast("dict[str, object]", payload) if isinstance(payload, dict) else line
+    said = meta.get("forked_from_id")
+    return said if isinstance(said, str) and said else None

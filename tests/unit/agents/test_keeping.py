@@ -12,6 +12,7 @@ in a real epic is `tests/system/runtime/test_sessions.py`.
 
 from __future__ import annotations
 
+import json
 import sys
 from typing import TYPE_CHECKING
 
@@ -218,3 +219,27 @@ def test_a_conversation_nothing_kept_is_not_recalled(
 
     with pytest.raises(RuntimeError, match="no conversation another"):
         agent.recall("another", tmp_path / "snapshot", tmp_path)
+
+
+def test_a_conversation_cut_from_another_is_recalled_with_its_whole_line(
+    tmp_path: Path,
+) -> None:
+    """Codex reads a forked thread back only beside the threads it was cut from."""
+    from hmz.coganchor.agents.base import _naming
+
+    day = tmp_path / "sessions" / "2026" / "10" / "03"
+    day.mkdir(parents=True)
+
+    def rollout(ident: str, parent: str | None) -> Path:
+        meta = {"id": ident, **({"forked_from_id": parent} if parent else {})}
+        path = day / f"rollout-2026-10-03T00-00-00-{ident}.jsonl"
+        path.write_text(json.dumps({"type": "session_meta", "payload": meta}) + "\n")
+        return path
+
+    first = rollout("first-thread", None)
+    second = rollout("second-thread", "first-thread")
+    third = rollout("third-thread", "second-thread")
+    rollout("somebody-else", None)
+
+    assert set(_naming(tmp_path, "third-thread")) == {first, second, third}
+    assert _naming(tmp_path, "first-thread") == [first]
