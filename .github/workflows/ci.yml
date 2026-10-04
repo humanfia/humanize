@@ -244,7 +244,10 @@ jobs:
         python: ${{ fromJSON(needs.plan.outputs.python) }}
     env:
       COVERAGE_FILE: .coverage.unit
-      COV: ${{ matrix.python == needs.plan.outputs.coverage && '--cov=hmz --cov-report=' || '' }}
+      # Coverage is counted on the one Python `plan` names: pytest reads `PYTEST_ADDOPTS` as
+      # though it were on its command line.
+      PYTEST_ADDOPTS: >-
+        ${{ matrix.python == needs.plan.outputs.coverage && '--cov=hmz --cov-report=' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -263,9 +266,9 @@ jobs:
       - name: pytest tests/unit
         run: >
           uv run --frozen pytest tests/unit tests/test_tiers.py --durations=10
-          --timeout-method=thread $COV
+          --timeout-method=thread
 
-      - if: env.COV
+      - if: matrix.python == needs.plan.outputs.coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-unit
@@ -298,7 +301,8 @@ jobs:
         shard: [1, 2]
     env:
       COVERAGE_FILE: .coverage.integration-${{ matrix.shard }}
-      COV: ${{ matrix.python == needs.plan.outputs.coverage && '--cov=hmz --cov-report=' || '' }}
+      PYTEST_ADDOPTS: >-
+        ${{ matrix.python == needs.plan.outputs.coverage && '--cov=hmz --cov-report=' || '' }}
       SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -320,10 +324,10 @@ jobs:
       - name: pytest tests/integration
         run: >
           uv run --frozen pytest tests/integration tests/test_tiers.py --durations=25
-          --timeout-method=thread $COV
+          --timeout-method=thread
           --splits 2 --group "$SHARD" --splitting-algorithm least_duration
 
-      - if: env.COV
+      - if: matrix.python == needs.plan.outputs.coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-integration-${{ matrix.shard }}
