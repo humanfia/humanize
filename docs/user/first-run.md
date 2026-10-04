@@ -196,8 +196,8 @@ list. The `manage flowverses` row below the flows opens the flowverses; open one
 
 ## 4. Give the role an agent
 
-The flow opens on its **roles**: a row for each agent it drives, then `budget` and
-`save`. `ralph_loop` has one role, `agent`. humanize fills it with the first CLI it found, so
+The flow opens on its **roles**: a row for each agent it drives, then `budget`, `profiling`
+and `save`. `ralph_loop` has one role, `agent`. humanize fills it with the first CLI it found, so
 the row already names one.
 
 <Term title="hmz · /flow › ralph_loop">
@@ -208,6 +208,7 @@ the row already names one.
    <span class="p">❯ 1. agent                     claude/claude-opus-5-5:high</span> <span class="n">1</span>
 
         budget                    <span class="m">none set; a run needs one</span> <span class="n">2</span>
+        profiling                 <span class="m">off; traced only</span>
 
         save                      <span class="m">flow and roles</span> <span class="n">3</span>
 
@@ -216,7 +217,8 @@ the row already names one.
 </Term>
 
 1. **`agent`**, the flow's one role, and the agent filling it as `cli/model:effort`.
-2. **`budget`**: none yet. You set it in step 5.
+2. **`budget`**: none yet. You set it in step 5. Under it, `profiling` stays off here: it is
+   for when you want the programs a run starts in its [trace](/user/tracing#profiling-a-run).
 3. **`save`**: nothing you change is kept until you press it.
 
 Press <kbd>enter</kbd> on `agent`. An agent is four rows:

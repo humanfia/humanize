@@ -880,6 +880,7 @@ class Host:
                 envs=envs,
                 params=params,
                 budget=said.get("budget"),
+                profile=bool(said.get("profile")),
                 resume=resume,
                 # Whoever is outside the run is every frontend here: asked on a thread of
                 # the run's own, and away while `/afk` says so.
@@ -901,6 +902,7 @@ class Host:
                 "envs": _spoken(envs) if isinstance(envs, dict) else {},
                 "params": dict(params) if isinstance(params, dict) else {},  # pyright: ignore[reportUnknownArgumentType]
                 "budget": _json(run.budget),
+                "profile": run.profile,
                 "resume": str(resume) if resume else "",
                 "began": time.monotonic(),
                 "at": time.time(),

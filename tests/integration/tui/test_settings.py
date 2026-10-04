@@ -403,7 +403,7 @@ async def test_the_settings_menu_turns_the_reporting_off(
             lambda: not sheet._home and sheet._tab == PAGES.index("workspace"), driver
         )
         # The directory is said across the top rather than as a row nothing can change.
-        assert [one for one in ids(app) if one] == ["flow", "profile", "forget"]
+        assert [one for one in ids(app) if one] == ["flow", "forget"]
         assert _shortly(str(tmp_path)) in str(sheet.query_one("#about", Label).content)
         assert "chat" in _shown(listing, "flow")
 
@@ -468,46 +468,6 @@ async def test_a_value_is_picked_from_the_list_dropped_under_it_with_the_mouse(
         await until(lambda: not isinstance(app.screen, Adjusts), driver)
 
     assert Settings(tmp_path).details
-
-
-@pytest.mark.timeout(60)
-async def test_whether_a_run_here_is_profiled_is_a_row_of_this_directory(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A workspace's own: what a run costs in processes is a thing about the project.
-
-    Off unless somebody says otherwise, since it is a sampler running for as long as the flow
-    does -- and landing when the menu is saved, as everything on it does.
-    """
-    from hmz.tui import Humanize
-    from hmz.tui.pick import Confirms
-    from hmz.tui.settings import Adjusts
-    from tests.integration.tui.test_app import into_settings, picks
-
-    monkeypatch.chdir(tmp_path)
-    assert not Settings(tmp_path).profiling
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_settings(app, driver, "workspace")
-        listing = app.screen.query_one("#choices", OptionList)
-
-        await picks(app, driver, "profile", "on")
-        assert "● on" in _shown(listing, "profile")
-
-        # Held until the menu is saved, exactly as everything else on it is.
-        assert not Settings(tmp_path).profiling
-        # Read as a run starts, so the row says when it lands while it is held.
-        assert "takes effect on next flow run" in _shown(listing, "profile")
-        await driver.press("escape", "escape")
-        await until(lambda: isinstance(app.screen, Confirms), driver)
-        await driver.press("enter")
-        await until(lambda: not isinstance(app.screen, Adjusts), driver)
-        await driver.pause()
-
-        # And the transcript says it again once it is saved.
-        assert "from the next flow run" in transcript(app)
-
-    assert Settings(tmp_path).profiling
 
 
 def test_whether_the_working_is_shown_is_remembered_for_the_machine(

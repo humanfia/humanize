@@ -206,6 +206,7 @@ def test_a_run_is_one_epic_and_says_what_it_opened(
     ]
     assert usage["event"] == "usage"
     assert usage["output_tokens"] == 2
+    assert "profile" not in began
     assert ended == {"event": "ended", "at": ended["at"], "how": "done"}
     # And what a trace is gathered by: whose each of those sessions was.
     assert set(opened(epic)) == {"actor", "reviewer"}
@@ -434,6 +435,8 @@ def test_a_epic_reads_back_as_what_was_run_and_how_it_went(
     assert ran.params == {"rounds": 1}
     assert ran.budget is not None
     assert ran.budget["cost"] == 5.0
+    # Not asked to profile, which is every run nobody asked to, and is said by saying nothing.
+    assert not ran.profile
 
 
 def test_flows_calling_flows_read_back_as_the_tree_they_ran_in(

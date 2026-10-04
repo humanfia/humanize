@@ -102,7 +102,8 @@ with no interface. The run's [outworlder](#nobody-is-at-the-prompt) is always aw
 
 ```text
 usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
-                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [--resume] [--json]
+                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [--profile]
+                [--resume] [--json]
                 task
 ```
 
@@ -115,6 +116,7 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | <span id="exec-envs"></span>`-e`, `--envs` | [`<env>`](#writing-an-environment) list | 0‥n, merged | none | One environment per environment role. |
 | <span id="exec-params"></span>`-p`, `--params` | [`<param>`](#writing-params) list | 0‥n, merged | the flow's defaults | Fields of the flow's `FlowParams`. |
 | <span id="exec-budget"></span>`-b`, `--budget` | [`<limit>`](#writing-a-budget) list | 0‥n, merged; **required** except for flows humanize ships | none | What the run may spend. |
+| <span id="exec-profile"></span>`--profile` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
@@ -742,5 +744,5 @@ Every command is a shell around [`hmz.sdk.Hmz`](/reference/sdk#hmz):
 | --- | --- |
 | `hmz exec <argv>` | [`Hmz().exec(argv)`](/reference/sdk#hmz-exec) |
 | reading an `hmz exec` line | [`Hmz().read(argv)`](/reference/sdk#hmz-read) → `Line` |
-| `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, resume=…, harness=…)`](/reference/sdk#hmz-run) |
+| `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, profile=…, resume=…, harness=…)`](/reference/sdk#hmz-run) |
 | `hmz` (as a frontend of held runs) | [`Daemons().host().link()`](/reference/sdk#daemons) |

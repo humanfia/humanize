@@ -101,8 +101,6 @@ remembers. It works with the keys and with the mouse alike.
 /settings runtimes
 ```
 
-<HmzCast name="profiling" alt="/settings opening on its six pages, then into Workspace: default flow, profiling and forget" />
-
 ## How it works
 
 `/settings` opens on six pages and nothing else, each a card saying what is in it. They run
@@ -120,7 +118,7 @@ straight into the one named, and the word is offered as you type it:
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons and docker swarms |
 | [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
-| [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, whether its runs are profiled, and forgetting it |
+| [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, and forgetting it |
 
 The names they had still open them: `settings` and `everywhere` open General, `directory`
 opens Workspace, and `environments` opens Runtimes. A card marked `● unsaved` holds a
@@ -183,7 +181,6 @@ change is held, and the transcript says it again once saved:
 | Change | Takes hold |
 | --- | --- |
 | error reports, details, fallback rules | at once |
-| profiling | from the next flow run |
 | correcting an account, taking it away | from the next agent session: a session already running keeps the account it started with |
 | forget | from the next launch: the interface open now keeps what it opened with |
 
@@ -216,7 +213,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
      <span class="m">the git repositories flows come from</span>
    ────────────────────────────────────────────────────────────────────────
    ⌂  <b>Workspace</b>                                   demo · flow ralph_loop
-     <span class="m">this directory: its flow, profiling, and forgetting it</span>
+     <span class="m">this directory: its flow, and forgetting it</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
                                                                     <span class="btn"> Save </span> <span class="n">2</span>
@@ -1059,7 +1056,6 @@ make it forget. The line across its top names the directory.
 | Heading | Row | What it is |
 | --- | --- | --- |
 | Flow | Default flow | the flow it opens on, and how many agents that flow was set up with |
-| Runs | Profiling | whether a run here [profiles](#whether-a-run-here-is-profiled) the programs it starts |
 | Reset | Forget | a switch: turned `on` and saved, it forgets everything this directory remembers. Its line says how many flows that is. |
 
 **Forget** clears this directory only. Every other directory, and everything on the other
@@ -1073,8 +1069,8 @@ carries on with what it opened with.
   - what each agent role runs: the CLI, the [account](#accounts), the model and the
     effort;
   - where each environment role works;
-  - how the flow itself was [set up](/reference/tui), and what a run of it may spend.
-- **Whether its runs are profiled.**
+  - how the flow itself was [set up](/reference/tui), what a run of it may spend, and
+    whether a run of it is [profiled](#whether-a-run-of-it-is-profiled).
 
 Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one humanize
 ships, `local/twice` for a project flow, `user/twice` for a personal one. Within a flow, each
@@ -1087,32 +1083,25 @@ since dropped or renamed is asked for again, rather than carried over.
 ### Changing it
 
 Change it where you set it: in [`/flow`](/reference/tui). Choose the flow, set each agent and
-environment and what a run may spend, and save. That save is what the next `hmz` here opens
+environment, what a run may spend and whether it is profiled, and save. That save is what the next `hmz` here opens
 on. It only opens there: nothing runs until you send the first line.
 
 Saving checks the lot before any of it is kept. The flow is loaded, every role is checked
 against what the flow declares, and a flow that refuses a combination of its own settings says
 why. You fix it in the menu, not half an hour into a run.
 
-### Whether a run here is profiled
+### Whether a run of it is profiled
 
-The **Profiling** row adds the programs a run starts (the tests, the builds, the greps) and how
-long each took to the run's [trace](/user/tracing), on the same timeline as the agents. It is
-off until you turn it on, and it belongs to the directory: a repository whose tests take an
-hour is a different question from one whose tests take a minute.
-
-It takes effect from the next run, not the one under way. An `hmz exec` run in this
-directory is profiled too. What is recorded, and how to read it, is
-[Tracing](/user/tracing).
+Profiling is not a setting of this page. It is chosen per run, like the budget, on the
+**profiling** row of `/flow` just under **budget**, and remembered with the rest of that
+flow's setup here. An `hmz exec` run is profiled only with `--profile`. What is recorded, and
+how to read it, is [Tracing](/user/tracing#profiling-a-run).
 
 ### `hmz exec` starts from none of this
 
-What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p` and `-b`. An
-unattended run inherits nothing from how this directory was last set up. It reads only two
-things from here:
-
-- whether runs in this directory are profiled;
-- whether you said yes to [reporting](/user/reporting).
+What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p`, `-b` and
+`--profile`. An unattended run inherits nothing from how this directory was last set up. It
+reads only one thing from here: whether you said yes to [reporting](/user/reporting).
 
 ### The first time
 
@@ -1165,8 +1154,7 @@ fetch fails, the line under the list says why.
 
 ### A change did not reach the run that is going
 
-Some changes wait for something to start again: profiling for the next run, a corrected account
-for the next agent session, forgetting for the next launch. The table in
+Some changes wait for something to start again: a corrected account for the next agent session, forgetting for the next launch. The table in
 [When a change lands](#saving) lists which.
 
 ## Next steps

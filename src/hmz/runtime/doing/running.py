@@ -87,6 +87,11 @@ class Run:
         return self._runner.budget
 
     @property
+    def profile(self) -> bool:
+        """Whether the run profiles the programs its agents start, as well as tracing them."""
+        return self._runner.profile
+
+    @property
     def usage(self) -> Usage:
         """What every session of the run has spent so far."""
         from hmz.flows import Usage

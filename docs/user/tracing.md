@@ -118,36 +118,30 @@ A trace shows what the agents did, not what it cost. For tokens and money, see
 ## Profile the programs too {#profiling-a-run}
 
 An agent's turn is mostly other programs: the tests, the build, the greps. A CLI logs the tool
-call, not the processes it started. Turn on **Profiling** on the Workspace page of
-[`/settings`](/user/settings) and every run in this directory also records each program its
-agents ran, what started it, and how long it took.
+call, not the processes it started. Profile a run and it also records each program its agents
+ran, what started it, and how long it took. Like the budget, it is a choice about a run, made
+where the budget is:
 
 ```text
-  /settings › Workspace                                                         ● unsaved changes
-  Saved settings for this directory: the default flow, and how it was last configured.
+   ralph_loop
+   Configure each role: an agent (CLI, account, model and effort) or an environment.
+     1. agent                     claude/claude-opus-5-5:high
 
-  │ Directory                                                                      hmzdocs-C/app │
-  │   the directory these settings apply to                                                      │
-  │──────────────────────────────────────────────────────────────────────────────────────────────│
-  │ Default flow                                                                            none │
-  │   configured with 0 agents; chosen with /flow                                                │
-  │──────────────────────────────────────────────────────────────────────────────────────────────│
-  │ Profiling                                                                             ● on ▾ │  ①
-  │   profile programs started by runs here · takes effect on next flow run                      │  ②
-  │──────────────────────────────────────────────────────────────────────────────────────────────│
-  │ Forget                                                                               ○ off ▾ │
-  │   clear saved settings here, across 0 flows                                                  │
+        budget                    stops at 20m, $0.50
+   ❯    profiling                 on; samples the programs agents start                  ①
 
-                                                                                          Save   ③
-  enter choose   tab actions   esc back
+        save                      flow and roles                                         ②
+
+   enter switch · esc back to flows
 ```
 
-1. **`Profiling`**: <kbd>enter</kbd> on the row drops its two values, `on` (profile what runs
-   here start) and `off` (trace them only), with the cursor already on the other one, so
-   <kbd>enter</kbd> twice turns it round.
-2. **`takes effect on next flow run`**: a run already going is not profiled halfway through.
-3. **`Save`**: <kbd>tab</kbd> reaches it. Saved, the transcript says `runs will profile started
-   programs from the next flow run; /epics collects the trace`.
+1. **`profiling`**, just under `budget` on [`/flow`](/reference/tui#roles-page):
+   <kbd>enter</kbd> turns it on or off. It is off until you turn it on.
+2. **`save`**: kept with the rest of the flow's setup in this directory, so the next run of the
+   flow here is profiled too until you turn it off.
+
+From the command line, add `--profile` to [`hmz exec`](/reference/cli#exec-profile); from
+Python, `profile=True` to [`Hmz().run`](/reference/sdk#hmz-run).
 
 A trace of a profiled run shows each program as a process of its own, on the same clock as the
 sessions, and its summary counts them. The same Ralph loop, resumed once profiling was on:
@@ -158,8 +152,9 @@ sessions, and its summary counts them. The same Ralph loop, resumed once profili
 
 <TraceMock profiled />
 
-It is off until you turn it on, it holds from the next run, and it covers runs `hmz exec`
-starts in this directory too.
+A run already going is not profiled halfway through, and `/resume` profiles the run it picks
+up exactly as the run it goes on from was. An `hmz exec` line is profiled only when it says
+`--profile`.
 
 ## Which CLIs a trace can read
 
@@ -210,8 +205,8 @@ See [SDK reference](/reference/sdk) and the [Tracing reference](/reference/traci
   [Troubleshooting](/user/troubleshooting#_0-sessions-0-slices).
 - **Fewer sessions in the trace than `/epics` counted.** Some agents ran on Cursor Agent,
   which a trace cannot read. Everything else is still there.
-- **No programs in a profiled trace.** Profiling holds from the run after you saved it. Run
-  the flow again, or `/resume` it.
+- **No programs in a profiled trace.** The run was started before profiling was turned on, or
+  by an `hmz exec` line without `--profile`. Run the flow again with it on.
 
 ## Next steps
 

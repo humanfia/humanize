@@ -156,12 +156,14 @@ Every value is a string.
 
 ## Profiling a run {#profiling-a-run}
 
-With [`profile: true`](/reference/settings) for the workspace (`/settings` › Workspace ›
-Profiling), each run started there samples every descendant process of the process running
-the flow, every 0.05 s (psutil, on a daemon thread), from the epic's opening until it closes.
+A run asked to be profiled -- [`hmz exec --profile`](/reference/cli#hmz-exec),
+`profile=True` to `Hmz().run`, `Runner` or `Link.start`, or the **profiling** row of the
+[`/flow`](/reference/tui#roles-page) menu, beside the budget -- samples every descendant process of
+the process running the flow, every 0.05 s (psutil, on a daemon thread), from the epic's opening until it closes.
 Sampling never stops a run: an unreadable process is skipped, a machine whose processes
 cannot be read gives an empty profile. A process that lives less than one interval may be
-missed.
+missed. Off unless asked; the epic's `began` record carries `profile: true` for a run that was,
+and `/resume` profiles the run it picks up the same way.
 
 ### `profile.jsonl` {#profile-jsonl}
 
@@ -215,7 +217,7 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 
 | `event` | When | Fields |
 | --- | --- | --- |
-| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider}`, one per role), `envs` (list of `role=<-e spec>`, as given), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited) |
+| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider}`, one per role), `envs` (list of `role=<-e spec>`, as given), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited), `profile` (`true`, only for a [profiled](#profiling-a-run) run) |
 | `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (role), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<role>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `self`, or the `<backend>:<name>` of the runtime an affinity sent it to; only when its work was on another machine) |
 | `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
 | `returned` | that call ends, however | `flow`, `epic` |

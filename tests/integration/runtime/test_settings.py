@@ -33,11 +33,11 @@ ROUNDS = 15
 def test_two_holders_of_one_workspace_keep_each_others_changes(tmp_path: Path) -> None:
     mine, theirs = Settings(tmp_path), Settings(tmp_path)
 
-    mine.profiles(on=True)
+    mine.remember("rlar", {"actor": Runs("codex/n:low")}, profile=True)
     theirs.remember("chat", {"assistant": Runs("claude/m:high")})
 
     again = Settings(tmp_path)
-    assert again.profiling is True
+    assert again.profile("rlar") is True
     assert again.flow == "chat"
     assert again.agents("chat") == {"assistant": Runs("claude/m:high")}
 
@@ -73,19 +73,33 @@ def test_what_was_not_handed_in_is_read_from_the_file_as_it_is_now(
     assert again.agents("humanize1") == {"builder": Runs("codex/n:low")}
 
 
+def test_choosing_the_agents_again_leaves_whether_a_run_is_profiled(
+    tmp_path: Path,
+) -> None:
+    """Kept per flow beside the budget, and left alone by what does not hand it in."""
+    kept = Settings(tmp_path)
+    kept.remember("humanize1", {"builder": Runs("claude/m:high")}, profile=True)
+    kept.remember("humanize1", {"builder": Runs("codex/n:low")})
+
+    assert Settings(tmp_path).profile("humanize1") is True
+    assert Settings(tmp_path).profile("chat") is False
+
+    kept.remember("humanize1", {"builder": Runs("codex/n:low")}, profile=False)
+
+    assert Settings(tmp_path).profile("humanize1") is False
+
+
 def test_the_settings_of_this_machine_survive_each_other(tmp_path: Path) -> None:
     mine, theirs = Settings(tmp_path), Settings(tmp_path)
 
     mine.detailing(on=True)
     theirs.btw = "claude/m:high"
     theirs.answers(enable_sentry=False)
-    mine.profiles(on=True)
 
     again = Settings(tmp_path)
     assert again.details is True
     assert again.btw == "claude/m:high"
     assert again.enable_sentry is False
-    assert again.profiling is True
 
 
 def test_forgetting_a_workspace_takes_only_that_one(tmp_path: Path) -> None:
@@ -105,7 +119,7 @@ def test_a_holder_sees_what_others_wrote_once_it_has_written(tmp_path: Path) -> 
     mine, theirs = Settings(tmp_path), Settings(tmp_path)
 
     theirs.remember("chat", {"assistant": Runs("claude/m:high")})
-    mine.profiles(on=True)
+    mine.detailing(on=True)
 
     assert mine.flow == "chat"
 
@@ -141,11 +155,11 @@ def test_a_writer_that_never_lets_go_is_waited_for_and_then_gone_round(
     held = os.open(home() / ".settings.yaml.lock", os.O_CREAT | os.O_RDONLY, 0o600)
     try:
         fcntl.flock(held, fcntl.LOCK_EX)
-        kept.profiles(on=True)
+        kept.detailing(on=True)
     finally:
         os.close(held)
 
-    assert Settings(tmp_path).profiling is True
+    assert Settings(tmp_path).details is True
 
 
 def test_many_processes_writing_at_once_keep_every_change(tmp_path: Path) -> None:

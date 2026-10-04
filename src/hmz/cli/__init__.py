@@ -152,6 +152,7 @@ def _executes(argv: list[str]) -> int:
                 envs=line.envs,
                 params=line.params,
                 budget=line.budget,
+                profile=line.profile,
                 resume=line.resume,
             )
         except Refused as error:

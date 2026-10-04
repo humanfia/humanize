@@ -85,6 +85,7 @@ class Line(NamedTuple):
       envs: What each environment role is given, likewise.
       params: Each param as the line wrote it, which the flow's own model reads.
       budget: What the run may spend, or None where the line said nothing.
+      profile: Whether to profile the programs the run's agents start, as well as trace them.
       resume: Whether to pick up the newest run of the flow here that can be.
       as_json: Whether a program is reading the run rather than a person.
     """
@@ -95,6 +96,7 @@ class Line(NamedTuple):
     envs: tuple[EnvSpec, ...] = ()
     params: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     budget: Budget | None = None
+    profile: bool = False
     resume: bool = False
     as_json: bool = False
 
@@ -175,6 +177,12 @@ def read_line(argv: list[str]) -> Line:
         "graceful=false to stop a turn mid-way. Required, except for chat",
     )
     parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="sample the programs the agents start while the run goes, so the run's trace "
+        "shows what each turn spent its time on beside the turn",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="pick up the newest run of this flow here, for a flow that can be picked up",
@@ -208,6 +216,7 @@ def read_line(argv: list[str]) -> Line:
             envs=tuple(parse_envs(args.envs)),
             params=parse_params(args.params),
             budget=parse_budget(args.budget) if args.budget else None,
+            profile=args.profile,
             resume=args.resume,
             as_json=args.as_json,
         )
@@ -231,6 +240,7 @@ class Runner:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
+        profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
     ) -> None:
@@ -248,6 +258,9 @@ class Runner:
             `-p` among them -- or None for its defaults.
           budget: What the run may spend. Only a flow humanize ships may be run without one,
             under `Budget(cost=inf)`.
+          profile: Whether to sample the programs the agents start while the run goes, as
+            well as trace them. Off unless asked, since it is a sampler running for as long
+            as the flow does.
           resume: Whether to pick up the newest run of this flow in the workspace that can
             be picked up, or the epic to pick up.
           workspace: Where the run happens, defaulting to this directory.
@@ -286,6 +299,7 @@ class Runner:
                 )
             budget = Budget(cost=math.inf)
         self._budget = budget if isinstance(budget, Budget) else _budget(budget)
+        self._profile = profile
         self._picked_up = self._picks_up(resume)
         # Made last, once everything that could refuse the run has had its say: a driver
         # starts nothing as it is made, and none is made for a run that is refused.
@@ -526,6 +540,11 @@ class Runner:
         return self._budget
 
     @property
+    def profile(self) -> bool:
+        """Whether the run profiles the programs its agents start, as well as tracing them."""
+        return self._profile
+
+    @property
     def picked_up(self) -> Path | None:
         """The epic this run picks up, or None for a run from the top."""
         return self._picked_up
@@ -655,7 +674,6 @@ class Runner:
         from hmz.runtime.flowing import local_env, open_outworlder, run_flow
 
         from .epic import Epic
-        from .settings import Settings
 
         local: EnvDriver | None = None
         try:
@@ -690,7 +708,7 @@ class Runner:
             budget=json.loads(self._budget.model_dump_json()),
             resumable=impl.resumable,
             picked_up=self._picked_up,
-            profile=Settings(self._workspace).profiling,
+            profile=self._profile,
         )
         recorder = Recorder(epic, opened)
         self._recorder = recorder

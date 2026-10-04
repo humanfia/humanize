@@ -79,7 +79,7 @@ Choose **export run**. A moment later the list is back, with a line under it:
 5. **Its size.** Mostly the agents' logs. A long run of a chatty agent can be megabytes.
 6. **What the timeline holds**: 3 sessions, and 53 slices, each a thing an agent did (a tool
    call, a message, a stretch of thinking). A run whose directory is
-   [profiled](/user/settings#whether-a-run-here-is-profiled) adds the programs its agents ran:
+   [profiled](/user/tracing#profiling-a-run) adds the programs its agents ran:
    `1 session, 13 slices, 7 programs`.
 
 ## What is in it
@@ -101,7 +101,7 @@ Choose **export run**. A moment later the list is back, with a line under it:
 
 A file the run never wrote is left out: `resume.jsonl` only for a flow that
 [can be picked up](/user/resuming), `profile.jsonl` only for a
-[profiled](/user/settings#whether-a-run-here-is-profiled) run.
+[profiled](/user/tracing#profiling-a-run) run.
 
 **`manifest.json`** is what lets somebody else read the rest:
 
@@ -151,7 +151,7 @@ $ ls -l .humanize/20260930T054014.242Z-bdae4a.epic.tar.gz
 -rw------- 1 nvidia nvidia 58848 Sep 30 05:40 .humanize/20260930T054014.242Z-bdae4a.epic.tar.gz
 ```
 
-This one is a resumed run of `ralph_loop` in a profiled directory, so it has both
+This one is a resumed run of `ralph_loop` that was profiled, so it has both
 `resume.jsonl` and `profile.jsonl`. Unpacked, its manifest reads, in part:
 
 ```json

@@ -25,6 +25,7 @@ from hmz.coganchor.agents import AgentBase, AgentConfig, Event
 from hmz.runtime import Hmz, Host
 from hmz.runtime.flowing.harnesses import HarnessDriver
 from hmz.runtime.flowing.specs import parse_agents
+from tests.sampling import sampled
 from tests.stubs import ShellAgent, ShellSession, written
 
 if TYPE_CHECKING:
@@ -451,6 +452,31 @@ def test_a_session_opened_says_which_environment_it_works_in(
 
 
 # ------------------------------------------------------------------------ lines
+
+
+@sampled
+@pytest.mark.timeout(60)
+def test_a_run_started_to_be_profiled_is_profiled_and_says_so(
+    host: Host, workspace: Path
+) -> None:
+    """Asked of the start as the budget is, and said to every frontend as the run starts."""
+    alice = Told(host, "alice")
+    said = alice.asks(
+        do="start", flow="asks", task="the parser", budget={"cost": 1}, profile=True
+    )
+    assert said["ok"], said
+
+    assert alice.told("started")["profile"] is True
+
+
+@pytest.mark.timeout(60)
+def test_a_run_started_with_nothing_said_of_profiling_is_not_profiled(
+    host: Host, workspace: Path
+) -> None:
+    alice = Told(host, "alice")
+    _asks(alice)
+
+    assert alice.told("started")["profile"] is False
 
 
 @pytest.mark.timeout(60)

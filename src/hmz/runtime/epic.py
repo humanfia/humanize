@@ -287,6 +287,8 @@ class Ran(NamedTuple):
       params: What the flow was set up with, as JSON.
       budget: What the run was allowed to spend, as JSON, or None where it said nothing.
       picked_up: The epic this run was picked up from, by name, or "".
+      profile: Whether the run was asked to profile the programs its agents started as well
+        as trace them; False for a run written before a run could be asked.
     """
 
     at: Path
@@ -306,6 +308,7 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     budget: dict[str, Any] | None = None
     picked_up: str = ""
+    profile: bool = False
 
     @property
     def name(self) -> str:
@@ -598,8 +601,9 @@ class Epic:
           picked_up: The epic this run is picked up from, whose journal is copied into this
             one for the run to go on from, or None for a run starting from nothing.
           profile: Whether to sample the programs the agents start while the run goes, so
-            that what a turn spent its minutes on is in the run's trace beside the turn. A
-            setting of the workspace, asked of it by whoever opens the epic.
+            that what a turn spent its minutes on is in the run's trace beside the turn. Asked
+            of the run as its budget is, by whoever starts it, and written down with the rest
+            so that a run picked up again is profiled as the run it goes on from was.
         """
         self._begin(
             home()
@@ -623,7 +627,7 @@ class Epic:
             with contextlib.suppress(OSError):
                 shutil.copyfile(picked_up / RESUME, self._at / RESUME)
         #: The programs this run starts, sampled while it runs, or None for a run nobody
-        #: asked to profile -- which is every run until somebody says otherwise.
+        #: asked to profile -- which is every run not started with `--profile`.
         self._profiler = self._profiling() if profile else None
         self.write(
             "began",
@@ -642,6 +646,7 @@ class Epic:
             ),
             params=dict(params or {}),
             **({"budget": dict(budget)} if budget is not None else {}),
+            **({"profile": True} if profile else {}),
         )
 
     def _begin(self, at: Path, journal: str, workspace: Path, flow: str) -> None:
@@ -1153,6 +1158,7 @@ def read(epic: Path) -> Ran | None:
         params=cast("dict[str, Any]", params) if isinstance(params, dict) else {},
         budget=cast("dict[str, Any]", budget) if isinstance(budget, dict) else None,
         picked_up=str(began.get("picked_up") or ""),
+        profile=bool(began.get("profile")),
     )
 
 

@@ -157,6 +157,7 @@ class Link:
         envs: Mapping[str, Any] | None = None,
         params: Any = None,
         budget: Any = None,
+        profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
     ) -> dict[str, Any]:
         """Starts a flow, which every frontend attached then reads.
@@ -168,6 +169,7 @@ class Link:
           envs: What each environment role is, as `-e` spells it.
           params: The flow's params, as a mapping or its model, or None for its defaults.
           budget: What the run may spend, as a mapping or a `Budget`.
+          profile: Whether to profile the programs its agents start, as well as trace them.
           resume: Whether to pick up the newest run of it, or the epic to pick up.
 
         Returns:
@@ -182,6 +184,7 @@ class Link:
                 "envs": dict(envs or {}),
                 "params": _plain(params),
                 "budget": _plain(budget),
+                "profile": profile,
                 "resume": resume if isinstance(resume, bool) else str(resume),
             }
         )

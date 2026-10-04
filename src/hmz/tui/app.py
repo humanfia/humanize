@@ -1090,6 +1090,10 @@ class Humanize(App[None]):
         #: humanize ships runs with. Beside the params and not inside them: it is a setting
         #: of the run rather than one of the flow's own.
         self._budget: Budget | None = budget_of(self._flow_named)
+        #: Whether a run of it here profiles the programs its agents start, as well as
+        #: tracing them. Beside the budget, and remembered with it: like what a run may
+        #: spend, it is a thing about a run of this flow rather than one of its params.
+        self._profile = self.settings.profile(self._flow_named)
         #: Where each role's harness went in the run going, by role: what the runtime it works
         #: on came to, which only the machine could say.
         self._harnessed: dict[str, str] = {}
@@ -3460,6 +3464,7 @@ class Humanize(App[None]):
                 self.settings.flows(),
                 envs=self._envs if holding else None,
                 budget=self._budget if holding else None,
+                profile=self._profile if holding else False,
                 unavailable=frozenset(unavailable),
                 running=running,
                 # A flow that was named has been chosen, so what is left to answer is what
@@ -3532,7 +3537,13 @@ class Humanize(App[None]):
             # A flow that will not load says nothing about what it declares, so nothing here
             # can tell whether it is set up. Running it is where that is said, exactly as it
             # is for the flow already in force.
-            return Chosen(flow, agents, envs, budget=budget_of(flow))
+            return Chosen(
+                flow,
+                agents,
+                envs,
+                budget=budget_of(flow),
+                profile=self.settings.profile(flow),
+            )
         if set(agents) != set(declared.roles):
             return None
         if any(role.required and role.name not in envs for role in declared.envs):
@@ -3547,7 +3558,7 @@ class Humanize(App[None]):
         budget = budget_of(flow)
         if budget is None and not declared.unbounded:
             return None
-        return Chosen(flow, agents, envs, params, budget)
+        return Chosen(flow, agents, envs, params, budget, self.settings.profile(flow))
 
     def _took_flow(self, chosen: Chosen, *, running: bool, starting: str = "") -> None:
         """Applies what the flow menu was saved with, and writes it down.
@@ -3568,12 +3579,14 @@ class Humanize(App[None]):
             chosen.envs,
             chosen.params,
             chosen.budget,
+            chosen.profile,
         ) == (
             self._flow_named,
             self._models,
             self._envs,
             self._params,
             self._budget,
+            self._profile,
         )
         if chosen.flow != self._flow_named:
             self._harnessed = {}
@@ -3585,6 +3598,7 @@ class Humanize(App[None]):
         self._flow_named = chosen.flow
         self._models, self._envs = dict(chosen.agents), dict(chosen.envs)
         self._params, self._budget = chosen.params, chosen.budget
+        self._profile = chosen.profile
         self.settings.remember(
             chosen.flow,
             self._models,
@@ -3598,6 +3612,7 @@ class Humanize(App[None]):
             json.loads(chosen.budget.model_dump_json())
             if chosen.budget is not None
             else {},
+            profile=chosen.profile,
         )
         if running:
             self._reconfigured()
@@ -3708,20 +3723,6 @@ class Humanize(App[None]):
                 else "[dim]showing turn responses only, without details[/dim]"
             )
             self._draw()  # and the status line says which mode this is in from now on
-        if said.profile is not None:
-            self.settings.profiles(on=said.profile)
-            # Read as a run starts, so one running now carries on as it started.
-            self.show(
-                (
-                    "[dim]runs will profile started programs from the next flow "
-                    "run; /epics collects the trace[/dim]"
-                )
-                if said.profile
-                else (
-                    "[dim]runs will be traced and not profiled from the next flow "
-                    "run[/dim]"
-                )
-            )
         if said.btw is not None:
             self.settings.btw = said.btw
             # Not the one open now: a side conversation is one agent from its first turn on.
@@ -3981,6 +3982,8 @@ class Humanize(App[None]):
             self._budget = Budget.model_validate(ran.budget) if ran.budget else None
         except ValueError:
             self._budget = None
+        # Profiled as the run it goes on from was, so its trace is one trace of one kind.
+        self._profile = ran.profile
         self.show(
             f"[dim]resuming {escape(ran.name)}: running {escape(ran.flow)} "
             "from saved state[/dim]"
@@ -4053,6 +4056,7 @@ class Humanize(App[None]):
             budget=json.loads(self._budget.model_dump_json())
             if self._budget is not None
             else None,
+            profile=self._profile,
             resume=str(resume) if resume is not None else False,
         )
 

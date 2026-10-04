@@ -651,7 +651,8 @@ params; `esc` there leaves.
 | each agent role (declared order) | `<cli>/<model>:<effort>[ · <account>]` or `not set` | [agent sheet](#what-each-agent-is) |
 | each environment role | the `-e` spec after `<role>=`, or `not set` | [environment form](#where-each-agent-works) |
 | `budget` (set apart) | [summary](#what-a-run-of-it-may-spend) | budget sheet |
-| `save` (set apart) | `flow and roles` | applies flow, roles, params and budget together |
+| <span id="profiling-row"></span>`profiling` (set apart, straight under `budget`) | `on; samples the programs agents start` or `off; traced only`; the flow's remembered value, else off | nothing: `enter` (`switch`) turns it over; a run started is [profiled](/reference/tracing#profiling-a-run) where it is on |
+| `save` (set apart) | `flow and roles` | applies flow, roles, params, budget and profiling together |
 
 Roles filled by the runtime (`Outworlder`, `LocalEnv`) are not rows. Messages:
 `<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
@@ -846,8 +847,8 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 Picks up the newest run in this directory of a flow that can be picked up. Runs are scanned
 newest first; the scan stops at the first run that is unreadable, was recorded resumable, or
 whose flow is resumable now. On success: `resuming <run>: running <flow> from saved state`,
-and the run's flow, agents, environments, params, budget and task are used; the budget
-counts from zero.
+and the run's flow, agents, environments, params, budget, whether it was profiled and task
+are used; the budget counts from zero.
 
 | Message (`hmz: `, red) | Condition |
 | --- | --- |
@@ -892,7 +893,7 @@ Storage keys are in [Settings](/reference/settings).
   │    the git repositories flows come from                                  │
   │──────────────────────────────────────────────────────────────────────────│
   │ ⌂  Workspace                                        work/api · flow rlar │
-  │    this directory: its flow, profiling, and forgetting it                │
+  │    this directory: its flow, and forgetting it                           │
   ╰──────────────────────────────────────────────────────────────────────────╯
                                                                       Save
   enter open   tab actions   esc close
@@ -905,7 +906,7 @@ Storage keys are in [Settings](/reference/settings).
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ▦ Runtimes | `<n> machine(s)` | never |
 | ⑂ Flowverses | `<n> flowverse(s)` (≥ 3) | never |
-| ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | profiling changed, or forget on |
+| ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | forget on |
 
 **Save** is disabled (tooltip `nothing to save yet`) until a page holds a change (`save all
 changes`). Hints: `enter open   [tab actions   ]esc close`; `tab actions` only while something
@@ -946,7 +947,6 @@ in force.
 | --- | --- | --- |
 | Error reports, Details | at once on save | — |
 | /btw agent | next time btw mode is entered | `takes effect on next /btw` |
-| Profiling | next flow run | `takes effect on next flow run` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Fallback rules | next failed turn | — |
@@ -959,7 +959,6 @@ order done, including things done at once, even after a discard), then:
 | --- | --- |
 | Error reports on / off | `error reporting enabled` / `error reporting disabled` |
 | Details on / off | `showing details: tool calls, thinking, and backend output` / `showing turn responses only, without details` |
-| Profiling on / off | `runs will profile started programs from the next flow run; /epics collects the trace` / `runs will be traced and not profiled from the next flow run` |
 | /btw agent | `/btw will ask <spec\|the flow's first agent> about the whole flow next time you enter btw mode` |
 | Forget | `cleared saved settings for this directory; humanize will open without them on next launch` |
 
@@ -1231,7 +1230,6 @@ first column.
 | Heading | Row | Value | Kind |
 | --- | --- | --- | --- |
 | Flow | **Default flow** `configured with <n> agent(s); chosen with /flow` | the flow, or `none` | read-only |
-| Runs | **Profiling** `profile programs started by runs here` | `on` (`profile what runs here start`), `off` (`trace them only`); default off | ▾ |
 | Reset | **Forget** `clear saved settings here, across <n> flow(s)` | `on` (`clear saved settings here`), `off` (`keep them`); starts off | ▾; on save deletes this directory's entry |
 
 ### First start {#first-start}
@@ -1463,8 +1461,7 @@ and when the width changes. The status line says `· copied` for 2 s.
 | `details` | machine | Details |
 | `btw` | machine | /btw agent |
 | `workspaces.<dir>.flow` | directory | saving `/flow` |
-| `workspaces.<dir>.profile` | directory | Profiling |
-| `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget}` | directory, per flow | saving `/flow` |
+| `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, profile}` | directory, per flow | saving `/flow` |
 
 `<flow>` is the name the flow is offered under (`chat`, `local/<f>`, `user/<f>`,
 `<flowverse>/<f>`), so two flows with one bare name never share a setup. Roles are keyed by

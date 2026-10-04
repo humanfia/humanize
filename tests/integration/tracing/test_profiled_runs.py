@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.runtime.epic import TRACES, epics, opened
+from hmz.runtime.epic import read as ran_of
 from hmz.runtime.runner import Runner
-from hmz.runtime.settings import Settings
 from hmz.runtime.tracing.collector import collect
 from hmz.runtime.tracing.profile import PROFILE, read
 from tests.sampling import sampled
@@ -63,15 +63,17 @@ def workspace(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> pathli
 
 @sampled
 @pytest.mark.timeout(90)
-def test_a_run_is_profiled_when_the_workspace_asks_for_it(
+def test_a_run_is_profiled_when_it_is_asked_to_be(
     workspace: pathlib.Path,
 ) -> None:
     """Off unless somebody says otherwise: it is a sampler running as long as the flow does."""
-    Settings().profiles(on=True)
-
-    Runner(workspace / "flow", budget={"cost": 1}).run("go")
+    Runner(workspace / "flow", budget={"cost": 1}, profile=True).run("go")
 
     (epic,) = epics()
+    # And said so in the run's own record, which is what a run picked up again reads.
+    ran_ = ran_of(epic)
+    assert ran_ is not None
+    assert ran_.profile
     ran = read(epic / PROFILE)
     assert ran, "the programs the turn ran are not in the run's profile"
     # What it ran, which is a shell running a sleep: both are programs this run started.
@@ -90,6 +92,9 @@ def test_a_run_nobody_asked_to_profile_is_traced_and_not_profiled(
 
     (epic,) = epics()
     assert not (epic / PROFILE).exists()
+    ran_ = ran_of(epic)
+    assert ran_ is not None
+    assert not ran_.profile
 
 
 @sampled
@@ -98,8 +103,7 @@ def test_the_programs_and_the_sessions_are_one_document(
     workspace: pathlib.Path,
 ) -> None:
     """Which is the point of profiling into a trace rather than into a profile of its own."""
-    Settings().profiles(on=True)
-    Runner(workspace / "flow", budget={"cost": 1}).run("go")
+    Runner(workspace / "flow", budget={"cost": 1}, profile=True).run("go")
     (epic,) = epics()
 
     output = epic / TRACES / "one.trace.json"

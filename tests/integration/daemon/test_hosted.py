@@ -20,6 +20,7 @@ import pytest
 
 from hmz import cli, daemon
 from hmz.sdk import Daemons
+from tests.sampling import sampled
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -154,6 +155,22 @@ def test_frontends_of_their_own_each_answer_for_the_role_they_claimed(
     assert "planned planner says yes and reviewed reviewer says yes" in [
         one["text"] for one in seen if one["type"] == "printed"
     ]
+
+
+@sampled
+@pytest.mark.timeout(90)
+def test_a_run_started_through_a_link_is_profiled_where_the_start_says(
+    hosted: daemon.Daemon,
+) -> None:
+    """Carried across the socket beside the budget, and said back as the run starts."""
+    seen: list[dict[str, Any]] = []
+    with hosted.link(name="starter") as link:
+        link.heard(seen.append)
+        link.start("asks", "the parser", budget={"cost": 1}, profile=True)
+
+        assert until(lambda: any(one["type"] == "started" for one in list(seen)))
+    (started,) = (one for one in seen if one["type"] == "started")
+    assert started["profile"] is True
 
 
 @pytest.mark.timeout(90)
