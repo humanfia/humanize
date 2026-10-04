@@ -332,7 +332,7 @@ uv tool upgrade hmz
 ```
 
 ```sh [pipx]
-pipx upgrade hmz
+pipx reinstall hmz
 ```
 
 ```sh [pip]
@@ -341,9 +341,10 @@ pip install --force-reinstall git+https://github.com/humanfia/humanize.git
 
 :::
 
-`uv tool upgrade` and `pipx upgrade` move humanize to the latest `main`, with the extras it was
-installed with. `pip` needs `--force-reinstall`, as `main` keeps one version number from commit
-to commit and `pip install --upgrade` leaves a version it already has alone. Name an extra
+`uv tool upgrade` and `pipx reinstall` move humanize to the latest `main`, with the extras it
+was installed with. `pipx upgrade` and `pip install --upgrade` do not: `main` keeps one version
+number from commit to commit, and they leave a version they already have alone, so `pip` needs
+`--force-reinstall`. Name an extra
 again: `pip install --force-reinstall 'hmz[all] @ git+https://github.com/humanfia/humanize.git'`.
 
 What changed is in the [commits on `main`](https://github.com/humanfia/humanize/commits/main).

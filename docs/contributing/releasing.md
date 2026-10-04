@@ -127,8 +127,9 @@ files** page: each file names `publish.yaml` on humanfia/humanize as its publish
 **A release candidate.** Tag `v0.2.0-rc.1`, then `v0.2.0-rc.2`, and `v0.2.0` once it holds.
 Both GitHub and PyPI mark it as a pre-release.
 
-**A dry run.** `gh workflow run publish.yaml --ref main` builds and checks the package exactly
-as a release would, and publishes nothing. Use it after changing `README.md`, which is the
+**A dry run.** `gh workflow run publish.yaml --ref main` builds and checks the package as a
+release would, but keeps `pyproject.toml`'s version, there being no tag to take one from, and
+publishes nothing. Use it after changing `README.md`, which is the
 page PyPI shows, or the metadata in `pyproject.toml`.
 
 **On your machine.** GoReleaser builds the same files without publishing anything:
