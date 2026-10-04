@@ -51,7 +51,7 @@ def mcode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def test_a_gateway_account_takes_a_turn_and_the_next_carries_it_on(
-    asking: None, mcode: Path, llm: Serving
+    asking: None, mcode: Path, llm: Serving, tmp_path: Path
 ) -> None:
     profile = backends.named("mcode")
     assert profile is not None
@@ -70,22 +70,28 @@ def test_a_gateway_account_takes_a_turn_and_the_next_carries_it_on(
             model=model, effort="", permission="bypass", provider="loopback"
         )
     )
+    agent.keeps = tmp_path / "kept"
     session = agent.new(mcode)
 
     assert session("Reply with one word.") == llm.says
     assert session("And again.") == llm.says
 
-    # One session across the two turns, kept where humanize keeps them and not in the CLI's
-    # own home, and its log found there by the id the CLI stated.
+    # One session across the two turns, kept where humanize was told to keep them and not in
+    # the CLI's own home, and its log found there by the id the CLI stated.
     assert agent.opened == [session.id]
-    kept = agent.kept()
+    kept = tmp_path / "kept" / "mcode"
+    assert agent.kept() == kept
     (pattern,) = profile.logged(session.id)
     assert list(kept.glob(pattern))
     assert agent.spent().total > 0
 
 
 def test_a_fenced_turn_keeping_no_session_takes_its_lock_and_answers(
-    asking: None, mcode: Path, llm: Serving, monkeypatch: pytest.MonkeyPatch
+    asking: None,
+    mcode: Path,
+    llm: Serving,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """`HUMANIZE_SESSIONS=off`, held by a real wall that reads the home and writes the workdir.
 
@@ -131,10 +137,12 @@ def test_a_fenced_turn_keeping_no_session_takes_its_lock_and_answers(
         )
     )
 
+    agent.keeps = tmp_path / "kept"
+
     assert agent.new(mcode)("Reply with one word.") == llm.says
     # The lock was taken where sessions would have been kept, and let go of; none was kept
     # there, and the home's own lock was never made.
-    kept = agent.keeps / "mcode"
+    kept = tmp_path / "kept" / "mcode"
     assert kept.is_dir()
     assert list(kept.iterdir()) == []
     assert not list(home.glob("*.lock"))

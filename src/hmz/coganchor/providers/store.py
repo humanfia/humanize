@@ -12,6 +12,7 @@ ones are there, and what is in each".
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json
 import os
@@ -465,15 +466,22 @@ def remove(cli: str, name: str) -> bool:
 
     Returns:
       Whether there was one to take away. Everything under it goes with it, which is the
-      point: what is being removed is an account this machine can run turns as.
+      point: what is being removed is an account this machine can run turns as -- and so does
+      the catalogue of what it runs, kept apart from it on this machine.
 
     Raises:
       ValueError: If the backend or the name is not one that may be used.
     """
+    from hmz.coganchor import models
+
     at = where(cli, name)
     if not at.is_dir():
         return False
     shutil.rmtree(at)
+    # A cache, so a machine directory that cannot be reached is no reason to keep an account
+    # somebody asked to be rid of: one made again under this name is asked the moment it is.
+    with contextlib.suppress(OSError):
+        models.where(cli, name).unlink(missing_ok=True)
     return True
 
 

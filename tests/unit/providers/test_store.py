@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from hmz import home
+from hmz import home, machine
 from hmz.coganchor import backends, providers
 from hmz.coganchor.providers import store
 
@@ -228,6 +228,24 @@ def test_a_provider_taken_away_is_gone_and_stays_gone() -> None:
     assert not provider.at.exists()
     assert providers.find("claude", "mine") is None
     assert providers.remove("claude", "mine") is False
+
+
+def test_a_provider_taken_away_takes_its_catalogue_and_nobody_elses() -> None:
+    """What an account runs is cached on this machine, apart from it, and goes when it does."""
+    from hmz.coganchor import models
+
+    providers.add("claude", "mine", way="login")
+    kept, local = models.where("claude", "mine"), models.where("claude")
+    for at in (kept, local):
+        at.parent.mkdir(parents=True, exist_ok=True)
+        at.write_text('{"asked": "now", "models": []}')
+
+    assert kept.is_relative_to(machine())
+    assert not kept.is_relative_to(home())
+    assert providers.remove("claude", "mine") is True
+
+    assert not kept.exists()
+    assert local.exists()
 
 
 @pytest.mark.parametrize("profile", backends.PROFILES, ids=lambda one: one.name)

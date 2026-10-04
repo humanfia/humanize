@@ -35,11 +35,13 @@ The rest of humanize's home is in [Files](/reference/files).
 $HUMANIZE_HOME/                         default ~/.hmz
 ├── providers/<cli>/<name>/             one account
 │   ├── provider.json                   what it is
-│   ├── models.json                     what it was last found to run
 │   ├── home/…                          credential files under the CLI's home
 │   ├── user/…                          credential files under the user's home (~/…)
 │   └── config/…                        credential files under $XDG_CONFIG_HOME
-└── models/<cli>.json                   the machine's own account's catalogue
+
+$TMPDIR/humanize-<uid>/models/<cli>/    model catalogues: a cache of this machine's
+├── <name>.json                         what an account was last found to run
+└── _local.json                         the same for the machine's own account
 ```
 
 | Rule | |
@@ -47,7 +49,7 @@ $HUMANIZE_HOME/                         default ~/.hmz
 | Modes | Every directory humanize creates on the way to `providers/<cli>/<name>/` and to each credential's parent is `0700`. Every file is written to a file of its own beside it (`.<file>.<random>.new`, mode `0600` from creation), fsynced and renamed into place. |
 | Directory name | The backend's canonical name and the account's name. The directory, not the file, decides which backend and name an account has. |
 | Unreadable entries | A directory whose `provider.json` is missing or not a JSON object is not listed. |
-| Removal | `remove(cli, name)` deletes the whole directory, credentials included. |
+| Removal | `remove(cli, name)` deletes the whole directory, credentials included, and the account's model catalogue. |
 
 ### `provider.json`
 
@@ -74,9 +76,11 @@ $HUMANIZE_HOME/                         default ~/.hmz
 A `fallback` key written by an older version is ignored, and dropped the next time the account
 is written. So is `local/<cli>.json`, which held only that.
 
-### `models.json`
+### Model catalogues {#models-json}
 
-The account's model catalogue, written by `hmz.coganchor.models.ask` when the account is made
+The account's model catalogue, kept on this machine (`hmz.machine()`) rather than in humanize's
+home, at `models/<cli>/<name>.json` and at `models/<cli>/_local.json` for the machine's own
+account, whose name no account can take. Written by `hmz.coganchor.models.ask` when the account is made
 and when it is asked again (the **Check again** button of the TUI's model list). Read by every
 prompt. Older than 7 days (`models.STALE`) counts as stale; at start-up the TUI asks again, in
 the background, for each installed backend whose machine's-own catalogue is missing or stale.
@@ -295,15 +299,15 @@ in again)`), sign it in again: `codex login` or `claude auth login` for this mac
 
 ## Where sessions are kept {#where-sessions-are-kept}
 
-The same supervisor keeps each turn's sessions out of the CLI's home, under whatever account
-it runs, the machine's own included. Each `Profile.sessions` entry under the CLI's home is
+The same supervisor keeps the sessions of each turn a run drives out of the CLI's home, under
+whatever account it runs, the machine's own included. Each `Profile.sessions` entry under the CLI's home is
 passed as `--keep=FROM=TO`, `TO` being the same relative path under the agent's session
 directory:
 
 | Agent | Session directory |
 | --- | --- |
 | driven by a flow run | the run's epic: `<epic>/sessions/<cli>/…` ([Tracing](/reference/tracing)) |
-| driven by hand | `$HUMANIZE_HOME/sessions/<cli>/…` |
+| driven by hand | none: sessions stay in the CLI's own home |
 
 A kept path is always answered with the file itself (never a copy), its directories are made
 as the CLI writes into them, and an entry may be a glob of one path component.
@@ -398,7 +402,7 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
 
 A backend with an endpoint variable has its catalogue read from the endpoint when the account
-sets it ([`models.json`](#models-json)). `pi`, `opencode` and `mimo` have none: their models are
+sets it ([model catalogues](#models-json)). `pi`, `opencode` and `mimo` have none: their models are
 named `provider/id`, which an endpoint's ids do not carry.
 
 Codex reads a gateway from configuration, not variables. A turn under a codex `gateway`

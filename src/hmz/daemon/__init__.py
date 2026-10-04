@@ -261,7 +261,7 @@ def running(workspace: str | os.PathLike[str] | None = None) -> Daemon | None:
     if said is not None and said.get("protocol") != PROTOCOL:
         return _other(said, named)
     found = _hosts() if said is not None else []
-    return next((one for one in found if one.workspace == named), None) or _left(named)
+    return next((one for one in found if one.workspace == named), None)
 
 
 def daemons() -> list[Daemon]:
@@ -561,30 +561,6 @@ def _hosts() -> list[Daemon]:
             )
         )
     return found
-
-
-def _left(workspace: str) -> Daemon | None:
-    """A host an older humanize left holding this workspace, as each was kept then.
-
-    One per workspace, under humanize's home, and reached on a socket of its own: what an
-    upgrade finds still running in a directory, and what a host of this humanize beside it
-    would be two flows over one workspace with.
-    """
-    from hmz import home
-
-    with contextlib.suppress(OSError):
-        for one in (home() / "daemons").iterdir():
-            said = where.held(one)
-            if said.get("workspace") == workspace and _listening(one):
-                protocol = said.get("protocol")
-                return Daemon(
-                    at=one,
-                    workspace=workspace,
-                    pid=int(said["pid"]),
-                    started=str(said.get("started") or ""),
-                    protocol=protocol if isinstance(protocol, int) else 0,
-                )
-    return None
 
 
 def _other(said: dict[str, Any], workspace: str) -> Daemon:

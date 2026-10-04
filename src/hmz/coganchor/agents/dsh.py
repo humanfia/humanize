@@ -617,6 +617,8 @@ class DshSession(SessionBase):
         fence = self._agent.fenced()
         if fence is not None:
             environment[_NATIVE_CACHE_ENV] = fence.tmp
+        kept = self._agent.kept()
+        assert kept is not None  # noqa: S101 -- dsh's home is always known
         # And what this machine left lying about that the account did not answer for, taken
         # away on the way in. Less what is being set above: `hushed()` already leaves out
         # what the account named, and a variable this driver is about to hand the runtime is
@@ -651,9 +653,9 @@ class DshSession(SessionBase):
                 # composition fall back to `./.sessions` in the workspace -- a repository the
                 # agent is working in would collect the logs of every run against it. Where this
                 # agent keeps its sessions instead, laid out as the dsh home is: the run's own
-                # directory for them, and the dsh home -- which `$DSH_HOME` moves -- only where
-                # this process was told to keep none.
-                session_root=str(self._agent.kept() / "sessions"),
+                # directory for them, and the dsh home -- which `$DSH_HOME` moves -- for an
+                # agent no run drives and where this process was told to keep none.
+                session_root=str(kept / "sessions"),
                 cordis=cordis,
                 env=environment,
                 # Which is also why `cordis` above is never left out: the SDK injects its own

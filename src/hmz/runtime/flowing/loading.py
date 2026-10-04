@@ -808,17 +808,22 @@ _FETCHING_LOCK = threading.Lock()
 def pinned(url: str, rev: str | None) -> Path:
     """A checkout of a repository at the commit a ref stands at now, cloned if need be.
 
-    Kept under humanize's home by the URL and the commit, so a commit is cloned once and a
-    branch costs one `git ls-remote` a run.
+    Kept in this machine's own directory by the URL and the commit, so a commit is cloned once
+    and a branch costs one `git ls-remote` a run -- and a checkout, which can be fetched again
+    whenever it is missing, is nothing a home directory has to keep.
 
     Raises:
       FlowNotFound: If it cannot be fetched, or has no such ref.
     """
-    from .verses import under
+    from hmz import machine
 
-    kept = (
-        under() / ".pinned" / hashlib.blake2b(url.encode(), digest_size=8).hexdigest()
-    )
+    try:
+        mine = machine()
+    except OSError as error:
+        # Somebody else's directory under this user's name in a temporary directory everybody
+        # shares, which is a checkout there is nowhere to keep rather than a crash.
+        raise FlowNotFound(f"{url} could not be fetched: {error}") from error
+    kept = mine / "pinned" / hashlib.blake2b(url.encode(), digest_size=8).hexdigest()
     with _FETCHING_LOCK:
         lock = _FETCHING.setdefault(str(kept), threading.Lock())
     with lock:

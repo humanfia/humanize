@@ -16,7 +16,9 @@ These cost tokens and need network access, so they only run with ``pytest --run-
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import tempfile
 import uuid
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, cast
@@ -55,7 +57,7 @@ pytestmark = [pytest.mark.agent, pytest.mark.timeout(900)]
 
 #: What each harness is run at: the model it is cheapest to ask, and the least effort it takes.
 #: A harness whose CLI has said nothing about what it runs here is looked up in what it did
-#: say, in `~/.hmz/models`.
+#: say, in :data:`_KEPT`.
 CHEAPEST: dict[HarnessKind, tuple[str, str]] = {
     HarnessKind.CLAUDE: ("claude-haiku-4-5-20251001", "low"),
     HarnessKind.CODEX: ("gpt-5.5", "low"),
@@ -67,6 +69,10 @@ CHEAPEST: dict[HarnessKind, tuple[str, str]] = {
     HarnessKind.AGY: ("gemini-3.8-flash-low", "low"),
     HarnessKind.DSH: ("deepseek-v4-flash", "off"),
 }
+
+#: Where this machine keeps what each CLI last said it runs as whoever is signed into it. Read
+#: from the machine's real temporary directory, taken before the suite points it at its own.
+_KEPT = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}" / "models"
 
 #: A prompt that keeps a turn going long enough to be interrupted, cancelled and steered.
 SLOW = (
@@ -82,7 +88,7 @@ def _model(harness: HarnessKind) -> tuple[str, str]:
     """The model and effort to run a harness at here, or a skip saying why there is none."""
     if harness in CHEAPEST:
         return CHEAPEST[harness]
-    kept = Path.home() / ".hmz" / "models" / f"{harness.value}.json"
+    kept = _KEPT / harness.value / "_local.json"
     try:
         said = json.loads(kept.read_text(encoding="utf-8"))
     except (OSError, ValueError):

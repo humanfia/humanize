@@ -272,8 +272,9 @@ settings, skills and credentials remain the CLI's own.
 A session no turn could keep stays in the CLI's home, and its `opened.where` is that absolute
 directory: a turn whose harness ran on another machine, any turn on a machine that cannot
 supervise one (anything but Linux on x86-64 or aarch64, or a kernel that refuses tracing),
-and every turn under [`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions).
-Agents driven outside any run keep theirs in `H/sessions/<cli>/`. An epic written before
+every turn under [`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions), and
+every turn of an agent driven outside any run (the agent API, a fresh `/btw` side session). An
+epic written before
 sessions were kept holds a directory of links per session instead, and still reads back.
 
 ![One run's directory, and the one file under its sessions/: a Claude Code transcript kept at
@@ -385,7 +386,7 @@ def trace(self, *, sessions: str | Iterable[str] | None = None,
 | `output` | nothing written | A file to write, parent directories created. |
 | `start`, `end` | unbounded | Window. |
 | `profile` | none | A `profile.jsonl` to draw. |
-| `kept` | `H/sessions` and every epic's `sessions/` (of this workspace; of every workspace for an `Hmz()` with no workspace) | Where humanize kept sessions. |
+| `kept` | every epic's `sessions/` (of this workspace; of every workspace for an `Hmz()` with no workspace) | Where humanize kept sessions. |
 
 The workspace is the `Hmz` workspace; with `Hmz()` and named sessions, sessions are collected
 wherever they were recorded; `Hmz("/path")` keeps only sessions recorded there (the path is

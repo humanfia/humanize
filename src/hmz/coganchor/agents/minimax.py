@@ -54,6 +54,9 @@ from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
+
+    from hmz.coganchor.fence import Fence
 
 #: What the CLI is installed as.
 _COMMAND = "mcode"
@@ -486,6 +489,32 @@ class MiniMaxCodeAgent(AgentBase):
                 f"{_COMMAND}"
             )
 
+    def _locks(self) -> Path:
+        """Where a fenced turn takes the lock beside its home instead, which its fence writes.
+
+        Beside where this agent's sessions are kept, and for one no run drives -- which keeps
+        none of its own -- in this machine's own directory: a lock is held only while a turn
+        runs, and nothing of it outlives the machine it was taken on.
+        """
+        keeps = self.keeps
+        if keeps is None:
+            from hmz import machine
+
+            return machine() / _COMMAND
+        return keeps / _COMMAND
+
+    def fenced(self) -> Fence | None:
+        """The fence, with the directory a fenced turn takes its lock in to write.
+
+        Returns:
+          The fence, or None for an agent nobody said one for.
+        """
+        fence = super().fenced()
+        if fence is None or self.keeps is not None:
+            # Where its sessions are kept is written already, the lock beside them with it.
+            return fence
+        return fence.granting(write=[self._locks()])
+
     def _keeping_swaps(self) -> tuple[tuple[str, str], ...]:
         """Where its sessions are kept, and where a fenced turn takes the lock beside its home.
 
@@ -493,12 +522,12 @@ class MiniMaxCodeAgent(AgentBase):
         same name with `.lock` on the end -- beside the home rather than inside it, which is a
         directory of the user's home and not one a fence lets be written unless the whole home
         may be. Landlock cannot grant one name inside a directory without granting the
-        directory, so the lock is answered by a supervisor from beside where this agent's
-        sessions are kept, which every fence of it lets be written: every fenced turn of it
-        takes the same lock. So too where no session is kept -- `HUMANIZE_SESSIONS=off` --
-        since the directory is made before a fenced turn is spawned whether or not a session
-        is kept in it, and the lock is then all that is ever in it, the CLI taking it away
-        again as it exits.
+        directory, so the lock is answered by a supervisor from :meth:`_locks`, which every
+        fence of it lets be written: every fenced turn of it takes the same lock. So too where
+        no session is kept -- `HUMANIZE_SESSIONS=off`, or an agent no run drives -- since the
+        directory is made before a fenced turn is spawned whether or not a session is kept in
+        it, and the lock is then all that is ever in it, the CLI taking it away again as it
+        exits.
 
         Returns:
           The kept sessions' pairs, and for a fenced turn the lock's under both spellings of
@@ -517,7 +546,7 @@ class MiniMaxCodeAgent(AgentBase):
         profile = named(self.backend)
         assert profile is not None  # noqa: S101 -- mcode's profile is always there
         home = profile.directory(self._environ())
-        instead = str(self.keeps / profile.name / f"{home.name}.lock")
+        instead = str(self._locks() / f"{home.name}.lock")
         spellings = {str(home), os.path.realpath(home)}
         return (*kept, *((f"{one}.lock", instead) for one in sorted(spellings)))
 

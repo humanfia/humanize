@@ -629,9 +629,9 @@ def test_a_flow_s_name_says_which_flowverse_it_was_installed_out_of(
     assert split(called) == parts
 
 
-def test_what_is_installed_out_of_a_flowverse_is_kept_under_humanize_s_home() -> None:
-    assert kept("theirs") == home() / "installed" / "theirs"
-    assert _installed("loop", "0.1.0").at == home() / "installed" / "theirs" / "loop"
+def test_what_is_installed_out_of_a_flowverse_is_kept_beside_its_index() -> None:
+    assert kept("theirs") == home() / "flowverses" / "theirs" / "installed"
+    assert _installed("loop", "0.1.0").at == kept("theirs") / "loop"
 
 
 def test_an_installed_flow_is_called_as_every_flow_of_its_flowverse_is() -> None:
