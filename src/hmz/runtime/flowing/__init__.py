@@ -5,8 +5,8 @@ imports is :mod:`hmz.flows`: the protocols its agents and environments answer to
 decorator that makes it a flow, and the exceptions it can catch. This is the other side of
 that line.
 
-What a driver and the engine promise each other is [spi.py](spi.py); what `-a`, `-e`, `-p` and
-`-b` say is [specs.py](specs.py); the engine that defines, loads and runs flows is
+What a driver and the engine promise each other is [spi.py](spi.py); what `-a`, `-e` and `-p`
+say is [specs.py](specs.py); the engine that defines, loads and runs flows is
 [engine.py](engine.py), with what a flow declares read in [declaring.py](declaring.py), what it
 is handed in [viewing.py](viewing.py), what a resumable run writes down in
 [journaling.py](journaling.py) and what a ref names in [loading.py](loading.py); the drivers

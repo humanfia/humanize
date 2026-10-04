@@ -332,7 +332,7 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_is_given_a_budget(
     """Only `chat` runs with none; every other is refused until it has one.
 
     And the budget is asked on the sheet a flow's params are asked on: a duration typed as
-    `-b` takes one, and one that does not read is refused where it is typed.
+    `-p budget.duration=` takes one, and one that does not read is refused where it is typed.
     """
     app = Humanize()
     async with app.run_test() as driver:

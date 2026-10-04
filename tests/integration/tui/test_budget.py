@@ -109,10 +109,10 @@ async def test_what_is_set_there_is_kept_and_read_back(
         await until(lambda: isinstance(app.screen, Configures), driver)
         sheet = cast("Configures", app.screen)
 
-        # The four `-b` takes, and the row that sets them.
+        # The four limits `-p budget.*` takes, and the row that sets them.
         assert rows(app) == ["duration", "cost", "output_tokens", "graceful", _DONE]
 
-        await changes(app, driver, "duration", *"1h")  # written, as `-b` writes one
+        await changes(app, driver, "duration", *"1h")  # written, as `-p` writes one
         await changes(app, driver, "cost", "1")  # the 0.0 there, selected, typed over
         assert (sheet._typed_in["duration"], sheet._typed_in["cost"]) == ("1h", "1")
         await onto(app, driver, _DONE)
