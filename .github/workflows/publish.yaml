@@ -1,4 +1,4 @@
-# Publishes a release to PyPI. Publishing a GitHub release is the one thing that starts it;
+# Publishes a release. Pushing a `v*` tag is the one thing that starts it;
 # docs/contributing/releasing.md is how a maintainer gets there.
 #
 # PyPI trusts this file by its name and the `pypi` environment, through trusted publishing:
@@ -8,8 +8,9 @@
 name: publish
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - v*
   # Builds and checks what a release would publish, and publishes nothing.
   workflow_dispatch:
 
@@ -24,12 +25,15 @@ jobs:
   build:
     name: build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
-      contents: read
+      contents: write # for the draft release GoReleaser makes
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The release notes are every pull request since the previous tag, and a shallow
+          # clone has neither.
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -37,34 +41,35 @@ jobs:
           # Nothing restored from a cache another run wrote goes into what is published.
           enable-cache: false
 
-      - name: The release is tagged with the version it publishes
-        if: github.event_name == 'release'
+      # On a tag: stamps the tag's version into pyproject.toml (.goreleaser.yaml's before hook),
+      # builds the wheel and the sdist, and puts them on a draft release with their checksums.
+      # By hand: a snapshot, which builds the same files and publishes nothing.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: "~> v2"
+          args: >-
+            release --clean
+            ${{ github.event_name == 'workflow_dispatch' && '--snapshot' || '' }}
         env:
-          TAG: ${{ github.event.release.tag_name }}
-        run: |
-          version="$(uv version --short)"
-          if [ "$TAG" != "v$version" ]; then
-            echo "::error::release $TAG publishes pyproject.toml's $version; tag it v$version"
-            exit 1
-          fi
+          GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Build
-        run: uv build --no-sources
+      - name: Gather the wheel and the sdist
+        run: mkdir upload && cp dist/*/*.whl dist/*/*.tar.gz upload/
 
       - name: PyPI will render the description
-        run: uvx twine@7.0.0 check --strict dist/*
+        run: uvx twine@7.0.0 check --strict upload/*
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist
-          path: dist/
+          path: upload/
           if-no-files-found: error
 
   publish:
     name: publish to PyPI
     needs: build
-    # A fork's release, or a dry run, stops at the build.
-    if: github.repository == 'humanfia/humanize' && github.event_name == 'release'
+    # A fork's tag, or a dry run, stops at the build.
+    if: github.repository == 'humanfia/humanize' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -82,22 +87,16 @@ jobs:
         with:
           attestations: true
 
-  release-assets:
-    name: attach to the release
+  release:
+    name: publish the release
     # After PyPI, so the release never offers files PyPI refused.
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write # to upload to the release
+      contents: write # to take the release out of draft
     steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: dist
-          path: dist/
-
-      - name: Upload
+      - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"
