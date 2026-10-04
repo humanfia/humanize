@@ -1511,8 +1511,8 @@ class Chosen(NamedTuple):
       envs: Where each of its environment roles is, by role, as `-e` spells one.
       params: What the flow itself is set up with, or None for a flow that takes no params
         and one that was left at its defaults.
-      budget: What a run of it may spend, or None for none -- which only a flow humanize
-        ships may be run with.
+      budget: What a run of it may spend, or None for none -- which only `chat` may be run
+        with.
       profile: Whether a run of it profiles the programs its agents start, as well as
         tracing them.
     """
