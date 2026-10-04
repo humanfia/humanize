@@ -138,7 +138,7 @@ where the budget is:
   then what the flow takes and what a run may spend.
 
   ╭──────────────────────────────────────────────────────────────────────────────╮
-  │ agent                                           claude/claude-opus-5-5:high ▸ │
+  │ agent                                          claude/claude-opus-5-5:high ▸ │
   │   agent                                                                      │
   │──────────────────────────────────────────────────────────────────────────────│
   │ budget                                                                 set ▸ │
@@ -148,7 +148,7 @@ where the budget is:
   │   samples the programs agents start                                          │
   ╰──────────────────────────────────────────────────────────────────────────────╯
 
-                                                                          Save  ②
+     Update   Uninstall   Copy here                                       Save  ②
 
   enter choose   tab actions   esc back
 ```

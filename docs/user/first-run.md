@@ -175,7 +175,7 @@ here, the ones built into humanize first. Press <kbd>/</kbd>, type `ralph`, pres
 
     Install more…   Update   Uninstall   Copy here <span class="n">3</span>   Search…       Save
 
-  <b>enter</b> set up   <b>/</b> search   <b>tab</b> actions   <b>esc</b> back</pre>
+  <b>enter</b> set up   <b>/</b> search   <b>tab</b> actions   <b>esc</b> clear search</pre>
 
 </Term>
 
@@ -198,7 +198,7 @@ install it; from then on it is listed here, with its version at the end of its r
 ## 4. Give the role an agent
 
 The flow opens on its **roles**: a row for each agent it drives, then `budget` and
-`profiling`, and a **Save** button under them. `ralph_loop` has one role, `agent`. humanize
+`profiling`, and buttons under them, **Save** last. `ralph_loop` has one role, `agent`. humanize
 fills it with the first CLI it found, so the row already names one.
 
 <Term title="hmz · /flow › ralph_loop">
@@ -218,7 +218,7 @@ fills it with the first CLI it found, so the row already names one.
      <span class="m">traced only</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
-                                                                    <span class="btn"> Save </span> <span class="n">4</span>
+     <span class="btn"> Update </span>  <span class="btn"> Uninstall </span>  <span class="btn"> Copy here </span>                             <span class="btn"> Save </span> <span class="n">4</span>
 
   <b>enter</b> open   <b>tab</b> actions   <b>esc</b> back</pre>
 

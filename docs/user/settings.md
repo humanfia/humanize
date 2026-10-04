@@ -280,8 +280,8 @@ What to look at, by number:
 3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
 4. **The dropped list.** Every value the row can take, with `✔` on the one in force. An on/off
    switch opens on the answer it is not, so the cursor is already on `on`.
-5. **`● unsaved changes`.** The change is held, not applied. Leaving now asks **save** or
-   **discard**.
+5. **`● unsaved changes`.** The change is held, not applied. Leaving now asks **Save** or
+   **Discard**.
 6. **Save, under the cursor.** <kbd>tab</kbd> moved the focus from the list to the buttons; the
    last line changed to the keys that work there.
 
@@ -942,7 +942,7 @@ Whatever is set is passed to `ssh` ahead of your own config, so what is written 
 
 ### Importing from an ssh config
 
-`import ~/.ssh/config` opens one form: the config to read, then a switch per host it names.
+**Import ~/.ssh/config** opens one form: the config to read, then a switch per host it names.
 
 - `from` is your own config. Type another file's path over it to read that one instead; its
   hosts are then saved with that file named, and `ssh` is told to read it for them.

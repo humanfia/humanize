@@ -9,7 +9,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 
 | Store | File | Scope | Edited on `/settings` page | Reference |
 | --- | --- | --- | --- | --- |
-| settings | `H/settings.yaml` | this machine, and per workspace | Settings, Workspace (and `/flow`) | this page |
+| settings | `H/settings.yaml` | this machine, and per workspace | General, Workspace (and `/flow`) | this page |
 | accounts | `H/providers/<cli>/<name>/provider.json`; CLIs added by hand under [`clis`](#clis) in `H/settings.yaml` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
 | runtimes | [`runtimes`](#runtimes) in `H/settings.yaml` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
 | fallbacks | [`fallbacks`](#fallbacks) in `H/settings.yaml` | this machine | Fallback | this page |
@@ -62,13 +62,13 @@ runtimes:                          # this machine; the Runtimes page
 
 | Key | Type | Default (absent) | Written by | Read by | Takes effect |
 | --- | --- | --- | --- | --- | --- |
-| <span id="enable-sentry"></span>`enable_sentry` | `bool` | absent: *nobody has been asked*; the TUI asks at its first start; everything else reports nothing | the first-start question; `/settings` › Settings › **Error reports** | every process that could report (read once per process) | immediately in the process that changed it; at start elsewhere. [`HUMANIZE_SENTRY`](/reference/environment#humanize-sentry) overrides it for one process without writing it. Reading never writes it. |
-| `details` | `bool` (only `true` is on) | `false` | `/settings` › Settings › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
-| `btw` | `str`: `cli[@account]/model:effort` | `""`: the running flow's first agent | `/settings` › Settings › **/btw agent** | the TUI | the next time `/btw` is entered |
+| <span id="enable-sentry"></span>`enable_sentry` | `bool` | absent: *nobody has been asked*; the TUI asks at its first start; everything else reports nothing | the first-start question; `/settings` › General › **Error reports** | every process that could report (read once per process) | immediately in the process that changed it; at start elsewhere. [`HUMANIZE_SENTRY`](/reference/environment#humanize-sentry) overrides it for one process without writing it. Reading never writes it. |
+| `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
+| `btw` | `str`: `cli[@account]/model:effort` | `""`: the running flow's first agent | `/settings` › General › **/btw agent** | the TUI | the next time `/btw` is entered |
 | <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
 | <span id="naming"></span>`naming` | `int` | absent: written before flows of other places than `official` were named after an `@` | every write of the file, as `2` | every process, as it reads the file | absent, every workspace's `flow` and `flows` keys said as before (`local/x`, `user/x`, `<flowverse>/x` for a flowverse there is, `official/x`) are renamed once (`@local/x`, `@user/x`, `@<flowverse>/x`, `x`); `2`, as written |
 
-What error reports contain and exclude is listed on `/settings` › Settings › **What is sent**.
+What error reports contain and exclude is listed on `/settings` › General › **What is sent**.
 
 ### Workspace settings
 
@@ -79,9 +79,9 @@ Under `workspaces.<path>`.
 | `flow` | `str`, a listed flow name | absent (`Settings.flow` is `""`); the TUI then opens on `chat` | `/flow` when saved | the TUI at start | next launch |
 | `flows.<flow>` | mapping | absent | `/flow` when saved | the TUI | see below |
 
-`/settings` › Workspace also shows **Directory** and **Default flow** (read-only), and
-**Forget**: on save it deletes this workspace's entry; the TUI already open keeps what it
-loaded, and the next launch starts without it.
+`/settings` › Workspace also shows **Default flow** (read-only), and **Forget**: on save it
+deletes this workspace's entry; the TUI already open keeps what it loaded, and the next launch
+starts without it.
 
 ### Per flow
 

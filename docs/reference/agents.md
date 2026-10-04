@@ -1483,7 +1483,7 @@ one.
 ## A CLI of your own {#a-cli-of-your-own}
 
 Any agent speaking the [Agent Client Protocol](https://agentclientprotocol.com) can be added as
-a backend, from the TUI (`/settings accounts` → `add a custom CLI`) or with
+a backend, from the TUI (`/settings accounts` → **Add a custom CLI**) or with
 `backends.remember(name, command)`. It is written under `clis` in
 `$HUMANIZE_HOME/settings.yaml` and is a backend in every workspace from the next prompt.
 

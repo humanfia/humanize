@@ -425,7 +425,7 @@ open the `budget` row and set at least one limit.
 **Cause.** The flow has never been set up in this directory, and you left the sheet without
 saving.
 
-**Fix.** Type the line again, fill every role, and choose `save` this time.
+**Fix.** Type the line again, fill every role, and press **Save** this time.
 
 **Verify.** The flow starts on the task.
 

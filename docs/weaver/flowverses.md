@@ -33,9 +33,9 @@ flowverse of your own is laid out the same way, except that a flow listed bare t
 anybody's.
 
 A flow an index lists is a flow to **install**. Installing one copies that release, at its
-commit, into `~/.hmz/flowverses/<flowverse>/installed/[<user>/]<flow>/`, along with any flows
-it needs.
-What runs is what is built in, what you installed, and your own flows:
+commit, into `flowverses/<flowverse>/installed/[<user>/]<flow>/` under `$HUMANIZE_HOME` (default
+`~/.hmz`), along with any flows it needs. What runs is what is built in, what you installed,
+and your own flows:
 
 | Place | Holds | Run as |
 | --- | --- | --- |
@@ -398,7 +398,7 @@ goes out to its first screen, with **Installed** and **Flowverses** as two cards
 | Page | Shows | Buttons |
 | --- | --- | --- |
 | **Installed** | built-in flows, then every flow by where it came from, each with its release and `↑ 0.2.0` where a newer one is listed | Install more…, Update, Uninstall, Copy here, Search…, Save |
-| **Flowverses** | a card per index: fetched, not fetched or edited; its URL; how many flows it lists, how many are installed, how many have updates | Add flowverse…, Fetch again, Remove, Search… |
+| **Flowverses** | a card per index: fetched, not fetched or edited, or no git origin for a directory there that is not a clone; its URL; how many flows it lists, how many are installed, how many have updates | Add flowverse…, Fetch again, Remove, Search… |
 | a flowverse | each flow it lists, with its newest release, `✔ 0.1.0 installed` or `✔ 0.1.0 ↑ 0.2.0`; manifests that did not read, under the list | Install 0.1.0 or Update to 0.2.0, Uninstall, Fetch again, Search… |
 | a flow | its releases, newest first: prereleases marked, the installed one ticked, each with its ref, commit, licence and what it needs | Install 0.1.0 or Switch to 0.1.0, Uninstall, Search… |
 

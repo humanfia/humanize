@@ -240,7 +240,7 @@ Each command's line in the completion list:
 
 | Command | About | Instead, when |
 | --- | --- | --- |
-| `/flow` | `Choose, set up and install flows` | `Set up the running flow's agents` — a run is going |
+| `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage runs in this directory` | |
 | `/resume` | `Resume the last run in this directory` | |
@@ -789,8 +789,9 @@ top, `esc` leaves, and params are not asked.
 | `budget` | `set ▸` or `none ▸`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
 | <span id="profiling-row"></span>`profiling` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the programs agents start` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started is [profiled](/reference/tracing#profiling-a-run) where it is on |
 
-Button: **Save** (`save the flow and its roles`), which applies flow, roles, params, budget and
-profiling together. Keys `enter open` (`enter choose` on `profiling`) `  tab actions   esc <back|close>`. Roles filled by the runtime
+Buttons: **Update**, **Uninstall** and **Copy here**, as on [Installed](#flow-list) for this
+flow (not when the page is opened on it alone); then **Save** (`run this flow, set up as it is
+here`), which applies flow, roles, params, budget and profiling together. Keys `enter open` (`enter choose` on `profiling`) `  tab actions   esc <back|close>`. Roles filled by the runtime
 (`Outworlder`, `LocalEnv`) are not rows. Messages:
 `<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
 nothing can be configured`.
@@ -803,8 +804,10 @@ nothing can be configured`.
 ### Flowverses page {#where-flows-come-from}
 
 One card per flowverse with a URL (`official`, then added ones alphabetically; `local` and
-`user` are not indexes): its name; at the far end `fetched`, `not fetched` or `edited` (tracked
-files changed in the clone); under it the URL with credentials removed, `<n> flow(s)` listed,
+`user` are not indexes), and one per directory under the flowverses home that is not a clone,
+so that it can be removed: its name; at the far end `fetched`, `not fetched`, `edited` (tracked
+files changed in the clone) or `no git origin`; under it the URL with credentials removed
+(`a directory with no git origin` for one with none), `<n> flow(s)` listed,
 `<n> installed`, `↑ <n> update(s)`. Search: name and URL. Same store as
 [`Hmz().verses`](/reference/sdk#flowverses).
 
@@ -1501,10 +1504,11 @@ machine of its own. Flows running on it are limited to the resources configured 
 The [docker host form](#docker-form)'s rows less `endpoint`, `OCI runtime` and `gpus`: `name`
 (add; `local` unless taken), `harness runs on`, `image`, `run args` (`extra arguments for
 container run`), `max containers`, `workdir`, `falls back to`, `cpus` (`max CPUs; blank to use
-all of this Mac's`), `memory` (`e.g. 16G; blank to use all of this Mac's`), `detect` (`detect
-this Mac's resources and fill them in`: `detecting resources on this Mac…`, then `detected …:
-auto-filled` with the cursor on `cpus`, or red `Apple's container did not respond: …`),
-`done` (`adds apple-container/<name> and detects host resources`). Refusals: `a host for
+all of this Mac's`), `memory` (`e.g. 16G; blank to use all of this Mac's`). Buttons:
+**Detect** (`detect this Mac's resources and fill them in`: `detecting resources on this Mac…`,
+then `detected …: auto-filled` with the focus back on the list and the cursor on `cpus`, or red
+`Apple's container did not respond: …`), then **Done** (`adds apple-container/<name> and
+detects host resources`). Refusals: `a host for
 Apple containers named <name> already exists; …`, and the docker host form's for memory,
 CPUs, max containers and run args.
 

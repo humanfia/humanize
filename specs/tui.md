@@ -220,7 +220,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   form, save -- as a button under the list, the one that answers the menu last and apart; and
   its keys under that, said in one place, for where the focus is.
 - MUST give every menu the same keys and only these: `↑`/`↓`, `←`/`→`, `enter`, `esc`,
-  `tab`/`shift+tab`, `backspace`, `/` where its list can be searched, and typing on a form. A
+  `tab`/`shift+tab`, `backspace`, `/` where its list can be searched, typing on a form, and
+  `shift+enter`/`ctrl+j` on a written row that takes several lines. A
   row changed where it stands MUST change only between an `enter` -- or, on a form's written
   row, a letter -- that begins it and an `enter` that keeps it, `esc` putting it back, and
   keeping one on a form MUST move on to what is still to be answered and then to the button

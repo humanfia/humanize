@@ -331,7 +331,7 @@ and its sign-in (see the warning above). A flow's own commands in the role, such
 **To cap what runs may take, or change the image,** save it: `/settings runtimes`, **Add a
 runtime…**, then `apple containers`. The form is a docker host's, less the daemon: a name
 (`local` unless taken), `harness runs on`, `image`, `run args` for `container run`,
-`max containers`, `workdir`, `falls back to`, `cpus` and `memory`; `detect` fills in this Mac's.
+`max containers`, `workdir`, `falls back to`, `cpus` and `memory`; **Detect** fills in this Mac's.
 Name it in `-e` as `apple-container@<name>/…`.
 
 How it differs from docker:
