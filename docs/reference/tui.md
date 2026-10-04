@@ -1112,6 +1112,7 @@ are used; the budget counts from zero.
 | `no flow has been run here, so there is nothing to resume` | no run here |
 | `no run here was of a flow that can be resumed, so there is nothing to resume` | the scan found none |
 | `<epic> cannot be read, so there is nothing to resume` | unreadable record |
+| `<run> cannot be resumed: <why>` | the flow will not load, `<why>` as the flow API says it (for a run of `local/x`, from before flows were named after an `@`: `local/x: a flow of local is called @local/x now`) |
 | `<flow> does not support resuming, so <run> cannot be resumed` | the flow is not resumable now |
 | `<run> has no saved state to resume: enter a task to start the flow from the beginning` | no journal entry |
 | `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` | a run going |

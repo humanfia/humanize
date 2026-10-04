@@ -284,6 +284,29 @@ async def test_a_record_that_cannot_be_read_back_says_so(workspace: Path) -> Non
 
 
 @pytest.mark.timeout(60)
+async def test_a_run_of_a_flow_named_as_before_the_at_says_what_it_is_called_now(
+    workspace: Path,
+) -> None:
+    """Not that the flow cannot resume: that it is not called that any more, and what it is."""
+    _ran("counts", "keep going")
+    (epic,) = epics(workspace)
+    record = epic / "epic.jsonl"
+    lines = record.read_text(encoding="utf-8").splitlines()
+    began = json.loads(lines[0]) | {"flow": "local/counts"}
+    record.write_text(
+        "\n".join([json.dumps(began), *lines[1:]]) + "\n", encoding="utf-8"
+    )
+
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _resumes(app, driver)
+
+        assert "a flow of local is called @local/counts now" in transcript(app)
+        assert "does not support resuming" not in transcript(app)
+        assert len(epics(workspace)) == 1
+
+
+@pytest.mark.timeout(60)
 async def test_a_flow_marked_since_the_run_is_asked_of_the_flow(
     workspace: Path,
 ) -> None:

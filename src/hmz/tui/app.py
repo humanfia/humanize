@@ -3931,7 +3931,18 @@ class Humanize(App[None]):
         ran = self.hmz.epics.read(epic)
         if ran is None:
             return None, f"{epic.name} cannot be read, so there is nothing to resume"
-        if not self._picks_up(ran.flow):
+        from hmz.flows import FlowException
+
+        try:
+            resumes = self.hmz.flows.resumes(ran.flow)
+        except FlowException as why:
+            # Said as the flow API says it rather than as a flow that cannot resume: one
+            # that will not load -- gone, or named before flows were named after an `@`,
+            # which says what it is called now -- is not one that changed its mind.
+            return ran, f"{ran.name} cannot be resumed: {why}"
+        except Exception:  # noqa: BLE001 -- a flow is a file, and reading one runs it
+            resumes = False
+        if not resumes:
             return ran, (
                 f"{ran.flow} does not support resuming, so {ran.name} cannot be resumed"
             )
