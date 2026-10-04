@@ -49,6 +49,18 @@ NESTED = (
     "time.sleep(600)"
 )
 
+#: The wedge, in a session of its own, which it says it is in before it waits. Left in the
+#: suite's process group, a stopped process is continued by whatever continues that group --
+#: on macOS runners something did, between the stop and the watchdog's first look -- and a
+#: process continued under the watchdog reads as idle.
+APART = (
+    "import os, sys, time; "
+    "os.setsid(); "
+    "print('apart', flush=True); "
+    "sys.stdin.readline(); "
+    "time.sleep(600)"
+)
+
 #: A process that talks the whole way through a turn and then ends it. Nothing about this is
 #: quick: the point is that a turn longer than the window is not touched while it is talking.
 CHATTY = (
@@ -271,13 +283,17 @@ def test_a_process_that_was_stopped_is_named_as_stopped() -> None:
     said = _watched(agent)
     session = agent.new()
     assert isinstance(session, _Stream)
+    session.program = APART
     proc = session._start(session._command())
+    assert proc.stdout is not None
+    assert proc.stdout.readline() == "apart\n"
     stopped = psutil.Process(proc.pid)
-    stopped.suspend()
     # Stopped once the kernel says so, not once it was asked: a signal is taken when the
     # process next runs, which on a loaded Mac can be past the first look.
     deadline = time.monotonic() + 10
-    while stopped.status() != psutil.STATUS_STOPPED and time.monotonic() < deadline:
+    while stopped.status() != psutil.STATUS_STOPPED:
+        assert time.monotonic() < deadline, "the process was never stopped"
+        stopped.suspend()
         time.sleep(0.05)
     watch = Watchdog(session, riding=lambda: proc, window=0.2)
     try:
