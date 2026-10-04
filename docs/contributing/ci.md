@@ -61,18 +61,18 @@ those, and [the regression matrix](/contributing/regression-matrix), are yours t
 
 ## How long it takes
 
-The full tier takes about eight minutes from `plan` to `ci-ok`, and the macOS jobs are what it
-waits on last. What each job took in one run:
+The full tier takes eight to nine minutes from `plan` to `ci-ok` when GitHub has runners free
+for it, and the macOS jobs are what it waits on last. What each job took, in October 2026:
 
 | Job | Takes |
 | --- | --- |
-| `plan` to `typecheck` | 1 min |
-| `unit` | 1 min |
-| `integration`, each half | 3 min |
+| `plan` to the end of `typecheck` | 1 min 15 s |
+| `unit` | 40 s to 1 min |
+| `integration`, each half | 2 to 2.5 min |
 | `system` | 3 min |
-| `unit + integration` on macOS | 6 to 7 min |
-| `docs` | 5 min, from the start of the run |
-| `coverage`, once the Linux tests are done | 30 s |
+| `unit + integration` on macOS | 6.5 to 7 min |
+| `docs`, which starts after `changes` | 5 to 7 min |
+| `coverage`, once the Linux tests are done | 25 s |
 
 Three things keep it there:
 
