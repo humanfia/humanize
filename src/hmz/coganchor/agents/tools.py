@@ -359,10 +359,12 @@ def _answers(
       _Refused: If nothing here answers that method, or the call names no tool there is.
     """
     if method == "initialize":
+        from hmz.coganchor import __version__
+
         return {
             "protocolVersion": PROTOCOL,
             "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": _WHOSE, "version": "0.1.0"},
+            "serverInfo": {"name": _WHOSE, "version": __version__},
         }
     if method == "ping":
         return {}
