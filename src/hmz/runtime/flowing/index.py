@@ -34,12 +34,13 @@ from __future__ import annotations
 
 import contextlib
 import json
+import posixpath
 import re
 import shutil
 import tempfile
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, NamedTuple, cast
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import semver
 import yaml
@@ -301,7 +302,9 @@ class Release(BaseModel):
         said = urlsplit(self.repo)
         if (said.hostname or "") not in ("github.com", "www.github.com"):
             return ""
-        return said.path.strip("/").partition("/")[0].lower()
+        # Read as it will be fetched: `%2e` is a dot, and `humanfia/../evil/x` is evil's.
+        path = posixpath.normpath("/" + unquote(said.path).strip("/"))
+        return path.lstrip("/").partition("/")[0].lower()
 
     @property
     def semver(self) -> semver.Version:

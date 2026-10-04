@@ -682,6 +682,10 @@ def test_a_flow_may_need_one_listed_under_a_user(verse: Flowverse) -> None:
         ("ssh://git@github.com/alice/kernel", "alice"),
         ("https://gitlab.example/alice/kernel", ""),
         (REPO, ""),
+        # Whose it is as it will be fetched, a step back up the path taken.
+        ("https://github.com/humanfia/../evil/kernel", "evil"),
+        ("https://github.com/humanfia/%2e%2e/evil/kernel", "evil"),
+        ("https://github.com/./alice/kernel", "alice"),
     ],
 )
 def test_who_owns_a_repository_is_said_for_one_on_github_alone(
