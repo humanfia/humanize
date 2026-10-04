@@ -31,7 +31,6 @@ import re
 import shlex
 import shutil
 import socket
-import stat
 import subprocess
 import sys
 import tempfile
@@ -928,36 +927,6 @@ def _rebundled() -> Path:
     return bundled()[0]
 
 
-def _bundles() -> Path:
-    """This user's directory of archives, made private where it is not there yet.
-
-    One per user rather than one shared, and the archives in it named by what is in them
-    rather than by whose they are: two checkouts, two installed versions or two users on one
-    machine each find their own archive there and never one another's.
-
-    Returns:
-      The directory.
-
-    Raises:
-      PermissionError: If what is there under its name is not a directory of this user's
-        that nobody else can write. In a temporary directory everybody shares, that is
-        somebody else's way of handing this user an archive to ship as their own.
-    """
-    home = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}"
-    with contextlib.suppress(FileExistsError):
-        home.mkdir(mode=0o700)
-    found = home.lstat()
-    if (
-        not stat.S_ISDIR(found.st_mode)
-        or found.st_uid != os.getuid()
-        or found.st_mode & 0o022
-    ):
-        raise PermissionError(
-            f"{home} is not a directory only this user can write; remove it"
-        )
-    return home
-
-
 def _built(source: Path, stamp: str) -> tuple[Path, str]:
     """The archive for the tree a stamp was taken of, built unless it already has been.
 
@@ -974,7 +943,14 @@ def _built(source: Path, stamp: str) -> tuple[Path, str]:
     Returns:
       Where the archive is, and its digest.
     """
-    home = _bundles()
+    # Imported here rather than above: on a target, `hmz` is the namespace the bundle cut
+    # down to this package, and only the machine that builds an archive keeps one.
+    from hmz import machine
+
+    # One per user rather than one shared, and the archives in it named by what is in them
+    # rather than by whose they are: two checkouts, two installed versions or two users on
+    # one machine each find their own archive there and never one another's.
+    home = machine()
     index = home / f"{stamp}.digest"
     digest = _read(index)
     if digest:
@@ -1029,7 +1005,12 @@ def _swept(home: Path, keeping: Path) -> None:
     # And what an earlier humanize kept beside it, one archive every checkout shared.
     legacy = home.with_name(f"{home.name}.pyz")
     for one in [*home.iterdir(), legacy, legacy.with_suffix(".stamp")]:
-        if one == keeping:
+        # What a build made, and nothing else: this machine's daemon keeps its socket and the
+        # lock it holds for as long as it runs beside the archives, and a lock swept from
+        # under a daemon is a second daemon.
+        if one == keeping or not (
+            one.name.startswith("humanize-") or one.suffix == ".digest"
+        ):
             continue
         with contextlib.suppress(OSError):
             if now - one.lstat().st_mtime > _KEPT_FOR:

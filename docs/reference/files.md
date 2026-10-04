@@ -11,6 +11,7 @@ Every file and directory humanize reads or writes: under its home, under a works
 | **user flows** | `~/.humanize/flows` | Always the literal `~`; does **not** follow `HUMANIZE_HOME`. |
 | **workspace** | `<workspace>/.humanize/` | `<workspace>` is the directory `hmz` runs in. Not added to `.gitignore`. |
 | **cache** | `~/.cache/humanize/` | Does not follow `HUMANIZE_HOME`. |
+| **machine** | `<tmp>/humanize-<uid>/` | Python's `tempfile.gettempdir()` (`$TMPDIR`, else `/tmp`) and the user's id: what is this machine's alone, which a home directory several machines share must not hold. Made `0700`; refused if anyone else can write it. See [Temporary](#temporary). |
 | **a remote machine's home** | `${HUMANIZE_HOME:-$HOME/.humanize}` in the login shell there | Holds `envs/` for `ssh` environments. |
 
 `<ws>` below is a workspace's absolute resolved path with every character outside
@@ -47,7 +48,6 @@ H/
 ├── harness/                            workdir of a harness an affinity puts on a docker daemon here
 ├── epics/<ws>/<stamp>-<hex6>/          one run
 ├── sessions/<cli>/                     sessions of agents no run drives
-├── daemons/<name>-<sha256[:12]>/       the runs host of one workspace
 ├── compiled/{pi,qwen}/                 Node compile caches
 ├── docker-ssh/<sha256[:16]>/ssh        ssh shim for docker over ssh
 └── patched/<cli>-<pid>-<rand>/         patched CLI copies (unused in production)
@@ -319,6 +319,7 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | `epic.<flow>_<hex6>.jsonl` | one per flow call | [records](/reference/tracing#records-of-called-flows) |
 | `resume.jsonl` | resumable runs only; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
 | `profile.jsonl` | profiled runs only | [profile](/reference/tracing#profile-jsonl) |
+| `host.log` | runs held by a [host process](/reference/daemon#files) only; appended (`0600`), never rotated | that process's descriptors 1 and 2 while the run is the one it holds: output of the CLIs the run started, and the carrier's failures |
 | `.held` | empty, `0600`; `flock`ed exclusively by the process running the run until `ended` is written | a run whose `.held` is locked is still going, and is not [picked up](/reference/cli#picking-a-run-up) |
 | `sessions/<cli>/…` | by the CLI itself, redirected | the CLI's own layout |
 | `traces/*.trace.json` | on demand; plain write | [Chrome trace](/reference/tracing#document) |
@@ -339,21 +340,6 @@ also writes `<workspace>/.humanize/.gitignore` (`*.epic.tar.gz`) where there is 
 `git add -A` in the workspace, an agent's included, does not commit the archive; one already
 there is left as it is.
 
-### `H/daemons/<name≤24>-<sha256(workspace)[:12]>/`
-
-The [runs host](/reference/daemon) of one workspace. `<name>` is the workspace directory's
-name with each run of characters outside `[A-Za-z0-9]` replaced by `-`, leading and trailing
-`-` stripped, cut to 24 characters, and `workspace` where nothing is left.
-
-| File | Mode | Lifetime | Content |
-| --- | --- | --- | --- |
-| `daemon.sock` | `0600` | removed on stop | Unix socket (reached via `chdir` if the path exceeds 100 bytes) |
-| `daemon.json` | `0600` | removed on stop | `{"pid": int, "workspace": str, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "host", "protocol": int}`, via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename |
-| `daemon.lock` | `0600` | kept | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit |
-| `daemon.log` | `0600` | kept, never rotated | the daemon's stdout and stderr |
-
-Deleting `daemon.lock` under a running daemon allows a second daemon for the workspace.
-
 ## Caches
 
 | Path | Is |
@@ -373,7 +359,10 @@ Every path in this section is safe to delete while humanize is not running.
 | the same path, on a machine a supervised agent's commands run on | that agent's commands' `TMPDIR` there | kept |
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
 | `$TMPDIR/hmz-dsh-*/cordis.yml`, `hmz-qwen-*/` | per-session CLI configuration | with the session |
-| `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | anything in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
+| `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
+| `$TMPDIR/humanize-<uid>/daemon.sock`, `daemon.json` (`0600`) | the [daemon](/reference/daemon#files) of this machine and user, which every workspace's runs are reached through: its socket, and `{"pid": int, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "daemon", "protocol": int}` via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename | when the daemon closes |
+| `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
+| `$TMPDIR/humanize-<uid>/daemon.log` (`0600`) | what belongs to no run: the daemon's stdout and stderr, and a host process's before it holds a run; what belongs to a run is the epic's [`host.log`](#h-epics-ws-stamp-hex6) | kept, never rotated |
 | `$TMPDIR/humanize-*` | a docker environment's cid file and machine shadow | with the container |
 | `${XDG_RUNTIME_DIR:-$TMPDIR}/humanize-ssh-<uid>/%C[-<hex8>]` (`0700`) | ssh control sockets ([`HUMANIZE_SSH_REUSE`](/reference/environment#humanize-ssh-reuse)) | 120 s after last use |
 | `/dev/shm/hmz-<pid>-<hex16>-*/<n>.<file>` (`0700`/`0600`) | credential copies staged for a turn (≤ 1 MiB each) | on close; dead-pid directories swept |

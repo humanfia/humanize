@@ -1,7 +1,8 @@
 # `daemon`
 
-A workspace's runs held where a terminal closing cannot end them, for the frontends that come
-and go from them. What a run is is not this package's: what it holds is `hmz.runtime.Host`.
+Every workspace's runs on a machine held where a terminal closing cannot end them, for the
+frontends that come and go from them. What a run is is not this package's: what it holds is
+`hmz.runtime.Host`.
 
 ## API
 
@@ -26,7 +27,7 @@ def daemons() -> list[Daemon]: ...
 def host(workspace: str | os.PathLike[str] | None = None, *, seconds: float = 10.0) -> Daemon: ...
 def older(daemon: Daemon) -> str: ...  # what to say of a daemon of an older humanize
 def __getattr__(name: str) -> object: ...  # `Hmz` and `Host`, handed through from `hmz.runtime`
-# link.py -- one frontend's end of a workspace's runs, over a host's socket or in this process
+# link.py -- one frontend's end of a workspace's runs, through the daemon or in this process
 class Link:  # a context manager; iterable of messages until a listener is set
     client: str
     def told(self, message: dict[str, Any]) -> None: ...  # what carries messages hands them to
@@ -46,16 +47,26 @@ class Link:  # a context manager; iterable of messages until a listener is set
     def aside(self, **said: Any) -> dict[str, Any]: ...
     def close(self) -> None: ...
 def linked(host: Host, name: str = "", kind: str = "tui", *, replay: bool = True) -> Link: ...
-def reached(at: Path, name: str = "", kind: str = "sdk", *, replay: bool = True) -> Link: ...
-# carrying.py -- a host's runs carried between it and the frontends on its socket
+def reached(at: Path, workspace: str, name: str = "", kind: str = "sdk", *,
+            replay: bool = True) -> Link: ...
+# carrying.py -- a host's runs carried between it and the frontends the daemon hands it
+HOST_LOG: str; TAKEN: bytes
 class Carrier:
-    def __init__(self, host: Host, listening: socket.socket, at: Path) -> None: ...
+    def __init__(self, host: Host, handing: socket.socket, said: dict[str, Any]) -> None: ...
     def start(self) -> None: ...
     def wait(self, timeout: float | None = None) -> bool: ...
     def close(self) -> None: ...
 class Printed(io.TextIOBase): ...  # what a host process prints, said to its frontends
-def serves(host: Host, at: Path, telling: int | None = None) -> None: ...
-def logged(at: Path, about: str) -> None: ...
+def keeps(reading: int, host: Host) -> None: ...  # what a host process writes, into its run's epic
+def serves(host: Host, workspace: str, telling: int | None = None) -> None: ...
+def logged(about: str) -> None: ...
+# routing.py -- the machine's one daemon, handing each frontend to its workspace's host
+class Router:
+    def __init__(self, listening: socket.socket, at: Path) -> None: ...
+    def start(self) -> None: ...
+    def wait(self, timeout: float | None = None) -> bool: ...
+    def close(self) -> None: ...
+def serves(telling: int | None = None) -> None: ...
 # proto.py -- the framed protocol between the runs and whatever is reading them
 GONE: bytes; CONTROL: bytes; MESSAGE: bytes; PROTOCOL: int
 def frame(kind: bytes, payload: bytes = b"") -> bytes: ...
@@ -70,9 +81,11 @@ class Frames:
 - MUST hold `hmz.runtime.Host` and MUST know nothing about how a run is opened.
 - MUST offer `Hmz` and `Host` under this package, as the same objects `hmz.runtime` holds and
   fetched when named; what is held MUST reach the runtime by that name rather than over the socket.
-- MUST be one daemon per workspace, claimed against a race rather than by looking first, released
-  however the process ends, and MUST read a workspace as holding nothing unless the process is there
-  and something answers on its socket.
+- MUST be one daemon per machine and user, kept in `hmz.machine()` and never under `hmz.home()`,
+  claimed against a race rather than by looking first, released however the process ends; it MUST
+  hold every workspace's runs there, each in a host process of its own standing in that workspace,
+  one host per workspace, and MUST read a workspace as holding nothing unless its host is there
+  and the daemon answers on its socket.
 - MUST answer what is running out of the runtime in the holding process, and a run that cannot be
   asked MUST answer as one running nothing rather than as one that cannot be read.
 - MUST outlive the terminal it was started from: no controlling terminal, unreachable by a hangup, and
@@ -80,7 +93,8 @@ class Frames:
   MUST report a failure to start rather than make them wait out a timeout.
 - MUST let go of frontends without stopping the runs; stopping MUST be a separate request.
 - MUST NOT let any frontend, thread or socket end the runs -- what failed MUST be written down
-  where it can be read afterwards.
+  where it can be read afterwards: what belongs to a run into that run's epic, and what belongs to
+  none beside the daemon's socket.
 - MUST carry framed messages both ways so that the runs letting go is said rather than inferred,
   MUST refuse a length no frame of this protocol has, MUST NOT hand the same frame out twice, and
   MUST answer a question about the runs on the connection it was asked on and under this same
@@ -90,13 +104,19 @@ class Frames:
 
 - A daemon MUST write the protocol it speaks beside its socket (`protocol`), MUST answer a reader
   speaking any other with `GONE` rather than leaving it waiting, and MUST read a daemon that wrote
-  none as one of an older humanize, which nothing here reaches.
+  none, or another, as one of an older humanize, which nothing here reaches.
+- The daemon MUST hand each frontend to the host of the workspace its first frame names, without
+  reading that frame off the socket, MUST say so where no host holds it, MUST refuse a second
+  host of one workspace, and MUST go once it holds no workspace -- its hosts closing their runs
+  as a stop does once it has gone.
 - `host` MUST find the host already holding a workspace's runs before it starts one, MUST start
-  one where none is, and MUST refuse a workspace an older humanize holds. The host
-  process MUST read nothing, MUST write its own descriptors beside its socket, MUST say what is
-  printed in it to its frontends a line at a time, MUST ignore an interrupt, MUST close its runs
-  on a terminate and wait a while for them to let go of what they made, and MUST report its own
-  failures where that has been answered yes.
+  the daemon and then one where none is, and MUST refuse a machine an older humanize's daemon
+  holds and a workspace a host it left still holds. The
+  host process MUST read nothing, MUST write its own descriptors into the epic of the run it
+  holds, MUST say what is printed in it to its frontends a line at a time, MUST ignore an
+  interrupt, MUST close its runs on a terminate and wait a while for them to let go of what they
+  made, and MUST report its own failures where that has been answered yes. `kill` MUST end one
+  workspace's host and no other.
 - MUST carry one JSON object a `MESSAGE` frame each way, and MUST carry out every request off the
   thread carrying the bytes: a frontend's requests in the order it made them, an aside apart
   from the rest. Each request MUST be answered with one reply naming it, and a frontend MUST say

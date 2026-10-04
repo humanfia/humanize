@@ -18,7 +18,9 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import cli, daemon
+from hmz import cli, daemon, home
+from hmz.daemon import where
+from hmz.daemon.proto import PROTOCOL
 from hmz.sdk import Daemons
 from tests.stubs import written
 
@@ -122,7 +124,7 @@ def test_runs_are_hosted_apart_and_found_again(hosted: daemon.Daemon) -> None:
     found = daemon.running()
 
     assert found is not None
-    assert (found.pid, found.protocol) == (hosted.pid, 1)
+    assert (found.pid, found.protocol) == (hosted.pid, PROTOCOL)
     # Found rather than started again, however it is asked for.
     assert daemon.host().pid == hosted.pid
     assert Daemons().host().pid == hosted.pid
@@ -213,6 +215,89 @@ def test_killing_the_host_closes_it_first(hosted: daemon.Daemon) -> None:
     assert daemon.running() is None
 
 
+#: A run writing straight to a descriptor, once it is told to go: what a CLI it started would.
+SAYS = """
+import asyncio
+import os
+from pathlib import Path
+
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams, name="says")
+async def says(task, *, agents, envs, params, ctx):
+    while not Path("go").exists():
+        await asyncio.sleep(0.02)
+    os.write(2, f"{task} said straight to a descriptor\\n".encode())
+"""
+
+
+@pytest.mark.timeout(90)
+def test_two_workspaces_are_held_at_once_by_the_one_daemon_of_the_machine(
+    workspace: Path, tmp_path: Path
+) -> None:
+    """A host apiece, standing in its own workspace, and one socket every frontend reaches.
+
+    And what each run's process wrote is in that run's epic, rather than in one log of the
+    machine's that every workspace's runs write over one another in.
+    """
+    other = tmp_path / "other"
+    other.mkdir()
+    for one in (workspace, other):
+        written(one, "says", SAYS)
+    first, second = daemon.host(workspace), daemon.host(other)
+    links: list[Any] = []
+    try:
+        machine = where.held(where.at())["pid"]
+        assert first.pid != second.pid
+        assert machine not in (first.pid, second.pid)
+        assert [one.workspace for one in daemon.daemons()] == [
+            where.workspace(workspace),
+            where.workspace(other),
+        ]
+        seen: dict[str, list[dict[str, Any]]] = {}
+        for one, task in ((first, "first"), (second, "second")):
+            link = one.link(name="starter")
+            links.append(link)
+            seen[task] = []
+            link.heard(seen[task].append)
+            assert link.start("says", task, budget={"cost": 1})["run"] == 1
+
+        assert first.status()["state"] == second.status()["state"] == "running"
+        assert where.held(where.at())["pid"] == machine
+        for one in (workspace, other):
+            (one / "go").write_text("")
+        assert until(
+            lambda: all(
+                any(said["type"] == "ended" for said in list(one))
+                for one in seen.values()
+            )
+        )
+
+        def said() -> list[str]:
+            return sorted(
+                one.read_text() for one in (home() / "epics").rglob("host.log")
+            )
+
+        assert until(lambda: len(said()) == 2)
+        assert said() == [
+            "first said straight to a descriptor\n",
+            "second said straight to a descriptor\n",
+        ]
+    finally:
+        for link in links:
+            link.close()
+        for one in (workspace, other):
+            (one / "go").write_text("")
+        for one in (first, second):
+            if one.alive:
+                one.kill()
+
+
 #: A run holding a container until it is ended from outside: it says it has one, and waits.
 WAITS = """
 from hmz.flows import AgentCollection, Env, EnvCollection, FilesEnvMixin, FlowParams
@@ -271,6 +356,17 @@ def test_a_workspace_held_by_an_older_humanize_is_not_hosted_as_well(
         daemon.host()
     with pytest.raises(OSError, match="host"):
         older.link()
+
+
+def test_a_workspace_an_older_humanize_left_a_host_in_is_not_hosted_as_well(
+    left: daemon.Daemon, workspace: Path
+) -> None:
+    """Found where it was kept then, rather than a host of this humanize started beside it."""
+    with pytest.raises(
+        OSError, match=f"the runs in {where.workspace(workspace)} are held"
+    ):
+        daemon.host()
+    assert [one.workspace for one in daemon.daemons()] == []
 
 
 @pytest.mark.timeout(90)

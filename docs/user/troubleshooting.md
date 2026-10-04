@@ -430,12 +430,12 @@ and that was somebody else.
 
 **Verify.** Their answer is in the transcript, marked ` · by alice@tui`.
 
-### `hmz: the runs in … are held by an older humanize (pid …); stop it with that version`
+### `hmz: the runs on this machine are held by an older humanize (pid …); stop it with that version`
 
-**Symptom.** `hmz` will not open in a directory after an upgrade.
+**Symptom.** `hmz` will not open after an upgrade, or says `the runs in <dir>` instead.
 
-**Cause.** A daemon an older humanize started still holds this directory. It held its run on a
-pseudoterminal, which this version cannot read.
+**Cause.** The daemon an older humanize started on this machine is still running, or a host one
+started for this directory is, and it speaks a protocol this version cannot read.
 
 **Fix.** Open it with that version and stop it, or end the process named, then run `hmz`
 again.

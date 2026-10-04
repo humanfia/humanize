@@ -401,9 +401,9 @@ class Daemons:
 
 | Method | Same as | Behaviour |
 | --- | --- | --- |
-| `here(workspace=None)` | `hmz.daemon.running` | The daemon holding that workspace's runs, or `None` (no process, or nothing answers on its socket). |
-| `all()` | `hmz.daemon.daemons` | Every live daemon on this machine, oldest first. |
-| `host(workspace=None)` | `hmz.daemon.host` | The daemon hosting the workspace, started where none is (10 s to come up). `OSError`: an older humanize holds it, or none came up. |
+| `here(workspace=None)` | `hmz.daemon.running` | The host holding that workspace's runs, or `None` (no daemon answers on this machine's socket, or it holds no host of that workspace). |
+| `all()` | `hmz.daemon.daemons` | Every live workspace's host on this machine, oldest first. |
+| `host(workspace=None)` | `hmz.daemon.host` | The host of the workspace, started where none is -- and this machine's daemon with it (10 s each to come up). `OSError`: an older humanize's daemon is running, or none came up. |
 
 `workspace=None` is the current directory.
 
@@ -414,21 +414,21 @@ class Daemons:
 ```python
 @dataclass(frozen=True, slots=True)
 class Daemon:
-    at: Path            # the daemon's directory (socket, daemon.json)
-    workspace: str      # the project directory it holds runs for
-    pid: int
+    at: Path            # this machine's daemon's directory (socket, daemon.json)
+    workspace: str      # the project directory its host holds runs for
+    pid: int            # the host process
     started: str        # UTC, ISO 8601
-    protocol: int = 0   # the frontend protocol it speaks; 0 = an older humanize's
+    protocol: int = 0   # the frontend protocol the daemon speaks; 0 = an older humanize's
 ```
 
 | Member | Returns | Behaviour |
 | --- | --- | --- |
 | `alive` | `bool` | Property: the process exists. |
 | `link(name="", kind="sdk", *, replay=True)` | [`Link`](#link) | Attaches a frontend. `OSError`: nothing accepts the connection, or `hello` is refused or not answered within 10 s. `protocol` is not checked here (`host()` and `hmz` check it). |
-| `status()` | `dict` | [Status keys](/reference/daemon#status); from `daemon.json` for one that does not answer. |
+| `status()` | `dict` | [Status keys](/reference/daemon#status); from these fields for a host that does not answer. |
 | `detach()` | `int` | Lets every frontend go; runs continue. Returns how many. |
 | `stop(*, seconds=20.0)` | `bool` | Asks the host to close its runs and exit; waits up to `seconds`. Whether it has gone. |
-| `kill(*, seconds=20.0)` | `bool` | `SIGTERM`, then `SIGKILL`; removes the socket and `daemon.json`. Whether it has gone. |
+| `kill(*, seconds=20.0)` | `bool` | `SIGTERM` to the host process, then `SIGKILL`; the daemon and other workspaces' hosts go on. Whether it has gone. |
 | `asked(said: dict)` | `dict` | Sends one [control request](/reference/daemon#control-requests); `{}` where no answer came. |
 
 ## `Link` {#link}

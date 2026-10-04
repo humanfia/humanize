@@ -1,9 +1,11 @@
 """A workspace's runs, carried between the host holding them and the frontends reaching it.
 
 The runs themselves are :class:`hmz.runtime.Host`'s: the run going, who holds which role, what
-is waiting to be said, what every frontend has been told. What is here is only the socket --
-one JSON object a frame, a request in and a reply or a message out -- and the process it is
-bound in, which a terminal closing cannot end.
+is waiting to be said, what every frontend has been told. What is here is only the sockets --
+one JSON object a frame, a request in and a reply or a message out -- and the process they are
+carried in, which a terminal closing cannot end. A host binds no socket of its own: it says
+which workspace it holds to this machine's daemon (:mod:`hmz.daemon.routing`), and is handed
+every socket reaching for that workspace down the connection it said so on.
 
 Nothing here waits on a frontend. Every socket is written without blocking, what it has not
 taken yet is kept against it up to a ceiling, and one that falls further behind than that is
@@ -17,6 +19,7 @@ from __future__ import annotations
 import collections
 import contextlib
 import dataclasses
+import errno
 import functools
 import io
 import json
@@ -27,7 +30,6 @@ import socket
 import threading
 import time
 import traceback
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hmz.daemon import where
@@ -47,7 +49,15 @@ if TYPE_CHECKING:
 
     from hmz.runtime import Host
 
-__all__ = ["Carrier", "Printed", "logged", "serves"]
+__all__ = ["HOST_LOG", "TAKEN", "Carrier", "Printed", "keeps", "logged", "serves"]
+
+#: What this machine's daemon says to a host that has said which workspace it holds, where
+#: no other host holds it already.
+TAKEN = b"+"
+
+#: What a host process wrote while it held a run, in that run's epic: what the CLIs it
+#: started wrote straight to a descriptor, and every line :func:`logged` wrote.
+HOST_LOG = "host.log"
 
 #: How much is read off a socket at a time, and written to one.
 _READ = 1 << 16
@@ -108,21 +118,23 @@ class _Reading:
     asking: queue.SimpleQueue[dict[str, Any] | None] | None = None
 
 
-def logged(at: Path, about: str) -> None:
+def logged(about: str) -> None:
     """Writes down what went wrong where nobody was reading a terminal to see it.
 
+    On the process's own descriptor 2 rather than `sys.stderr`, which in a host is what is
+    said to its frontends: in a host that descriptor is kept in the epic of the run it is
+    holding (see :func:`keeps`), and in this machine's daemon, which holds no run, beside its
+    socket.
+
     Args:
-      at: The daemon's own directory.
       about: What was being done, since whatever is being handled is what raised.
     """
     import sys
 
     handling = sys.exc_info()[0] is not None
-    with (
-        contextlib.suppress(OSError),
-        (at / where.LOG).open("a", encoding="utf-8") as writing,
-    ):
-        writing.write(f"{about}\n{traceback.format_exc() if handling else ''}\n")
+    said = f"{about}\n{traceback.format_exc() if handling else ''}\n"
+    with contextlib.suppress(OSError):
+        os.write(2, said.encode(errors="replace"))
 
 
 def _watching(
@@ -151,65 +163,29 @@ def _quietly(hook: Callable[[], object]) -> None:
         hook()
 
 
-def _listens(at: Path) -> socket.socket:
-    """Binds the socket this daemon is reached on, taking away one a daemon that is gone left.
-
-    Called with this workspace's daemon lock already held, so that taking a socket away as
-    stale cannot be taking one from a daemon that is coming up beside this.
-
-    Args:
-      at: The daemon's own directory.
-
-    Returns:
-      The socket, listening.
-
-    Raises:
-      OSError: If it cannot be bound.
-    """
-    path = at / where.SOCKET
-    if path.exists():
-        # A socket file outlives the process that bound it, and one nothing is listening on
-        # is a reader that hangs rather than one that says nothing is running.
-        with contextlib.suppress(OSError):
-            path.unlink()
-    listening = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try:
-        with where.reached(at) as reaching:
-            listening.bind(reaching)
-        path.chmod(0o600)
-        listening.listen(8)
-    except OSError:
-        listening.close()
-        raise
-    return listening
-
-
-def _now() -> str:
-    """This moment, to the second, which is how long a daemon's own note has to be true."""
-    import datetime
-
-    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def _written(message: dict[str, Any]) -> bytes:
     """One message as the frame it goes out in."""
     return frame(MESSAGE, json.dumps(message, default=str, ensure_ascii=False).encode())
 
 
 class Carrier:
-    """The socket a host is reached on, and every frontend on the other end of it."""
+    """The connection a host is handed sockets down, and every frontend on the end of one."""
 
-    def __init__(self, host: Host, listening: socket.socket, at: Path) -> None:
-        """Holds the host and the socket it is reached through.
+    def __init__(
+        self, host: Host, handing: socket.socket, said: dict[str, Any]
+    ) -> None:
+        """Holds the host and the connection to this machine's daemon.
 
         Args:
           host: The runs being carried.
-          listening: The socket frontends arrive on, already bound and listening.
-          at: The daemon's own directory, which is where its note and its log are.
+          handing: The connection the daemon hands down each socket reaching for these runs,
+            one byte apiece with the socket beside it, and closes when it goes.
+          said: What the host said of itself to the daemon, which a question about the runs
+            is answered with as well.
         """
         self._host = host
-        self._listening = listening
-        self._at = at
+        self._listening = handing
+        self._own = said
         self._lock = threading.Lock()
         self._reading: dict[int, _Reading] = {}
         self._letting: list[tuple[socket.socket, bytes]] = []
@@ -251,9 +227,6 @@ class Carrier:
             self._thread.join(timeout=_FLUSHING + _TICK)
         with contextlib.suppress(OSError):
             self._listening.close()
-        for name in (where.SOCKET, where.RECORD):
-            with contextlib.suppress(OSError):
-                (self._at / name).unlink()
         with self._lock:
             fds, self._woken_r, self._woken_w = (self._woken_r, self._woken_w), -1, -1
         for fd in fds:
@@ -281,7 +254,7 @@ class Carrier:
                     wrong = 0
                 except Exception:  # noqa: BLE001 -- a bad round is not the host over
                     wrong += 1
-                    logged(self._at, "the daemon could not carry a round of messages")
+                    logged("the daemon could not carry a round of messages")
         finally:
             with contextlib.suppress(Exception):
                 self._closes(selector)
@@ -327,17 +300,33 @@ class Carrier:
 
     def _arrived(self, selector: selectors.BaseSelector) -> None:
         try:
-            one, _ = self._listening.accept()
+            got, handed, _, _ = socket.recv_fds(self._listening, 1, 1)
+        except (BlockingIOError, InterruptedError):
+            return
         except OSError:
+            got, handed = b"", []
+        if not got and not handed:
+            # The daemon has gone, and with it the only way anybody new reaches these runs:
+            # they are closed as a stop closes them, rather than left running for nobody.
+            with contextlib.suppress(KeyError, ValueError, OSError):
+                selector.unregister(self._listening)
+            threading.Thread(
+                target=_quietly, args=(self._host.close,), daemon=True
+            ).start()
             return
-        if self._host.closed:
-            one.close()
-            return
-        one.setblocking(False)  # noqa: FBT003 -- what a socket takes, not a flag of ours
-        with self._lock:
-            self._reading[one.fileno()] = _Reading(one, Frames())
-        with contextlib.suppress(ValueError, KeyError, OSError):
-            selector.register(one, selectors.EVENT_READ)
+        # Said to have arrived, so that the daemon lets go of its own end of each.
+        with contextlib.suppress(OSError):
+            self._listening.sendall(TAKEN * len(handed))
+        for fd in handed:
+            one = socket.socket(fileno=fd)
+            if self._host.closed:
+                one.close()
+                continue
+            one.setblocking(False)  # noqa: FBT003 -- what a socket takes, not a flag of ours
+            with self._lock:
+                self._reading[one.fileno()] = _Reading(one, Frames())
+            with contextlib.suppress(ValueError, KeyError, OSError):
+                selector.register(one, selectors.EVENT_READ)
 
     def _watches(self, selector: selectors.BaseSelector) -> None:
         with self._lock:
@@ -420,7 +409,7 @@ class Carrier:
         doing = said.get("do")
         answer: dict[str, Any]
         if doing == "status":
-            answer = {"ok": True, **where.held(self._at), **self._host.status()}
+            answer = {"ok": True, **self._own, **self._host.status()}
         elif doing == "detach":
             clients = [one["client"] for one in self._host.status()["clients"]]
             for client in clients:
@@ -497,7 +486,7 @@ class Carrier:
         """Puts one message the host said on its way to one frontend, without waiting."""
         written = _written(message)
         if len(written) > _LONGEST:
-            logged(self._at, f"a {message.get('type')} message was too long to carry")
+            logged(f"a {message.get('type')} message was too long to carry")
             return
         behind = False
         with self._lock:
@@ -663,39 +652,69 @@ class Printed(io.TextIOBase):
         return len(s)
 
 
-def serves(host: Host, at: Path, telling: int | None = None) -> None:
-    """Holds a workspace's runs on a socket of their own, until nothing is left to hold.
+def keeps(reading: int, host: Host) -> None:
+    """Writes what the process holding a workspace's runs writes into the run it belongs to.
+
+    Everything a CLI a run starts writes straight to a descriptor, and every line
+    :func:`logged` writes, arrives here down a pipe and goes into the epic of the run the host
+    is holding, as :data:`HOST_LOG` beside its `epic.jsonl`: what went wrong in a run is read
+    where the run is. What arrives before the host has held any run belongs to none, and goes
+    beside this machine's daemon socket instead. Returns once nothing can write to the pipe.
+
+    Args:
+      reading: The pipe's end to read.
+      host: The runs, asked for the epic of the one it is holding as each piece arrives.
+    """
+    while said := os.read(reading, _READ):
+        with contextlib.suppress(OSError):
+            epic = host.epic
+            into = epic / HOST_LOG if epic is not None else where.at() / where.LOG
+            writing = os.open(into, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            try:
+                os.write(writing, said)
+            finally:
+                os.close(writing)
+
+
+def serves(host: Host, workspace: str, telling: int | None = None) -> None:
+    """Holds a workspace's runs for this machine's daemon to hand frontends to, until done.
+
+    Says to the daemon which workspace this is, and keeps the connection it said so on: that
+    is what the daemon hands down every socket reaching for this workspace, and what tells
+    each of the two the other has gone.
 
     Args:
       host: The runs.
-      at: The daemon's own directory, which is made here.
-      telling: A descriptor to say on that it is listening, and then close, or None.
+      workspace: The workspace they are held in, as :func:`hmz.daemon.where.workspace` says it.
+      telling: A descriptor to say on that it is being reached, and then close, or None.
 
     Raises:
-      OSError: If a daemon of this workspace is already running, or the socket cannot be
-        bound -- the one failure whoever asked for a daemon has to hear about.
+      OSError: If this machine's daemon cannot be reached, or another host is already
+        holding this workspace -- the one failure whoever asked for a host has to hear about.
     """
-    at.mkdir(parents=True, exist_ok=True)
-    # Taken before anything is looked at: two started in the same second would both find
-    # nothing here, and one of them would take the other's socket away as stale.
-    holding = where.holds(at)
+    handing = where.connects(where.at())
     try:
-        listening = _listens(at)
-        where.wrote(
-            at,
-            {
-                "pid": os.getpid(),
-                "workspace": str(Path.cwd()),
-                "started": _now(),
-                "kind": "host",
-                "protocol": PROTOCOL,
-            },
-        )
+        said: dict[str, Any] = {
+            "pid": os.getpid(),
+            "workspace": workspace,
+            "started": where.now(),
+            "kind": "host",
+            "protocol": PROTOCOL,
+        }
+        handing.sendall(spoken(CONTROL, {"do": "serve", **said}))
+        # One byte for taken, and nothing at all for refused: whatever follows on this
+        # connection is the sockets handed down, each beside a byte of its own, and an
+        # answer read a buffer at a time would take the first of them with it.
+        handing.settimeout(_FLUSHING)
+        if handing.recv(1) != TAKEN:
+            raise OSError(errno.EADDRINUSE, f"the runs in {workspace} are already held")
+        handing.settimeout(None)
         if telling is not None:
+            # Said and left open: the descriptor is whoever forked this one's to close, and
+            # one closed here could be written to again as somebody else's.
             with contextlib.suppress(OSError):
                 os.write(telling, b"listening\n")
-                os.close(telling)
-        carrier = Carrier(host, listening, at)
+        carrier = Carrier(host, handing, said)
         carrier.start()
         try:
             carrier.wait()
@@ -704,4 +723,4 @@ def serves(host: Host, at: Path, telling: int | None = None) -> None:
             carrier.close()
     finally:
         with contextlib.suppress(OSError):
-            os.close(holding)
+            handing.close()

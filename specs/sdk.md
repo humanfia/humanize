@@ -22,7 +22,8 @@ class Daemons:
 ## Requirements
 
 - MUST offer both ways to a run: `Hmz`, which is the runtime in the process that asked, and
-  `Daemons`, which is a workspace's runs held where a terminal closing cannot end them.
+  `Daemons`, which is every workspace's runs held on the machine where a terminal closing cannot
+  end them.
 - MUST hand out the same objects humanize itself holds rather than copies or wrappers of
   them, so that a tool and humanize are talking about one class.
 - MUST NOT restate or recompose what it hands through: every answer is given where it is

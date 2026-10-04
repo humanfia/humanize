@@ -39,8 +39,9 @@ CONTROL = b"C"
 MESSAGE = b"M"
 
 #: Which version of what a frontend and a host say to each other this is, written down beside
-#: a host's socket so that a frontend reaching one it cannot read says so rather than hanging.
-PROTOCOL = 1
+#: this machine's daemon socket so that a frontend reaching one it cannot read says so rather
+#: than hanging. 2: one daemon per machine, handing each frontend to its workspace's host.
+PROTOCOL = 2
 
 #: How long a frame may be. A message is kilobytes and a replay is many of them; a length
 #: longer than this is a socket that is not carrying this protocol.

@@ -68,9 +68,9 @@ once, at start, in this order:
 | --- | --- | --- |
 | 1 | `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | holds the runs in this process. Nothing is said. |
 | 2 | stdin or stdout is not a TTY | holds the runs in this process. Nothing is said. |
-| 3 | a daemon for this directory is found and its `protocol` is `0` | is not opened. See [Errors](#hmz-errors). |
-| 4 | a daemon for this directory is found, protocol ≥ 1 | links to it as `kind="tui"`. |
-| 5 | no daemon is found | starts one with [`hmz.daemon.host()`](/reference/daemon#discovery) and links to it. |
+| 3 | this machine's daemon is found and its `protocol` is not `2`, or a host an older humanize left holds this directory | is not opened. See [Errors](#hmz-errors). |
+| 4 | a host for this directory is found through the daemon | links to it as `kind="tui"`. |
+| 5 | no host is found | starts one, and the daemon where none is, with [`hmz.daemon.host()`](/reference/daemon#discovery), and links to it. |
 
 Steps 3–5 are tried up to **3** times, **0.5 s** apart, while linking raises `OSError`
 (a host found on its way out). After the third failure the interface holds the runs in this
@@ -91,7 +91,7 @@ Before Textual is imported, `hmz` sets `TEXTUAL_DISABLE_KITTY_KEY=1` in its own 
 | Condition | stderr | Exit |
 | --- | --- | --- |
 | The interface closed normally | — | `0` |
-| The directory's runs are held by an older humanize (daemon `protocol` `0`) | `hmz: the runs in <dir> are held by an older humanize (pid <n>); stop it with that version` | `1` |
+| This machine's runs are held by an older humanize (daemon `protocol` not `2`), or this directory's by a host one left | `hmz: the runs on this machine are held by an older humanize (pid <n>); stop it with that version`, or `the runs in <dir> …` | `1` |
 | The host let go of the interface ([`gone`](/reference/daemon#gone)) | `hmz: <why>` (or `hmz: disconnected from the runs`), printed as the interface closes | `1` |
 | No host could be linked in 3 tries | `hmz: runs cannot be detached from the terminal (<OSError>), so they will run in this process instead` | the interface's |
 
@@ -729,7 +729,7 @@ is [Files](/reference/files).
 | `epics/<workspace>/<datetime>-<hex>/` | `hmz exec`, runs started from `hmz` | written: one [epic](/reference/tracing#epics) per run |
 | `settings.yaml` | `hmz` | read and written: [what the interface remembers](/reference/tui#what-it-remembers) |
 | `history.jsonl` | `hmz` | read and written: [prompt history](/reference/tui#history) |
-| `daemons/<project>-<digest>/` | `hmz` | the [host's](/reference/daemon#files) socket, record, lock and log |
+| `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
 | `providers/`, `runtimes/`, `fallbacks.json`, `acp.json`, `models/` | all | read when an agent or environment is opened |
 | `flowverses/`; `~/.humanize/flows/` and `./.humanize/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |

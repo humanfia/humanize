@@ -222,7 +222,7 @@ not edit a SPEC unless you were asked to. Propose a SPEC change separately.
 | `specs/cli.md` | Every command line |
 | `specs/tui.md` | Every behaviour the interface must have |
 | `specs/sdk.md` | How a tool that is not humanize reaches humanize |
-| `specs/daemon.md` | Holding a workspace's runs apart from a terminal, for the frontends that read them |
+| `specs/daemon.md` | Holding every workspace's runs on a machine apart from a terminal, for the frontends that read them |
 | `specs/runtime/SPEC.md` | What a run is, and what humanize remembers of one |
 | `specs/runtime/doing.md` | humanize as one object: a workspace and everything doable in it |
 | `specs/runtime/flowing.md` | What humanize does to a flow: the engine, the drivers, refs, resuming |
