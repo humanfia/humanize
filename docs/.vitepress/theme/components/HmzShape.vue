@@ -5,8 +5,8 @@
 // when it comes back. Which is which is each backend's `shapes` in `src/hmz/coganchor/agents/`;
 // a CLI added in /settings is asked. The answer lands as the fields: one decides whether the
 // loop goes round again, one carries the notes into the next prompt (`rlar`'s `Review` in
-// `humanfia/flowverse`). An answer out of shape fails the turn with `OutputSchemaError`, and
-// the same shape put to a person is a question per field. Pick a CLI.
+// `src/hmz/flows/builtin/rlar/__init__.py`). An answer out of shape fails the turn with
+// `OutputSchemaError`, and the same shape put to a person is a question per field. Pick a CLI.
 import { computed, nextTick, ref } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'

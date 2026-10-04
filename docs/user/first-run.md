@@ -188,10 +188,10 @@ Press <kbd>enter</kbd> on the `search…` row below the flows, type `ralph`, and
 
 ::: details `official` lists only seven flows
 Those are the ones humanize ships, `ralph_loop` among them. The rest of humanize's flows are in
-a git repository, the official [flowverse](/weaver/flowverses). `hmz` fetches it in the background every time it opens, and
-`/flow` fetches it if that has not happened yet. If the fetch fails, `/flow` says why under the
-list. The `manage flowverses` row below the flows opens the flowverses; open one and choose
-`fetch`, or `fetch again` once it has been fetched.
+a git repository, the official [flowverse](/weaver/flowverses). `hmz` fetches it in the
+background every time it opens, and `/flow` fetches it if that has not happened yet. If the
+fetch fails, `/flow` says why under the list. The `manage flowverses` row below the flows opens
+the flowverses; open one and choose `fetch`, or `fetch again` once it has been fetched.
 :::
 
 ## 4. Give the role an agent
