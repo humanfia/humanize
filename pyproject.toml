@@ -27,7 +27,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "dateparser>=1.4.2",
+    "dateparser>=1.4.3",
     "psutil>=7.2.2",
     # A flow says what it can be configured with by declaring a model, and the menu that
     # asks is read off that model: the types, the bounds and the combinations a flow
@@ -42,7 +42,7 @@ dependencies = [
     # stack nobody sees is a bug nobody fixes. Off until somebody says otherwise, and an
     # ordinary dependency rather than an extra: an install that could be missing the half
     # that reports its own failures is an install whose failures are not reported.
-    "sentry-sdk>=2.68.1",
+    "sentry-sdk>=2.70.0",
     "textual>=8.2.8",
     # A flow declares its agents and environments as TypedDicts open to more roles of one
     # type (PEP 728's `extra_items`), which no `typing` this package supports can say --
@@ -78,7 +78,7 @@ dsh = [
     # arm64 alone, so this is the platform set humanize's docs already promise. Later SDKs
     # add Windows and macOS x86-64, but reach them through a driver that cannot open a
     # session -- an install that fails outright beats one that fails every turn.
-    "deepseek-harness-sdk>=0.1.1rc1,<0.1.2",
+    "deepseek-harness-sdk>=0.1.5rc1,<0.1.6",
     "python-dotenv>=1.2.3",
 ]
 # Kimi Code's app server says what a session is doing over a websocket, which is how a turn
@@ -102,13 +102,13 @@ Issues = "https://github.com/humanfia/humanize/issues"
 hmz = "hmz.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.12.7,<0.13.0"]
+requires = ["uv_build>=0.12.19,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.2",
-    "pyright>=1.1.411",
+    "pyright>=1.1.414",
     "pytest>=8",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=6",
@@ -117,7 +117,7 @@ dev = [
     # Exercises dsh's dotenv-compatible native configuration without making the SDK
     # itself part of every development environment.
     "python-dotenv>=1.2.3",
-    "ruff>=0.16.5",
+    "ruff>=0.16.9",
     # The suite drives a real websocket server at kimi's notification reader, and the type
     # checker reads that test like any other file. Here rather than in the `kimi` extra for
     # the same reason as the line above: what the tests need is not what an install needs.
