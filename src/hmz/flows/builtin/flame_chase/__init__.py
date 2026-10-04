@@ -1,7 +1,7 @@
 """Flame chase (flowbench: flame_chase) -- two agents take turns on the same task.
 
     hmz exec -f flame_chase -a first_chaser=claude/claude-opus-5:high \
-        -a second_chaser=codex/gpt-5.6-sol:high -b cost=10 "the task"
+        -a second_chaser=codex/gpt-5.6-sol:high -p budget.cost=10 "the task"
 
 Each turn is a fresh session, so the two share nothing but the repository, and a turn that
 fails passes to the other chaser. The budget ends it: the turn that finds it spent raises the

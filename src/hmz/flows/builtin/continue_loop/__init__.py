@@ -1,6 +1,6 @@
 """Continue loop (flowbench: continue_loop) -- send the task once, then keep nudging "continue".
 
-    hmz exec -f continue_loop -a agent=claude/claude-opus-5:high -b cost=5 "the task"
+    hmz exec -f continue_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 "the task"
 
 One session for the whole run. A turn that answered moves the prompt on to "continue"; one
 that answered nothing, or failed, is sent again. The budget ends it: the turn that finds it

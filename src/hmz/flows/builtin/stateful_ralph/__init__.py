@@ -1,6 +1,6 @@
 """Stateful ralph (flowbench: stateful_ralph) -- one session, re-sent the task every turn.
 
-    hmz exec -f stateful_ralph -a agent=claude/claude-opus-5:high -b cost=5 "the task"
+    hmz exec -f stateful_ralph -a agent=claude/claude-opus-5:high -p budget.cost=5 "the task"
 
 A turn that fails counts as one answered with nothing. It stops after three rounds in a row
 answered with nothing, or when the budget is spent -- the turn that finds it spent raises the

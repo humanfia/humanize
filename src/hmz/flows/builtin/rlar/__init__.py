@@ -1,7 +1,7 @@
 """RLAR (flowbench: rlar) -- an actor works in one session, and a fresh reviewer reads its work.
 
     hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
-        -b cost=20 "the task"
+        -p budget.cost=20 "the task"
 
 It ends when the reviewer says the task is done, or when the budget is spent; `--resume`
 hands a fresh actor the last review to pick up from. A turn that fails, or a review out of

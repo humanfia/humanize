@@ -1,6 +1,6 @@
 """Goal (flowbench: goal) -- the task set once as the agent's own goal.
 
-    hmz exec -f goal -a worker=claude/claude-opus-5:high -b cost=5 "the task"
+    hmz exec -f goal -a worker=claude/claude-opus-5:high -p budget.cost=5 "the task"
 
 One turn, `/goal <task>`, in one session: the model keeps working until it says the goal is
 met, or the budget is spent. Only a harness with a goal command of its own can take it.
