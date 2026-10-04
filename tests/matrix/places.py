@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -57,7 +59,7 @@ __all__ = [
 MACHINE = Path.home() / ".hmz" / "providers"
 
 #: What this machine's CLIs last said they run as local, for a candidate list to fall back on.
-_KEPT = Path.home() / ".hmz" / "models"
+_KEPT = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}" / "models"
 
 #: What a place is asked, and what it has to answer to be one.
 _ASKED = "Reply with exactly: OK"
@@ -201,7 +203,7 @@ def installed(cli: str) -> bool:
 def _catalogued(cli: str) -> list[Place]:
     """The first few chat models this machine's own catalogue of a CLI names, as local."""
     try:
-        said = json.loads((_KEPT / f"{cli}.json").read_text(encoding="utf-8"))
+        said = json.loads((_KEPT / cli / "_local.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     held = cast("dict[str, Any]", said) if isinstance(said, dict) else {}

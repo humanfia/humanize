@@ -295,8 +295,8 @@ class Fallbacks:
 - A trace of one run MUST be gathered here rather than by whoever asked for it, by the ids the
   run wrote down rather than the directory it ran in, MUST land with the run unless a path was
   named, and one asked for without a workspace MUST stay without one. It MUST read the sessions
-  that run kept, and a trace asked for without saying where MUST read every place humanize
-  keeps them.
+  that run kept, and a trace asked for without saying where MUST read the sessions every run
+  kept.
 
 ### Hosting
 

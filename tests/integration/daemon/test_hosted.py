@@ -373,17 +373,6 @@ def test_a_workspace_held_by_an_older_humanize_is_not_hosted_as_well(
         older.link()
 
 
-def test_a_workspace_an_older_humanize_left_a_host_in_is_not_hosted_as_well(
-    left: daemon.Daemon, workspace: Path
-) -> None:
-    """Found where it was kept then, rather than a host of this humanize started beside it."""
-    with pytest.raises(
-        OSError, match=f"the runs in {where.workspace(workspace)} are held"
-    ):
-        daemon.host()
-    assert [one.workspace for one in daemon.daemons()] == []
-
-
 @pytest.mark.timeout(90)
 def test_the_interface_line_opens_one_more_frontend_of_the_runs_here(
     hosted: daemon.Daemon, monkeypatch: pytest.MonkeyPatch

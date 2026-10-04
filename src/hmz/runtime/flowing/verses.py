@@ -2,9 +2,10 @@
 
 A flowverse is an index: a git repository of `flows/<flow>/<version>/flow.yaml`, one manifest
 per release of a flow, saying which repository and commit that release is (:mod:`index`). It is
-cloned into `~/.hmz/flowverses/<name>/`, and holds no code: what runs is what somebody chose to
-install out of it, which is kept apart under humanize's home and offered under the flowverse's
-name. Fetching an index again changes what may be installed, and never what runs.
+cloned into `~/.hmz/flowverses/<name>/index/`, and holds no code: what runs is what somebody
+chose to install out of it, which is kept beside the clone, in `installed/`, and offered under
+the flowverse's name. Fetching an index again changes what may be installed, and never what
+runs.
 
 Three are always there, and none of them can be added or taken away. `official` is humanize's
 own, and is there whether or not it has been fetched yet: a list that only mentioned it once
@@ -34,6 +35,7 @@ added, fetched again, taken away.
 from __future__ import annotations
 
 import configparser
+import contextlib
 import os
 import re
 import subprocess
@@ -44,6 +46,8 @@ from hmz import here, home
 
 __all__ = [
     "FLOWS",
+    "INDEX",
+    "INSTALLED",
     "LOCAL",
     "MINE",
     "OFFICIAL",
@@ -96,6 +100,12 @@ _AS_THEY_STAND = (LOCAL, USER)
 #: only one read for them: an index is a repository, with a README and a CI of its own beside.
 FLOWS = "flows"
 
+#: The two directories a flowverse's own directory holds: the clone of its index, and the flows
+#: installed out of it. Beside each other rather than one inside the other, so that a fetch,
+#: which resets the clone to what its repository says now, never reaches what was installed.
+INDEX = "index"
+INSTALLED = "installed"
+
 #: What a flowverse may be called: one directory name, and one that cannot climb out of the
 #: directory they are kept in.
 _NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
@@ -114,8 +124,9 @@ class Flowverse:
         offered under.
       url: Where its index is fetched from, or "" for one that is not fetched from anywhere --
         the two directories your own flows live in.
-      at: The directory it is kept in, which for an index is the clone of it rather than the
-        flows installed out of it: what its flows are read from is :func:`holds`.
+      at: The directory it is read from, which for an index is the clone of it -- the
+        :data:`INDEX` inside the directory :func:`where` names -- rather than the flows
+        installed out of it: what its flows are read from is :func:`holds`.
       fetched: Whether the index has been cloned. False for one named but never fetched,
         which `official` is until somebody asks for it, and true for the ones fetched from
         nowhere: a directory that is not there holds no flows, which is what its list of them
@@ -134,7 +145,7 @@ class Flowverse:
 
 
 def under() -> Path:
-    """Where every fetched index is kept, which is one directory under humanize's home."""
+    """Where every flowverse is kept, which is one directory under humanize's home."""
     return home() / "flowverses"
 
 
@@ -169,13 +180,13 @@ def holds(one: Flowverse) -> tuple[Path, ...]:
 
 
 def where(name: str) -> Path:
-    """The directory one flowverse is kept in.
+    """The directory one flowverse is kept in: the clone of its index, and what was installed.
 
     Args:
       name: What it is called.
 
     Returns:
-      The path, whether or not anything has been fetched into it.
+      The path, whether or not anything has been fetched or installed into it.
 
     Raises:
       ValueError: If the name is not one a flowverse may have -- a name is a directory, and
@@ -202,17 +213,21 @@ def flowverses() -> list[Flowverse]:
         Flowverse(
             name=OFFICIAL,
             url=OFFICIAL_URL,
-            at=where(OFFICIAL),
-            fetched=_cloned(where(OFFICIAL)),
+            at=where(OFFICIAL) / INDEX,
+            fetched=_cloned(where(OFFICIAL) / INDEX),
             fixed=True,
         ),
     ]
-    for at in sorted(_directories(under())):
-        if at.name in _ALWAYS or not _NAMED.match(at.name):
+    # One with no clone in it -- taken away by hand, with flows still installed beside where it
+    # was -- is listed all the same, as one with nowhere to fetch from: what was installed out
+    # of it is still offered under its name, and removing it is how it goes.
+    for kept in sorted(_directories(under())):
+        if kept.name in _ALWAYS or not _NAMED.match(kept.name):
             continue
+        at = kept / INDEX
         held.append(
             Flowverse(
-                name=at.name,
+                name=kept.name,
                 url=_url(at),
                 at=at,
                 fetched=_cloned(at),
@@ -320,11 +335,18 @@ def add(url: str, name: str = "") -> Flowverse:
             f"{called} is what your own flows in {MINE[called]} are listed under; "
             "pick another name"
         )
-    at = where(called)
-    if at.exists():
+    if where(called).exists():
         raise ValueError(f"there is already a flowverse called {called!r}")
-    at.parent.mkdir(parents=True, exist_ok=True)
-    clone(said, at)
+    at = where(called) / INDEX
+    try:
+        clone(said, at)
+    except BaseException:
+        # Made for the clone and holding nothing now, so that a fetch that failed leaves no
+        # flowverse behind it -- and only if it is empty, which another add of the same name
+        # that got there first is not.
+        with contextlib.suppress(OSError):
+            at.parent.rmdir()
+        raise
     return Flowverse(
         name=called, url=_url(at), at=at, fetched=_cloned(at), fixed=called == OFFICIAL
     )
@@ -362,11 +384,10 @@ def fetch(name: str) -> Flowverse:
         said = (
             f"a directory of flows of your own, {MINE[name]}"
             if name in MINE
-            else "a directory that is not a clone of anything; remove it and add it again"
+            else "a flowverse with no clone of an index in it; remove it and add it again"
         )
         raise ValueError(f"{name} is {said}; there is nothing to fetch")
     if not one.fetched:
-        one.at.parent.mkdir(parents=True, exist_ok=True)
         clone(one.url, one.at)
     else:
         refresh(one.at)
@@ -386,9 +407,10 @@ def remove(name: str) -> bool:
     offered under its flowverse's name, and a name nothing lists is a flow nobody can update,
     uninstall or tell is there.
 
-    Each is moved out of its place in one rename before anything in it is deleted, so that a
-    delete that fails partway leaves a hidden directory nothing lists rather than half an
-    index, or an installed flow with its record and without its entry point.
+    Both are in its one directory, which is moved out of its place in one rename before
+    anything in it is deleted, so that a delete that fails partway leaves a hidden directory
+    nothing lists rather than half an index, or an installed flow with its record and without
+    its entry point.
 
     Args:
       name: What it is called.
@@ -399,29 +421,25 @@ def remove(name: str) -> bool:
     Raises:
       ValueError: If it is one of the three that are always there: humanize's own, and the
         two directories your own flows live in, which are wherever you are.
-      OSError: If either will not move out of its place.
+      OSError: If it will not move out of its place.
     """
     import shutil
     import tempfile
-
-    from .index import kept
 
     one = named(name)
     if one is None:
         return False
     if one.fixed:
         raise ValueError(f"{name} is always here; it is not one to take away")
-    gone = False
-    for place in (one.at, kept(name)):
-        if not place.is_dir():
-            continue
-        holding = Path(tempfile.mkdtemp(dir=place.parent, prefix=f".{name}."))
-        try:
-            place.rename(holding / name)
-            gone = True
-        finally:
-            shutil.rmtree(holding, ignore_errors=True)
-    return gone
+    place = where(name)
+    if not place.is_dir():
+        return False
+    holding = Path(tempfile.mkdtemp(dir=place.parent, prefix=f".{name}."))
+    try:
+        place.rename(holding / name)
+    finally:
+        shutil.rmtree(holding, ignore_errors=True)
+    return True
 
 
 def flows(one: Flowverse) -> list[str]:
@@ -637,10 +655,10 @@ def _swept(at: Path) -> None:
     """Takes away what clones of one name left beside it when they were killed.
 
     A clone is written beside the place and moved into it, so a run killed partway through one
-    leaves a `.<name>.XXXXXX` under the flowverses home holding as much of somebody's
-    repository as git had written by then. Nothing lists it -- a name starting with a dot is
-    not a name a flowverse may have, which is why the copy is written under one -- so nothing
-    would ever notice it either. This is what comes by, on the way past to the next clone of
+    leaves a `.index.XXXXXX` in the flowverse's directory holding as much of somebody's
+    repository as git had written by then. Nothing reads it -- a hidden directory is neither
+    the clone nor a flow installed out of it, which is why the copy is written under one -- so
+    nothing would ever notice it either. This is what comes by, on the way past to the next clone of
     that name.
 
     Only the ones nothing could still be writing. A clone in flight is a directory of exactly

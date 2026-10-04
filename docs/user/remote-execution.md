@@ -459,7 +459,7 @@ of its own for the run, probed with the others and taken down with them:
 | In the affinity | The CLI runs |
 | --- | --- |
 | `ssh:gpu-box` | on the host saved as `gpu-box`, in its saved workdir, else the login's home |
-| `docker:gpubox` | in a container of its own on the daemon saved as `gpubox`, holding its saved workdir; a daemon on this machine saved without one holds `~/.hmz/harness` |
+| `docker:gpubox` | in a container of its own on the daemon saved as `gpubox`, holding its saved workdir; a daemon on this machine saved without one holds an empty `$TMPDIR/humanize-<uid>/harness` |
 
 Such a place has no room when it cannot be reached or opened, when a daemon has no share left
 for the container (its `max containers` reached, say), and for any role not granted

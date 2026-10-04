@@ -1133,6 +1133,7 @@ class Host:
             # Where its harness was put, for work on another machine: the one thing about
             # a session that was settled as it opened rather than written on the line.
             machine = None if person else agent.config.machine
+            kept = None if person else agent.kept()
             self._record(
                 {
                     "type": "opened",
@@ -1145,7 +1146,7 @@ class Host:
                     "counts": sorted(type(agent).counts),
                     "forks": forks,
                     "person": person,
-                    "kept": "" if person else str(agent.kept()),
+                    "kept": "" if kept is None else str(kept),
                     "env": _placed(where),
                     "harness": "" if machine is None else harnessed(machine),
                     "mono": time.monotonic(),

@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz import home, machine
 from hmz.coganchor import models, providers
 from tests.answering import (
     CLAUDE,
@@ -89,17 +90,25 @@ def test_two_accounts_of_one_backend_are_two_catalogues(
 
 
 @traced
-def test_what_an_account_runs_is_kept_with_the_account(
+def test_what_an_account_runs_is_kept_on_this_machine_and_goes_with_the_account(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """So that taking the account away takes what it runs with it: they are one fact."""
+    """A cache of this machine's rather than humanize's home, and one fact with its account."""
     stands_in(monkeypatch, tmp_path / "bin", "codex", CODEX)
     provider = providers.add("codex", "mine", "key", {"OPENAI_API_KEY": "sk-x"})
     models.ask("codex", "mine")
+    models.ask("codex")
 
-    assert models.where("codex", "mine").parent == provider.at
+    kept = models.where("codex", "mine")
+    assert kept == machine() / "models" / "codex" / "mine.json"
+    assert kept.is_file()
+    assert models.where("codex") == machine() / "models" / "codex" / "_local.json"
+    assert not (home() / "models").exists()
+    assert not (provider.at / "models.json").exists()
     assert providers.remove("codex", "mine")
+    assert not kept.exists()
     assert models.offered("codex", "mine") == ()
+    assert models.offered("codex")
 
 
 @traced

@@ -138,9 +138,10 @@ class Located:
 class Patched:
     """A patched copy of a CLI, held for as long as the session that made it needs it.
 
-    The copy lives in a directory humanize owns and is removed when this is closed or collected,
-    whichever comes first -- a finalizer for the reason the mounted skills are one: a run that
-    dropped the handle without closing it still leaves nothing of a 200 MB copy behind.
+    The copy lives in humanize's directory for this machine and is removed when this is closed
+    or collected, whichever comes first -- a finalizer for the reason the mounted skills are
+    one: a run that dropped the handle without closing it still leaves nothing of a 200 MB copy
+    behind.
     """
 
     def __init__(self, path: Path, where: Path) -> None:
@@ -429,7 +430,7 @@ def patched(
     import tempfile
     from pathlib import Path
 
-    from hmz import home
+    from hmz import machine
 
     found = _bundle(profile, program)
     if found is None:
@@ -440,7 +441,7 @@ def patched(
     if where is None:
         return None
     try:
-        into = home() / "patched"
+        into = machine() / "patched"
         into.mkdir(parents=True, exist_ok=True)
         _reap(into)
         made = Path(tempfile.mkdtemp(dir=into, prefix=f"{profile.name}-{os.getpid()}-"))
@@ -474,7 +475,9 @@ def _reap(into: Path) -> None:
     outright collects nothing, and its 200 MB copy would sit under here forever. Each is named
     for the process that made it, so a directory whose process is gone is one nobody will come
     back for, and is swept before a new one is made. A directory whose process is still alive is
-    another run's and is left strictly alone.
+    another run's and is left strictly alone. The copies are kept in this machine's own directory
+    rather than in the home several machines may share, which is what makes a pid in a name one
+    of this kernel's, and its absence proof that the run is gone.
 
     Args:
       into: The directory copies are made in.

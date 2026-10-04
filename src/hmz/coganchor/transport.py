@@ -431,8 +431,10 @@ def _ssh_shim(options: Sequence[tuple[str, str]]) -> str:
     Docker's own ssh transport runs whichever `ssh` is first on `PATH` and hands it the login,
     the port and the host alone, so what else a daemon's host needs -- a key, a jump host, a
     config of its own -- is said by one of these instead. One per set of options, named by
-    their digest under humanize's home and this user's alone, written once and whole; it takes
-    its own directory off `PATH` again before running the real one.
+    their digest under humanize's directory for this machine and this user's alone, written
+    once and whole; it takes its own directory off `PATH` again before running the real one.
+    That directory is a temporary one a cleaner may empty under a long-lived process, so one
+    already written is touched each time it is used, and written again if it has gone.
 
     Args:
       options: `(KEYWORD, VALUE)` pairs, as :attr:`Target.options` holds them.
@@ -443,11 +445,11 @@ def _ssh_shim(options: Sequence[tuple[str, str]]) -> str:
     Raises:
       OSError: If it cannot be written.
     """
-    from hmz import home
+    from hmz import machine
 
     flags = " ".join(shlex.quote(flag) for flag in ssh_flags(options))
-    at = home() / "docker-ssh" / hashlib.sha256(flags.encode()).hexdigest()[:16]
-    if str(at) in _SHIMS:
+    at = machine() / "docker-ssh" / hashlib.sha256(flags.encode()).hexdigest()[:16]
+    if str(at) in _SHIMS and _touched(at / "ssh"):
         return str(at)
     script = (
         "#!/bin/sh\n"
@@ -473,7 +475,7 @@ def _ssh_shim(options: Sequence[tuple[str, str]]) -> str:
     return str(at)
 
 
-#: The `ssh` shims this process has written or found whole, so each is looked at once.
+#: The `ssh` shims this process has written or found whole, so each is read once and touched after.
 _SHIMS: set[str] = set()
 
 

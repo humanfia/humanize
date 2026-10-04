@@ -32,6 +32,7 @@ the meter to avoid, so nothing here is routed through them.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -44,7 +45,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from hmz import home
+from hmz import machine
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
@@ -108,10 +109,11 @@ _HEADLESS = {"general": {"preventSystemSleep": False, "enableAutoUpdate": False}
 _VERSION = {"$version": 4}
 
 #: Where V8 keeps what it compiled the CLI's bundle into, so the next process to start reads
-#: bytecode rather than compiling the whole bundle again. One directory for the machine: an
-#: entry is keyed by the file, its bytes and the Node version, so two flows, two agents and
-#: two installed versions share it without reading each other's. Node makes it if it is not
-#: there, and a missing or unreadable entry is a compile rather than a failure.
+#: bytecode rather than compiling the whole bundle again. One directory for the machine, in
+#: humanize's directory for it rather than the home several machines may share: an entry is
+#: keyed by the file, its bytes and the Node version, so two flows, two agents and two
+#: installed versions share it without reading each other's. Node makes it if it is not there,
+#: and a missing or unreadable entry is a compile rather than a failure.
 #:
 #: Node itself writes nothing unless this is set, so a cache is humanize's choice and not the
 #: runtime's: `QwenCodeAgentConfig.compile_cache` is where an install declines the directory
@@ -805,7 +807,10 @@ class QwenCodeSession(StreamSessionBase):
             or os.environ.get(_COMPILED)
             or self._agent.anchor is not None
         ):
-            held[_COMPILED] = str(home().joinpath(*_CACHE))
+            # A machine directory that is not this user's alone is a cache unmade, not a turn
+            # refused: the compile it would have saved is all that is lost.
+            with contextlib.suppress(OSError):
+                held[_COMPILED] = str(machine().joinpath(*_CACHE))
         return preloaded(self._agent, held)
 
     def _headless(self) -> bool:

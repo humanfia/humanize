@@ -11,7 +11,7 @@ Every file and directory humanize reads or writes: under its home, under a works
 | **user flows** | `~/.hmz/flows` | Always the literal `~`; does **not** follow `HUMANIZE_HOME`. |
 | **workspace** | `<workspace>/.hmz/` | `<workspace>` is the directory `hmz` runs in. Not added to `.gitignore`. A `<workspace>/.humanize/` is [moved here](#moved-from-humanize). |
 | **cache** | `~/.cache/humanize/` | Does not follow `HUMANIZE_HOME`. |
-| **machine** | `<tmp>/humanize-<uid>/` | Python's `tempfile.gettempdir()` (`$TMPDIR`, else `/tmp`) and the user's id: what is this machine's alone, which a home directory several machines share must not hold. Made `0700`; refused if anyone else can write it. See [Temporary](#temporary). |
+| **machine** (`M` below) | `<tmp>/humanize-<uid>/` | Python's `tempfile.gettempdir()` (`$TMPDIR`, else `/tmp`) and the user's id: what is this machine's alone, which a home directory several machines share must not hold: caches, scratch copies, sockets. Made `0700` by the first look at it; refused if anyone else can write it. A cleaner of temporary files may empty it; everything in it is made again when next needed. See [Temporary](#temporary). |
 | **a remote machine's home** | `${HUMANIZE_HOME:-$HOME/.hmz}` in the login shell there | Holds `envs/` for `ssh` environments. A `$HOME/.humanize` there is [moved here](#moved-from-humanize). |
 
 ### Moved from `.humanize`
@@ -47,27 +47,25 @@ H/
 ├── history.jsonl                       lines typed at the TUI prompt
 ├── fallbacks.json                      where a failed turn goes next
 ├── acp.json                            CLIs added by hand (ACP)
-├── prices.json                         the price table
-├── models/<cli>.json                   model catalogue of the CLI's own sign-in
 ├── providers/<cli>/<name>/             accounts
 │   ├── provider.json
-│   ├── models.json
 │   └── home/ user/ config/             credential files the CLI writes
 ├── runtimes/                           was env-providers/; moved on first use
 │   ├── ssh/<name>/runtime.json
 │   ├── docker/<name>/runtime.json, docker/.<name>.lock
 │   └── swarm/<name>/runtime.json, swarm/.<name>.lock
-├── flowverses/
-│   ├── official/  <name>/              index clones
-│   └── .pinned/<blake2b-8(url)>/<sha>/ checkouts of git+ refs and of releases installed
-├── installed/<flowverse>/<flow>/       installed flows, each with its .installed.json
-├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories
+├── flowverses/<name>/                  one per flowverse, official included
+│   ├── index/                          the index clone
+│   └── installed/<flow>/               installed flows, each with its .installed.json
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
 │   └── mirrors/<container or service>/<digest>/
+└── epics/<ws>/<stamp>-<hex6>/          one run
+
+M/
+├── prices.json                         the price table
+├── models/<cli>/<account>.json         model catalogues, `_local` for the CLI's own sign-in
 ├── harness/                            workdir of a harness an affinity puts on a docker daemon here
-├── epics/<ws>/<stamp>-<hex6>/          one run
-├── sessions/<cli>/                     sessions of agents no run drives
 ├── compiled/{pi,qwen}/                 Node compile caches
 ├── docker-ssh/<sha256[:16]>/ssh        ssh shim for docker over ssh
 └── patched/<cli>-<pid>-<rand>/         patched CLI copies (unused in production)
@@ -131,7 +129,7 @@ hand: the hosts it may reach with `online` `NONE`, and extra paths it may write)
 `.acp.json.<random>.new`, fsynced and renamed; a new file gets the umask's mode, an existing
 one keeps its own. Deleting it forgets every added CLI.
 
-### `H/prices.json`
+### `M/prices.json` {#h-prices-json}
 
 ```json
 {"source": "https://openllmprices.com/data/prices.json", "etag": "…", "fetched": 1790000000.0,
@@ -149,8 +147,10 @@ naming) more than 10 min old, left by a process that exited mid-write.
 
 ### Model catalogues
 
-`H/models/<cli>.json` (the CLI's own sign-in) and `H/providers/<cli>/<name>/models.json` (an
-account):
+A cache, so on this machine rather than in `H`:
+`$TMPDIR/humanize-<uid>/models/<cli>/<name>.json` for an account, and
+`$TMPDIR/humanize-<uid>/models/<cli>/_local.json` for the CLI's own sign-in (no account name
+starts with `_`). An account's is deleted when the account is removed:
 
 ```json
 {"asked": "2026-09-30T05:33:55Z", "models": [{"name": "…", "efforts": ["low", "high"], "swarms": false}]}
@@ -261,22 +261,23 @@ counted, created and waited for until their task runs.
 
 ### `H/flowverses/<name>/`
 
-A `git clone --depth 1` of a [flowverse](/reference/flows#flowverses)'s index:
-`flows/<flow>/<version>/flow.yaml`. Cloned into `.<name>.XXXXXXXX` beside it and renamed into
-place; a leftover `.<name>.*` older than 60 s is removed before the next clone of that name.
-Fetch is `git fetch --depth 1 origin HEAD` then `git reset --hard FETCH_HEAD`. The origin URL is
-read from `.git/config`. Read as YAML, never imported. Deleted by *remove* (not `official`).
+One [flowverse](/reference/flows#flowverses): its index clone and the flows installed from it,
+side by side. Deleted whole, in one rename, by *remove* (not `official`). A directory here
+without `index/` is still listed, as a flowverse with nowhere to fetch from.
 
-### `H/flowverses/.pinned/<blake2b-8(url)>/<sha>/`
+### `H/flowverses/<name>/index/`
 
-Checkouts of [`git+` refs](/reference/flows#refs), and of the releases
-[installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`,
-checked out detached at `<sha>`, renamed into place. One per commit; never removed.
+A `git clone --depth 1` of the flowverse's index: `flows/<flow>/<version>/flow.yaml`. Cloned
+into `.index.XXXXXXXX` beside it and renamed into place; a leftover `.index.*` older than 60 s
+is removed before the next clone. Fetch is `git fetch --depth 1 origin HEAD` then
+`git reset --hard FETCH_HEAD`. The origin URL is read from `.git/config`. Read as YAML, never
+imported.
 
-### `H/installed/<flowverse>/<flow>/`
+### `H/flowverses/<name>/installed/<flow>/`
 
 A flow installed from that flowverse's index: the release's `subdir` at its commit, without
-`.git` and `__pycache__` (a single `<flow>.py` as `__init__.py`), and `.installed.json`.
+`.git` and `__pycache__` (a single `<flow>.py` as `__init__.py`), every skill its roles name by
+URL fetched into its `skills/<name>/`, and `.installed.json`.
 Written into `.<flow>.XXXXXXXX` beside it and renamed into place, the release it replaces moved
 aside into that directory first and deleted with it; a leftover `.<flow>.*` older than 600 s is
 removed before the next install of that name. Replaced by an update, deleted by uninstall and
@@ -290,13 +291,7 @@ by removing the flowverse. Imported where flows are listed and run.
 | `version`, `commit` | the release, and the commit it was copied from |
 | `repo`, `ref`, `subdir` | as the manifest said |
 | `dependencies` | `{flow: range}`, as the manifest said; checked by later installs and uninstalls |
-
-### `H/skills/<owner>-<repo>-<sha256(url)[:12]>/`
-
-Clones of skill repositories a role names by URL
-([Skills](/reference/flows#the-skills-a-flow-brings)), cloned and refreshed as flowverses are,
-each run that names them. Never removed. Mounted skills are copied into the session's
-workdir (`.claude/skills`, `.cursor/skills` or `.agents/skills`) for the session's life.
+| `skills` | `{url: [skill, …]}`: each URL its roles name, to the skills install fetched into its `skills/` for it |
 
 ### `~/.hmz/flows/` and `<workspace>/.hmz/flows/`
 
@@ -336,11 +331,12 @@ never removed by humanize.
 `humanize.gpus` where set. Only the workdir is bind-mounted. A `swarm` environment's service is
 named and labelled the same way, on the swarm its runtime's manager manages.
 
-### `H/harness/`
+### `M/harness/`
 
-The workdir of a harness an affinity puts on a docker runtime whose daemon is on this machine
-and that was saved without a workdir ([Harness placement](/reference/flows#harness-placement));
-created by the run.
+An empty directory mounted as the workdir of a harness an affinity puts on a docker runtime
+whose daemon is on this machine, or on an Apple container, saved without a workdir
+([Harness placement](/reference/flows#harness-placement)): a container needs a directory of
+this user's on the host to mount. Created by the run; nothing is written into it by humanize.
 
 ## Runs
 
@@ -362,19 +358,13 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 
 Epics are never deleted by humanize.
 
-### `H/sessions/<cli>/`
-
-Sessions of agents driven with no run (the agent API, `/btw`), laid out as the CLI's home.
-Like an epic's `sessions/`, it is the only copy of those conversations. Not used under
-[`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions).
-
 ## Caches
 
 | Path | Is |
 | --- | --- |
-| `H/compiled/pi/`, `H/compiled/qwen/` | `NODE_COMPILE_CACHE` for pi and Qwen Code; written by Node |
-| `H/docker-ssh/<sha256[:16]>/ssh` | shim for `docker` over `ssh://` with options; directory and file `0700` |
-| `H/patched/<cli>-<pid>-<rand>/` | `0700`; directories of dead processes are removed |
+| `M/compiled/pi/`, `M/compiled/qwen/` | `NODE_COMPILE_CACHE` for pi and Qwen Code; written by Node |
+| `M/docker-ssh/<sha256[:16]>/ssh` | shim for `docker` over `ssh://` with options; directory and file `0700`; touched on each use, written again if gone |
+| `M/patched/<cli>-<pid>-<rand>/` | `0700`; directories of dead processes are removed |
 | `~/.cache/humanize/shadows/<sha256(path)[:16]>.json` | `{"shadow": "<abs path>", "target": "<target>"}` per mirror; moved by [`HUMANIZE_SHADOWS`](/reference/environment#humanize-shadows); never removed |
 
 Every path in this section is safe to delete while humanize is not running.
@@ -387,10 +377,13 @@ Every path in this section is safe to delete while humanize is not running.
 | the same path, on a machine a supervised agent's commands run on | that agent's commands' `TMPDIR` there | kept |
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
 | `$TMPDIR/hmz-dsh-*/cordis.yml`, `hmz-qwen-*/` | per-session CLI configuration | with the session |
+| `$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>/` | checkouts of [`git+` refs](/reference/flows#refs), and of the releases [installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`, checked out detached at `<sha>`, renamed into place; one per commit | never; cloned again when missing |
 | `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
+| `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>/` | clones of skill repositories a role of a flow that was never installed names by URL ([Skills](/reference/flows#the-skills-a-flow-brings)), fetched again each run that names them | kept |
 | `$TMPDIR/humanize-<uid>/daemon.sock`, `daemon.json` (`0600`) | the [daemon](/reference/daemon#files) of this machine and user, which every workspace's runs are reached through: its socket, and `{"pid": int, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "daemon", "protocol": int}` via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename | when the daemon closes |
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
 | `$TMPDIR/humanize-<uid>/daemon.log` (`0600`) | what belongs to no run: the daemon's stdout and stderr, and a host process's before it holds a run; what belongs to a run is the epic's [`host.log`](#h-epics-ws-stamp-hex6) | kept, never rotated |
+| `$TMPDIR/humanize-<uid>/models/<cli>/<name>.json`, `_local.json` | [model catalogues](#model-catalogues) of each account and of the CLI's own sign-in | an account's when it is removed; the rest kept |
 | `$TMPDIR/humanize-*` | a docker environment's cid file and machine shadow | with the container |
 | `${XDG_RUNTIME_DIR:-$TMPDIR}/humanize-ssh-<uid>/%C[-<hex8>]` (`0700`) | ssh control sockets ([`HUMANIZE_SSH_REUSE`](/reference/environment#humanize-ssh-reuse)) | 120 s after last use |
 | `/dev/shm/hmz-<pid>-<hex16>-*/<n>.<file>` (`0700`/`0600`) | credential copies staged for a turn (≤ 1 MiB each) | on close; dead-pid directories swept |
@@ -419,8 +412,8 @@ when their content changes.
 
 ## Retention
 
-Nothing prunes `epics/`, `sessions/`, `flowverses/.pinned/`, `skills/`, worktrees under
-`envs/`, snapshot refs, `compiled/`, `docker-ssh/` or `history.jsonl`.
+Nothing prunes `epics/`, worktrees under
+`envs/`, snapshot refs, `M/compiled/`, `M/docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
 Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
 `$TMPDIR/humanize-<uid>.pyz` and `.stamp` an earlier humanize shared between checkouts.

@@ -1390,9 +1390,11 @@ class ClaudeCodeSession(StreamSessionBase):
             raise NotImplementedError(
                 "claude cannot carry a conversation into another directory on another machine"
             )
-        # Where this agent's sessions are, which is humanize's own directory for them rather
-        # than Claude's home wherever a turn keeps them there.
-        projects = self._agent.kept() / "projects"
+        # Where this agent's sessions are, which is its run's directory for them rather than
+        # Claude's home wherever a turn keeps them there.
+        kept = self._agent.kept()
+        assert kept is not None  # noqa: S101 -- Claude's home is always known
+        projects = kept / "projects"
         # Where this conversation is held first: an earlier fork carried elsewhere left a
         # copy of it there, as it stood then, which is not where it stands now.
         held = os.path.abspath(self.cwd)  # noqa: PTH100

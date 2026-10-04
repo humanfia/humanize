@@ -114,7 +114,9 @@ def _catalogued(*names: str) -> None:
     Args:
       names: The models it holds, in the order it holds them.
     """
-    models.where("shell", "main").write_text(
+    at = models.where("shell", "main")
+    at.parent.mkdir(parents=True, exist_ok=True)
+    at.write_text(
         json.dumps(
             {
                 "asked": "2026-09-10T07:59:03Z",

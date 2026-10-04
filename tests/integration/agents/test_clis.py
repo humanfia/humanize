@@ -24,6 +24,7 @@ import pytest
 import yaml
 from pydantic import BaseModel, ConfigDict
 
+from hmz import machine
 from hmz.coganchor.agents import (
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
@@ -605,15 +606,14 @@ def test_pi_is_told_to_abort_a_turn_before_it_is_cut_off(stubs: _Stubs) -> None:
 
 
 def test_pi_gives_node_one_place_to_keep_what_it_compiled(
-    stubs: _Stubs, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    stubs: _Stubs, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Every session compiles the same bundle, so the first does it and the rest read it."""
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
     monkeypatch.delenv("NODE_COMPILE_CACHE", raising=False)
     assert PiAgent(PI).new()("hi") == "hi"
 
     launch = stubs.calls()[0]
-    assert launch.compiled == str(tmp_path / "humanize" / "compiled" / "pi")
+    assert launch.compiled == str(machine() / "compiled" / "pi")
 
 
 def test_pi_leaves_a_compile_cache_somebody_else_chose(

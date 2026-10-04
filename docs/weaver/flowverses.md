@@ -23,8 +23,8 @@ release lives in and the exact commit it is, the way
 [humanfia/flowverse](https://github.com/humanfia/flowverse), and you can add your own.
 
 A flow an index lists is a flow to **install**. Installing one copies that release, at its
-commit, into `~/.hmz/installed/<flowverse>/<flow>/`, along with any flows it needs. What runs is
-what is built in, what you installed, and your own flows:
+commit, into `~/.hmz/flowverses/<flowverse>/installed/<flow>/`, along with any flows it needs.
+What runs is what is built in, what you installed, and your own flows:
 
 | Place | Holds | Run as |
 | --- | --- | --- |
@@ -246,7 +246,7 @@ at once. From a script, `add` returns once the index is cloned, and `install` on
 in place:
 
 ```text
-yours/review 0.1.0 /home/you/.hmz/installed/yours/review
+yours/review 0.1.0 /home/you/.hmz/flowverses/yours/installed/review
 ```
 
 ### 7. Run it

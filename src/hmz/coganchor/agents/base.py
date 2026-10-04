@@ -3728,9 +3728,10 @@ class AgentBase(ABC):
         #: not a run of anything.
         self.epic: Journal | None = None
         #: Where this agent keeps its sessions where somebody has said, which is where the
-        #: conversation it was forked into life from is kept; None for wherever its run keeps
-        #: them, or humanize does for an agent no run is driving.
+        #: conversation it was forked into life from is kept -- None for where its CLI keeps
+        #: them -- and whether anybody has: nobody having said is wherever its run keeps them.
         self._keeps: Path | None = None
+        self._said = False
         #: Whether a process has kept one of its sessions there, which settles it.
         self._settled = False
         #: What the whole run this agent is part of may spend, and what it has spent so far,
@@ -4136,7 +4137,8 @@ class AgentBase(ABC):
             )
         ]
         # Its own backend's directory of the sessions kept, not every agent's.
-        writes.append(self.keeps / (profile.name if profile else self.backend))
+        if (keeps := self.keeps) is not None:
+            writes.append(keeps / (profile.name if profile else self.backend))
         hosts: tuple[str, ...] = ()
         if profile is not None:
             # Only for a backend that has a home: one whose home is not known -- a CLI somebody
@@ -4637,7 +4639,7 @@ class AgentBase(ABC):
             if made:
                 made.loads(self._loads)
                 made.epic = self.epic
-                made._keeps = self._keeps
+                made._keeps, made._said = self._keeps, self._said
                 # Watched where this agent is, by nothing of its own: what it says comes back
                 # through this agent's turn and is shown as this agent's. A stand-in that
                 # believed nobody was watching would put its words and its answer on the
@@ -4654,31 +4656,28 @@ class AgentBase(ABC):
             return made or None
 
     @property
-    def keeps(self) -> Path:
+    def keeps(self) -> Path | None:
         """Where this agent's sessions are kept, a directory per backend inside it.
 
         The run's own for an agent a run is driving, which is what makes an epic the one place
-        a run's sessions are; humanize's own for one driven by hand, which is nobody's run and
-        still nothing its CLI keeps at home. Settled by the first process that keeps one there
-        and held from then on: a conversation is carried on from where it was kept, and a
-        server holding every conversation of an agent holds that place for as long as it is
+        a run's sessions are; None for one no run drives, which is nobody's run and whose
+        sessions stay where its CLI keeps them. Settled by the first process that keeps one
+        there and held from then on: a conversation is carried on from where it was kept, and
+        a server holding every conversation of an agent holds that place for as long as it is
         up -- so an agent handed to another run afterwards goes on keeping what it opens where
         it started, and the run says where that is.
         """
-        if self._keeps is not None:
+        if self._said:
             return self._keeps
-        if self.epic is not None:
-            return self.epic.keeps
-        from hmz import home
-
-        return home() / "sessions"
+        return None if self.epic is None else self.epic.keeps
 
     @keeps.setter
-    def keeps(self, at: Path) -> None:
+    def keeps(self, at: Path | None) -> None:
         """Keeps this agent's sessions somewhere else, for one that has kept none yet.
 
         Args:
-          at: The directory, a directory per backend inside it.
+          at: The directory, a directory per backend inside it, or None for where its CLI
+            keeps them.
 
         Raises:
           ValueError: If it has kept a session somewhere else already, which could not be
@@ -4689,9 +4688,9 @@ class AgentBase(ABC):
                 f"{self._id}: its sessions are kept in {self.keeps}, and a conversation "
                 f"kept there cannot be carried on from {at}"
             )
-        self._keeps = at
+        self._keeps, self._said = at, True
 
-    def kept(self) -> Path:
+    def kept(self) -> Path | None:
         """The directory this agent's sessions are under, laid out as its CLI lays out its home.
 
         What reads a session back asks this rather than the CLI's home, since that is where
@@ -4699,17 +4698,19 @@ class AgentBase(ABC):
 
         Returns:
           This backend's directory in :attr:`keeps` where its turns keep their sessions there,
-          and the CLI's own home where they cannot: a backend nothing is written down about,
-          a process told `HUMANIZE_SESSIONS=off`, a machine that cannot supervise a turn, and
-          a turn the target's own CLI takes.
+          and the CLI's own home where they cannot: an agent no run drives, a process told
+          `HUMANIZE_SESSIONS=off`, a machine that cannot supervise a turn, and a turn the
+          target's own CLI takes. For a backend nothing is written down about, its directory
+          in :attr:`keeps`, or None where there is none and nothing says where its CLI keeps
+          them.
         """
         from hmz.coganchor.backends import named
 
         profile = named(self.backend)
         if profile is None:
-            return self.keeps / self.backend
-        if self._keeping():
-            return self.keeps / profile.name
+            return None if self.keeps is None else self.keeps / self.backend
+        if (keeps := self.keeps) is not None and self._keeping():
+            return keeps / profile.name
         try:
             environment = self._environ()
         except ValueError:
@@ -4724,13 +4725,14 @@ class AgentBase(ABC):
         Returns:
           True for a backend whose sessions are written down, which its driver tells where
           they go or a supervisor answers -- the anchor's, or one of this machine's own where
-          this machine can run one -- unless this process was told to keep none.
+          this machine can run one -- unless this agent has no :attr:`keeps`, which is one no
+          run drives, or this process was told to keep none.
         """
         from hmz.coganchor.backends import named
         from hmz.coganchor.providers.redirect import supervises
 
         profile = named(self.backend)
-        if profile is None or not profile.sessions:
+        if profile is None or not profile.sessions or self.keeps is None:
             return False
         if os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no"):
             return False
@@ -4758,11 +4760,17 @@ class AgentBase(ABC):
         from hmz.coganchor.backends import named
 
         profile = named(self.backend)
+        at = self.keeps
+        if at is None:
+            # Settled there too: what this process opens where its CLI keeps it is carried on
+            # from there, whatever run the agent is handed to afterwards.
+            self._said = self._settled = True
+            return ()
         if profile is None or not self._keeping():
             return ()
         # Settled from here on: this process keeps them there, and so does the conversation.
-        self._keeps, self._settled = self.keeps, True
-        return profile.kept(self._keeps, self._environ())
+        self._keeps, self._said, self._settled = at, True, True
+        return profile.kept(at, self._environ())
 
     def environment(self) -> Mapping[str, str]:
         """What this agent's turns are run with, on top of the environment they inherit.
