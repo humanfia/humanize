@@ -22,13 +22,11 @@ key, which both mean a kernel that will hand over a tracee -- is in
 from __future__ import annotations
 
 import json
-import subprocess
 import tarfile
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-import hmz
 from hmz.coganchor import providers
 from hmz.runtime.epic import epics, sessions
 from hmz.runtime.exporting import (
@@ -262,11 +260,11 @@ def test_where_a_bundle_lands_beside_two_of_them_at_once(
     """Two exports of one run must not be two gzip streams into one file."""
     epic = _ran(tmp_path, monkeypatch)
 
-    at = bundle(epic)[0]
-    assert bundle(epic)[0] == at
+    at = bundle(epic, f"{tmp_path / 'out'}/")[0]
+    assert bundle(epic, f"{tmp_path / 'out'}/")[0] == at
     assert MANIFEST in held(at)
     # And nothing half-written is left beside it.
-    assert sorted(one.name for one in at.parent.iterdir()) == [".gitignore", at.name]
+    assert sorted(one.name for one in at.parent.iterdir()) == [at.name]
 
 
 def test_a_directory_to_fill_that_is_not_there_yet_is_still_a_directory(
@@ -354,7 +352,7 @@ def test_a_bundle_is_readable_by_whoever_made_it_and_nobody_else(
     """What is in it is their prompts and their agents' output."""
     epic = _ran(tmp_path, monkeypatch)
 
-    assert bundle(epic)[0].stat().st_mode & 0o777 == 0o600
+    assert bundle(epic, tmp_path / "out.tar.gz")[0].stat().st_mode & 0o777 == 0o600
 
 
 def test_a_bundle_carries_nothing_about_whoever_made_it(
@@ -369,58 +367,14 @@ def test_a_bundle_carries_nothing_about_whoever_made_it(
 
 
 def test_where_a_bundle_lands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A file outright, a directory to fill, or `.hmz/` here -- it is a thing to send."""
+    """A file outright, or a directory to fill, and nowhere it was not told to go."""
     epic = _ran(tmp_path, monkeypatch)
 
-    # Where somebody is standing rather than in humanize's own home the way a trace of a
-    # run goes, and named whole: it is a thing to attach to something.
-    assert bundle(epic)[0] == tmp_path / ".hmz" / f"{epic.name}.epic.tar.gz"
-    assert bundle(epic)[0].is_file()
     (tmp_path / "somewhere").mkdir()
     assert bundle(epic, tmp_path / "somewhere")[0].parent == tmp_path / "somewhere"
     assert bundle(epic, tmp_path / "named.tgz")[0].name == "named.tgz"
-
-
-def test_a_bundle_lands_beside_the_flows_a_project_kept_under_the_old_name(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Written into `.hmz/` only once `.humanize/` has moved there, which would hide it."""
-    epic = _ran(tmp_path, monkeypatch)
-    (tmp_path / ".humanize" / "flows").mkdir(parents=True)
-    (tmp_path / ".humanize" / "flows" / "mine.py").write_text("# mine\n")
-    # Exported by a process that has looked for no flow here: asked once there is something
-    # to move, since what was moved is the process's and not this test's.
-    hmz._moved.cache_clear()
-    hmz._project.cache_clear()
-
-    landed, _ = bundle(epic)
-
-    assert landed == tmp_path / ".hmz" / f"{epic.name}.epic.tar.gz"
-    assert (tmp_path / ".hmz" / "flows" / "mine.py").is_file()
-    assert not (tmp_path / ".humanize").exists()
-
-
-def test_a_bundle_left_in_the_project_is_kept_out_of_its_repository(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The agents work in that directory, and a loop's next `git add -A` would commit it."""
-    epic = _ran(tmp_path, monkeypatch)
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-
-    bundle(epic)
-
-    seen = subprocess.run(
-        ["git", "-C", str(tmp_path), "status", "--porcelain", "--untracked-files=all"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    assert ".epic.tar.gz" not in seen
-
-    # And a `.gitignore` somebody wrote there is theirs.
-    (tmp_path / ".hmz" / ".gitignore").write_text("mine\n")
-    bundle(epic)
-    assert (tmp_path / ".hmz" / ".gitignore").read_text() == "mine\n"
+    # Not into the project somebody is standing in, where the next commit would carry it.
+    assert not list(tmp_path.glob(".hmz/*.epic.tar.gz"))
 
 
 def test_a_directory_holding_no_run_is_nothing_to_export(tmp_path: Path) -> None:
@@ -520,3 +474,15 @@ def test_a_value_is_struck_wherever_it_appears() -> None:
 )
 def test_how_big_it_came_out(count: int, said: str) -> None:
     assert sized(count) == said
+
+
+def test_a_home_nobody_has_is_nowhere_to_write_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `~` is the home it names, and one naming nobody is a thing to correct."""
+    epic = _ran(tmp_path, monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    assert bundle(epic, "~/out/")[0].parent == tmp_path / "home" / "out"
+    with pytest.raises(ValueError, match="no home directory"):
+        bundle(epic, "~nobody-at-all/out/")

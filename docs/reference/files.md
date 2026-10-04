@@ -74,9 +74,7 @@ H/
 
 ~/.hmz/flows/                      your flows (flowverse `user`)
 <workspace>/.hmz/
-├── flows/                              this project's flows (flowverse `local`)
-├── .gitignore                          `*.epic.tar.gz`, written by the first export if absent
-└── <epic>.epic.tar.gz                  exported runs
+└── flows/                              this project's flows (flowverse `local`)
 ```
 
 ## Settings and state
@@ -369,14 +367,6 @@ Epics are never deleted by humanize.
 Sessions of agents driven with no run (the agent API, `/btw`), laid out as the CLI's home.
 Like an epic's `sessions/`, it is the only copy of those conversations. Not used under
 [`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions).
-
-### `<workspace>/.hmz/<epic>.epic.tar.gz`
-
-An [exported run](/reference/tracing#export). Written with `mkstemp` (mode `0600`) and renamed;
-exporting the same run again replaces it. Nothing in humanize imports one. Exporting here
-also writes `<workspace>/.hmz/.gitignore` (`*.epic.tar.gz`) where there is none, so a
-`git add -A` in the workspace, an agent's included, does not commit the archive; one already
-there is left as it is.
 
 ## Caches
 

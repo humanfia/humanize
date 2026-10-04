@@ -388,7 +388,7 @@ places tried after it, in order.
 | `state(epic, flow: str = "")` | `dict[str, Any]` | A resumable flow's kept `ctx.state`: the run's own flow, or another by canonical ref. |
 | `traced(epic, *, output=None, start=None, end=None)` | `tuple[Path, dict]` | Gathers the run's own sessions into a Chrome trace. Default `output`: the epic's `traces/`, named for the moment. `start`/`end`: any wording `dateparser` reads. [Tracing](/reference/tracing#from-python). |
 | `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None, kept=None)` | `dict` | The same collector for any sessions. `sessions=None`: every session of the workspace; empty iterable: none. `kept`: directories of kept sessions to read (default: everywhere humanize keeps them). |
-| `bundled(epic, *, output=None, transcript=None)` | `tuple[Path, dict]` | One `.epic.tar.gz` of the whole run, credentials struck out. Default `output`: `./.hmz/`. Returns the path and its manifest. [Exporting a run](/user/export). |
+| `bundled(epic, *, output, transcript=None)` | `tuple[Path, dict]` | One `.epic.tar.gz` of the whole run, credentials struck out. `output` (required): a file, or a directory to put it in. Returns the path and its manifest. [Exporting a run](/user/export). |
 
 ## `Host` {#host}
 

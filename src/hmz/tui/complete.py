@@ -11,11 +11,16 @@ between keystrokes.
 
 `hmz internal anchor` is not offered: it is not something to do to a flow while it runs, and
 it takes a command line of its own. What a run left behind is `/epics`, which is where the runs are.
+
+A path written on a form is finished as well, as a shell finishes one (:func:`paths`): where an
+export lands is a file or a directory somebody has to spell, and spelling a path a letter at a
+time with nothing to say what is there is spelling it wrong.
 """
 
 from __future__ import annotations
 
 import functools
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,7 +33,7 @@ if TYPE_CHECKING:
 
     from .app import Humanize
 
-__all__ = ["VIEWS", "Command", "hinted", "offered"]
+__all__ = ["VIEWS", "Command", "hinted", "offered", "paths"]
 
 #: Every view a command can be typed in: the monitor, the transcript every agent is on, one
 #: agent's or one conversation's, and what one outworlder asks.
@@ -200,3 +205,34 @@ def hinted(typed: str, commands: tuple[Command, ...]) -> str:
         return ""
     named = typed[1:].partition(" ")[0]
     return named if any(named == one.name for one in commands) else ""
+
+
+def paths(typed: str) -> list[str]:
+    """Every file and directory a path being typed could become, as a shell would finish it.
+
+    Args:
+      typed: The path as it stands -- relative to where this was started, from the root, or
+        from the home a leading `~` names.
+
+    Returns:
+      Each in full, spelled as it would be typed: the `~` kept rather than spelled out, and a
+      directory ending in a separator, so that taking one is already the way into it. In
+      alphabetical order; a name starting with a dot only once a dot is typed, as a shell
+      offers them; and nothing for a directory that cannot be read, or for a `~` naming
+      somebody: finishing that is a list of the machine's users rather than of a directory.
+    """
+    if typed.startswith("~") and os.sep not in typed:
+        return [f"~{os.sep}"] if typed == "~" else []
+    head, sep, tail = typed.rpartition(os.sep)
+    prefix = head + sep
+    try:
+        with os.scandir(Path(prefix).expanduser()) as names:
+            found = [
+                one.name + os.sep if one.is_dir() else one.name
+                for one in names
+                if one.name.startswith(tail)
+                and (tail.startswith(".") or not one.name.startswith("."))
+            ]
+    except (OSError, RuntimeError):  # RuntimeError: a `~somebody/` nobody is
+        return []
+    return sorted(prefix + one for one in found)

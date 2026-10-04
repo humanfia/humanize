@@ -11,14 +11,15 @@ timeline of the run and what each CLI was, with every credential struck out.
 
 ## Try it
 
-Open `/epics`, press <kbd>enter</kbd> on the run, then choose **export run**.
+Open `/epics`, press <kbd>enter</kbd> on the run, choose **export run**, and type where the
+archive goes.
 
 <HmzCast name="epics" alt="/epics listing the runs of this directory, newest first; enter on one shows where it is written down and offers to resume it or export it; export it reports where the archive landed, how big it is, and what the trace inside it holds" />
 
 When it is done, the line under the list, and the transcript, say where it went:
 
 ```text
-/tmp/hmzdocs-C/app/.hmz/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
+/tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
 ```
 
 ## Before you start
@@ -62,10 +63,17 @@ budget. Open the run in `/epics`:
   enter choose   esc back
 ```
 
-Choose **export run**. A moment later the list of runs is back, with a line under it:
+Choose **export run**. A form asks where the archive goes: a file, or a directory to put it
+in under the run's name (made if it is not there yet). The path completes as you type, the way
+a shell completes one: what it could become is listed under the form, <kbd>tab</kbd> finishes
+as much as those share and then steps through them, and `~` is your home. Here `iss`,
+<kbd>tab</kbd> made it `issues/`, <kbd>enter</kbd> kept it and <kbd>enter</kbd> on **done**
+exported. <kbd>esc</kbd> goes back to the run without exporting anything.
+
+A moment later the list of runs is back, with a line under it:
 
 ```text
-   /tmp/hmzdocs-C/app/.hmz/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
+   /tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
    ④                                                                      ⑤       ⑥
 ```
 
@@ -77,8 +85,8 @@ Choose **export run**. A moment later the list of runs is back, with a line unde
    as it did for this example. This is what gets packed. You never need to go there yourself.
 3. **How it ended, and what it opened.** `stopped` covers a spent budget,
    <kbd>ctrl+c</kbd> and a stop by hand; three rounds of a Ralph loop are three sessions.
-4. **The archive.** It lands in `.hmz/` under the directory you ran `hmz` in, named after
-   the run. Exporting the same run again replaces it with a fresh one.
+4. **The archive.** It lands where you said, and nowhere else: a directory gets it under the
+   run's name. Exporting the same run to the same place again replaces it with a fresh one.
 5. **Its size.** Mostly the agents' logs. A long run of a chatty agent can be megabytes.
 6. **What the timeline holds**: 3 sessions, and 53 slices, each a thing an agent did (a tool
    call, a message, a stretch of thinking). A run whose directory is
@@ -143,15 +151,15 @@ or group, and the file is readable by you alone.
 It is a plain `.tar.gz`. List it, and read the manifest before you send it:
 
 ```console
-$ tar tzf .hmz/20260930T054014.242Z-bdae4a.epic.tar.gz
+$ tar tzf issues/20260930T054014.242Z-bdae4a.epic.tar.gz
 20260930T054014.242Z-bdae4a/epic.jsonl
 20260930T054014.242Z-bdae4a/resume.jsonl
 20260930T054014.242Z-bdae4a/profile.jsonl
 20260930T054014.242Z-bdae4a/traces/export.trace.json
 20260930T054014.242Z-bdae4a/sessions/agent-claude@local-42733b7e-…/projects/-tmp-hmzdocs-C-app/42733b7e-….jsonl
 20260930T054014.242Z-bdae4a/manifest.json
-$ ls -l .hmz/20260930T054014.242Z-bdae4a.epic.tar.gz
--rw------- 1 nvidia nvidia 58848 Sep 30 05:40 .hmz/20260930T054014.242Z-bdae4a.epic.tar.gz
+$ ls -l issues/20260930T054014.242Z-bdae4a.epic.tar.gz
+-rw------- 1 nvidia nvidia 58848 Sep 30 05:40 issues/20260930T054014.242Z-bdae4a.epic.tar.gz
 ```
 
 This one is a resumed run of `ralph_loop` that was profiled, so it has both
@@ -242,8 +250,8 @@ runs.traced(epic)                                    # gather the trace into the
 runs.bundled(epic, output="/tmp/for-the-issue.tar.gz")
 ```
 
-`output` may be a file or a directory. Leave it out for `.hmz/` under the current
-directory. See [SDK reference](/reference/sdk).
+`output` is required, and may be a file or a directory. See
+[SDK reference](/reference/sdk).
 :::
 
 ## If it goes wrong

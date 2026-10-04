@@ -525,6 +525,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | every menu | <kbd>↑</kbd> <kbd>↓</kbd> | writing a row | Keeps it and moves. |
 | forms | <kbd>esc</kbd> | writing a row | Puts it back. |
 | forms | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | writing `variables` | Newline. |
+| forms | <kbd>tab</kbd> | writing a path | Completes it: to the longest prefix every candidate shares, else to the next candidate, wrapping. The focus stays on the row. See [path completion](#path-completion). |
 | /settings | <kbd>enter</kbd> <kbd>→</kbd> · click | landing | Opens the page. |
 | /settings | <kbd>esc</kbd> | landing | Leaves, asking [Save?](#save-box) if anything is held. |
 | /settings | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click `/settings` | a page, list focused | Back to the landing screen. |
@@ -630,7 +631,7 @@ Workspace pages -- draws its rows this way instead:
 | Message | One line under the list: what became of the last thing done, a refusal (red), a note; else, while a button has the focus, what that button does. |
 | Buttons | Whatever the menu does about its list rather than to one row: `Search…`, `Add …`, `Install more…`, `Install <version>`, `Update`, `Uninstall`, `Copy here`, `Fetch`, `Name a host…`, `Check again`, `Detect`, `Remove` / `Cancel removal`, …, in the menu's order; the one that answers the menu -- `Save`, `Done`, `Set` -- last and apart at the far right, green. `Remove` is red. A button that cannot be pressed now is dim (a `Save` with nothing held). Pointing at one shows its tooltip. No bar where a menu has no button. |
 | Search | Case-insensitive subsequence of one field, narrowing the list as typed. `/flow`: what a row names and says (a flow and its about, a flowverse and its URL, a release and its tag). Pick lists: label and about, ordered by how near a field comes (equal, then starts with, then contains, then the subsequence alone), keeping the list's order within each. `/epics`: flow, task, run name. `esc` clears and hides it. |
-| Keys | The last line: `<key> <does>` apart by three spaces, the key bold, for where the focus is. The list: `enter <verb>` for the row under the cursor (the menu's own, such as `open` or `choose`; `choose` on a `▾` row; `change` on a written row of the params or budget sheet; `type to edit` in its place on a form's written row), `[/ search   ][tab actions   ]esc <back\|close>`; `esc clear search` while a search narrows the list; `tab actions` only while a button can be pressed. A button: `enter <its first word>   ←/→ move   tab list   esc <back\|close>`. The search box: `enter to list   esc clear`. Writing a row: `[shift+enter/ctrl+j new line   ]enter keep   esc undo`. |
+| Keys | The last line: `<key> <does>` apart by three spaces, the key bold, for where the focus is. The list: `enter <verb>` for the row under the cursor (the menu's own, such as `open` or `choose`; `choose` on a `▾` row; `change` on a written row of the params or budget sheet; `type to edit` in its place on a form's written row), `[/ search   ][tab actions   ]esc <back\|close>`; `esc clear search` while a search narrows the list; `tab actions` only while a button can be pressed. A button: `enter <its first word>   ←/→ move   tab list   esc <back\|close>`. The search box: `enter to list   esc clear`. Writing a row: `[shift+enter/ctrl+j new line   ][tab complete   ]enter keep   esc undo`. |
 
 ### Boxes {#boxes}
 
@@ -651,6 +652,19 @@ Workspace pages -- draws its rows this way instead:
 was there, which stays drawn. No way there, no list and no message line: the question, and its
 answers as buttons, the first focused as it opens. Each button's tooltip says what it does.
 `esc` or a click outside the box answers nothing, and the keys say what that comes to.
+
+### Path completion {#path-completion}
+
+A form's path rows -- **Export run**'s `to`, the ssh host form's `identity file`, the docker
+host form's `socket` and `tls`, **Import ssh hosts**'s `from`, and the environment
+form's `workdir` on this machine -- complete as they are written, as a shell does:
+
+| Element | Value |
+| --- | --- |
+| Candidates | Every file and directory in the directory typed so far (relative to where `hmz` started, `/`, or `~/`) whose name starts with the last part; directories end in `/`; dot-files only once a `.` is typed. Shown, last part only, apart by two spaces, on the line under the list while the row is written: the first 8, then `and <n> more`; the one <kbd>tab</kbd> took last in reverse. |
+| `~` | Alone: completes to `~/`. `~user` is not completed. |
+| <kbd>tab</kbd> | To the longest prefix every candidate shares; where that adds nothing, the first candidate, then each in turn, wrapping. Any other key ends the turn. |
+| Keys | Writing a path: `tab complete   enter keep   esc undo`. |
 
 ### Held and immediate changes {#held-changes}
 
@@ -1069,7 +1083,14 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).` |
 | Keys | `enter choose   esc back` |
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
-| `export run` | `the entire run as an archive, with its trace`. Writes `./.hmz/<run>.epic.tar.gz` (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+| `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+
+**Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
+there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
+across the top: one row `to   file, or directory to put <run>.epic.tar.gz in`, a
+[path](#path-completion); **Done** `writes the archive there`, `~` expanded; error `where to
+export to is required`. A directory, existing or ending in `/`, gets `<run>.epic.tar.gz`;
+anything else is the file. `esc` goes back to the run.
 
 ## `/resume` {#carrying-the-last-one-on-outright}
 

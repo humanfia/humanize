@@ -287,13 +287,13 @@ into its own epic and records `picked_up`.
 
 ## Export {#export}
 
-*export run* on `/epics`, `Epics.bundled(epic)`, or `hmz.runtime.exporting.bundle` writes one
+*export run* on `/epics`, `Epics.bundled(epic, output=…)`, or `hmz.runtime.exporting.bundle` writes one
 gzip-compressed tar archive of a run:
 
 | Property | Value |
 | --- | --- |
 | Name | `<epic>.epic.tar.gz` |
-| Location | `output` if given (a file, or a directory — existing or ending in `/` — to put it in), else `<current directory>/.hmz/` |
+| Location | `output`, required: a file, or a directory — existing or ending in `/` — to put it in; made absolute |
 | Write | to `.<name>.<random>.new` (mode `0600`, kept), then renamed over; exporting a run again replaces the archive |
 | Refused | `ValueError: <dir> is not a run` for a directory holding no epic |
 

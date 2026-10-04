@@ -120,7 +120,7 @@ class Epics:
         self,
         epic: Path,
         *,
-        output: str | os.PathLike[str] | None = None,
+        output: str | os.PathLike[str],
         transcript: str | None = None,
     ) -> tuple[Path, dict[str, Any]]: ...
     def trace(
