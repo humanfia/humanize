@@ -1123,7 +1123,9 @@ behave as anywhere.
 
 A flow with `resumable=True` keeps a journal while it runs. The newest run of it in a
 workspace is picked up by `hmz exec --resume`, `/resume`, `Hmz().run(resume=True)`, or *resume
-run* on `/epics` (a chosen epic).
+run* on `/epics` (a chosen epic). "Of it" is by its canonical ref, `<directory>:<flow>`, or by
+the name it was run under: flows kept in directories of one name -- `alice/kernel` and
+`bob/kernel` -- share a ref, so the newest run of either is the one picked up.
 
 | Refusal | Message |
 | --- | --- |
@@ -1256,7 +1258,9 @@ copies from.
 - Two directories claiming one top-level name while a run uses one raise `FlowLoadConflict`
   (`<a> and <b> both import '<name>', and a run going now uses the second`); a name held in
   `sys.modules` by something that is not a flow raises
-  `importing <dir> would replace the module '<name>' (<file>)`.
+  `importing <dir> would replace the module '<name>' (<file>)`. Flows kept in directories of
+  one name -- `alice/kernel` and `bob/kernel`, or `@a/loop` and `@b/loop` -- claim the same
+  name, so one run cannot call both.
 - A module's flows are the `@flow` objects defined in files inside its directory; one imported
   from elsewhere is not one of its flows.
 
