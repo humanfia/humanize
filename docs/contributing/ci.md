@@ -96,12 +96,11 @@ in two and not three. Two full tiers at once, such as a pull request's beside a 
 [pytest-split](https://github.com/jerry-git/pytest-split) reads how long each test took from
 `.test_durations`, at the root of the repository, and deals `tests/integration` into two halves
 that take the same time. Every test runs in exactly one half, and `tests/test_tiers.py` checks
-the whole tree in whichever half it lands in. Each half's log opens with what it expects to
-take: `[pytest-split] Running group 1/2 (estimated duration: …)`.
+the whole tree in whichever half it lands in.
 
 A test the file does not name counts as the average, so a file that has fallen behind still
-splits every test, only less evenly. When the two halves drift a minute apart, write it again
-and commit it:
+splits every test, only less evenly. When the two halves of a run drift a minute apart, write
+it again and commit it:
 
 ```sh
 uv run pytest tests/integration tests/test_tiers.py --store-durations --clean-durations
