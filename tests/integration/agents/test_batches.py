@@ -266,6 +266,17 @@ def test_a_batch_that_failed_says_so_once_every_turn_of_it_has_landed() -> None:
     assert landed.count == 7  # every turn but the one that failed
 
 
+def test_a_batch_that_failed_still_runs_the_turns_waiting_for_their_turn() -> None:
+    """Every turn lands, one that had not started when another failed too, as abatch's do."""
+    landed = _Landed()
+    agent = _InProcessAgent(doing=_both(_explodes("prompt-0"), landed.notes))
+
+    with pytest.raises(subprocess.CalledProcessError):
+        agent.batch([f"prompt-{at}" for at in range(4)], at_once=1)
+
+    assert landed.count == 3
+
+
 def test_a_batch_told_to_suppress_answers_with_nothing_for_the_turn_that_failed() -> (
     None
 ):

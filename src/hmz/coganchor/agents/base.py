@@ -5548,12 +5548,15 @@ class AgentBase(ABC):
             return self(prompt, suppress=suppress, schema=schema, cwd=cwd)
 
         # Sized to the batch rather than kept between them: a fan-out is over when its
-        # answers are in, and the threads it took go with it.
+        # answers are in, and the threads it took go with it. Submitted and waited on whole
+        # rather than mapped: a map that meets a failure cancels every turn no thread has
+        # picked up yet, which on a loaded machine is a turn of the batch that never ran.
         with ThreadPoolExecutor(
             max_workers=_at_once(at_once, len(asked)),
             thread_name_prefix=f"{self.id}-at",
         ) as crowd:
-            return list(crowd.map(one, asked))
+            landing = [crowd.submit(one, prompt) for prompt in asked]
+        return [turn.result() for turn in landing]
 
     @overload
     async def abatch(
