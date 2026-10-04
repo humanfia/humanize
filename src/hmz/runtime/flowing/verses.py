@@ -80,8 +80,8 @@ USER = "user"
 #: wherever humanize is being run, and `~` is whoever is running it, neither of which is
 #: settled when this is imported.
 MINE = {
-    LOCAL: ".humanize/flows",
-    USER: "~/.humanize/flows",
+    LOCAL: ".hmz/flows",
+    USER: "~/.hmz/flows",
 }
 
 #: The names a flowverse cannot be added under, being the three that are always listed. One is

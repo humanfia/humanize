@@ -1,18 +1,18 @@
 # Files
 
 Every file and directory humanize reads or writes: under its home, under a workspace's
-`.humanize/`, and elsewhere on this machine and on the machines environments run on.
+`.hmz/`, and elsewhere on this machine and on the machines environments run on.
 
 ## Roots
 
 | Root | Path | Notes |
 | --- | --- | --- |
-| **home** (`H` below) | `$HUMANIZE_HOME`, else `~/.humanize` | Not created in advance; the first writer creates it. The provider stores create every missing level with mode `0700`; other writers leave it at the umask. |
-| **user flows** | `~/.humanize/flows` | Always the literal `~`; does **not** follow `HUMANIZE_HOME`. |
-| **workspace** | `<workspace>/.humanize/` | `<workspace>` is the directory `hmz` runs in. Not added to `.gitignore`. |
+| **home** (`H` below) | `$HUMANIZE_HOME`, else `~/.hmz` | Not created in advance; the first writer creates it. The provider stores create every missing level with mode `0700`; other writers leave it at the umask. |
+| **user flows** | `~/.hmz/flows` | Always the literal `~`; does **not** follow `HUMANIZE_HOME`. |
+| **workspace** | `<workspace>/.hmz/` | `<workspace>` is the directory `hmz` runs in. Not added to `.gitignore`. |
 | **cache** | `~/.cache/humanize/` | Does not follow `HUMANIZE_HOME`. |
 | **machine** | `<tmp>/humanize-<uid>/` | Python's `tempfile.gettempdir()` (`$TMPDIR`, else `/tmp`) and the user's id: what is this machine's alone, which a home directory several machines share must not hold. Made `0700`; refused if anyone else can write it. See [Temporary](#temporary). |
-| **a remote machine's home** | `${HUMANIZE_HOME:-$HOME/.humanize}` in the login shell there | Holds `envs/` for `ssh` environments. |
+| **a remote machine's home** | `${HUMANIZE_HOME:-$HOME/.hmz}` in the login shell there | Holds `envs/` for `ssh` environments. |
 
 `<ws>` below is a workspace's absolute resolved path with every character outside
 `[A-Za-z0-9]` replaced by `-` (`/home/you/code` → `-home-you-code`; distinct paths can
@@ -53,8 +53,8 @@ H/
 ├── docker-ssh/<sha256[:16]>/ssh        ssh shim for docker over ssh
 └── patched/<cli>-<pid>-<rand>/         patched CLI copies (unused in production)
 
-~/.humanize/flows/                      your flows (flowverse `user`)
-<workspace>/.humanize/
+~/.hmz/flows/                      your flows (flowverse `user`)
+<workspace>/.hmz/
 ├── flows/                              this project's flows (flowverse `local`)
 ├── .gitignore                          `*.epic.tar.gz`, written by the first export if absent
 └── <epic>.epic.tar.gz                  exported runs
@@ -281,7 +281,7 @@ Clones of skill repositories a role names by URL
 each run that names them. Never removed. Mounted skills are copied into the session's
 workdir (`.claude/skills`, `.cursor/skills` or `.agents/skills`) for the session's life.
 
-### `~/.humanize/flows/` and `<workspace>/.humanize/flows/`
+### `~/.hmz/flows/` and `<workspace>/.hmz/flows/`
 
 Flowverses `user` and `local`: `<name>/__init__.py` or `<name>.py`
 ([Where flows live](/reference/flows#where-flows-live)). humanize writes here only when a flow
@@ -292,7 +292,7 @@ is copied here (to `.<name>.*`, then renamed). Never deleted by humanize.
 ### `<state>/envs/`
 
 On the machine an environment is on; `<state>` is `H` here and
-`${HUMANIZE_HOME:-$HOME/.humanize}` over ssh.
+`${HUMANIZE_HOME:-$HOME/.hmz}` over ssh.
 
 | Path | Is | Lifetime |
 | --- | --- | --- |
@@ -351,11 +351,11 @@ Sessions of agents driven with no run (the agent API, `/btw`), laid out as the C
 Like an epic's `sessions/`, it is the only copy of those conversations. Not used under
 [`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions).
 
-### `<workspace>/.humanize/<epic>.epic.tar.gz`
+### `<workspace>/.hmz/<epic>.epic.tar.gz`
 
 An [exported run](/reference/tracing#export). Written with `mkstemp` (mode `0600`) and renamed;
 exporting the same run again replaces it. Nothing in humanize imports one. Exporting here
-also writes `<workspace>/.humanize/.gitignore` (`*.epic.tar.gz`) where there is none, so a
+also writes `<workspace>/.hmz/.gitignore` (`*.epic.tar.gz`) where there is none, so a
 `git add -A` in the workspace, an agent's included, does not commit the archive; one already
 there is left as it is.
 
@@ -392,7 +392,7 @@ Every path in this section is safe to delete while humanize is not running.
 | --- | --- |
 | `$HOME/.cache/humanize/humanize-<digest>.pyz` | the humanize bundle on an `ssh` machine (`/tmp/humanize/…` in a container); checked against `<digest>` on arrival and when already there, written to `f.<pid>` and moved into place; every run line touches the one it runs; other `humanize-*.pyz*` untouched for 14 days are removed by the next install |
 | `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` on an `ssh` machine; `/tmp/humanize-mirrors/<sha256[:16]>/` in a container | a remote harness's mirror of the workspace |
-| `${HUMANIZE_HOME:-$HOME/.humanize}/envs/` | as [above](#state-envs) |
+| `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | as [above](#state-envs) |
 | a `mktemp -d` directory (umask `077`) | per-session files of a native turn, including projected credentials (`0600`); removed after the turn |
 | `.humanize-carried/<uuid>` | claim file inside a directory carried to the target |
 

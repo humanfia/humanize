@@ -55,7 +55,7 @@ pytestmark = [pytest.mark.agent, pytest.mark.timeout(900)]
 
 #: What each harness is run at: the model it is cheapest to ask, and the least effort it takes.
 #: A harness whose CLI has said nothing about what it runs here is looked up in what it did
-#: say, in `~/.humanize/models`.
+#: say, in `~/.hmz/models`.
 CHEAPEST: dict[HarnessKind, tuple[str, str]] = {
     HarnessKind.CLAUDE: ("claude-haiku-4-5-20251001", "low"),
     HarnessKind.CODEX: ("gpt-5.5", "low"),
@@ -82,7 +82,7 @@ def _model(harness: HarnessKind) -> tuple[str, str]:
     """The model and effort to run a harness at here, or a skip saying why there is none."""
     if harness in CHEAPEST:
         return CHEAPEST[harness]
-    kept = Path.home() / ".humanize" / "models" / f"{harness.value}.json"
+    kept = Path.home() / ".hmz" / "models" / f"{harness.value}.json"
     try:
         said = json.loads(kept.read_text(encoding="utf-8"))
     except (OSError, ValueError):

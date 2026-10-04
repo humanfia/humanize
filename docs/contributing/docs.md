@@ -75,7 +75,7 @@ Reach for a hook to watch an agent, or to refuse something it reaches for.
 ## Example: watch the agent <!-- ④ -->
 
 ```python
-# .humanize/flows/watched/__init__.py
+# .hmz/flows/watched/__init__.py
 async def seen(params: PreToolUseHookParams) -> PreToolUseHookResult:  # ①
 ```
 

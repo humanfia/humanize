@@ -272,7 +272,7 @@ the top one, the loop you just stopped:
 
 ```text
   hmz › /epics › 2026-08-17 14:02 · flame_chase
-  /home/you/.humanize/epics/…/20260817T140233.512Z-4c1e9a
+  /home/you/.hmz/epics/…/20260817T140233.512Z-4c1e9a
   It stopped with 2 agents in 12 sessions.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
@@ -284,7 +284,7 @@ the top one, the loop you just stopped:
 ```
 
 Choose **export run**. Back on the list of runs, the line under it says where the archive went,
-in this project's `.humanize/`. The trace is also at `traces/export.trace.json` inside the
+in this project's `.hmz/`. The trace is also at `traces/export.trace.json` inside the
 directory named under the screen's title. Drag it into
 [ui.perfetto.dev](https://ui.perfetto.dev):
 

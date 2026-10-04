@@ -70,7 +70,7 @@ BUDGET = {"cost": 1}
 def counts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     """The flow above, written into this project's own flows; its name."""
     monkeypatch.chdir(tmp_path)
-    written(tmp_path / ".humanize" / "flows", "counts", COUNTS)
+    written(tmp_path / ".hmz" / "flows", "counts", COUNTS)
     return "counts"
 
 

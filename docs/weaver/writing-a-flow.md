@@ -42,15 +42,15 @@ A second `run` in the same session carries on the same conversation. That is all
 
 ## Write the flow
 
-A flow is a directory under `.humanize/flows/` in your project, named after the flow, with the
+A flow is a directory under `.hmz/flows/` in your project, named after the flow, with the
 code in its `__init__.py`:
 
 ```sh
-mkdir -p .humanize/flows/twice
+mkdir -p .hmz/flows/twice
 ```
 
 ```python
-# .humanize/flows/twice/__init__.py
+# .hmz/flows/twice/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -240,7 +240,7 @@ uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
 | --- | --- |
 | `twice needs an agent for 'builder'; specify each with -a ROLE=CLI/MODEL:EFFORT` | No `-a builder=…` on the line. Add it. |
 | `twice requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` | No budget. Add one, such as `-p budget.cost=1`. |
-| `twice: no flow is called 'twice', and it is not a path` | You are not in the project that holds `.humanize/flows/twice/`. `cd` into it, or pass `-f ./path/to/twice`. |
+| `twice: no flow is called 'twice', and it is not a path` | You are not in the project that holds `.hmz/flows/twice/`. `cd` into it, or pass `-f ./path/to/twice`. |
 | ``twice: a flow takes `ctx` as a keyword argument`` | The signature is missing one of its keyword arguments. Take all four, even the ones you do not use. |
 | `importing the flow at … failed: SyntaxError("'await' outside async function", …)` | `async` is missing from `def`. Write `async def`. |
 
@@ -251,8 +251,8 @@ taking its name:
 
 | Put it in | Run it with | At the prompt |
 | --- | --- | --- |
-| `.humanize/flows/twice/` in the project | `-f twice` | `$local/twice` |
-| `~/.humanize/flows/twice/` | `-f twice`, when the project has none of that name | `$user/twice` |
+| `.hmz/flows/twice/` in the project | `-f twice` | `$local/twice` |
+| `~/.hmz/flows/twice/` | `-f twice`, when the project has none of that name | `$user/twice` |
 | the flows humanize ships, and those you installed from a [flowverse](/weaver/flowverses) | `-f ralph_loop`, `-f theirs/review` | `$ralph_loop`, `$theirs/review` |
 | anywhere else | `-f ./path/to/twice` | |
 
@@ -260,7 +260,7 @@ taking its name:
 
 ## Variations
 
-**One file instead of a directory.** `.humanize/flows/twice.py` is a flow too. Use a directory
+**One file instead of a directory.** `.hmz/flows/twice.py` is a flow too. Use a directory
 once the flow has files beside it, such as [skills](/user/skills) or helpers.
 
 **Helpers the flow imports.** A file or directory whose name starts with `_` is not a flow. It

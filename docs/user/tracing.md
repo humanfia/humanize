@@ -73,7 +73,7 @@ session of Claude Code. Its `/epics` list:
 <kbd>↓</kbd> to the second run, <kbd>enter</kbd>, **export run**:
 
 ```text
-   /tmp/hmzdocs-C/app/.humanize/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
+   /tmp/hmzdocs-C/app/.hmz/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
                                                                                     ③           ④
 ```
 
@@ -165,7 +165,7 @@ A trace of a profiled run shows each program as a process of its own, on the sam
 sessions, and its summary counts them. The same Ralph loop, resumed once profiling was on:
 
 ```text
-/tmp/hmzdocs-C/app/.humanize/20260930T054014.242Z-bdae4a.epic.tar.gz · 59 kB · 1 session, 13 slices, 7 programs
+/tmp/hmzdocs-C/app/.hmz/20260930T054014.242Z-bdae4a.epic.tar.gz · 59 kB · 1 session, 13 slices, 7 programs
 ```
 
 <TraceMock profiled />

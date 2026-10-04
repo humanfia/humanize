@@ -408,7 +408,7 @@ from an earlier run.
   `cannot keep the local copy of the work at /home/me/build/myproject: Permission denied: /home/me`,
   marked `(unmirrored: …)`.
 
-A docker environment keeps its copy under `~/.humanize/envs/mirrors/` instead, so its
+A docker environment keeps its copy under `~/.hmz/envs/mirrors/` instead, so its
 workdir may be your own checkout.
 :::
 
@@ -459,7 +459,7 @@ of its own for the run, probed with the others and taken down with them:
 | In the affinity | The CLI runs |
 | --- | --- |
 | `ssh:gpu-box` | on the host saved as `gpu-box`, in its saved workdir, else the login's home |
-| `docker:gpubox` | in a container of its own on the daemon saved as `gpubox`, holding its saved workdir; a daemon on this machine saved without one holds `~/.humanize/harness` |
+| `docker:gpubox` | in a container of its own on the daemon saved as `gpubox`, holding its saved workdir; a daemon on this machine saved without one holds `~/.hmz/harness` |
 
 Such a place has no room when it cannot be reached or opened, when a daemon has no share left
 for the container (its `max containers` reached, say), and for any role not granted
@@ -540,7 +540,7 @@ More, with what causes each, are in [Troubleshooting](/user/troubleshooting).
 ## The flow used on this page
 
 ::: details `onbox`: build on the box, review here
-Save it as `.humanize/flows/onbox/__init__.py` in your project, and it is offered as
+Save it as `.hmz/flows/onbox/__init__.py` in your project, and it is offered as
 `local/onbox`. What each line means is the [Weaver Guide's](/weaver/writing-a-flow) to explain.
 
 ```python

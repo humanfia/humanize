@@ -41,7 +41,7 @@ Take turns below and watch who knows what:
 ## Example: read once, try two ways {#fork-into-another-directory}
 
 ```python
-# .humanize/flows/twoways/__init__.py
+# .hmz/flows/twoways/__init__.py
 import asyncio
 
 from hmz.flows import (
@@ -130,14 +130,14 @@ A real run, abridged:
 ✻ Worked for 5s · agent
 ● agent is working
 ● agent is working
-● Read(/home/you/.humanize/envs/calc-c69b9824bb32/worktrees/head-88d122ae/calc.py)
-● Read(/home/you/.humanize/envs/calc-c69b9824bb32/worktrees/head-278c0743/calc.py)
-● Edit(/home/you/.humanize/envs/calc-c69b9824bb32/worktrees/head-88d122ae/calc.py)
-● Edit(/home/you/.humanize/envs/calc-c69b9824bb32/worktrees/head-278c0743/calc.py)
+● Read(/home/you/.hmz/envs/calc-c69b9824bb32/worktrees/head-88d122ae/calc.py)
+● Read(/home/you/.hmz/envs/calc-c69b9824bb32/worktrees/head-278c0743/calc.py)
+● Edit(/home/you/.hmz/envs/calc-c69b9824bb32/worktrees/head-88d122ae/calc.py)
+● Edit(/home/you/.hmz/envs/calc-c69b9824bb32/worktrees/head-278c0743/calc.py)
 ● I added `subtract(a, b)` to `calc.py`, returning `a - b`. I didn't run anything, so it's untested.
 ✻ input 6 · output 378 · cache_read 51.4k · cache_write 926 · $0.02 · claude-sonnet-5-5 · agent
-with a docstring and type hints: /home/you/.humanize/envs/calc-c69b9824bb32/worktrees/head-278c0743
-as briefly as you can: /home/you/.humanize/envs/calc-c69b9824bb32/worktrees/head-88d122ae
+with a docstring and type hints: /home/you/.hmz/envs/calc-c69b9824bb32/worktrees/head-278c0743
+as briefly as you can: /home/you/.hmz/envs/calc-c69b9824bb32/worktrees/head-88d122ae
 …
 ● I added `subtract(a: float, b: float) -> float` to `calc.py` in the worktree. It has a one-line docstring and returns `a - b`. …
 ✻ input 6 · output 537 · cache_read 51.5k · cache_write 1.1k · $0.02 · claude-sonnet-5-5 · agent
@@ -155,8 +155,8 @@ as briefly as you can: /home/you/.humanize/envs/calc-c69b9824bb32/worktrees/head
 Each worktree holds one attempt, and your own checkout holds neither:
 
 ```sh
-git -C ~/.humanize/envs/calc-c69b9824bb32/worktrees/head-278c0743 diff
-git -C ~/.humanize/envs/calc-c69b9824bb32/worktrees/head-88d122ae diff
+git -C ~/.hmz/envs/calc-c69b9824bb32/worktrees/head-278c0743 diff
+git -C ~/.hmz/envs/calc-c69b9824bb32/worktrees/head-88d122ae diff
 git status --short
 ```
 
@@ -178,7 +178,7 @@ git status --short
 +    return a - b
 ```
 
-`git status --short` in your checkout shows only `?? .humanize/`. Keep the attempt you like,
+`git status --short` in your checkout shows only `?? .hmz/`. Keep the attempt you like,
 and `git worktree remove` the other.
 
 A test checks the shape of the branching with a fake agent: who was forked from whom, and what

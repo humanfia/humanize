@@ -68,7 +68,7 @@ _PROBE_WITHIN = 60.0
 #: whether each program an environment mixin is served with (`git`, `bash`) is on its PATH.
 PROBE_SCRIPT = rf"""
 printf 'home=%s\n' "$HOME"
-printf 'state=%s\n' "${{HUMANIZE_HOME:-$HOME/.humanize}}"
+printf 'state=%s\n' "${{HUMANIZE_HOME:-$HOME/.hmz}}"
 printf 'cpus=%s\n' "$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null \
   || sysctl -n hw.ncpu 2>/dev/null)"
 if [ -r /proc/meminfo ]; then
@@ -118,7 +118,7 @@ def facts_of(said: str) -> _Facts:
     home = values.get("home", "")
     if not home.startswith("/"):
         raise EnvConnectionError(f"the host did not say where its home is: {said!r}")
-    state = PurePosixPath(home) / PurePosixPath(values.get("state") or ".humanize")
+    state = PurePosixPath(home) / PurePosixPath(values.get("state") or ".hmz")
     cpus = int(values["cpus"]) if values.get("cpus", "").isdigit() else 1
     if values.get("memkb", "").isdigit():
         memory = int(values["memkb"]) * 1024

@@ -102,7 +102,7 @@ def theirs(tmp_path: Path, code: tuple[str, str]) -> Path:
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A project with two flows of its own, stood in."""
     where = tmp_path / "project"
-    flows = where / ".humanize" / "flows"
+    flows = where / ".hmz" / "flows"
     flows.mkdir(parents=True)
     written(flows, "mine", FLOW)
     written(flows, "kept", KEEPS)
@@ -302,7 +302,7 @@ def test_every_flow_there_is_to_run_is_offered_by_the_name_dash_f_takes(
 def test_a_flow_s_name_is_the_file_it_is_written_in(project: Path) -> None:
     found = Hmz().flows.find("mine")
 
-    assert found == str((project / ".humanize/flows/mine" / ENTRY).resolve())
+    assert found == str((project / ".hmz/flows/mine" / ENTRY).resolve())
 
 
 def test_a_name_nothing_answers_to_comes_back_as_the_name_it_was_asked_by(
@@ -351,8 +351,8 @@ def test_a_flow_forked_into_this_project_is_offered_under_the_name_it_already_ha
     where = flows.fork("chat")
 
     # Spelled as this project's own flows are spelled, which is from the project itself.
-    assert where == ".humanize/flows/chat"
-    assert (project / ".humanize" / "flows" / "chat").is_dir()
+    assert where == ".hmz/flows/chat"
+    assert (project / ".hmz" / "flows" / "chat").is_dir()
     assert flows.find("chat").startswith(str(project))
 
 

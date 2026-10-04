@@ -111,8 +111,8 @@ installed. Each is offered under one name:
 | Where the flow comes from | Offered as |
 | --- | --- |
 | humanize itself, or installed from the official flowverse | a bare name: `chat`, `ralph_loop` |
-| this project's `.humanize/flows/` | `local/twice` |
-| `~/.humanize/flows/` | `user/twice` |
+| this project's `.hmz/flows/` | `local/twice` |
+| `~/.hmz/flows/` | `user/twice` |
 | installed from any other flowverse | `<flowverse>/<flow>` |
 
 ## The keys

@@ -176,7 +176,7 @@ ref = [ flowverse , "/" ] , flow , [ ":" , name ]
 | Form | Resolves to |
 | --- | --- |
 | `<flow>` | The first flow of that name, looking in `local`, `user`, `official` (built in, then installed), then the flows installed from added flowverses (the order of [`Flowverses.nearest`](/reference/sdk#flowverses)). |
-| `<flowverse>/<flow>` | The flow installed from that flowverse. `local/…` is `./.humanize/flows/`, `user/…` is `~/.humanize/flows/`. |
+| `<flowverse>/<flow>` | The flow installed from that flowverse. `local/…` is `./.hmz/flows/`, `user/…` is `~/.hmz/flows/`. |
 | `…:<name>` | Another flow defined in the same module. |
 | a path (`./x`, `/x`, `x.py`) | That directory or file. |
 | `git+<url>[@<rev>][#<subdir>][:<name>]` | The flow in `<subdir>` of a repository (its root without `#`), cloned and pinned at that revision, installing nothing: `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`. |
@@ -730,7 +730,7 @@ Variables these commands read. The complete list, with every layer's, is
 
 | Variable | Read by | Values | Effect |
 | --- | --- | --- | --- |
-| `HUMANIZE_HOME` | all | a path | Where humanize keeps what outlives a run. Default `~/.humanize`. Empty is unset. Not created until written. |
+| `HUMANIZE_HOME` | all | a path | Where humanize keeps what outlives a run. Default `~/.hmz`. Empty is unset. Not created until written. |
 | `HUMANIZE_DAEMON` | `hmz` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
@@ -749,7 +749,7 @@ version), `HUMANIZE_TARGET`, `HUMANIZE_WORKSPACE`.
 
 ## Files {#files}
 
-Paths these commands read or write, under `$HUMANIZE_HOME` (`~/.humanize`). The whole layout
+Paths these commands read or write, under `$HUMANIZE_HOME` (`~/.hmz`). The whole layout
 is [Files](/reference/files).
 
 | Path | Command | Access |
@@ -760,7 +760,7 @@ is [Files](/reference/files).
 | `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
 | `providers/`, `runtimes/`, `fallbacks.json`, `acp.json`, `models/` | all | read when an agent or environment is opened |
-| `installed/`, `flowverses/`; `~/.humanize/flows/` and `./.humanize/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
+| `installed/`, `flowverses/`; `~/.hmz/flows/` and `./.hmz/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 
 ## Python equivalents {#python-entry-points}
 

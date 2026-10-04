@@ -7,7 +7,7 @@
 // - The flows are grouped by where they come from. `chat` and the six loops FlowBench scores
 //   are in the package (`hmz/flows/builtin/`); the rest are released from repositories of
 //   their own and installed from a flowverse, the official one (humanfia/flowverse) or one you
-//   added; and a project's `.humanize/flows` and `~/.humanize/flows` are offered as `local`
+//   added; and a project's `.hmz/flows` and `~/.hmz/flows` are offered as `local`
 //   and `user`.
 // - The backends are `PROFILES` in `hmz/coganchor/backends.py`, in alphabetical order.
 //   `dsh` is the one driven through a Python SDK rather than a CLI, signed in with
@@ -74,8 +74,8 @@ const BANDS: Band[] = [
       {
         label: 'yours',
         chips: [
-          { text: '.humanize/flows', href: '/weaver/writing-a-flow', tag: 'local' },
-          { text: '~/.humanize/flows', href: '/weaver/writing-a-flow', tag: 'user' },
+          { text: '.hmz/flows', href: '/weaver/writing-a-flow', tag: 'local' },
+          { text: '~/.hmz/flows', href: '/weaver/writing-a-flow', tag: 'user' },
         ],
       },
     ],

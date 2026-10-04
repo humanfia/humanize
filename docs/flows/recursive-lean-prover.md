@@ -36,7 +36,7 @@ It is not built in: in `/flow`, go to **Flowverses** → `official` and install
 
 ## Before you run it
 
-- **A clean Lean git repository**, with `.humanize/` in its `.gitignore`. Run the flow at its
+- **A clean Lean git repository**, with `.hmz/` in its `.gitignore`. Run the flow at its
   root.
 - **A comparator**: a script that checks a candidate and exits zero, printing
   `comparator_success`, only when every check has passed. It gets `HUMANIZE_NODE_ID`,
@@ -96,8 +96,8 @@ Every param has a default:
 | `plan_turn_timeout` | `3600` | Seconds one planning turn may take; `0` for no limit. |
 | `plan_total_timeout` | `14400` | Seconds one lemma's planning may take; `0` for no limit. |
 | `stop_on_child_failure` | `true` | Hold a lemma back when a child it needs fails. |
-| `artifact_dir` | `.humanize/recursive-lean-prover` | Plans, proofs, the graph of lemmas and logs. Must be under `.humanize/`. |
-| `wiki_dir` | `.humanize/math-wiki` | The wiki of accepted lemmas. Must be under `.humanize/`. |
+| `artifact_dir` | `.hmz/recursive-lean-prover` | Plans, proofs, the graph of lemmas and logs. Must be under `.hmz/`. |
+| `wiki_dir` | `.hmz/math-wiki` | The wiki of accepted lemmas. Must be under `.hmz/`. |
 | `node_attempts` | `2` | Accepted for compatibility; it changes nothing. |
 | `plan_attempts` | `1` | Fixed at `1`: each lemma gets exactly one plan. |
 

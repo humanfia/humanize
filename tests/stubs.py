@@ -143,7 +143,7 @@ def written(
     """Writes one flow out the way a flow is laid out: a directory, and what is in it.
 
     Args:
-      under: Where the flows are kept -- a flowverse's `flows/`, a `.humanize/flows`, or a
+      under: Where the flows are kept -- a flowverse's `flows/`, a `.hmz/flows`, or a
         directory a test is pointing at outright.
       name: What the flow is called, which is the directory it goes in.
       source: The flow itself, which goes in its `__init__.py`.

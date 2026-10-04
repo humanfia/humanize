@@ -70,11 +70,11 @@ Make `calc.py` a small calculator:
 
 Tick each box in this file as you finish it.
 EOF
-mkdir -p .humanize/flows/checklist
+mkdir -p .hmz/flows/checklist
 ```
 
 ```python
-# .humanize/flows/checklist/__init__.py
+# .hmz/flows/checklist/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,

@@ -437,10 +437,10 @@ def hosts(
   this Mac's Apple containers -- that a flow's
   environment is put on when an `-e` names it. It MUST NOT be anything a flow sees: a flow's
   environments stay `Env`s whatever runtime they were put on.
-- One runtime MUST be one directory under `~/.humanize/runtimes/<backend>/<name>/`,
+- One runtime MUST be one directory under `~/.hmz/runtimes/<backend>/<name>/`,
   holding `runtime.json`, this user's alone at every level and written whole. The backend and
   the name MUST be where it is kept, whatever the file says.
-- What was written down as environment providers, under `~/.humanize/env-providers/` in
+- What was written down as environment providers, under `~/.hmz/env-providers/` in
   `provider.json`, MUST still be found: where `runtimes/` is not there, the first look for it
   MUST move `env-providers/` there whole, in one rename; a `provider.json` MUST be read where
   there is no `runtime.json`, and MUST be gone once that runtime is written again.

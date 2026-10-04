@@ -13,7 +13,7 @@ machine with neither. The regression matrix runs a real agent's turn on the same
 is why the fixture is a helper both take back by name rather than a function written here.
 
 What the contract derives lands in humanize's home on the far side, which for `localhost` is
-the real `~/.humanize/envs` -- ssh carries none of this process's environment there -- so the
+the real `~/.hmz/envs` -- ssh carries none of this process's environment there -- so the
 test removes what it made when it is done. The sshd of its own is told to take the test's
 `HUMANIZE_HOME` instead.
 """

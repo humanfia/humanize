@@ -40,7 +40,7 @@ Sessions of one agent are still one agent: one CLI, one model, and one role in t
 ## Example: one session per file
 
 ```python
-# .humanize/flows/fanout/__init__.py
+# .hmz/flows/fanout/__init__.py
 import asyncio
 
 from hmz.flows import (

@@ -165,7 +165,7 @@ class Epics:
         Args:
           epic: The run, by the directory it is written in.
           output: Where to write it -- a file, or a directory to write it into under its own
-            name -- or None for `.humanize/` beside wherever this is being run.
+            name -- or None for `.hmz/` beside wherever this is being run.
           transcript: A screen that went with this run, for a caller that has one, or None
             -- which is what a run exported out of the list of them goes in as, that run not
             being the one on the screen.

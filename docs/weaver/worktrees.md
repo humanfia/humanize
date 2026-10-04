@@ -47,7 +47,7 @@ was. A worktree of a workspace that may run programs may run programs.
 session in each, all at once:
 
 ```python
-# .humanize/flows/parts/__init__.py
+# .hmz/flows/parts/__init__.py
 import asyncio
 
 from hmz.flows import (
@@ -121,14 +121,14 @@ A real run, abridged. The three turns start together and finish in any order:
 ● agent is working
 ● agent is working
 ● agent is working
-● Write(/home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-95e4a811/PLAN.md)
-● Write(/home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-636f5a37/PLAN.md)
-● Write(/home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-2c5c858b/PLAN.md)
+● Write(/home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-95e4a811/PLAN.md)
+● Write(/home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-636f5a37/PLAN.md)
+● Write(/home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-2c5c858b/PLAN.md)
 ● I wrote `PLAN.md` as one line: build the parser's tokenizer and a minimal recursive-descent core …
 ✻ input 4 · output 213 · cache_read 28.1k · cache_write 5.7k · $0.02 · claude-sonnet-5-5 · agent
-parser: /home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-95e4a811
-printer: /home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-636f5a37
-cli: /home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-2c5c858b
+parser: /home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-95e4a811
+printer: /home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-636f5a37
+cli: /home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-2c5c858b
 …
 ✻ Worked for 5s · agent
 ```
@@ -144,9 +144,9 @@ git worktree list
 
 ```text
 /home/you/calc                                                    5ad70a3 [main]
-/home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-2c5c858b  5ad70a3 (detached HEAD)
-/home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-636f5a37  5ad70a3 (detached HEAD)
-/home/you/.humanize/envs/calc-82c815b6b57b/worktrees/main-95e4a811  5ad70a3 (detached HEAD)
+/home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-2c5c858b  5ad70a3 (detached HEAD)
+/home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-636f5a37  5ad70a3 (detached HEAD)
+/home/you/.hmz/envs/calc-82c815b6b57b/worktrees/main-95e4a811  5ad70a3 (detached HEAD)
 ```
 
 Your own checkout is untouched. `git worktree remove <path>` takes one away.
@@ -194,7 +194,7 @@ print("ok")
 ```
 
 ```python
-# .humanize/flows/guarded/__init__.py
+# .hmz/flows/guarded/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -297,12 +297,12 @@ git log --oneline -1 refs/hmz/snapshots/before-task
 ```
 
 ```text
-?? .humanize/
+?? .hmz/
 bbb6915909f7716b82f3a408104593c20fe8928d commit	refs/hmz/snapshots/before-task
 bbb6915 hmz: snapshot before-task
 ```
 
-`.humanize/` is where your flows are, and a rewind never removes it. Files git ignores are
+`.hmz/` is where your flows are, and a rewind never removes it. Files git ignores are
 left alone too. A snapshot stays in the repository until something removes it: `git
 update-ref -d refs/hmz/snapshots/before-task` does.
 

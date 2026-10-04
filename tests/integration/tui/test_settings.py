@@ -285,14 +285,14 @@ def test_two_flows_of_one_name_are_two_entries(tmp_path: Path) -> None:
         "rlar", {"actor": Runs("claude/m:high")}, params={"deep": True}
     )
     Settings(tmp_path).remember(
-        ".humanize/flows/rlar.py",
+        ".hmz/flows/rlar.py",
         {"actor": Runs("codex/n:low")},
         params={"deep": False},
     )
 
     kept = Settings(tmp_path)
     assert kept.params("rlar") == {"deep": True}
-    assert kept.params(".humanize/flows/rlar.py") == {"deep": False}
+    assert kept.params(".hmz/flows/rlar.py") == {"deep": False}
     assert kept.agents("rlar") == {"actor": Runs("claude/m:high")}
 
 

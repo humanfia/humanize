@@ -16,7 +16,7 @@ Show
 
 Sleep 500ms
 # The one agent role the project's flow declares, which is what `-a` fills.
-Type `grep -A1 "class Agents" .humanize/flows/twice/__init__.py` Enter
+Type `grep -A1 "class Agents" .hmz/flows/twice/__init__.py` Enter
 Sleep 2s
 
 # No budget: refused before any agent starts, since a run with nothing to stop it is not one to

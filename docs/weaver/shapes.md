@@ -33,7 +33,7 @@ instance of the model or raises `OutputSchemaError`.
 ## Example: build until the reviewer is satisfied
 
 ```python
-# .humanize/flows/reviewed/__init__.py
+# .hmz/flows/reviewed/__init__.py
 from pydantic import BaseModel, ConfigDict, Field
 
 from hmz.flows import (

@@ -25,7 +25,7 @@ from typing import Any
 WORK = pathlib.Path("/work/demo")
 
 #: Where humanize keeps what outlives one run, inside this container.
-HOME = pathlib.Path("/root/.humanize")
+HOME = pathlib.Path("/root/.hmz")
 
 #: Claude Code's home, inside this container. The trajectories below are written under it,
 #: and then kept in the run that opened each -- where a turn keeps its session -- so that a
@@ -188,7 +188,7 @@ def _project() -> None:
         (WORK / name).write_text(text, encoding="utf-8")
     # A flow is a directory: the `__init__.py` that is the flow, and whatever it brings.
     for called, source in (("twice", FLOW), ("nightly", NIGHTLY_FLOW)):
-        flows = WORK / ".humanize" / "flows" / called
+        flows = WORK / ".hmz" / "flows" / called
         flows.mkdir(parents=True, exist_ok=True)
         (flows / "__init__.py").write_text(source, encoding="utf-8")
 

@@ -109,7 +109,7 @@ def failed(status: int) -> int: ...
 
 ## Requirements
 
-- One account MUST be one directory under `~/.humanize/providers/<cli>/<name>/`, this user's
+- One account MUST be one directory under `~/.hmz/providers/<cli>/<name>/`, this user's
   alone at every level, holding what it was made by and the credentials the CLI itself wrote.
 - A name MUST be one path component of letters, digits, dot, dash and underscore; anything
   else MUST be refused where it is given and MUST NOT be listed as an account.

@@ -2670,7 +2670,7 @@ async def test_a_list_too_long_to_walk_is_narrowed_by_typing_at_it(
 ) -> None:
     """Every model of every CLI is longer than a screen, so the letters go into it."""
     for name in ("chatter", "chatty", "loop"):
-        written(tmp_path / ".humanize" / "flows", name, FLOW)
+        written(tmp_path / ".hmz" / "flows", name, FLOW)
     app = Humanize()
     async with app.run_test() as driver:
         await into_flows(app, driver)

@@ -9,7 +9,7 @@ told to leave shared modules alone.
 
 `here` is the copy worth naming. It is *autouse*, so nobody asks for it and nothing says it is
 missing; a copy that falls behind the other is a test that goes on passing while checking less,
-and the only sign is somebody else's `~/.humanize` turning up in an assertion months later.
+and the only sign is somebody else's `~/.hmz` turning up in an assertion months later.
 The body is therefore written once, here, and each half keeps a three-line fixture that calls
 it -- which is the shape `tests/logins.py` already uses for the two halves of the login tests,
 and for the same reason.

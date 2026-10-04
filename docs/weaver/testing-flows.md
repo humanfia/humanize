@@ -44,7 +44,7 @@ one, runs the flow to the end, and returns what the flow returned.
 
 ## Example: test `twice`
 
-From the root of the project that holds `.humanize/flows/twice/`:
+From the root of the project that holds `.hmz/flows/twice/`:
 
 ::: code-group
 
@@ -65,7 +65,7 @@ async def test_twice_reads_its_own_work_back() -> None:  # ①
     ]
 ```
 
-```python [.humanize/flows/twice/__init__.py]
+```python [.hmz/flows/twice/__init__.py]
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -133,10 +133,10 @@ session and runs `pytest` between its turns, a fresh reviewer's `Review` decides
 a hook refuses a force push, a `rounds` param bounds it, and the review it owes survives a
 stop.
 
-::: details The flow under test: `.humanize/flows/reviewed/__init__.py`
+::: details The flow under test: `.hmz/flows/reviewed/__init__.py`
 
 ```python
-# .humanize/flows/reviewed/__init__.py
+# .hmz/flows/reviewed/__init__.py
 from pydantic import BaseModel, ConfigDict, Field
 
 from hmz.flows import (
@@ -220,11 +220,11 @@ async def reviewed(
 :::
 
 The first test scripts the reviewer and the workspace, and leaves the actor to answer
-`"ok"`. It lives in `.humanize/tests/` rather than `tests/`, for a reason
+`"ok"`. It lives in `.hmz/tests/` rather than `tests/`, for a reason
 [below](#where-to-keep-the-tests):
 
 ```python
-# .humanize/tests/test_reviewed.py
+# .hmz/tests/test_reviewed.py
 from pathlib import Path
 
 import pytest
@@ -256,7 +256,7 @@ async def test_it_stops_when_the_reviewer_says_done() -> None:
 
 ```sh
 uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
-    --with pytest-asyncio pytest -q -o asyncio_mode=auto .humanize/tests/test_reviewed.py
+    --with pytest-asyncio pytest -q -o asyncio_mode=auto .hmz/tests/test_reviewed.py
 ```
 
 With every `reviewed` test on this page in the file:
@@ -297,7 +297,7 @@ await fakes.run_fake(
 )
 ```
 
-The sections below add one test each to `.humanize/tests/test_reviewed.py`.
+The sections below add one test each to `.hmz/tests/test_reviewed.py`.
 
 ## Script an agent
 
@@ -438,10 +438,10 @@ every prompt put to them. `reply=` takes the same forms as an agent's, except th
 is called with the prompt and `output_schema=` only: a person has no session.
 `FakeOutworlder(away=True)` is nobody there, and so is leaving it out.
 
-::: details The flow under test: `.humanize/flows/talk/__init__.py`, from [The person as an agent](/weaver/human-agent)
+::: details The flow under test: `.hmz/flows/talk/__init__.py`, from [The person as an agent](/weaver/human-agent)
 
 ```python
-# .humanize/flows/talk/__init__.py
+# .hmz/flows/talk/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -480,7 +480,7 @@ async def talk(
 :::
 
 ```python
-# .humanize/tests/test_talk.py
+# .hmz/tests/test_talk.py
 from hmz.sdk import fakes
 
 
@@ -659,7 +659,7 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests", ".humanize/tests"]
+testpaths = ["tests", ".hmz/tests"]
 ```
 
 ```yaml [.github/workflows/test.yml]
@@ -700,9 +700,9 @@ That is `twice`'s test, the eight of `reviewed` and the two of `talk`.
 
 Keep them in `tests/` unless the flow runs your project's own suite. A flow that does, as
 `reviewed` runs `python -m pytest -q`, would also collect any flow tests kept there, and
-they fail in that run on `import hmz`. Keep such a flow's tests in `.humanize/tests/`
+they fail in that run on `import hmz`. Keep such a flow's tests in `.hmz/tests/`
 instead, beside the flows: pytest does not look inside a directory whose name starts with `.`
-unless it is named, so your suite never sees them, and `pytest .humanize/tests` or the
+unless it is named, so your suite never sees them, and `pytest .hmz/tests` or the
 `testpaths` above runs them. The [tutorial](/weaver/tutorials/build-under-test) does the same.
 
 ## Variations

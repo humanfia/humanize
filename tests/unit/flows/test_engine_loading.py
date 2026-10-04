@@ -242,7 +242,7 @@ async def test_every_relative_form_resolves_inside_a_flowverse(tmp_path: Path) -
 
 
 async def test_a_flowverse_of_this_project_is_found_by_name(tmp_path: Path) -> None:
-    _verse(tmp_path / ".humanize")
+    _verse(tmp_path / ".hmz")
     assert await run_fake("beta:second") == "beta:second"
     assert await run_fake("local/beta:second") == "beta:second"
     assert (await run_fake("alpha", "t"))[0] == "helped t"

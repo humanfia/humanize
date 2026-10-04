@@ -212,7 +212,7 @@ def bundle(
     Args:
       epic: The run, by the directory it is written in.
       at: Where to write it: a file outright, a directory to write it into under its own
-        name, or None for `.humanize/` beside whatever directory this is being run in. A
+        name, or None for `.hmz/` beside whatever directory this is being run in. A
         bundle is made to be sent, so it lands where somebody can find it rather than in
         humanize's own home the way a trace of a run does.
       transcript: A screen that went with this run, as it was written rather than as it was
@@ -361,7 +361,7 @@ def _now() -> str:
 
 
 def _unversioned(at: Path) -> None:
-    """Keeps the bundles written into a project's `.humanize/` out of its repository.
+    """Keeps the bundles written into a project's `.hmz/` out of its repository.
 
     A bundle is the run's prompts and its agents' output, a few hundred kilobytes of it, and
     it lands in the directory the agents work in: untracked there, the next `git add -A` of a
@@ -369,7 +369,7 @@ def _unversioned(at: Path) -> None:
     written once, where there is none; one somebody wrote is theirs and left alone.
 
     Args:
-      at: The project's `.humanize/`.
+      at: The project's `.hmz/`.
     """
     with (
         contextlib.suppress(OSError),
@@ -391,9 +391,9 @@ def _lands(epic: Path, at: str | os.PathLike[str] | None) -> Path:
     named = BUNDLE.format(epic=epic.name)
     if at is None:
         # Whole rather than relative: what is printed and what is shown is a path somebody
-        # is about to attach something to, and `.humanize/…` is a path they then have to
+        # is about to attach something to, and `.hmz/…` is a path they then have to
         # remember which directory they were standing in for.
-        return Path.cwd() / ".humanize" / named
+        return Path.cwd() / ".hmz" / named
     said = os.fspath(at)
     asked = Path(said)
     # A trailing separator as well as a directory that is already there: `-o out/` where

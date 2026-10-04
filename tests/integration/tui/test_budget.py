@@ -59,7 +59,7 @@ def flows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     monkeypatch.setattr(hmz.tui.app, "installed", lambda: dict(_INSTALLED))
     monkeypatch.setattr(hmz.tui.pick, "installed", lambda: dict(_INSTALLED))
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(where, "quiet", QUIET)
     return where

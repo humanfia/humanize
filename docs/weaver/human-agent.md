@@ -37,7 +37,7 @@ Three things set it apart from a coding agent:
 `talk` is the shape of [`chat`](/flows/chat), the flow the interface opens on:
 
 ```python
-# .humanize/flows/talk/__init__.py
+# .hmz/flows/talk/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -131,7 +131,7 @@ field** instead of being shown a schema. `settle` asks how to build something, t
 builder build it that way:
 
 ```python
-# .humanize/flows/settle/__init__.py
+# .hmz/flows/settle/__init__.py
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -258,7 +258,7 @@ or a supervisor that answers a callee's questions with a model of its own.
 `Outworlder.new()` makes an outworlder the caller answers for, through `on_outworlder_run`:
 
 ```python
-# .humanize/flows/scripted/__init__.py
+# .hmz/flows/scripted/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,

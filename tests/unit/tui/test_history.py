@@ -37,7 +37,7 @@ def test_what_is_typed_is_written_down_with_where_it_was_typed(tmp_path: Path) -
     said = json.loads((home() / "history.jsonl").read_text().strip())
     assert said["text"] == "run the tests"
     assert said["workdir"] == str(tmp_path.resolve())
-    assert not (tmp_path / ".humanize").exists()  # and nothing is left in the project
+    assert not (tmp_path / ".hmz").exists()  # and nothing is left in the project
 
 
 def test_the_arrows_walk_back_through_it_and_forward_again(tmp_path: Path) -> None:

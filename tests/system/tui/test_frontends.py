@@ -46,7 +46,7 @@ FLOW = "local/asks"
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     where = tmp_path / "project"
     where.mkdir()
-    written(where / ".humanize" / "flows", "asks", ASKS)
+    written(where / ".hmz" / "flows", "asks", ASKS)
     monkeypatch.chdir(where)
     # Set up the way saving the flow menu would, so that `$` starts it on the spot.
     Hmz(where).settings.remember(FLOW, {}, budget={"cost": 1})

@@ -98,7 +98,7 @@ async def right(task, *, agents, envs, params, ctx):
 def mine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """This project's own flows directory, with the project as where things are run from."""
     monkeypatch.chdir(tmp_path)
-    return tmp_path / ".humanize" / "flows"
+    return tmp_path / ".hmz" / "flows"
 
 
 def _local() -> list[tuple[str, str]]:

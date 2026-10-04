@@ -53,7 +53,7 @@ no code. The run ends when the draft is written.
 | Param | Default | |
 | --- | --- | --- |
 | `n` | `6` | Directions to explore, 2 to 10. |
-| `output` | blank | Where the draft goes. Blank writes a new file under `.humanize/ideas/`; a file that already exists is refused. |
+| `output` | blank | Where the draft goes. Blank writes a new file under `.hmz/ideas/`; a file that already exists is refused. |
 
 ## 2 · gen-plan {#gen-plan}
 
@@ -69,7 +69,7 @@ file, or run `gen-plan` again with somebody at the prompt to be asked.
 
 | Param | Default | |
 | --- | --- | --- |
-| `input` | blank | The draft to plan from. Blank takes the newest in `.humanize/ideas/`. |
+| `input` | blank | The draft to plan from. Blank takes the newest in `.hmz/ideas/`. |
 | `output` | blank | Where the plan goes. Blank is `docs/plan.md`, which must not exist yet. |
 | `mode` | `discussion` | `discussion` reviews and revises; `direct` writes the plan once. |
 | `auto_start_rlcr_if_converged` | `false` | Once the two have agreed, do not put open decisions to you. |
@@ -137,7 +137,7 @@ yours to choose on every run.
 
 ::: details Coming from the plugin
 Every flag the plugin takes is a param of the phase it belongs to, under the plugin's own name.
-A run writes what the plugin writes, where the plugin writes it: `.humanize/rlcr/<timestamp>/`
+A run writes what the plugin writes, where the plugin writes it: `.hmz/rlcr/<timestamp>/`
 in your repository, with `state.md`, `goal-tracker.md`, and a prompt, summary and review per
 round. `humanize monitor rlcr` reads a run of this.
 

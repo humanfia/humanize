@@ -1008,7 +1008,7 @@ against it and declare `GitEnvMixin` on the role.
 | `snapshots()` | The snapshot refs, oldest first by committer date (to the second; ties by name). Shared by every worktree of the repository. |
 
 The whole worktree is affected, whatever subdirectory the workdir is. Ignored files and a
-`.humanize/` at the worktree's top are neither recorded nor removed. Snapshots persist until
+`.hmz/` at the worktree's top are neither recorded nor removed. Snapshots persist until
 `git update-ref -d refs/hmz/snapshots/<name>`.
 
 `RewindError` is raised for a workdir outside a git worktree, a ref git does not know, a name
@@ -1347,8 +1347,8 @@ Names starting with `_`, and directories without `__init__.py`, are not flows.
 
 | Order | Place | Directory |
 | --- | --- | --- |
-| 1 | `local` | `.humanize/flows/` under the current directory |
-| 2 | `user` | `~/.humanize/flows/` (literally `~`, not `HUMANIZE_HOME`) |
+| 1 | `local` | `.hmz/flows/` under the current directory |
+| 2 | `user` | `~/.hmz/flows/` (literally `~`, not `HUMANIZE_HOME`) |
 | 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.hmz/installed/official/` |
 | 4 | other flowverses | `~/.hmz/installed/<name>/`, alphabetically |
 | 5 | a path | `<name>/__init__.py`, `<name>`, `<name>.py` (`~` expanded) |
@@ -1400,7 +1400,7 @@ class Reviewer(Agent):
   single-file flow `... and a flow that is one file has none of it`). Unfetchable, or no such
   skill in the repository:
   `<ref>: '<role>' names a skill that cannot be fetched: <reason>`.
-- A repository is cloned into `~/.humanize/skills/<owner>-<repo>-<sha256(url)[:12]>` and
+- A repository is cloned into `~/.hmz/skills/<owner>-<repo>-<sha256(url)[:12]>` and
   fetched again (`fetch --depth 1` + `reset --hard`) the next time a run needs it; a failed
   re-fetch uses the existing copy.
 - The flow's own skill wins a name also held by a repository.

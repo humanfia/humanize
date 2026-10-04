@@ -179,12 +179,12 @@ is to run.
 ## Weave a flow
 
 A flow is an async Python function that declares the agents it drives. Save this one in the
-scratch repository as `.humanize/flows/twice/__init__.py`. It has an agent do the task, then
+scratch repository as `.hmz/flows/twice/__init__.py`. It has an agent do the task, then
 review its own work in the same conversation:
 
 ::: code-group
 
-```python{6,19,21-23} [.humanize/flows/twice/__init__.py]
+```python{6,19,21-23} [.hmz/flows/twice/__init__.py]
 from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
 from hmz.flows import LocalEnv, flow
 

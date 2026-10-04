@@ -752,7 +752,7 @@ name, `· ↑ <n> update(s)` where any; `indexes of flows to install, update and
 | **Install more…** | Goes to Flowverses. | always |
 | **Update** | Installs the newer release of the flow under the cursor. | an update is listed |
 | **Uninstall** | Uninstalls it: `<flow> is uninstalled`. Refused while another installed flow needs it. | an installed flow |
-| **Copy here** | Copies it, what it imports and its skills into `./.humanize/flows/`: `copied to <path> -- you can edit it, and <name> now points to it`; errors `there is no flow called <x> to copy`, `there is already a flow of your own at <path>`. | not a `local` flow |
+| **Copy here** | Copies it, what it imports and its skills into `./.hmz/flows/`: `copied to <path> -- you can edit it, and <name> now points to it`; errors `there is no flow called <x> to copy`, `there is already a flow of your own at <path>`. | not a `local` flow |
 | **Search…** · **Save** | | **Save**: something held |
 
 `enter` on a flow loads what is remembered for it (if another flow), asks its
@@ -1069,7 +1069,7 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).` |
 | Keys | `enter choose   esc back` |
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
-| `export run` | `the entire run as an archive, with its trace`. Writes `./.humanize/<run>.epic.tar.gz` (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+| `export run` | `the entire run as an archive, with its trace`. Writes `./.hmz/<run>.epic.tar.gz` (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 
 ## `/resume` {#carrying-the-last-one-on-outright}
 

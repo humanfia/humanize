@@ -75,7 +75,7 @@ def flows(tmp_path: Path) -> Path:
     Set rather than asked, since saving a flow a run of which has none is refused, and none
     of these tests is about that: the workspace is left set up on `chat`, as it opens.
     """
-    where = tmp_path / ".humanize" / "flows"
+    where = tmp_path / ".hmz" / "flows"
     where.mkdir(parents=True)
     written(where, "here", HERE)
     kept = Settings(tmp_path)

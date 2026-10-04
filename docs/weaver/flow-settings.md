@@ -34,7 +34,7 @@ never silently does nothing.
 and optionally commit. Four params steer it:
 
 ```python
-# .humanize/flows/polish/__init__.py
+# .hmz/flows/polish/__init__.py
 from typing import Literal
 
 from pydantic import Field, model_validator

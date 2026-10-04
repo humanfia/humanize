@@ -79,7 +79,7 @@ the cursor on `aot`, <kbd>tab</kbd> to **Copy here**, and press <kbd>enter</kbd>
    <b>local/aot</b>
      <span class="m">Writes a flow from a description: drafted, loaded, smoke-run, revie…</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
-   <span class="m">copied to .humanize/flows/aot -- you can edit it, and aot now points to it</span> <span class="n">2</span>
+   <span class="m">copied to .hmz/flows/aot -- you can edit it, and aot now points to it</span> <span class="n">2</span>
 
     Install more…   Update   Uninstall   <span class="sel"> Copy here </span>   Search…       Save
 
@@ -90,11 +90,11 @@ the cursor on `aot`, <kbd>tab</kbd> to **Copy here**, and press <kbd>enter</kbd>
 Now the flow is a directory in your project, and its grants are one search away:
 
 ```sh
-grep -rn "_permission" .humanize/flows/aot
+grep -rn "_permission" .hmz/flows/aot
 ```
 
 ```console
-.humanize/flows/aot/__init__.py:51:    _permission = Permission(local=PermissionKind.READ, online=PermissionKind.NONE)
+.hmz/flows/aot/__init__.py:51:    _permission = Permission(local=PermissionKind.READ, online=PermissionKind.NONE)
 ```
 
 What to look at, by number:
@@ -177,7 +177,7 @@ and the flow's name here runs the copy.
 | An agent runs as | humanize keeps |
 | --- | --- |
 | `as local`, the default | nothing. The CLI reads its own login, where it always keeps it. |
-| a login made on the Accounts page of `/settings` | the files that CLI wrote when it signed in, under `~/.humanize/providers/<cli>/<name>/` |
+| a login made on the Accounts page of `/settings` | the files that CLI wrote when it signed in, under `~/.hmz/providers/<cli>/<name>/` |
 | a key or a gateway made on the Accounts page of `/settings` | what you typed, the key and a gateway's URL, in `provider.json` in that same directory |
 
 - Those directories and files are readable by you alone.
@@ -185,7 +185,7 @@ and the flow's name here runs the copy.
   values. A secret you type is drawn as bullets.
 - A turn run as an account from `/settings` has the keys other accounts would use unset, so a
   key left in your shell profile cannot take its place.
-- Removing `~/.humanize` removes every account. The CLIs' own logins stay where they are.
+- Removing `~/.hmz` removes every account. The CLIs' own logins stay where they are.
 
 How an account's credentials reach a turn is in the [Providers
 reference](/reference/providers).

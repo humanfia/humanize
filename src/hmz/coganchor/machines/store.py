@@ -7,9 +7,9 @@ each environment onto whichever of its nodes has room, or this Mac's Apple conta
 share of it they may have. A flow's environment is put on one
 when an `-e` names it, and moved down the runtimes it falls back to where it cannot be held
 there. One directory per runtime, under
-`~/.humanize/runtimes/<backend>/<name>/`, holding `runtime.json`.
+`~/.hmz/runtimes/<backend>/<name>/`, holding `runtime.json`.
 
-They were once kept under `~/.humanize/env-providers/`, each in a `provider.json`; the first
+They were once kept under `~/.hmz/env-providers/`, each in a `provider.json`; the first
 look for them moves that directory where they are kept now, and one still in a `provider.json`
 is read from it until it is next written.
 

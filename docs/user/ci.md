@@ -218,7 +218,7 @@ instead, which fetches it for the run and installs nothing:
 ```
 
 The `@v0.1.0` is a tag; a commit pins the flow so that nothing upstream can change what runs at
-night. A flow of your own needs none of this: commit it to `.humanize/flows/` and name it with
+night. A flow of your own needs none of this: commit it to `.hmz/flows/` and name it with
 `-f <name>`.
 
 ## Keep a trace

@@ -46,14 +46,14 @@ def test_a_mirror_inside_a_local_path_is_still_the_targets() -> None:
     its every command to the target's home directory instead of the workdir.
     """
     router = Router(
-        layouts=(Layout.create("/home/me/.humanize/envs/mirrors/box/ab12", "/work"),),
-        local_paths=("/home/me/.humanize", "/home/me/.humanize/envs/mirrors/box/ab12"),
+        layouts=(Layout.create("/home/me/.hmz/envs/mirrors/box/ab12", "/work"),),
+        local_paths=("/home/me/.hmz", "/home/me/.hmz/envs/mirrors/box/ab12"),
     )
-    assert router.virtual_cwd("/home/me/.humanize/envs/mirrors/box/ab12") == "/work"
-    assert router.to_virtual("/home/me/.humanize/envs/mirrors/box/ab12/a.py") == (
+    assert router.virtual_cwd("/home/me/.hmz/envs/mirrors/box/ab12") == "/work"
+    assert router.to_virtual("/home/me/.hmz/envs/mirrors/box/ab12/a.py") == (
         "/work/a.py"
     )
-    assert not router.is_remote_path("/home/me/.humanize/providers/key.json")
+    assert not router.is_remote_path("/home/me/.hmz/providers/key.json")
 
 
 def test_a_mirror_reached_through_a_symlink_answers_to_both_names() -> None:

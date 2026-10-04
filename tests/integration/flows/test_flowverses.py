@@ -550,12 +550,12 @@ def test_a_flow_of_your_own_still_wins_a_bare_name(
     store.add(str(theirs))
     install("theirs", "review")
     project = tmp_path / "project"
-    written(project / ".humanize/flows", "loop", FLOW)
-    written(project / ".humanize/flows", "review", FLOW)
+    written(project / ".hmz/flows", "loop", FLOW)
+    written(project / ".hmz/flows", "review", FLOW)
     monkeypatch.chdir(project)
 
-    assert find("loop") == str((project / ".humanize/flows/loop" / ENTRY).resolve())
-    assert find("review") == str((project / ".humanize/flows/review" / ENTRY).resolve())
+    assert find("loop") == str((project / ".hmz/flows/loop" / ENTRY).resolve())
+    assert find("review") == str((project / ".hmz/flows/review" / ENTRY).resolve())
     # But a flowverse's own name for one is not a name anything of yours can stand in for.
     assert find("official/loop") == str((kept(OFFICIAL) / "loop" / ENTRY).resolve())
     assert find("theirs/review") == str((kept("theirs") / "review" / ENTRY).resolve())
@@ -571,7 +571,7 @@ def test_an_installed_flow_forked_is_yours_and_says_nothing_of_where_it_came_fro
 
     at = fork("theirs/loop")
 
-    assert at == ".humanize/flows/loop"
+    assert at == ".hmz/flows/loop"
     assert sorted(one.name for one in (tmp_path / at).iterdir()) == [ENTRY]
     assert find("loop") == str((tmp_path / at / ENTRY).resolve())
     assert (

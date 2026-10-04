@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.agent
 
 #: Where this machine keeps what each backend last said it runs as whoever is signed into it.
-_KEPT = Path.home() / ".humanize" / "models"
+_KEPT = Path.home() / ".hmz" / "models"
 
 #: One word, no tools: what is being tested is where a turn keeps itself, not what it says.
 _ASKED = "Reply with exactly: OK"

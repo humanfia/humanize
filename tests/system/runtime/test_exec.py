@@ -82,7 +82,7 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A project of its own, with the demo flow in it; skipped where there is no `claude`."""
     if shutil.which("claude") is None:
         pytest.skip("claude is not installed here")
-    written(tmp_path / ".humanize" / "flows", "demo", DEMO)
+    written(tmp_path / ".hmz" / "flows", "demo", DEMO)
     monkeypatch.chdir(tmp_path)
     return tmp_path
 

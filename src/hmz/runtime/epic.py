@@ -17,7 +17,7 @@ run's.
 
 One epic is one run, and one directory::
 
-    ~/.humanize/epics/<workspace>/<when>-<which>/
+    ~/.hmz/epics/<workspace>/<when>-<which>/
         epic.jsonl                      what happened, a line at a time
         epic.<flow>_<which>.jsonl       the same, for one flow the run called
         resume.jsonl                    the engine's journal, for a flow that can be picked up
