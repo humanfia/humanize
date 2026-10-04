@@ -7,6 +7,12 @@ the release, with an attestation saying where it was built. It is for the mainta
 Cut a release when `main` holds something people installing `hmz` should have. A release is
 never replaced: one that turns out broken is yanked, and the next one fixes it.
 
+::: warning No release yet
+humanize has not been released, so every install is of `main` from GitHub. The first release
+also turns each `git+https://github.com/humanfia/humanize.git` in `README.md` and the docs
+into plain `hmz`.
+:::
+
 ::: info Before you start
 - Write access to humanfia/humanize, and [`gh`](https://cli.github.com/) signed in to it.
 - A checkout set up as in [Contributing](/contributing/).

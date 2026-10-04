@@ -102,7 +102,7 @@ async def twice(
 :::
 
 ```sh
-uvx --with hmz \
+uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto
 ```
 
@@ -255,7 +255,7 @@ async def test_it_stops_when_the_reviewer_says_done() -> None:
 ```
 
 ```sh
-uvx --with hmz \
+uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto .humanize/tests/test_reviewed.py
 ```
 
@@ -630,7 +630,7 @@ def test_unfinished() -> None:
 ```
 
 ```sh
-uvx --with hmz \
+uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto -o pythonpath=flows/review
 ```
 
@@ -652,7 +652,7 @@ requires-python = ">=3.12"
 
 [dependency-groups]
 dev = [
-    "hmz",
+    "hmz @ git+https://github.com/humanfia/humanize.git",
     "pytest",
     "pytest-asyncio",
 ]

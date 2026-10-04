@@ -9,7 +9,7 @@
 import { onUnmounted, ref } from 'vue'
 
 // The same line README.md and the quickstart below install with.
-const LINE = 'uv tool install hmz'
+const LINE = 'uv tool install git+https://github.com/humanfia/humanize.git'
 
 // Same-page fragments, so no `withBase`: these resolve against whatever the page is served as,
 // which under `base: '/humanize/'` is the only spelling that stays right.

@@ -37,15 +37,15 @@ humanize, and export your key before step 2:
 ::: code-group
 
 ```sh [pip]
-pip install 'hmz[dsh]'
+pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
 ```
 
 ```sh [pipx]
-pipx install --force 'hmz[dsh]'
+pipx install --force 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
 ```
 
 ```sh [uv tool]
-uv tool install 'hmz[dsh]'
+uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
 ```
 
 :::

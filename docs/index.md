@@ -39,15 +39,15 @@ others](/features/backends). humanize drives it under that login.
 ::: code-group
 
 ```sh [uv]
-uv tool install hmz
+uv tool install git+https://github.com/humanfia/humanize.git
 ```
 
 ```sh [pip]
-pip install hmz
+pip install git+https://github.com/humanfia/humanize.git
 ```
 
 ```sh [for DeepSeek Harness or Kimi Code]
-uv tool install 'hmz[all]'
+uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
 ```
 
 :::

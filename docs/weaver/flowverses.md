@@ -117,7 +117,7 @@ async def test_review_asks_for_review_md() -> None:
 ```
 
 ```sh
-uvx --with hmz \
+uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto
 ```
 

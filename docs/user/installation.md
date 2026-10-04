@@ -20,7 +20,7 @@ a few minutes, most of it the CLI's own sign-in.
 With Claude Code, the whole thing is:
 
 ```sh
-uv tool install hmz
+uv tool install git+https://github.com/humanfia/humanize.git
 npm i -g @anthropic-ai/claude-code && claude auth login
 hmz --version
 ```
@@ -50,22 +50,23 @@ is copied: your login stays where the CLI keeps it. To run a CLI as another acco
 ::: code-group
 
 ```sh [uv tool]
-uv tool install hmz
+uv tool install git+https://github.com/humanfia/humanize.git
 ```
 
 ```sh [pipx]
-pipx install hmz
+pipx install git+https://github.com/humanfia/humanize.git
 ```
 
 ```sh [pip]
-pip install hmz
+pip install git+https://github.com/humanfia/humanize.git
 ```
 
 :::
 
-Each one gives you the `hmz` command. `uv tool` and `pipx` put it in an environment of its own,
-on your `PATH` from every directory. `pip` installs into whichever environment is active, so
-`hmz` is there only while that environment is.
+Each one gives you the `hmz` command, built from the latest `main` on GitHub: humanize has no
+release yet. `uv tool` and `pipx` put it in an environment of its own, on your `PATH` from
+every directory. `pip` installs into whichever environment is active, so `hmz` is there only
+while that environment is.
 
 ### Two backends need an extra {#the-two-backends-that-are-extras}
 
@@ -81,33 +82,21 @@ humanize's own environment:
 ::: code-group
 
 ```sh [uv tool]
-uv tool install 'hmz[all]'
+uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
 ```
 
 ```sh [pipx]
-pipx install 'hmz[all]'
+pipx install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
 ```
 
 ```sh [pip]
-pip install 'hmz[all]'
+pip install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
 ```
 
 :::
 
 You can add one later without reinstalling humanize. The agent menu lists a backend that is
 missing its extra, with the install command on its row.
-
-### The latest `main` instead of a release
-
-Each line above installs the latest release from PyPI. To run what is on `main` before it is
-released, install from GitHub instead, with or without an extra:
-
-```sh
-uv tool install git+https://github.com/humanfia/humanize.git               # humanize alone
-uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'  # with both extras
-```
-
-`pipx install` and `pip install` take the same argument.
 
 ## 2. Sign in to a coding agent {#signing-each-backend-in}
 
@@ -335,17 +324,17 @@ pipx upgrade hmz
 ```
 
 ```sh [pip]
-pip install --upgrade hmz
+pip install --force-reinstall git+https://github.com/humanfia/humanize.git
 ```
 
 :::
 
-`uv tool upgrade` and `pipx upgrade` keep an install
-[from GitHub](#the-latest-main-instead-of-a-release) on the latest `main`. To move it to
-releases, install over it: `uv tool install --force hmz`, or `pipx install --force hmz`.
+`uv tool upgrade` and `pipx upgrade` move humanize to the latest `main`, with the extras it was
+installed with. `pip` needs `--force-reinstall`, as `main` keeps one version number from commit
+to commit and `pip install --upgrade` leaves a version it already has alone. Name an extra
+again: `pip install --force-reinstall 'hmz[all] @ git+https://github.com/humanfia/humanize.git'`.
 
-What each release changed is on
-[GitHub Releases](https://github.com/humanfia/humanize/releases).
+What changed is in the [commits on `main`](https://github.com/humanfia/humanize/commits/main).
 
 ## Uninstall
 
