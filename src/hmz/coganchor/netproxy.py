@@ -53,7 +53,10 @@ class NetProxy:
 
     def close(self) -> None:
         self._running.clear()
-        self._wake_write.send(b"\x00")
+        # The loop may have seen the flag go at its own timeout and shut its end already,
+        # which is the wake this was for.
+        with contextlib.suppress(OSError):
+            self._wake_write.send(b"\x00")
 
     def redirect(self, host: str, port: int, family: int) -> tuple[str, int] | None:
         """Return the loopback address to connect to instead, or ``None``.
