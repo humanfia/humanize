@@ -443,6 +443,8 @@ A flow ref can be either:
 
 - (in a flow only) `:<subflow>`: another flow in the same flow module;
 - (in a flow only) `<flow>:<subflow>`: a flow beside the flow asking;
+- `<user>/<flow>[:<subflow>]`: a flow `official` lists under that GitHub user -- for an
+  installed flow asking, one its own flowverse lists, installed beside it;
 - `<pip-style-vcs-url>[#<subdir>][:<subflow>]`: a flow in `<subdir>` of a repository, or at
   its root.
 

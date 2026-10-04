@@ -293,6 +293,8 @@ def load(ref: str) -> Flow:
     - `:<subflow>`, a flow in the same module as the flow asking;
     - `<flow>` or `<flow>:<subflow>`, a flow beside the flow asking -- the bare form being
       the flow named after the directory, else the one visible flow it holds;
+    - `<user>/<flow>` or `<user>/<flow>:<subflow>`, a flow `official` lists under that GitHub
+      user -- for an installed flow asking, one its own flowverse lists, installed beside it;
     - `<pip-style-vcs-url>[#<subdir>][:<subflow>]`, a flow of a repository, in the directory
       after the `#` or at its root, such as
       `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`.
