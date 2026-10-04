@@ -8987,7 +8987,7 @@ class Machines(Pages):
         """Asks for a runtime on the form that makes one, saves it, and asks what it has.
 
         Args:
-          backend: `ssh`, `docker` or `swarm`.
+          backend: `ssh`, `docker`, `swarm` or `apple-container`.
         """
         if self.opening():
             return

@@ -1399,7 +1399,7 @@ description. Keys: `enter choose   tab actions   esc back`.
 | Row or button | Description | Effect |
 | --- | --- | --- |
 | `edit` | `edit saved settings` | Its form, without `name`; checked after saving (`<backend>/<name> updated`). |
-| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits`; swarm: `check the swarm's nodes against its quota` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …` -- for a swarm `answers: swarm <version>; <n> nodes: <a>, <b>, … and <k> more; <cpus> CPUs, <mem> all told`, naming the first 8 of the nodes that may take a task; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
+| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits`; swarm: `check the swarm's nodes against its quota`; apple-container: `check this Mac's resources against its limits` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …` -- for a swarm `answers: swarm <version>; <n> nodes: <a>, <b>, … and <k> more; <cpus> CPUs, <mem> all told`, naming the first 8 of the nodes that may take a task; for Apple containers `answers: container <version>; <cpus> CPUs, <mem>`; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
 | **Remove** (red) | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`, and `<names> reached a swarm through this host; edit them` for a swarm whose endpoint or one of whose nodes it was. |
 
 #### ssh host form {#ssh-form}
@@ -1420,7 +1420,7 @@ never read.`
 | `options` | `additional ssh options: KEYWORD=VALUE, …` |
 | `workdir` | `default working directory when -e specifies none: /abs or ~/path` |
 | `falls back to` | `runtimes to try in order if this one cannot: docker:box, ssh:gpu2`. Entries apart by commas, saved as the runtime's [`fallback`](/reference/machines#falling-back); its row then ends `· falls back to <entries>`. |
-| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>, swarm:<name>; blank for self where the CLI is there, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
+| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>; blank for self where the CLI is there, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
 
 Button: **Done**, `adds ssh/<name>, and checks its resources` / `updates …`.
 
