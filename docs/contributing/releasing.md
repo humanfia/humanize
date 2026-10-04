@@ -53,7 +53,7 @@ Release only when no cell reads `FAIL` or `XPASS`: fix it on `main` first.
 
 ```sh
 git switch main && git pull
-git switch -c release/v0.2.0
+git switch -c chore/release-v0.2.0
 uv version --bump minor
 ```
 
