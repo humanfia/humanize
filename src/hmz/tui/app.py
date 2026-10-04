@@ -230,13 +230,16 @@ _UNWINDING = "it is finishing the turn it was in"
 _STARTS_ON = "chat"
 
 #: What a `$` may name, which is a flow by the name it is offered under: `@<where it came
-#: from>/` for one that is not humanize's, or else a letter; then what the directory holding a
-#: flow is called, `<user>/<flow>` for one an index lists under a user, and `:<inside>` for one
-#: of the several a file holds. Only a line whose `$` is followed by that and then by
-#: whitespace or nothing is a flow being started -- anything else after the `$`, a space, a
-#: bracket, a figure, nothing at all, names no flow there could be, and is a line somebody
-#: happened to begin with a `$`.
-_NAMED = re.compile(r"(?:@[\w.-]+/|(?=[A-Za-z]))[\w.-]+(?:/[\w.-]+)?(?::[\w.-]+)?")
+#: from>/` for one that is not humanize's, or else a letter, or a GitHub user -- who may begin
+#: with a figure -- a slash and a letter; then what the directory holding a flow is called,
+#: `<user>/<flow>` for one an index lists under a user, and `:<inside>` for one of the several
+#: a file holds. Only a line whose `$` is followed by that and then by whitespace or nothing is
+#: a flow being started -- anything else after the `$`, a space, a bracket, a figure that is no
+#: user's, nothing at all, names no flow there could be, and is a line somebody happened to
+#: begin with a `$`.
+_NAMED = re.compile(
+    r"(?:@[\w.-]+/|(?=[A-Za-z]|[0-9][\w-]*/[A-Za-z]))[\w.-]+(?:/[\w.-]+)?(?::[\w.-]+)?"
+)
 
 #: How long a request made on the way out is given to be answered: the interface is going,
 #: and a host that will not answer is not one to be left behind a frozen screen for.
@@ -3492,7 +3495,13 @@ class Humanize(App[None]):
             # the half to correct. A path is not one of the answers -- it would swallow the
             # prose after it -- so `/flow` is where a flow of your own by path is reached.
             telemetry.snag("unknown-flow", length=len(named))
-            self.show(f"hmz: no such flow: {named}", "red")
+            from hmz.runtime.flowing.verses import renamed
+
+            # And a name said the way it was before the `@` is told what it is now, as `-f`
+            # tells it.
+            now, whose = renamed(named), named.partition("/")[0]
+            why = f" -- a flow of {whose} is called {now} now" if now != named else ""
+            self.show(f"hmz: no such flow: {named}{why}", "red")
             return
         if self._run is not None:
             # The same answer `/flow <name>` gives while one runs, since it is the same thing

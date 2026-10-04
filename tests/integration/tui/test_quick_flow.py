@@ -318,11 +318,33 @@ async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end(
 
 @pytest.mark.timeout(60)
 @pytest.mark.parametrize(
+    ("line", "said"),
+    [
+        # Said the way names were before the `@`, and told what it is now, as `-f` tells it.
+        ("$local/nosuchflow go", "a flow of local is called @local/nosuchflow now"),
+        # A GitHub user may begin with a figure, and is still a flow being named.
+        ("$3scale/nosuchflow go", "no such flow: 3scale/nosuchflow"),
+    ],
+)
+async def test_a_name_that_is_no_flow_is_answered_for_what_it_was(
+    line: str, said: str, started: list[Started]
+) -> None:
+    app = Humanize()
+    async with app.run_test() as driver:
+        await sends(app, driver, line)
+        await until(lambda: said in transcript(app), driver)
+
+        assert not started
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.parametrize(
     "line",
     [
         "$",  # a sigil naming nothing, which is a shell prompt somebody pasted
         "$ ls -la",
         "$5 says it is the parser",
+        "$10/20 of it passed",
         "$(pwd) is where it looked",
     ],
 )

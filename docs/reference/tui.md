@@ -374,20 +374,22 @@ The second line only where a daemon holds the run.
 
 ```text
 dollar-line = "$" , name , ( ws , task )? ;
-name        = segment , { "/" , segment } , [ ":" , ( word-char | "." | "-" )+ ] ;
-segment     = letter , { word-char | "." | "-" } ;
+name        = ( "@" , part , "/" )? , part , ( "/" , part )? , ( ":" , part )? ;
+part        = ( word-char | "." | "-" )+ ;
 ```
 
-Regex: `[A-Za-z][\w.-]*(?:/[A-Za-z][\w.-]*)*(?::[\w.-]+)?` at `line[1:]`, followed by
-whitespace (a newline included) or the end. The task is the rest, stripped. A line not
-matching (`$ ls`, `$5`, `$(pwd)`, `$`) is an ordinary line. Paths are not names: use
-`/flow ./path`.
+Without `@`, the name starts with a letter, or with a GitHub user that starts with a figure
+and is followed by `/` and a letter. Regex:
+`(?:@[\w.-]+/|(?=[A-Za-z]|[0-9][\w-]*/[A-Za-z]))[\w.-]+(?:/[\w.-]+)?(?::[\w.-]+)?` at
+`line[1:]`, followed by whitespace (a newline included) or the end. The task is the rest,
+stripped. A line not matching (`$ ls`, `$5`, `$10/20`, `$(pwd)`, `$`) is an ordinary line.
+Paths are not names: use `/flow ./path`.
 
 | Condition | Result |
 | --- | --- |
 | btw on | Asked as a side question. |
 | a question is answerable here (aggregate, monitor, or the asking outworlder's view) | Taken as the answer. |
-| `<name>` not among the offered flows | `hmz: no such flow: <name>` |
+| `<name>` not among the offered flows | `hmz: no such flow: <name>`, and for a name said as before the `@` (`local/x`) ` -- a flow of local is called @local/x now` |
 | a run going | `hmz: cannot choose a flow while one is running` |
 | the flow is [set up](#set-up) | Chosen; with a task, the run starts. Without a task, `enter a task to start the flow`. |
 | not set up | `/flow` opens inside it, holding the task; the run starts when the menu is saved. Leaving without saving: `flow not set up; nothing started` (dim). |
