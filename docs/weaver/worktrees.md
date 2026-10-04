@@ -456,7 +456,7 @@ class Workspace(Env, GitWorktreeEnvMixin): ...  # Env: named with -e
 
 ```sh
 hmz exec -f parts -a agent=claude/claude-opus-5:high \
-    -e workspace=ssh@gpu-box/home/me/repo -p budget.cost=20 "port the tokenizer"
+    -e workspace=ssh@[gpu-box]/home/me/repo -p budget.cost=20 "port the tokenizer"
 ```
 
 Everything on this page works the same there. Worktrees, copies, scratch directories and

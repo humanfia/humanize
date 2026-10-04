@@ -1603,7 +1603,7 @@ Read [Security](/user/security) before running any.
 
 ```sh
 hmz exec -f <flow> [-a <role>=<spec>[,…]]… [-e <role>=<spec>[,…]]… [-p <key>=<value>[,…]]…
-         [--resume] [--json] <task>
+         [--profile] [--resume] [--json] <task>
 ```
 
 `-a`, `-e` and `-p` may each be repeated; every occurrence is a comma list. A comma
@@ -1733,7 +1733,7 @@ work is on, an ordered list whose next entry is tried only where the one before 
 | --- | --- |
 | here | here |
 | on a machine nobody saved, or a runtime with no affinity | on the environment's machine, natively, if all hold: no `on_pre_tool_use`/`on_permission_request` hook hung when the session opens (an `on_ask_user` hook does not keep it here); the CLI is on that machine's `PATH`; for a fenced session, that machine can hold the fence. Otherwise here, anchored to the machine. |
-| on a runtime with an affinity | the first entry with room: `local` here, anchored to the machine (always room); `self` natively on the machine (no room where the CLI is missing or the fence cannot be held); `ssh:<name>` / `docker:<name>` on that runtime, acting on the work through the anchor (no room where it cannot be opened or reached, has no share left, or the role's permission is anything but every scope `ALL`) |
+| on a runtime with an affinity | the first entry with room: `local` here, anchored to the machine (always room); `self` natively on the machine (no room where the CLI is missing or the fence cannot be held); `ssh:<name>`, `docker:<name>`, `swarm:<name>` or `apple-container:<name>` on that runtime, acting on the work through the anchor (no room where it cannot be opened or reached, has no share left, or the role's permission is anything but every scope `ALL`) |
 
 The affinity is the one of the runtime actually opened for the work; a runtime a harness is
 put on is opened as an environment of its own (its workdir, else `~` over ssh, else

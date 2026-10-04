@@ -149,7 +149,7 @@ def read_line(argv: list[str]) -> Line:
         metavar="ROLE=SPEC[,...]",
         help="where an environment role works: ROLE=BACKEND[@PROVIDER][/WORKDIR], "
         "PROVIDER a saved runtime or, for ssh only, a host in brackets "
-        "(ssh@[me@box:22]/srv); none is this machine",
+        "(ssh@[me@box:22]/srv); none, except for ssh, is this machine",
     )
     parser.add_argument(
         "-p",

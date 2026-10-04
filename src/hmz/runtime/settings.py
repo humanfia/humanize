@@ -418,8 +418,9 @@ def _spelling() -> int:
 def _respelled(held: dict[str, Any]) -> bool:
     """Spells every environment in one reading of the file as `-e` spells one now.
 
-    What was kept before an `@` was a provider's alone -- `local@/x`, `docker@local/x`, an ssh
-    host nobody saved out of brackets -- in every workspace, and nothing else.
+    What was kept before an `@` was a provider's alone -- `local@/x`, `docker@local/x`,
+    `swarm@local/x`, `apple-container@local/x`, an ssh host nobody saved out of brackets -- in
+    every workspace, and nothing else.
 
     Args:
       held: The reading, which is changed in place.

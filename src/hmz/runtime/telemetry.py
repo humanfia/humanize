@@ -237,9 +237,10 @@ def start() -> bool:
             # an interface sitting at a prompt is not work anybody needs a profile of.
             profile_lifecycle="trace",
             # The one default integration that would break the promise above: it attaches
-            # `sys.argv`, and `hmz exec -f ralph_loop -a claude/... "$(cat TASK.md)"` puts the
-            # whole task on it. Taken out here, and taken off again in `_before_send`, since a
-            # switch this load-bearing is worth being wrong about twice.
+            # `sys.argv`, and `hmz exec -f ralph_loop -a agent=claude/... -p budget.cost=5
+            # "$(cat TASK.md)"` puts the whole task on it. Taken out here, and taken off again
+            # in `_before_send`, since a switch this load-bearing is worth being wrong about
+            # twice.
             disabled_integrations=[ArgvIntegration()],
             release=_version(),
             before_send=_before_send,

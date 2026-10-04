@@ -49,6 +49,7 @@ answer at once:
 | `-p budget.…` | what the run may spend | every flow but `chat` |
 | `-p` | the flow's own [params](/weaver/flow-settings), where you want other than the defaults | when you want them |
 | `-e` | where an environment role is, for a flow that works on [another machine](/user/remote-execution) | when the flow has one |
+| `--profile` | sample the programs the agents start, so the run's trace shows what each turn spent its time on | no |
 | `--resume` | carry on the last run of this flow here, rather than start over | no |
 | `--json` | write the run to stdout as one JSON object per line | no |
 | the task | what the flow is to do | always |

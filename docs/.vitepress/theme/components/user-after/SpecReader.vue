@@ -45,7 +45,7 @@ const EXAMPLES = [
 
 const USAGE = [
   'usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]',
-  '                [-p KEY=VALUE[,...]] [--resume] [--json]',
+  '                [-p KEY=VALUE[,...]] [--profile] [--resume] [--json]',
   '                task',
 ]
 

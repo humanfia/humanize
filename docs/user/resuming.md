@@ -62,9 +62,11 @@ There are three ways in:
 | `/epics`, then **resume run** | any run you choose | the same: that run's own setup |
 | `hmz exec --resume` | the newest run of the `-f` flow here that saved something | the line's own `-a`, `-e` and `-p`, budget included |
 
-A run whose environments were written down as `local@/srv/x`, `docker@local/srv/x` or an ssh
-host nobody saved out of brackets is picked up on the same places, spelled as `-e` takes them:
-`local/srv/x`, `docker/srv/x`, `ssh@[host]/…`.
+A run whose environments were written down as `local@/srv/x`, `docker@local/srv/x`,
+`swarm@local/srv/x`, `apple-container@local/srv/x` or an ssh host nobody saved out of brackets
+is picked up on the same places, spelled as `-e` takes them: `local/srv/x`, `docker/srv/x`,
+`swarm/srv/x`, `apple-container/srv/x`, `ssh@[host]/…` -- the `@local` ones only while no
+runtime of theirs is saved as `local`, and an ssh host only while none is saved by its name.
 
 ## Example: stop a Ralph loop on its budget, then carry it on
 

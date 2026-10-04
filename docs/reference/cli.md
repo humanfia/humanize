@@ -136,7 +136,7 @@ option-value  = item , { "," , spaces , item } ;          (* split: see Items *)
 key           = ( letter | "_" ) , { letter | digit | "_" | "-" } ;
 identifier    = ? a Python identifier (str.isidentifier) ? ;
 
-agent         = identifier , "=" , cli , ( "@" , provider )? , "/" , model , ":" , effort ;
+agent         = identifier , "=" , cli , ( "@" , provider )? , "/" , model , ( ":" , effort )? ;
 cli           = ? a CLI name or alias, or an ACP CLI's name; contains no "@", "/" or "," ? ;
 provider      = ? an account name; non-empty after "@" ? ;
 model         = ? any text, may contain "/" and ":" ; non-empty ? ;
@@ -240,7 +240,7 @@ Parsed by the regex
 | `<role>` | A Python identifier. |
 | `<backend>` | `local`, `ssh`, `docker`, `swarm` or `apple-container`. |
 | `<provider>` | Absent: this machine — a directory here for `local`, docker's default daemon here for `docker`, the swarm this machine manages for `swarm`, this Mac's [Apple containers](/user/containers#apple-containers) with nothing saved for `apple-container`. `local` takes no provider at all; `ssh` always takes one. `@<name>`: the [runtime](/reference/machines#runtimes) saved under that name for that backend; a name nothing is saved under is refused. `@[<host>]`, for `ssh` only: a host nobody saved, `[user@]host[:port]` or an alias of the ssh config, handed to `ssh` as it is; it never stands for a saved runtime and has no fallback list. |
-| `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home. Omitted: the saved runtime's own workdir, refused where no runtime is named or it was saved with none. For `docker`, a directory of the daemon's host, mounted into the container at the same path; for `swarm`, one every node its task may land on has, likewise; for `apple-container`, a directory of this Mac, mounted likewise. |
+| `<workdir>` | From the first `/` after the provider. `/~` and `/~/…` are relative to the ssh login's home for `ssh`, and to this user's home for `local` and for `docker`, `swarm` or `apple-container` on this machine. Omitted: the saved runtime's own workdir, refused where no runtime is named or it was saved with none. For `docker`, a directory of the daemon's host, mounted into the container at the same path; for `swarm`, one every node its task may land on has, likewise; for `apple-container`, a directory of this Mac, mounted likewise. |
 
 `local/home/me/repo`, `docker/srv/repo`, `swarm/srv/repo` and `apple-container/Users/me/repo`
 are this machine; `ssh@gpu-box/~/repo`, `docker@gpubox/srv/repo`, `swarm@cluster/srv/repo` and
@@ -315,8 +315,8 @@ hmz exec: nobody lists a price for <model>[, <model>…], so cost=<n> cannot sto
 The *harness* is an agent's CLI and its supervisor. Nothing on the line says where it runs:
 no option of `hmz exec` takes it. Work on this machine has its harness here; work
 on a saved [runtime](/reference/machines#runtimes) has it where that runtime's `affinity` says,
-in order (`self` on the runtime's own machine, `local` here, `ssh:<name>` / `docker:<name>` on
-another saved runtime); work on a machine nobody saved, or on a runtime with no affinity, has it
+in order (`self` on the runtime's own machine, `local` here, `ssh:<name>`, `docker:<name>`,
+`swarm:<name>` or `apple-container:<name>` on another saved runtime); work on a machine nobody saved, or on a runtime with no affinity, has it
 on the environment's machine where the agent's CLI is installed there and can be fenced to the
 role's permission and no hook gating its tools is hung, and here otherwise.
 
@@ -388,7 +388,7 @@ Stage 1–2 messages are preceded by the usage block.
 | a `-p` key twice | `-p: '<key>' is given twice` |
 | `budget` with no limit | `-p '<item>': a budget is given a limit at a time, as budget.cost=5` |
 | an unknown `budget.` limit | `-p budget.<limit>: not a limit; one of budget.duration, budget.cost, budget.output_tokens, budget.graceful` |
-| a `budget.` value | `-p budget.duration: '<v>' names a unit twice`, `-p budget.duration: '<v>' is not a valid duration: must be finite and not negative`, `-p budget.duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`, `-p budget.cost: '<v>' is not a valid USD cost`, `-p budget.output_tokens: '<v>' must be a whole number of tokens`, `-p budget.output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`, `-p budget.graceful: '<v>' must be true or false` |
+| a `budget.` value | `-p budget.duration: '<v>' names a unit twice`, `-p budget.duration: '<v>' is negative`, `-p budget.duration: duration '<v>' is too long`, `-p budget.duration: '<v>' is not a valid duration: must be finite and not negative`, `-p budget.duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`, `-p budget.cost: '<v>' is not a valid USD cost`, `-p budget.output_tokens: '<v>' must be a whole number of tokens`, `-p budget.output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`, `-p budget.graceful: '<v>' must be true or false` |
 | a budget that limits nothing | `-p budget.*: Value error, a budget sets at least one of duration, cost, output_tokens` |
 | no such flow | `<ref>: no flow is called '<ref>'` (a path: `<ref>: there is no flow at <ref>`); `<ref>: a flow of local is called @local/<flow> now`; `<ref>: a path starts with ./, / or ~, as ./<ref> does`; `<ref>: not installed -- install it from /flow (flowverse <flowverse>)`; `<ref>: the official flowverse has not been fetched yet -- fetch it from /flow` |
 | a role the flow does not declare | `<flow> has no agent role '<role>'; available roles are '<a>', '<b>'` (`… environment role …` for `-e`; `none` where there are none) |
@@ -775,5 +775,5 @@ Every command is a shell around [`hmz.sdk.Hmz`](/reference/sdk#hmz):
 | --- | --- |
 | `hmz exec <argv>` | [`Hmz().exec(argv)`](/reference/sdk#hmz-exec) |
 | reading an `hmz exec` line | [`Hmz().read(argv)`](/reference/sdk#hmz-read) → `Line` |
-| `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, profile=…, resume=…, harness=…)`](/reference/sdk#hmz-run) |
+| `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, profile=…, resume=…)`](/reference/sdk#hmz-run) |
 | `hmz` (as a frontend of held runs) | [`Daemons().host().link()`](/reference/sdk#daemons) |
