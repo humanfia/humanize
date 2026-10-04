@@ -27,7 +27,8 @@ an attestation naming the workflow run that built it.
 
 The release notes are generated from the pull requests merged since the last release, grouped
 by the labels their titles give them: breaking changes, features, fixes, performance,
-documentation, and everything else. Chores and Dependabot's bumps are left out.
+documentation, and everything else. Chores that break nothing, and Dependabot's bumps, are left
+out.
 
 Which part of the version to bump:
 
