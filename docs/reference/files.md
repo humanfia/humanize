@@ -28,7 +28,8 @@ the first time humanize looks for it, with no message:
 The rename happens only while the new directory does not exist. When both exist, the new one
 is used and the old one is left as it is; nothing is merged. A rename that fails (a parent
 that cannot be written, a mount point) is not an error: the old directory is just not used.
-Snapshots and rewinds leave a workspace's `.humanize/` alone, as they leave its `.hmz/`.
+Snapshots and rewinds leave a `.humanize/` at the top of the git worktree alone, as they leave
+a `.hmz/` there.
 
 With `HUMANIZE_HOME` set, `~/.humanize` is not moved, so flows of your own still in
 `~/.humanize/flows` are not found until you move them to `~/.hmz/flows`.

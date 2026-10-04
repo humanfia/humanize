@@ -492,7 +492,7 @@ A path is answered from the target unless it is one of these:
 | Codex's native binary and `codex-code-mode-host` | `statepaths._codex_runtime_programs` |
 | Every executable beside the program inside its own `node_modules` package (e.g. mimo's `bin/.mimocode`) | `statepaths._beside` |
 | The CLI's state paths (table below), as files and as programs | `statepaths.PROFILES` |
-| `~/.hmz`, `~/.cache/humanize`, `~/.config/humanize` | `statepaths.COMMON_STATE_PATHS` |
+| `~/.hmz`, `~/.humanize`, `~/.cache/humanize`, `~/.config/humanize` | `statepaths.COMMON_STATE_PATHS` |
 | `local_paths`, `local_execs`, and what every `redirects` entry is answered with | `AnchorConfig` |
 | The program that bridges the flow's tool callbacks, when offered | added to `local_execs` |
 

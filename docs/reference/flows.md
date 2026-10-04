@@ -1362,8 +1362,8 @@ wins:
 | --- | --- | --- |
 | 1 | `local` | `.hmz/flows/` under the current directory |
 | 2 | `user` | `~/.hmz/flows/` (literally `~`, not `HUMANIZE_HOME`) |
-| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.hmz/flowverses/official/installed/` |
-| 4 | other flowverses | `~/.hmz/flowverses/<name>/installed/`, alphabetically |
+| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.hmz/flowverses/official/installed/` (under `HUMANIZE_HOME` where it is set) |
+| 4 | other flowverses | `~/.hmz/flowverses/<name>/installed/` (likewise), alphabetically |
 
 Only what is built in, installed or in `local` and `user` is found: never a flow an index only
 lists. `<user>/<flow>` looks in `official` only, and `@<flowverse>/…` in that flowverse only. A

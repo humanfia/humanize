@@ -302,7 +302,7 @@ bbb6915909f7716b82f3a408104593c20fe8928d commit	refs/hmz/snapshots/before-task
 bbb6915 hmz: snapshot before-task
 ```
 
-`.hmz/` is where your flows are, and a rewind never removes it. Files git ignores are
+`.hmz/` is where your flows are, and a rewind never removes it from the top of the worktree. Files git ignores are
 left alone too. A snapshot stays in the repository until something removes it: `git
 update-ref -d refs/hmz/snapshots/before-task` does.
 

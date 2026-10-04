@@ -286,7 +286,9 @@ that project. The full list is in the [CLI reference](/reference/cli).
 
 Older versions used `~/.humanize/` and `.humanize/`. You don't have to do anything about
 them: humanize renames each one to `.hmz` the first time it looks there. If both are there,
-it uses `.hmz` and leaves the old one alone. See [Files](/reference/files#moved-from-humanize).
+it uses `.hmz` and leaves the old one alone. With `HUMANIZE_HOME` set, `~/.humanize` is left
+where it is, so move any flows of your own in `~/.humanize/flows` to `~/.hmz/flows` yourself.
+See [Files](/reference/files#moved-from-humanize).
 
 ## Troubleshooting
 

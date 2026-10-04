@@ -294,7 +294,7 @@ takes a flowverse's bare name, and its methods a flow by index name (`<flow>`,
 | `standing(one: Flowverse)` | `str` | The clone's commit, or `""`. |
 | `where(name: str)` | `Path` | Its index's directory, fetched or not. |
 | `plain(url: str)` | `str` | `url` with credentials removed. |
-| `whence(one: Flowverse, nowhere: str = "-")` | `str` | Displayable origin: the credential-free URL; `your own flows in .hmz/flows` for `local`; `nowhere` for a directory with no readable origin. |
+| `whence(one: Flowverse, nowhere: str = "-")` | `str` | Displayable origin: the credential-free URL; `your own flows in .hmz/flows` for `local`, `your own flows in ~/.hmz/flows` for `user`; `nowhere` for a directory with no readable origin. |
 
 ```python
 from hmz.sdk import Hmz
