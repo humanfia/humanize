@@ -384,6 +384,12 @@ async def test_a_fake_env_rewinds_to_a_snapshot_or_to_what_it_was_made_with() ->
     await env.rewind("main")
     assert env.files == {"a.txt": b"A"}
     assert await env.snapshots() == ["refs/hmz/snapshots/b"]
+    # humanize's own directory, now and as it was called before, is neither kept nor taken.
+    await env.write(".hmz/flows/x.py", b"x")
+    await env.write(".humanize/old", b"o")
+    await env.rewind(await env.snapshot("own"))
+    await env.rewind("main")
+    assert env.files == {"a.txt": b"A", ".hmz/flows/x.py": b"x", ".humanize/old": b"o"}
     with pytest.raises(RewindError):
         await env.rewind("no-such-ref")
     with pytest.raises(RewindError):

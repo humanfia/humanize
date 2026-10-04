@@ -153,6 +153,10 @@ type Handler = (
 #: How many times a `STOP` hook may keep one turn going before the fake ends it anyway.
 _AGAIN = 100
 
+#: What a snapshot leaves out and a rewind leaves alone at the top of a worktree, as git's
+#: do: humanize's own directory, under its name now and the one it had before.
+_UNTOUCHED = (".hmz", ".humanize")
+
 #: The harnesses whose CLI has no fork of its own, as coganchor's profiles say.
 _UNFORKED = frozenset(
     {HarnessKind.CURSOR_AGENT, HarnessKind.MCODE, HarnessKind.AGY, HarnessKind.DSH}
@@ -935,7 +939,11 @@ class FakeEnvDriver:
         disk = self._disk
         ref = f"refs/hmz/snapshots/{name or next(disk.numbers)}"
         disk.snapshots.pop(ref, None)
-        disk.snapshots[ref] = self._relative()
+        disk.snapshots[ref] = {
+            path: data
+            for path, data in self._relative().items()
+            if path.parts[0] not in _UNTOUCHED
+        }
         return ref
 
     async def rewind(self, ref: str) -> None:
@@ -945,9 +953,12 @@ class FakeEnvDriver:
         kept = disk.snapshots.get(ref)
         if kept is None and ref not in self.refs:
             raise RewindError(f"no ref called {ref!r}")
-        self._gone(self.workdir)
+        for path in self._relative():
+            if path.parts[0] not in _UNTOUCHED:
+                del disk.files[self.workdir / path]
         for path, data in (disk.committed if kept is None else kept).items():
-            disk.files[self.workdir / path] = data
+            if path.parts[0] not in _UNTOUCHED:
+                disk.files[self.workdir / path] = data
 
     async def snapshots(self) -> list[str]:
         if not self.repo:
