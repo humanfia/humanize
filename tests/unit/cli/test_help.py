@@ -33,11 +33,6 @@ ROUTES = [
     ["internal", "anchor", "rendezvous"],
 ]
 
-#: TEMPORARY: the `hmz exec` flags whose help is being rewritten along with the grammar they
-#: take, by another change. Delete this once that change has landed, holding all three to the
-#: limit like every other.
-WORDY = {("hmz exec", "-e"), ("hmz exec", "-p"), ("hmz exec", "-b")}
-
 
 def _reached(
     route: list[str], monkeypatch: pytest.MonkeyPatch
@@ -78,6 +73,6 @@ def test_every_help_says_it_in_thirty_words_or_fewer(
     wordy = {
         said: len(words.split())
         for said, words in _prose(parser)
-        if len(words.split()) > LIMIT and (parser.prog, said) not in WORDY
+        if len(words.split()) > LIMIT
     }
     assert not wordy, f"{parser.prog}: over {LIMIT} words"
