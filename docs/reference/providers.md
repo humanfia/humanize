@@ -295,15 +295,15 @@ in again)`), sign it in again: `codex login` or `claude auth login` for this mac
 
 ## Where sessions are kept {#where-sessions-are-kept}
 
-The same supervisor keeps each turn's sessions out of the CLI's home, under whatever account
-it runs, the machine's own included. Each `Profile.sessions` entry under the CLI's home is
+The same supervisor keeps the sessions of each turn a run drives out of the CLI's home, under
+whatever account it runs, the machine's own included. Each `Profile.sessions` entry under the CLI's home is
 passed as `--keep=FROM=TO`, `TO` being the same relative path under the agent's session
 directory:
 
 | Agent | Session directory |
 | --- | --- |
 | driven by a flow run | the run's epic: `<epic>/sessions/<cli>/…` ([Tracing](/reference/tracing)) |
-| driven by hand | `$HUMANIZE_HOME/sessions/<cli>/…` |
+| driven by hand | none: sessions stay in the CLI's own home |
 
 A kept path is always answered with the file itself (never a copy), its directories are made
 as the CLI writes into them, and an entry may be a glob of one path component.

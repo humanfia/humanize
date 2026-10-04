@@ -67,7 +67,6 @@ H/
 │   └── mirrors/<container or service>/<digest>/
 ├── harness/                            workdir of a harness an affinity puts on a docker daemon here
 ├── epics/<ws>/<stamp>-<hex6>/          one run
-├── sessions/<cli>/                     sessions of agents no run drives
 ├── compiled/{pi,qwen}/                 Node compile caches
 ├── docker-ssh/<sha256[:16]>/ssh        ssh shim for docker over ssh
 └── patched/<cli>-<pid>-<rand>/         patched CLI copies (unused in production)
@@ -364,12 +363,6 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 
 Epics are never deleted by humanize.
 
-### `H/sessions/<cli>/`
-
-Sessions of agents driven with no run (the agent API, `/btw`), laid out as the CLI's home.
-Like an epic's `sessions/`, it is the only copy of those conversations. Not used under
-[`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions).
-
 ### `<workspace>/.hmz/<epic>.epic.tar.gz`
 
 An [exported run](/reference/tracing#export). Written with `mkstemp` (mode `0600`) and renamed;
@@ -429,7 +422,7 @@ when their content changes.
 
 ## Retention
 
-Nothing prunes `epics/`, `sessions/`, `flowverses/.pinned/`, `skills/`, worktrees under
+Nothing prunes `epics/`, `flowverses/.pinned/`, `skills/`, worktrees under
 `envs/`, snapshot refs, `compiled/`, `docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
 Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the

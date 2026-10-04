@@ -1406,8 +1406,10 @@ No fields of its own.
   closing result, and the running cost reads its session log.
 - Each start creates `~/.minimax.lock` beside its data directory, which a fence that reads but
   does not write the home cannot grant. A fenced turn's supervisor answers that path from the
-  kept session directory (`sessions/mcode/minimax.lock`), shared by every agent of the run.
-  With `HUMANIZE_SESSIONS=off` the directory is still made and holds only that lock. On a
+  kept session directory (`sessions/mcode/minimax.lock`), shared by every agent of the run, and
+  for an agent no run drives from `$TMPDIR/humanize-<uid>/mcode/minimax.lock`, shared by every
+  such agent of the machine. With `HUMANIZE_SESSIONS=off` the directory is still made and holds
+  only that lock. On a
   machine that cannot supervise a turn the path is not answered, and only a fence that
   writes the home lets `mcode` start.
 - `config.yaml` and `auth/` are credential files, so an account holds its own settings.
@@ -1603,7 +1605,7 @@ The variables the agent layer reads or sets. Every variable humanize reads is li
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
-| `HUMANIZE_HOME` | everything | humanize's home (default `~/.hmz`): `providers/`, `sessions/`, `acp.json`, `fallbacks.json`, `prices.json`, `compiled/` |
+| `HUMANIZE_HOME` | everything | humanize's home (default `~/.hmz`): `providers/`, `acp.json`, `fallbacks.json`, `prices.json`, `compiled/` |
 | `HUMANIZE_WATCHDOG` | the watchdog | seconds of silence allowed; `0` or less disables it |
 | `HUMANIZE_SESSIONS` | session keeping | `off`, `0` or `no`: sessions stay in the CLI's home |
 | `HUMANIZE_PRICES` | `prices` | the price list's URL or path; `off`, `0`, `no`, `none` or empty disables fetching |
