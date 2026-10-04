@@ -384,11 +384,12 @@ async def test_calls_scale_linearly() -> None:
 
         return await _best(measured) * calls
 
-    small, large = await per(2_000), await per(8_000)
-    TIMINGS["t(8,000 calls) / t(2,000 calls)"] = f"{large / small:.2f}"
+    # Long enough to time that a runner's noise is a small part of either: at a few
+    # milliseconds apiece, loaded macOS runners took the ratio to 7.
+    small, large = await per(5_000), await per(20_000)
+    TIMINGS["t(20,000 calls) / t(5,000 calls)"] = f"{large / small:.2f}"
     # Linear is 4 and quadratic 16: the longer run is the likelier to be slowed on a loaded
-    # runner, which macOS ones have taken to 7, so the limit stands well clear of that and
-    # still short of quadratic.
+    # runner, so the limit stands clear of linear and still short of quadratic.
     assert large / small <= 10
 
 
