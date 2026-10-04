@@ -121,6 +121,12 @@ for at in range(1, {PIECES} + 1):
 """
 
 
+#: A command line each stand-in refuses at once, which it is run with as soon as it is
+#: written: macOS checks an executable the first time it runs, which takes a third of a
+#: second and more, longer than the clocks here give a turn to say anything.
+_REFUSED = {"pi": ["--unheard-of"], "opencode": ["run", "--unheard-of"]}
+
+
 def _install(
     named: str, script: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Path:
@@ -134,6 +140,7 @@ def _install(
     fake = binaries / named
     fake.write_text(f"#!{sys.executable}\n{standins.refusing(named)}{script}")
     fake.chmod(0o755)
+    subprocess.run([fake, *_REFUSED[named]], capture_output=True, check=False)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     return fake
 
@@ -400,14 +407,19 @@ def test_a_command_turn_is_cut_off_and_its_process_ended(opencode: Path) -> None
 
 def test_a_command_turn_is_interrupted_by_hand(opencode: Path) -> None:
     """What a watchdog reaches for, and what it is handed: one turn, ended where it is."""
-    session = OpencodeAgent(OPENCODE).new()
+    agent = OpencodeAgent(OPENCODE)
+    said: list[str] = []
+    agent.watch(lambda _agent, _session, event: said.append(event.text))
+    session = agent.new()
     answered: list[str] = []
 
     turn = threading.Thread(target=lambda: answered.append(session("write something")))
     turn.start()
-    while session._underway is None:  # the turn has to have started to be cut off
+    # Cut off once it has said something, waited for rather than slept for: a stand-in
+    # written a moment ago can take longer than a pause or two to start, as macOS checks
+    # an executable the first time it runs.
+    while turn.is_alive() and not any("part 1" in text for text in said):
         time.sleep(0.01)
-    time.sleep(PAUSE * 2)
     session.interrupt(why="the watchdog says so")
     turn.join(timeout=PIECES * PAUSE)
 

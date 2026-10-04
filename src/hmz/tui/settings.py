@@ -147,7 +147,7 @@ _PAGES = (
     _Page("Fallback", "↻", "where a turn goes when its agent fails"),
     _Page("Runtimes", "▦", "ssh hosts, docker daemons and swarms that flows run on"),
     _Page("Flowverses", "⑂", "the git repositories flows come from"),
-    _Page("Workspace", "⌂", "this directory: its flow, profiling, and forgetting it"),
+    _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
 )
 
 #: What the first screen says it is.
@@ -159,7 +159,6 @@ _SENT = "sent"
 _DETAILS = "details"
 _BTW = "btw"
 _RUNS = "flow"
-_PROFILES = "profile"
 _FORGET = "forget"
 
 #: The kinds of row those are: a switch, turned on or off from the two dropped under it; a
@@ -172,7 +171,6 @@ _ANOTHER = f"{_APART_MARK}another"
 
 #: When a setting that cannot land at once does land, said beside its row while it is held
 #: and in the transcript once it is saved.
-_NEXT_RUN = "takes effect on next flow run"
 _NEXT_LAUNCH = "takes effect on next launch"
 _NEXT_BTW = "takes effect on next /btw"
 
@@ -230,7 +228,6 @@ def _shade(style: str, said: str, *, here: bool) -> str:
 _MEANS = {
     _SENTRY: ("send error reports", "send nothing"),
     _DETAILS: ("show tool calls and thinking", "show turn responses only"),
-    _PROFILES: ("profile what runs here start", "trace them only"),
     _FORGET: ("clear saved settings here", "keep them"),
 }
 
@@ -359,7 +356,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         self._flow = settings.flow
         self._roles = len(settings.agents(settings.flow))
         self._flows = len(settings.flows())
-        self._profile = self._profile_was = settings.profiling
         self._forget = False
         self._offered = dict(agents)
         self._steps = list(_hmz().fallbacks.all())
@@ -699,7 +695,7 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                 self._btw_was,
             )
         if page == _DIRECTORY:
-            return self._profile != self._profile_was or self._forget
+            return self._forget
         if page == _ACCOUNTS:
             return bool(self._gone or self._edits)
         if page == _FALLBACK:
@@ -778,15 +774,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                     f"configured with {_many(self._roles, 'agent')}; chosen with /flow",
                     _READ,
                     group="Flow",
-                ),
-                _Setting(
-                    _PROFILES,
-                    "Profiling",
-                    _word(self._profile),
-                    "profile programs started by runs here",
-                    _SWITCH,
-                    _NEXT_RUN if self._profile != self._profile_was else "",
-                    group="Runs",
                 ),
                 _Setting(
                     _FORGET,
@@ -1170,8 +1157,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
             self._sentry = on_
         elif row == _DETAILS:
             self._details = on_
-        elif row == _PROFILES:
-            self._profile = on_
         else:
             self._forget = on_
         self._said = ""
@@ -1181,7 +1166,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
         return {
             _SENTRY: self._sentry,
             _DETAILS: self._details,
-            _PROFILES: self._profile,
             _FORGET: self._forget,
         }[held]
 
@@ -1239,7 +1223,6 @@ class Adjusts(Providers, Machines, Fallbacks, Flowverses):
                 if self._sentry is not None and self._sentry != self._sentry_was
                 else None,
                 details=self._details if self._details != self._details_was else None,
-                profile=self._profile if self._profile != self._profile_was else None,
                 forget=self._forget,
                 btw=self._btw if self._btw != self._btw_was else None,
                 told=tuple(told),

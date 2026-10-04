@@ -2,9 +2,9 @@
 
 One file under humanize's own home. Most of it is one entry per workspace -- the flow that was
 last run there, and for each flow the workspace has run, what each of its roles was given, what
-it was set up with and what a run of it may spend -- so a project driven by one flow on two
-agents is driven by them again tomorrow, rather than falling back to the default every time it
-is opened. Beside those is the handful of settings
+it was set up with, what a run of it may spend and whether that run is profiled -- so a project
+driven by one flow on two agents is driven by them again tomorrow, rather than falling back to
+the default every time it is opened. Beside those is the handful of settings
 that are not a workspace's at all, which is what `enable_sentry` is: whether humanize reports
 its own failures, answered once and true wherever it is run from -- and `details`, whether the
 interface shows the working of each turn.
@@ -119,29 +119,6 @@ class Settings:
         """Writes down which agent `/btw` asks, or "" to go back to the flow's first."""
         self._sets("btw", spec)
 
-    @property
-    def profiling(self) -> bool:
-        """Whether a run here profiles the programs its agents start, as well as tracing them.
-
-        A workspace's rather than this machine's: what a run costs in processes is a thing
-        about the project being worked on -- a repository whose tests take a minute is a
-        different question from one whose tests take an hour -- and off unless somebody says
-        otherwise, since it is a sampler running for as long as the flow does.
-        """
-        return bool(self._here().get("profile"))
-
-    def profiles(self, *, on: bool) -> None:
-        """Writes down whether a run here is profiled as well as traced.
-
-        Args:
-          on: What was answered.
-        """
-
-        def change(held: dict[str, Any]) -> None:
-            self._mine(held)["profile"] = on
-
-        self._write(change)
-
     def answers(self, *, enable_sentry: bool) -> None:
         """Writes down whether humanize reports its own failures.
 
@@ -250,6 +227,21 @@ class Settings:
         """
         return self._kept(flow, "budget")
 
+    def profile(self, flow: str) -> bool:
+        """Whether a run of one flow here was last said to be profiled as well as traced.
+
+        Kept beside the budget and for the reason it is kept: it is a thing about a run of the
+        flow rather than one of the flow's params, decided by whoever runs it here -- a flow
+        whose tests take an hour is one somebody wants to see the processes of every time.
+
+        Args:
+          flow: The flow it was said for.
+
+        Returns:
+          Whether it was, and False for a flow nobody has said it of here.
+        """
+        return self._flow(self._here(), flow).get("profile") is True
+
     def _kept(
         self, flow: str, under: str, entry: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -282,6 +274,8 @@ class Settings:
         envs: Mapping[str, str] | None = None,
         params: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
+        *,
+        profile: bool | None = None,
     ) -> None:
         """Writes down what this workspace is set up to run, so that it opens that way.
 
@@ -301,6 +295,9 @@ class Settings:
             kept. The same asymmetry as the rest and for the same reason: the flow's whole
             entry is replaced below, so what is not handed in has to be read back or it is
             forgotten. A value that is empty erases it.
+          profile: Whether a run of it here is profiled as well as traced, or None to leave
+            whatever was kept, for the same reason. Written down only where it is on: off is
+            what a flow nobody has said anything of is.
         """
 
         def change(held: dict[str, Any]) -> None:
@@ -319,6 +316,13 @@ class Settings:
                 )
                 if one:
                     kept[under] = one
+            profiled = (
+                profile
+                if profile is not None
+                else self._flow(mine, flow).get("profile") is True
+            )
+            if profiled:
+                kept["profile"] = True
             flows = mine.get("flows")
             if not isinstance(flows, dict):
                 flows = mine["flows"] = {}

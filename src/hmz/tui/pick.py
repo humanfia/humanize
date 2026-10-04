@@ -220,6 +220,9 @@ _DETECTS = f"{_APART_MARK}detects"
 #: saving is: the rows of the flow menu's second page are the agents it drives, and what the
 #: run is allowed to cost is not one of them.
 _BUDGET = f"{_APART_MARK}budget"
+#: And the row beside it that says whether the run is profiled as well as traced: a thing
+#: about the run, as what it may spend is, rather than about any agent it drives.
+_PROFILING = f"{_APART_MARK}profile"
 
 #: What the row that takes a sheet's subject away answers with, on each of the submenus that
 #: has one. Where every row of a list opens onto what it is, taking one away belongs in there
@@ -241,6 +244,7 @@ _APART = frozenset(
         _DONE,
         _TAKES_AWAY,
         _BUDGET,
+        _PROFILING,
         _UNSAVED,
         _DETECTS,
     }
@@ -260,6 +264,7 @@ _ON_APART = {
     _DONE: "done",
     _TAKES_AWAY: "remove",
     _BUDGET: "set",
+    _PROFILING: "switch",
     _UNSAVED: "type a host",
     _DETECTS: "detect",
 }
@@ -1508,6 +1513,8 @@ class Chosen(NamedTuple):
         and one that was left at its defaults.
       budget: What a run of it may spend, or None for none -- which only a flow humanize
         ships may be run with.
+      profile: Whether a run of it profiles the programs its agents start, as well as
+        tracing them.
     """
 
     flow: str
@@ -1515,6 +1522,7 @@ class Chosen(NamedTuple):
     envs: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
     params: BaseModel | None = None
     budget: Budget | None = None
+    profile: bool = False
 
 
 class Declared(NamedTuple):
@@ -2032,6 +2040,7 @@ class Flows(Drafts[Chosen]):
         *,
         envs: Mapping[str, str] | None = None,
         budget: Budget | None = None,
+        profile: bool = False,
         unavailable: frozenset[str] = frozenset(),
         running: bool = False,
         inside: bool = False,
@@ -2047,6 +2056,7 @@ class Flows(Drafts[Chosen]):
             changes, so that turning to a flow this workspace has run finds it as it was left.
           envs: Where each of its environment roles is, by role.
           budget: What a run of it may spend here, or None for none yet.
+          profile: Whether a run of it here is profiled as well as traced.
           unavailable: The optional backends among them that still need installing.
           running: Whether a flow is running, which is what takes the flows away.
           inside: Whether to open inside the flow's roles rather than on the flows, for a
@@ -2057,6 +2067,7 @@ class Flows(Drafts[Chosen]):
         self._agents = dict(agents)
         self._unavailable = unavailable
         self._kept = kept
+        self._profile: bool
         # Said outright, all of them: the flow is read where it is set, so what it is has to
         # be settled without reading what reads it.
         self._flow: str = flow
@@ -2070,6 +2081,7 @@ class Flows(Drafts[Chosen]):
             self._envs = dict(envs or {})
             self._params = params
             self._budget = budget
+            self._profile = profile
         else:
             # A flow the interface is not set up on, opened straight into: what it was last
             # set up with here is what it opens holding, exactly as turning to it would be.
@@ -2077,6 +2089,7 @@ class Flows(Drafts[Chosen]):
             self._envs = self._placed(flow)
             self._params = params_of(flow, self._held(flow).get("params") or {})
             self._budget = budget_of(flow)
+            self._profile = _hmz().settings.profile(flow)
         #: Every flow there is, read once: this is redrawn on every keystroke, and reading it
         #: means importing each flow to see what it holds. Cleared when a flowverse is
         #: fetched or taken away, which is when the list is something else.
@@ -2536,7 +2549,7 @@ class Flows(Drafts[Chosen]):
         return self._declared.places if self._declared is not None else ()
 
     def _agents_page(self) -> None:
-        """Puts up each role the flow declares, its budget, and saving the whole setup."""
+        """Puts up each role the flow declares, its budget and profiling, and saving it all."""
         listing = self.query_one("#choices", OptionList)
         roles, places = self._roles(), self._places()
         runs = [self._runs.get(role, Runs("")) for role in roles]
@@ -2545,8 +2558,9 @@ class Flows(Drafts[Chosen]):
         # roles: the agents, then the environments.
         count = len(roles) + len(places)
         self._counting = len(str(max(count, 1)))
-        # One row past the roles for what a run may spend, and one past that for saving.
-        at = min(listing.highlighted or 0, count + 1)
+        # One row past the roles for what a run may spend, one for whether it is profiled,
+        # and one past those for saving.
+        at = min(listing.highlighted or 0, count + 2)
         rows = [
             Option(
                 self._row(
@@ -2587,7 +2601,21 @@ class Flows(Drafts[Chosen]):
                 id=f"={_BUDGET}",
             )
         )
-        rows.append(self._saves("flow and roles", here=at == count + 1))
+        rows.append(
+            Option(
+                self._apart(
+                    "profiling",
+                    "on; samples the programs agents start"
+                    if self._profile
+                    else "off; traced only",
+                    here=at == count + 1,
+                    # Straight under the budget, the two of them one block about the run.
+                    air="",
+                ),
+                id=f"={_PROFILING}",
+            )
+        )
+        rows.append(self._saves("flow and roles", here=at == count + 2))
         listing.set_options(rows)
         listing.highlighted = at
         self._drawn = listing.highlighted
@@ -2599,7 +2627,8 @@ class Flows(Drafts[Chosen]):
         # which is while a flow is running: the row says what the key does here.
         back = Key("esc", "close" if self._only else "back to flows")
         # What enter says is read off the row it is on -- `open` over a role, `set` over the
-        # budget and `save` over saving, which `Sheet._footed` rewrites from the row set apart.
+        # budget, `switch` over profiling and `save` over saving, which `Sheet._footed`
+        # rewrites from the row set apart.
         self._footed(Key("enter", "open"), back)
 
     def _noagents(self) -> str:
@@ -2797,6 +2826,12 @@ class Flows(Drafts[Chosen]):
         if held == _BUDGET:
             self._budgets()
             return
+        if held == _PROFILING:
+            # Turned over where it stands rather than asked on a sheet: it is one of two.
+            self._profile = not self._profile
+            self.changed()
+            self._fill()
+            return
         if held.startswith("@"):
             self._placing(held[1:])
             return
@@ -2826,6 +2861,7 @@ class Flows(Drafts[Chosen]):
             self._envs = self._placed(name)
             self._params = params_of(name, self._held(name).get("params") or {})
             self._budget = budget_of(name)
+            self._profile = _hmz().settings.profile(name)
             self.changed()
         # On to what the flow itself takes, where it takes anything, and then to its roles:
         # things about one flow, asked in the order they depend on nothing.
@@ -2917,6 +2953,7 @@ class Flows(Drafts[Chosen]):
                 dict(self._envs),
                 self._params,
                 self._budget,
+                self._profile,
             )
         )
 
@@ -9946,8 +9983,6 @@ class Adjusted(NamedTuple):
       enable_sentry: Whether humanize reports its own failures from now on, or None where
         that was not touched.
       details: Whether the working of each turn is shown, or None where that was not touched.
-      profile: Whether a run in this directory is profiled as well as traced, or None where
-        that was not touched.
       forget: Whether to forget what this workspace was set up to run.
       told: What the pages that write for themselves -- the accounts, the runtimes, the
         fallbacks and the flowverses -- did, as lines for the transcript.
@@ -9961,7 +9996,6 @@ class Adjusted(NamedTuple):
 
     enable_sentry: bool | None = None
     details: bool | None = None
-    profile: bool | None = None
     forget: bool = False
     told: tuple[str, ...] = ()
     placed: str = ""

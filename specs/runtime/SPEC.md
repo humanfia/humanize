@@ -27,15 +27,13 @@ class Settings:
     def btw(self) -> str: ...  # the agent `/btw` asks, "" for the flow's first
     @btw.setter
     def btw(self, spec: str) -> None: ...
-    @property
-    def profiling(self) -> bool: ...
-    def profiles(self, *, on: bool) -> None: ...
     def answers(self, *, enable_sentry: bool) -> None: ...
     def agents(self, flow: str) -> dict[str, Runs]: ...  # by role
     def envs(self, flow: str) -> dict[str, str]: ...  # by role, as `-e` spells one
     def flows(self) -> dict[str, Any]: ...
     def params(self, flow: str) -> dict[str, Any]: ...
     def budget(self, flow: str) -> dict[str, Any]: ...  # a Budget, as JSON
+    def profile(self, flow: str) -> bool: ...  # whether a run of it is profiled
     def remember(
         self,
         flow: str,
@@ -43,6 +41,8 @@ class Settings:
         envs: Mapping[str, str] | None = None,
         params: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
+        *,
+        profile: bool | None = None,
     ) -> None: ...
     def forget(self, workspace: str = "") -> bool: ...
 
@@ -121,6 +121,7 @@ class Ran(NamedTuple):
     params: dict[str, Any] = {}
     budget: dict[str, Any] | None = None
     picked_up: str = ""  # the epic it was picked up from
+    profile: bool = False  # whether it was profiled as well as traced
     @property
     def name(self) -> str: ...
 class Epic:  # a context manager, closed however the run ends
@@ -223,6 +224,7 @@ class Line(NamedTuple):  # an `hmz exec` line, read
     envs: tuple[EnvSpec, ...] = ()
     params: dict[str, str] = {}
     budget: Budget | None = None
+    profile: bool = False
     resume: bool = False
     as_json: bool = False
 def read_line(argv: list[str]) -> Line: ...
@@ -235,11 +237,12 @@ class Runner:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
+        profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
     ) -> None: ...
     flow: str; impl: FlowImpl; declaration: Declaration; agents: dict[str, AgentDriver]
-    envs: dict[str, EnvDriver]; params: FlowParams; budget: Budget
+    envs: dict[str, EnvDriver]; params: FlowParams; budget: Budget; profile: bool
     picked_up: Path | None; workspace: Path; recorder: Recorder | None  # properties
     used: dict[str, str]  # where each environment role was put, as `-e` spells it
     def unreadable(self) -> str: ...
@@ -277,12 +280,13 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
 - MUST NOT name `cli`, `daemon`, `tui` or `sdk`, MUST restate no rule the layers under it
   carry out, and MUST load nothing until it is named. `telemetry` MUST name nothing above it.
 - `Settings` MUST answer what a workspace was last set up to run — the flow, what each of its
-  agent and environment roles was given, its params, and what a run may spend — and MUST answer what is not a workspace's at all.
+  agent and environment roles was given, its params, what a run may spend and whether a run is
+  profiled — and MUST answer what is not a workspace's at all.
 - A setting that is a question somebody has to answer MUST have three answers — yes, no, and
   nobody asked — and reading one MUST NOT write it.
 - Two holders of the settings MUST NOT put back what the other has written; remembering a
-  flow's agents MUST leave its environments, params and budget alone where they are not handed
-  in, an empty one MUST erase, and settings humanize did not write MUST read as nothing
+  flow's agents MUST leave its environments, params, budget and profiling alone where they are
+  not handed in, an empty one MUST erase, and settings humanize did not write MUST read as nothing
   remembered.
 - Nothing MUST be reported where the question has not been answered yes, a run with nobody at
   a terminal MUST NOT ask, and `SAYS` MUST answer it for one process alone.
@@ -356,6 +360,9 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   role, and what the run spent -- holding no session past its close to count it; and
   MUST close every driver it was given however the run ends. A run stopped from outside, or
   by its budget, MUST be written down as stopped rather than failed.
+- A run MUST be profiled as well as traced only where it was asked to be, as it is given its
+  budget -- never by a setting of the workspace it runs in -- and its epic MUST say that it
+  was, so that it reads back as `Ran.profile`; a record that does not say MUST read as not.
 - A run under a finite cost cap MUST bring a missing or stale price list up to date before its
   first turn, waiting no longer than the fetch's own timeout nor once the run is stopped, and
   on the rules every fetch is held to; every other run MUST have it refreshed without waiting.

@@ -540,7 +540,7 @@ async def test_the_notes_are_the_next_prompt() -> None:
 ```
 
 ```sh
-uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
+uvx --with hmz \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto .humanize/tests
 ```
 

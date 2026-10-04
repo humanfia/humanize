@@ -1,7 +1,8 @@
 """The command line: a flow, what each of its roles is given, its params, and its budget.
 
     hmz exec -f FLOW -a ROLE=CLI[@PROVIDER]/MODEL:EFFORT -e ROLE=BACKEND@PROVIDER/WORKDIR
-             -p KEY=VALUE -b duration=...,cost=...,output_tokens=... [--resume] [--json] TASK
+             -p KEY=VALUE -b duration=...,cost=...,output_tokens=...
+             [--profile] [--resume] [--json] TASK
 
 Most of what is checked here drives no agent. A flow is handed views of its drivers and decides
 for itself whether to open a session, so a flow that only writes down what it was handed
@@ -27,7 +28,9 @@ from hmz.coganchor import providers
 from hmz.runtime.doing.running import Run
 from hmz.runtime.epic import epics, read
 from hmz.runtime.flowing import BUILTIN_AT, ENTRY
+from hmz.runtime.tracing.profile import PROFILE
 from tests.flows import standins
+from tests.sampling import sampled
 from tests.stubs import written
 
 #: A flow that takes no turn and writes down what it was handed, beside its own file.
@@ -495,6 +498,24 @@ def test_resume_picks_up_the_newest_run_and_only_of_a_flow_that_can_be(
     assert "does not support resuming" in _refused(
         capsys, "-f", _flow(tmp_path), "-a", BUILDER, *BUDGET, "--resume", "task"
     )
+
+
+@sampled
+def test_profile_asks_the_run_to_profile_and_says_so_in_its_record(
+    tmp_path: Path, here: Path
+) -> None:
+    """An option of the run, beside its budget, rather than a setting of the workspace."""
+    keeps = _flow(tmp_path, KEEPS, "keeps")
+
+    main(["exec", "-f", keeps, *BUDGET, "--profile", "task"])
+    main(["exec", "-f", keeps, *BUDGET, "task"])
+
+    profiled, traced = (read(one) for one in epics())
+    assert profiled is not None
+    assert traced is not None
+    assert profiled.profile
+    assert not traced.profile
+    assert not (traced.at / PROFILE).exists()
 
 
 def test_python_m_hmz_is_the_hmz_command(

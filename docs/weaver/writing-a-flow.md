@@ -214,7 +214,7 @@ async def test_twice_reads_its_own_work_back() -> None:
 ```
 
 ```sh
-uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
+uvx --with hmz \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto
 ```
 

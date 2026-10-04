@@ -54,10 +54,10 @@ A CI runner starts empty every time. That shapes the whole job:
 
 `hmz exec` does not open on what the interface was set up with in any directory. It uses what
 the machine holds: the flowverses it has fetched, its [accounts](/user/settings#accounts), its
-[fallbacks](/user/settings#fallback), any CLI added on the Accounts page of `/settings`, whether
-[reporting](/user/reporting) was answered yes, and whether this directory's runs are
-[profiled](/user/tracing#profiling-a-run). A fresh runner holds none of these, so on a runner
-the line is the whole setup.
+[fallbacks](/user/settings#fallback), any CLI added on the Accounts page of `/settings`, and
+whether [reporting](/user/reporting) was answered yes. A fresh runner holds none of these, so
+on a runner the line is the whole setup; a run is [profiled](/user/tracing#profiling-a-run)
+only where the line says `--profile`.
 
 ## Example: a nightly loop that opens a pull request
 
@@ -84,13 +84,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
 
-      # For Kimi Code or DeepSeek Harness, install 'hmz[all] @ git+https://…' instead.
+      # For Kimi Code or DeepSeek Harness, install 'hmz[all]' instead.
       - name: Install the agent's CLI and humanize   # ④
         run: |
           npm install -g @anthropic-ai/claude-code
           uv venv --python 3.12 "$RUNNER_TEMP/hmz"
-          uv pip install --python "$RUNNER_TEMP/hmz/bin/python" \
-            git+https://github.com/humanfia/humanize.git
+          uv pip install --python "$RUNNER_TEMP/hmz/bin/python" hmz
           echo "$RUNNER_TEMP/hmz/bin" >> "$GITHUB_PATH"
 
       - name: Run the loop                          # ⑤

@@ -1,7 +1,7 @@
-# Whether a run here is profiled as well as traced, which is a thing about this directory.
+# Whether a run of a flow is profiled as well as traced, said beside what it may spend.
 #
-# Nothing runs: the switch is written down, and what it does is done by the next flow that
-# runs here. The programs in the trace beside it were invented by stage.py.
+# Nothing runs: the switch is written down with the rest of the flow's setup, and what it does
+# is done by the next run of it. The programs in the trace beside it were invented by stage.py.
 
 Set Shell "bash"
 Set FontSize 15
@@ -19,16 +19,10 @@ Show
 
 Sleep 400ms
 
-Type "/settings" Enter
-Wait+Screen /General/
-Sleep 2s
-
-# Its six pages, and into the last: what is remembered about this directory, one up from the
-# first round the end.
-Up
-Sleep 500ms
-Enter
-Wait+Screen /Profiling/
+# The flow this directory is set up on, opened inside: its roles, then what a run of it may
+# spend and whether it is profiled, one under the other.
+Type "/flow local/twice" Enter
+Wait+Screen /profiling/
 Sleep 1400ms
 Screenshot "/out/profiling.png"
 Sleep 400ms

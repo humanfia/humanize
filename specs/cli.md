@@ -11,7 +11,7 @@ decides.
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
          [-p|--params <key>=<value>[,...]]... [-b|--budget <limit>[,<limit>...]]...
-         [--resume] [--json] <task>
+         [--profile] [--resume] [--json] <task>
 <ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>]#<flow>[:<name>]
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
 <env>    := <role>=<backend>@<provider>[/<workdir>]
@@ -116,6 +116,9 @@ def tools(argv: list[str]) -> int: ...
   exit with 128 plus the signal only once the run has let go of everything it made.
 - `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;
   without it every run MUST start from the top.
+- `--profile` MUST profile the programs the run's agents start as well as tracing them, and
+  without it no run MUST be: it is an option of the run, as its budget is, and nothing written
+  down for the workspace MUST turn it on.
 - MUST read `<cli>` from the front and `<effort>` from after the last colon so that a model's own
   punctuation stays the model's, and MUST NOT restate here which backends exist.
 - A run started from a command line MUST have nobody outside it: its outworlder is away.

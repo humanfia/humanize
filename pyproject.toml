@@ -9,6 +9,23 @@ authors = [
 requires-python = ">=3.12"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+keywords = ["agents", "ai", "claude-code", "codex", "coding-agents", "llm", "tui", "workflow"]
+# No `License ::` classifier: PEP 639 retires them for `license` above, which is the one PyPI
+# shows, and a backend is allowed to refuse a project that says both.
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development",
+    "Typing :: Typed",
+]
 dependencies = [
     "dateparser>=1.4.2",
     "psutil>=7.2.2",
@@ -76,7 +93,9 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/humanfia/humanize"
-Repository = "https://github.com/humanfia/humanize"
+Documentation = "https://docs.humanfia.ai/humanize/"
+Changelog = "https://github.com/humanfia/humanize/releases"
+Source = "https://github.com/humanfia/humanize"
 Issues = "https://github.com/humanfia/humanize/issues"
 
 [project.scripts]

@@ -42,6 +42,7 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
+        profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
     ) -> Runner: ...
     def run(
@@ -53,6 +54,7 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
+        profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
     ) -> Run: ...
@@ -80,7 +82,7 @@ class Run:
     def __init__(
         self, runner: Runner, task: str, *, outworlder: OutworlderDriver | None = None
     ) -> None: ...
-    flow: str; ref: str; task: str; declaration: Declaration; budget: Budget
+    flow: str; ref: str; task: str; declaration: Declaration; budget: Budget; profile: bool
     usage: Usage; epic: Path | None; running: bool; raised: BaseException | None
     result: Any  # properties
     @property

@@ -1,0 +1,35 @@
+# How "Generate release notes" sorts a release's pull requests, by the labels each one is given
+# from its Conventional Commits title (.github/labels.yml). A pull request lands in the first
+# category it matches, so a breaking feature is listed as breaking, and one no category takes is
+# left out.
+
+changelog:
+  exclude:
+    # Dependabot moves what the lockfile, CI and the docs site pin, none of which a published
+    # `hmz` carries.
+    authors:
+      - dependabot[bot]
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking
+    - title: Features
+      labels:
+        - type/feat
+    - title: Fixes
+      labels:
+        - type/fix
+    - title: Performance
+      labels:
+        - type/perf
+    - title: Documentation
+      labels:
+        - type/docs
+    - title: Other changes
+      labels:
+        - "*"
+      # A chore is housekeeping: nothing somebody installing `hmz` would notice. Left out here
+      # rather than above, so that a breaking one is still listed as breaking.
+      exclude:
+        labels:
+          - type/chore

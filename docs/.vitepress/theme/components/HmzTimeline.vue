@@ -4,7 +4,7 @@
 // the run each session belonged to and which CLI took its turns, so the trace holds only that
 // run's sessions, each under its agent's name. `chrome.py` writes them as Perfetto reads them:
 // a process per agent, a track per row of its sessions (`main`, or `subagent` for agents its
-// turns started), a slice per thing it did, all on one clock. In a profiled directory
+// turns started), a slice per thing it did, all on one clock. In a profiled run
 // (`profile.py`) the programs those turns ran are drawn underneath, each under the tool call
 // that started it, thread by thread. The run itself is invented; the shape of the trace is not.
 import { computed, ref, useId } from 'vue'
@@ -342,7 +342,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="9 / 10"
-    label="Building a trace. The CLIs leave session logs under bare ids, from many runs. The run's own record says which two are its own: one was the actor's, on claude, one the reviewer's, on codex. They become named rows on one timeline, and a playhead crosses the run as every slice grows: the actor's tool calls, a sub-agent row opened by its Task, the reviewer's turns. In a profiled directory the programs appear under the tool calls that started them: pytest and its two threads under a long Bash, rg under the sub-agent's Glob, ruff under a second Bash. The whole trace is one file on this machine, opened in Perfetto."
+    label="Building a trace. The CLIs leave session logs under bare ids, from many runs. The run's own record says which two are its own: one was the actor's, on claude, one the reviewer's, on codex. They become named rows on one timeline, and a playhead crosses the run as every slice grows: the actor's tool calls, a sub-agent row opened by its Task, the reviewer's turns. In a profiled run the programs appear under the tool calls that started them: pytest and its two threads under a long Bash, rg under the sub-agent's Glob, ruff under a second Bash. The whole trace is one file on this machine, opened in Perfetto."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

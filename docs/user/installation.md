@@ -20,7 +20,7 @@ a few minutes, most of it the CLI's own sign-in.
 With Claude Code, the whole thing is:
 
 ```sh
-uv tool install git+https://github.com/humanfia/humanize.git
+uv tool install hmz
 npm i -g @anthropic-ai/claude-code && claude auth login
 hmz --version
 ```
@@ -50,15 +50,15 @@ is copied: your login stays where the CLI keeps it. To run a CLI as another acco
 ::: code-group
 
 ```sh [uv tool]
-uv tool install git+https://github.com/humanfia/humanize.git
+uv tool install hmz
 ```
 
 ```sh [pipx]
-pipx install git+https://github.com/humanfia/humanize.git
+pipx install hmz
 ```
 
 ```sh [pip]
-pip install git+https://github.com/humanfia/humanize.git
+pip install hmz
 ```
 
 :::
@@ -81,21 +81,33 @@ humanize's own environment:
 ::: code-group
 
 ```sh [uv tool]
-uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+uv tool install 'hmz[all]'
 ```
 
 ```sh [pipx]
-pipx install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+pipx install 'hmz[all]'
 ```
 
 ```sh [pip]
-pip install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+pip install 'hmz[all]'
 ```
 
 :::
 
 You can add one later without reinstalling humanize. The agent menu lists a backend that is
 missing its extra, with the install command on its row.
+
+### The latest `main` instead of a release
+
+Each line above installs the latest release from PyPI. To run what is on `main` before it is
+released, install from GitHub instead, with or without an extra:
+
+```sh
+uv tool install git+https://github.com/humanfia/humanize.git               # humanize alone
+uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'  # with both extras
+```
+
+`pipx install` and `pip install` take the same argument.
 
 ## 2. Sign in to a coding agent {#signing-each-backend-in}
 
@@ -308,6 +320,31 @@ ask now, open `/flow`, <kbd>enter</kbd> on a role, then on its `model` row, and 
 
 Its extra is missing. Run the command on its row, or reinstall with the extra from
 [Two backends need an extra](#the-two-backends-that-are-extras).
+
+## Upgrade
+
+::: code-group
+
+```sh [uv tool]
+uv tool upgrade hmz
+```
+
+```sh [pipx]
+pipx upgrade hmz
+```
+
+```sh [pip]
+pip install --upgrade hmz
+```
+
+:::
+
+`uv tool upgrade` and `pipx upgrade` keep an install
+[from GitHub](#the-latest-main-instead-of-a-release) on the latest `main`. To move it to
+releases, install over it: `uv tool install --force hmz`, or `pipx install --force hmz`.
+
+What each release changed is on
+[GitHub Releases](https://github.com/humanfia/humanize/releases).
 
 ## Uninstall
 

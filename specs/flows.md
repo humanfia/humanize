@@ -15,6 +15,7 @@ Mixin system is crucial to the flow system. It allows the flow to declare what i
 All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)
 
 - `-b|--budget duration=<duration>,cost=<cost>,output_tokens=<output_tokens>`: specifying a flow budget. Also supports multiple flags.
+- `--profile`: profiling the programs the run's agents start, as well as tracing them.
 
 ## Environments
 

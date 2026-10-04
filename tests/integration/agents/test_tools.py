@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz import coganchor
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
@@ -73,6 +74,7 @@ def test_the_protocol_says_who_it_is_and_what_it_has() -> None:
     assert said is not None
     assert said["result"]["protocolVersion"] == PROTOCOL
     assert said["result"]["capabilities"]["tools"] == {"listChanged": False}
+    assert said["result"]["serverInfo"]["version"] == coganchor.__version__
 
     listed = serve(_sent("tools/list"), lambda: offered)
     assert listed is not None

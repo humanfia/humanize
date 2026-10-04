@@ -179,6 +179,7 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
+        profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
     ) -> Runner:
         """Loads a flow and opens a driver for every role it is given, checking all of it.
@@ -190,6 +191,7 @@ class Hmz:
           envs: What each environment role is, likewise with `-e`.
           params: The flow's params, or None for its defaults.
           budget: What the run may spend; only a flow humanize ships runs without one.
+          profile: Whether to profile the programs its agents start, as well as trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
 
         Returns:
@@ -207,6 +209,7 @@ class Hmz:
             envs=envs,
             params=params,
             budget=budget,
+            profile=profile,
             resume=resume,
             workspace=self._workspace,
         )
@@ -220,6 +223,7 @@ class Hmz:
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
+        profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
     ) -> Run:
@@ -232,6 +236,7 @@ class Hmz:
           envs: What each environment role is; see :meth:`runner`.
           params: The flow's params, or None for its defaults.
           budget: What the run may spend; only a flow humanize ships runs without one.
+          profile: Whether to profile the programs its agents start, as well as trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           outworlder: Whoever is outside the run, or None for nobody.
 
@@ -251,6 +256,7 @@ class Hmz:
                 envs=envs,
                 params=params,
                 budget=budget,
+                profile=profile,
                 resume=resume,
             ),
             task,
@@ -281,6 +287,7 @@ class Hmz:
             envs=line.envs,
             params=line.params,
             budget=line.budget,
+            profile=line.profile,
             resume=line.resume,
         ).run()
 

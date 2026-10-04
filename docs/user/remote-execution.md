@@ -246,6 +246,7 @@ saved with:
      2. reviewer                  claude/claude-haiku-4-5-20251001:high
      3. box                       ssh@build-box                                          ⑥
         budget                    stops at 10m
+        profiling                 off; traced only
         save                      flow and roles
 ```
 

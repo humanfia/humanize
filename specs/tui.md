@@ -65,7 +65,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   permission with no skills, seeded with a snapshot and the sessions, which reaches a session's
   side conversation by `@ask <session>: <question>`, at most 4 per question.
 - MUST carry the last run of this directory of a flow that can be picked up on for `/resume` —
-  its flow, roles, params, budget and task, picking up its journal, saying which — say why there
+  its flow, roles, params, budget, whether it was profiled and task, picking up its journal, saying which — say why there
   is none to carry on, and refuse it, as it refuses picking any run up, while a flow is running
   or stopping.
 - MUST let a flow's agents be set up whatever is happening, but offer a flow choice only when idle.
@@ -73,11 +73,14 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   — showing which place is read, and letting a flow be copied here whole and under its name.
 - MUST set a flow up by its roles: one row per agent role and one per environment role the flow
   declares, leaving out the ones the runtime fills -- an `Outworlder`, a `LocalEnv` -- then its
-  params, asked with the flow's own params model, and what a run may spend. A saved menu MUST take
+  params, asked with the flow's own params model, what a run may spend and whether it is
+  profiled. A saved menu MUST take
   effect from the next run, and MUST refuse to save a flow whose agent role names no model, or --
   for every flow but `chat` -- one that has no budget.
 - MUST let what a run may spend -- a duration, a cost, output tokens, and whether a turn is let
-  finish -- be set and read on the page its roles are on.
+  finish -- be set and read on the page its roles are on, and whether a run is profiled as well
+  as traced be switched and read beside it, off until it is switched on, and remembered with
+  the budget per flow; a run started MUST be profiled exactly where that says so.
 - MUST say where a role's harness went as its first session on another machine opens: here,
   on its environment's machine, or on the runtime its affinity sent it to.
 - MUST make an agent a CLI, an account, a model and an effort and nothing else, offering only
@@ -181,8 +184,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   `directory` or `environments`, refusing any other; forget this directory alone; keep what
   each page last said while another is read; and remember whether details are shown.
 - MUST apply each saved setting at once where it can, and otherwise say beside its row and in
-  the transcript when it lands: profiling from the next flow run, accounts from the next agent
-  session, forgetting from the next launch.
+  the transcript when it lands: accounts from the next agent session, forgetting from the next
+  launch.
 - MUST ask once, at a first start and only with somebody there, whether humanize may report its
   own failures — what would be sent and what never would — unanswered if it is walked away from.
 - MUST hold what a menu changes until it is saved from its save row or button or saving is

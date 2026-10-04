@@ -10,14 +10,20 @@ Needs Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), and a coding agent
 signed in to, such as Claude Code or Codex.
 
 ```sh
-uv tool install git+https://github.com/humanfia/humanize.git
+uv tool install hmz
 ```
 
 Two backends need a package of their own: `[dsh]` for DeepSeek Harness, `[kimi]` for Kimi
 Code, `[all]` for both.
 
 ```sh
-uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+uv tool install 'hmz[all]'
+```
+
+For the latest `main` rather than the latest release:
+
+```sh
+uv tool install git+https://github.com/humanfia/humanize.git
 ```
 
 ## Usage
@@ -39,11 +45,13 @@ Agents run with approvals bypassed, so start in a scratch repository. The
 
 ## Contributing
 
-Pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) says how to propose one. Ask a
-question, report a bug or request a feature through the
+Pull requests are welcome:
+[CONTRIBUTING.md](https://github.com/humanfia/humanize/blob/main/CONTRIBUTING.md) says how to
+propose one. Ask a question, report a bug or request a feature through the
 [issue forms](https://github.com/humanfia/humanize/issues/new/choose), and report a
-vulnerability privately, as [SECURITY.md](SECURITY.md) says. Everyone taking part follows the
-[Code of Conduct](CODE_OF_CONDUCT.md).
+vulnerability privately, as [SECURITY.md](https://github.com/humanfia/humanize/blob/main/SECURITY.md)
+says. Everyone taking part follows the
+[Code of Conduct](https://github.com/humanfia/humanize/blob/main/CODE_OF_CONDUCT.md).
 
 ## License
 

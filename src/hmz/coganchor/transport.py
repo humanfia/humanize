@@ -1241,6 +1241,9 @@ def _stamped(source: Path) -> str:
     is no way to make one by accident.
     """
     seen = hashlib.sha256()
+    # The version the archive carries, which a checkout's version bump changes with no file of
+    # this package changing.
+    seen.update(f"{coganchor.__version__}\n".encode())
     # Both trees the archive is made of -- the command line goes in too -- and each by where
     # it is, so that two checkouts never share a stamp however alike their files look.
     for tree in (source, source.parent / "cli"):
@@ -1329,6 +1332,15 @@ def _write_bundle(source: Path, destination: Path) -> None:
         # failed to start would then look like a clean exit.
         (root / "__main__.py").write_text(
             "from hmz.cli import main\n\nraise SystemExit(main())\n"
+        )
+        # And the version, as the metadata an installed `hmz` has, which is where
+        # `coganchor.__version__` is read from: a harness run from here says which humanize it
+        # is, and there is no install here to say it. It is found ahead of any `hmz` that
+        # machine has of its own, because the archive is first on its interpreter's path.
+        info = root / f"hmz-{coganchor.__version__}.dist-info"
+        info.mkdir()
+        (info / "METADATA").write_text(
+            f"Metadata-Version: 2.1\nName: hmz\nVersion: {coganchor.__version__}\n"
         )
         # One timestamp for everything, so the archive is a function of the source alone: the
         # bundle is addressed on the target by its digest, and a build stamp would miss that

@@ -10,7 +10,7 @@ having it act on another. Sub-packages: [agents](agents.md), [linux](linux.md),
 
 ```python
 # __init__.py -- the front door; each name below is fetched from anchor.py when it is named
-__version__: str
+__version__: str   # the installed `hmz` distribution's, read when it is named
 
 # anchor.py -- where a session is said in Python
 class NotInstalled(FileNotFoundError): ...   # the CLI a native turn wanted is not on the target
@@ -442,6 +442,10 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 - MUST offer driving a coding agent CLI as one capability reached through this package alone, MUST
   cost none of the anchor to name, and MUST write every fact about a CLI that is not code in
   `backends`, which MUST import nothing but the standard library and MUST hold no model id.
+- `__version__` MUST be the installed `hmz` distribution's version, `unknown` where none is
+  installed, and MUST NOT be written down anywhere but `pyproject.toml`; the archive a target
+  runs MUST carry it, so that a harness started there says the same one with no `hmz` installed
+  on that machine.
 - A session MUST say which road it is, under `anchor:supervised` or `anchor:native-cli`, with
   `anchor:afar` said alongside the first and never the second; either way what a layer above spawns
   MUST be one command whose streams and status are the agent's, run where that layer cannot see.
