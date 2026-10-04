@@ -1,8 +1,9 @@
 # Every change is checked, and how much of it runs grows with how close the change is to
-# `main`: `plan` says which tier this run is, `changes` what the change touched, and each stage
-# waits on the one before it, so a change that fails to lint never takes a runner for its
-# tests and one that touched no Python takes none for them at all. `ci-ok` at the end is the
-# one check a branch rule needs. docs/contributing/ci.md has the tiers and the graph.
+# `main`: `plan` says which tier this run is, `changes` what the change touched. The tests wait
+# on the linter and the type checker, so a change that fails either never takes a runner for
+# its tests, and one that touched no Python takes none for them at all; past those two, the
+# tests' tiers run side by side. `ci-ok` at the end is the one check a branch rule needs.
+# docs/contributing/ci.md has the tiers, the graph, and what each job takes.
 
 name: ci
 
@@ -29,6 +30,10 @@ concurrency:
 
 env:
   FORCE_COLOR: "1"
+  # Coverage read through `sys.monitoring` rather than a trace function, which costs a measured
+  # run next to nothing: under the trace function Python 3.12's `tests/unit` took twice what
+  # 3.14's did, and one test in it fifty seconds rather than five.
+  COVERAGE_CORE: sysmon
 
 jobs:
   plan:
@@ -39,6 +44,7 @@ jobs:
       tier: ${{ steps.plan.outputs.tier }}
       os: ${{ steps.plan.outputs.os }}
       python: ${{ steps.plan.outputs.python }}
+      coverage: ${{ steps.plan.outputs.coverage }}
     steps:
       - name: Which tier this run is
         id: plan
@@ -49,6 +55,11 @@ jobs:
         run: |
           os='["ubuntu-latest"]'
           python='["3.12"]'
+          # The Python whose Linux jobs count coverage, in the full tier alone: one
+          # configuration rather than every one, so the number means the same from run to run.
+          # A line only macOS or a newer Python reaches goes uncounted, and is still tested
+          # there. 3.12, because `system` runs on it, so every tier is counted together.
+          coverage=""
           if [[ "$EVENT" =~ ^(merge_group|schedule|workflow_dispatch)$ ]] ||
             [[ "$EVENT" == push && "$REF" == refs/heads/main ]] ||
             [[ "$EVENT" == pull_request && "$BASE" == main ]]; then
@@ -56,6 +67,7 @@ jobs:
             # Every Python the package claims, on both systems it runs on.
             os='["ubuntu-latest", "macos-latest"]'
             python='["3.12", "3.13", "3.14"]'
+            coverage="3.12"
           elif [[ "$EVENT" == pull_request ]]; then
             tier="pr"
           else
@@ -65,6 +77,7 @@ jobs:
             echo "tier=$tier"
             echo "os=$os"
             echo "python=$python"
+            echo "coverage=$coverage"
           } >> "$GITHUB_OUTPUT"
           echo "Tier: **$tier** ($EVENT on $REF${BASE:+ into $BASE})" >> "$GITHUB_STEP_SUMMARY"
 
@@ -99,6 +112,7 @@ jobs:
             python:
               - src/**
               - tests/**
+              - .test_durations
               - pyproject.toml
               - uv.lock
               - .python-version
@@ -205,8 +219,13 @@ jobs:
       - name: pyright (strict)
         run: uv run --frozen pyright
 
+  # The tiers of the tests start together once the type checker has passed, and none of them
+  # waits on another: each is a gate of its own, and a run that lined them up took the sum of
+  # them rather than the longest. Each worker of the tiers below waits on a subprocess, a socket
+  # or a pseudoterminal far more than it computes, and `-n auto` counts physical cores -- half a
+  # runner's vCPUs -- so they ask for two workers a vCPU instead.
   unit:
-    name: unit (${{ matrix.os }}, ${{ matrix.python }})
+    name: unit (ubuntu-latest, ${{ matrix.python }})
     needs: [plan, changes, lint, workflows, typecheck]
     # A stage that this tier leaves out is skipped rather than failed, and is no reason to stop.
     if: >-
@@ -215,17 +234,17 @@ jobs:
       && needs.workflows.result != 'failure'
       && needs.typecheck.result != 'failure'
       && needs.changes.outputs.python == 'true'
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(needs.plan.outputs.os) }}
         python: ${{ fromJSON(needs.plan.outputs.python) }}
     env:
-      COVERAGE_FILE: .coverage.unit-${{ matrix.os }}-${{ matrix.python }}
+      COVERAGE_FILE: .coverage.unit
+      COV: ${{ matrix.python == needs.plan.outputs.coverage && '--cov=hmz --cov-report=' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -235,39 +254,52 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Two workers a vCPU
+        run: |
+          workers=$((2 * $(getconf _NPROCESSORS_ONLN)))
+          echo "PYTEST_XDIST_AUTO_NUM_WORKERS=$workers" >> "$GITHUB_ENV"
+
       # `tests/test_tiers.py` beside each tier checks that tier's tree.
       - name: pytest tests/unit
         run: >
           uv run --frozen pytest tests/unit tests/test_tiers.py --durations=10
-          --timeout-method=thread --cov=hmz --cov-report=
+          --timeout-method=thread $COV
 
-      - if: needs.plan.outputs.tier == 'full'
+      - if: env.COV
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-unit-${{ matrix.os }}-${{ matrix.python }}
+          name: coverage-unit
           path: ${{ env.COVERAGE_FILE }}
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 
   integration:
-    name: integration (${{ matrix.os }}, ${{ matrix.python }})
-    needs: [plan, unit]
+    name: integration (ubuntu-latest, ${{ matrix.python }}, ${{ matrix.shard }}/2)
+    needs: [plan, changes, lint, workflows, typecheck]
     if: >-
       !cancelled()
-      && needs.unit.result == 'success'
+      && needs.lint.result == 'success'
+      && needs.workflows.result != 'failure'
+      && needs.typecheck.result != 'failure'
+      && needs.changes.outputs.python == 'true'
       && needs.plan.outputs.tier != 'push'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(needs.plan.outputs.os) }}
         python: ${{ fromJSON(needs.plan.outputs.python) }}
+        # Two halves that take the same time, by what `.test_durations` says each test took.
+        # A third would be quicker and is past what the full tier can run at once: GitHub's free
+        # plan runs twenty jobs at a time, and docs/contributing/ci.md counts them.
+        shard: [1, 2]
     env:
-      COVERAGE_FILE: .coverage.integration-${{ matrix.os }}-${{ matrix.python }}
+      COVERAGE_FILE: .coverage.integration-${{ matrix.shard }}
+      COV: ${{ matrix.python == needs.plan.outputs.coverage && '--cov=hmz --cov-report=' || '' }}
+      SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -277,33 +309,95 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Two workers a vCPU
+        run: |
+          workers=$((2 * $(getconf _NPROCESSORS_ONLN)))
+          echo "PYTEST_XDIST_AUTO_NUM_WORKERS=$workers" >> "$GITHUB_ENV"
+
+      # The split is made after collection, so each half collects the whole tree, and
+      # `tests/test_tiers.py`, which reads that collection, checks all of it in whichever
+      # half it falls to.
       - name: pytest tests/integration
         run: >
           uv run --frozen pytest tests/integration tests/test_tiers.py --durations=25
-          --timeout-method=thread --cov=hmz --cov-report=
+          --timeout-method=thread $COV
+          --splits 2 --group "$SHARD" --splitting-algorithm least_duration
 
-      - if: needs.plan.outputs.tier == 'full'
+      - if: env.COV
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-integration-${{ matrix.os }}-${{ matrix.python }}
+          name: coverage-integration-${{ matrix.shard }}
           path: ${{ env.COVERAGE_FILE }}
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 
-  system:
-    name: system (ubuntu-latest, 3.12)
-    needs: [plan, integration]
+  # macOS takes both tiers in one job per Python, one after the other, where Linux gives each a
+  # job and splits `tests/integration` in two. GitHub's free plan runs five macOS jobs at a time:
+  # a job apiece would be six, and the sixth would wait for a runner. Three, each taking both,
+  # is what fits; it is also what the full tier waits on last.
+  macos:
+    name: unit + integration (macos-latest, ${{ matrix.python }})
+    needs: [plan, changes, lint, workflows, typecheck]
     if: >-
       !cancelled()
-      && needs.integration.result == 'success'
+      && needs.lint.result == 'success'
+      && needs.workflows.result != 'failure'
+      && needs.typecheck.result != 'failure'
+      && needs.changes.outputs.python == 'true'
+      && needs.plan.outputs.tier == 'full'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ${{ fromJSON(needs.plan.outputs.python) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-uv
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Two workers a vCPU
+        run: |
+          workers=$((2 * $(getconf _NPROCESSORS_ONLN)))
+          echo "PYTEST_XDIST_AUTO_NUM_WORKERS=$workers" >> "$GITHUB_ENV"
+
+      # Two runs of pytest rather than one over both trees, so that the unit tests that time
+      # themselves are not timed beside the integration tests' subprocesses.
+      - name: pytest tests/unit
+        run: >
+          uv run --frozen pytest tests/unit tests/test_tiers.py --durations=10
+          --timeout-method=thread
+
+      # Whatever the unit tests said: what failed in either tier is worth knowing from one run.
+      - name: pytest tests/integration
+        if: ${{ !cancelled() }}
+        run: >
+          uv run --frozen pytest tests/integration tests/test_tiers.py --durations=25
+          --timeout-method=thread
+
+  system:
+    name: system (ubuntu-latest, 3.12)
+    needs: [plan, changes, lint, workflows, typecheck]
+    if: >-
+      !cancelled()
+      && needs.lint.result == 'success'
+      && needs.workflows.result != 'failure'
+      && needs.typecheck.result != 'failure'
+      && needs.changes.outputs.python == 'true'
       && needs.plan.outputs.tier == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
     env:
-      COVERAGE_FILE: .coverage.system-ubuntu-latest-3.12
+      COVERAGE_FILE: .coverage.system
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -327,6 +421,9 @@ jobs:
           ssh-keyscan -H localhost >> ~/.ssh/known_hosts 2>/dev/null
           ssh -o BatchMode=yes localhost true
 
+      # With the workers `-n auto` makes here, unlike the two tiers above: its tests share one
+      # docker daemon and one sshd, and it is over well before the macOS jobs are, so more
+      # workers would buy the run nothing and the daemon more to contend for.
       - name: pytest tests/system
         run: >
           uv run --frozen pytest tests/system tests/test_tiers.py --durations=25
@@ -334,7 +431,7 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-system-ubuntu-latest-3.12
+          name: coverage-system
           path: ${{ env.COVERAGE_FILE }}
           include-hidden-files: true
           if-no-files-found: error
@@ -368,7 +465,9 @@ jobs:
           path: coverage
           merge-multiple: true
 
-      - name: Every tier on every runner, combined
+      - name: Every tier on Linux and one Python, combined
+        env:
+          PYTHON: ${{ needs.plan.outputs.coverage }}
         run: |
           uv run --frozen --no-sync coverage combine coverage
           uv run --frozen --no-sync coverage xml
@@ -376,7 +475,7 @@ jobs:
           {
             echo "## Coverage: $(uv run --frozen --no-sync coverage report --format=total)%"
             echo
-            echo "Every tier, on every runner, combined."
+            echo "Every tier, on Linux and Python $PYTHON, combined."
             echo
             echo "<details><summary>By file</summary>"
             echo
@@ -524,6 +623,7 @@ jobs:
       - typecheck
       - unit
       - integration
+      - macos
       - system
       - coverage
       - build
@@ -538,6 +638,6 @@ jobs:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           allowed-skips: >-
-            workflows, typecheck, unit, integration, system, coverage, build, smoke, docs,
-            dependency-review
+            workflows, typecheck, unit, integration, macos, system, coverage, build, smoke,
+            docs, dependency-review
           jobs: ${{ toJSON(needs) }}

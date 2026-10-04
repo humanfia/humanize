@@ -21,8 +21,8 @@ a machine cannot be relied on to have?*
     safe anywhere -- a loopback socket is not a system test, because every machine has one.
   `tests/system`
     The real thing: a coding-agent CLI installed on this machine, real ptrace and seccomp, real
-    docker, real ssh, a real daemon fork, a real `node`. CI runs it last, on Linux, with docker
-    and ssh set up and no coding agent installed, so what needs one skips.
+    docker, real ssh, a real daemon fork, a real `node`. CI runs it beside the other two, on
+    Linux, with docker and ssh set up and no coding agent installed, so what needs one skips.
 
 Which is what makes the trees worth the move: a run can name one.
 
@@ -30,13 +30,13 @@ Which is what makes the trees worth the move: a run can name one.
     uv run pytest tests/unit               # the same tier, the other two never imported
     uv run pytest --ignore=tests/system    # everything a machine with nothing installed can run
 
-The last two are not spellings of a `-m`, and CI names a directory -- one tier to a job, each
-beside `tests/test_tiers.py` -- on purpose. `-m "not system"` selects the same tests as the
-last, but selecting happens after collecting: a deselected test has been imported already, and
-importing a system test is where a module that probes the machine as it loads does the probing.
-A red job about a tier that job never meant to run is the failure the trees exist to prevent, so
-a run that has to be dependable names the tree it runs, and `-m` is left for a developer
-choosing what to run. `docs/contributing/ci.md` has which tier runs where.
+The last two are not spellings of a `-m`, and CI names a directory -- one tier to a run of
+pytest, each beside `tests/test_tiers.py` -- on purpose. `-m "not system"` selects the same
+tests as the last, but selecting happens after collecting: a deselected test has been imported
+already, and importing a system test is where a module that probes the machine as it loads does
+the probing. A red job about a tier that job never meant to run is the failure the trees exist
+to prevent, so a run that has to be dependable names the tree it runs, and `-m` is left for a
+developer choosing what to run. `docs/contributing/ci.md` has which tier runs where.
 
 `agent` is a second gate inside `tests/system` rather than a fourth tier: a system test that
 spends real tokens has to be asked for by name with `--run-agents`, which CI never does, and one

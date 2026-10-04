@@ -115,6 +115,8 @@ dev = [
     "pytest>=8",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=6",
+    # CI splits `tests/integration` into halves of equal time, by `.test_durations`.
+    "pytest-split>=0.11.0",
     "pytest-timeout>=2.3",
     "pytest-xdist>=3.8.0",
     # Exercises dsh's dotenv-compatible native configuration without making the SDK
@@ -138,7 +140,9 @@ asyncio_mode = "auto"
 # difference between a gate somebody runs before pushing and one they learn to skip. Each
 # test already has a home, a workspace and a temporary directory of its own -- `tmp_path` and
 # the autouse fixtures in `tests/conftest.py` -- so there is no shared state for the workers
-# to race on. `auto` rather than a number: CI's runners are not this machine.
+# to race on. `auto` rather than a number: CI's runners are not this machine. `auto` counts
+# physical cores, which on a runner is half its vCPUs, so CI asks for two workers a vCPU instead
+# through `PYTEST_XDIST_AUTO_NUM_WORKERS`, which `auto` gives way to.
 #
 # It is on for the fast tier too, and that was measured rather than assumed, because bringing
 # workers up looks like pure overhead for a tier that would otherwise be over in seconds.

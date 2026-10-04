@@ -18,33 +18,39 @@ the jobs before it passed.
 | --- | --- | --- |
 | a push to a branch | `lint`, `unit` | Linux, Python 3.12 |
 | a pull request into a branch other than `main` | and `workflows`, `typecheck`, `integration` | Linux, Python 3.12 |
-| a pull request into `main`, the merge queue, a push to `main`, nightly, or a run by hand | and `system`, `build`, `smoke`, `docs`, `coverage`, `dependency-review` | Linux and macOS, Python 3.12, 3.13 and 3.14 |
+| a pull request into `main`, the merge queue, a push to `main`, nightly, or a run by hand | and `system`, `build`, `smoke`, `docs`, `coverage`, `dependency-review`, and `unit + integration` on macOS | Linux and macOS, Python 3.12, 3.13 and 3.14 |
 
 A job runs only when the change touched what it checks. A change to `docs/` alone runs `lint`
 and `docs` and nothing in Python, and a change to Python alone does not build the site. The
 nightly run and a run by hand check everything.
 
-Each job waits for the ones it hangs off, so a change that fails to lint never takes a runner
-for its tests:
+The tests wait for `lint` and `typecheck`, so a change that fails either never takes a runner
+for its tests. Past those two, the tiers start together, and none of them waits on another:
 
 ```text
-plan ─▶ changes ─┬─▶ lint ────────┬─▶ typecheck ─▶ unit ─▶ integration ─▶ system ─▶ coverage
-                 ├─▶ workflows ───┘
+plan ─▶ changes ─┬─▶ lint ──────┬─▶ typecheck ─┬─▶ unit ─────────────┬─▶ coverage
+                 ├─▶ workflows ─┘              ├─▶ integration 1/2 ─┤
+                 │                             ├─▶ integration 2/2 ─┤
+                 │                             ├─▶ system ──────────┘
+                 │                             └─▶ unit + integration on macOS
                  ├─▶ lint ─▶ build ─▶ smoke
                  └─▶ docs
 plan ─▶ dependency-review
 every job ─▶ ci-ok
 ```
 
+A push's run has no `typecheck`, and its `unit` starts as soon as `lint` has passed.
+
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
 | `lint` | Every pre-commit hook but `actionlint`, `zizmor` and `pyright`, which are the next two jobs | `uv run pre-commit run --all-files` |
 | `workflows` | `actionlint` and `zizmor` over `.github/` | `uv run pre-commit run actionlint --all-files`, and the same for `zizmor` |
 | `typecheck` | `pyright`, strict | `uv run pyright` |
-| `unit` | `tests/unit` | `uv run pytest tests/unit` |
-| `integration` | `tests/integration` | `uv run pytest tests/integration` |
+| `unit` | `tests/unit`, on Linux | `uv run pytest tests/unit` |
+| `integration` | `tests/integration` on Linux, in two halves that take the same time | `uv run pytest tests/integration` |
+| `unit + integration` | On macOS, `tests/unit` and then `tests/integration`, in one job per Python | The two above, on a Mac |
 | `system` | `tests/system`, on Linux, without `--run-agents` | `uv run pytest tests/system` |
-| `coverage` | Every test job's coverage, added up | |
+| `coverage` | The coverage of every tier on Linux and Python 3.12, added up | |
 | `build`, `smoke` | The package builds and PyPI would take it; the wheel, with no extras, starts on each system and Python | `uv build` |
 | `docs` | The site builds, every `#fragment` resolves, every word is legible on a phone. A push to `main` builds and deploys it from `build-docs.yml` instead | [Working on these docs](/contributing/docs) |
 | `dependency-review` | No dependency the pull request adds has a known vulnerability | |
@@ -52,6 +58,54 @@ every job ─▶ ci-ok
 The `system` runner has docker, a docker swarm and `ssh localhost`, and no coding agent CLI. A
 test that needs a real CLI skips there, and every test that waits for `--run-agents` does too:
 those, and [the regression matrix](/contributing/regression-matrix), are yours to run.
+
+## How long it takes
+
+The full tier takes about eight minutes from `plan` to `ci-ok`, and the macOS jobs are what it
+waits on last. What each job took in one run:
+
+| Job | Takes |
+| --- | --- |
+| `plan` to `typecheck` | 1 min |
+| `unit` | 1 min |
+| `integration`, each half | 3 min |
+| `system` | 3 min |
+| `unit + integration` on macOS | 6 to 7 min |
+| `docs` | 5 min, from the start of the run |
+| `coverage`, once the Linux tests are done | 30 s |
+
+Three things keep it there:
+
+- **Two workers a vCPU.** A test here spends most of its time waiting on a subprocess, a socket
+  or a pseudoterminal. `-n auto` counts physical cores, which gives a four-vCPU runner two
+  workers, so the test jobs set `PYTEST_XDIST_AUTO_NUM_WORKERS` to twice the runner's vCPUs.
+- **Coverage on one configuration.** Only the Linux jobs on Python 3.12 count it, every tier
+  of them, through `sys.monitoring` (`COVERAGE_CORE=sysmon`), which costs a run next to
+  nothing. A line only macOS or a newer Python reaches goes uncounted, and is still tested
+  there.
+- **`integration` in halves**, by how long each test took: see the next section.
+
+GitHub's free plan runs twenty jobs at once, five of them on macOS, and the full tier is shaped
+to fit. At its widest it runs sixteen, `codeql.yml`'s two among them, and three of those on
+macOS. That is why macOS takes both tiers in one job per Python, and why `integration` is split
+in two and not three. Two full tiers at once, such as a pull request's beside a push to
+`main`'s, do not fit, and whichever starts second waits for runners.
+
+## How `integration` is split
+
+[pytest-split](https://github.com/jerry-git/pytest-split) reads how long each test took from
+`.test_durations`, at the root of the repository, and deals `tests/integration` into two halves
+that take the same time. Every test runs in exactly one half, and `tests/test_tiers.py` checks
+the whole tree in whichever half it lands in. Each half's log opens with what it expects to
+take: `[pytest-split] Running group 1/2 (estimated duration: …)`.
+
+A test the file does not name counts as the average, so a file that has fallen behind still
+splits every test, only less evenly. When the two halves drift a minute apart, write it again
+and commit it:
+
+```sh
+uv run pytest tests/integration tests/test_tiers.py --store-durations --clean-durations
+```
 
 ## Read a run
 
@@ -71,6 +125,9 @@ coverage with a table by file. The whole report is the run's `coverage` artifact
   environment of its own: `uv run --isolated --all-extras --python 3.14 pytest tests/unit`.
 - **A test fails on macOS alone.** Run it on a Mac, or ask on the pull request for somebody
   who has one.
+- **A test fails in one half of `integration` and passes alone.** It leans on another test in
+  that half. Run the half as CI does:
+  `uv run pytest tests/integration tests/test_tiers.py --splits 2 --group 1 --splitting-algorithm least_duration`.
 - **`system` skips a test that runs on your machine.** It needs something that runner has not
   got, and the summary at the end of the job's log says what. A skip is not a failure.
 - **A pull request has no `ci-ok` after you moved it onto `main`.** The tier is read when a

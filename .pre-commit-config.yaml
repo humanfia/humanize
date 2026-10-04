@@ -23,6 +23,8 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: end-of-file-fixer
+        # Written by `pytest --store-durations`, without a last newline, and committed as written.
+        exclude: ^\.test_durations$
       - id: mixed-line-ending
       - id: trailing-whitespace
 
