@@ -221,9 +221,13 @@ jobs:
 
   # The tiers of the tests start together once the type checker has passed, and none of them
   # waits on another: each is a gate of its own, and a run that lined them up took the sum of
-  # them rather than the longest. Each worker of the tiers below waits on a subprocess, a socket
-  # or a pseudoterminal far more than it computes, and `-n auto` counts physical cores -- half a
-  # runner's vCPUs -- so they ask for two workers a vCPU instead.
+  # them rather than the longest.
+  #
+  # `tests/integration` runs two workers a vCPU. Each of its workers waits on a subprocess, a
+  # socket or a pseudoterminal far more than it computes, and `-n auto` counts physical cores,
+  # which is half a runner's vCPUs: four workers took that tier 404s on a four-vCPU runner and
+  # eight took it 228s. `tests/unit` keeps `auto`: it computes rather than waits, and some of
+  # its tests time themselves, which a CPU shared two ways over makes them miss.
   unit:
     name: unit (ubuntu-latest, ${{ matrix.python }})
     needs: [plan, changes, lint, workflows, typecheck]
@@ -256,11 +260,6 @@ jobs:
       - uses: ./.github/actions/setup-uv
         with:
           python-version: ${{ matrix.python }}
-
-      - name: Two workers a vCPU
-        run: |
-          workers=$((2 * $(getconf _NPROCESSORS_ONLN)))
-          echo "PYTEST_XDIST_AUTO_NUM_WORKERS=$workers" >> "$GITHUB_ENV"
 
       # `tests/test_tiers.py` beside each tier checks that tier's tree.
       - name: pytest tests/unit
@@ -313,16 +312,12 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Two workers a vCPU
-        run: |
-          workers=$((2 * $(getconf _NPROCESSORS_ONLN)))
-          echo "PYTEST_XDIST_AUTO_NUM_WORKERS=$workers" >> "$GITHUB_ENV"
-
       # The split is made after collection, so each half collects the whole tree, and
       # `tests/test_tiers.py`, which reads that collection, checks all of it in whichever
       # half it falls to.
       - name: pytest tests/integration
         run: >
+          PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN)))
           uv run --frozen pytest tests/integration tests/test_tiers.py --durations=25
           --timeout-method=thread
           --splits 2 --group "$SHARD" --splitting-algorithm least_duration
@@ -367,13 +362,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Two workers a vCPU
-        run: |
-          workers=$((2 * $(getconf _NPROCESSORS_ONLN)))
-          echo "PYTEST_XDIST_AUTO_NUM_WORKERS=$workers" >> "$GITHUB_ENV"
-
       # Two runs of pytest rather than one over both trees, so that the unit tests that time
-      # themselves are not timed beside the integration tests' subprocesses.
+      # themselves are not timed beside the integration tests' subprocesses, and each tier
+      # gets its own number of workers.
       - name: pytest tests/unit
         run: >
           uv run --frozen pytest tests/unit tests/test_tiers.py --durations=10
@@ -383,6 +374,7 @@ jobs:
       - name: pytest tests/integration
         if: ${{ !cancelled() }}
         run: >
+          PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN)))
           uv run --frozen pytest tests/integration tests/test_tiers.py --durations=25
           --timeout-method=thread
 
@@ -425,7 +417,7 @@ jobs:
           ssh-keyscan -H localhost >> ~/.ssh/known_hosts 2>/dev/null
           ssh -o BatchMode=yes localhost true
 
-      # With the workers `-n auto` makes here, unlike the two tiers above: its tests share one
+      # With the workers `-n auto` makes here, unlike `tests/integration`: its tests share one
       # docker daemon and one sshd, and it is over well before the macOS jobs are, so more
       # workers would buy the run nothing and the daemon more to contend for.
       - name: pytest tests/system

@@ -141,8 +141,8 @@ asyncio_mode = "auto"
 # test already has a home, a workspace and a temporary directory of its own -- `tmp_path` and
 # the autouse fixtures in `tests/conftest.py` -- so there is no shared state for the workers
 # to race on. `auto` rather than a number: CI's runners are not this machine. `auto` counts
-# physical cores, which on a runner is half its vCPUs, so CI asks for two workers a vCPU instead
-# through `PYTEST_XDIST_AUTO_NUM_WORKERS`, which `auto` gives way to.
+# physical cores, which on a runner is half its vCPUs, so CI runs `tests/integration` on two
+# workers a vCPU through `PYTEST_XDIST_AUTO_NUM_WORKERS`, which `auto` gives way to.
 #
 # It is on for the fast tier too, and that was measured rather than assumed, because bringing
 # workers up looks like pure overhead for a tier that would otherwise be over in seconds.

@@ -76,9 +76,10 @@ waits on last. What each job took in one run:
 
 Three things keep it there:
 
-- **Two workers a vCPU.** A test here spends most of its time waiting on a subprocess, a socket
-  or a pseudoterminal. `-n auto` counts physical cores, which gives a four-vCPU runner two
-  workers, so the test jobs set `PYTEST_XDIST_AUTO_NUM_WORKERS` to twice the runner's vCPUs.
+- **Two workers a vCPU for `tests/integration`.** Its tests spend most of their time waiting on
+  a subprocess, a socket or a pseudoterminal. `-n auto` counts physical cores, which gives a
+  four-vCPU runner two workers, so the jobs set `PYTEST_XDIST_AUTO_NUM_WORKERS` to twice the
+  runner's vCPUs for that tier. `tests/unit` computes rather than waits, and keeps `auto`.
 - **Coverage on one configuration.** Only the Linux jobs on Python 3.12 count it, every tier
   of them, through `sys.monitoring` (`COVERAGE_CORE=sysmon`), which costs a run next to
   nothing. A line only macOS or a newer Python reaches goes uncounted, and is still tested
