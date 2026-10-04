@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# What a pushed `vX.Y.Z` tag turns into: a wheel, an sdist and their checksums, on a draft
+# GitHub Release with generated notes. publish.yaml checks them, publishes them to PyPI, and
+# only then publishes the release. See docs/contributing/releasing.md.
+version: 2
+
+# The tag is the version, and pyproject.toml's is only what a checkout between releases calls
+# itself: so the tag's, in PEP 440's spelling, is written over it before anything is built.
+# Not for a snapshot, whose "tag" is only the last one there was -- that would rewrite the
+# checkout of whoever was trying a build out.
+before:
+  hooks:
+    - >-
+      {{ if not .IsSnapshot }}sh -c 'version="$(uv run --no-project
+      scripts/release_version.py {{ .Tag }})" && uv version --frozen "$version"'{{ end }}
+
+builds:
+  # The uv builder makes one artifact per build, so the wheel and the sdist are two builds
+  # of the same project rather than one build with two outputs.
+  - id: wheel
+    builder: uv
+    buildmode: wheel
+    flags: [--no-sources]
+  - id: sdist
+    builder: uv
+    buildmode: sdist
+    flags: [--no-sources]
+
+checksum:
+  name_template: checksums.txt
+
+# GitHub's own generated notes, which .github/release.yml sorts by the labels each pull
+# request's Conventional Commits title gives it.
+changelog:
+  use: github-native
+
+release:
+  # A draft until PyPI has taken the same files, so the release never offers what PyPI refused.
+  draft: true
+  # GitHub never finds a draft by its tag, so a build run again would make a second one.
+  replace_existing_draft: true
+  # A tag like v0.2.0-rc.1 is a release candidate, and says so on the release page.
+  prerelease: auto

@@ -215,6 +215,9 @@ ignore = [
 "docs/tapes/stage.py" = ["INP001"]
 # And the one that plays a tape into a terminal, run the same way, which says what it wrote.
 "docs/tapes/cast.py" = ["INP001", "T201"]
+# And the one that turns a release tag into a Python version, run by the release the same way,
+# whose answer is what it prints.
+"scripts/release_version.py" = ["INP001", "T201"]
 # The syscall layer's domain type is the string path: it reads them out of ptrace
 # registers and puts them on a wire, so `pathlib` would only convert them twice. Named
 # rather than the whole of `coganchor`, which also holds the drivers and the facts about
