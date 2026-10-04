@@ -869,7 +869,8 @@ a caller passes it under.
 ## Environment roles {#where-each-agent-works}
 
 An environment is a working directory on a machine: this one, one reached with `ssh`, or a
-container of its own on a docker daemon or on whichever node of a docker swarm has room.
+container of its own on a docker daemon, on whichever node of a docker swarm has room, or in
+Apple's `container` on this Mac.
 
 ### `EnvCollection` {#envcollection}
 
@@ -896,9 +897,9 @@ class Env(Protocol):
 
 | Member | Value |
 | --- | --- |
-| `workdir` | Where commands run and relative paths resolve: absolute, or `~/…` under the ssh login's home. For `docker`, a directory of the daemon's host, mounted at the same path in the container; for `swarm`, one of the node the task landed on, likewise. |
-| `backend` | `local`, `ssh`, `docker` or `swarm`. |
-| `provider` | `""` for `local`; the ssh destination or saved runtime name for `ssh`; the docker runtime name (`local` for docker's default here) for `docker`; the swarm runtime name (`local` for the swarm this machine manages) for `swarm`. |
+| `workdir` | Where commands run and relative paths resolve: absolute, or `~/…` under the ssh login's home. For `docker`, a directory of the daemon's host, mounted at the same path in the container; for `swarm`, one of the node the task landed on, likewise; for `apple-container`, one of this Mac, likewise. |
+| `backend` | `local`, `ssh`, `docker`, `swarm` or `apple-container`. |
+| `provider` | `""` for `local`; the ssh destination or saved runtime name for `ssh`; the docker runtime name (`local` for docker's default here) for `docker`; the swarm runtime name (`local` for the swarm this machine manages) for `swarm`; the Apple container runtime name (`local` for this Mac's with nothing saved) for `apple-container`. |
 | `available` | Whether the machine was reachable and the workdir existed, as last probed. |
 | `role` | The key it fills. |
 | `derive_subdir(subdir=…)` | An environment at a directory under this workdir, created if missing, same role and grant. `ValueError` for an absolute `subdir` or one that climbs out; `EnvError` if it cannot be made. |
@@ -921,7 +922,8 @@ environment on this machine; an environment on another machine raises `Capabilit
 `class EnvBackendKind(StrEnum)`: `LOCAL = "local"` (this machine), `SSH = "ssh"` (a host
 `ssh` reaches), `DOCKER = "docker"` (a container of its own on a docker runtime's daemon),
 `SWARM = "swarm"` (a container of its own as the one task of a service on a swarm runtime's
-swarm, on whichever node it was placed).
+swarm, on whichever node it was placed), `APPLE_CONTAINER = "apple-container"` (a container of
+its own, a small Linux virtual machine Apple's `container` runs on this Mac).
 
 ### What an environment can do {#what-an-environment-can-do}
 
@@ -945,7 +947,7 @@ and tuples of strings match.
 | `CPUEnvMixin` | `_cpu_count: int` | `1` | Minimum logical CPUs. |
 | `MemoryEnvMixin` | `_memory: int` | `0` | Minimum memory, bytes. |
 | `GPUEnvMixin` | `_gpu_count: int`, `_gpu_memory: int` | `1`, `0` | Minimum GPUs; minimum memory per GPU, bytes. |
-| `ImageEnvMixin` | `_image: str` | `""` | Image a `docker` or `swarm` environment's container starts from: `""` for the provider's image, else `python:3.12-slim`. Needs `/bin/sh` and Python ≥ 3.12; no sshd. Ignored for `local` and `ssh`. |
+| `ImageEnvMixin` | `_image: str` | `""` | Image a `docker`, `swarm` or `apple-container` environment's container starts from: `""` for the provider's image, else `python:3.12-slim`. Needs `/bin/sh` and Python ≥ 3.12; no sshd. Ignored for `local` and `ssh`. |
 
 An attribute is read only where its mixin is among the type's bases. For `local` and `ssh`, a
 machine with less than declared is refused before anything runs with
@@ -964,6 +966,11 @@ reserved as the runtime's generic resource. A runtime without that much left, or
 node of the swarm takes, is refused with `ResourceUnmet` the same way
 ([how](/reference/machines#swarm-environments)). Everything derived from a `swarm`
 environment is in the task's container.
+
+For `apple-container` the CPUs and memory size the container's virtual machine, and a role
+declaring `GPUEnvMixin` is refused with `ResourceUnmet`, Apple's containers being given no GPU
+([how](/reference/machines#apple-container-environments)). Everything derived from an
+`apple-container` environment is in the same container.
 
 ### Worktrees, copies and scratch directories {#worktrees-copies-and-scratch-directories}
 

@@ -351,10 +351,10 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | Key | Value |
 | --- | --- |
 | `role` | The environment role the session works in, `""` if unnamed. |
-| `kind` | `local`, `ssh`, `docker` or `swarm`. |
-| `target` | The ssh host or docker runtime; `""` for local. |
+| `kind` | `local`, `ssh`, `docker`, `swarm` or `apple-container`. |
+| `target` | The ssh host or container runtime; `""` for local. |
 | `workdir` | The directory there. |
-| `anchored` | `true` where the agent reaches another machine (ssh and docker environments). |
+| `anchored` | `true` where the agent reaches another machine (ssh and container environments). |
 
 `opened.harness`: where the session's harness went.
 
