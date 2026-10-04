@@ -306,7 +306,7 @@ affinity := [<entry>, ...]
   affinity (<entries>) names has room for <cli>'s harness; the last: <refusal>`. A machine
   that cannot be asked (`HarnessUnrecoverable`) is raised as it is, not passed by.
 - Work in a `local` environment always has its harness here. Work on a machine that is no saved
-  runtime (`ssh@[<host>]`, a host nobody saved; `docker/…` or `swarm/…`, this machine's), or
+  runtime (`ssh@[<host>]`, a host nobody saved; `docker/…`, `swarm/…` or `apple-container/…`, this machine's), or
   on a runtime with an empty affinity, is placed by the [default](#default-resolution).
 - The affinity read is the one of the runtime the session's placement names
   (`store.find(placement.backend, placement.provider)`), the one actually opened. A runtime a

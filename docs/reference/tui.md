@@ -743,14 +743,14 @@ older than 7 days; when an account never asked is chosen; on `check again`.
 
 | Row | Kind | About / values |
 | --- | --- | --- |
-| `backend` | ▾ `local` `ssh` `docker` `swarm` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon` / `a container on whichever node of a docker swarm has room`, beside each on the list too. Starts on the first of `ssh`, `docker`, `swarm` with a saved runtime, else `local`. Changing it clears host and workdir. |
-| `host` (ssh) · `daemon` (docker) · `swarm` (swarm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, `choose a saved host, or add one` (ssh), or `none: <backend> on this machine, or choose a saved one` (docker, swarm: left empty, it is this machine). Absent for `local`. |
-| `workdir` | written | `absolute path on this machine` (local); `leave blank to use saved default: <dir>` (a runtime saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the runtime's workdir; while unchanged, the spec omits it. |
+| `backend` | ▾ `local` `ssh` `docker` `swarm` `apple-container` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon` / `a container on whichever node of a docker swarm has room` / `an Apple container on this Mac`, beside each on the list too. Starts on the first of `ssh`, `docker`, `swarm`, `apple-container` with a saved runtime, else `local`. Changing it clears host and workdir. |
+| `host` (ssh, apple-container) · `daemon` (docker) · `swarm` (swarm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, `choose a saved host, or add one` (ssh), or `none: <backend> on this machine, or choose a saved one` (docker, swarm, apple-container: left empty, it is this machine). Absent for `local`. |
+| `workdir` | written | `absolute path on this machine` (local, and apple-container with nothing saved); `leave blank to use saved default: <dir>` (a runtime saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the runtime's workdir; while unchanged, the spec omits it. |
 | `as -e` | written | `full -e spec: typing one sets the rows above` |
 | `done` | | `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`. |
 
-The rows are composed as `-e` spells them: no provider for `local`, nor for docker or swarm
-left on this machine (`docker/<workdir>`); an ssh host that is no saved runtime in brackets
+The rows are composed as `-e` spells them: no provider for `local`, nor for docker, swarm or
+apple-container left on this machine (`docker/<workdir>`); an ssh host that is no saved runtime in brackets
 (`ssh@[<host>]/<workdir>`). The composed spec is read as
 [`-e`](/reference/cli#writing-an-environment) reads it and refused in its words (e.g.
 `-e 'box=ssh@[somehost]': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one`
@@ -761,9 +761,9 @@ where no workdir is given or saved). Partial answers: `fill in the <host|workdir
 
 | Element | Value |
 | --- | --- |
-| Title | `Select the ssh host to use` / `Select the docker host to use` / `Select the docker swarm to use` |
+| Title | `Select the ssh host to use` / `Select the docker host to use` / `Select the docker swarm to use` / `Select the host for Apple containers to use` |
 | About | `Saved on the runtimes page of /settings; any host you add here is saved there.` |
-| Rows above the list | `add an ssh host` / `add a docker host` / `add a docker swarm` (the [runtime forms](#runtimes), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
+| Rows above the list | `add an ssh host` / `add a docker host` / `add a docker swarm` / `add a host for Apple containers` (the [runtime forms](#runtimes), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
 | Empty | `no ssh host is saved yet` |
 
 `unsaved host` opens **Unsaved ssh host** (`Connects using your ssh config with no extra
@@ -890,7 +890,7 @@ Storage keys are in [Settings](/reference/settings).
   │    where a turn goes when its agent fails                                │
   │──────────────────────────────────────────────────────────────────────────│
   │ ▦  Runtimes                                                    1 machine │
-  │    ssh hosts, docker daemons and swarms that flows run on                │
+  │    ssh hosts, docker daemons, swarms and Apple containers                │
   │──────────────────────────────────────────────────────────────────────────│
   │ ⑂  Flowverses                                               3 flowverses │
   │    the git repositories flows come from                                  │
@@ -936,8 +936,9 @@ is held. Coming back out of a page puts the cursor on its card.
 | Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
 | Flowverses | Add a flowverse · Search… | name, URL |
 
-**Add a runtime…** drops `ssh host`, `docker host` and `docker swarm` (titled `add a runtime`)
-over the button; picking one opens [its form](#ssh-form), `esc` or a click off it none.
+**Add a runtime…** drops `ssh host`, `docker host`, `docker swarm` and `apple containers`
+(titled `add a runtime`) over the button; picking one opens [its form](#ssh-form), `esc` or a
+click off it none.
 
 **Dropdowns.** A `▾` value -- here and on every other menu -- opens a framed list titled with
 the row's name, under the value (above it where there is no room), at most 12 visible values:
@@ -1090,9 +1091,10 @@ fallback`.
 
 ### Runtimes page {#runtimes}
 
-Intro: `Saved ssh hosts, docker daemons with the resources each may hand out, and docker
-swarms with what their tasks may reserve, used by name as flow environments in -e and /flow.
-Changes take effect immediately.` Rows under `ssh`, `docker` and `swarm` headings.
+Intro: `Saved ssh hosts, docker daemons with the resources each may hand out, docker swarms
+with what their tasks may reserve, and this Mac's Apple containers, used by name as flow
+environments in -e and /flow. Changes take effect immediately.` Rows under `ssh`, `docker`,
+`swarm` and `apple-container` headings.
 Empty: `no machines saved yet; a role can still name one directly`. `/settings environments`,
 the page's former name, still opens it. Storage and semantics: [Machines ›
 Runtimes](/reference/machines#runtimes).
@@ -1194,6 +1196,22 @@ Refusals: `a docker swarm named <name> already exists; …`, `max tasks: '<x>' m
 `<attribute>==<value>` or `<attribute>!=<value>`, a node's ssh host that is neither saved nor
 `[user@]host[:port]`, and a generic resource that is not one; and the docker host form's for
 memory, CPUs, run args and TLS.
+
+#### Apple containers form {#apple-container-form}
+
+Title `Add a host for Apple containers` / `Edit apple-container/<name>`; intro `This Mac,
+where flow environments run in Linux containers of Apple's container, each a small virtual
+machine of its own. Flows running on it are limited to the resources configured here.`
+
+The [docker host form](#docker-form)'s rows less `endpoint`, `OCI runtime` and `gpus`: `name`
+(add; `local` unless taken), `harness runs on`, `image`, `run args` (`extra arguments for
+container run`), `max containers`, `workdir`, `falls back to`, `cpus` (`max CPUs; blank to use
+all of this Mac's`), `memory` (`e.g. 16G; blank to use all of this Mac's`), `detect` (`detect
+this Mac's resources and fill them in`: `detecting resources on this Mac…`, then `detected …:
+auto-filled` with the cursor on `cpus`, or red `Apple's container did not respond: …`),
+`done` (`adds apple-container/<name> and detects host resources`). Refusals: `a host for
+Apple containers named <name> already exists; …`, and the docker host form's for memory,
+CPUs, max containers and run args.
 
 #### Import form {#import-form}
 

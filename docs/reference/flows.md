@@ -1525,21 +1525,22 @@ for `ssh` alone, a host nobody saved, in brackets. None is this machine.
 | `ssh@<name>/~/path`, `ssh@[<host>]/~/path` | under the login's home there (the leading `/` before `~` is dropped) |
 | `docker/abs/path`, `docker@<name>/abs/path` | a container of its own on docker's default daemon here, or on a saved docker runtime's daemon; the path is on the daemon's host and is mounted at the same path |
 | `swarm/abs/path`, `swarm@<name>/abs/path` | a container of its own as the one task of a service on the swarm this machine manages, or on a saved swarm runtime's swarm, on whichever node has room; the path is on that node and is mounted at the same path |
-| `ssh@<name>`, `docker@<name>`, `swarm@<name>` | the workdir the saved runtime was saved with |
+| `apple-container/abs/path`, `apple-container@<name>/abs/path` | an Apple container of its own on this Mac, with nothing saved or as a saved runtime of that backend shares it out; the path is this Mac's and is mounted at the same path |
+| `ssh@<name>`, `docker@<name>`, `swarm@<name>`, `apple-container@<name>` | the workdir the saved runtime was saved with |
 
 | Input | Message |
 | --- | --- |
 | not `<role>=…`, or a stray bracket | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
 | no `/workdir` and no saved runtime workdir | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one` |
 | role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
-| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm` |
+| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm, apple-container` |
 | `ssh` without host | `-e '<item>': ssh needs a host: ssh@<saved host>/<workdir>, or ssh@[user@host:port]/<workdir> for a host not saved` |
 | `ssh@<name>`, nothing saved as `<name>` | `-e '<item>': no ssh host is saved as '<name>'; write <role>=ssh@[<name>]/<workdir> for a host not saved` |
 | `ssh@[<host>]`, not a host | `-e '<item>': '<host>' is not an ssh host, as [user@]host[:port]` |
-| brackets on `docker` or `swarm` | `-e '<item>': only ssh takes a host nobody saved; <backend>@<name> names a <backend> runtime saved on the runtimes page of /settings` |
-| `docker@local`, `swarm@local`, nothing saved as `local` | `-e '<item>': <backend> on this machine names no provider; write <role>=<backend>/<workdir>` |
-| `docker@<name>`, `swarm@<name>`, nothing saved as `<name>` | `-e '<item>': no <backend> runtime is saved as '<name>'; save one on the runtimes page of /settings, or write <role>=<backend>/<workdir> for <backend> on this machine` |
-| `docker@` or `swarm@` with nothing after | `-e '<item>': an @ is written only before a provider; write <role>=<backend>/<workdir>` |
+| brackets on `docker`, `swarm` or `apple-container` | `-e '<item>': only ssh takes a host nobody saved; <backend>@<name> names a <backend> runtime saved on the runtimes page of /settings` |
+| `docker@local`, `swarm@local`, `apple-container@local`, nothing saved as `local` | `-e '<item>': <backend> on this machine names no provider; write <role>=<backend>/<workdir>` |
+| `docker@<name>`, `swarm@<name>`, `apple-container@<name>`, nothing saved as `<name>` | `-e '<item>': no <backend> runtime is saved as '<name>'; save one on the runtimes page of /settings, or write <role>=<backend>/<workdir> for <backend> on this machine` |
+| `docker@`, `swarm@` or `apple-container@` with nothing after | `-e '<item>': an @ is written only before a provider; write <role>=<backend>/<workdir>` |
 | `local` with an `@` | `-e '<item>': local takes no provider; write <role>=local/<workdir>` |
 | role twice | `-e: the role '<role>' is given twice` |
 | role not declared | `<flow> has no environment role '<role>'; available roles are …` |

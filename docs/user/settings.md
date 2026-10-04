@@ -1016,7 +1016,7 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
   backend saved here, with `add an
   ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `unsaved
   host`: any host `ssh` reaches, as you would type it, saved nowhere, and spelled in brackets
-  (`ssh@[me@box:2222]/…`). For docker or a swarm, left empty it is this machine's
+  (`ssh@[me@box:2222]/…`). For docker, a swarm or Apple containers, left empty it is this machine's
   (`docker/…`).
 - `workdir` starts from where the runtime was saved to work. Left as it is, the spelling
   leaves it out (`ssh@gpu`), so the role goes on following the runtime when its workdir is

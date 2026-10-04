@@ -755,7 +755,7 @@ environment landed on.
 | Order | the list's, until one holds the role; each refused environment is closed |
 | Transitivity | none: a runtime reached by fallback never walks its own list, and an `-e` naming a runtime that is only someone else's fallback walks nothing unless it has a list of its own |
 | Workdir | the fallback runtime's saved `workdir`, else the path the `-e` gave |
-| Unsaved specs | `local/…`, `ssh@[user@host]/…`, `docker/…`, `swarm/…`: no fallback |
+| Unsaved specs | `local/…`, `ssh@[user@host]/…`, `docker/…`, `swarm/…`, `apple-container/…`: no fallback |
 | Said | `hmz exec: <backend>:<A> cannot hold '<role>': <why>; using <backend>:<B>`, on stderr (a `notice` in the TUI) |
 | All refused | the last refusal's kind, naming every runtime tried and why: `ssh:a cannot hold 'box': …; ssh:b cannot hold 'box': …` |
 | Recorded | the epic's `envs` keeps the `-e` as given (what a picked-up run is given again, and what settings remember); `used` is where each role was put, written only where it differs |
