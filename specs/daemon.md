@@ -112,7 +112,7 @@ class Frames:
   as a stop does once it has gone.
 - `host` MUST find the host already holding a workspace's runs before it starts one, MUST start
   the daemon and then one where none is, and MUST refuse a machine an older humanize's daemon
-  holds and a workspace a host it left still holds. The
+  holds. The
   host process MUST read nothing, MUST write its own descriptors into the epic of the run it
   holds, MUST say what is printed in it to its frontends a line at a time, MUST ignore an
   interrupt, MUST close its runs on a terminate and wait a while for them to let go of what they
