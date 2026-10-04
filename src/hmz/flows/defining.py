@@ -295,7 +295,7 @@ def load(ref: str) -> Flow:
       the flow named after the directory, else the one visible flow it holds;
     - `<pip-style-vcs-url>[#<subdir>][:<subflow>]`, a flow of a repository, in the directory
       after the `#` or at its root, such as
-      `git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr`.
+      `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`.
 
     A resumed flow's subflows resume too, where they are called with the same task, agents,
     environments and params as before.

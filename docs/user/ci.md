@@ -214,7 +214,7 @@ has fetched no flowverse and installed nothing, so `-f parallel_flame_chase` is 
 instead, which fetches it for the run and installs nothing:
 
 ```sh
--f 'git+https://github.com/humanfia/flow-parallel-flame-chase@v0.1.0#parallel_flame_chase'
+-f 'git+https://github.com/humanfia/parallel-flame-chase-flow@v0.1.0#parallel_flame_chase'
 ```
 
 The `@v0.1.0` is a tag; a commit pins the flow so that nothing upstream can change what runs at

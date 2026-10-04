@@ -61,8 +61,8 @@ def _nobody_s_flows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         ("/abs/flows/x:y", None, None, "/abs/flows/x", "y"),
         ("C:/odd/path", None, None, "C:/odd/path", ""),
         (
-            "git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr",
-            "https://github.com/humanfia/flow-humanize1",
+            "git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr",
+            "https://github.com/humanfia/humanize1-flow",
             "v0.1.0",
             "humanize1",
             "rlcr",

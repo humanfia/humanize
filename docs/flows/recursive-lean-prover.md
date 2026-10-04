@@ -29,7 +29,7 @@ hmz exec -f recursive_lean_prover \
 ::: tip Install it first
 It is not built in: in `/flow`, go to **Flowverses** → `official` and install
 `recursive_lean_prover`, which installs the [humanize1](/flows/humanize1) it calls too. Its code is
-[humanfia/flow-recursive-lean-prover](https://github.com/humanfia/flow-recursive-lean-prover).
+[humanfia/recursive-lean-prover-flow](https://github.com/humanfia/recursive-lean-prover-flow).
 :::
 
 <HmzFlow flow="recursive_lean_prover" />

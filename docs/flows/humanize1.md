@@ -35,7 +35,7 @@ hmz exec -f humanize1:rlcr \
 
 ::: tip Install it first
 It is not built in: in `/flow`, go to **Flowverses** → `official` and install `humanize1`. Its code
-is [humanfia/flow-humanize1](https://github.com/humanfia/flow-humanize1).
+is [humanfia/humanize1-flow](https://github.com/humanfia/humanize1-flow).
 :::
 
 Name the phase: a bare `humanize1` is refused. Each phase is a run of its own, and what passes

@@ -273,7 +273,7 @@ async def aimed(
 2. **A name**, as `-f` takes one: `goal` ships with humanize, so it is there on every
    machine. A flow of another repository is named by a git ref instead, written the way pip
    writes one: the repository, `@` a branch, tag or commit, and `#` the directory the flow is
-   in, as in `git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr`. It is
+   in, as in `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`. It is
    fetched the first time you call it, once per URL and revision per run.
 3. **`"worker"`** is `goal`'s role name. Your `builder` fills it.
 4. **`envs={}`** leaves `goal`'s `workspace` out. It is a `LocalEnv`, which the run fills, so

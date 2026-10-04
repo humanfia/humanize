@@ -1442,7 +1442,7 @@ on [`/flow`'s Flowverses page](/reference/tui#where-flows-come-from) and with
 name: parallel_flame_chase
 version: 0.1.0
 description: Report-driven lanes of alternating agents planned by a coordinator.
-repo: humanfia/flow-parallel-flame-chase
+repo: humanfia/parallel-flame-chase-flow
 ref: v0.1.0
 commit: <40 hex>
 subdir: parallel_flame_chase
@@ -1543,7 +1543,7 @@ the run; later failures are reported and the conversation continues.
 
 The flows humanize offers besides the ones in the package, listed by
 [humanfia/flowverse](https://github.com/humanfia/flowverse), each released from a repository of
-its own (`humanfia/flow-<name>`), and run once [installed](#installing). Every flow here also
+its own (`humanfia/<name>-flow`), and run once [installed](#installing). Every flow here also
 has a `workspace: LocalEnv` role; `human` is an `Outworlder`. None declares a budget of its own.
 Read [Security](/user/security) before running any.
 

@@ -179,7 +179,7 @@ ref = [ flowverse , "/" ] , flow , [ ":" , name ]
 | `<flowverse>/<flow>` | The flow installed from that flowverse. `local/…` is `./.humanize/flows/`, `user/…` is `~/.humanize/flows/`. |
 | `…:<name>` | Another flow defined in the same module. |
 | a path (`./x`, `/x`, `x.py`) | That directory or file. |
-| `git+<url>[@<rev>][#<subdir>][:<name>]` | The flow in `<subdir>` of a repository (its root without `#`), cloned and pinned at that revision, installing nothing: `git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr`. |
+| `git+<url>[@<rev>][#<subdir>][:<name>]` | The flow in `<subdir>` of a repository (its root without `#`), cloned and pinned at that revision, installing nothing: `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`. |
 
 A flow a flowverse's index lists is not run until it is installed (`hmz exec` installs
 nothing): naming one is refused with `<name>: not installed -- install it from /flow

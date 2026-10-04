@@ -190,7 +190,7 @@ python -c 'from hmz.sdk import Hmz; v = Hmz().verses; v.fetch("official"); v.ins
 Or name a release by its repository, which runs it without installing anything:
 
 ```sh
--f 'git+https://github.com/humanfia/flow-parallel-flame-chase@v0.1.0#parallel_flame_chase'
+-f 'git+https://github.com/humanfia/parallel-flame-chase-flow@v0.1.0#parallel_flame_chase'
 ```
 
 **Verify.** `/flow` lists the flow, with its version at the end of its row, and the line gets

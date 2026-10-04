@@ -29,7 +29,7 @@ hmz exec -f parallel_flame_chase \
 ::: tip Install it first
 It is not built in: in `/flow`, go to **Flowverses** → `official` and install
 `parallel_flame_chase`, which brings `parallel_flame_chase:git_pr` with it. Its code is
-[humanfia/flow-parallel-flame-chase](https://github.com/humanfia/flow-parallel-flame-chase).
+[humanfia/parallel-flame-chase-flow](https://github.com/humanfia/parallel-flame-chase-flow).
 :::
 
 <HmzFlow flow="parallel_flame_chase" />

@@ -303,9 +303,9 @@ installs `review` the same way, under whatever name they chose for it.
 `@flow`s, released together, not in two repositories or two manifests. The one named after the
 directory is `review`, and each other is `review:<name>`, such as `review:quick`.
 `parallel_flame_chase` and `parallel_flame_chase:git_pr` are one release of
-[humanfia/flow-parallel-flame-chase](https://github.com/humanfia/flow-parallel-flame-chase);
+[humanfia/parallel-flame-chase-flow](https://github.com/humanfia/parallel-flame-chase-flow);
 `agent_cleanup:ralph_loop` and `agent_cleanup:flame_chase` are one of
-[humanfia/flow-agent-cleanup](https://github.com/humanfia/flow-agent-cleanup).
+[humanfia/agent-cleanup-flow](https://github.com/humanfia/agent-cleanup-flow).
 
 **Keep a flow's own code in its own directory.** Besides installed packages, a flow can import
 only what sits beside its `__init__.py`, and that directory is all that is installed, so a

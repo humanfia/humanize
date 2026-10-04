@@ -28,7 +28,7 @@ hmz exec -f agent_cleanup:ralph_loop \
 ::: tip Install it first
 It is not built in. It is a flow of the `agent_cleanup` module: in `/flow`, go to **Flowverses** →
 `official` and install `agent_cleanup`, which brings it and `agent_cleanup:flame_chase`. Its code is
-[humanfia/flow-agent-cleanup](https://github.com/humanfia/flow-agent-cleanup).
+[humanfia/agent-cleanup-flow](https://github.com/humanfia/agent-cleanup-flow).
 :::
 
 <HmzFlow flow="ralph_loop_agent_cleanup" />
@@ -36,7 +36,7 @@ It is not built in. It is a flow of the `agent_cleanup` module: in `/flow`, go t
 ::: danger Each cleaning rewrites your git history
 Every cleaning replaces the repository's history with a single commit, `epoch N: distilled
 tree`. The history it replaces is archived outside the repository, never deleted; the flow's
-[README](https://github.com/humanfia/flow-agent-cleanup) says how to read it back. Run this on a clone you are willing to have rewritten.
+[README](https://github.com/humanfia/agent-cleanup-flow) says how to read it back. Run this on a clone you are willing to have rewritten.
 :::
 
 ## When to use it

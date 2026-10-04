@@ -4,7 +4,7 @@ A ref is one of::
 
     :review                                   a flow in the same module as the flow asking
     humanize1  humanize1:gen-plan             a flow beside the flow asking
-    git+https://github.com/humanfia/flow-humanize1@v0.1.0#humanize1:rlcr
+    git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr
                                               a flow of a repository, at a ref
 
 and, where no flow is asking -- a command line naming what to run -- `official/rlar`,

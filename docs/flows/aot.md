@@ -23,7 +23,7 @@ hmz exec -f aot -a writer=claude/claude-opus-5:high -a critic=codex/gpt-5.6-sol:
 
 ::: tip Install it first
 It is not built in: in `/flow`, go to **Flowverses** → `official` and install `aot`. Its code is
-[humanfia/flow-aot](https://github.com/humanfia/flow-aot).
+[humanfia/aot-flow](https://github.com/humanfia/aot-flow).
 :::
 
 <HmzFlow flow="aot" />
