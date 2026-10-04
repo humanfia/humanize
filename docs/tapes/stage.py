@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import hashlib
 import json
 import pathlib
 import re
@@ -575,13 +576,15 @@ def _settings() -> None:
     )
 
 
-#: What humanize's own flowverse lists, as its index says it: one release apiece, at a commit
-#: nobody cut. Nothing is installed from it here, so nothing is ever fetched at that commit.
+#: What humanize's own flowverse lists, as its index says it, each at a commit nobody cut.
+#: `aot` has two releases, so that its page has one to choose; the rest have one apiece.
 RELEASES = {
     "agent_cleanup": "A Ralph loop or a flame chase whose workspace an agent cleans up as "
     "it goes.",
     "aot": "Writes a flow from a description, then loads, smoke-runs and reviews it before "
     "landing it.",
+    "fixed_interrupt_flame_chase": "Two fresh sessions alternate at accepted-experiment "
+    "boundaries.",
     "humanize1": "RLCR from humanize 1 as three flows (gen-idea, gen-plan, rlcr), each set up "
     "before it starts.",
     "parallel_flame_chase": "Report-driven lanes of alternating agents planned by a "
@@ -589,6 +592,54 @@ RELEASES = {
     "recursive_lean_prover": "Recursively plans, proves, compares, reviews and catalogues "
     "Lean theorems.",
 }
+
+#: The releases of each flow, newest last; a flow not named here has one, 0.1.0.
+VERSIONS = {"aot": ("0.1.0", "0.2.0")}
+
+#: The release a demo installs, whose checkout is put where a fetch of it would have left it.
+CACHED = ("aot", "0.1.0")
+
+#: What that release is, in its repository: a flow that loads, and never runs here.
+AOT = '''"""Writes a flow from a description, then loads, smoke-runs and reviews it."""
+
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    flow,
+)
+
+
+class Agents(AgentCollection):
+    author: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def aot(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """Writes a flow from a description, then loads, smoke-runs and reviews it."""
+    author = agents["author"]
+    session = await author.spawn(env=envs["workspace"])
+    await author.run(task, session=session)
+'''
+
+
+def _repo(name: str) -> str:
+    """Where one of humanize's own flows lives, as its manifest says: `humanfia/<name>-flow`."""
+    return f"humanfia/{name.replace('_', '-')}-flow"
+
+
+def _commit(name: str, version: str) -> str:
+    """The commit a release says it was cut at: invented, and the same every build."""
+    return hashlib.blake2b(f"{name} {version}".encode(), digest_size=20).hexdigest()
 
 
 def _index() -> None:
@@ -602,20 +653,45 @@ def _index() -> None:
     at = HOME / "flowverses" / "official"
     (at / ".git").mkdir(parents=True, exist_ok=True)
     for name, about in RELEASES.items():
-        release = at / "flows" / name / "0.1.0"
-        release.mkdir(parents=True, exist_ok=True)
-        repo = "flow-" + name.replace("_", "-")
-        (release / "flow.yaml").write_text(
-            f"name: {name}\n"
-            "version: 0.1.0\n"
-            f"description: {about}\n"
-            f"repo: humanfia/{repo}\n"
-            "ref: v0.1.0\n"
-            f"commit: {'0' * 40}\n"
-            f"subdir: {name}\n"
-            "license: Apache-2.0\n",
-            encoding="utf-8",
-        )
+        for version in VERSIONS.get(name, ("0.1.0",)):
+            release = at / "flows" / name / version
+            release.mkdir(parents=True, exist_ok=True)
+            (release / "flow.yaml").write_text(
+                f"name: {name}\n"
+                f"version: {version}\n"
+                f"description: {about}\n"
+                f"repo: {_repo(name)}\n"
+                f"ref: v{version}\n"
+                f"commit: {_commit(name, version)}\n"
+                f"subdir: {name}\n"
+                "license: Apache-2.0\n",
+                encoding="utf-8",
+            )
+
+
+def _checkout() -> None:
+    """Puts one release's repository where installing it looks first, as a fetch leaves it.
+
+    This image has no git and reaches no network, so the checkout is written by the code that
+    keeps one -- `pinned` -- with its two calls to git answered here: the clone writes the
+    flow, and the commit it stands at is the one its manifest says. Installing it on camera
+    then finds it already fetched.
+    """
+    from hmz.runtime.flowing import loading
+
+    name, version = CACHED
+    commit = _commit(name, version)
+
+    def git(*said: str) -> None:
+        if said[0] == "clone":
+            into = pathlib.Path(said[-1]) / name
+            (into.parent / ".git").mkdir(parents=True)
+            into.mkdir()
+            (into / "__init__.py").write_text(AOT, encoding="utf-8")
+
+    loading._git = git  # noqa: SLF001 -- the clone is invented
+    loading._asked = lambda *_: commit  # noqa: SLF001 -- and so is where it stands
+    loading.pinned(f"https://github.com/{_repo(name)}", commit)
 
 
 if __name__ == "__main__":
@@ -627,3 +703,4 @@ if __name__ == "__main__":
     _machines()
     _settings()
     _index()
+    _checkout()

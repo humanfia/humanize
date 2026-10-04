@@ -9,7 +9,7 @@ that came back while the tape was showing, with the moment it came.
 
 `pyte` keeps a copy of the screen as it goes, for `Wait+Screen` to read and for `Show` to
 redraw: what a `Hide` did off camera is put on the recording as the screen it left behind,
-in one go, rather than played.
+in one go, rather than played. A redraw that leaves the screen as it was is left off.
 
 Run by `render.sh`, inside the container its Dockerfile builds. Only what the tapes here use is
 understood; anything else is an error rather than a guess.
@@ -281,6 +281,64 @@ class Tape:
             time.sleep(0.05)
 
 
+# Output that comes within this many seconds of the first of it is one frame.
+PIECES = 0.03
+
+# An escape sequence written whole: CSI, OSC, or one of the two-byte kind.
+WHOLE = re.compile(r"\x1b(\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|[ -/]*[0-~])")
+
+
+def state(screen: pyte.Screen) -> tuple[object, ...]:
+    """Everything about a screen that the next byte written to it could depend on."""
+    cursor = screen.cursor
+    return (
+        tuple(
+            tuple(screen.buffer[y][x] for x in range(screen.columns))
+            for y in range(screen.lines)
+        ),
+        (cursor.x, cursor.y, cursor.attrs, cursor.hidden),
+        frozenset(screen.mode),
+        screen.margins,
+        (screen.charset, screen.g0_charset, screen.g1_charset),
+    )
+
+
+def changing(
+    events: list[tuple[float, str]], cols: int, rows: int
+) -> list[tuple[float, str]]:
+    """The events, less the redraws that leave the screen as it was.
+
+    An interface may redraw the whole of a screen nothing on which has changed, twice a second;
+    kept, those redraws are most of a cast's size. Output that comes in pieces within a few
+    milliseconds is taken as one frame -- never cut inside an escape sequence -- and a frame
+    after which the screen, the cursor and the modes are as they were before it is left out.
+    The last moment is kept, so that the recording lasts as long as the tape did.
+    """
+    frames: list[tuple[float, str]] = []
+    for moment, text in events:
+        if frames:
+            began, held = frames[-1]
+            tail = held[held.rfind("\x1b") :] if "\x1b" in held else ""
+            if moment - began < PIECES or (tail and not WHOLE.match(tail)):
+                frames[-1] = (began, held + text)
+                continue
+        frames.append((moment, text))
+
+    screen = pyte.Screen(cols, rows)
+    stream = pyte.Stream(screen)
+    kept: list[tuple[float, str]] = []
+    before = state(screen)
+    for began, text in frames:
+        stream.feed(text)
+        after = state(screen)
+        if after != before:
+            kept.append((began, text))
+        before = after
+    if events and (not kept or kept[-1][0] < events[-1][0]):
+        kept.append((events[-1][0], ""))
+    return kept
+
+
 def main() -> None:
     """Record the tape named first into the cast named second."""
     source, target = Path(sys.argv[1]), Path(sys.argv[2])
@@ -292,6 +350,7 @@ def main() -> None:
     with term.lock:
         events = list(term.events)
     term.child.terminate(force=True)
+    events = changing(events, cols, rows)
 
     speed = float(tape.settings["PlaybackSpeed"])
     header = {

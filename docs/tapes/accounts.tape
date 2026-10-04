@@ -26,9 +26,8 @@ Type "/settings accounts" Enter
 Wait+Screen /as local/
 Sleep 1400ms
 
-# Enter opens what there is to do with the one under the cursor -- four questions about one
-# account, taking it away among them, rather than four letters to read off the bottom of the
-# screen.
+# Enter opens what there is to do with the one under the cursor: its questions asked again, or
+# signing in again, with taking it away a red button under them.
 Enter
 Wait+Screen /edit settings/
 Sleep 1400ms

@@ -29,7 +29,8 @@ Sleep 1400ms
 Screenshot "/out/runtimes.png"
 Sleep 400ms
 
-# Enter opens what there is to do with the one under the cursor, taking it away last.
+# Enter opens what there is to do with the one under the cursor, with taking it away a red
+# button under it.
 Enter
 Wait+Screen /check host resources/
 Sleep 1400ms
@@ -38,7 +39,7 @@ Sleep 700ms
 
 # And `Add a runtime…`, the first button, drops the kinds; a docker host, the second, is one
 # form: where the daemon is, picked from a list, the name written in for you, and what it
-# may hand out last, over the row that asks the daemon.
+# may hand out last, with `Detect`, which asks the daemon, beside `Done`.
 Tab
 Sleep 500ms
 Enter

@@ -544,8 +544,8 @@ An API key belongs to the vendor, not to the CLI. An Anthropic key works in Clau
 opencode and mimocode alike. So when the account you are making is one other CLIs could
 run as, the form has a row for each of them, `also for pi`, `also for opencode` and so on:
 
-![the add-an-account form for a Claude API key: also for pi, opencode and mimo, each on
-because it is installed here](/demo/alike.png)
+![the add-an-account form for a Claude API key: also for pi and also for opencode, each off
+because it is not installed here yet](/demo/alike.png)
 
 - Each starts **on** where that CLI is installed here, and off where it is not. Change one as any
   `▾` row: <kbd>enter</kbd> drops `on` and `off` under it, the other one under the cursor, and

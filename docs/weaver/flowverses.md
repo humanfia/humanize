@@ -362,7 +362,7 @@ installed `recursive_lean_prover` finds the `humanize1` installed beside it.
 `/flow` is where flows are installed, as well as chosen. It opens on **Installed**; <kbd>←</kbd>
 goes out to its first screen, with **Installed** and **Flowverses** as two cards:
 
-<HmzCast name="flowverses" alt="/flow: from Installed out to its first screen, into Flowverses, then into official to read the flows its index lists" />
+<HmzCast name="flowverses" alt="/flow: from Installed out to its first screen, into Flowverses and into official, which lists six flows at their newest release; into aot, whose releases are 0.2.0 and 0.1.0, enter on 0.1.0 installs it; back on official, aot reads ✔ 0.1.0 ↑ 0.2.0" />
 
 | Page | Shows | Buttons |
 | --- | --- | --- |

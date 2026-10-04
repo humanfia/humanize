@@ -1,10 +1,8 @@
 # A first run, set up: `/flow`, a flow, its one agent, what a run may spend, and saving.
 #
 # No turn is taken. The backends here are stand-ins that run nothing, and the task is typed
-# and never sent. Opening the flows fetches whatever has never been fetched, and this image
-# has no git to fetch with, which `/flow` would say in red on camera. So `official` is marked
-# as fetched out of frame: it then offers the flows in the package and nothing else, nothing
-# is fetched, and the flow set up is the project's own `twice`.
+# and never sent. Nothing is fetched either: the official index is the one `stage.py` wrote
+# into this container, and the flow set up is the project's own `twice`.
 
 Set Shell "bash"
 Set FontSize 15
@@ -19,24 +17,20 @@ Set CursorBlink false
 Set PlaybackSpeed 1.5
 
 Hide
-Type "cd /work/demo && mkdir -p /root/.hmz/flowverses/official/.git && clear" Enter
+Type "cd /work/demo && clear" Enter
 Type "hmz" Enter
 Wait+Screen /ctrl\+c exit/
 Show
 
 Sleep 600ms
 
-# The flows, a list per place they come from: the arrows step between the places.
+# The flows ready to run here: the built-in ones, then each place the rest came from. The
+# cursor opens on the one this directory was last set up on.
 Type@10ms "/flow"
 Sleep 300ms
 Enter
-Wait+Screen /Choose a flow to run/
-Sleep 1s
-Right
-Wait+Screen /local\/twice/
-Sleep 700ms
-Down
-Sleep 600ms
+Wait+Screen /Flows ready to run here/
+Sleep 1200ms
 Enter
 Wait+Screen /Configure each role/
 Sleep 1500ms
@@ -54,7 +48,7 @@ Sleep 1200ms
 Down
 Sleep 500ms
 Enter
-Wait+Screen /claude-sonnet-4-8 /
+Wait+Screen /claude-sonnet-4-8 ▸/
 Sleep 500ms
 Down
 Sleep 400ms
@@ -68,14 +62,16 @@ Sleep 400ms
 Enter
 Wait+Screen /medium ▾/
 Sleep 900ms
-# And `save`, under the rows, hands the agent back to the menu.
-Down
+# And `Save`, the button under the rows, hands the agent back to the menu: tab is the way
+# down to it.
+Tab
+Wait+Screen /enter save/
 Sleep 400ms
 Enter
-Wait+Screen /none set/
+Wait+Screen /sonnet-4-8:medium ▸/
 Sleep 1s
 
-# What a run of it may spend. A run of a flow like this one is given a budget.
+# What a run of it may spend: a limit to stop at, of time, money or output.
 Down
 Sleep 400ms
 Enter
@@ -86,17 +82,19 @@ Type "20m"
 Sleep 500ms
 Enter
 Sleep 300ms
-Down 4
+Tab
+Wait+Screen /enter set/
 Sleep 400ms
 Enter
-Wait+Screen /stops at/
+Wait+Screen /stops at 20m/
 Sleep 1500ms
 
-# Saved from the menu's own `save` row, under the budget.
-Down 1
+# Saved by the menu's own `Save`, the last of its buttons.
+Tab
+Wait+Screen /enter save/
 Sleep 400ms
 Enter
-Wait+Screen /enter a task/
+Wait+Screen /builder · claude\/claude-sonnet-4-8:medium/
 Sleep 1500ms
 
 # The task is the next thing said. Typed here, and never sent.

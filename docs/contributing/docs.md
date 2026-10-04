@@ -278,9 +278,11 @@ again, to prove the state changes.
 
 ## Terminal demos
 
-The GIFs under `docs/public/demo/` are rendered by [VHS](https://github.com/charmbracelet/vhs)
-from the `.tape` scripts in `docs/tapes/`, inside a container built for the purpose. You need
-`docker` and nothing else.
+The casts under `docs/public/demo/` are recorded from the [VHS](https://github.com/charmbracelet/vhs)
+`.tape` scripts in `docs/tapes/`, inside a container built for the purpose, and a page plays
+one with `<HmzCast name="…" alt="…" />`. You need Apple's
+[`container`](https://github.com/apple/container) and nothing else
+(`CONTAINER=docker` uses Docker instead).
 
 ```sh
 docs/tapes/render.sh              # every tape
@@ -293,8 +295,8 @@ coding agent CLIs. No tape takes a real turn, and nothing signs in to anything: 
 on screen is an obvious fake, such as `not-a-real-key`.
 :::
 
-Keep each GIF under 450 KB: `render.sh` fails on anything larger. Look at every frame before
-you commit. [`docs/tapes/README.md`](https://github.com/humanfia/humanize/blob/main/docs/tapes/README.md)
+Keep each cast under 450 KB: `render.sh` fails on anything larger. Play every one on its page
+under `pnpm dev` before you commit. [`docs/tapes/README.md`](https://github.com/humanfia/humanize/blob/main/docs/tapes/README.md)
 has the rest.
 
 ## Other documentation

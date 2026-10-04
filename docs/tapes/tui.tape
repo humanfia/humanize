@@ -12,10 +12,7 @@ Set Framerate 20
 Set TypingSpeed 50ms
 
 Hide
-# Opening the flows fetches whatever has never been fetched, and this image has no git to fetch
-# with, which `/flow` would say in red on camera: so `official` is marked as fetched out of frame,
-# as first-run.tape does.
-Type "cd /work/demo && mkdir -p /root/.hmz/flowverses/official/.git && clear" Enter
+Type "cd /work/demo && clear" Enter
 Show
 
 Sleep 500ms
@@ -29,17 +26,23 @@ Sleep 3s
 Backspace
 Sleep 500ms
 
-# The flows there are, a tab per place they come from.
+# The flows ready to run here, and the way back out: each esc a step up the line across the
+# top, to the first screen -- what is installed, and the flowverses more come from -- and out.
 Type "/flow"
 Sleep 1500ms
 Enter
 Sleep 3s
 
+# → goes into the flow under the cursor: its roles, what it takes and what a run may spend.
 Right
 Sleep 2500ms
 
 Escape
-Sleep 1500ms
+Sleep 1000ms
+Escape
+Sleep 2000ms
+Escape
+Sleep 1000ms
 
 # `/exit` is what leaves: ctrl+c ends a turn, and there is none here to end.
 Type "/exit" Enter

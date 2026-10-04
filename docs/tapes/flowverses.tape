@@ -1,9 +1,10 @@
-# `/flow`: what is installed, then out to its first screen and into the flowverses -- the
-# indexes more flows are installed from -- and into humanize's own to read what it lists.
+# `/flow`: out to its first screen, into the flowverses -- the indexes more flows are installed
+# from -- and into humanize's own, to install one flow at the release asked for.
 #
-# Nothing is fetched or installed here. The official index is the one `stage.py` wrote into
-# this container; the fetch the interface tries as it opens fails quietly, and adding a
-# flowverse is opened and walked back out of rather than answered.
+# Nothing reaches a network. The official index is the one `stage.py` wrote into this
+# container, and the fetch the interface tries as it opens fails quietly. The release installed
+# is the one whose checkout `stage.py` put where a fetch of it would have left it, so installing
+# it copies a flow that never runs here.
 
 Set Shell "bash"
 Set FontSize 15
@@ -21,10 +22,10 @@ Show
 
 Sleep 400ms
 
-# What `/flow` opens on: every flow ready to run here, the ones built in first.
+# What `/flow` opens on: every flow ready to run here.
 Type "/flow" Enter
 Wait+Screen /Install more/
-Sleep 1400ms
+Sleep 1200ms
 
 # Out a step, to the first screen: what is installed, and where more come from.
 Left
@@ -35,23 +36,29 @@ Sleep 1200ms
 Down
 Enter
 Wait+Screen /Add flowverse/
-Sleep 1400ms
+Sleep 1200ms
 
-# Adding one is a repository and a name. Opened here, and walked back out of.
-Tab
-Sleep 400ms
-Enter
-Wait+Screen /Add a flowverse/
-Sleep 1600ms
-Escape
-Wait+Screen /Indexes of flows to install/
-Sleep 600ms
-
-# Into `official`: each flow its index lists, at its newest release, ready to install.
-Up
-Sleep 300ms
+# Into `official`: each flow its index lists, at its newest release.
 Enter
 Wait+Screen /lists, at their newest/
 Sleep 1600ms
+
+# Into one flow: its releases, newest first. Enter installs the one under the cursor -- here
+# the older, to show that what is installed is a version rather than whatever is newest.
+Down
+Sleep 400ms
+Enter
+Wait+Screen /Releases of aot/
+Sleep 1200ms
+Down
+Sleep 600ms
+Enter
+Wait+Screen /aot 0\.1\.0 is installed/
+Sleep 1600ms
 Screenshot "/out/flowverses.png"
 Sleep 400ms
+
+# Back out, where the flow now says what is installed and that a newer release is listed.
+Escape
+Wait+Screen /↑ 0\.2\.0/
+Sleep 2000ms

@@ -94,10 +94,10 @@ straight away.
 
 <kbd>ctrl+c</kbd> twice stops the flow, `/` lists every command, and `/exit` leaves.
 
-<HmzCast name="tui" alt="hmz opens, / lists its commands, and /flow opens a flow's menu" />
+<HmzCast name="tui" alt="hmz opens, / lists its commands, /flow lists the flows installed here and → opens one's roles; esc steps back out through its first screen" />
 
 <p class="hmz-cast-caption">
-  <code>/</code> lists the commands and <code>/flow</code> opens a flow's menu. Recorded with
+  <code>/</code> lists the commands and <code>/flow</code> the flows to set up. Recorded with
   stand-in CLIs, so no agent takes a turn.
 </p>
 

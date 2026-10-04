@@ -26,3 +26,13 @@ Wait+Screen /profiling/
 Sleep 1400ms
 Screenshot "/out/profiling.png"
 Sleep 400ms
+
+# A switch, as every `▾` row is: enter drops `on` and `off` under it, the one in force ticked.
+# Esc takes neither, and leaves it as it was.
+Down 2
+Sleep 500ms
+Enter
+Wait+Screen /╭─ profiling/
+Sleep 1600ms
+Escape
+Sleep 1200ms

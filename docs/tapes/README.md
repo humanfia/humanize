@@ -64,7 +64,8 @@ shows humanize and nothing about the machine it was recorded on.
 
 `cast.py` understands what the tapes here use -- `Type`, the keys, `Ctrl+`, `Sleep`,
 `Wait+Screen`, `Hide`, `Show` and `Set` -- and stops on anything else rather than guess.
-What a `Hide` does goes on the recording as the screen it left behind, in one go.
+What a `Hide` does goes on the recording as the screen it left behind, in one go, and a redraw
+that leaves the screen as it was is left off it: a menu sends one twice a second.
 
 ## The pieces
 

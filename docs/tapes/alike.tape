@@ -49,8 +49,10 @@ Screenshot "/out/alike.png"
 Sleep 800ms
 
 # The ones this machine has installed start on; the rest are two keypresses away, the list
-# each drops opening on the answer it is not.
-Up 3
+# each drops opening on the answer it is not. The key answered, the focus is on `Done`: tab
+# goes back up to the rows, and down to the first of them.
+Tab
+Down
 Sleep 500ms
 Enter
 Enter
@@ -58,7 +60,9 @@ Sleep 700ms
 Enter
 Enter
 Sleep 1200ms
-Down
+
+# And `Done`, under the rows, makes it: tab is the way down to it.
+Tab
 Sleep 500ms
 Enter
 
