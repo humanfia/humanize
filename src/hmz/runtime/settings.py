@@ -472,7 +472,13 @@ def _renamed(held: dict[str, Any]) -> bool:
             entry["flow"] = now
             changed = True
         flows = _mapping(entry.get("flows"))
-        kept = {renamed(name): one for name, one in flows.items()}
+        # What is kept under the name already said as now wins over what an old name of the
+        # same flow comes to -- `aot` over `official/aot` -- whichever the file holds first.
+        kept: dict[str, Any] = {}
+        for name, one in flows.items():
+            now = renamed(name)
+            if now == name or now not in flows:
+                kept[now] = one
         if list(kept) != list(flows):
             flows.clear()
             flows.update(kept)

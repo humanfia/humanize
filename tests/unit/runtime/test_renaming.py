@@ -85,6 +85,21 @@ def test_settings_kept_the_old_way_are_read_as_flows_are_named_now(
     assert yaml.safe_load(file.read_text())["naming"] == 2  # once, and said so
 
 
+def test_a_flow_kept_under_both_names_keeps_what_its_name_now_holds(
+    tmp_path: Path,
+) -> None:
+    """Whichever the file holds first: the old name is what to read only where it is alone."""
+    _kept(
+        tmp_path,
+        {"flows": {"aot": {"profile": True}, "official/aot": {"profile": False}}},
+    )
+
+    settings = Settings(tmp_path)
+
+    assert list(settings.flows()) == ["aot"]
+    assert settings.profile("aot") is True
+
+
 def test_settings_written_since_are_read_as_they_were_written(tmp_path: Path) -> None:
     """`theirs/review` written since is a flow of humanize's, whatever `theirs` is now."""
     Settings(tmp_path).remember("theirs/review", {}, budget={"cost": 1.0})
