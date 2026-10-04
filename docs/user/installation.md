@@ -339,6 +339,10 @@ pip install --upgrade hmz
 
 :::
 
+`uv tool upgrade` and `pipx upgrade` keep an install
+[from GitHub](#the-latest-main-instead-of-a-release) on the latest `main`. To move it to
+releases, install over it: `uv tool install --force hmz`, or `pipx install --force hmz`.
+
 What each release changed is on
 [GitHub Releases](https://github.com/humanfia/humanize/releases).
 
