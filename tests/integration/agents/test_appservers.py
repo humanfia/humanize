@@ -1441,6 +1441,12 @@ def test_kimi_cut_off_in_a_command_aborts_the_prompt_and_starts_no_daemon(
     while not child.exists():
         assert time.monotonic() < deadline, "the turn never ran its command"
         time.sleep(0.05)
+    # And until the turn holds its prompt's id, which it asks how the prompt goes by: this
+    # daemon starts the command before it answers the prompt, where Kimi's starts one only
+    # once the model asks, and a cut before the id is back has no prompt to abort.
+    while not [call for call in kimi.calls() if call["path"].endswith("/status")]:
+        assert time.monotonic() < deadline, "the turn never asked how its prompt went"
+        time.sleep(0.05)
     running = psutil.Process(int(child.read_text()))
     began = time.monotonic()
     while True:
