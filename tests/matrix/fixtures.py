@@ -28,18 +28,19 @@ if TYPE_CHECKING:
 
 __all__ = ["billed", "cell", "home_kept_here"]
 
-#: The unit prices this machine last fetched, which a cell's home is given a copy of: the
-#: suite fetches nothing, and a cost cap over prices nobody has is a cap nothing reads.
-_PRICES = Path.home() / ".hmz" / "prices.json"
+#: The unit prices this machine last fetched, which a cell is given a copy of: the suite
+#: fetches nothing, and a cost cap over prices nobody has is a cap nothing reads. Named as
+#: `hmz.machine` names it, and at import, before a test points the temporary directory at
+#: one of its own -- and without making it, as asking `machine` would.
+_PRICES = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}" / "prices.json"
 
 
 def _priced() -> None:
-    """Gives the test's home this machine's prices, where it has any."""
-    from hmz import home
+    """Gives the test's machine directory this machine's prices, where it has any."""
+    from hmz import machine
 
-    home().mkdir(parents=True, exist_ok=True)
     if _PRICES.is_file():
-        shutil.copy2(_PRICES, home() / "prices.json")
+        shutil.copy2(_PRICES, machine() / "prices.json")
 
 
 @pytest.fixture

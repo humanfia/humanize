@@ -38,8 +38,18 @@ Screenshot "/out/epic-does.png"
 Sleep 400ms
 
 # The whole run as one archive, with a trace of its sessions -- and the programs it ran --
-# gathered into it on the way.
+# gathered into it on the way. Where it goes is asked, and the path completes as it is
+# typed: `/tm` and tab is `/tmp/`, enter keeps it and enter on done exports.
 Down
+Sleep 400ms
+Enter
+Wait+Screen /Export run/
+Sleep 600ms
+Type "/tm"
+Sleep 600ms
+Tab
+Sleep 800ms
+Enter
 Sleep 400ms
 Enter
 Wait+Screen /slices/

@@ -129,8 +129,8 @@ class Epics:
             where = epic / TRACES / f"{stamp}.trace.json"
         where.parent.mkdir(parents=True, exist_ok=True)
         # Where the run kept its sessions: its own directory for them, and wherever else one
-        # of them says it was kept by humanize -- an agent that had kept sessions somewhere
-        # before this run was handed it goes on keeping them there. Not a CLI's own home,
+        # of them says it was kept by humanize -- an agent that had kept sessions in another
+        # run before this one was handed it goes on keeping them there. Not a CLI's own home,
         # which is read whatever is said here.
         kept = {epic / SESSIONS} | {
             at.parent
@@ -154,7 +154,7 @@ class Epics:
         self,
         epic: Path,
         *,
-        output: str | os.PathLike[str] | None = None,
+        output: str | os.PathLike[str],
         transcript: str | None = None,
     ) -> tuple[Path, dict[str, Any]]:
         """Packages one whole run up as one archive, to send to somebody who was not there.
@@ -164,8 +164,8 @@ class Epics:
 
         Args:
           epic: The run, by the directory it is written in.
-          output: Where to write it -- a file, or a directory to write it into under its own
-            name -- or None for `.hmz/` beside wherever this is being run.
+          output: Where to write it: a file, or a directory to write it into under its own
+            name.
           transcript: A screen that went with this run, for a caller that has one, or None
             -- which is what a run exported out of the list of them goes in as, that run not
             being the one on the screen.
@@ -203,7 +203,7 @@ class Epics:
           profile: Where the run's own profile was written, for a run that was profiled.
           kept: Where humanize kept the sessions to read besides each CLI's own home, a
             directory per CLI inside each, or None for everywhere it keeps them: every
-            epic's, and its own for an agent no run was driving.
+            epic's, an agent no run was driving keeping its own in its CLI's home.
 
         Returns:
           The trace, as the object that was written.
@@ -214,10 +214,10 @@ class Epics:
 
         if kept is None:
             # Where :attr:`hmz.coganchor.agents.AgentBase.keeps` puts them: each run's own --
-            # of this workspace, where there is one -- and humanize's for an agent no run drove.
+            # of this workspace, where there is one.
             runs = self.under() if self._workspace is not None else home() / "epics"
             within = "*" if self._workspace is not None else "*/*"
-            kept = [home() / SESSIONS, *sorted(runs.glob(f"{within}/{SESSIONS}"))]
+            kept = sorted(runs.glob(f"{within}/{SESSIONS}"))
         return collect(
             self._workspace,
             sessions=sessions,

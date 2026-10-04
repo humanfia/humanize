@@ -1223,7 +1223,7 @@ Grammar rules:
 
 **`git+` fetching.** `<rev>` absent means the default branch. A 40-hex `<rev>` is used as a
 commit; anything else is resolved with `git ls-remote`. The checkout is kept at
-`~/.hmz/flowverses/.pinned/<blake2b-8(url)>/<sha>` and cloned once per commit; each run
+`$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>` and cloned once per commit; each run
 fetches a given URL and revision at most once, on a worker thread, when the flow is first
 called (`hmz exec -f git+…` fetches before the run starts). Each git command has 120 s. The
 flow is `<subdir>/__init__.py` of the checkout (the root's without `#`). Where there is none:
@@ -1318,7 +1318,7 @@ async def gen_plan(task, *, agents, envs, params, ctx): ...
 
   ```console
   $ hmz exec -f humanize1 -p budget.cost=5 "…"
-  hmz exec: error: humanize1: ~/.hmz/installed/official/humanize1 holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>
+  hmz exec: error: humanize1: ~/.hmz/flowverses/official/installed/humanize1 holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>
   ```
 
 - Lists show the flow a bare name means under the module name, and every other visible flow as
@@ -1349,8 +1349,8 @@ Names starting with `_`, and directories without `__init__.py`, are not flows.
 | --- | --- | --- |
 | 1 | `local` | `.hmz/flows/` under the current directory |
 | 2 | `user` | `~/.hmz/flows/` (literally `~`, not `HUMANIZE_HOME`) |
-| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.hmz/installed/official/` |
-| 4 | other flowverses | `~/.hmz/installed/<name>/`, alphabetically |
+| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.hmz/flowverses/official/installed/` |
+| 4 | other flowverses | `~/.hmz/flowverses/<name>/installed/`, alphabetically |
 | 5 | a path | `<name>/__init__.py`, `<name>`, `<name>.py` (`~` expanded) |
 
 Only what is built in, installed or in `local` and `user` is found: never a flow an index only
@@ -1400,10 +1400,16 @@ class Reviewer(Agent):
   single-file flow `... and a flow that is one file has none of it`). Unfetchable, or no such
   skill in the repository:
   `<ref>: '<role>' names a skill that cannot be fetched: <reason>`.
-- A repository is cloned into `~/.hmz/skills/<owner>-<repo>-<sha256(url)[:12]>` and
-  fetched again (`fetch --depth 1` + `reset --hard`) the next time a run needs it; a failed
-  re-fetch uses the existing copy.
-- The flow's own skill wins a name also held by a repository.
+- [Installing](#flowverses) a flow fetches every URL its roles' `_skills` write as string
+  literals into the installed flow's own `skills/<name>/`, recorded in its `.installed.json`;
+  a run of it reads them from there and fetches nothing. One that cannot be fetched fails the
+  install. A URL the source does not spell out is fetched at run time, as below.
+- A flow that was never installed -- yours, a builtin, a `git+` ref -- clones the repository
+  into `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>` and fetches it again
+  (`fetch --depth 1` + `reset --hard`) the next time a run needs it; a failed re-fetch uses
+  the existing copy.
+- The flow's own skill wins a name also held by a repository; a `#<skill>` URL whose skill
+  the flow has of its own gives the role the flow's.
 - Skills are mounted where the harness reads a project's skills for the session's lifetime,
   then removed. Nothing is installed. A harness that reads no project skills carries none.
 - [`derive(skills=…)`](#derive) narrows them for part of a flow.
@@ -1416,21 +1422,21 @@ what was [installed](#installing) from it.
 
 | Flowverse | Location | Fetched | Removable |
 | --- | --- | --- | --- |
-| `official` | package `hmz/flows/builtin/` + what is installed from the clone of `https://github.com/humanfia/flowverse` at `~/.hmz/flowverses/official/` | in the background each time `hmz` starts (cloned the first time); on demand | no |
+| `official` | package `hmz/flows/builtin/` + what is installed from the clone of `https://github.com/humanfia/flowverse` at `~/.hmz/flowverses/official/index/` | in the background each time `hmz` starts (cloned the first time); on demand | no |
 | `local` | `.hmz/flows` (relative to the current directory) | never | no |
 | `user` | `~/.hmz/flows` | never | no |
-| any other | what is installed from the clone at `~/.hmz/flowverses/<name>/` | clone on `add`; in the background each time `hmz` starts; on demand | yes |
+| any other | what is installed from the clone at `~/.hmz/flowverses/<name>/index/` | clone on `add`; in the background each time `hmz` starts; on demand | yes |
 
 **Order.** Listed: `official`, others alphabetically, `local`, `user`. Looked up:
 `local`, `user`, then the listed order.
 
 | Operation | Behaviour | Errors |
 | --- | --- | --- |
-| add `<url>` [`<name>`] | `git clone --depth 1` into `.<name>.XXXXXXXX` beside the target, then renamed into place. `<url>` may be `owner/repo` (GitHub) unless a local path of that name exists. Name defaults to the repository name less `.git`. Installs nothing. | `ValueError`: name not `[A-Za-z0-9][A-Za-z0-9._-]*`; `official`/`local`/`user`; already exists. `OSError`: git missing, clone failed (60 s timeout) |
+| add `<url>` [`<name>`] | `git clone --depth 1` into `.index.XXXXXXXX` beside the target, then renamed into place. `<url>` may be `owner/repo` (GitHub) unless a local path of that name exists. Name defaults to the repository name less `.git`. Installs nothing. | `ValueError`: name not `[A-Za-z0-9][A-Za-z0-9._-]*`; `official`/`local`/`user`; already exists. `OSError`: git missing, clone failed (60 s timeout) |
 | fetch `<name>` | Clone if never fetched; otherwise `git fetch --depth 1 origin HEAD` + `git reset --hard FETCH_HEAD` (local edits to tracked files are lost). Installed flows are not touched. | `ValueError`: unknown; `local`/`user`; a directory that is not a clone |
-| remove `<name>` | Deletes the clone and `~/.hmz/installed/<name>/`: every flow installed from it. | `ValueError` for the three fixed ones |
+| remove `<name>` | Deletes `~/.hmz/flowverses/<name>/` in one rename: the clone and every flow installed from it. | `ValueError` for the three fixed ones |
 
-A stale half-clone `.<name>.*` older than 60 s is removed before the next clone of that name.
+A stale half-clone `.index.*` older than 60 s is removed before the next clone of that flowverse.
 The background fetch at start skips a clone whose tracked files have local edits. Where a
 flowverse came from is shown with any `user:password@` in its URL replaced by `***@`. Managed
 on [`/flow`'s Flowverses page](/reference/tui#where-flows-come-from) and with
@@ -1495,8 +1501,8 @@ Installing `<flow>` at `<version>` (default as above) from flowverse `<verse>`:
    cached checkout), and `subdir` is copied, without `.git` and `__pycache__`, into
    `.<flow>.XXXXXXXX` beside the target; a single `<flow>.py` becomes that directory's
    `__init__.py`. `.installed.json` is written into it, and it is renamed into
-   `~/.hmz/installed/<verse>/<flow>/`, the release it replaces moved aside first. No subdir
-   holding the flow: `ValueError`
+   `~/.hmz/flowverses/<verse>/installed/<flow>/`, the release it replaces moved aside first. No
+   subdir holding the flow: `ValueError`
    (`<repo> at <commit[:12]> has no flow in <subdir|its root>: neither __init__.py nor <flow>.py`);
    fetch or copy failed: `OSError`.
 
@@ -1697,7 +1703,7 @@ work is on, an ordered list whose next entry is tried only where the one before 
 
 The affinity is the one of the runtime actually opened for the work; a runtime a harness is
 put on is opened as an environment of its own (its workdir, else `~` over ssh, else
-`$HUMANIZE_HOME/harness` for a daemon here), probed before the flow is called and closed with
+`$TMPDIR/humanize-<uid>/harness` for a daemon here), probed before the flow is called and closed with
 the run, and its own affinity is never walked.
 
 **Probing.** Placement is settled once per agent role and machine. "The CLI is there" is

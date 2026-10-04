@@ -62,26 +62,6 @@ def older(workspace: Path) -> Iterator[daemon.Daemon]:
         yield found
 
 
-@pytest.fixture
-def left(workspace: Path) -> Iterator[daemon.Daemon]:
-    """This workspace held by a host an older humanize left, where each was kept then.
-
-    One per workspace, under humanize's home, speaking the protocol before this one: what an
-    upgrade finds still running in a directory.
-    """
-    from hmz import home
-
-    at = home() / "daemons" / "project-0123456789ab"
-    at.mkdir(parents=True)
-    with _standing(
-        at, {"workspace": where.workspace(workspace), "kind": "host", "protocol": 1}
-    ):
-        found = daemon.running()
-        assert found is not None
-        assert found.protocol == 1
-        yield found
-
-
 @contextlib.contextmanager
 def _standing(at: Path, said: dict[str, object]) -> Generator[None]:
     """A daemon nobody here reaches, standing at `at` for as long as the block runs."""

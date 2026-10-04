@@ -698,11 +698,11 @@ def _skills_for(flow: FlowImpl, role: AgentRole) -> dict[str, tuple[Skill, ...]]
     Raises:
       FlowDefinitionError: For a skill the flow does not have, or cannot fetch.
     """
-    from .skills import brought
+    from .skills import brought, remote
     from .spi import Skill
 
     root = _root_of(flow)
-    urls = [one for one in role.skills if "#" in one or "://" in one]
+    urls = [one for one in role.skills if remote(one)]
     try:
         found = brought(root or "", urls)
     except OSError as error:
@@ -716,6 +716,12 @@ def _skills_for(flow: FlowImpl, role: AgentRole) -> dict[str, tuple[Skill, ...]]
             skills[said] = tuple(
                 Skill(one.name, one.at) for one in found if one.whose == said
             )
+            # The one skill it wanted, where the flow has one of that name of its own: the
+            # flow's, which is what winning a shared name is -- and what a fork of an installed
+            # flow has of every skill installing it fetched.
+            wanted = own.get(said.partition("#")[2].strip())
+            if not skills[said] and wanted is not None:
+                skills[said] = (Skill(wanted.name, wanted.at),)
             continue
         one = own.get(said)
         if one is None:

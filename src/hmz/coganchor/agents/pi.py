@@ -9,6 +9,7 @@ and asking what the session has spent are all commands there, and none of them i
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
@@ -17,7 +18,7 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from hmz import home
+from hmz import machine
 
 from .base import AgentBase, StreamSessionBase
 from .config import AgentConfig
@@ -90,8 +91,10 @@ _KINDS = {
 #: this machine, is asking a fair question and gets an answer rather than a monkeypatch.
 _COMPILED = "NODE_COMPILE_CACHE"
 
-#: Where that cache goes, under humanize's own home: it outlives one run of one flow, which is
-#: the whole point of it, and it is not the CLI's own directory to put anything in.
+#: Where that cache goes, under humanize's directory for this machine: it outlives one run of
+#: one flow, which is the whole point of it, it is bytecode for this machine's node and nothing
+#: another machine sharing the home could read, and it is not the CLI's own directory to put
+#: anything in.
 _CACHE = ("compiled", "pi")
 
 #: The tools of pi's own that change something rather than look at something, which is the
@@ -182,12 +185,12 @@ class PiAgentConfig(AgentConfig):
     permission gate.
 
     Attributes:
-      compiled: Whether node may keep what it compiled of pi under humanize's home, which is
-        what makes the second session on a machine start in three quarters of the time. True,
-        which is humanize's choice rather than pi's: the CLI sets no `NODE_COMPILE_CACHE`
-        itself. False leaves the variable exactly as it was found. Either way one already set
-        -- by a provider, or by whoever started this process -- is left alone, and a turn that
-        lands on another machine is given none.
+      compiled: Whether node may keep what it compiled of pi in humanize's directory for this
+        machine, which is what makes the second session on a machine start in three quarters of
+        the time. True, which is humanize's choice rather than pi's: the CLI sets no
+        `NODE_COMPILE_CACHE` itself. False leaves the variable exactly as it was found. Either
+        way one already set -- by a provider, or by whoever started this process -- is left
+        alone, and a turn that lands on another machine is given none.
       context_files: Whether pi discovers `AGENTS.md` and `CLAUDE.md` where the turn works.
         True, as pi ships. False is ``--no-context-files``: a run that has to answer the same
         way tomorrow, or on a machine whose checkout carries somebody else's instructions.
@@ -395,7 +398,10 @@ class PiSession(StreamSessionBase):
             and self._agent.anchor is None
             and getattr(self._agent.config, "compiled", True)
         ):
-            added[_COMPILED] = str(home().joinpath(*_CACHE))
+            # A machine directory that is not this user's alone is a cache unmade, not a turn
+            # refused: the compile it would have saved is all that is lost.
+            with contextlib.suppress(OSError):
+                added[_COMPILED] = str(machine().joinpath(*_CACHE))
         return preloaded(self._agent, added)
 
     def _write(self, text: str, ticket: str = "") -> str:

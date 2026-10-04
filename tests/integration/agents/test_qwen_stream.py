@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from pydantic import BaseModel
 
-from hmz import home
+from hmz import machine
 from hmz.coganchor.agents import Failed, QwenCodeAgent, QwenCodeAgentConfig
 from hmz.coganchor.agents import qwen as backend
 from hmz.coganchor.agents.skills import Loaded
@@ -495,9 +495,9 @@ def test_compiled_bundle_is_shared_unless_the_environment_names_its_own(
 ) -> None:
     qwen.agent.new()("first")
     (shared,) = qwen.calls()
-    # Under humanize's own home, as pi keeps its own: a path outside it would be a cache an
-    # isolated run still wrote into whoever is sitting here's real one.
-    assert shared["compiled"] == str(home() / "compiled" / "qwen")
+    # Under humanize's directory for this machine, as pi keeps its own: a path outside it
+    # would be a cache an isolated run still wrote into whoever is sitting here's real one.
+    assert shared["compiled"] == str(machine() / "compiled" / "qwen")
     monkeypatch.setenv("NODE_COMPILE_CACHE", str(tmp_path / "theirs"))
     qwen.agent.new()("second")
     _, theirs = qwen.calls()

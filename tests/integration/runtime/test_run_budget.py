@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from hmz import machine
 from tests.stubs import price_list, priced_model
 
 #: How long one round of the stand-in CLI takes, and what it says it cost. Slow enough that a
@@ -84,7 +85,7 @@ def stand_in(tmp_path: Path) -> dict[str, str]:
     # a million out makes one round of the stand-in worth a known amount of money.
     home = tmp_path / "home"
     home.mkdir(parents=True, exist_ok=True)
-    (home / "prices.json").write_text(
+    (machine() / "prices.json").write_text(
         json.dumps(
             {
                 "models": {
@@ -263,7 +264,7 @@ def test_a_cost_cap_on_a_machine_that_never_fetched_a_list_fetches_one_and_bites
     The run held to a cost asks for it itself, before its first turn, and is then stopped
     by its cost exactly as a run on a machine that had one would be.
     """
-    (Path(stand_in["HUMANIZE_HOME"]) / "prices.json").unlink()
+    (machine() / "prices.json").unlink()
     said = {**stand_in, "HUMANIZE_PRICES": str(_source(tmp_path))}
 
     ran = _ran(tmp_path, said, f"cost={2 * EACH * 5 / 1_000_000}")
@@ -272,7 +273,7 @@ def test_a_cost_cap_on_a_machine_that_never_fetched_a_list_fetches_one_and_bites
     assert "nobody lists a price" not in ran.stderr, ran.stderr
     assert "hmz exec: stopped --" in ran.stderr
     assert "cost" in ran.stderr, ran.stderr
-    assert (Path(stand_in["HUMANIZE_HOME"]) / "prices.json").exists()
+    assert (machine() / "prices.json").exists()
     assert _how(said) == ["stopped"]
 
 
@@ -281,7 +282,7 @@ def test_a_cost_cap_with_no_list_to_be_had_is_said_and_another_cap_still_bites(
     tmp_path: Path, stand_in: dict[str, str]
 ) -> None:
     """Offline with nothing kept: the cap in money is said to be unreadable, and the run goes."""
-    (Path(stand_in["HUMANIZE_HOME"]) / "prices.json").unlink()
+    (machine() / "prices.json").unlink()
     said = {**stand_in, "HUMANIZE_PRICES": str(tmp_path / "nowhere.json")}
 
     ran = _ran(tmp_path, said, f"cost=50,output_tokens={2 * EACH}")

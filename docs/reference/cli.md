@@ -759,8 +759,8 @@ is [Files](/reference/files).
 | `history.jsonl` | `hmz` | read and written: [prompt history](/reference/tui#history) |
 | `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
-| `providers/`, `models/` | all | read when an agent or environment is opened |
-| `installed/`, `flowverses/`; `~/.hmz/flows/` and `./.hmz/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
+| `settings.yaml`, `providers/` | all | read when an agent or environment is opened |
+| `flowverses/`; `~/.hmz/flows/` and `./.hmz/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 
 ## Python equivalents {#python-entry-points}
 

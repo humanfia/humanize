@@ -513,8 +513,9 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   way in with nothing recorded under one, and there MUST be one word every backend takes for no rung
   at all, absent from every ladder, at which nothing is said about how hard to think.
 - What a backend runs MUST be asked of that backend, or of the account's own endpoint where one is
-  set, kept per account and gone when the account is, and empty rather than guessed at until asked
-  for; reading what was kept MUST cost one file read and reach nothing, and the credential the
+  set, kept per account as a cache of this machine's under `machine()` and never under `home()`,
+  the account this machine is already signed into under a name no account can be made under,
+  gone when the account is, and empty rather than guessed at until asked for; reading what was kept MUST cost one file read and reach nothing, and the credential the
   endpoint is asked under MUST NOT follow a redirect off the host the account named. What was
   kept MUST be `stale` once asked longer than `STALE` ago, and never asked is stale.
 - A model's efforts MUST be its backend's ladder narrowed to the rungs that backend said the model

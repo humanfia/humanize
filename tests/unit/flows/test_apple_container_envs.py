@@ -339,12 +339,12 @@ def test_no_container_command_here_is_said_before_anything_is_asked(
 
 
 def test_a_runtime_of_apple_containers_with_no_workdir_holds_a_harness_here() -> None:
-    from hmz import home
+    from hmz import machine
 
     store.add(store.AppleContainerRuntime(name="mac"))
 
     driver = affinity._opened("apple-container:mac")
 
-    machine = _machine(driver)
-    assert machine.traced
-    assert driver.workdir == PurePosixPath(home() / "harness")
+    opened = _machine(driver)
+    assert opened.traced
+    assert driver.workdir == PurePosixPath(machine() / "harness")

@@ -111,7 +111,7 @@ Press <kbd>←</kbd> for [the monitor](/user/monitor), which splits the same fig
   `"spent":{"cache_write":3426.0,"output":400.0,"cache_read":38448.0,"input":18.0}`.
 - In `hmz`, the readout appears as soon as the first tokens are reported, and the `$` once the
   price list has been fetched.
-- `~/.hmz/prices.json` exists once the list has been fetched.
+- `$TMPDIR/humanize-<uid>/prices.json` exists once the list has been fetched.
 
 ## The `+`, and a missing `$` {#the-and-a-missing}
 
@@ -129,8 +129,8 @@ were.
 
 ## The money
 
-The prices come from [OpenLLMPrices](https://openllmprices.com/) and are kept in
-`~/.hmz/prices.json`. `hmz` refreshes the list in the background about once a day, and
+The prices come from [OpenLLMPrices](https://openllmprices.com/) and are kept on
+this machine, in `$TMPDIR/humanize-<uid>/prices.json`. `hmz` refreshes the list in the background about once a day, and
 nothing you type waits for it. `hmz exec` reads what is kept and never fetches.
 
 A model the list does not have shows its tokens and no money: a blank, never `$0.00`. Behind a

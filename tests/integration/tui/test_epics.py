@@ -22,6 +22,7 @@ from hmz.runtime.epic import epics, state
 from hmz.tui import Humanize
 from hmz.tui.pick import Does, Epics
 from tests.integration.tui.test_app import onto, rows
+from tests.integration.tui.test_export import exports_to
 from tests.stubs import written
 from tests.tui.fixtures import holding, idle, link, told, until
 
@@ -312,22 +313,20 @@ async def test_exporting_a_run_carries_its_own_trace_in_the_archive(
         sheet = await _open(app, driver)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Does), driver)
-        await onto(app, driver, "export")
-        await driver.press("enter")
+        await exports_to(app, driver, *"out/")
         await until(lambda: app.screen is sheet, driver)
         await until(lambda: "epic.tar.gz" in _under(sheet), driver)
 
         (epic,) = epics(workspace)
         (written,) = (epic / "traces").glob("*.trace.json")
-        at = workspace / ".hmz" / f"{epic.name}.epic.tar.gz"
+        at = workspace / "out" / f"{epic.name}.epic.tar.gz"
         assert str(at) in _under(sheet)
 
         # And again, which is the same run again: one trace rather than a pile of identical
         # ones, as the archive it goes in replaces itself rather than piling up beside.
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Does), driver)
-        await onto(app, driver, "export")
-        await driver.press("enter")
+        await exports_to(app, driver, *"out/")
         await until(lambda: app.screen is sheet, driver)
         await until(lambda: "epic.tar.gz" in _under(sheet), driver)
         assert list((epic / "traces").glob("*.trace.json")) == [written]
@@ -368,7 +367,6 @@ def test_the_trace_from_the_menu_is_of_that_run_and_of_nothing_else(
     from hmz.runtime.epic import Epic, read
     from hmz.tui.pick import exported
 
-    del workspace
     epic = Epic("plain", "go")
     epic.write("opened", agent="actor", backend="claude", session="one", name="one")
     epic.write("opened", agent="reviewer", backend="claude", session="two", name="two")
@@ -377,7 +375,7 @@ def test_the_trace_from_the_menu_is_of_that_run_and_of_nothing_else(
     ran = read(epic.path)
     assert ran is not None
 
-    exported(ran)
+    exported(ran, f"{workspace / 'out'}/")
 
     assert collect.call_args.args == (None,)
     assert collect.call_args.kwargs["sessions"] == ["one", "two"]

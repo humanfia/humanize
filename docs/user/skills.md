@@ -149,8 +149,10 @@ When the last session using a skill ends, the copy goes, along with any director
 to hold it. An agent whose turns run on [another machine](/user/remote-execution) gets them
 there.
 
-A flow may also name skills from a git repository. Those are cloned into `~/.hmz/skills/`
-and fetched again each time a run needs them, so they keep up with the repository.
+A flow may also name skills from a git repository. Installing the flow fetches them into its
+own `skills/`, so they travel with it like the rest of it and update when the flow does. A flow
+you never installed, such as one in `.hmz/flows/`, fetches them into a cache in your temporary
+directory each time a run needs them, so they keep up with the repository.
 
 ## Variations
 

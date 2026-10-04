@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import os
 import re
 import shlex
 import sys
@@ -78,6 +79,7 @@ from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
 
+from .complete import paths
 from .discover import installed, ready_to_open
 from .dropdown import Dropdown, Value, anchor
 from .monitor import thousands
@@ -1506,8 +1508,9 @@ class Sheet[T](ModalScreen[T | None]):
         """
         if self._editing:
             return (
-                # The one chord, which only a row being written that takes a list has.
-                *(one for one in keys if one.key == _CHORD),
+                # The one chord, which only a row being written that takes a list has, and
+                # the tab that finishes a path, which only a path being written has.
+                *(one for one in keys if one.key in (_CHORD, _FINISH)),
                 Key("enter", "keep"),
                 Key("esc", "undo"),
             )
@@ -2507,6 +2510,8 @@ class Question(NamedTuple):
         :data:`_WRITES`.
       secret: Whether what is typed is drawn as bullets and never shown back.
       needed: Whether it is still to be answered, which is where keeping a row moves on to.
+      path: Whether what is written is a path, which is finished as it is typed -- see
+        :func:`hmz.tui.complete.paths`.
     """
 
     held: str
@@ -2515,6 +2520,15 @@ class Question(NamedTuple):
     kind: str = _WRITES
     secret: bool = False
     needed: bool = False
+    path: bool = False
+
+
+#: The key that finishes a path being written, as it finishes one in a shell.
+_FINISH = "tab"
+
+#: How many of the paths one being written could become are said under the list: a directory
+#: of a thousand files is a list to narrow by typing, not one to read.
+_PATHS_SHOWN = 8
 
 
 class Form[T](Drafts[T]):
@@ -2548,6 +2562,9 @@ class Form[T](Drafts[T]):
         #: The questions as they were last put up, which is what a row's kind is read off:
         #: asking them can read the disk, and a row's kind is asked of per keystroke.
         self._now: list[Question] | None = None
+        #: What a path being written could become, while tab is taking each of them in turn:
+        #: the list it is taking them from, which taking one would otherwise change.
+        self._turns: list[str] = []
 
     def asked(self) -> list[Question]:
         """Every question, in the order they are asked, which each form says for itself."""
@@ -2651,7 +2668,8 @@ class Form[T](Drafts[T]):
         listing.set_options(options)
         listing.highlighted = at if rows else None
         self._drawn = listing.highlighted
-        note = self.note()
+        finishing = bool(self._editing) and self._path(self._editing)
+        note = self._could_be() if finishing else self.note()
         self.query_one("#tuning", Label).update(
             f"[$error]{escape(self._wrong)}[/]"
             if self._wrong
@@ -2668,6 +2686,7 @@ class Form[T](Drafts[T]):
                 if self._editing and self.lines(self._editing)
                 else ()
             ),
+            *((Key(_FINISH, "complete"),) if finishing else ()),
             *(
                 (Key("enter", "open"),)
                 if self._kind(self.under()) == _OPENS_ONTO
@@ -2709,6 +2728,55 @@ class Form[T](Drafts[T]):
         """Which kind of row one is, or "" for one that is not a question."""
         rows = self._now if self._now is not None else self.asked()
         return next((one.kind for one in rows if one.held == row), "")
+
+    def _path(self, row: str) -> bool:
+        """Whether a row is written as a path, which tab finishes while it is being written."""
+        rows = self._now if self._now is not None else self.asked()
+        return any(one.held == row and one.path for one in rows)
+
+    def _could_be(self) -> str:
+        """What the path being written could become, said by name, as markup.
+
+        Returns:
+          The last part of each -- the directory they are in is the one being typed -- the one
+          tab took last picked out, and how many more there are past those there is room for.
+        """
+        typed = self._typed_in.get(self._editing, "")
+        found = self._turns if typed in self._turns else paths(typed)
+        said: list[str] = []
+        for one in found[:_PATHS_SHOWN]:
+            named = one.rstrip(os.sep).rpartition(os.sep)[2]
+            named = escape(named + os.sep if one.endswith(os.sep) else named)
+            said.append(
+                f"[reverse]{named}[/reverse]"
+                if one == typed and len(found) > 1
+                else named
+            )
+        if len(found) > _PATHS_SHOWN:
+            said.append(f"and {len(found) - _PATHS_SHOWN} more")
+        return "  ".join(said)
+
+    def _finishes(self, row: str) -> None:
+        """Finishes the path being written as far as it goes, or takes the next it could be.
+
+        As a shell's tab does: as much as everything it could become shares, and where that is
+        no more than is written already, each of them in turn, round and round.
+
+        Args:
+          row: The row, by id.
+        """
+        typed = self._typed_in.get(row, "")
+        if typed in self._turns:
+            at = self._turns.index(typed)
+            self._typed_in[row] = self._turns[(at + 1) % len(self._turns)]
+            return
+        found = paths(typed)
+        shared = os.path.commonprefix(found)
+        if len(shared) > len(typed):
+            self._typed_in[row] = shared
+        elif len(found) > 1:
+            self._turns = found
+            self._typed_in[row] = found[0]
 
     def editable(self, row: str) -> bool:
         """A written row is written where it stands; the others drop or open.
@@ -2778,6 +2846,13 @@ class Form[T](Drafts[T]):
         Returns:
           Whether it was taken.
         """
+        if event.key == _FINISH and self._path(row):
+            # Taken whether or not it finishes anything: a tab that fell through would
+            # take the focus off a row still being written.
+            self._fresh.discard(row)
+            self._finishes(row)
+            return True
+        self._turns = []
         typed = event.key == "backspace" or (event.is_printable and event.character)
         if typed and row in self._fresh:
             # An answer nobody typed is replaced by the first letter that is, and corrected by
@@ -2809,6 +2884,20 @@ class Form[T](Drafts[T]):
         """
         typed, fresh = cast("tuple[dict[str, str], frozenset[str]]", was)
         self._typed_in, self._fresh = dict(typed), set(fresh)
+        self._turns = []
+
+    def pressed(self) -> bool:
+        """Takes enter as a form's sheet does, ending any turn tab was taking through paths.
+
+        Keeping a path tab took is the end of choosing among what it could be, and beginning
+        on it again is finishing it further: the next tab is into the directory it now names,
+        not on to the one beside it.
+
+        Returns:
+          Whether enter was taken, as there.
+        """
+        self._turns = []
+        return super().pressed()
 
     def kept(self, row: str) -> None:
         """Moves on from a row just kept: to the next, or to what is still to be answered.
@@ -6928,7 +7017,7 @@ class Hosting(Form["Runtime"]):
             [
                 Question(_USER, "user", "username; leave blank to use your ssh config"),
                 Question(_PORT, "port", "leave blank to use your ssh config, or 22"),
-                Question(_KEY, "identity file", "path to private key"),
+                Question(_KEY, "identity file", "path to private key", path=True),
                 Question(_JUMP, "proxy jump", "jump host to connect through, if any"),
                 Question(
                     _OPTIONS, "options", "additional ssh options: KEYWORD=VALUE, …"
@@ -7219,6 +7308,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
                     "socket",
                     "socket path: /run/docker.sock",
                     needed=not typed.get(_SOCKET, "").strip(),
+                    path=True,
                 )
             )
         elif kind in ("tcp", "ssh address"):
@@ -7239,6 +7329,7 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
                         "tls",
                         "directory containing ca.pem, cert.pem and key.pem; "
                         "blank for none",
+                        path=True,
                     )
                 )
         elif kind == "saved ssh host":
@@ -8026,6 +8117,7 @@ class Importing(Form[Imported]):
                 "from",
                 "the ssh config to read: default, or another file",
                 needed=not self._typed_in.get(_CONFIG, "").strip(),
+                path=True,
             )
         ]
         rows.extend(
@@ -8554,6 +8646,9 @@ class Placing(Form[str]):
                 if saved
                 else "remote working directory: /path or ~/path under home",
                 needed=not typed.get(_WORKDIR, "").strip() and not saved,
+                # Finished only where it is a directory here: one on another machine is
+                # one this machine's disk says nothing about.
+                path=backend == self._local or (backend == _APPLE and not saved),
             )
         )
         rows.append(
@@ -9250,7 +9345,68 @@ def _how(ran: Ran) -> str:
     }.get(ran.how, "was left unfinished")
 
 
-def exported(ran: Ran) -> tuple[Path, int, str]:
+#: The row an export is told where it goes on.
+_TO = "to"
+
+
+class Exporting(Form[str]):
+    """Where one run's archive goes: a file, or a directory to put it in under its own name.
+
+    Asked rather than assumed. A bundle is made to be sent, and one that landed somewhere of
+    its own choosing is one somebody has to go looking for -- or, landed in the project they
+    are standing in, one the next commit of everything carries along. The path is finished as
+    it is typed, as every path written on a form is.
+    """
+
+    def __init__(self, ran: Ran) -> None:
+        """Initializes the form on nowhere: where it goes is somebody's to say.
+
+        Args:
+          ran: The run, which the archive is named after.
+        """
+        super().__init__()
+        self._ran = ran
+
+    def asked(self) -> list[Question]:
+        """Where it goes."""
+        from hmz.runtime.exporting import BUNDLE
+
+        return [
+            Question(
+                _TO,
+                "to",
+                f"file, or directory to put {BUNDLE.format(epic=self._ran.name)} in",
+                needed=not self._typed_in.get(_TO, "").strip(),
+                path=True,
+            )
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "writes the archive there"
+
+    def _ask(self) -> None:
+        """Says what an export is."""
+        self.query_one("#asked", Label).update("Export run")
+        self.query_one("#about", Label).update(
+            "The entire run as one archive, with its trace, to send to somebody "
+            "who was not there. Credentials are struck out of every byte of it."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with where it goes, once that is somewhere."""
+        said = self._typed_in.get(_TO, "").strip()
+        if not said:
+            self._wrong = "where to export to is required"
+            self._fill()
+            return
+        # As it was written rather than as a path: a separator it ends in says a directory
+        # not made yet, and a path would drop it.
+        self.dismiss(said)
+
+
+def exported(ran: Ran, at: str) -> tuple[Path, int, str]:
     """Gathers one run's trace, and packages the whole run up with it as one archive.
 
     One thing rather than two rows. A trace gathered here lands in the run's own `traces/`,
@@ -9277,6 +9433,7 @@ def exported(ran: Ran) -> tuple[Path, int, str]:
 
     Args:
       ran: The run.
+      at: Where the archive goes: a file, or a directory to put it in under its own name.
 
     Returns:
       Where the archive was written, how big it came out, and a line saying what the trace
@@ -9290,7 +9447,7 @@ def exported(ran: Ran) -> tuple[Path, int, str]:
     # not change, the archive replaces itself for the same reason, and an epic that grew a
     # trace every time somebody sent it would make every later archive bigger than the last.
     _, document = runs.traced(ran.at, output=ran.at / TRACES / EXPORTED)
-    at, _ = runs.bundled(ran.at)
+    landed, _ = runs.bundled(ran.at, output=at)
     said = document["otherData"]
     held = f"{_many(_counted(said, 'sessions'), 'session')}, "
     held += _many(_counted(said, "slices"), "slice")
@@ -9298,7 +9455,7 @@ def exported(ran: Ran) -> tuple[Path, int, str]:
     # would be one more thing to read past on the traces that are only ever sessions.
     if _counted(said, "programs"):
         held += f", {_many(_counted(said, 'programs'), 'program')}"
-    return at, at.stat().st_size, held
+    return landed, landed.stat().st_size, held
 
 
 def _counted(said: dict[str, Any], of: str) -> int:
@@ -9456,7 +9613,7 @@ class Epics(Sheet[Doing]):
         """What an empty list says, which is that nothing has been run here yet."""
         return "no flow has been run in this directory yet"
 
-    async def _exports(self, ran: Ran) -> None:
+    async def _exports(self, ran: Ran, to: str) -> None:
         """Gathers one run's trace and packages the whole run up around it, as one archive.
 
         Off the event loop: reading a run's sessions back is every log every backend wrote
@@ -9466,6 +9623,7 @@ class Epics(Sheet[Doing]):
 
         Args:
           ran: The run.
+          to: Where the archive goes, as :class:`Exporting` answered.
         """
         import asyncio
 
@@ -9474,7 +9632,7 @@ class Epics(Sheet[Doing]):
         self._said = f"exporting {escape(ran.name)}…"
         self._fill()
         try:
-            at, size, held = await asyncio.to_thread(exported, ran)
+            at, size, held = await asyncio.to_thread(exported, ran, to)
         except (OSError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._fill()
@@ -9551,14 +9709,20 @@ class Epics(Sheet[Doing]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        said = await showing.push_screen_wait(
-            Does(ran, resumable=self._picks_up(ran.flow))
-        )
-        if said is None:
-            return  # walked out of it, which does nothing to the run
-        if said == _EXPORTS:
-            await self._exports(ran)
-            return
+        while True:
+            said = await showing.push_screen_wait(
+                Does(ran, resumable=self._picks_up(ran.flow))
+            )
+            if said is None:
+                return  # walked out of it, which does nothing to the run
+            if said != _EXPORTS:
+                break
+            to = await showing.push_screen_wait(Exporting(ran))
+            # Walked out of where it goes is back to the run it was going to be of, as esc
+            # on any sheet is one step back.
+            if to is not None:
+                await self._exports(ran, to)
+                return
         if said == RESUMES and self._underway():
             # Said here rather than on the way out: the question this sheet is asking is
             # still worth answering, and a flow is stopped with esc rather than from here.

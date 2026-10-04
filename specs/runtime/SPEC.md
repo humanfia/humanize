@@ -207,7 +207,7 @@ REDACTED = "[redacted]"
 STRUCK: tuple[str, ...]  # what is taken out of every byte of it, in words
 def bundle(
     epic: Path,
-    at: str | os.PathLike[str] | None = None,
+    at: str | os.PathLike[str],
     *,
     transcript: str | None = None,
 ) -> tuple[Path, dict[str, Any]]: ...
@@ -324,8 +324,8 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   in any byte of it, and what the run is read by — what a turn cost, which model took it —
   MUST NOT be struck out with them.
 - A bundle MUST be written whole and leave nothing behind where it fails, MUST be readable by
-  whoever exported it alone, MUST land where somebody is standing unless a path was named, and
-  MUST replace the earlier archive when one run is exported twice.
+  whoever exported it alone, MUST land only where a path names, a file or a directory to put it
+  in, and MUST replace the earlier archive when one run is exported twice.
 - Constructing a `Runner` MUST raise `Refused`, before anything runs and before any agent
   starts, for a flow that cannot be loaded; a role given that the flow does not declare, that
   the runtime fills -- an `Outworlder`, a `LocalEnv` -- or that is given twice; a required

@@ -279,8 +279,8 @@ hmz exec: error: docker@gpubox: nowhere its affinity (self) names has room for c
 ```
 
 **`docker:<name>`** starts one more container just for the CLI, on that saved daemon, from its
-image (else `python:3.12-slim`), holding its saved workdir, or `~/.hmz/harness` for a
-daemon on this machine saved without one. That container is given `--cap-add SYS_PTRACE`,
+image (else `python:3.12-slim`), holding its saved workdir, or an empty
+`$TMPDIR/humanize-<uid>/harness` for a daemon on this machine saved without one. That container is given `--cap-add SYS_PTRACE`,
 which the CLI's supervisor needs there to hand each command's output back to it. It counts
 against that daemon's `max containers`: a daemon at its limit has no room, and the next place
 is tried, so `docker:spare, local` falls back to here once `spare` is full. It is only for a

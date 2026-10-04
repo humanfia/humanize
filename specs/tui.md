@@ -161,8 +161,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST list the runs of this directory newest first with when each began, its flow, its task, how
   it went and how many sessions it opened, marking which can be picked up, readable while one runs.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and
-  exporting it; an export MUST carry a trace of that run's own sessions and no transcript, say
-  where it landed and how big it is, and replace that run's last export rather than pile up.
+  exporting it; an export MUST ask where it goes, a file or a directory to put it in, and land
+  nowhere else, MUST carry a trace of that run's own sessions and no transcript, say where it
+  landed and how big it is, and replace that run's last export rather than pile up.
 - MUST make the monitor the parent screen and the log its child: a full-screen graph of the run
   over the log's own prompt, where every command works, with a graph status line in place of the
   log's; reached by `←` on an empty prompt and never by `esc` or a command, and left by `→` on an
@@ -223,6 +224,10 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   under its row, `esc` or a click off it picking none, and never stepped with `←`/`→` or turned
   over in place; and a search MUST be asked for, with `/` or its button, into a box above the
   list.
+- MUST complete a path written on a form as it is typed, as a shell does: `~` the home it names,
+  every file and directory it could become said under the list while it is being written, and
+  `tab` finishing as much of it as all of those share or, where that adds nothing, taking each
+  of them in turn.
 - MUST make every row, button, value and step of the way across the top of a menu reachable by
   the keys and by the mouse alike: a click choosing, opening or pressing it, the pointer marking
   what a click would take, and a click off a box or a dropped list answering nothing.
@@ -235,6 +240,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | --- | --- | --- |
 | `enter` | editor, sheets | send the line or take the offer; open the row under the cursor, drop its values or take one, begin and keep writing it, or press the button with the focus |
 | typing | forms | on a written row, begin writing it |
+| `tab` | forms | on a path being written, finish it, or take the next thing it could become |
 | `shift+enter`, `ctrl+j` | editor, sheets | break the line |
 | `shift+tab`, `tab` | app | round the views forward and back |
 | `tab`, `shift+tab` | sheets | between the list, its search and the buttons under it |

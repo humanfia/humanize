@@ -89,7 +89,7 @@ class Harbors:
 
         Opened the way an environment is, with no role -- a harness asks for nothing but
         somewhere to be -- and in the runtime's own workdir; one without, in the login's home
-        over ssh, and on a daemon here in a directory humanize keeps for it.
+        over ssh, and on a daemon here in an empty one in humanize's directory for this machine.
 
         Args:
           entry: `<backend>:<name>`, as :func:`hmz.coganchor.machines.store.affine` reads.
@@ -145,7 +145,7 @@ def _opened(entry: str) -> EnvDriver:
       EnvUnavailable: If no runtime is saved under that name, or one is with no workdir and
         nowhere humanize could keep one.
     """
-    from hmz import home
+    from hmz import machine
     from hmz.coganchor.machines import store
 
     from .environments import open_env
@@ -176,8 +176,16 @@ def _opened(entry: str) -> EnvDriver:
                 f"{entry} has no workdir of its own to put a harness in, and its daemon "
                 "is not on this machine"
             )
-        kept = home() / "harness"
-        kept.mkdir(parents=True, exist_ok=True)
+        # Nothing is put in it: a container is started with its workspace mounted from the
+        # host, and with no workdir of the runtime's to mount this empty directory of this
+        # user's on this machine is mounted instead, for the harness to run in.
+        try:
+            kept = machine() / "harness"
+            kept.mkdir(parents=True, exist_ok=True)
+        except OSError as why:
+            raise EnvUnavailable(
+                f"{entry} has nowhere on this machine for a harness: {why}"
+            ) from why
         workdir = str(kept)
     elif not workdir:
         raise EnvUnavailable(f"{entry} has no workdir of its own to put a harness in")

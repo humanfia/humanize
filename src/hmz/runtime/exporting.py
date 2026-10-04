@@ -47,7 +47,6 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz import here
 from hmz.coganchor import backends
 from hmz.runtime.epic import (
     JOURNAL,
@@ -199,7 +198,7 @@ _SCRUBS: tuple[tuple[re.Pattern[str], str], ...] = (
 
 def bundle(
     epic: Path,
-    at: str | os.PathLike[str] | None = None,
+    at: str | os.PathLike[str],
     *,
     transcript: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
@@ -212,10 +211,10 @@ def bundle(
 
     Args:
       epic: The run, by the directory it is written in.
-      at: Where to write it: a file outright, a directory to write it into under its own
-        name, or None for `.hmz/` beside whatever directory this is being run in. A
-        bundle is made to be sent, so it lands where somebody can find it rather than in
-        humanize's own home the way a trace of a run does.
+      at: Where to write it: a file outright, or a directory to write it into under its own
+        name. Always named: a bundle is made to be sent, and one that landed somewhere of its
+        own choosing is one somebody has to go looking for -- or, landed in the project they
+        are standing in, one the next commit of everything carries along.
       transcript: A screen that went with this run, as it was written rather than as it was
         drawn, or None -- which is what everything humanize itself asks for a bundle with
         hands in, the run being one read back rather than one being watched.
@@ -226,15 +225,14 @@ def bundle(
       rather than by reading the run a second time and describing something else.
 
     Raises:
-      ValueError: For a directory holding no run, which is nothing to export.
+      ValueError: For a directory holding no run, which is nothing to export, and for a
+        `~somebody` nobody is, which is nowhere to write it.
     """
     ran = read(epic)
     if ran is None:
         raise ValueError(f"{epic} is not a run")
     landed = _lands(epic, at)
     landed.parent.mkdir(parents=True, exist_ok=True)
-    if at is None:
-        _unversioned(landed.parent)
     struck = _struck(ran)
     # What each session was logged to, found once. The manifest says what the archive
     # holds, and a second look would let it name a file the archive has not got: a log
@@ -361,42 +359,25 @@ def _now() -> str:
     )
 
 
-def _unversioned(at: Path) -> None:
-    """Keeps the bundles written into a project's `.hmz/` out of its repository.
-
-    A bundle is the run's prompts and its agents' output, a few hundred kilobytes of it, and
-    it lands in the directory the agents work in: untracked there, the next `git add -A` of a
-    loop still running -- or of the person -- commits it. A `.gitignore` of humanize's own is
-    written once, where there is none; one somebody wrote is theirs and left alone.
-
-    Args:
-      at: The project's `.hmz/`.
-    """
-    with (
-        contextlib.suppress(OSError),
-        (at / ".gitignore").open("x", encoding="utf-8") as written,
-    ):
-        written.write("# runs exported here\n*.epic.tar.gz\n")
-
-
-def _lands(epic: Path, at: str | os.PathLike[str] | None) -> Path:
-    """Where one bundle is written, out of what the line or the key asked for.
+def _lands(epic: Path, at: str | os.PathLike[str]) -> Path:
+    """Where one bundle is written, out of what was asked for.
 
     Args:
       epic: The run, by the directory it is written in.
-      at: A file, a directory to put it in under its own name, or None.
+      at: A file, or a directory to put it in under its own name, from the home a leading
+        `~` names where it starts with one.
 
     Returns:
-      The file to write.
+      The file to write, whole rather than relative: what is printed and what is shown is a
+      path somebody is about to attach something to, and a relative one is a path they then
+      have to remember which directory they were standing in for.
     """
     named = BUNDLE.format(epic=epic.name)
-    if at is None:
-        # Whole rather than relative: what is printed and what is shown is a path somebody
-        # is about to attach something to, and `.hmz/…` is a path they then have to
-        # remember which directory they were standing in for.
-        return Path.cwd() / here() / named
     said = os.fspath(at)
-    asked = Path(said)
+    try:
+        asked = Path(said).expanduser().absolute()
+    except RuntimeError as why:
+        raise ValueError(f"{said} is in no home directory there is") from why
     # A trailing separator as well as a directory that is already there: `-o out/` where
     # `out/` has not been made yet is a directory somebody means to fill, and answering it
     # with an extensionless file called `out` would have the next run write over the last.

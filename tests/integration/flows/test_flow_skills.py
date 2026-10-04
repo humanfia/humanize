@@ -17,17 +17,23 @@ from __future__ import annotations
 
 import contextlib
 import gc
+import shutil
 import subprocess
 import time
 from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz import home, machine
 from hmz.coganchor.agents import AgentBase, AgentConfig
 from hmz.coganchor.agents.skills import Loaded
+from hmz.runtime.flowing import fork
+from hmz.runtime.flowing import verses as store
+from hmz.runtime.flowing.index import install, installed, kept
 from hmz.runtime.flowing.skills import brought, cached
 from hmz.runtime.runner import Refused, Runner
 from tests.flows import standins
+from tests.flows.indexes import committed, listed, release
 from tests.stubs import ShellAgent, written
 
 if TYPE_CHECKING:
@@ -190,6 +196,9 @@ def test_a_skill_in_somebody_elses_repository_is_named_and_fetched(
     assert one.name == "deep-research"
     assert one.at == cached(str(theirs)) / "skills" / "deep-research"
     assert one.whose.endswith("#deep-research")
+    # Kept as this machine's own, a cache, and nothing of it under humanize's home.
+    assert one.at.is_relative_to(machine())
+    assert not (home() / "skills").exists()
     # Named without one, every skill in it is brought.
     assert [one.name for one in brought(at, [str(theirs)])] == [
         "deep-research",
@@ -686,3 +695,67 @@ def test_a_role_naming_a_skill_the_flow_has_not_got_stops_the_run(
 
     with pytest.raises(Refused, match="nowhere"):
         run.run("Reply with the single word: hi")
+
+
+def _shelved(tmp_path: Path, named: str) -> None:
+    """The flow `reads`, naming skills by `named`, released in the flowverse `shelf`."""
+    code = tmp_path / "code"
+    written(code, "reads", READS.replace("NAMED", named), {"own": skill("own")})
+    commit = committed(code)
+    listed(
+        tmp_path / "shelf",
+        release("reads", "0.1.0", f"file://{code}", commit, subdir="reads"),
+    )
+    committed(tmp_path / "shelf")
+    store.add(str(tmp_path / "shelf"))
+
+
+def test_installing_a_flow_fetches_the_skills_its_roles_name_into_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, claude: None
+) -> None:
+    """So an installed flow holds what it works by, and a run of it fetches nothing."""
+    theirs = _repository(tmp_path / "theirs", "note-taking", "other")
+    url = f"file://{theirs}"
+    _shelved(tmp_path, f'("{url}#note-taking",)')
+
+    (done,) = install("shelf", "reads")
+
+    assert done.skills == {f"{url}#note-taking": ["note-taking"]}
+    assert sorted(one.name for one in (done.at / "skills").iterdir()) == [
+        "note-taking",
+        "own",
+    ]
+    assert installed() == [done]
+    assert not (home() / "skills").exists()
+
+    def ran(flow: str) -> tuple[list[str], str]:
+        return Runner(
+            flow,
+            agents={"agent": "claude/claude-haiku-4-5:low"},
+            budget={"cost": 1},
+        ).run("Reply with the single word: hi")
+
+    # Gone from where it came from and from this machine's cache, and still what runs.
+    shutil.rmtree(theirs)
+    shutil.rmtree(cached(url))
+    monkeypatch.chdir(tmp_path)
+    assert ran("shelf/reads") == (["note-taking"], skill("note-taking"))
+
+    # A fork carries no record, so what was fetched into it is its own -- and its own is what
+    # the role is given for the one skill it wanted, a fork's own winning the name, with
+    # nothing fetched for it.
+    fork("shelf/reads")
+    assert ran("reads") == (["note-taking"], skill("note-taking"))
+
+
+def test_an_install_whose_skill_cannot_be_fetched_installs_nothing(
+    tmp_path: Path,
+) -> None:
+    """A flow that works by a skill it has not got is not one to install and find out later."""
+    _shelved(tmp_path, '("file:///nowhere/at/all#note-taking",)')
+
+    with pytest.raises(OSError, match="cannot be fetched"):
+        install("shelf", "reads")
+
+    assert installed() == []
+    assert not (kept("shelf") / "reads").exists()

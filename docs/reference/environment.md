@@ -27,9 +27,9 @@ Values are read with `os.environ`; `hmz` changes its own environment in one case
 | <code id="humanize-daemon">HUMANIZE_DAEMON</code> | `off`, `0`, `no` (trimmed, case-insensitive) mean off; anything else on | on | Off: plain `hmz` holds runs in its own process instead of the [runs host](/reference/daemon). Not read by `hmz exec`. |
 | <code id="humanize-name">HUMANIZE_NAME</code> | any string; empty is unset | the login name (`getpass.getuser()`), else `somebody` | The name a frontend attaches under (`<name>@<kind>`, `#2`… on a clash). |
 | <code id="humanize-sentry">HUMANIZE_SENTRY</code> | `on`, `1`, `true`, `yes` → on; `off`, `0`, `false`, `no` → off (trimmed, case-insensitive); anything else ignored | the `enable_sentry` [setting](/reference/settings#enable-sentry) | Answers the error-report question for this process only, without writing anything. `/settings` shows that the variable overrides the setting. |
-| <code id="humanize-sessions">HUMANIZE_SESSIONS</code> | `off`, `0`, `no` (trimmed, case-insensitive) mean off | on | Off: a CLI's sessions stay in the CLI's own home instead of the epic's `sessions/<cli>/` (or `~/.hmz/sessions/`). See [Tracing](/reference/tracing#sessions-dir). |
+| <code id="humanize-sessions">HUMANIZE_SESSIONS</code> | `off`, `0`, `no` (trimmed, case-insensitive) mean off | on | Off: a CLI's sessions stay in the CLI's own home instead of the epic's `sessions/<cli>/`. See [Tracing](/reference/tracing#sessions-dir). |
 | <code id="humanize-watchdog">HUMANIZE_WATCHDOG</code> | a number of seconds (`float`); `<= 0` disables; a value that is not a number is ignored | per CLI: 900 s; `dsh` 360 s | Seconds a turn may be silent before the watchdog acts on it. Overrides every CLI's own value. |
-| <code id="humanize-prices">HUMANIZE_PRICES</code> | a URL (contains `://`) or a file path; `""`, `off`, `0`, `no`, `none` (case-insensitive) disable fetching | `https://openllmprices.com/data/prices.json` | Where the price table used for [budgets](/reference/flows#budget) and the [tally](/user/tally) is refreshed from (at most once per 24 h, by the interface and by every run), into `$HUMANIZE_HOME/prices.json`. |
+| <code id="humanize-prices">HUMANIZE_PRICES</code> | a URL (contains `://`) or a file path; `""`, `off`, `0`, `no`, `none` (case-insensitive) disable fetching | `https://openllmprices.com/data/prices.json` | Where the price table used for [budgets](/reference/flows#budget) and the [tally](/user/tally) is refreshed from (at most once per 24 h, by the interface and by every run), into `$TMPDIR/humanize-<uid>/prices.json`. |
 | <code id="humanize-shadows">HUMANIZE_SHADOWS</code> | a path (`~` expanded); empty is unset | `~/.cache/humanize/shadows` | Directory of mirror records (`<sha16>.json`) for this process and its children. |
 | <code id="humanize-ssh-reuse">HUMANIZE_SSH_REUSE</code> | `off`, `0`, `no`, `false` (trimmed, case-insensitive) or set and empty turn it off; anything else on | on | On: every `ssh` humanize runs adds `-o ControlMaster=auto -o ControlPersist=120 -o ControlPath=<dir>/%C[-<digest>]`, `<dir>` being `$XDG_RUNTIME_DIR/humanize-ssh-<uid>` (or the temporary directory). Read once per process. |
 | <code id="humanize-rendezvous">HUMANIZE_RENDEZVOUS</code> | a host or address; empty is unset | the address this machine uses to reach the outside (UDP route to `192.0.2.1`), else `127.0.0.1` | Default of `hmz internal anchor --broker`, and the address an in-process rendezvous broker advertises. |
@@ -173,7 +173,7 @@ is read from the turn's environment to know which files to watch.
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`/`mimo` turns with a rung, web switch or fence to express | a JSON permission table |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` turns whose fence does not allow reading `~/.claude.json` | `1` |
 | `QWEN_CODE_SYSTEM_SETTINGS_PATH` | every `qwen` turn | a per-session settings file |
-| `NODE_COMPILE_CACHE` | `pi`, `qwen` turns on this machine, unless already set | `$HUMANIZE_HOME/compiled/pi`, `…/compiled/qwen` |
+| `NODE_COMPILE_CACHE` | `pi`, `qwen` turns on this machine, unless already set | `$TMPDIR/humanize-<uid>/compiled/pi`, `…/compiled/qwen` |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT` | `kimi`, `pi`, `qwen`, `mimo` turns on this machine with an `on_pre_tool_use` hook hung | `--require <preload>` appended; the preload's report socket (the preload sets `HMZ_PRELOAD_IN` itself and removes all three from programs the CLI starts) |
 | `HMZ_DSH_EFFORT` | `dsh` turns | the effort |
 | `DEEPSEEK_SEARCH_BASE_URL` | `dsh` turns under an account that names an endpoint and not this | `DEEPSEEK_BASE_URL` |
@@ -183,7 +183,7 @@ is read from the turn's environment to know which files to watch.
 | `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `npm_config_cache`, `PIP_CACHE_DIR`, `GOCACHE` | inside the fence, where the current location is not writable under it | `<scratch>/cache/<name in lower case>` |
 | `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and lower-case forms; `NO_PROXY=`, `no_proxy=`; `NODE_USE_ENV_PROXY=1` | inside the fence, where `online` is `NONE` | `http://127.0.0.1:<proxy port>` |
 | `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH` (removed) | every `docker` command addressing a provider's own daemon | — |
-| `PATH` | `docker` commands to an `ssh://` daemon with ssh options | `$HUMANIZE_HOME/docker-ssh/<sha16>:$PATH` (a shim that removes itself) |
+| `PATH` | `docker` commands to an `ssh://` daemon with ssh options | `$TMPDIR/humanize-<uid>/docker-ssh/<sha16>:$PATH` (a shim that removes itself) |
 | `SSH_ASKPASS_REQUIRE` | the `ssh` that checks a runtime | `never` (fail rather than prompt) |
 | `HOME`, `NVIDIA_VISIBLE_DEVICES`, and the provider's `env` | containers of `docker` environments | `HOME=/tmp`; `NVIDIA_VISIBLE_DEVICES=void` unless GPUs are handed out |
 | the variables an ACP agent asks for | commands an `acp` agent asks humanize to run | as asked |

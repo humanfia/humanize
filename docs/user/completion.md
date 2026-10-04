@@ -142,6 +142,11 @@ you brought back from [history](/user/history).
   models, accounts and fallbacks, a name you type out whole, or the start of one, comes first:
   `claude-sonnet-5` lists `claude-sonnet-5` above `claude-sonnet-4-5`. <kbd>esc</kbd> leaves
   the search first, then the menu.
+- **Type a path on a form.** Where a form asks for a file or a directory on this machine, such
+  as where to [export a run](/user/export) or which ssh config to import, the path completes as
+  you type, as in a shell. What it could become is listed under the form; <kbd>tab</kbd>
+  finishes as much as those share, then steps through them; `~` is your home; dot-files are
+  listed once you type a `.`. See [Path completion](/reference/tui#path-completion).
 
 ## What is not offered
 
