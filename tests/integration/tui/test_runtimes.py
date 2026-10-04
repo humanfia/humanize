@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import unittest.mock
 from typing import TYPE_CHECKING, cast
 
@@ -22,7 +23,12 @@ from textual.widgets import Button, Label, OptionList
 
 from hmz.coganchor.backends import Model
 from hmz.coganchor.machines import store
-from hmz.coganchor.machines.store import DockerRuntime, SSHRuntime, SwarmRuntime
+from hmz.coganchor.machines.store import (
+    AppleContainerRuntime,
+    DockerRuntime,
+    SSHRuntime,
+    SwarmRuntime,
+)
 from hmz.flows import EnvBackendKind
 from hmz.runtime.doing.runtimes import Checked, Runtimes
 from hmz.runtime.kept import Runs
@@ -44,6 +50,7 @@ from hmz.tui.pick import (
     _TAKES_AWAY,
     _UNSAVED,
     Configures,
+    Containing,
     Docking,
     Flows,
     Hosting,
@@ -67,6 +74,7 @@ from tests.integration.tui.test_app import (
     picks,
     rows,
 )
+from tests.machines.fixtures import APPLE_STANDIN
 from tests.stubs import CPUS, written
 from tests.tui.fixtures import until
 
@@ -251,6 +259,7 @@ async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
             "=ssh",
             "=docker",
             "=swarm",
+            "=apple-container",
         ]
         await driver.press("escape")
         await until(lambda: app.screen is sheet, driver)
@@ -1343,3 +1352,137 @@ async def test_a_host_that_would_fall_back_to_itself_is_refused_on_the_form(
         assert "cannot fall back to itself" in _under(app)
 
     assert store.find("ssh", "gpu") == SSHRuntime(name="gpu", host="gpu.example")
+
+
+# ---------------------------------------------------------------------- Apple containers
+
+
+@pytest.fixture
+def containers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A `container` stand-in on `PATH`, which says this Mac has eight CPUs.
+
+    Returns:
+      The log it writes what it was asked to.
+    """
+    bin_ = tmp_path / "apple-bin"
+    bin_.mkdir()
+    (bin_ / "container").write_text(f"#!{sys.executable}\n{APPLE_STANDIN}")
+    (bin_ / "container").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("STANDIN_LOG", str(tmp_path / "container.log"))
+    return tmp_path / "container.log"
+
+
+@pytest.mark.timeout(60)
+async def test_apple_containers_are_added_on_their_own_form_and_detected(
+    containers: Path,
+) -> None:
+    """No daemon to say where: a name, how a container is run, and what the Mac may give."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await _opens(app, driver, "apple-container", Containing)
+        form = cast("Containing", app.screen)
+        assert form._typed_in["name"] == "local"
+        assert "endpoint" not in ids(app)
+
+        await onto(app, driver, _DETECTS)
+        await driver.press("enter")
+        await until(lambda: form._typed_in.get("cpus") == "8", driver)
+        assert form._typed_in["memory"]
+        assert form.under() == "cpus"
+        await driver.press(*"4", "enter")
+        assert form.under() == "memory"
+        await driver.press(*"8G", "enter")
+        assert form.under() == _DONE
+        await driver.press("enter")
+        await until(lambda: app.screen is sheet, driver)
+        await until(lambda: "answers" in _under(app), driver)
+        assert "container 1.5.0" in _under(app)
+        assert "this Mac · 4 CPUs, 8G" in _drawn(app)
+
+    assert store.find("apple-container", "local") == AppleContainerRuntime(
+        name="local", cpus=4.0, memory=8 << 30
+    )
+    asked = [json.loads(one)["argv"] for one in _asked(containers).splitlines()]
+    assert ["system", "status", "--format", "json"] in asked
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.parametrize(
+    ("held", "said", "why"),
+    [
+        ("cpus", "many", "cpus: 'many' is not a number"),
+        ("memory", "64", "must be a number and unit"),
+        ("max_containers", "two", "max containers: 'two' must be a number"),
+        ("workdir", "work", "must be absolute or under ~/"),
+        ("fallback", "apple-container:local", "cannot fall back to itself"),
+    ],
+)
+async def test_what_apple_containers_cannot_be_given_is_refused_on_the_form(
+    containers: Path, held: str, said: str, why: str
+) -> None:
+    del containers
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await _opens(app, driver, "apple-container", Containing)
+        await _types(app, driver, held, said)
+        await _done(app, driver)
+
+        assert isinstance(app.screen, Containing)
+        assert why in _under(app)
+    assert store.runtimes() == []
+
+
+@pytest.mark.timeout(60)
+async def test_correcting_apple_containers_changes_only_what_was_typed(
+    containers: Path,
+) -> None:
+    del containers
+    store.add(AppleContainerRuntime(name="mac", memory=10**9, affinity=("self",)))
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await onto(app, driver, "apple-container/mac")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await _opens(app, driver, _CORRECTS, Containing)
+        assert "name" not in ids(app)
+        await _types(app, driver, "image", "debian:13")
+        await _done(app, driver)
+        await until(lambda: app.screen is sheet, driver)
+
+    assert store.find("apple-container", "mac") == AppleContainerRuntime(
+        name="mac", memory=10**9, affinity=("self",), image="debian:13"
+    )
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_a_role_is_put_on_saved_apple_containers_as_on_a_docker_host(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+    placed: Path,
+    tmp_path: Path,
+) -> None:
+    del placed
+    store.add(AppleContainerRuntime(name="mac", workdir="/Users/me/work"))
+    app = Humanize()
+    async with app.run_test() as driver:
+        form = await _placing(app, driver)
+        assert form._typed_in["backend"] == "apple-container"
+        assert form.under() == "provider"
+
+        await _opens(app, driver, "provider", Hosts)
+        assert rows(app)[0] == _ADD
+        await onto(app, driver, "mac")
+        await driver.press("enter")
+        await until(lambda: app.screen is form, driver)
+
+        assert form._typed_in["workdir"] == "/Users/me/work"
+        assert form._typed_in["spelled"] == "apple-container@mac"
+        await _done(app, driver)
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        await _saves(app, driver)
+
+    assert Settings(tmp_path).envs("placed") == {"box": "apple-container@mac"}

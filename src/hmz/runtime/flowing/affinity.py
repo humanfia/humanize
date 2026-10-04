@@ -161,11 +161,16 @@ def _opened(entry: str) -> EnvDriver:
     workdir = found.workdir
     if not workdir and backend == store.SSH:
         workdir = "~"
-    elif not workdir and isinstance(found, store.DockerRuntime):
-        try:
-            here = found.daemon().here
-        except ValueError:
-            here = False
+    elif not workdir and isinstance(
+        found, store.DockerRuntime | store.AppleContainerRuntime
+    ):
+        # An Apple container is this Mac's, and so here; a docker daemon may be anywhere.
+        here = True
+        if isinstance(found, store.DockerRuntime):
+            try:
+                here = found.daemon().here
+            except ValueError:
+                here = False
         if not here:
             raise EnvUnavailable(
                 f"{entry} has no workdir of its own to put a harness in, and its daemon "

@@ -95,6 +95,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.fallbacks import Falls as Step
     from hmz.coganchor.machines.sshconfig import SSHHost
     from hmz.coganchor.machines.store import (
+        AppleContainerRuntime,
         DockerRuntime,
         Runtime,
         SSHRuntime,
@@ -7589,13 +7590,14 @@ class Providers(Pages):
 #: The backends a runtime is saved for, as `-e` and the store name them. A swarm's is not
 #: `_SWARM`, which is the row an agent's turns are run as a fleet on: the same word, for
 #: another thing.
-_SSH, _DOCKER, _DOCKER_SWARM = "ssh", "docker", "swarm"
+_SSH, _DOCKER, _DOCKER_SWARM, _APPLE = "ssh", "docker", "swarm", "apple-container"
 
 #: What one runtime of each is called on the form that adds one.
 _KINDS = {
     _SSH: "an ssh host",
     _DOCKER: "a docker host",
     _DOCKER_SWARM: "a docker swarm",
+    _APPLE: "a host for Apple containers",
 }
 
 #: The kinds the one button that adds a runtime drops, in its order, each with what it is.
@@ -7603,6 +7605,7 @@ _ADDING = (
     Value(_SSH, "ssh host", "a machine reached over ssh"),
     Value(_DOCKER, "docker host", "a local or remote docker daemon"),
     Value(_DOCKER_SWARM, "docker swarm", "a docker swarm, through one of its managers"),
+    Value(_APPLE, "apple containers", "Apple's Linux containers on this Mac"),
 )
 
 #: How many of a swarm's nodes a check names before it only counts the rest: a cluster's
@@ -7809,6 +7812,18 @@ def _machine_line(one: Runtime) -> str:
         ]
     elif one.backend == _DOCKER_SWARM:
         said = _swarm_line(cast("SwarmRuntime", one))
+    elif one.backend == _APPLE:
+        boxes = cast("AppleContainerRuntime", one)
+        said = [
+            "this Mac",
+            *((boxes.image,) if boxes.image else ()),
+            _hands_out(boxes.cpus, boxes.memory),
+            *(
+                (f"max {boxes.max_containers} containers",)
+                if boxes.max_containers
+                else ()
+            ),
+        ]
     else:
         daemon = cast("DockerRuntime", one)
         said = [
@@ -7841,7 +7856,7 @@ def _answered(one: Runtime, said: _Had) -> str:
         return bad(escape(f"{named} could not be reached: {said.said}"))
     swarm = one.backend == _DOCKER_SWARM
     lead = (
-        f": {'swarm' if swarm else 'docker'} {said.version}"
+        f": {_SERVED_BY.get(one.backend, 'docker')} {said.version}"
         if said.version
         else f": home {said.home}"
         if said.home
@@ -7856,6 +7871,10 @@ def _answered(one: Runtime, said: _Had) -> str:
             escape(f"lacks configured resources: {'; '.join(said.short)}")
         )
     return line
+
+
+#: What a runtime that says its version is, by backend, as a check says it: `docker 29.4.3`.
+_SERVED_BY = {_DOCKER_SWARM: "swarm", _APPLE: "container"}
 
 
 def _nodes(names: Sequence[str]) -> str:
@@ -7943,7 +7962,7 @@ async def provided(host: App[None], backend: str) -> tuple[Runtime | None, str]:
 
     Args:
       host: The interface, which the form is pushed onto.
-      backend: `ssh`, `docker` or `swarm`.
+      backend: `ssh`, `docker`, `swarm` or `apple-container`.
 
     Returns:
       The runtime, saved -- or None, and why not: "" for a form walked out of.
@@ -7953,6 +7972,8 @@ async def provided(host: App[None], backend: str) -> tuple[Runtime | None, str]:
         if backend == _SSH
         else Swarming()
         if backend == _DOCKER_SWARM
+        else Containing()
+        if backend == _APPLE
         else Docking()
     )
     one = await host.push_screen_wait(form)
@@ -8001,8 +8022,8 @@ def _fallback(said: str) -> list[str]:
 _AFFINITY = "affinity"
 _AFFINITY_ABOUT = (
     "where an agent's harness runs, in order, the next only when one has no room: "
-    "self, local, ssh:<name>, docker:<name>, swarm:<name>; blank for self where the "
-    "CLI is there, else local"
+    "self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>; "
+    "blank for self where the CLI is there, else local"
 )
 
 
@@ -8894,6 +8915,218 @@ class Swarming(_Daemon["SwarmRuntime"]):
         }
 
 
+class Containing(Form["Runtime"]):
+    """This Mac's Apple containers, on one form: what they are called, and what they may have.
+
+    What a docker host's form asks, less where the daemon is: Apple's `container` is this
+    Mac's and no other's. The name, where an agent's harness runs, the image, what else
+    `container run` is told, how many containers at once, where it works, what it falls back
+    to, and how much of the Mac's CPUs and memory its containers may have between them, each
+    blank for all of it; `detect` asks `container` and writes what the Mac has in, for
+    somebody to type less over. No GPUs: a container of Apple's is given none.
+
+    Correcting one asks the same, less the name it is saved under.
+    """
+
+    #: What one is called, after `a`.
+    KIND: ClassVar[str] = "host for Apple containers"
+    #: The rows detecting writes into, in the order it walks through them.
+    DETECTED: ClassVar[tuple[str, ...]] = (_CPUS, _MEMORY)
+
+    def __init__(self, one: AppleContainerRuntime | None = None) -> None:
+        """Initializes the form on one, or on nothing for one being added.
+
+        Args:
+          one: The one being corrected, or None to add one.
+        """
+        super().__init__()
+        self._one = one
+        #: What to say under the form, as markup: what detecting found, or that it is asking.
+        self._noted = ""
+        self._detecting = False
+        if one is None:
+            # Called `local` unless that is taken, so `-e` names it as it would nothing saved.
+            taken = frozenset(each.name for each in _hmz().runtimes.all(_APPLE))
+            self._typed_in = {_CALLED: _unique("local", taken)}
+            self._fresh.add(_CALLED)
+            return
+        self._typed_in = {
+            _AFFINITY: ", ".join(one.affinity),
+            _IMAGE: one.image,
+            _ARGS: shlex.join(one.run_args),
+            _AT_ONCE: str(one.max_containers) if one.max_containers else "",
+            _WORKDIR: one.workdir,
+            _FALLEN_TO: ", ".join(one.fallback),
+            _CPUS: f"{one.cpus:g}" if one.cpus else "",
+            _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
+        }
+
+    def asked(self) -> list[Question]:
+        """Its name, where its harness runs, how a container is run, and what it may have."""
+        rows: list[Question] = []
+        if self._one is None:
+            rows.append(
+                Question(
+                    _CALLED,
+                    "name",
+                    "name used in -e and /flow",
+                    needed=not self._typed_in.get(_CALLED, "").strip(),
+                )
+            )
+        return [
+            *rows,
+            Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT),
+            Question(_IMAGE, "image", "default image, unless specified by the flow"),
+            Question(_ARGS, "run args", "extra arguments for container run"),
+            Question(
+                _AT_ONCE,
+                "max containers",
+                "max concurrent containers; blank for no limit",
+            ),
+            Question(
+                _WORKDIR,
+                "workdir",
+                "default working directory when -e specifies no directory",
+            ),
+            _fallback_row(),
+            Question(_CPUS, "cpus", "max CPUs; blank to use all of this Mac's"),
+            Question(_MEMORY, "memory", "e.g. 16G; blank to use all of this Mac's"),
+        ]
+
+    def beside(self) -> list[tuple[str, str, str]]:
+        """Asking what the Mac has, above the row that answers the form."""
+        return [(_DETECTS, "detect", "detect this Mac's resources and fill them in")]
+
+    def besides(self, held: str) -> None:
+        """Asks what the Mac has.
+
+        Args:
+          held: The row, which is the one that detects.
+        """
+        if held == _DETECTS:
+            self._detects()
+
+    @work
+    async def _detects(self) -> None:
+        """Asks what the Mac has, off the loop, and writes it in to be typed over."""
+        if self._detecting:
+            return
+        self._detecting, self._wrong = True, ""
+        self._noted = "detecting resources on this Mac…"
+        self._fill()
+        said = await _checked(_hmz().runtimes.new(_APPLE, "local"))
+        self._detecting, self._noted = False, ""
+        if isinstance(said, str) or not said.reached:
+            self._wrong = (
+                said
+                if isinstance(said, str)
+                else f"Apple's container did not respond: {said.said}"
+            )
+            self._fill()
+            return
+        for held, value in (
+            (_CPUS, f"{said.cpus:g}" if said.cpus else ""),
+            (_MEMORY, _sized(said.memory) if said.memory else ""),
+        ):
+            if value:
+                self._typed_in[held] = value
+                self._fresh.add(held)
+        self._noted = escape(f"detected {_has(said)}: auto-filled")
+        self.changed()
+        self._fill()
+        # On the first of them, for the typing over.
+        rows = [one.held for one in self._now or []]
+        if _CPUS in rows:
+            self.query_one("#choices", OptionList).highlighted = rows.index(_CPUS)
+            self._fill()
+
+    def kept(self, row: str) -> None:
+        """Moves on to the next of what detecting wrote in, while there is one to type over.
+
+        Args:
+          row: The row, by id.
+        """
+        rows = [one.held for one in self.asked()]
+        if row in self.DETECTED and row in rows:
+            onward = [
+                at
+                for at, held in enumerate(rows)
+                if at > rows.index(row)
+                and held in self.DETECTED
+                and held in self._fresh
+            ]
+            if onward:
+                self.query_one("#choices", OptionList).highlighted = onward[0]
+                return
+        super().kept(row)
+
+    def note(self) -> str:
+        """What detecting found, or that it is asking."""
+        return self._noted
+
+    def done_about(self) -> str:
+        """What answering it does: saves it, and asks what the Mac has."""
+        name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
+        doing = "updates" if self._one else "adds"
+        return f"{doing} {_APPLE}/{name} and detects host resources"
+
+    def _ask(self) -> None:
+        """Says what is being added or corrected, and puts the questions up."""
+        self.query_one("#asked", Label).update(
+            escape(f"Edit {_APPLE}/{self._one.name}")
+            if self._one
+            else f"Add a {self.KIND}"
+        )
+        self.query_one("#about", Label).update(
+            "This Mac, where flow environments run in Linux containers of Apple's "
+            "container, each a small virtual machine of its own. Flows running on it "
+            "are limited to the resources configured here."
+        )
+        self._fill()
+        self.query_one("#choices", OptionList).focus()
+
+    def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """Everything the form says of it besides its name, as the store takes it.
+
+        Raises:
+          ValueError: For an amount that is not one, or run args that do not split.
+        """
+        try:
+            argv = shlex.split(typed.get(_ARGS, ""))
+        except ValueError as why:
+            raise ValueError(f"run args: {why}") from None
+        return {
+            "image": typed.get(_IMAGE, ""),
+            "run_args": argv,
+            "cpus": _number(typed.get(_CPUS, ""), "cpus"),
+            "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
+            "max_containers": _how_many(typed.get(_AT_ONCE, ""), "max containers"),
+            "workdir": typed.get(_WORKDIR, ""),
+            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
+            "affinity": _affinity(typed.get(_AFFINITY, "")),
+        }
+
+    def action_done(self) -> None:
+        """Answers with it, once everything said of it reads."""
+        envs = _hmz().runtimes
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        name = self._one.name if self._one is not None else typed.get(_CALLED, "")
+        if self._one is None and envs.find(_APPLE, name) is not None:
+            self._wrong = (
+                f"a {self.KIND} named {name} already exists; edit it from its "
+                "row, or choose a different name"
+            )
+            self._fill()
+            return
+        try:
+            made = envs.new(_APPLE, name, **self._fields(typed))
+        except ValueError as why:
+            self._wrong = str(why)
+            self._fill()
+            return
+        self.dismiss(made)
+
+
 class Imported(NamedTuple):
     """Which hosts of an ssh config to save, as the form they are switched on in answers.
 
@@ -9137,6 +9370,8 @@ class Machine(Picks):
                 if self._one.backend == _SSH
                 else "check the swarm's nodes against its quota"
                 if self._one.backend == _DOCKER_SWARM
+                else "check this Mac's resources against its limits"
+                if self._one.backend == _APPLE
                 else "check daemon resources against its limits",
             ),
             (_TAKES_AWAY, "remove", "remove this host immediately"),
@@ -9173,6 +9408,7 @@ class Hosts(Picks):
             _SSH: "Select the ssh host to use",
             _DOCKER: "Select the docker host to use",
             _DOCKER_SWARM: "Select the docker swarm to use",
+            _APPLE: "Select the host for Apple containers to use",
         }.get(backend, f"Select the {backend} host to use")
         self.about = (
             "Saved on the runtimes page of /settings; any host you add here is "
@@ -9343,10 +9579,11 @@ _BACKENDS_ABOUT = {
     _SSH: "a machine reached over ssh",
     _DOCKER: "a container on a docker daemon",
     _DOCKER_SWARM: "a container on whichever node of a docker swarm has room",
+    _APPLE: "an Apple container on this Mac",
 }
 
 #: What the machine is called on the row it is chosen on.
-_ON_ROW = {_SSH: "host", _DOCKER: "daemon", _DOCKER_SWARM: "swarm"}
+_ON_ROW = {_SSH: "host", _DOCKER: "daemon", _DOCKER_SWARM: "swarm", _APPLE: "host"}
 
 
 class Placing(Form[str]):
@@ -9476,7 +9713,7 @@ class Placing(Form[str]):
                 _WORKDIR,
                 "workdir",
                 "absolute path on this machine"
-                if backend == self._local
+                if backend == self._local or (backend == _APPLE and not saved)
                 else f"leave blank to use saved default: {saved}"
                 if saved
                 else "remote working directory: /path or ~/path under home",
@@ -9661,8 +9898,9 @@ class Machines(Pages):
     #: What the page says it is.
     MACHINES_ABOUT = (
         "Saved ssh hosts, docker daemons with the resources each may hand "
-        "out, and docker swarms with what their tasks may reserve, used by "
-        "name as flow environments in -e and /flow. "
+        "out, docker swarms with what their tasks may reserve, and this "
+        "Mac's Apple containers, used by name as flow environments in -e "
+        "and /flow. "
         "Changes take effect immediately."
     )
 
@@ -9693,7 +9931,7 @@ class Machines(Pages):
             Action(
                 _ACT_ADD,
                 "add a runtime…",
-                "an ssh host, a docker host or a docker swarm",
+                "an ssh host, a docker host, a docker swarm or Apple containers",
                 self._picks_kind,
             ),
             Action(
@@ -9850,6 +10088,8 @@ class Machines(Pages):
             if one.backend == _SSH
             else Swarming(cast("SwarmRuntime", one))
             if one.backend == _DOCKER_SWARM
+            else Containing(cast("AppleContainerRuntime", one))
+            if one.backend == _APPLE
             else Docking(cast("DockerRuntime", one))
         )
         fixed = await showing.push_screen_wait(form)

@@ -154,8 +154,9 @@ class AnchorConfig:
     Attributes:
       target: The machine the work lands on, as `ssh://HOST`, `docker://CONTAINER` -- or
         `docker://CONTAINER@ENDPOINT` for a container held by a daemon other than docker's
-        default here -- `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, where a
-        local target stands in for a remote one.
+        default here -- `apple-container://CONTAINER` for an Apple container of this Mac,
+        `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, where a local target
+        stands in for a remote one.
       harness: Where the agent process and the supervisor tracing it run: `local` for this
         machine, `same` for whichever machine `target` names, or a target spelling of their
         own. The three arrangements anchoring has, said in one setting --

@@ -145,7 +145,7 @@ _PAGES = (
     ),
     _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
     _Page("Fallback", "↻", "where a turn goes when its agent fails"),
-    _Page("Runtimes", "▦", "ssh hosts, docker daemons and swarms that flows run on"),
+    _Page("Runtimes", "▦", "ssh hosts, docker daemons, swarms and Apple containers"),
     _Page("Flowverses", "⑂", "the git repositories flows come from"),
     _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
 )

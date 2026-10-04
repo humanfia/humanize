@@ -137,6 +137,13 @@ _ENV = re.compile(
     r"(?P<role>[^=]*)=(?P<backend>[^@/]*)(?:@(?P<provider>[^/]*))?(?P<at>/.*)?"
 )
 
+#: The backends whose provider is a saved runtime of theirs, or `local` for this machine's.
+_CONTAINED = (
+    EnvBackendKind.DOCKER,
+    EnvBackendKind.SWARM,
+    EnvBackendKind.APPLE_CONTAINER,
+)
+
 
 def _items(values: Sequence[str], flag: str, refused: type[SpecError]) -> Iterator[str]:
     """Every item of every occurrence of one flag, in the order they were written.
@@ -199,8 +206,10 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
     the docker runtime called `gpubox` hands a container of its own, and `docker@local/...` one
     of docker's default here. `swarm@cluster/srv/repo` is one of whichever node of the swarm the
     swarm runtime called `cluster` places a task on, and `swarm@local/...` one of the swarm this
-    machine manages. `ssh@gpu-box`, `docker@gpubox` or `swarm@cluster` alone is the workdir the
-    runtime of that name was written down with.
+    machine manages. `apple-container@mac/Users/me/repo` is one of this Mac's that an Apple
+    container of its own holds, out of what the runtime called `mac` may hand out, and
+    `apple-container@local/...` one with nothing saved. `ssh@gpu-box`, `docker@gpubox` or
+    `swarm@cluster` alone is the workdir the runtime of that name was written down with.
 
     Args:
       values: What each `-e` was given.
@@ -234,7 +243,7 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
         provider = (read["provider"] or "").strip()
         if backend is EnvBackendKind.SSH and not provider:
             raise EnvSpecError(f"-e {said!r}: ssh needs a host, as in ssh@host/workdir")
-        if backend in (EnvBackendKind.DOCKER, EnvBackendKind.SWARM) and not provider:
+        if backend in _CONTAINED and not provider:
             raise EnvSpecError(
                 f"-e {said!r}: {backend} needs a host, as in {backend}@local/workdir"
             )
