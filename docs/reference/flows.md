@@ -1400,10 +1400,16 @@ class Reviewer(Agent):
   single-file flow `... and a flow that is one file has none of it`). Unfetchable, or no such
   skill in the repository:
   `<ref>: '<role>' names a skill that cannot be fetched: <reason>`.
-- A repository is cloned into `~/.hmz/skills/<owner>-<repo>-<sha256(url)[:12]>` and
-  fetched again (`fetch --depth 1` + `reset --hard`) the next time a run needs it; a failed
-  re-fetch uses the existing copy.
-- The flow's own skill wins a name also held by a repository.
+- [Installing](#flowverses) a flow fetches every URL its roles' `_skills` write as string
+  literals into the installed flow's own `skills/<name>/`, recorded in its `.installed.json`;
+  a run of it reads them from there and fetches nothing. One that cannot be fetched fails the
+  install. A URL the source does not spell out is fetched at run time, as below.
+- A flow that was never installed -- yours, a builtin, a `git+` ref -- clones the repository
+  into `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>` and fetches it again
+  (`fetch --depth 1` + `reset --hard`) the next time a run needs it; a failed re-fetch uses
+  the existing copy.
+- The flow's own skill wins a name also held by a repository; a `#<skill>` URL whose skill
+  the flow has of its own gives the role the flow's.
 - Skills are mounted where the harness reads a project's skills for the session's lifetime,
   then removed. Nothing is installed. A harness that reads no project skills carries none.
 - [`derive(skills=…)`](#derive) narrows them for part of a flow.

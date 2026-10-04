@@ -290,6 +290,7 @@ class Installed(BaseModel):
     ref: str = ""
     subdir: str = ""
     dependencies: dict[str, str] = {}
+    skills: dict[str, list[str]] = {}  # each URL its roles name, to what was fetched into it
     @property
     def called(self) -> str: ...  # what it is offered under
     @property
@@ -334,7 +335,10 @@ def fork(named_: str, into: str | os.PathLike[str] | None = None) -> str: ...
 def brought(at: Path | str, declared: Iterable[str] = ()) -> list[Loaded]: ...
 def cached(url: str) -> Path: ...
 def fetched(url: str) -> Path: ...
-def under() -> Path: ...
+def named(at: Path) -> list[str]: ...  # the URLs a flow's source names skills by
+def packed(at: Path) -> dict[str, list[str]]: ...  # those fetched into its own `skills/`
+def remote(said: str) -> bool: ...  # whether a skill a role names is a URL
+def under() -> Path: ...  # machine()/skills
 ```
 
 ## Requirements
@@ -452,7 +456,11 @@ def under() -> Path: ...
 - A VCS ref MUST be fetched once per URL and ref per run, on a thread, pinned to the commit it
   stands at, and cloned once per commit. What cannot be fetched MUST raise `FlowNotFound`.
 - A role's skills MUST be found in its flow's own `skills/` or fetched, at the call, raising
-  `FlowDefinitionError` for one that is not there.
+  `FlowDefinitionError` for one that is not there; a URL wanting one skill the flow has one of
+  its own of MUST be given the flow's. An installed flow's MUST be read out of
+  its own `skills/`, where installing it put the ones its roles name by a URL, and MUST NOT be
+  fetched again; a flow that was never installed MUST fetch them into `machine()/skills/`, and
+  nothing of a skill MAY be kept under humanize's home outside the flow it came with.
 
 ### Cleanup and the running tree
 
@@ -603,7 +611,10 @@ def under() -> Path: ...
 - Installing a release MUST copy its `subdir` at its `commit` into `installed/<flowverse>/<flow>/`
   under humanize's home, with a record of what it was installed from, written before one
   rename puts it in place over whatever release was there; what is at that place MUST be a
-  whole release and its record at every moment. It MUST install with it the newest release
+  whole release and its record at every moment. Every skill its roles name by a URL, as read
+  off its source without importing it, MUST be fetched into its own `skills/` before that
+  rename and named in its record, and one that cannot be fetched MUST fail the install, leaving
+  nothing behind. It MUST install with it the newest release
   of each flow it needs that the range takes, unless one installed already does, and MUST
   refuse, saying why, a cycle, a range nothing listed takes, two ranges no one release
   satisfies, and an install that would take away a release another installed flow needs.
@@ -617,7 +628,9 @@ def under() -> Path: ...
   could be in is not fetched yet, and MUST mark the package's own `chat` with `full_view`;
   nothing else is, the other flows humanize ships included.
 - `brought` MUST bring the flow's own skills first and the ones it named after, the flow's own
-  winning a shared name, and MUST raise where one cannot be fetched rather than at the turn.
+  winning a shared name, and MUST raise where one cannot be fetched rather than at the turn; what an
+  installed flow's record says was fetched into it MUST be brought as the URL's, not the
+  flow's own.
 - `fork` MUST copy the whole of a flow and MUST refuse a name already taken rather than write
   over it, and MUST NOT carry an installed flow's record; forking, installing, and adding,
   fetching or removing a flowverse, MUST leave nothing half-done behind when it fails;

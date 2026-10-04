@@ -5,43 +5,64 @@ the way every one of these CLIs lays a skill out, one directory apiece with a `S
 it. They travel with the flow: fork it, edit one, and the next run is driven by the edited
 one, which is the whole point of a flow being a directory rather than a file.
 
-A flow may also name skills that live somewhere else, by writing them where it is declared::
+A role may also name skills that live somewhere else, by writing them where it is declared::
 
-    @flow(skills=("https://github.com/humanfia/flowverse#deep-research",))
+    class Researcher(Agent):
+        _skills = ("https://github.com/humanfia/flowverse#deep-research",)
 
 which is a git repository anything can clone and, after the `#`, which of the skills in it is
 wanted -- matched against the `skills/*` that repository holds, by the directory each is in.
-Without one, every skill that repository holds is brought. A repository is cloned once into
-`~/.hmz/skills/<name>/` and fetched again the next time a run asks for it, so a skill
-somebody else maintains is a skill that keeps up.
+Without one, every skill that repository holds is brought. Installing a flow fetches every
+one its roles name into the installed flow's own `skills/`, with a note in its record of
+which came from where, so that what an installed flow works by is in it like the rest of it
+and a run of it reaches no network for its skills. A flow that was never installed -- one of
+your own, a builtin, a VCS ref -- has them fetched as a run asks for them, into a clone kept
+in this machine's own place, `skills/<name>/`, and fetched again the next time.
 
-Nothing here installs anything. What is fetched is put where humanize keeps it, and what a
-session does with it is :func:`hmz.coganchor.agents.skills.mount`: put where that backend reads a
-project's own skills for as long as the session lives, and taken away again after. The skills
-the person at this machine installed are untouched, being theirs.
+Nothing here installs anything into a CLI. What is fetched is put in a flow or where humanize
+keeps it, and what a session does with it is :func:`hmz.coganchor.agents.skills.mount`: put
+where that backend reads a project's own skills for as long as the session lives, and taken
+away again after. The skills the person at this machine installed are untouched, being theirs.
 """
 
 from __future__ import annotations
 
+import ast
 import hashlib
+import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from hmz import home
+from hmz import machine
 from hmz.coganchor.agents.skills import CARD, SKILLS, Loaded
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-__all__ = ["CARD", "SKILLS", "brought", "cached", "fetched", "under"]
+__all__ = [
+    "CARD",
+    "SKILLS",
+    "brought",
+    "cached",
+    "fetched",
+    "named",
+    "packed",
+    "remote",
+    "under",
+]
 
 #: What separates the repository from the skill wanted out of it.
 _WANTED = "#"
 
 
 def under() -> Path:
-    """Where the skills fetched from somewhere else are kept, under humanize's own home."""
-    return home() / SKILLS
+    """Where the skills a flow that was never installed fetched are kept: this machine's own."""
+    return machine() / SKILLS
+
+
+def remote(said: str) -> bool:
+    """Whether a skill a role names is somebody else's repository rather than the flow's own."""
+    return "#" in said or "://" in said
 
 
 def brought(at: Path | str, declared: Iterable[str] = ()) -> list[Loaded]:
@@ -56,7 +77,9 @@ def brought(at: Path | str, declared: Iterable[str] = ()) -> list[Loaded]:
     Returns:
       One per skill, the flow's own in the order they are on disk and the fetched ones in the
       order they were named. A name declared twice is the first of them: the flow's own beats
-      a repository's, since a fork that edited a skill meant the edited one.
+      a repository's, since a fork that edited a skill meant the edited one. What installing
+      the flow fetched into its `skills/` is the repository's it came from, not the flow's own,
+      and is read from there without reaching for the repository again.
 
     Raises:
       OSError: If a repository cannot be fetched, or holds no skill of the name a flow asked
@@ -68,16 +91,28 @@ def brought(at: Path | str, declared: Iterable[str] = ()) -> list[Loaded]:
     seen: set[str] = set()
     # "" for a flow that is one file, which has no directory of its own and so has no skills
     # of its own: what is beside such a flow is the other flows, and none of it came with it.
+    fetched_in = _fetched_in(Path(at)) if at else {}
+    theirs = {name for names in fetched_in.values() for name in names}
     for one in _inside(Path(at) / SKILLS) if at else []:
+        if one.name in theirs:
+            continue
         seen.add(one.name)
         found.append(Loaded(one.name, one, "this flow"))
     for said in declared:
+        if said in fetched_in:
+            for name in fetched_in[said]:
+                if name not in seen:
+                    seen.add(name)
+                    found.append(Loaded(name, Path(at) / SKILLS / name, said))
+            continue
         url, _, wanted = said.partition(_WANTED)
-        if not url.strip():
+        wanted = wanted.strip()
+        # The one skill it wanted, where the flow has one of that name already: the flow's
+        # wins it, so there is nothing to fetch -- a fork of an installed flow runs offline.
+        if not url.strip() or wanted in seen:
             continue
         where = fetched(url.strip())
         inside = _inside(where / SKILLS)
-        wanted = wanted.strip()
         if wanted and not any(one.name == wanted for one in inside):
             # Named and not there: a typo, or a skill that has been renamed upstream. Said
             # here for the reason a repository that cannot be fetched is said here -- a flow
@@ -98,6 +133,91 @@ def brought(at: Path | str, declared: Iterable[str] = ()) -> list[Loaded]:
             seen.add(one.name)
             found.append(Loaded(one.name, one, said))
     return found
+
+
+def named(at: Path) -> list[str]:
+    """Every skill a flow's roles name by a URL, as its source writes them.
+
+    Read off the source rather than imported: installing a flow runs none of it, and what a
+    role names is a tuple of strings written where the role is declared. One worked out as the
+    flow is imported is one this does not see, and a run of it fetches it as it would for a
+    flow that was never installed.
+
+    Args:
+      at: The flow's own directory.
+
+    Returns:
+      Each once, in the order they are first written, the files read alphabetically.
+    """
+    found: dict[str, None] = {}
+    for source in sorted(at.rglob("*.py")):
+        try:
+            tree = ast.parse(source.read_bytes(), str(source))
+        except (OSError, SyntaxError, ValueError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for line in node.body:
+                if isinstance(line, ast.Assign):
+                    targets, value = line.targets, line.value
+                elif isinstance(line, ast.AnnAssign) and line.value is not None:
+                    targets, value = [line.target], line.value
+                else:
+                    continue
+                if not any(
+                    isinstance(target, ast.Name) and target.id == "_skills"
+                    for target in targets
+                ):
+                    continue
+                for said in ast.walk(value):
+                    if (
+                        isinstance(said, ast.Constant)
+                        and isinstance(said.value, str)
+                        and remote(said.value)
+                    ):
+                        found[said.value] = None
+    return list(found)
+
+
+def packed(at: Path) -> dict[str, list[str]]:
+    """Fetches every skill a flow's roles name by a URL into the flow's own `skills/`.
+
+    What an install does to the copy it is about to move into place, so that the installed
+    flow holds what it works by.
+
+    Args:
+      at: The flow's own directory, which is written into.
+
+    Returns:
+      Every URL :func:`named` found, to the skills it brought into the flow -- for the flow's
+      record, which is how :func:`brought` tells them from the flow's own. A skill the flow
+      has of its own under the same name is the flow's, and is not brought.
+
+    Raises:
+      OSError: If a repository cannot be fetched, holds no skill of a name the flow asked it
+        for, or a skill cannot be copied in.
+    """
+    declared = named(at)
+    taken: dict[str, list[str]] = {said: [] for said in declared}
+    for one in brought(at, declared):
+        if one.whose in taken:
+            shutil.copytree(one.at, at / SKILLS / one.name)
+            taken[one.whose].append(one.name)
+    return taken
+
+
+def _fetched_in(at: Path) -> dict[str, list[str]]:
+    """What installing a flow fetched into its `skills/`, by the URL each was named by.
+
+    Read off the record an installed flow carries; nothing for a flow that has none.
+    """
+    from .index import RECORD, Installed
+
+    try:
+        return Installed.model_validate_json((at / RECORD).read_bytes()).skills
+    except (OSError, ValueError):
+        return {}
 
 
 def _inside(at: Path) -> list[Path]:

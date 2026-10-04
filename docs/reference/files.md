@@ -61,7 +61,6 @@ H/
 │   ├── official/  <name>/              index clones
 │   └── .pinned/<blake2b-8(url)>/<sha>/ checkouts of git+ refs and of releases installed
 ├── installed/<flowverse>/<flow>/       installed flows, each with its .installed.json
-├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
 │   └── mirrors/<container or service>/<digest>/
@@ -278,7 +277,8 @@ checked out detached at `<sha>`, renamed into place. One per commit; never remov
 ### `H/installed/<flowverse>/<flow>/`
 
 A flow installed from that flowverse's index: the release's `subdir` at its commit, without
-`.git` and `__pycache__` (a single `<flow>.py` as `__init__.py`), and `.installed.json`.
+`.git` and `__pycache__` (a single `<flow>.py` as `__init__.py`), every skill its roles name by
+URL fetched into its `skills/<name>/`, and `.installed.json`.
 Written into `.<flow>.XXXXXXXX` beside it and renamed into place, the release it replaces moved
 aside into that directory first and deleted with it; a leftover `.<flow>.*` older than 600 s is
 removed before the next install of that name. Replaced by an update, deleted by uninstall and
@@ -292,13 +292,7 @@ by removing the flowverse. Imported where flows are listed and run.
 | `version`, `commit` | the release, and the commit it was copied from |
 | `repo`, `ref`, `subdir` | as the manifest said |
 | `dependencies` | `{flow: range}`, as the manifest said; checked by later installs and uninstalls |
-
-### `H/skills/<owner>-<repo>-<sha256(url)[:12]>/`
-
-Clones of skill repositories a role names by URL
-([Skills](/reference/flows#the-skills-a-flow-brings)), cloned and refreshed as flowverses are,
-each run that names them. Never removed. Mounted skills are copied into the session's
-workdir (`.claude/skills`, `.cursor/skills` or `.agents/skills`) for the session's life.
+| `skills` | `{url: [skill, …]}`: each URL its roles name, to the skills install fetched into its `skills/` for it |
 
 ### `~/.hmz/flows/` and `<workspace>/.hmz/flows/`
 
@@ -398,6 +392,7 @@ Every path in this section is safe to delete while humanize is not running.
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
 | `$TMPDIR/hmz-dsh-*/cordis.yml`, `hmz-qwen-*/` | per-session CLI configuration | with the session |
 | `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
+| `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>/` | clones of skill repositories a role of a flow that was never installed names by URL ([Skills](/reference/flows#the-skills-a-flow-brings)), fetched again each run that names them | kept |
 | `$TMPDIR/humanize-<uid>/daemon.sock`, `daemon.json` (`0600`) | the [daemon](/reference/daemon#files) of this machine and user, which every workspace's runs are reached through: its socket, and `{"pid": int, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "daemon", "protocol": int}` via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename | when the daemon closes |
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
 | `$TMPDIR/humanize-<uid>/daemon.log` (`0600`) | what belongs to no run: the daemon's stdout and stderr, and a host process's before it holds a run; what belongs to a run is the epic's [`host.log`](#h-epics-ws-stamp-hex6) | kept, never rotated |
@@ -429,7 +424,7 @@ when their content changes.
 
 ## Retention
 
-Nothing prunes `epics/`, `sessions/`, `flowverses/.pinned/`, `skills/`, worktrees under
+Nothing prunes `epics/`, `sessions/`, `flowverses/.pinned/`, worktrees under
 `envs/`, snapshot refs, `compiled/`, `docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
 Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
