@@ -262,14 +262,14 @@ under the list says what pressing it will do:
    ssh/build-box answers: home /root; 64 CPUs, 2015G                           ⑤
 ```
 
-**2. Put the role on it.** `/flow local/onbox` opens the flow's setup. Its environment role is
+**2. Put the role on it.** `/flow @local/onbox` opens the flow's setup. Its environment role is
 a row under its agents; <kbd>enter</kbd> on `box` opens a form of the parts `-e` takes after
 `box=`, on the `host` row. <kbd>enter</kbd> there lists the saved ssh hosts: choose
 `build-box`. Its saved `workdir` comes with it, and while you leave that as it is, the spec
 leaves it out. Nothing is left to answer, so the focus moves on to **Done**:
 
 ```text
-  hmz › local/onbox › Environment for box                    ● unsaved changes
+  hmz › @local/onbox › Environment for box                   ● unsaved changes
   The machine and working directory for this environment role. Choosing a
   machine saved on the runtimes page of /settings by name includes its saved
   working directory.
@@ -297,7 +297,7 @@ leaves it out. Nothing is left to answer, so the focus moves on to **Done**:
 **3. Save the flow, and type the task.**
 
 ```text
-   local/onbox
+   @local/onbox
    Configure each role: an agent (CLI, account, model and effort) or an environment.
      1. builder                   claude/claude-haiku-4-5-20251001:high
      2. reviewer                  claude/claude-haiku-4-5-20251001:high
@@ -541,7 +541,7 @@ More, with what causes each, are in [Troubleshooting](/user/troubleshooting).
 
 ::: details `onbox`: build on the box, review here
 Save it as `.hmz/flows/onbox/__init__.py` in your project, and it is offered as
-`local/onbox`. What each line means is the [Weaver Guide's](/weaver/writing-a-flow) to explain.
+`@local/onbox`. What each line means is the [Weaver Guide's](/weaver/writing-a-flow) to explain.
 
 ```python
 """Build on the box, review here."""

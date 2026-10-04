@@ -216,7 +216,7 @@ async def test_an_installed_flow_is_the_release_s_directory_and_a_record_of_it(
     ]
     assert Installed.model_validate_json((at / RECORD).read_text()) == done
     assert installed() == [done]
-    assert await run_fake(resolved("theirs/loop"), "go") == "loop one: ok"
+    assert await run_fake(resolved("@theirs/loop"), "go") == "loop one: ok"
 
 
 async def test_a_release_at_the_root_of_its_repository_is_the_repository_less_its_git(
@@ -236,7 +236,7 @@ async def test_a_release_at_the_root_of_its_repository_is_the_repository_less_it
         ENTRY,
         "_whole.py",
     ]
-    assert await run_fake(resolved("theirs/whole"), "go") == "loop whole: ok"
+    assert await run_fake(resolved("@theirs/whole"), "go") == "loop whole: ok"
 
 
 async def test_a_flow_that_is_one_file_is_installed_as_the_entry_point_of_a_directory(
@@ -253,7 +253,7 @@ async def test_a_flow_that_is_one_file_is_installed_as_the_entry_point_of_a_dire
     at = kept("theirs") / "solo"
     assert sorted(one.name for one in at.iterdir()) == [RECORD, ENTRY]
     assert (at / ENTRY).read_text() == SOLO
-    assert await run_fake(resolved("theirs/solo"), "go") == "solo go"
+    assert await run_fake(resolved("@theirs/solo"), "go") == "solo go"
 
 
 def test_an_install_whose_repository_has_no_flow_where_it_says_leaves_nothing_behind(
@@ -406,7 +406,7 @@ async def test_another_release_replaces_the_one_installed_whole(
     """Nothing of the old one is left behind in the new one: it is a directory, not a merge."""
     _added(tmp_path, _loop(code), _loop(code, "0.2.0", code.second))
     install("theirs", "loop", "0.1.0")
-    assert await run_fake(resolved("theirs/loop"), "go") == "loop one: ok"
+    assert await run_fake(resolved("@theirs/loop"), "go") == "loop one: ok"
 
     (done,) = install("theirs", "loop")
 
@@ -415,7 +415,7 @@ async def test_another_release_replaces_the_one_installed_whole(
     assert not (at / "_only_in_one.py").exists()
     assert installed() == [done]
     assert _left() == ["loop"]
-    assert await run_fake(resolved("theirs/loop"), "go") == "loop two: ok"
+    assert await run_fake(resolved("@theirs/loop"), "go") == "loop two: ok"
     # And back again, by naming the release.
     install("theirs", "loop", "0.1.0")
     assert (at / "_only_in_one.py").exists()
@@ -498,7 +498,7 @@ async def test_an_installed_flow_loads_what_it_needs_from_beside_it(
     _added(tmp_path, *_needing(code))
     install("theirs", "prover")
 
-    said = await run_fake(resolved("theirs/prover"), "t")
+    said = await run_fake(resolved("@theirs/prover"), "t")
 
     assert said == ["helper t", "helper:inner t"]
 
@@ -604,7 +604,7 @@ def test_a_flow_another_installed_flow_needs_is_not_uninstalled(
     install("theirs", "prover")
 
     with pytest.raises(
-        ValueError, match=r"^theirs/prover needs helper; uninstall that first$"
+        ValueError, match=r"^@theirs/prover needs helper; uninstall that first$"
     ):
         uninstall("theirs", "helper")
     assert (kept("theirs") / "helper" / ENTRY).is_file()

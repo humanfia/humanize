@@ -110,8 +110,8 @@ def test_a_module_lists_its_own_flow_bare_and_the_rest_by_name(mine: Path) -> No
     written(mine, "three", THREE)
 
     assert _local() == [
-        ("local/three", "builds it"),
-        ("local/three:gen-idea", "Opens a loose idea into a draft."),
+        ("@local/three", "builds it"),
+        ("@local/three:gen-idea", "Opens a loose idea into a draft."),
     ]
 
 
@@ -119,7 +119,7 @@ def test_a_module_of_one_flow_lists_it_under_the_directory(mine: Path) -> None:
     """Whatever the function is called; and the module's docstring says what it does."""
     written(mine, "one", ONE)
 
-    assert _local() == [("local/one", "Just the one, and it says what it does here.")]
+    assert _local() == [("@local/one", "Just the one, and it says what it does here.")]
     assert resolved("one").name == "whatever_it_is_called"
 
 
@@ -129,8 +129,8 @@ def test_two_flows_neither_named_for_the_module_are_each_listed_by_name(
     written(mine, "two", TWO)
 
     assert _local() == [
-        ("local/two:left", "Goes left."),
-        ("local/two:right", "Goes right."),
+        ("@local/two:left", "Goes left."),
+        ("@local/two:right", "Goes right."),
     ]
 
 
@@ -155,7 +155,7 @@ def test_which_one_was_asked_for_is_the_half_after_the_colon(mine: Path) -> None
     written(mine, "three", THREE)
 
     assert resolved("three:gen-idea").name == "gen-idea"
-    assert resolved("local/three:gen-idea").name == "gen-idea"
+    assert resolved("@local/three:gen-idea").name == "gen-idea"
     assert resolved("three").name == "three"
     assert about("three:gen-idea") == "Opens a loose idea into a draft."
 
@@ -171,7 +171,9 @@ def test_a_flow_that_is_one_file_is_a_flow_too(mine: Path) -> None:
     mine.mkdir(parents=True)
     (mine / "alone.py").write_text(ONE)
 
-    assert _local() == [("local/alone", "Just the one, and it says what it does here.")]
+    assert _local() == [
+        ("@local/alone", "Just the one, and it says what it does here.")
+    ]
     assert find("alone") == str((mine / "alone.py").resolve())
     assert resolved("alone").name == "whatever_it_is_called"
 
@@ -181,7 +183,7 @@ def test_a_directory_wins_a_name_a_file_also_uses(mine: Path) -> None:
     (mine / "both.py").write_text(TWO)
 
     assert find("both") == str((mine / "both" / ENTRY).resolve())
-    assert [name for name, _ in _local()] == ["local/both"]
+    assert [name for name, _ in _local()] == ["@local/both"]
 
 
 def test_a_flow_is_found_by_its_path_as_well(tmp_path: Path) -> None:

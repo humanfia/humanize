@@ -1,17 +1,19 @@
 """Where a flow is, what it is called, and the flow a name comes to.
 
-A flow is named rather than pathed: `hmz exec -f ralph_loop` is a name, and a path is what is
-left for a flow that is nowhere any of them are kept. A name is looked for in the places flows
-come from, which is every [flowverse](verses.py) there is -- humanize's own, which is
-`official` and is the flows in the package together with whatever was installed out of its
-index, whatever was installed out of the indexes somebody added, and the flows of your own here
-and in your home directory. Those last two are `local` and `user`, and are flowverses like the
-rest of them. A flow an index lists and nobody installed is not among them: it is a flow to
-install (:mod:`index`), and a name that only an index answers to says so.
+A flow is named rather than pathed: `hmz exec -f ralph_loop` is a name, and a path -- which
+starts with `.`, `/` or `~`, and nothing else does -- is what is left for a flow that is nowhere
+any of them are kept. A name is looked for in the places flows come from, which is every
+[flowverse](verses.py) there is -- humanize's own, which is `official` and is the flows in the
+package together with whatever was installed out of its index, whatever was installed out of
+the indexes somebody added, and the flows of your own here and in your home directory. Those
+last two are `local` and `user`, and are flowverses like the rest of them. A flow an index lists
+and nobody installed is not among them: it is a flow to install (:mod:`index`), and a name that
+only an index answers to says so.
 
-Which of them a bare name means is nearest first -- yours, then everybody else's -- so a flow
-of your own may stand in for one of humanize's by taking its name, and `local/chat` is the
-spelling that says which one it is.
+humanize's own are called as its index lists them, `aot` and `alice/kernel`, and every other
+place's after an `@`: `@theirs/review`, `@local/chat`. Which flow a bare name means is nearest
+first -- yours, then everybody else's -- so a flow of your own may stand in for one of
+humanize's by taking its name, and `@local/chat` is the spelling that says which one it is.
 
 Reading a flow means importing it: a flow is a directory whose `__init__.py` defines flows with
 :func:`hmz.flows.flow`, and the only way to find out which is to import it. That is
@@ -28,7 +30,17 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from hmz import here
 
-from .verses import OFFICIAL, flowverses, holds, nearest
+from .verses import (
+    AT,
+    called,
+    flowverses,
+    holds,
+    named,
+    nearest,
+    pathed,
+    renamed,
+    split,
+)
 
 if TYPE_CHECKING:
     from .engine import FlowImpl
@@ -81,7 +93,7 @@ class Offer(NamedTuple):
     Attributes:
       whose: Where it came from: a flowverse by name, or `local` and `user` for the flows of
         this project and of yours.
-      name: What to call it, which is what `-f` takes.
+      name: What to call it, which is what `-f` takes: `aot`, `alice/kernel`, `@local/x`.
       about: The line it says about itself, or "" for one that says nothing.
     """
 
@@ -102,12 +114,12 @@ def found() -> list[Offer]:
 
     Returns:
       One per flow there is to run, which is never one an index merely lists. One of
-      humanize's is called by a bare name, whichever of the two places `official` is kept in
-      it is in, and every other by `<where it came from>/<name>` -- `local/scheduler`,
-      `theirs/loop` -- so a flow of yours that happens to share a name with one of humanize's
-      is a different flow here rather than the same one, and is written down, offered and
-      remembered under a name of its own. A file that holds several says so, `<name>:<inside>`
-      apiece.
+      humanize's is called as its index lists it, whichever of the two places `official` is
+      kept in it is in -- `aot`, `alice/kernel` -- and every other by `@<where it came
+      from>/<name>` -- `@local/scheduler`, `@theirs/loop` -- so a flow of yours that happens to
+      share a name with one of humanize's is a different flow here rather than the same one,
+      and is written down, offered and remembered under a name of its own. A file that holds
+      several says so, `<name>:<inside>` apiece.
     """
     return [one for verse in flowverses() for one in offers(verse)]
 
@@ -165,7 +177,9 @@ def offered(under: Path) -> list[str]:
     Returns:
       One name apiece, alphabetically and without repeating a name that is there both ways.
       A name starting with an underscore is not a flow but something the flows beside it
-      import; nor is a directory with no entry point in it. Nothing at all where there is no
+      import; nor is a directory with no entry point in it. Nor is a hidden one -- a `._x.py`
+      a macOS archive left behind, a flow put away as `.old` -- which no name may start with,
+      so listing one would be offering what `-f` refuses. Nothing at all where there is no
       such directory.
     """
     found_: list[str] = []
@@ -175,7 +189,7 @@ def offered(under: Path) -> list[str]:
         return []
     for path in held:
         name = path.name.removesuffix(".py")
-        if name.startswith("_") or name in found_:
+        if name.startswith(("_", ".")) or name in found_:
             continue
         if (path / ENTRY).is_file() or (path.is_file() and path.suffix == ".py"):
             found_.append(name)
@@ -193,14 +207,16 @@ def offers(one: Flowverse) -> list[Offer]:
       one: The flowverse.
 
     Returns:
-      One per flow, by directory, alphabetically: `<flowverse>/<flow>`, except for humanize's
-      own, which are called by a bare name. Which of the two places `official` is kept in a
-      flow of humanize's is in makes no difference to what it is called: the package's `chat`
-      and an installed `parallel_flame_chase` are both humanize's, so both are said the same
-      way and a flow that moves between the two goes on answering to the name it had. Yours
-      are named the same way as anybody else's -- `local/scheduler`, `user/scheduler` -- so
-      that a flow of yours sharing a name with one of humanize's is listed beside it under a
-      name of its own rather than instead of it. The flow a bare ref names -- the one named
+      One per flow, by directory, alphabetically: `@<flowverse>/<flow>`, except for humanize's
+      own, which are called as its index lists them, `aot` and `alice/kernel`. Which of the two
+      places `official` is kept in a flow of humanize's is in makes no difference to what it is
+      called: the package's `chat` and an installed `parallel_flame_chase` are both humanize's,
+      so both are said the same way and a flow that moves between the two goes on answering to
+      the name it had. Yours are named the same way as anybody else's -- `@local/scheduler`,
+      `@user/scheduler` -- so that a flow of yours sharing a name with one of humanize's is
+      listed beside it under a name of its own rather than instead of it. One an index listed
+      under a user is called after the user too, `@theirs/alice/kernel`. The flow a bare ref
+      names -- the one named
       after its directory, else the only visible one -- is listed by the directory's name, and every
       other visible flow of the module as `<flow>:<inside>`; hidden flows are not listed, and a
       directory that holds none is not among them -- a directory of flows has directories
@@ -218,7 +234,7 @@ def offers(one: Flowverse) -> list[Offer]:
     from .verses import flows
 
     return [
-        Offer(one.name, name if one.name == OFFICIAL else f"{one.name}/{name}", said)
+        Offer(one.name, called(one.name, name), said)
         for base in flows(one)
         if (at_ := within(one, base)) is not None
         for name, said in _named(at_, base)
@@ -298,8 +314,9 @@ def about(named_: str) -> str:
 def resolved(named_: str) -> FlowImpl:
     """The flow a name comes to, loaded, as a way in runs it.
 
-    Anything :func:`hmz.flows.load` takes where no flow is asking: a name nearest first,
-    `<flowverse>/<flow>`, either with `:<inside>`, a path, or a `git+<url>[#<subdir>]` ref,
+    Anything :func:`hmz.flows.load` takes where no flow is asking: a bare name nearest first,
+    `[@<flowverse>/][<user>/]<flow>`, either with `:<inside>`, a path, or a
+    `git+<url>[#<subdir>]` ref,
     which is fetched here, on this thread. The one flow that is :func:`privileged` is handed
     its harness's every capability, with :func:`~hmz.runtime.flowing.engine.full_view`.
 
@@ -312,7 +329,8 @@ def resolved(named_: str) -> FlowImpl:
     Raises:
       FlowRefError: If `named_` is no ref, or is relative to a flow when none is asking.
       FlowNotFound: If nothing answers to it -- saying so where an index lists it and it is
-        only not installed, or where an index it could be in has not been fetched.
+        only not installed, where an index it could be in has not been fetched, and where it
+        is said the way names were before the `@`, or is a path with no `./` before it.
       FlowDefinitionError: If what it names is written wrong or will not import.
       FlowLoadConflict: If loading it would replace a module a run going now uses.
     """
@@ -326,7 +344,7 @@ def resolved(named_: str) -> FlowImpl:
     except FlowNotFound as missing:
         # Only for a name nothing answers to: one that found its module and then no flow in
         # it is a flow to correct, whatever has been installed.
-        if "#" in named_ or os.path.isfile(find(named_)):
+        if "#" in named_ or find(named_):
             raise
         why = _missing(named_)
         if not why:
@@ -352,7 +370,9 @@ def _missing(named_: str) -> str:
     that is right, given by the one thing that knows where it could be had. And an index is
     offered before it is fetched -- `official` is there from the start -- so a name could be
     right about an index that has not been downloaded yet. A name that said which place it came
-    from is a question about that place alone; a bare one is asked of every one of them.
+    from is a question about that place alone; a bare one is asked of every one of them. And
+    names were said otherwise before the `@` -- `local/x`, `theirs/x` -- and a path did not
+    have to start with `./`, so a name that is one of those is told what it is now.
 
     Args:
       named_: What was asked for, as it was written.
@@ -362,14 +382,25 @@ def _missing(named_: str) -> str:
     """
     from .index import index
 
-    whose, _, rest = _split(named_)[0].partition("/")
-    flow = rest or whose
+    asked = _split(named_)[0]
+    try:
+        whose, flow = split(asked)
+    except ValueError:
+        return ""
+    outright = asked.startswith(AT) or "/" in flow
     places = [
-        one for one in flowverses() if one.url and (one.name == whose if rest else True)
+        one
+        for one in flowverses()
+        if one.url and (one.name == whose if outright else True)
     ]
     listing = [one.name for one in places if flow in index(one).flows()]
     if listing:
         return f"not installed -- install it from /flow (flowverse {listing[0]})"
+    now = renamed(asked)
+    if now != asked:
+        return f"a flow of {asked.partition('/')[0]} is called {now} now"
+    if _path(asked):
+        return f"a path starts with ./, / or ~, as ./{asked} does"
     waiting = [one.name for one in places if not one.fetched]
     if not waiting:
         return ""
@@ -433,43 +464,52 @@ def find(named_: str) -> str:
     """Where the entry point of the flow called this is.
 
     Args:
-      named_: A flow's name -- `ralph_loop`, `official/rlar`, `local/scheduler`,
-        `humanize1:gen-plan` -- or the path to a flow taken as given, `~` and all: its
+      named_: A flow's name -- `ralph_loop`, `alice/kernel`, `@local/scheduler`,
+        `humanize1:gen-plan` -- or the path to a flow, which starts with `.`, `/` or `~`: its
         directory, or the file to run outright.
 
     Returns:
-      The path to run: the flow the flowverse named holds, else the nearest flow of that
-      name, else what the path names -- and `named_` itself if nothing answers to it, so
-      that whatever named it hears about it. Resolved, since a flow is free to change the
-      working directory the name was resolved against.
+      The path to run: the flow the flowverse named holds, else the nearest flow of a bare
+      name, else what the path names -- and "" if nothing answers to it, which is never a
+      file: a name that happens to be a file where this runs, `demo.py`, is a name and not
+      a path, so nothing a name comes back as is mistaken for a flow. Resolved, since a
+      flow is free to change the working directory the name was resolved against.
     """
     at_, _ = _split(named_)
-    whose, _, rest = at_.partition("/")
-    if rest:
-        # Named outright -- `official/rlar`, `local/scheduler` -- which is the one spelling
-        # that says which place it came from, and so the one that cannot be stood in for.
-        for verse in flowverses():
-            if whose != verse.name:
-                continue
-            beside = within(verse, rest)
-            if beside is not None:
-                return str(beside.resolve())
+    if pathed(at_):
+        return _path(os.path.expanduser(at_))
+    try:
+        whose, flow = split(at_)
+    except ValueError:
+        return ""
+    if at_.startswith(AT) or "/" in flow:
+        # Named outright -- `@local/scheduler`, `alice/kernel` -- which is the spelling that
+        # says which place it came from, and so the one that cannot be stood in for.
+        verse = named(whose)
+        places = [] if verse is None else [verse]
     else:
         # Nearest wins: this project, then yours, then whatever there is to run -- so a flow
         # of your own may stand in for one of humanize's by taking its name.
-        for verse in nearest():
-            beside = within(verse, at_)
-            if beside is not None:
-                return str(beside.resolve())
-    # A path taken as given, in both the shapes a flow is: the directory it is, the file it is
-    # for whoever points at one outright -- a flow being written, a file a test wrote out --
-    # and the `.py` beside a path with the extension left off, which is how a single-file flow
-    # is written down anywhere its name is not what it is called by.
-    said = os.path.expanduser(at_)
+        places = nearest()
+    for verse in places:
+        beside = within(verse, flow)
+        if beside is not None:
+            return str(beside.resolve())
+    return ""
+
+
+def _path(said: str) -> str:
+    """The file a path names a flow by, or "" for one that names none.
+
+    In both the shapes a flow is: the directory it is, the file it is for whoever points at one
+    outright -- a flow being written, a file a test wrote out -- and the `.py` beside a path
+    with the extension left off, which is how a single-file flow is written down anywhere its
+    name is not what it is called by.
+    """
     for shape in (os.path.join(said, ENTRY), said, f"{said}.py"):
         if os.path.isfile(shape):
             return os.path.realpath(shape)
-    return at_
+    return ""
 
 
 def at(named_: str) -> str:
@@ -484,7 +524,7 @@ def at(named_: str) -> str:
       flow is the other flows, and none of it came with this one.
     """
     found_ = find(named_)
-    if not os.path.isfile(found_) or os.path.basename(found_) != ENTRY:
+    if os.path.basename(found_) != ENTRY:
         return ""
     return os.path.dirname(found_)
 
@@ -507,8 +547,8 @@ def fork(named_: str, into: str | os.PathLike[str] | None = None) -> str:
     A flow is a directory, which is what makes this a copy rather than a rewrite: the entry
     point, whatever it imports beside it and the `skills/` it brings all come across, and what
     lands is a flow of yours under the name it already had. Yours are looked in first, so from
-    then on that name means the copy -- `official/rlar` forked is `rlar`, and `-f rlar` runs
-    what you have since made of it.
+    then on that name means the copy -- `@theirs/rlar` forked is `@local/rlar`, and `-f rlar`
+    runs what you have since made of it.
 
     Which is the way to change a flow at all: an installed flow is somebody else's release and
     is installed again over whatever was written into it, so an edit made there is an edit
@@ -531,7 +571,7 @@ def fork(named_: str, into: str | os.PathLike[str] | None = None) -> str:
     from .index import RECORD
 
     found_ = find(named_)
-    if not os.path.isfile(found_):
+    if not found_:
         raise ValueError(f"there is no flow called {named_} to copy")
     beside = os.path.dirname(found_)
     whole = os.path.basename(found_) == ENTRY

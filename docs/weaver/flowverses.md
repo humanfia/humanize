@@ -16,29 +16,43 @@ else has written the flow you need.
 
 ## How it works
 
-A **flowverse** is an index: a git repository of manifests, one per release of a flow, at
-`flows/<flow>/<version>/flow.yaml`. It holds no code. Each manifest says which repository the
-release lives in and the exact commit it is, the way
-[winget-pkgs](https://github.com/microsoft/winget-pkgs) does for winget. The official one is
-[humanfia/flowverse](https://github.com/humanfia/flowverse), and you can add your own.
+A **flowverse** is an index: a git repository of manifests, one per release of a flow. It holds
+no code. Each manifest says which repository the release lives in and the exact commit it is,
+the way [winget-pkgs](https://github.com/microsoft/winget-pkgs) does for winget. The official
+one is [humanfia/flowverse](https://github.com/humanfia/flowverse), and you can add your own.
+
+An index lists a flow in one of two places:
+
+| Manifest | For | Called |
+| --- | --- | --- |
+| `flows/<flow>/<version>/flow.yaml` | in the official flowverse, humanfia's own flows | `<flow>` |
+| `flows/<user>/<flow>/<version>/flow.yaml` | everybody else's: `<user>` is the GitHub owner of the flow's repository, in lower case | `<user>/<flow>` |
+
+A directory of `flows/` is one or the other, never both, and `humanfia` is never a `<user>`. A
+flowverse of your own is laid out the same way, except that a flow listed bare there may be
+anybody's.
 
 A flow an index lists is a flow to **install**. Installing one copies that release, at its
-commit, into `~/.hmz/flowverses/<flowverse>/installed/<flow>/`, along with any flows it needs.
+commit, into `~/.hmz/flowverses/<flowverse>/installed/[<user>/]<flow>/`, along with any flows
+it needs.
 What runs is what is built in, what you installed, and your own flows:
 
 | Place | Holds | Run as |
 | --- | --- | --- |
 | built in | `chat`, `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop`, `rlar` | `rlar` |
-| `official` | the flows you installed from [humanfia/flowverse](https://github.com/humanfia/flowverse) | `review` |
-| a flowverse you added | the flows you installed from it | `yours/review` |
-| `local` | this project's `.hmz/flows/` | `local/review`, or `review` |
-| `user` | your `~/.hmz/flows/`, for every project | `user/review`, or `review` |
+| `official` | the flows you installed from [humanfia/flowverse](https://github.com/humanfia/flowverse) | `aot`, `you/review` |
+| a flowverse you added | the flows you installed from it | `@yours/review`, `@yours/you/review` |
+| `local` | this project's `.hmz/flows/` | `@local/review`, or `review` |
+| `user` | your `~/.hmz/flows/`, for every project | `@user/review`, or `review` |
+
+Every place but `official` is named after an `@`. Anything starting with `.`, `/` or `~` is a
+path, and nothing else is.
 
 `hmz` fetches every index in the background as it opens, and never touches what is installed.
 When an index lists a newer release of a flow you installed, the transcript says so once:
 
 ```text
-updates available: yours/review 0.1.0 ↑ 0.2.0; update from /flow
+updates available: @yours/review 0.1.0 ↑ 0.2.0; update from /flow
 ```
 
 `hmz exec` fetches nothing and installs nothing.
@@ -47,11 +61,11 @@ updates available: yours/review 0.1.0 ↑ 0.2.0; update from /flow
 
 ### 1. Lay out the repository
 
-One repository per flow, with the flow in a directory named after it and everything else
-beside that directory:
+One repository per flow, named `<flow>-flow` by convention, with the flow in a directory named
+after it and everything else beside that directory:
 
 ```text
-flow-review/
+review-flow/
 ├── review/                →  the flow: what is installed
 │   ├── __init__.py
 │   └── skills/            →  skills its agents are given, if any
@@ -151,9 +165,9 @@ same directory.
 Push the repository, then tag a [SemVer](https://semver.org) version and push the tag:
 
 ```sh
-cd flow-review
+cd review-flow
 git init -q -b main && git add -A && git commit -qm "a review flow"
-git remote add origin git@github.com:you/flow-review.git
+git remote add origin git@github.com:you/review-flow.git
 git push -u origin main
 git tag v0.1.0 && git push origin v0.1.0
 git rev-parse 'v0.1.0^{commit}'   # the commit a manifest pins
@@ -162,19 +176,21 @@ git rev-parse 'v0.1.0^{commit}'   # the commit a manifest pins
 The release runs at once, by URL, with nothing installed:
 
 ```sh
-hmz exec -f 'git+https://github.com/you/flow-review@v0.1.0#review' \
+hmz exec -f 'git+https://github.com/you/review-flow@v0.1.0#review' \
     -a reviewer=claude/claude-sonnet-5-5:high -p budget.cost=1 "the calc module"
 ```
 
 ### 5. List it
 
-A release is listed by its manifest, `flows/review/0.1.0/flow.yaml`:
+A release is listed by its manifest. In the official flowverse it goes under your GitHub user,
+`flows/<your-github-user>/review/0.1.0/flow.yaml`; in a flowverse of your own it can also go
+bare, `flows/review/0.1.0/flow.yaml`:
 
 ```yaml
 name: review
 version: 0.1.0
 description: Review the current diff and write the findings to REVIEW.md.
-repo: you/flow-review
+repo: you/review-flow
 ref: v0.1.0
 commit: 4b1f0c9e2d7a83f5c6e0b9a1d2c3e4f5a6b7c8d9
 subdir: review
@@ -186,7 +202,7 @@ license: Apache-2.0
 | `name` | The flow: the `<flow>` directory it is in, `[a-z][a-z0-9_]*`. |
 | `version` | The release, as [SemVer 2.0.0](https://semver.org): the `<version>` directory it is in. |
 | `description` | One line, shown beside the flow before anybody installs it. |
-| `repo` | Where the release lives: `owner/repo` on GitHub, or any URL git fetches (`https://`, `ssh://`, `file://`…). |
+| `repo` | Where the release lives: `owner/repo` on GitHub, or any URL git fetches (`https://`, `ssh://`, `file://`…). Under `flows/<user>/`, a repository on GitHub must be `<user>`'s. |
 | `ref` | The tag or branch it was cut from, for whoever reads the index. |
 | `commit` | What `ref` resolved to, all 40 hex digits. This is what is installed. |
 | `subdir` | The directory holding the flow: its `__init__.py`, or `<name>.py`. Left out, the repository's root. |
@@ -196,11 +212,23 @@ license: Apache-2.0
 Keys humanize does not know are ignored, so an index written for a later humanize still lists.
 
 **In the official flowverse.** Fork [humanfia/flowverse](https://github.com/humanfia/flowverse),
-add the manifest, and open a pull request. Its
+add the manifest at `flows/<your-github-user>/review/0.1.0/flow.yaml`, and open a pull request.
+Only humanfia's own flows are listed bare there. Its
 [CONTRIBUTING.md](https://github.com/humanfia/flowverse/blob/main/CONTRIBUTING.md) is the whole
 guide: naming, what CI checks, review, new versions and withdrawals. Once it is merged, every
-`hmz` lists `review` under `official` after its next fetch, and it installs and runs as
-`review`.
+`hmz` lists `you/review` under `official` after its next fetch, and it installs and runs as
+`you/review`.
+
+**New versions merge themselves.** A pull request to the official flowverse is merged without
+waiting for a maintainer when all of these hold:
+
+- it only adds `flows/…/<version>/flow.yaml` files: nothing modified, deleted or renamed, and
+  nothing else;
+- each is a flow already published there, at a version greater than every published one;
+- each manifest is the latest published one's in every key but `version`, `ref` and `commit`;
+- every check passed on the pull request's head commit, a real install with `hmz` included.
+
+Anything else, a new flow included, waits for review.
 
 **In a flowverse of your own.** A repository laid out the same way, for flows you keep to
 yourself or want to try before the pull request is merged:
@@ -213,7 +241,7 @@ git remote add origin git@github.com:you/my-flowverse.git
 git push -u origin main
 ```
 
-The rest of this example uses this one.
+The rest of this example uses this one, which lists `review` bare.
 
 ### 6. Add it, and install the flow
 
@@ -231,7 +259,7 @@ from hmz.sdk import Hmz
 
 verses = Hmz().verses
 verses.add("you/my-flowverse", "yours")
-for one in verses.install("yours/review"):
+for one in verses.install("@yours/review"):
     print(one.called, one.version, one.at)
 ```
 
@@ -241,12 +269,12 @@ At the prompt, `/flow` opens on what is installed, and **Install more…** goes 
 flowverses. **Add flowverse…** asks for the repository, as a URL or `owner/repo` for one on
 GitHub, and a name to keep it under; leave the name blank for the repository's own. Confirming
 clones its index. <kbd>enter</kbd> on `yours` lists its flows, <kbd>enter</kbd> on `review`
-its releases, and **Install 0.1.0** fetches `you/flow-review` at the commit and installs it,
+its releases, and **Install 0.1.0** fetches `you/review-flow` at the commit and installs it,
 at once. From a script, `add` returns once the index is cloned, and `install` once the flow is
 in place:
 
 ```text
-yours/review 0.1.0 /home/you/.hmz/flowverses/yours/installed/review
+@yours/review 0.1.0 /home/you/.hmz/flowverses/yours/installed/review
 ```
 
 ### 7. Run it
@@ -254,11 +282,11 @@ yours/review 0.1.0 /home/you/.hmz/flowverses/yours/installed/review
 ::: code-group
 
 ```text [At the prompt]
-$yours/review the calc module
+$@yours/review the calc module
 ```
 
 ```sh [hmz exec]
-hmz exec -f yours/review -a reviewer=claude/claude-sonnet-5-5:high -p budget.cost=1 \
+hmz exec -f @yours/review -a reviewer=claude/claude-sonnet-5-5:high -p budget.cost=1 \
     "the calc module"
 ```
 
@@ -287,7 +315,7 @@ installs `review` the same way, under whatever name they chose for it.
   row.
 - **It ran where you are.** The review is in the project you ran it in: `cat REVIEW.md`.
 - **It runs by URL.** With nothing installed, the same release runs from its repository:
-  `-f 'git+https://github.com/you/flow-review@v0.1.0#review'`.
+  `-f 'git+https://github.com/you/review-flow@v0.1.0#review'`.
 
 ## What goes in the repository
 
@@ -296,7 +324,7 @@ installs `review` the same way, under whatever name they chose for it.
 | One flow per repository | Its variants included: see below |
 | The flow in a directory named after it | `review/`, holding the `__init__.py` with the `async` function marked `@flow`. Only this directory is installed, so the repository can hold tests, a README and a `pyproject.toml` beside it |
 | Or a single `.py` file | `review.py`, for a flow with nothing to bring along. It is installed as a directory of its own |
-| A name humanize does not ship | `[a-z][a-z0-9_]*`, and not `chat`, `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` or `rlar`: a manifest naming one of those is skipped |
+| A name humanize does not ship | `[a-z][a-z0-9_]*`, and, listed bare, not `chat`, `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` or `rlar`: a manifest naming one of those is skipped. Under a user any name goes: `you/chat` is yours |
 | A name starting with `_` | Is not a flow |
 
 **Variants are subflows of one module.** Two takes on one flow go in one directory as two
@@ -338,12 +366,13 @@ See [Skills](/user/skills) for what goes in `skills/`.
 
 ## Dependencies
 
-A flow that calls another flow of the same flowverse names it in its manifest, with the
-versions it works with:
+A flow that calls another flow of the same flowverse names it in its manifest as that
+flowverse lists it, bare or `<user>/<flow>`, with the versions it works with:
 
 ```yaml
 dependencies:
   humanize1: ">=0.1.0,<0.2.0"
+  alice/kernel: ">=1.2.0"
 ```
 
 A range is comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`) joined by `,`, all of which must hold;
@@ -354,8 +383,10 @@ satisfies, and one that would take another installed flow's dependency out of it
 Uninstalling a flow that another installed flow needs is refused too. The flows built into
 humanize are always there: never list them.
 
-The flows installed from one flowverse sit side by side, so `load("humanize1:rlcr")` inside an
-installed `recursive_lean_prover` finds the `humanize1` installed beside it.
+A flow installed from a flowverse loads the others installed from it by the same names:
+`load("humanize1:rlcr")` inside an installed `recursive_lean_prover` finds the `humanize1`
+installed with it, and `load("alice/kernel")` the `alice/kernel` -- even where a flow of your
+own is called `humanize1` too.
 
 ## Managing flowverses
 
@@ -381,21 +412,22 @@ From a script, [`Hmz().verses`](/reference/sdk#flowverses) does the same with no
 from hmz.sdk import Hmz
 
 verses = Hmz().verses
-verses.add("you/my-flowverse", "yours")  # clone its index
-verses.index("yours").flows()            # what it lists: ['review']
-verses.install("yours/review", "0.1.0")  # a release, and what it needs
-verses.updates()                         # installed flows with a newer release listed
-verses.uninstall("yours/review")
-verses.fetch("yours")                    # its index, again
-verses.remove("yours")                   # its index, and every flow installed from it
+verses.add("you/my-flowverse", "yours")   # clone its index
+verses.index("yours").flows()             # what it lists: ['review']
+verses.install("@yours/review", "0.1.0")  # a release, and what it needs
+verses.install("alice/kernel")            # one of official's, listed under alice
+verses.updates()                          # installed flows with a newer release listed
+verses.uninstall("@yours/review")
+verses.fetch("yours")                     # its index, again
+verses.remove("yours")                    # its index, and every flow installed from it
 ```
 
 A flow installed from a script can be run with `-f` at once.
 
 **To change somebody else's flow**, walk to it on **Installed** and press **Copy here**, or call
-`Hmz().flows.fork("yours/review")`. Either copies it into this project's `.hmz/flows/review`,
-where your edits are yours to keep, and from then on `review` in that project means your copy.
-An installed flow is replaced whole by the next update.
+`Hmz().flows.fork("@yours/review")`. Either copies it into this project's `.hmz/flows/review`,
+where your edits are yours to keep, and from then on `review` in that project means your copy,
+`@local/review`. An installed flow is replaced whole by the next update.
 
 ::: danger Installing a flow is trusting its repository with this machine
 A flow is Python. Once it is installed, humanize imports it whenever it lists flows, and every
@@ -410,29 +442,32 @@ it does not remove it. Adding a flowverse runs nothing: an index holds no code. 
 | --- | --- |
 | `rlar` | the nearest flow called `rlar`: this project's or yours if you have one, else the one built in |
 | `review` | the nearest flow called `review`: this project's, yours, or the one installed from `official` |
-| `yours/review` | `review` installed from the flowverse you added as `yours`, and nothing else |
-| `local/review` | `review` in this project's `.hmz/flows` |
-| `user/review` | `review` in your `~/.hmz/flows`, for every project |
-| `./review` | the flow at that path |
+| `you/review` | `review` installed from `official`'s `flows/you/`, and nothing else |
+| `@yours/review` | `review` installed from the flowverse you added as `yours`, and nothing else |
+| `@yours/you/review` | the same, for one it lists under `flows/you/` |
+| `@local/review` | `review` in this project's `.hmz/flows` |
+| `@user/review` | `review` in your `~/.hmz/flows`, for every project |
+| `./review`, `/abs/review`, `~/review` | the flow at that path: a path starts with `.`, `/` or `~` |
 | `git+<url>[@<rev>][#<subdir>][:<name>]` | the flow in `<subdir>` of a repository (its root when left out), at `<rev>` if given, fetched for the run |
 
 A bare name is looked for **nearest first**: this project's `.hmz/flows`, then
 `~/.hmz/flows`, then the rest. So a flow of your own can stand in for one of humanize's by
 taking its name: `.hmz/flows/chat/` is what `-f chat` runs in that project. A name nothing
-installed answers to is refused, saying where it could be installed from. `yours/review` names
-one place, so nothing can stand in for it.
+installed answers to is refused, saying where it could be installed from. `you/review` and
+`@yours/review` name one place, so nothing can stand in for them.
 
 ## Calling it from another flow
 
 A flow can [call another](/weaver/calling-flows) by the same names. A flow installed from a
-flowverse calls the others installed from it by name, as `review` or `humanize1:gen-plan`: list
-them under `dependencies` so that they are installed with it. Any release of any repository is
-called by URL, whether or not anybody has installed it:
+flowverse calls the others installed from it as that flowverse lists them, as `review`,
+`you/review` or `humanize1:gen-plan`: list them under `dependencies` so that they are installed
+with it. Any release of any repository is called by URL, whether or not anybody has installed
+it:
 
 ```python
 from hmz.flows import load
 
-review = load("git+https://github.com/you/flow-review@v0.1.0#review")
+review = load("git+https://github.com/you/review-flow@v0.1.0#review")
 ```
 
 The `@v0.1.0` holds the caller to one version of the flow: a tag, a branch or a commit. This is
@@ -441,7 +476,7 @@ but can only run a pipeline whole.
 
 ## Variations
 
-**Run without installing.** `-f 'git+https://github.com/you/flow-review@v0.1.0#review'`
+**Run without installing.** `-f 'git+https://github.com/you/review-flow@v0.1.0#review'`
 fetches that release for the run and installs nothing. A ref with no `#` is the flow at the
 repository's root.
 
@@ -460,10 +495,10 @@ then move the directory into a repository of its own to publish it.
   installs nothing:
 
   ```text
-  hmz exec: error: yours/review: not installed -- install it from /flow (flowverse yours)
+  hmz exec: error: @yours/review: not installed -- install it from /flow (flowverse yours)
   ```
 
-  Install it from `/flow`, or in CI call `Hmz().verses.install("yours/review")` first.
+  Install it from `/flow`, or in CI call `Hmz().verses.install("@yours/review")` first.
 - **Not fetched yet.** On a fresh machine no index has been fetched, so a name only an index
   could answer to is refused:
 
@@ -473,14 +508,28 @@ then move the directory into a repository of its own to publish it.
 
   Open `hmz` once, or in CI call `Hmz().verses.fetch("official")` first.
 - **A manifest that does not read is skipped.** A wrong key, a short commit, a name or version
-  that is not its directory's, or a built-in flow's name: the flowverse's page names it under
-  the list, with why, and lists the rest.
+  that is not its directory's, a built-in flow's name listed bare, or a repository on GitHub
+  that is not the `<user>`'s it is listed under: the flowverse's page names it under the list,
+  with why, and lists the rest.
+- **Names from before the `@`.** `local/review` and `yours/review` were how this project's
+  flows and a flowverse's were named. Said that way now, they are refused saying how they are
+  said, and settings remembered under them are renamed for you:
+
+  ```text
+  hmz exec: error: yours/review: a flow of yours is called @yours/review now
+  ```
+
+- **A path is `./`, `/` or `~`.** A relative path without its `./` is a name now:
+
+  ```text
+  hmz exec: error: flows/review: a path starts with ./, / or ~, as ./flows/review does
+  ```
 - **Do nothing at import time** beyond defining things: no network calls, no files written.
   humanize imports every flow it lists, in `/flow` and as `$` completes a name, so a flow that
   acts on import acts for somebody who was only looking.
 - **Edits inside an installed flow go away** at the next update. Copy the flow here first.
 - **A name that is not there** is refused before anything runs:
-  `hmz exec: error: yours/nope: no flow is called 'yours/nope', and it is not a path`.
+  `hmz exec: error: @yours/nope: no flow is called '@yours/nope'`.
 
 ## Next steps
 

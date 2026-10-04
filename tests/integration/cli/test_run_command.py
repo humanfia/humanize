@@ -611,23 +611,23 @@ def test_a_flow_of_your_own_is_found_where_flows_live(
 
     named = [(one.whose, one.name) for one in found()]
 
-    assert ("local", "local/theirs") in named
-    assert ("user", "user/yours") in named
+    assert ("local", "@local/theirs") in named
+    assert ("user", "@user/yours") in named
     # Both, under names of their own: one is not offered as if it were the other.
-    assert ("local", "local/chat") in named
+    assert ("local", "@local/chat") in named
     assert ("official", "chat") in named
     # `-f` still takes a bare name, and the nearest flow answering to it is what runs.
     assert find("chat") == str((project / ".hmz/flows/chat" / ENTRY).resolve())
     assert find("yours") == str((home / ".hmz/flows/yours" / ENTRY).resolve())
     # And a flow of humanize's own said outright is not one the project can stand in for.
-    assert find("official/chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
-    assert find("user/yours") == str((home / ".hmz/flows/yours" / ENTRY).resolve())
-    assert find("local/chat") == str((project / ".hmz/flows/chat" / ENTRY).resolve())
+    assert find("@official/chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
+    assert find("@user/yours") == str((home / ".hmz/flows/yours" / ENTRY).resolve())
+    assert find("@local/chat") == str((project / ".hmz/flows/chat" / ENTRY).resolve())
     # A path is still a path, `~` and all: a flow being written lives wherever it is.
     assert find("~/.hmz/flows/yours") == str(
         (home / ".hmz/flows/yours" / ENTRY).resolve()
     )
-    assert find("nowhere") == "nowhere"  # a path is taken as given
+    assert find("nowhere") == ""  # nothing answers to it
 
 
 def test_a_flow_of_your_own_runs_by_name(

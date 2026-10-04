@@ -572,7 +572,7 @@ def _settings() -> None:
     # directory is a directory it has been used in -- a run of it profiled as well as traced,
     # which is said on the flow menu beside its budget.
     Settings(WORK).remember(
-        "local/twice",
+        "@local/twice",
         {"builder": Runs("claude/claude-opus-4-8:high")},
         budget={"cost": 5.0},
         profile=True,

@@ -88,7 +88,7 @@ async def test_a_typed_stop_stops_the_flow_as_the_second_press_does(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await _typed(driver, "start")
         await until(lambda: bool(app._seen), driver)
 
@@ -228,7 +228,7 @@ async def test_the_press_after_a_typed_stop_does_not_close_the_interface(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await _typed(driver, "start")
         await until(lambda: bool(app._seen), driver)
         await driver.press("ctrl+c")

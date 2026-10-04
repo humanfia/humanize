@@ -119,7 +119,7 @@ async def test_the_readout_the_boxes_and_the_sessions_say_one_bill(
     written(workspace, "flow", ONE)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until((workspace / "said.txt").exists, driver)

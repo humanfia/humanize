@@ -719,8 +719,10 @@ model are ordinary Python, and belong beside the flow's own tests.
 ## Pitfalls
 
 - **Run pytest from the project root.** A name is looked up from the directory pytest runs in.
-  From anywhere else, `run_fake("twice", …)` raises `FlowNotFound`. A path, such as
-  `run_fake("flows/review", …)`, is relative to it too.
+  From anywhere else, `run_fake("twice", …)` raises `FlowNotFound`. A path starts with `.`, `/`
+  or `~`, and a relative one, such as `run_fake("./flows/review", …)`, is relative to that
+  directory too. Without the `./`, `flows/review` is a name, the flow `review` of a user
+  `flows`, and not a path.
 - **A command you did not script exits 127.** Leave `local=` out of a test of `reviewed`, and
   every `pytest` it runs fails, so the reviewer is never asked.
 - **A reply that waits needs a hard deadline.** A turn its reply holds open, such as one

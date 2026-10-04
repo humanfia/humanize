@@ -150,7 +150,7 @@ def test_a_place_added_here_is_one_whose_index_the_listing_reads_a_moment_later(
     assert "theirs" in [one.name for one in verses.all()]
     assert verses.index("theirs").flows() == ["loop"]
     assert verses.holds(added) == []
-    assert "theirs/loop" not in [one.name for one in Hmz().flows.all()]
+    assert "@theirs/loop" not in [one.name for one in Hmz().flows.all()]
 
 
 def test_a_flow_installed_here_is_one_the_listing_offers_a_moment_later(
@@ -159,13 +159,13 @@ def test_a_flow_installed_here_is_one_the_listing_offers_a_moment_later(
     verses = Hmz().verses
     added = verses.add(str(theirs), "theirs")
 
-    (done,) = verses.install("theirs/loop")
+    (done,) = verses.install("@theirs/loop")
 
     assert (done.verse, done.name, done.version) == ("theirs", "loop", "0.1.0")
     assert verses.installed() == [done]
-    assert [one.name for one in verses.holds(added)] == ["theirs/loop"]
-    assert "theirs/loop" in [one.name for one in Hmz().flows.all()]
-    assert Hmz().flows.about("theirs/loop") == "A flow of somebody else's."
+    assert [one.name for one in verses.holds(added)] == ["@theirs/loop"]
+    assert "@theirs/loop" in [one.name for one in Hmz().flows.all()]
+    assert Hmz().flows.about("@theirs/loop") == "A flow of somebody else's."
 
 
 def test_a_flow_uninstalled_here_is_gone_and_uninstalling_it_twice_says_so(
@@ -173,13 +173,13 @@ def test_a_flow_uninstalled_here_is_gone_and_uninstalling_it_twice_says_so(
 ) -> None:
     verses = Hmz().verses
     verses.add(str(theirs), "theirs")
-    verses.install("theirs/loop")
+    verses.install("@theirs/loop")
 
-    assert verses.uninstall("theirs/loop")
+    assert verses.uninstall("@theirs/loop")
 
     assert verses.installed() == []
-    assert "theirs/loop" not in [one.name for one in Hmz().flows.all()]
-    assert not verses.uninstall("theirs/loop")
+    assert "@theirs/loop" not in [one.name for one in Hmz().flows.all()]
+    assert not verses.uninstall("@theirs/loop")
 
 
 def test_a_bare_name_installs_one_of_humanize_s_own(
@@ -203,9 +203,9 @@ def test_installing_what_an_index_does_not_list_is_refused(theirs: Path) -> None
     verses.add(str(theirs), "theirs")
 
     with pytest.raises(ValueError, match="lists no flow called nothing"):
-        verses.install("theirs/nothing")
+        verses.install("@theirs/nothing")
     with pytest.raises(ValueError, match=r"lists no release 9\.9\.9 of loop"):
-        verses.install("theirs/loop", "9.9.9")
+        verses.install("@theirs/loop", "9.9.9")
 
 
 def test_a_place_that_is_not_an_index_lists_nothing_to_install() -> None:
@@ -234,7 +234,7 @@ def test_a_place_fetched_again_lists_what_was_published_and_runs_what_it_ran(
     url, commit = code
     verses = Hmz().verses
     verses.add(str(theirs), "theirs")
-    (loop,) = verses.install("theirs/loop")
+    (loop,) = verses.install("@theirs/loop")
     listed(
         theirs,
         release("loop", "0.2.0", url, commit, subdir="loop"),
@@ -247,7 +247,7 @@ def test_a_place_fetched_again_lists_what_was_published_and_runs_what_it_ran(
 
     assert verses.index("theirs").flows() == ["loop", "second"]
     assert verses.updates() == [Update(loop, "0.2.0")]
-    assert [one.name for one in verses.holds(again)] == ["theirs/loop"]
+    assert [one.name for one in verses.holds(again)] == ["@theirs/loop"]
     assert verses.installed() == [loop]
 
 
@@ -295,7 +295,7 @@ def test_every_flow_there_is_to_run_is_offered_by_the_name_dash_f_takes(
 ) -> None:
     offered = Hmz().flows.all()
 
-    assert ("local", "local/mine") in [(one.whose, one.name) for one in offered]
+    assert ("local", "@local/mine") in [(one.whose, one.name) for one in offered]
     assert "chat" in [one.name for one in offered]
 
 
@@ -305,11 +305,13 @@ def test_a_flow_s_name_is_the_file_it_is_written_in(project: Path) -> None:
     assert found == str((project / ".hmz/flows/mine" / ENTRY).resolve())
 
 
-def test_a_name_nothing_answers_to_comes_back_as_the_name_it_was_asked_by(
-    project: Path,
-) -> None:
-    """Rather than as an exception: whatever asked hears the name, and says so itself."""
-    assert Hmz().flows.find("definitely-not-a-flow") == "definitely-not-a-flow"
+def test_a_name_nothing_answers_to_comes_back_as_nothing(project: Path) -> None:
+    """Rather than as an exception -- and never as a file a name happens to be beside."""
+    (project / "loose.py").write_text("")
+
+    assert Hmz().flows.find("definitely-not-a-flow") == ""
+    assert Hmz().flows.find("loose.py") == ""
+    assert Hmz().flows.find("./loose.py") == str((project / "loose.py").resolve())
 
 
 def test_the_line_a_flow_says_about_itself_is_read_off_the_flow(project: Path) -> None:

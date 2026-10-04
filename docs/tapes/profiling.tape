@@ -21,7 +21,7 @@ Sleep 400ms
 
 # The flow this directory is set up on, opened inside: its roles, then what a run of it may
 # spend and whether it is profiled, one under the other.
-Type "/flow local/twice" Enter
+Type "/flow @local/twice" Enter
 Wait+Screen /profiling/
 Sleep 1400ms
 Screenshot "/out/profiling.png"

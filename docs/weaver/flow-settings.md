@@ -137,7 +137,7 @@ hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -p budget.cost=1 \
 ```
 
 ```text [At the prompt]
-$local/polish add a subtract function to calc.py
+$@local/polish add a subtract function to calc.py
 ```
 
 :::

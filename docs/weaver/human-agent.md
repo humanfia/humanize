@@ -92,7 +92,7 @@ async def talk(
 
 ### Run it
 
-At the prompt, `$local/talk Read calc.py and tell me in one sentence what it is.` runs it with
+At the prompt, `$@local/talk Read calc.py and tell me in one sentence what it is.` runs it with
 you as `human`: every line you type goes to the assistant, and an empty line ends it.
 
 From a command line, nobody is at a prompt, so the person is away. Name the assistant only:

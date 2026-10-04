@@ -115,7 +115,7 @@ The flow ends when the function returns. Every session it opened is closed then.
 ::: code-group
 
 ```text [At the prompt]
-$local/twice add a subtract function to calc.py
+$@local/twice add a subtract function to calc.py
 ```
 
 ```sh [Claude Code]
@@ -131,7 +131,7 @@ hmz exec -f twice -a builder=codex/gpt-5.6-sol:high -p budget.cost=1 \
 
 :::
 
-- **At the prompt**, your project's flows are offered as `local/<name>`. The first time, the
+- **At the prompt**, your project's flows are offered as `@local/<name>`. The first time, the
   flow's menu asks what `builder` runs and what the run may spend. After that, the line alone
   starts it.
 - **On the command line**, `-a builder=…` fills the role by its name, as
@@ -240,7 +240,7 @@ uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
 | --- | --- |
 | `twice needs an agent for 'builder'; specify each with -a ROLE=CLI/MODEL:EFFORT` | No `-a builder=…` on the line. Add it. |
 | `twice requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` | No budget. Add one, such as `-p budget.cost=1`. |
-| `twice: no flow is called 'twice', and it is not a path` | You are not in the project that holds `.hmz/flows/twice/`. `cd` into it, or pass `-f ./path/to/twice`. |
+| `twice: no flow is called 'twice'` | You are not in the project that holds `.hmz/flows/twice/`. `cd` into it, or pass `-f ./path/to/twice`. |
 | ``twice: a flow takes `ctx` as a keyword argument`` | The signature is missing one of its keyword arguments. Take all four, even the ones you do not use. |
 | `importing the flow at … failed: SyntaxError("'await' outside async function", …)` | `async` is missing from `def`. Write `async def`. |
 
@@ -251,12 +251,12 @@ taking its name:
 
 | Put it in | Run it with | At the prompt |
 | --- | --- | --- |
-| `.hmz/flows/twice/` in the project | `-f twice` | `$local/twice` |
-| `~/.hmz/flows/twice/` | `-f twice`, when the project has none of that name | `$user/twice` |
-| the flows humanize ships, and those you installed from a [flowverse](/weaver/flowverses) | `-f ralph_loop`, `-f theirs/review` | `$ralph_loop`, `$theirs/review` |
+| `.hmz/flows/twice/` in the project | `-f twice` | `$@local/twice` |
+| `~/.hmz/flows/twice/` | `-f twice`, when the project has none of that name | `$@user/twice` |
+| the flows humanize ships, and those you installed from a [flowverse](/weaver/flowverses) | `-f ralph_loop`, `-f @theirs/review` | `$ralph_loop`, `$@theirs/review` |
 | anywhere else | `-f ./path/to/twice` | |
 
-`-f local/twice` and `-f user/twice` say which one outright.
+`-f @local/twice` and `-f @user/twice` say which one outright.
 
 ## Variations
 
@@ -264,7 +264,8 @@ taking its name:
 once the flow has files beside it, such as [skills](/user/skills) or helpers.
 
 **Helpers the flow imports.** A file or directory whose name starts with `_` is not a flow. It
-is somewhere to keep code the flows beside it import.
+is somewhere to keep code the flows beside it import. Nor is one whose name starts with `.`,
+such as the `._twice.py` a macOS archive leaves behind.
 
 **The rest of `@flow`.**
 

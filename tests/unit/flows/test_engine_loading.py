@@ -55,11 +55,12 @@ def _nobody_s_flows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         (":review", None, None, "", "review"),
         ("humanize1", None, None, "humanize1", ""),
         ("humanize1:gen-plan", None, None, "humanize1", "gen-plan"),
-        ("official/rlar", None, None, "official/rlar", ""),
-        ("local/scheduler:inner", None, None, "local/scheduler", "inner"),
+        ("alice/kernel", None, None, "alice/kernel", ""),
+        ("@local/scheduler:inner", None, None, "@local/scheduler", "inner"),
+        ("@theirs/alice/kernel:sub", None, None, "@theirs/alice/kernel", "sub"),
         ("./flows/x", None, None, "./flows/x", ""),
+        ("~/flows/x/y/z", None, None, "~/flows/x/y/z", ""),
         ("/abs/flows/x:y", None, None, "/abs/flows/x", "y"),
-        ("C:/odd/path", None, None, "C:/odd/path", ""),
         (
             "git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr",
             "https://github.com/humanfia/humanize1-flow",
@@ -156,6 +157,11 @@ def test_a_ref_is_read(
         # A port with no path after it is not a flow inside the repository: there is none.
         "git+https://host:rlcr",
         3,
+        # A path starts with `.`, `/` or `~`; anything else is a name, of two parts at most.
+        "C:/odd/path",
+        "flows/x/y",
+        "@theirs/a/b/c",
+        "@local/alice/kernel",
     ],
     ids=repr,
 )
@@ -244,7 +250,7 @@ async def test_every_relative_form_resolves_inside_a_flowverse(tmp_path: Path) -
 async def test_a_flowverse_of_this_project_is_found_by_name(tmp_path: Path) -> None:
     _verse(tmp_path / ".hmz")
     assert await run_fake("beta:second") == "beta:second"
-    assert await run_fake("local/beta:second") == "beta:second"
+    assert await run_fake("@local/beta:second") == "beta:second"
     assert (await run_fake("alpha", "t"))[0] == "helped t"
     with pytest.raises(FlowNotFound, match="no flow is called"):
         await run_fake("gamma")

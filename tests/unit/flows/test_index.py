@@ -37,11 +37,10 @@ from hmz.runtime.flowing.index import (
     plan,
     reserved,
     satisfies,
-    split,
     uninstall,
     updates,
 )
-from hmz.runtime.flowing.verses import FLOWS, LOCAL, OFFICIAL, USER, Flowverse
+from hmz.runtime.flowing.verses import FLOWS, LOCAL, OFFICIAL, USER, Flowverse, split
 from tests.flows.indexes import listed, manifest, release
 
 if TYPE_CHECKING:
@@ -87,7 +86,7 @@ def _read(
 
 
 def _release(
-    name: str, version: str, needs: Mapping[str, str] | None = None
+    name: str, version: str, needs: Mapping[str, str] | None = None, owner: str = ""
 ) -> Release:
     return Release(
         name=name,
@@ -95,6 +94,7 @@ def _release(
         repo=REPO,
         commit=SHA,
         dependencies=dict(needs or {}),
+        owner=owner,
     )
 
 
@@ -103,6 +103,7 @@ def _installed(
     version: str,
     needs: Mapping[str, str] | None = None,
     verse: str = "theirs",
+    owner: str = "",
 ) -> Installed:
     return Installed(
         verse=verse,
@@ -111,6 +112,7 @@ def _installed(
         commit=SHA,
         repo=REPO,
         dependencies=dict(needs or {}),
+        owner=owner,
     )
 
 
@@ -224,6 +226,8 @@ def test_a_manifest_missing_one_of_the_four_things_every_release_says_is_skipped
         ("subdir", "a/../../b", "not a directory inside the repository"),
         ("subdir", ".hidden", "not a directory inside the repository"),
         ("dependencies", {"Helper": ">=0.1.0"}, "is not a flow name"),
+        ("dependencies", {"a/b/c": ">=0.1.0"}, "is not a flow name"),
+        ("dependencies", {"Alice/helper": ">=0.1.0"}, "is not a flow name"),
         ("dependencies", {"helper": "^0.1.0"}, "is not a version range"),
         ("dependencies", {"helper": "~0.1"}, "is not a version range"),
         ("dependencies", {"helper": ""}, "is not a version range"),
@@ -307,7 +311,9 @@ def test_keys_nobody_here_knows_are_let_through_unread(verse: Flowverse) -> None
         "subdir",
         "license",
         "dependencies",
+        "owner",
     }
+    assert said.owner == ""  # where it is in the index, which is listed bare
 
 
 @pytest.mark.parametrize(
@@ -515,6 +521,175 @@ def test_a_release_on_github_is_fetched_from_github_and_any_other_from_where_it_
     assert str(_release("loop", "1.2.3-rc.1").semver) == "1.2.3-rc.1"
 
 
+# ------------------------------------------------------------------- flows listed under a user
+
+
+def _under(verse: Flowverse, user: str, flow: str = "kernel", **more: object) -> Path:
+    """Writes a release listed under a user: `flows/<user>/<flow>/0.1.0/flow.yaml`."""
+    said = {**release(flow, "0.1.0", f"{user}/{flow}-flow", SHA), **more}
+    return manifest(verse.at, f"{user}/{flow}", "0.1.0", said)
+
+
+def _official(tmp_path: Path) -> Flowverse:
+    """The index of humanize's own, as a directory a test writes into and calls fetched."""
+    return Flowverse(
+        name=OFFICIAL, url=REPO, at=tmp_path / OFFICIAL, fetched=True, fixed=True
+    )
+
+
+def test_a_flow_listed_under_a_user_is_called_after_the_user(verse: Flowverse) -> None:
+    """And is no flow of that name listed bare, which is somebody else's -- or nobody's."""
+    listed(verse.at, BASE)
+    _under(verse, "alice")
+    manifest(
+        verse.at,
+        "alice/kernel",
+        "0.2.0",
+        release("kernel", "0.2.0", "https://github.com/Alice/kernel-flow", SHA),
+    )
+
+    read = index(verse)
+
+    assert read.skipped == ()
+    assert read.flows() == ["alice/kernel", "loop"]
+    assert [one.version for one in read.versions("alice/kernel")] == ["0.2.0", "0.1.0"]
+    assert {(one.owner, one.listed) for one in read.releases} == {
+        ("alice", "alice/kernel"),
+        ("", "loop"),
+    }
+    assert read.versions("kernel") == []
+    newest = read.newest("alice/kernel")
+    assert newest is not None
+    assert newest.version == "0.2.0"
+
+
+def test_a_directory_with_releases_in_it_is_a_flow_and_never_a_user_too(
+    verse: Flowverse,
+) -> None:
+    """What else is in it is a release that is not one, rather than a flow of a user."""
+    listed(verse.at, BASE)
+    _under(verse, "loop", "inner")
+
+    read = index(verse)
+
+    assert _named(read.releases) == ["loop 0.1.0"]
+    assert [(one.at, one.why) for one in read.skipped] == [
+        (verse.at / FLOWS / "loop" / "inner" / RELEASE, f"no {RELEASE} in it")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("user", "why"),
+    [
+        ("Alice", "Alice is neither a flow's releases nor a GitHub user's flows"),
+        ("-alice", "-alice is neither a flow's releases nor a GitHub user's flows"),
+        ("humanfia", "humanfia's flows are listed bare, as flows/<flow>/<version>/"),
+    ],
+)
+def test_what_is_no_user_flows_may_be_listed_under_lists_nothing_and_says_why(
+    verse: Flowverse, user: str, why: str
+) -> None:
+    """A GitHub user in lower case; and never humanize's own, which lists its own bare."""
+    _under(verse, user)
+
+    read = index(verse)
+
+    assert read.releases == ()
+    assert [(one.at, one.why) for one in read.skipped] == [
+        (verse.at / FLOWS / user, why)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("repo", "why"),
+    [
+        ("alice/kernel-flow", ""),
+        ("ALICE/kernel-flow", ""),
+        ("https://github.com/alice/kernel-flow.git", ""),
+        ("https://gitlab.example/bob/kernel-flow", ""),  # nobody's to check on GitHub
+        (REPO, ""),
+        (
+            "bob/kernel-flow",
+            "bob/kernel-flow is bob's, so it is listed under flows/bob/",
+        ),
+        (
+            "ssh://git@github.com/Bob/kernel-flow",
+            "ssh://git@github.com/Bob/kernel-flow is bob's, so it is listed under flows/bob/",
+        ),
+    ],
+)
+def test_a_flow_listed_under_a_user_is_a_repository_of_that_user_s(
+    verse: Flowverse, repo: str, why: str
+) -> None:
+    _under(verse, "alice", repo=repo)
+
+    read = index(verse)
+
+    assert [one.why for one in read.skipped] == ([why] if why else [])
+
+
+@pytest.mark.parametrize(
+    ("whose", "repo", "why"),
+    [
+        (OFFICIAL, "humanfia/loop-flow", ""),
+        (OFFICIAL, "https://github.com/HumanFIA/loop-flow", ""),
+        (OFFICIAL, REPO, ""),
+        (
+            OFFICIAL,
+            "bob/loop-flow",
+            "bob/loop-flow is bob's; only humanfia's are listed bare here",
+        ),
+        (
+            "theirs",
+            "bob/loop-flow",
+            "",
+        ),  # any index but humanize's lists anybody's bare
+    ],
+)
+def test_humanize_s_own_index_lists_only_humanize_s_own_flows_bare(
+    tmp_path: Path, verse: Flowverse, whose: str, repo: str, why: str
+) -> None:
+    one = verse if whose == "theirs" else _official(tmp_path)
+    listed(one.at, {**BASE, "repo": repo})
+
+    read = index(one)
+
+    assert [one.why for one in read.skipped] == ([why] if why else [])
+
+
+def test_a_flow_listed_under_a_user_may_be_called_what_humanize_s_own_are(
+    verse: Flowverse,
+) -> None:
+    """`alice/chat` is alice's, and no stand-in for the `chat` every machine has."""
+    _under(verse, "alice", "chat")
+
+    assert index(verse).flows() == ["alice/chat"]
+
+
+def test_a_flow_may_need_one_listed_under_a_user(verse: Flowverse) -> None:
+    said = _read(verse, {**BASE, "dependencies": {"alice/kernel": ">=0.1.0"}})
+
+    assert isinstance(said, Release)
+    assert said.dependencies == {"alice/kernel": ">=0.1.0"}
+
+
+@pytest.mark.parametrize(
+    ("repo", "owned"),
+    [
+        ("Alice/kernel", "alice"),
+        ("https://github.com/Alice/kernel.git", "alice"),
+        ("https://www.github.com/alice/kernel", "alice"),
+        ("ssh://git@github.com/alice/kernel", "alice"),
+        ("https://gitlab.example/alice/kernel", ""),
+        (REPO, ""),
+    ],
+)
+def test_who_owns_a_repository_is_said_for_one_on_github_alone(
+    repo: str, owned: str
+) -> None:
+    assert Release(name="k", version="0.1.0", repo=repo, commit=SHA).owned == owned
+
+
 # ------------------------------------------------------------------- ranges
 
 
@@ -617,26 +792,55 @@ def test_the_release_to_install_in_a_range_is_the_newest_in_it() -> None:
 @pytest.mark.parametrize(
     ("called", "parts"),
     [
-        ("theirs/loop", ("theirs", "loop")),
+        ("@theirs/loop", ("theirs", "loop")),
+        ("@theirs/alice/loop", ("theirs", "alice/loop")),
         ("loop", (OFFICIAL, "loop")),
-        (f"{OFFICIAL}/loop", (OFFICIAL, "loop")),
+        ("alice/loop", (OFFICIAL, "alice/loop")),
+        (f"@{OFFICIAL}/loop", (OFFICIAL, "loop")),
+        (f"@{LOCAL}/loop", (LOCAL, "loop")),
     ],
 )
 def test_a_flow_s_name_says_which_flowverse_it_was_installed_out_of(
     called: str, parts: tuple[str, str]
 ) -> None:
-    """A bare name is one of humanize's own, as everywhere else a flow is named."""
+    """A name with no `@` is one of humanize's own, as everywhere else a flow is named."""
     assert split(called) == parts
+
+
+@pytest.mark.parametrize(
+    "called",
+    [
+        "a/b/c",
+        "@theirs/a/b/c",
+        f"@{LOCAL}/alice/loop",
+        f"@{USER}/a/b",
+        "@/loop",
+        "@theirs",
+        "alice//loop",
+        "@theirs/../loop",
+        "@.x/loop",
+        "/loop",
+    ],
+)
+def test_what_is_no_flow_s_name_is_refused(called: str) -> None:
+    """A part too many -- your own places keep flows by name alone -- or one empty or hidden."""
+    with pytest.raises(ValueError, match="is not a flow's name"):
+        split(called)
 
 
 def test_what_is_installed_out_of_a_flowverse_is_kept_beside_its_index() -> None:
     assert kept("theirs") == home() / "flowverses" / "theirs" / "installed"
     assert _installed("loop", "0.1.0").at == kept("theirs") / "loop"
+    assert _installed("loop", "0.1.0", owner="alice").at == (
+        kept("theirs") / "alice" / "loop"
+    )
 
 
 def test_an_installed_flow_is_called_as_every_flow_of_its_flowverse_is() -> None:
-    assert _installed("loop", "0.1.0").called == "theirs/loop"
+    assert _installed("loop", "0.1.0").called == "@theirs/loop"
+    assert _installed("loop", "0.1.0", owner="alice").called == "@theirs/alice/loop"
     assert _installed("loop", "0.1.0", verse=OFFICIAL).called == "loop"
+    assert _installed("loop", "0.1.0", verse=OFFICIAL, owner="al").called == "al/loop"
 
 
 # ------------------------------------------------------------------- what is installed
@@ -739,7 +943,7 @@ def test_a_flow_another_installed_flow_needs_is_not_uninstalled() -> None:
     _recorded(_installed("prover", "0.1.0", {"helper": ">=0.1.0"}))
 
     with pytest.raises(
-        ValueError, match=_exactly("theirs/prover needs helper; uninstall that first")
+        ValueError, match=_exactly("@theirs/prover needs helper; uninstall that first")
     ):
         uninstall("theirs", "helper")
     assert helper.is_dir()
@@ -748,7 +952,7 @@ def test_a_flow_another_installed_flow_needs_is_not_uninstalled() -> None:
     with pytest.raises(
         ValueError,
         match=_exactly(
-            "theirs/checker, theirs/prover need helper; uninstall that first"
+            "@theirs/checker, @theirs/prover need helper; uninstall that first"
         ),
     ):
         uninstall("theirs", "helper")
@@ -762,6 +966,42 @@ def test_what_another_flowverse_needs_of_the_same_name_does_not_hold_a_flow_back
     _recorded(_installed("prover", "0.1.0", {"helper": ">=0.1.0"}, verse=OFFICIAL))
 
     assert uninstall("theirs", "helper")
+
+
+def test_a_flow_listed_under_a_user_is_installed_a_directory_deeper() -> None:
+    """Under the user, as the index lists it, and read back by what the index calls it."""
+    kernel = _installed("kernel", "0.1.0", owner="alice")
+    other = _installed("other", "0.1.0", owner="alice")
+    loop = _installed("loop", "0.1.0")
+    for one in (kernel, other, loop):
+        _recorded(one)
+    # A record under a user that says it is somebody else's is not taken for it.
+    _recorded(
+        _installed("moved", "0.1.0", owner="bob"), at=kept("theirs") / "alice" / "moved"
+    )
+
+    assert installed("theirs") == [kernel, other, loop]
+    assert [one.called for one in installed()] == [
+        "@theirs/alice/kernel",
+        "@theirs/alice/other",
+        "@theirs/loop",
+    ]
+
+
+def test_the_last_of_a_user_s_flows_uninstalled_takes_the_user_away_too() -> None:
+    _recorded(_installed("kernel", "0.1.0", owner="alice"))
+    _recorded(
+        _installed("other", "0.1.0", owner="alice", needs={"alice/kernel": ">=0.1.0"})
+    )
+
+    with pytest.raises(ValueError, match="@theirs/alice/other needs alice/kernel"):
+        uninstall("theirs", "alice/kernel")
+    assert uninstall("theirs", "alice/other")
+    assert (kept("theirs") / "alice").is_dir()  # what else of alice's is still there
+    assert uninstall("theirs", "alice/kernel")
+
+    assert not (kept("theirs") / "alice").exists()
+    assert not uninstall("theirs", "alice/kernel")
 
 
 # ------------------------------------------------------------------- what an install is
@@ -998,7 +1238,7 @@ def test_an_install_that_would_break_another_installed_flow_is_refused(
         ],
     )
 
-    breaks = "theirs/prover 0.1.0 needs helper <0.2.0; installing helper 0.2.0 would break it"
+    breaks = "@theirs/prover 0.1.0 needs helper <0.2.0; installing helper 0.2.0 would break it"
     with pytest.raises(ValueError, match=_exactly(breaks)):
         plan("theirs", "helper", "0.2.0")
     # And the same where it is what the flow asked for needs, rather than what was asked for.
@@ -1081,6 +1321,58 @@ def test_installing_copies_what_is_needed_first_and_nothing_already_there(
         ("a", "0.2.0"),
     ]
     assert done[-1] == already
+
+
+def test_what_a_flow_needs_is_named_as_its_index_lists_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bare or under a user, whichever the flow needing it is listed as."""
+    _planning(
+        monkeypatch,
+        [
+            _release("kernel", "0.1.0", {"humanize1": ">=0.1.0"}, owner="alice"),
+            _release("humanize1", "0.1.0", {"bob/util": ">=0.1.0"}),
+            _release("util", "0.1.0", owner="bob"),
+            _release("util", "0.1.0"),  # somebody else's flow of the same name
+        ],
+        held=[_installed("util", "0.1.0", owner="bob")],
+    )
+
+    planned = plan("theirs", "alice/kernel")
+
+    assert [one.listed for one in planned] == ["humanize1", "alice/kernel"]
+
+
+@pytest.mark.parametrize(
+    ("held", "asked", "clash"),
+    [
+        (("kernel", "alice"), "alice", "alice/kernel"),
+        (("alice", ""), "alice/kernel", "alice"),
+    ],
+    ids=["a flow where a user is", "a user's flow where a flow is"],
+)
+def test_a_flow_and_a_user_of_one_name_are_never_installed_one_inside_the_other(
+    monkeypatch: pytest.MonkeyPatch,
+    held: tuple[str, str],
+    asked: str,
+    clash: str,
+) -> None:
+    """Which an index never lists both of at once, and an index that has changed might."""
+    owner, _, flow = asked.rpartition("/")
+    _planning(
+        monkeypatch,
+        [_release(flow, "0.1.0", owner=owner)],
+        held=[_installed(held[0], "0.1.0", owner=held[1])],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=_exactly(
+            f"{asked} would be installed where {clash} is, out of theirs; "
+            f"uninstall {clash} first"
+        ),
+    ):
+        plan("theirs", asked)
 
 
 # ------------------------------------------------------------------- what is newer

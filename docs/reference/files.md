@@ -50,7 +50,7 @@ H/
 │   └── home/ user/ config/             credential files the CLI writes
 ├── flowverses/<name>/                  one per flowverse, official included
 │   ├── index/                          the index clone
-│   └── installed/<flow>/               installed flows, each with its .installed.json
+│   └── installed/[<user>/]<flow>/      installed flows, each with its .installed.json
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
 │   └── mirrors/<container or service>/<digest>/
@@ -179,15 +179,16 @@ without `index/` is still listed, as a flowverse with nowhere to fetch from.
 
 ### `H/flowverses/<name>/index/`
 
-A `git clone --depth 1` of the flowverse's index: `flows/<flow>/<version>/flow.yaml`. Cloned
-into `.index.XXXXXXXX` beside it and renamed into place; a leftover `.index.*` older than 60 s
-is removed before the next clone. Fetch is `git fetch --depth 1 origin HEAD` then
+A `git clone --depth 1` of the flowverse's index: `flows/[<user>/]<flow>/<version>/flow.yaml`.
+Cloned into `.index.XXXXXXXX` beside it and renamed into place; a leftover `.index.*` older
+than 60 s is removed before the next clone. Fetch is `git fetch --depth 1 origin HEAD` then
 `git reset --hard FETCH_HEAD`. The origin URL is read from `.git/config`. Read as YAML, never
 imported.
 
-### `H/flowverses/<name>/installed/<flow>/`
+### `H/flowverses/<name>/installed/[<user>/]<flow>/`
 
-A flow installed from that flowverse's index: the release's `subdir` at its commit, without
+A flow installed from that flowverse's index -- under `<user>/` for one it lists under a
+user, which is removed with that user's last flow: the release's `subdir` at its commit, without
 `.git` and `__pycache__` (a single `<flow>.py` as `__init__.py`), every skill its roles name by
 URL fetched into its `skills/<name>/`, and `.installed.json`.
 Written into `.<flow>.XXXXXXXX` beside it and renamed into place, the release it replaces moved
@@ -199,7 +200,7 @@ by removing the flowverse. Imported where flows are listed and run.
 
 | Key | Value |
 | --- | --- |
-| `verse`, `name` | the flowverse and the flow; must match the directories, or it is not read as installed |
+| `verse`, `owner`, `name` | the flowverse, the user (`""` for a flow listed bare) and the flow; must match the directories, or it is not read as installed |
 | `version`, `commit` | the release, and the commit it was copied from |
 | `repo`, `ref`, `subdir` | as the manifest said |
 | `dependencies` | `{flow: range}`, as the manifest said; checked by later installs and uninstalls |

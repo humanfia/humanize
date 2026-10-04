@@ -147,7 +147,9 @@ class Flowverses:
         """Installs one release of a flow out of its index, and what it needs.
 
         Args:
-          flow: `<flowverse>/<flow>`, or a bare name for one of `official`'s.
+          flow: The name it is offered under once installed: `aot` or `alice/kernel` for
+            one of `official`'s, `@<flowverse>/<flow>` or `@<flowverse>/<user>/<flow>`
+            for one of another index's.
           version: The release, or "" for the newest that is not a prerelease. Naming another
             release of a flow that is installed switches it to that one.
 
@@ -155,11 +157,12 @@ class Flowverses:
           What is installed now of each flow the install came to, the one asked for last.
 
         Raises:
-          ValueError: If the index lists no such release, or what it needs cannot be had
-            without a cycle or without breaking another installed flow.
+          ValueError: If that is no flow's name, the index lists no such release, or what it
+            needs cannot be had without a cycle or without breaking another installed flow.
           OSError: If a repository cannot be fetched, or the flow cannot be copied.
         """
-        from hmz.runtime.flowing.index import install, split
+        from hmz.runtime.flowing.index import install
+        from hmz.runtime.flowing.verses import split
 
         return install(*split(flow), version)
 
@@ -167,16 +170,17 @@ class Flowverses:
         """Takes one installed flow away.
 
         Args:
-          flow: `<flowverse>/<flow>`, or a bare name for one of `official`'s.
+          flow: The name it is offered under, as :meth:`install` takes it.
 
         Returns:
           Whether there was one to take away.
 
         Raises:
-          ValueError: If another installed flow needs it.
+          ValueError: If that is no flow's name, or another installed flow needs it.
           OSError: If it will not go.
         """
-        from hmz.runtime.flowing.index import split, uninstall
+        from hmz.runtime.flowing.index import uninstall
+        from hmz.runtime.flowing.verses import split
 
         return uninstall(*split(flow))
 
@@ -290,13 +294,15 @@ class Flows:
         """The file one flow is written in.
 
         Args:
-          named: The flow, by the name it is offered under or by a path to a file.
+          named: The flow, by the name it is offered under or by a path to it, which starts
+            with `.`, `/` or `~`.
 
         Returns:
-          The path to run, resolved -- and `named` itself where nothing answers to it, so
-          that whatever asked hears the name back rather than an exception it would have to
-          tell apart from a flow that is genuinely called that. Whether a flow is there is
-          answered by what comes back being a file.
+          The path to run, resolved -- and "" where nothing answers to it, rather than an
+          exception whoever asked would have to tell apart from a flow that is genuinely
+          called that. Whether a flow is there is answered by anything coming back at all:
+          a name is never read as a path, so `demo.py` is no flow even where there is a file
+          of that name, and `./demo.py` is the one there is.
         """
         from hmz.runtime.flowing import find
 
@@ -343,7 +349,8 @@ class Flows:
           The directory it was copied to, spelled as it was reached -- this project's own
           flows are named from the project, so a copy that went there is named from there
           too. The name it is offered under from now on is the one it already had, yours
-          being looked in first: `official/rlar` forked is `rlar`.
+          being looked in first: `@theirs/rlar` forked is `@local/rlar`, which a bare
+          `rlar` means from then on.
 
         Raises:
           ValueError: If nothing of that name is a flow, or there is already one of that

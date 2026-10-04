@@ -256,7 +256,7 @@ A run, or a request to a host, refused before anything of it ran. `str(error)` i
 | --- | --- | --- |
 | `verses` | [`Flowverses`](#flowverses) | Property. |
 | `all()` | `list[Offer]` | Every runnable flow, in offer order. |
-| `find(named: str)` | `str` | The resolved file of a flow. `named` itself where nothing resolves: a flow exists iff the result is a file. |
+| `find(named: str)` | `str` | The resolved file of a flow, or `""` where nothing resolves. A path starts with `.`, `/` or `~`; anything else is a name, never a file of that name in the working directory. |
 | `about(named: str)` | `str` | The flow's one-line description, or `""`. |
 | `declared(named: str \| PathLike)` | [`Declaration`](#declaration) | Imports the flow. Raises the flow API's `FlowException` for a flow that cannot load. |
 | `resumes(named: str \| PathLike)` | `bool` | Whether it is [resumable](/reference/flows#a-flow-that-can-be-picked-up). Imports the flow. |
@@ -271,8 +271,10 @@ for offer in Hmz().flows.all():
 ## `Flowverses` {#flowverses}
 
 `Hmz().verses`: the store [`/flow`'s Flowverses page](/reference/tui#where-flows-come-from)
-edits. `flow` arguments are `<flowverse>/<flow>`, or a bare `<flow>` for `official`. Semantics:
-[Flows › Flowverses](/reference/flows#flowverses).
+edits. `flow` arguments are the name a flow is offered under: `<flow>` or `<user>/<flow>` for
+`official`'s, `@<flowverse>/<flow>` or `@<flowverse>/<user>/<flow>` for another's. `index()`
+takes a flowverse's bare name, and its methods a flow by index name (`<flow>`,
+`<user>/<flow>`). Semantics: [Flows › Flowverses](/reference/flows#flowverses).
 
 | Method | Returns | Behaviour |
 | --- | --- | --- |
@@ -564,7 +566,7 @@ declaration order.
 
 | Type | Fields |
 | --- | --- |
-| `Offer` | `whose: str` (a flowverse, `local` or `user`), `name: str` (what `-f` takes), `about: str` |
+| `Offer` | `whose: str` (a flowverse, `local` or `user`), `name: str` (what `-f` takes: `aot`, `alice/kernel`, `@theirs/review`, `@local/x`), `about: str` |
 | <span id="declaration"></span>`Declaration` | `name`, `ref`, `description: str \| None`, `hidden: bool`, `resumable: bool`, `agents: tuple[AgentRole, ...]`, `envs: tuple[EnvRole, ...]`, `params: type[FlowParams]`; methods `agent(name)`, `env(name)` → role or `None` |
 | `AgentRole` | `name`, `declared: type`, `required: bool`, `auto: bool` (runtime-filled), `harness: HarnessKind \| None`, `capabilities: frozenset[type]`, `permission`, `skills: tuple[str, ...]`, `grant` |
 | `EnvRole` | `name`, `declared: type`, `required`, `auto`, `capabilities`, `cpu_count: int`, `memory: int`, `gpu_count: int`, `gpu_memory: int`, `image: str`, `grant`, `resources: bool` |
@@ -577,10 +579,10 @@ declaration order.
 
 | Type | Fields |
 | --- | --- |
-| `Index` (named tuple) | `verse: str`, `releases: tuple[Release, ...]` (by flow, newest first), `skipped: tuple[Skipped, ...]`; methods `flows()` (names, sorted), `versions(flow)` (newest first), `release(flow, version)` → `Release \| None`, `newest(flow, spec="")` → the newest in range that is not a prerelease, else the newest prerelease, else `None` |
-| `Release` (pydantic, frozen) | `name`, `version`, `description`, `repo`, `ref`, `commit`, `subdir`, `license`, `dependencies: dict[str, str]`; properties `semver` (a `semver.Version`), `url` (what git fetches) |
-| `Skipped` (named tuple) | `at: Path` (the manifest), `why: str` |
-| `Installed` (pydantic, frozen) | `verse`, `name`, `version`, `commit`, `repo`, `ref`, `subdir`, `dependencies`; properties `called` (the name it is offered under), `at: Path` (its directory) |
+| `Index` (named tuple) | `verse: str`, `releases: tuple[Release, ...]` (by index name, newest first), `skipped: tuple[Skipped, ...]`; methods `flows()` (index names, `aot` and `alice/kernel`, sorted), `versions(flow)` (newest first), `release(flow, version)` → `Release \| None`, `newest(flow, spec="")` → the newest in range that is not a prerelease, else the newest prerelease, else `None` |
+| `Release` (pydantic, frozen) | `name`, `version`, `description`, `repo`, `ref`, `commit`, `subdir`, `license`, `dependencies: dict[str, str]`, `owner` (the `<user>` it is listed under, `""` bare); properties `listed` (its index name), `owned` (its repository's GitHub owner, or `""`), `semver` (a `semver.Version`), `url` (what git fetches) |
+| `Skipped` (named tuple) | `at: Path` (the manifest, or a `<user>` directory), `why: str` |
+| `Installed` (pydantic, frozen) | `verse`, `name`, `version`, `commit`, `repo`, `ref`, `subdir`, `dependencies`, `owner`; properties `listed` (its index name), `called` (the name it is offered under), `at: Path` (its directory) |
 | `Update` (named tuple) | `installed: Installed`, `version: str` (the newest after it) |
 
 ### Account types {#account-types}

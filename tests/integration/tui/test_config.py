@@ -139,7 +139,7 @@ def flows(tmp_path: Path) -> Path:
     written(where, "ungrouped", UNGROUPED)
     kept = Settings(tmp_path)
     for one in ("settable", "plain", "ungrouped"):
-        kept.remember(f"local/{one}", {}, budget={"cost": 1.0})
+        kept.remember(f"@local/{one}", {}, budget={"cost": 1.0})
     kept.remember("chat", {})
     return where
 
@@ -190,8 +190,8 @@ async def _set_up(app: Humanize, driver: Pilot[None], flow: str = "settable") ->
     await driver.press(*"/flow")
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Flows), driver)
-    await until(lambda: f"local/{flow}" in ids(app), driver)
-    await onto(app, driver, f"local/{flow}")
+    await until(lambda: f"@local/{flow}" in ids(app), driver)
+    await onto(app, driver, f"@local/{flow}")
     await driver.press("enter")
     await driver.pause()
 
@@ -358,7 +358,7 @@ async def test_how_it_was_set_up_is_kept_and_read_back(
             await keeps(app, driver)
             await until(lambda: app._params is not None, driver)
 
-    assert Settings(tmp_path).params("local/settable")["loud"] is True
+    assert Settings(tmp_path).params("@local/settable")["loud"] is True
     # And a second interface opens on it, rather than back at the flow's own defaults.
     again = Humanize()
     assert again._params is not None
@@ -409,7 +409,7 @@ def test_a_config_that_no_longer_fits_the_flow_is_started_over_from(
 ) -> None:
     """A settings file is a convenience, and one that has gone stale is not a reason to fail."""
     Settings(tmp_path).remember(
-        "local/settable",
+        "@local/settable",
         {"worker": Runs("claude/opus:high")},
         params={"gone": "away", "rounds": 99},
     )
@@ -418,7 +418,7 @@ def test_a_config_that_no_longer_fits_the_flow_is_started_over_from(
 
     from hmz.tui.pick import params_of
 
-    assert params_of("local/settable", app.settings.params("local/settable")) is None
+    assert params_of("@local/settable", app.settings.params("@local/settable")) is None
 
 
 @pytest.mark.timeout(60)

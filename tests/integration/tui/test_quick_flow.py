@@ -220,28 +220,28 @@ async def test_a_flow_never_set_up_here_opens_the_menu_and_runs_once_it_is_saved
     written(tmp_path / ".hmz" / "flows", "loop", _ONE)
     app = Humanize()
     async with app.run_test() as driver:
-        await sends(app, driver, "$local/loop fix the build")
+        await sends(app, driver, "$@local/loop fix the build")
         await until(lambda: isinstance(app.screen, Flows), driver)
         assert (
-            cast("Flows", app.screen)._flow == "local/loop"
+            cast("Flows", app.screen)._flow == "@local/loop"
         )  # opened on the one named
         assert not started  # nothing runs while the menu is up
 
         await saves(app, driver)
         await until(lambda: bool(started), driver)
 
-        assert started == [("local/loop", _WORKER, "fix the build")]
-        assert Settings(tmp_path).flow == "local/loop"  # and it is set up now
+        assert started == [("@local/loop", _WORKER, "fix the build")]
+        assert Settings(tmp_path).flow == "@local/loop"  # and it is set up now
 
     # And so the same line a second time is the run, with no menu in the way.
     started.clear()
     again = Humanize()
     async with again.run_test() as driver:
-        await sends(again, driver, "$local/loop fix the build")
+        await sends(again, driver, "$@local/loop fix the build")
         await until(lambda: bool(started), driver)
 
         assert not isinstance(again.screen, Flows)
-        assert started == [("local/loop", _WORKER, "fix the build")]
+        assert started == [("@local/loop", _WORKER, "fix the build")]
 
 
 @pytest.mark.timeout(60)
@@ -255,11 +255,11 @@ async def test_a_flow_that_grew_an_agent_is_asked_about_rather_than_run_short_of
     """
     written(tmp_path / ".hmz" / "flows", "pair", _PAIR)
     Settings(tmp_path).remember(
-        "local/pair", {"builder": Runs("claude/m:high")}, budget=_SPENDS
+        "@local/pair", {"builder": Runs("claude/m:high")}, budget=_SPENDS
     )
     app = Humanize()
     async with app.run_test() as driver:
-        await sends(app, driver, "$local/pair fix the build")
+        await sends(app, driver, "$@local/pair fix the build")
         await until(lambda: isinstance(app.screen, Flows), driver)
 
         assert not started
@@ -272,14 +272,14 @@ async def test_settings_the_flow_no_longer_accepts_are_asked_again_rather_than_d
     """A flow that renamed a param under what was written down for it is one to answer."""
     written(tmp_path / ".hmz" / "flows", "settable", _SETTABLE)
     Settings(tmp_path).remember(
-        "local/settable",
+        "@local/settable",
         _WORKER,
         params={"nothing-of-the-sort": 1},
         budget=_SPENDS,
     )
     app = Humanize()
     async with app.run_test() as driver:
-        await sends(app, driver, "$local/settable fix the build")
+        await sends(app, driver, "$@local/settable fix the build")
         await until(lambda: isinstance(app.screen, Flows), driver)
 
         assert not started
@@ -293,7 +293,7 @@ async def test_walking_out_of_the_menu_starts_nothing_and_says_so(
     written(tmp_path / ".hmz" / "flows", "loop", _ONE)
     app = Humanize()
     async with app.run_test() as driver:
-        await sends(app, driver, "$local/loop fix the build")
+        await sends(app, driver, "$@local/loop fix the build")
         await until(lambda: isinstance(app.screen, Flows), driver)
         await driver.press("escape")  # out again, having answered nothing
         await until(lambda: not isinstance(app.screen, Flows), driver)
@@ -365,13 +365,13 @@ async def test_one_of_the_several_flows_a_file_holds_is_named_dash_and_all(
 ) -> None:
     """`<file>:<inside>` is a name like any other, and what is inside may be called anything."""
     written(tmp_path / ".hmz" / "flows", "phases", _PHASES)
-    Settings(tmp_path).remember("local/phases:gen-idea", _WORKER, budget=_SPENDS)
+    Settings(tmp_path).remember("@local/phases:gen-idea", _WORKER, budget=_SPENDS)
     app = Humanize()
     async with app.run_test() as driver:
-        await sends(app, driver, "$local/phases:gen-idea fix the build")
+        await sends(app, driver, "$@local/phases:gen-idea fix the build")
         await until(lambda: bool(started), driver)
 
-        assert started == [("local/phases:gen-idea", _WORKER, "fix the build")]
+        assert started == [("@local/phases:gen-idea", _WORKER, "fix the build")]
 
 
 @pytest.mark.timeout(60)
@@ -471,11 +471,11 @@ async def test_an_environment_role_the_flow_no_longer_declares_is_not_handed_to_
     """A role renamed since is one no row can clear, and must not refuse every later run."""
     written(tmp_path / ".hmz" / "flows", "loop", _ONE)
     Settings(tmp_path).remember(
-        "local/loop", _WORKER, envs={"scratch": "local/tmp"}, budget=_SPENDS
+        "@local/loop", _WORKER, envs={"scratch": "local/tmp"}, budget=_SPENDS
     )
     app = Humanize()
     async with app.run_test() as driver:
-        await sends(app, driver, "$local/loop fix the build")
+        await sends(app, driver, "$@local/loop fix the build")
         await until(lambda: bool(link(app).asked_for("start")), driver)
 
     (said,) = link(app).asked_for("start")

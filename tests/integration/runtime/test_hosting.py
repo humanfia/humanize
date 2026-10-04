@@ -283,14 +283,14 @@ def _driver(kind: type[AgentBase] = SteerableAgent) -> HarnessDriver:
 
 
 def _asks(one: Told) -> None:
-    said = one.asks(do="start", flow="asks", task="the parser", budget={"cost": 1})
+    said = one.asks(do="start", flow="./asks", task="the parser", budget={"cost": 1})
     assert said["ok"], said
 
 
 def _steers(one: Told, kind: type[AgentBase] = SteerableAgent) -> None:
     said = one.asks(
         do="start",
-        flow="steers",
+        flow="./steers",
         task=TURN,
         agents={"coder": _driver(kind)},
         budget={"cost": 1},
@@ -462,7 +462,7 @@ def test_a_run_started_to_be_profiled_is_profiled_and_says_so(
     """Asked of the start as the budget is, and said to every frontend as the run starts."""
     alice = Told(host, "alice")
     said = alice.asks(
-        do="start", flow="asks", task="the parser", budget={"cost": 1}, profile=True
+        do="start", flow="./asks", task="the parser", budget={"cost": 1}, profile=True
     )
     assert said["ok"], said
 
@@ -511,7 +511,7 @@ def test_a_line_said_to_an_agent_while_a_person_is_asked_goes_into_its_next_turn
     alice.asks(do="claim", role="planner")
     said = alice.asks(
         do="start",
-        flow="hands",
+        flow="./hands",
         task="echo done",
         agents={"coder": _driver()},
         budget={"cost": 1},

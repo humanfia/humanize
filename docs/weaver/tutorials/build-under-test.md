@@ -395,7 +395,7 @@ hmz exec -f build_under_test \
 ```
 
 ```text [At the prompt]
-$local/build_under_test Add from_roman(s: str) -> int to roman.py, the exact inverse of to_roman, refusing anything that is not a canonical numeral. Add tests for it in test_roman.py, including a round-trip over 1..3999.
+$@local/build_under_test Add from_roman(s: str) -> int to roman.py, the exact inverse of to_roman, refusing anything that is not a canonical numeral. Add tests for it in test_roman.py, including a round-trip over 1..3999.
 ```
 
 :::

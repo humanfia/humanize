@@ -141,7 +141,7 @@ def test_frontends_of_their_own_each_answer_for_the_role_they_claimed(
     seen: list[dict[str, Any]] = []
     with hosted.link(name="starter") as link:
         link.heard(seen.append)
-        assert link.start("asks", "the parser", budget={"cost": 1})["run"] == 1
+        assert link.start("./asks", "the parser", budget={"cost": 1})["run"] == 1
         (workspace / "go").write_text("")
 
         assert until(lambda: any(one["type"] == "ended" for one in list(seen)))
@@ -168,7 +168,7 @@ def test_a_run_started_through_a_link_is_profiled_where_the_start_says(
     seen: list[dict[str, Any]] = []
     with hosted.link(name="starter") as link:
         link.heard(seen.append)
-        link.start("asks", "the parser", budget={"cost": 1}, profile=True)
+        link.start("./asks", "the parser", budget={"cost": 1}, profile=True)
 
         assert until(lambda: any(one["type"] == "started" for one in list(seen)))
     (started,) = (one for one in seen if one["type"] == "started")
@@ -191,7 +191,7 @@ def test_a_run_that_ended_with_nobody_there_waits_for_somebody_to_read_it(
     hosted: daemon.Daemon, workspace: Path
 ) -> None:
     with hosted.link(name="starter") as link:
-        link.start("asks", "the parser", budget={"cost": 1})
+        link.start("./asks", "the parser", budget={"cost": 1})
         link.afk(on=True)
     (workspace / "go").write_text("")
     assert until((workspace / "result.json").exists)
@@ -282,7 +282,7 @@ def test_two_workspaces_are_held_at_once_by_the_one_daemon_of_the_machine(
             links.append(link)
             seen[task] = []
             link.heard(seen[task].append)
-            assert link.start("says", task, budget={"cost": 1})["run"] == 1
+            assert link.start("./says", task, budget={"cost": 1})["run"] == 1
 
         assert first.status()["state"] == second.status()["state"] == "running"
         assert where.held(where.at())["pid"] == machine
@@ -355,7 +355,7 @@ def test_a_host_terminated_takes_the_containers_of_its_runs_down_first(
     work = workspace / "work"
     work.mkdir()
     with hosted.link(name="starter") as link:
-        link.start("waits", "go", envs={"box": f"docker{work}"}, budget={"cost": 1})
+        link.start("./waits", "go", envs={"box": f"docker{work}"}, budget={"cost": 1})
         assert until((work / "up.txt").exists)
 
     assert hosted.kill()

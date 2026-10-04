@@ -105,8 +105,9 @@ choose one at `/flow` or name it with `$`. See [Your first run](/user/first-run)
 
 An index of flows: a git repository listing each release of a flow, and the repository and
 commit it is. A flow it lists runs once you install it from `/flow`. `official` is humanize's
-own; add others on `/flow`'s Flowverses page. A flow installed from another is named
-`<flowverse>/<flow>`, and one built in or installed from `official` by its bare name. See
+own; add others on `/flow`'s Flowverses page. A flow built in or installed from `official` is
+named as `official` lists it -- `aot` for humanfia's own, `<user>/<flow>` for anybody else's --
+and one installed from another flowverse `@<flowverse>/<flow>`. See
 [Flowverses](/weaver/flowverses).
 
 ## Outworlder

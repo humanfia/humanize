@@ -284,8 +284,9 @@ class Fallbacks:
   flow as it is now; a flow that cannot be loaded MUST raise what the flow API says of it.
 - Where a flowverse came from MUST be answered here, with whatever was signed into a URL taken
   out of it, and asking a backend what it runs as one account MUST be reached through this.
-  A flow MUST be installed and uninstalled here by the name it is offered under, `<flowverse>/
-  <flow>` or a bare name for `official`'s.
+  A flow MUST be installed and uninstalled here by the name it is offered under: `<flow>` or
+  `<user>/<flow>` for one of `official`'s, `@<flowverse>/[<user>/]<flow>` for one of another
+  index's.
 - Checking a runtime MUST ask an ssh host what a run asks it on the way in, down
   the same road, a docker daemon its own `docker info`, and a swarm's manager its `docker info`
   -- refusing one that manages no active swarm -- and its nodes, totalling what those that may

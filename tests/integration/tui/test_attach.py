@@ -179,7 +179,7 @@ async def _two_agents(app: Humanize, driver: Pilot[None], where: Path) -> None:
     """
     set_up(
         app,
-        "flow",
+        "./flow",
         {"builder": Runs("claude/m:high"), "reviewer": Runs("claude/m:high")},
     )
     await driver.press(*"do it")

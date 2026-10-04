@@ -125,7 +125,7 @@ What you are reading decides more than what is on the screen:
 A project flow runs a `builder` and a `tester` side by side. Press the keys to step through the
 transcripts, as <kbd>shift+tab</kbd> does:
 
-<TermScreen title="hmz · local/pair" :frames="reading" :keys="['shift+tab', 'tab']" />
+<TermScreen title="hmz · @local/pair" :frames="reading" :keys="['shift+tab', 'tab']" />
 
 What to look at, by number:
 

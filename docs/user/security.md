@@ -76,7 +76,7 @@ the cursor on `aot`, <kbd>tab</kbd> to **Copy here**, and press <kbd>enter</kbd>
      <span class="m">Writes a flow from a description: drafted, loaded, smoke-run, revie…</span>
 
    <span class="p">local</span> <span class="n">1</span>
-   <b>local/aot</b>
+   <b>@local/aot</b>
      <span class="m">Writes a flow from a description: drafted, loaded, smoke-run, revie…</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
    <span class="m">copied to .hmz/flows/aot -- you can edit it, and aot now points to it</span> <span class="n">2</span>

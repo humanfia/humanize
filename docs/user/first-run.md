@@ -92,7 +92,7 @@ flow at work you care about.
 <HmzCast name="first-run" alt="The flow menu: a project flow is chosen, its one agent is set to another model and effort, a budget of 20 minutes is set, and the menu is saved. The task is then typed at the prompt." />
 
 <p class="u7-caption">The same steps, recorded with stand-in CLIs on a project's own flow,
-<code>local/twice</code>.</p>
+<code>@local/twice</code>.</p>
 
 ## Try it
 
@@ -414,9 +414,9 @@ line:
 | The flow is | Name it |
 | --- | --- |
 | built in, or installed from `official` | `$ralph_loop` |
-| in this project's `.hmz/flows/` | `$local/twice` |
-| in your `~/.hmz/flows/` | `$user/twice` |
-| installed from a flowverse you added | `$<flowverse>/<flow>` |
+| in this project's `.hmz/flows/` | `$@local/twice` |
+| in your `~/.hmz/flows/` | `$@user/twice` |
+| installed from a flowverse you added | `$@<flowverse>/<flow>` |
 
 A flow that is set up here starts at once. One that is not opens the menu on its roles, and
 saving starts it. `$ralph_loop` with nothing after it only chooses the flow.

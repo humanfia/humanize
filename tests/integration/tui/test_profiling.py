@@ -40,7 +40,7 @@ def _said(app: Humanize) -> str:
 def _kept(tmp_path: Path, *, profile: bool | None = None) -> None:
     """Sets the flow up here as one ready to run, profiled or not."""
     Settings(tmp_path).remember(
-        "local/quiet",
+        "@local/quiet",
         {"worker": Runs("claude/m:high")},
         budget={"duration": "PT2H"},
         profile=profile,
@@ -55,7 +55,7 @@ async def test_the_row_sits_under_the_budget_and_is_off_until_turned_on(
     _kept(tmp_path)
     app = Humanize()
     async with app.run_test() as driver:
-        sheet = await _into(app, driver, "local/quiet")
+        sheet = await _into(app, driver, "@local/quiet")
         assert "off" in _said(app)
 
         # A switch, picked from the two dropped under it rather than turned over in place.
@@ -66,7 +66,7 @@ async def test_the_row_sits_under_the_budget_and_is_off_until_turned_on(
         assert "on" in _said(app)
         assert sheet._changed
         # Held until the menu is saved, as everything else on it is.
-        assert Settings(tmp_path).profile("local/quiet") is False
+        assert Settings(tmp_path).profile("@local/quiet") is False
 
         await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
@@ -74,7 +74,7 @@ async def test_the_row_sits_under_the_budget_and_is_off_until_turned_on(
         assert app._profile
 
     # Written down under the flow, beside its budget, and read back by the next interface.
-    assert Settings(tmp_path).profile("local/quiet") is True
+    assert Settings(tmp_path).profile("@local/quiet") is True
     assert Humanize()._profile
 
 
@@ -86,7 +86,7 @@ async def test_a_flow_run_without_the_menu_is_profiled_as_it_was_set(
     _kept(tmp_path, profile=True)
     app = Humanize()
     async with app.run_test():
-        held = app._remembered_for("local/quiet")
+        held = app._remembered_for("@local/quiet")
 
         assert held is not None
         assert held.profile

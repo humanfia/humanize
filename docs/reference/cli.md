@@ -168,23 +168,28 @@ limit         = "budget." , ( "duration" | "cost" | "output_tokens" | "graceful"
 ### Naming a flow (`-f`) {#naming-a-flow}
 
 ```text
-ref = [ flowverse , "/" ] , flow , [ ":" , name ]
+ref = [ "@" , flowverse , "/" ] , [ user , "/" ] , flow , [ ":" , name ]
     | path
     | "git+" , url , [ "@" , rev ] , [ "#" , subdir ] , [ ":" , name ] ;
+path = ( "." | "/" | "~" ) , { character } ;
 ```
 
 | Form | Resolves to |
 | --- | --- |
 | `<flow>` | The first flow of that name, looking in `local`, `user`, `official` (built in, then installed), then the flows installed from added flowverses (the order of [`Flowverses.nearest`](/reference/sdk#flowverses)). |
-| `<flowverse>/<flow>` | The flow installed from that flowverse. `local/…` is `./.hmz/flows/`, `user/…` is `~/.hmz/flows/`. |
+| `<user>/<flow>` | The flow installed from the official flowverse's `flows/<user>/<flow>/`: `alice/kernel`. |
+| `@<flowverse>/<flow>`, `@<flowverse>/<user>/<flow>` | The flow installed from that flowverse. `@local/…` is `./.hmz/flows/`, `@user/…` is `~/.hmz/flows/`. |
 | `…:<name>` | Another flow defined in the same module. |
-| a path (`./x`, `/x`, `x.py`) | That directory or file. |
+| a path (`./x`, `../x`, `/x`, `~/x`, `./x.py`) | That directory or file. Only what starts with `.`, `/` or `~` is a path. |
 | `git+<url>[@<rev>][#<subdir>][:<name>]` | The flow in `<subdir>` of a repository (its root without `#`), cloned and pinned at that revision, installing nothing: `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`. |
 
 A flow a flowverse's index lists is not run until it is installed (`hmz exec` installs
 nothing): naming one is refused with `<name>: not installed -- install it from /flow
-(flowverse <flowverse>)`. Resolution, module loading and the several-flows-per-module rule are
-specified in [Flows › Where flows live](/reference/flows#where-flows-live) and
+(flowverse <flowverse>)`. A name said as before the `@` is refused saying how it is said now
+(`local/x: a flow of local is called @local/x now`), as is a relative path without its `./`
+(`flows/x: a path starts with ./, / or ~, as ./flows/x does`). Resolution, module loading and
+the several-flows-per-module rule are specified in
+[Flows › Where flows live](/reference/flows#where-flows-live) and
 [Flows › Refs](/reference/flows#refs).
 
 ### Writing an agent (`-a`) {#writing-an-agent}
@@ -385,7 +390,7 @@ Stage 1–2 messages are preceded by the usage block.
 | an unknown `budget.` limit | `-p budget.<limit>: not a limit; one of budget.duration, budget.cost, budget.output_tokens, budget.graceful` |
 | a `budget.` value | `-p budget.duration: '<v>' names a unit twice`, `-p budget.duration: '<v>' is not a valid duration: must be finite and not negative`, `-p budget.duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`, `-p budget.cost: '<v>' is not a valid USD cost`, `-p budget.output_tokens: '<v>' must be a whole number of tokens`, `-p budget.output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`, `-p budget.graceful: '<v>' must be true or false` |
 | a budget that limits nothing | `-p budget.*: Value error, a budget sets at least one of duration, cost, output_tokens` |
-| no such flow | `<ref>: no flow is called '<ref>', and it is not a path`; `<ref>: not installed -- install it from /flow (flowverse <flowverse>)`; `<ref>: the official flowverse has not been fetched yet -- fetch it from /flow` |
+| no such flow | `<ref>: no flow is called '<ref>'` (a path: `<ref>: there is no flow at <ref>`); `<ref>: a flow of local is called @local/<flow> now`; `<ref>: a path starts with ./, / or ~, as ./<ref> does`; `<ref>: not installed -- install it from /flow (flowverse <flowverse>)`; `<ref>: the official flowverse has not been fetched yet -- fetch it from /flow` |
 | a role the flow does not declare | `<flow> has no agent role '<role>'; available roles are '<a>', '<b>'` (`… environment role …` for `-e`; `none` where there are none) |
 | a role the runtime fills | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a`; `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
 | a required role unfilled | `<flow> needs an agent for '<role>'; specify each with -a ROLE=CLI/MODEL:EFFORT`; `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND[@PROVIDER]/WORKDIR` |

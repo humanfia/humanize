@@ -11,7 +11,8 @@ decides.
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
          [-p|--params <param>[,<param>...]]... [--profile] [--resume] [--json] <task>
-<ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
+<ref>    := [@<flowverse>/][<user>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
+<path>   := .<...> | /<...> | ~<...>   # nothing else is a path
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
 <env>    := <role>=<backend>[@<provider>][/<workdir>]
 <provider> := <name> | [<destination>]   # [<destination>] for ssh alone: [user@]host[:port]
@@ -110,8 +111,9 @@ def tools(argv: list[str]) -> int: ...
   `Budget(cost=inf)`, saying `-p budget.cost=` -- MUST
   each be a usage error before any agent has started, as MUST a flow that is not there or will not
   load, and `--resume` of a flow that cannot be picked up or has no run to pick up.
-- An `@` MUST be written only before a `<provider>`, and a `<name>` MUST be the runtime written
-  down under that name for that backend, reached as it says; one nobody saved MUST be refused. No
+- In an `<agent>` or an `<env>`, an `@` MUST be written only before a `<provider>`, and a `<name>`
+  MUST be the runtime written down under that name for that backend, reached as it says; one
+  nobody saved MUST be refused. No
   provider MUST be this machine -- `local`, docker's default here, the swarm this machine manages,
   this Mac's Apple containers -- and `local` MUST take none at all; `ssh` MUST take one, and MUST
   alone take a destination nobody saved, in brackets, which MUST be handed to `ssh` as it is
@@ -124,6 +126,12 @@ def tools(argv: list[str]) -> int: ...
   a run's record MUST be read as it is spelled now, and settings MUST be written again that way.
   What is kept since MUST say so, and MUST be read as it was written whatever has become of the
   runtimes it names.
+- A `<ref>` MUST be a `<path>` only where it starts with `.`, `/` or `~`, and anything else but a
+  `git+` ref MUST be read as a flow's name: `<flow>` or `<user>/<flow>` for one of `official`'s,
+  and after `@<flowverse>/` for one of any other -- `@local/<flow>` and `@user/<flow>` for your
+  own. A name said as it was before the `@` -- `local/x`, `<flowverse>/x`, `official/x` -- and a
+  path without its `./` MUST be refused saying how it is said now; a flow kept that way in
+  settings MUST be read as it is said now, and settings MUST be written again that way, marked so.
 - Where every agent's harness runs MUST NOT be said on the line: it is the affinity of the
   runtime its work is on, as `runtime/flowing` says. A runtime's affinity with no room anywhere
   for an agent MUST refuse the run before any agent has started.

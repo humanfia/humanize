@@ -176,7 +176,7 @@ runs, and the next round starts from a file that says so.
 ::: code-group
 
 ```text [At the prompt]
-$local/checklist Work through TASK.md.
+$@local/checklist Work through TASK.md.
 ```
 
 ```sh [Claude Code]

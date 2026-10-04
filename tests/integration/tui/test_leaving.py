@@ -182,7 +182,7 @@ async def test_runs_held_here_go_with_the_interface(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await _says(app, driver, "start")
         await until(lambda: "coder/1" in app._working, driver)
         assert "coder/1" in app._working

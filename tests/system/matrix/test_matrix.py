@@ -2394,7 +2394,7 @@ def test_frontends_tui(
             holding.enter_context(places.borrowed("claude", place.provider))
         # Set up the way saving the flow menu would, so that `$` starts it on the spot.
         Hmz(workspace).settings.remember(
-            "local/fronted", {"worker": Runs(place.spec())}, budget=dict(_BUDGETED)
+            "@local/fronted", {"worker": Runs(place.spec())}, budget=dict(_BUDGETED)
         )
         panes = Panes(workspace)
 
@@ -2407,7 +2407,7 @@ def test_frontends_tui(
         holding.callback(closes)
         alice = panes.opens(_tui("alice"))
         panes.waits(alice, "humanize")
-        panes.types(alice, f"$local/fronted {SLOW}")
+        panes.types(alice, f"$@local/fronted {SLOW}")
         panes.waits(alice, "Which word?", 120)
         bob = panes.opens(_tui("bob"))
         panes.waits(bob, "Which word?")

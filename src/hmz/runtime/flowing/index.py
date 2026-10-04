@@ -1,20 +1,25 @@
 """What a flowverse's index lists, and the flows installed out of one.
 
-A flowverse is an index: a git repository of `flows/<flow>/<version>/flow.yaml`, one manifest
-per release of a flow, each saying where that release lives -- a GitHub repository, the commit
-it was cut from, and the directory of it the flow is in. The index holds no code, so nothing in
-it is ever imported: reading one is reading YAML, and fetching one again changes what may be
-installed and never what runs.
+A flowverse is an index: a git repository of one manifest per release of a flow, each saying
+where that release lives -- a GitHub repository, the commit it was cut from, and the directory
+of it the flow is in. A flow is listed bare, `flows/<flow>/<version>/flow.yaml`, or under who
+owns its repository on GitHub, `flows/<user>/<flow>/<version>/flow.yaml`, and is called by the
+index as it is listed: `humanize1`, `alice/kernel`. A directory of `flows/` is the one or the
+other, never both -- which is told by whether what is in it is versions. `official` lists bare
+only humanfia's flows, and no index lists anything under humanfia. The index holds no code, so
+nothing in it is ever imported: reading one is reading YAML, and fetching one again changes
+what may be installed and never what runs.
 
 What runs is a copy of the release somebody chose, kept beside the clone of its index at
-`flowverses/<flowverse>/installed/<flow>/` and read from there by everything that looks a flow
-up. The directory is named after the flow so that what a flow loads beside itself --
-`humanize1`, from inside `recursive_lean_prover` -- is found where it is found in the repository
-the two came from: the installed flows of one flowverse are each other's neighbours. It carries
-a record of what it was installed from, written into it before it is moved into place, so that
-what is there and what it says it is arrive in one move rather than two writes -- which is all
-the registry there is, and why two installs racing each other leave a whole flow behind rather
-than half of one beside a record of the other.
+`flowverses/<flowverse>/installed/<flow>/` -- `installed/<user>/<flow>/` there for one listed
+under a user -- and read from there by everything that looks a flow up. The place is what the
+index calls the flow, so that what a flow loads by that name -- `humanize1`, from inside
+`recursive_lean_prover` -- is found among the flows installed out of the same index: they are
+each other's neighbours. A flow and a user of one name are refused rather than installed one
+inside the other. Each carries a record of what it was installed from, written into it before
+it is moved into place, so that what is there and what it says it is arrive in one move rather
+than two writes -- which is all the registry there is, and why two installs racing each other
+leave a whole flow behind rather than half of one beside a record of the other.
 
 A release may name other flows of the same index it needs, each by a SemVer range. Installing
 it installs the newest release of each that the range takes, unless one already installed
@@ -34,6 +39,7 @@ import shutil
 import tempfile
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, NamedTuple, cast
+from urllib.parse import urlsplit
 
 import semver
 import yaml
@@ -46,12 +52,16 @@ from pydantic import (
     model_validator,
 )
 
-from .verses import FLOWS, INSTALLED, OFFICIAL, named, under
+from .verses import FLOWS, INSTALLED, OFFICIAL, OWNER, named, under
+from .verses import called as _called
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from .verses import Flowverse
 
 __all__ = [
+    "OURS",
     "RECORD",
     "RELEASE",
     "RESERVED",
@@ -67,13 +77,17 @@ __all__ = [
     "plan",
     "reserved",
     "satisfies",
-    "split",
     "uninstall",
     "updates",
 ]
 
-#: What one release of one flow is written down as, inside `flows/<flow>/<version>/`.
+#: What one release of one flow is written down as, inside `flows/[<user>/]<flow>/<version>/`.
 RELEASE = "flow.yaml"
+
+#: Who `official` lists flows of bare: humanize's own organisation on GitHub, which is never a
+#: user anything is listed under -- in any index, so that `@theirs/humanfia/x` is not a way of
+#: passing a flow off as humanize's.
+OURS = "humanfia"
 
 #: What an installed flow's directory carries to say what it was installed from. Hidden, so
 #: that nothing that reads a flow's directory for what the flow brings takes it for any of it.
@@ -97,6 +111,10 @@ RESERVED = frozenset(
 #: What a flow in an index may be called: a Python identifier in lower case, since it is the
 #: name the flow's module is imported as and the directory it is installed into.
 _FLOW = re.compile(r"[a-z][a-z0-9_]*\Z")
+
+#: What an index calls one of its flows, which is what a dependency names one by: the flow, or
+#: the user it is listed under and the flow.
+_LISTED = re.compile(r"(?:[a-z0-9][a-z0-9-]*/)?[a-z][a-z0-9_]*\Z")
 
 #: A commit, written out in full: the one thing a release is installed at.
 _COMMIT = re.compile(r"[0-9a-f]{40}\Z")
@@ -169,7 +187,7 @@ def _clauses(spec: str) -> list[str]:
 
 
 class Release(BaseModel):
-    """One release of one flow, as `flows/<flow>/<version>/flow.yaml` says it.
+    """One release of one flow, as `flows/[<user>/]<flow>/<version>/flow.yaml` says it.
 
     Keys nobody here knows are let through unread, so that an index written for a later
     humanize still lists for this one.
@@ -184,7 +202,10 @@ class Release(BaseModel):
       commit: What `ref` stood at when the release was reviewed, in full.
       subdir: The directory of the repository the flow is in, or "" for its root.
       license: Its licence, as SPDX names it.
-      dependencies: Other flows of the same index it needs, each with the range it takes.
+      dependencies: Other flows of the same index it needs, each by what the index calls it
+        -- `humanize1`, `alice/kernel` -- with the range it takes.
+      owner: The user it is listed under, or "" for one listed bare. Where it is in the index
+        rather than anything it says: reading an index sets it.
     """
 
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -198,6 +219,7 @@ class Release(BaseModel):
     subdir: str = ""
     license: str = ""
     dependencies: dict[str, str] = Field(default_factory=dict[str, str])
+    owner: str = ""
 
     @model_validator(mode="before")
     @classmethod
@@ -261,10 +283,25 @@ class Release(BaseModel):
     @classmethod
     def _needs(cls, value: dict[str, str]) -> dict[str, str]:
         for name, spec in value.items():
-            if not _FLOW.match(name):
-                raise ValueError(f"{name!r} is not a flow name")
+            if not _LISTED.match(name):
+                raise ValueError(f"{name!r} is not a flow name, [<user>/]<flow>")
             _clauses(str(spec))
         return {name: str(spec) for name, spec in value.items()}
+
+    @property
+    def listed(self) -> str:
+        """What the index calls it: `<flow>`, or `<user>/<flow>` for one listed under a user."""
+        return f"{self.owner}/{self.name}" if self.owner else self.name
+
+    @property
+    def owned(self) -> str:
+        """Who owns its repository on GitHub, in lower case, or "" for one elsewhere."""
+        if _OWNED.match(self.repo):
+            return self.repo.partition("/")[0].lower()
+        said = urlsplit(self.repo)
+        if (said.hostname or "") not in ("github.com", "www.github.com"):
+            return ""
+        return said.path.strip("/").partition("/")[0].lower()
 
     @property
     def semver(self) -> semver.Version:
@@ -296,9 +333,11 @@ class Index(NamedTuple):
 
     Attributes:
       verse: The flowverse.
-      releases: Every release that read, by flow and then newest first.
+      releases: Every release that read, by what the index calls its flow and then newest
+        first.
       skipped: Every manifest that did not, with why -- listed rather than raised, since one
-        bad file in somebody's index is no reason the rest of it cannot be installed from.
+        bad file in somebody's index is no reason the rest of it cannot be installed from --
+        and every directory of users that is not one.
     """
 
     verse: str
@@ -306,13 +345,13 @@ class Index(NamedTuple):
     skipped: tuple[Skipped, ...] = ()
 
     def flows(self) -> list[str]:
-        """Every flow it has a release of, alphabetically."""
-        return sorted({one.name for one in self.releases})
+        """Every flow it has a release of, by what it calls it, alphabetically."""
+        return sorted({one.listed for one in self.releases})
 
     def versions(self, flow: str) -> list[Release]:
-        """Every release of one flow, newest first."""
+        """Every release of one flow, by what the index calls it, newest first."""
         return sorted(
-            (one for one in self.releases if one.name == flow),
+            (one for one in self.releases if one.listed == flow),
             key=lambda one: one.semver,
             reverse=True,
         )
@@ -330,7 +369,7 @@ class Index(NamedTuple):
         is not ready is installed only where nothing is.
 
         Args:
-          flow: The flow.
+          flow: The flow, by what the index calls it.
           spec: A range it must fall in, or "" for any.
 
         Returns:
@@ -361,6 +400,7 @@ class Installed(BaseModel):
         are checked against.
       skills: The skills its roles name by a URL, each to the ones installing it fetched into
         its own `skills/` -- which a run of it reads from there, as it does the flow's own.
+      owner: The user the index listed it under, or "" for one it listed bare.
     """
 
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -374,6 +414,7 @@ class Installed(BaseModel):
     subdir: str = ""
     dependencies: dict[str, str] = Field(default_factory=dict[str, str])
     skills: dict[str, list[str]] = Field(default_factory=dict[str, list[str]])
+    owner: str = ""
 
     @field_validator("version")
     @classmethod
@@ -382,14 +423,19 @@ class Installed(BaseModel):
         return _versioned(value)
 
     @property
+    def listed(self) -> str:
+        """What its index calls it: `<flow>`, or `<user>/<flow>`."""
+        return f"{self.owner}/{self.name}" if self.owner else self.name
+
+    @property
     def called(self) -> str:
-        """What it is offered under: a bare name for `official`'s, `<verse>/<flow>` otherwise."""
-        return self.name if self.verse == OFFICIAL else f"{self.verse}/{self.name}"
+        """What it is offered under: `aot`, `alice/kernel` for `official`'s, `@<verse>/...` else."""
+        return _called(self.verse, self.listed)
 
     @property
     def at(self) -> Path:
         """The directory it is installed in."""
-        return kept(self.verse) / self.name
+        return kept(self.verse) / self.listed
 
 
 class Update(NamedTuple):
@@ -405,7 +451,10 @@ class Update(NamedTuple):
 
 
 def reserved() -> frozenset[str]:
-    """The names nothing installed may take: :data:`RESERVED`, and whatever the package holds."""
+    """The names no flow listed bare may take: :data:`RESERVED`, and whatever the package holds.
+
+    A flow listed under a user is called after the user too -- `alice/chat` -- and may take any.
+    """
     from .finding import BUILTIN_AT, offered
 
     return RESERVED | frozenset(offered(BUILTIN_AT))
@@ -421,19 +470,6 @@ def kept(verse: str) -> Path:
       The directory, whether or not anything has been installed into it.
     """
     return under() / verse / INSTALLED
-
-
-def split(called: str) -> tuple[str, str]:
-    """A flow's name, as it is offered, into the flowverse and the flow.
-
-    Args:
-      called: `<flowverse>/<flow>`, or a bare name for one of `official`'s.
-
-    Returns:
-      The two.
-    """
-    whose, _, flow = called.partition("/")
-    return (whose, flow) if flow else (OFFICIAL, whose)
 
 
 def index(one: Flowverse | str) -> Index:
@@ -457,28 +493,50 @@ def index(one: Flowverse | str) -> Index:
     taken = reserved()
     releases: list[Release] = []
     skipped: list[Skipped] = []
-    for flow in _directories(verse.at / FLOWS):
-        for version in _directories(flow):
-            at = version / RELEASE
-            said = _read(at, flow.name, version.name, taken)
-            if isinstance(said, Release):
-                releases.append(said)
-            else:
-                skipped.append(Skipped(at, said))
+    for top in _directories(verse.at / FLOWS):
+        inner = _directories(top)
+        if any(semver.Version.is_valid(one.name) for one in inner):
+            flows = [(top, "")]  # a flow, whose releases these are
+        elif why := _user(top.name):
+            skipped.append(Skipped(top, why))
+            continue
+        else:
+            flows = [(one, top.name) for one in inner]  # a user, whose flows these are
+        for flow, owner in flows:
+            for version in _directories(flow):
+                at = version / RELEASE
+                said = _read(at, flow.name, version.name, owner, verse.name, taken)
+                if isinstance(said, Release):
+                    releases.append(said)
+                else:
+                    skipped.append(Skipped(at, said))
     # Newest first, then by flow: the second sort keeps the first one's order within a flow.
     releases.sort(key=lambda one: one.semver, reverse=True)
-    releases.sort(key=lambda one: one.name)
+    releases.sort(key=lambda one: one.listed)
     return Index(verse.name, tuple(releases), tuple(skipped))
 
 
-def _read(at: Path, flow: str, version: str, taken: frozenset[str]) -> Release | str:
+def _user(name: str) -> str:
+    """Why a directory of `flows/` holding no versions is not a user's flows, or "" for one."""
+    if not OWNER.match(name):
+        return f"{name} is neither a flow's releases nor a GitHub user's flows"
+    if name == OURS:
+        return f"{OURS}'s flows are listed bare, as flows/<flow>/<version>/"
+    return ""
+
+
+def _read(
+    at: Path, flow: str, version: str, owner: str, verse: str, taken: frozenset[str]
+) -> Release | str:
     """One manifest, read and checked against where it is.
 
     Args:
       at: The manifest.
       flow: The directory of the flow it is in.
       version: The directory of the version it is in.
-      taken: The names it may not have.
+      owner: The user it is listed under, or "" for one listed bare.
+      verse: The flowverse whose index it is.
+      taken: The names a flow listed bare may not have.
 
     Returns:
       The release, or why it is not one.
@@ -501,11 +559,18 @@ def _read(at: Path, flow: str, version: str, taken: frozenset[str]) -> Release |
         return f"name {release.name} is not the directory it is in, {flow}"
     if release.version != version:
         return f"version {release.version} is not the directory it is in, {version}"
-    if release.name in taken:
+    if not owner and release.name in taken:
         return (
             f"{release.name} is built into humanize; nothing may be installed over it"
         )
-    return release
+    # Who a repository on GitHub is owned by is the one thing about it an index can be held to:
+    # a flow is listed under its owner, and humanize's own index lists bare only its own.
+    owned = release.owned
+    if owner and owned and owned != owner:
+        return f"{release.repo} is {owned}'s, so it is listed under flows/{owned}/"
+    if not owner and owned and owned != OURS and verse == OFFICIAL:
+        return f"{release.repo} is {owned}'s; only {OURS}'s are listed bare here"
+    return release.model_copy(update={"owner": owner})
 
 
 def installed(verse: str = "") -> list[Installed]:
@@ -518,7 +583,7 @@ def installed(verse: str = "") -> list[Installed]:
       verse: The flowverse, or "" for every one of them.
 
     Returns:
-      One apiece, by flowverse and then by name.
+      One apiece, by flowverse and then by what its index calls it.
     """
     roots = (
         [kept(verse)] if verse else [kept(one.name) for one in _directories(under())]
@@ -526,13 +591,20 @@ def installed(verse: str = "") -> list[Installed]:
     found: list[Installed] = []
     for root in roots:
         for at in _directories(root):
-            one = _record(at)
-            if (
-                one is not None
-                and one.verse == root.parent.name
-                and one.name == at.name
-            ):
-                found.append(one)
+            # A directory with no record is a user's flows, a directory deeper, or nothing.
+            places = (
+                [(at, "")]
+                if (at / RECORD).exists()
+                else [(one, at.name) for one in _directories(at)]
+            )
+            for place, owner in places:
+                one = _record(place)
+                if one is not None and (one.verse, one.owner, one.name) == (
+                    root.parent.name,
+                    owner,
+                    place.name,
+                ):
+                    found.append(one)
     return found
 
 
@@ -566,7 +638,7 @@ def updates() -> list[Update]:
         now = semver.Version.parse(one.version)
         newer = [
             each
-            for each in listed.versions(one.name)
+            for each in listed.versions(one.listed)
             if each.semver > now and (not each.semver.prerelease or now.prerelease)
         ]
         if newer:
@@ -579,7 +651,7 @@ def plan(verse: str, flow: str, version: str = "") -> list[Release]:
 
     Args:
       verse: The flowverse.
-      flow: The flow.
+      flow: The flow, by what its index calls it: `humanize1`, `alice/kernel`.
       version: The release, or "" for the newest that is not a prerelease.
 
     Returns:
@@ -589,11 +661,12 @@ def plan(verse: str, flow: str, version: str = "") -> list[Release]:
     Raises:
       ValueError: If there is no such flowverse, flow or release; if what it needs is not
         listed in a version its range takes; if two of them need one another; if two of them
-        need one flow in ranges no one version satisfies; or if installing any of them would
-        take away a version another installed flow needs.
+        need one flow in ranges no one version satisfies; if installing any of them would
+        take away a version another installed flow needs; or if one would be installed where
+        another is, a flow called what a user of the other is listed under.
     """
     listed = _index_of(verse)
-    held = {one.name: one for one in installed(verse)}
+    held = {one.listed: one for one in installed(verse)}
     asked = listed.release(flow, version) if version else listed.newest(flow)
     if asked is None:
         raise ValueError(
@@ -608,17 +681,17 @@ def plan(verse: str, flow: str, version: str = "") -> list[Release]:
     wanted: list[tuple[Release, str, str]] = []
 
     def visit(one: Release, path: tuple[str, ...]) -> None:
-        chosen[one.name] = one
+        chosen[one.listed] = one
         for need, spec in sorted(one.dependencies.items()):
             wanted.append((one, need, spec))
-            if need in (*path, one.name):
-                cycle = " -> ".join((*path, one.name, need))
+            if need in (*path, one.listed):
+                cycle = " -> ".join((*path, one.listed, need))
                 raise ValueError(f"{need} needs itself, through {cycle}")
             picked = chosen.get(need)
             if picked is not None:
                 if not satisfies(picked.version, spec):
                     raise ValueError(
-                        f"{one.name} {one.version} needs {need} {spec}, and {need} "
+                        f"{one.listed} {one.version} needs {need} {spec}, and {need} "
                         f"{picked.version} is what the rest of this install needs"
                     )
                 continue
@@ -628,10 +701,10 @@ def plan(verse: str, flow: str, version: str = "") -> list[Release]:
             picked = listed.newest(need, spec)
             if picked is None:
                 raise ValueError(
-                    f"{one.name} {one.version} needs {need} {spec}, and {verse} lists "
+                    f"{one.listed} {one.version} needs {need} {spec}, and {verse} lists "
                     "no release of it in that range"
                 )
-            visit(picked, (*path, one.name))
+            visit(picked, (*path, one.listed))
         ordered.append(one)
 
     visit(asked, ())
@@ -639,20 +712,44 @@ def plan(verse: str, flow: str, version: str = "") -> list[Release]:
         landing = chosen[need].version if need in chosen else held[need].version
         if not satisfies(landing, spec):
             raise ValueError(
-                f"{one.name} {one.version} needs {need} {spec}, and {need} {landing} is "
+                f"{one.listed} {one.version} needs {need} {spec}, and {need} {landing} is "
                 "what the rest of this install needs"
             )
     for one in ordered:
         for other in held.values():
-            if other.name in chosen:
+            if other.listed in chosen:
                 continue  # replaced by this install, whose own ranges were just checked
-            spec = other.dependencies.get(one.name)
+            spec = other.dependencies.get(one.listed)
             if spec is not None and not satisfies(one.version, spec):
                 raise ValueError(
-                    f"{other.called} {other.version} needs {one.name} {spec}; installing "
-                    f"{one.name} {one.version} would break it"
+                    f"{other.called} {other.version} needs {one.listed} {spec}; installing "
+                    f"{one.listed} {one.version} would break it"
                 )
+        clash = _clash(one.listed, {*held, *chosen})
+        if clash:
+            raise ValueError(
+                f"{one.listed} would be installed where {clash} is, out of {verse}; "
+                f"uninstall {clash} first"
+            )
     return ordered
+
+
+def _clash(listed: str, there: Iterable[str]) -> str:
+    """The flow of these another would be installed in or around, or "" for none.
+
+    A flow listed bare and a user its index lists flows under are one directory of
+    `flowverses/<flowverse>/installed/`, which an index never has both of at once and whose
+    two halves an install would otherwise make one of: `x` and `x/y`.
+    """
+    owner, _, _ = listed.rpartition("/")
+    return next(
+        (
+            other
+            for other in sorted(there)
+            if (owner and other == owner) or other.startswith(f"{listed}/")
+        ),
+        "",
+    )
 
 
 def install(verse: str, flow: str, version: str = "") -> list[Installed]:
@@ -679,7 +776,7 @@ def install(verse: str, flow: str, version: str = "") -> list[Installed]:
     """
     done: list[Installed] = []
     for one in plan(verse, flow, version):
-        have = _record(kept(verse) / one.name)
+        have = _record(kept(verse) / one.listed)
         if have is not None and (have.version, have.commit) == (
             one.version,
             one.commit,
@@ -724,7 +821,7 @@ def _put(verse: str, one: Release) -> Installed:
             f"{one.repo} at {one.commit[:12]} has no flow in {one.subdir or 'its root'}: "
             f"neither {ENTRY} nor {one.name}.py"
         )
-    root = kept(verse)
+    root = (kept(verse) / one.listed).parent
     root.mkdir(parents=True, exist_ok=True)
     _swept(root, one.name)
     holding = Path(tempfile.mkdtemp(dir=root, prefix=f".{one.name}."))
@@ -762,6 +859,7 @@ def _put(verse: str, one: Release) -> Installed:
             subdir=one.subdir,
             dependencies=one.dependencies,
             skills=skills,
+            owner=one.owner,
         )
         (held / RECORD).write_text(record.model_dump_json(indent=2), encoding="utf-8")
         _moved(held, root / one.name, holding)
@@ -822,7 +920,7 @@ def uninstall(verse: str, flow: str) -> bool:
 
     Args:
       verse: The flowverse it was installed out of.
-      flow: The flow.
+      flow: The flow, by what its index calls it.
 
     Returns:
       Whether there was one to take away.
@@ -833,26 +931,30 @@ def uninstall(verse: str, flow: str) -> bool:
       OSError: If it will not go.
     """
     at = kept(verse) / flow
-    if _record(at) is None:
+    one = _record(at)
+    if one is None or one.listed != flow:
         return False
     needing = sorted(
-        one.called
-        for one in installed(verse)
-        if one.name != flow and flow in one.dependencies
+        other.called
+        for other in installed(verse)
+        if other.listed != flow and flow in other.dependencies
     )
     if needing:
         raise ValueError(
             f"{', '.join(needing)} {'needs' if len(needing) == 1 else 'need'} {flow}; "
             "uninstall that first"
         )
-    holding = Path(tempfile.mkdtemp(dir=at.parent, prefix=f".{flow}."))
+    holding = Path(tempfile.mkdtemp(dir=at.parent, prefix=f".{at.name}."))
     try:
         # Out of its place in one move, so that what is listed never holds half a flow.
-        at.rename(holding / flow)
+        at.rename(holding / at.name)
     except FileNotFoundError:
         return False
     finally:
         shutil.rmtree(holding, ignore_errors=True)
+    if one.owner:
+        with contextlib.suppress(OSError):
+            at.parent.rmdir()  # the last of this user's flows, which leaves nothing to list
     return True
 
 

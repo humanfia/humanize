@@ -231,7 +231,7 @@ def test_a_project_s_own_flows_are_found_where_they_were_kept_before(
     flow.write_text('"""Mine."""\n')
 
     with _anew(me, named=me / "home", cwd=project):
-        found = find("local/mine")
+        found = find("@local/mine")
 
     assert found == str((project / ".hmz" / "flows" / "mine" / "__init__.py").resolve())
     assert not (project / ".humanize").exists()

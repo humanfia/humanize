@@ -107,7 +107,7 @@ async def test_the_row_says_what_the_run_is_held_to_without_being_opened(
     """A budget nobody can see without opening something is one nobody checks."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "local/quiet")
+        await _into(app, driver, "@local/quiet")
 
         assert rows(app) == ["0", _BUDGET, _PROFILING]
         assert "none set" in _said(app)
@@ -120,7 +120,7 @@ async def test_what_is_set_there_is_kept_and_read_back(
     """Beside what the flow was set up with, since it is a setting of the run beside it."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "local/quiet")
+        await _into(app, driver, "@local/quiet")
         await opens(app, driver, _BUDGET)
         await until(lambda: isinstance(app.screen, Configures), driver)
         sheet = cast("Configures", app.screen)
@@ -145,7 +145,7 @@ async def test_what_is_set_there_is_kept_and_read_back(
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
     # Written down under the flow, beside its agents, and read back by the next interface.
-    assert Settings(tmp_path).budget("local/quiet") == {
+    assert Settings(tmp_path).budget("@local/quiet") == {
         "duration": "PT1H",
         "cost": 1.0,
         "output_tokens": None,
@@ -162,14 +162,14 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_has_a_budget(
     """A run is given one before anything runs, and a menu saved without is a run refused."""
     app = Humanize()
     async with app.run_test() as driver:
-        sheet = await _into(app, driver, "local/quiet")
+        sheet = await _into(app, driver, "@local/quiet")
         await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await driver.pause()
 
         assert app.screen is sheet  # still here, holding everything it was holding
         assert "requires a budget" in _under(app)
-        assert Settings(tmp_path).flow != "local/quiet"
+        assert Settings(tmp_path).flow != "@local/quiet"
 
 
 @pytest.mark.timeout(60)
@@ -179,7 +179,7 @@ async def test_a_budget_that_limits_nothing_is_refused_where_it_is_typed(
     """At least one limit, which is what makes it a budget: none is refused on the sheet."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "local/quiet")
+        await _into(app, driver, "@local/quiet")
         await opens(app, driver, _BUDGET)
         await until(lambda: isinstance(app.screen, Configures), driver)
 
@@ -195,20 +195,20 @@ async def test_a_budget_that_limits_nothing_is_refused_where_it_is_typed(
 async def test_a_run_with_a_budget_saves_at_once(flows: Path, tmp_path: Path) -> None:
     """What was set is read back as the menu opens, and saving it asks nothing."""
     Settings(tmp_path).remember(
-        "local/quiet",
+        "@local/quiet",
         {"worker": Runs("claude/m:high")},
         budget={"duration": "PT2H"},
     )
     app = Humanize()
     async with app.run_test() as driver:
-        sheet = await _into(app, driver, "local/quiet")
+        sheet = await _into(app, driver, "@local/quiet")
         assert "stops at 2h" in _said(app)
 
         await onto(app, driver, _ACT_SAVE)
         await driver.press("enter")
         await until(lambda: app.screen is not sheet, driver)
 
-    assert Settings(tmp_path).flow == "local/quiet"
+    assert Settings(tmp_path).flow == "@local/quiet"
 
 
 @pytest.mark.timeout(60)
@@ -221,13 +221,13 @@ async def test_a_flow_run_without_the_menu_is_still_held_to_what_was_set(
     would start a run the runtime refuses, out of a workspace whose settings say six hours.
     """
     Settings(tmp_path).remember(
-        "local/quiet",
+        "@local/quiet",
         {"worker": Runs("claude/m:high")},
         budget={"duration": "PT6H"},
     )
     app = Humanize()
     async with app.run_test():
-        held = app._remembered_for("local/quiet")
+        held = app._remembered_for("@local/quiet")
 
         assert held is not None
         assert held.budget == Budget(duration=datetime.timedelta(hours=6))
@@ -238,11 +238,11 @@ async def test_one_remembered_with_no_budget_is_asked_about_rather_than_run(
     flows: Path, tmp_path: Path
 ) -> None:
     """A flow set up before it had one is set up again, rather than started to be refused."""
-    Settings(tmp_path).remember("local/quiet", {"worker": Runs("claude/m:high")})
+    Settings(tmp_path).remember("@local/quiet", {"worker": Runs("claude/m:high")})
     app = Humanize()
     async with app.run_test():
-        assert app._remembered_for("local/quiet") is None
-        assert budget_of("local/quiet") is None
+        assert app._remembered_for("@local/quiet") is None
+        assert budget_of("@local/quiet") is None
 
 
 @pytest.mark.timeout(60)
@@ -327,7 +327,7 @@ async def test_a_duration_set_there_opens_again_as_it_was_written(
     """
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "local/quiet")
+        await _into(app, driver, "@local/quiet")
         await _reopens(app, driver)
         await changes(app, driver, "duration", *typed)
         menu = await _sets(app, driver)
@@ -351,13 +351,13 @@ async def test_a_budget_kept_with_a_long_duration_opens(
     Even one whose only other limit is a cost of nothing, which the sheet would not have set.
     """
     Settings(tmp_path).remember(
-        "local/quiet",
+        "@local/quiet",
         {"worker": Runs("claude/m:high")},
         budget={"duration": "P12DT3H", "cost": 0},
     )
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "local/quiet")
+        await _into(app, driver, "@local/quiet")
         sheet = await _reopens(app, driver)
 
         assert sheet._typed_in["duration"] == "12d3h"
@@ -382,13 +382,13 @@ async def test_what_is_typed_into_a_limit_is_what_it_holds(
     Typing `5` into a cost of `0.0` once made it `0.05`.
     """
     Settings(tmp_path).remember(
-        "local/quiet",
+        "@local/quiet",
         {"worker": Runs("claude/m:high")},
         budget={"duration": "PT1H", "cost": 0.5, "output_tokens": 7},
     )
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "local/quiet")
+        await _into(app, driver, "@local/quiet")
         sheet = await _reopens(app, driver)
 
         await changes(app, driver, held, *keys)
@@ -400,7 +400,7 @@ async def test_a_limit_is_still_edited_after_the_first_key(flows: Path) -> None:
     """Only the first key replaces: backspace after it takes one letter, and an arrow nothing."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "local/quiet")
+        await _into(app, driver, "@local/quiet")
         sheet = await _reopens(app, driver)
 
         await changes(app, driver, "cost", *"25", "backspace")
@@ -432,7 +432,7 @@ async def test_whether_a_run_finishes_its_turn_is_picked_from_a_list(
 
     app = Humanize()
     async with app.run_test(size=(120, 40)) as driver:
-        await _into(app, driver, "local/quiet")
+        await _into(app, driver, "@local/quiet")
         sheet = await _reopens(app, driver)
         await changes(app, driver, "duration", *"1h")
         assert sheet._typed_in["graceful"] == "on"

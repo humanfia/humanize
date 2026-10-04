@@ -35,8 +35,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   uninstall a flow while one runs.
 - MUST say why a flow will not load: not installed, a flowverse unfetched, a module missing, a
   file broken, no flow named in it.
-- MUST read `/name` as a command, `$name [prompt]` as a flow and what to say to it, and any
-  other line as said to the conversation being read, reaching a turn already under way.
+- MUST read `/name` as a command, `$name [prompt]` as a flow and what to say to it -- `name`
+  being what `-f` takes, `@<flowverse>/` and all -- and any other line as said to the
+  conversation being read, reaching a turn already under way.
 - MUST run a `$` line at once where that flow is already set up here, otherwise open the flow
   menu inside it holding the line and run it once saved, saying nothing was started if that menu
   is walked out of.
@@ -76,11 +77,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST make `/flow` a menu of pages, as `/settings` is, its first screen two pages -- what is
   installed, and the flowverses -- opening on what is installed, or inside a flow named to it.
 - MUST list as installed only the flows humanize ships, the ones installed out of a flowverse
-  and this project's and yours, under where each came from, each installed one with its release
-  and with the newer one its index lists, the flow in force marked; and MUST offer updating,
-  uninstalling and copying the one under the cursor here whole and under its name.
-- MUST list per flowverse whether its index is fetched or written into, the flows it lists at
-  their newest release with what of each is installed, and per flow every release newest first,
+  and this project's and yours, under where each came from and by the name `-f` takes, each
+  installed one with its release and with the newer one its index lists, the flow in force
+  marked; and MUST offer updating, uninstalling and copying the one under the cursor here whole
+  and under its name.
+- MUST list per flowverse whether its index is fetched or written into, the flows it lists by
+  what it lists each as -- `<flow>`, `<user>/<flow>` -- at their newest release with what of
+  each is installed, and per flow every release newest first,
   prereleases marked and the installed one ticked; MUST install, update to or switch to the
   release chosen, with what it needs, and uninstall, fetch, add and remove a flowverse --
   removing what was installed out of it, asked first -- each at once and said under the list

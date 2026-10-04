@@ -739,12 +739,12 @@ def test_installing_a_flow_fetches_the_skills_its_roles_name_into_it(
     shutil.rmtree(theirs)
     shutil.rmtree(cached(url))
     monkeypatch.chdir(tmp_path)
-    assert ran("shelf/reads") == (["note-taking"], skill("note-taking"))
+    assert ran("@shelf/reads") == (["note-taking"], skill("note-taking"))
 
     # A fork carries no record, so what was fetched into it is its own -- and its own is what
     # the role is given for the one skill it wanted, a fork's own winning the name, with
     # nothing fetched for it.
-    fork("shelf/reads")
+    fork("@shelf/reads")
     assert ran("reads") == (["note-taking"], skill("note-taking"))
 
 

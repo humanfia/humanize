@@ -6,7 +6,7 @@ flow's own code running -- in the flow's process, with the flow's variables, on 
 thread pool -- and what that code answers is what the agent reads back.
 
 Which is what makes an agent able to call a flow. A tool whose callback is
-`lambda said: load("official/rlar")(agents, said["task"])` is an agent that can start a loop
+`lambda said: load("rlar")(agents, said["task"])` is an agent that can start a loop
 of its own and wait for what it comes to, and nothing about that is written into any backend.
 
 The road between the two is the Model Context Protocol, because that is the one way every one

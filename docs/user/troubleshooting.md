@@ -159,16 +159,31 @@ which CLI does what, and the agent sheet at `/flow` offers only the CLIs that ca
 
 **Verify.** The line gets past the check.
 
-### `nosuchflow: no flow is called 'nosuchflow', and it is not a path`
+### `nosuchflow: no flow is called 'nosuchflow'`
 
 **Symptom.** `hmz exec` cannot find the flow `-f` names.
 
-**Cause.** Nothing offers a flow by that name. A name is looked up in this project's
+**Cause.** Nothing offers a flow by that name. A bare name is looked up in this project's
 `.hmz/flows`, then in `~/.hmz/flows`, then among the flows built into humanize and
-those installed from a [flowverse](/weaver/flowverses). Anything else is read as a path.
+those installed from a [flowverse](/weaver/flowverses). Only what starts with `.`, `/` or `~` is
+read as a path.
 
-**Fix.** Check the spelling against the names `/flow` offers, or give the flow's path, or its
-repository as `git+https://…#<subdir>`.
+**Fix.** Check the spelling against the names `/flow` offers, or give the flow's path with its
+`./`, or its repository as `git+https://…#<subdir>`.
+
+**Verify.** The line is refused for nothing, or for what the flow itself needs.
+
+### `local/twice: a flow of local is called @local/twice now`
+
+**Symptom.** A name that used to work is refused, saying how it is said now.
+
+**Cause.** The flows of every place but `official` are named after an `@`: `@local/twice`,
+`@user/twice`, `@<flowverse>/<flow>`. `alice/kernel` is now a flow the official flowverse lists
+under the GitHub user `alice`, and a relative path needs its `./`
+(`flows/twice: a path starts with ./, / or ~, as ./flows/twice does`).
+
+**Fix.** Say it as the message does. What `/flow` remembered under the old names is renamed for
+you the first time `hmz` reads its settings.
 
 **Verify.** The line is refused for nothing, or for what the flow itself needs.
 
@@ -345,9 +360,9 @@ installed, open `/flow` and give the role a CLI and a model.
 | Flow | Typed as |
 | --- | --- |
 | built into humanize, or installed from the official flowverse | `$ralph_loop` |
-| this project's, in `.hmz/flows` | `$local/twice` |
-| yours, in `~/.hmz/flows` | `$user/twice` |
-| installed from another flowverse | `$<flowverse>/name` |
+| this project's, in `.hmz/flows` | `$@local/twice` |
+| yours, in `~/.hmz/flows` | `$@user/twice` |
+| installed from another flowverse | `$@<flowverse>/name` |
 
 **Fix.** Type `$` and let [completion](/user/completion) offer the names. A flow a flowverse
 lists is offered only once it is installed: type `/flow` and press **Install more…**.

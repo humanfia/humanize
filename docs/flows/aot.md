@@ -38,10 +38,10 @@ drives:   worker -- an agent
 drives:   reviewer -- an agent
 ends:     by verdict -- reviewer says done, within 6 rounds
 
-hmz exec -f local/turn_taking_review -a worker=CLI/MODEL:EFFORT -a reviewer=CLI/MODEL:EFFORT -p budget.cost=USD "the task"
+hmz exec -f @local/turn_taking_review -a worker=CLI/MODEL:EFFORT -a reviewer=CLI/MODEL:EFFORT -p budget.cost=USD "the task"
 ```
 
-At the prompt, the new flow is `$local/turn_taking_review`.
+At the prompt, the new flow is `$@local/turn_taking_review`.
 
 ## How a draft is checked
 

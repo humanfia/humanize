@@ -240,7 +240,7 @@ async def test_a_release_is_installed_by_walking_down_to_it_with_the_keys(
         assert "0.1.0" in str(
             sheet.query_one("#choices", OptionList).get_option("=demo").prompt
         )
-        assert not any(one.name == "mine/demo" for one in sheet._all())
+        assert not any(one.name == "@mine/demo" for one in sheet._all())
 
         await driver.press("enter")
         await until(lambda: sheet._page == RELEASES, driver)
@@ -250,7 +250,7 @@ async def test_a_release_is_installed_by_walking_down_to_it_with_the_keys(
         await driver.press("enter")
         await until(lambda: "is installed" in under(sheet), driver)
 
-        assert "mine/demo 0.1.0 is installed" in under(sheet)
+        assert "@mine/demo 0.1.0 is installed" in under(sheet)
         drawn = str(sheet.query_one("#choices", OptionList).get_option("=0.1.0").prompt)
         assert "installed" in drawn
         # Installed is nothing to install again.
@@ -262,14 +262,14 @@ async def test_a_release_is_installed_by_walking_down_to_it_with_the_keys(
         await until(lambda: sheet._page == HOME, driver)
         await onto(app, driver, INSTALLED)
         await driver.press("enter")
-        await until(lambda: "mine/demo" in rows(app), driver)
+        await until(lambda: "@mine/demo" in rows(app), driver)
         drawn = str(
-            sheet.query_one("#choices", OptionList).get_option("=mine/demo").prompt
+            sheet.query_one("#choices", OptionList).get_option("=@mine/demo").prompt
         )
         assert "0.1.0" in drawn
 
         await leaves(app, driver)
-        assert "mine/demo 0.1.0 is installed" in transcript(app)
+        assert "@mine/demo 0.1.0 is installed" in transcript(app)
 
 
 @pytest.mark.timeout(90)
@@ -285,24 +285,24 @@ async def test_a_newer_release_is_marked_and_updated_to(mine: Shelf) -> None:
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
         sheet = cast("Flows", app.screen)
-        await until(lambda: "mine/demo" in rows(app), driver)
+        await until(lambda: "@mine/demo" in rows(app), driver)
 
         drawn = str(
-            sheet.query_one("#choices", OptionList).get_option("=mine/demo").prompt
+            sheet.query_one("#choices", OptionList).get_option("=@mine/demo").prompt
         )
         assert "0.1.0" in drawn
         assert "↑ 0.2.0" in drawn
         # Still the release that was installed: a fetch offers an update, it does not take one.
         assert [one.version for one in shelf.installed("mine")] == ["0.1.0"]
 
-        await onto(app, driver, "mine/demo")
+        await onto(app, driver, "@mine/demo")
         await onto(app, driver, "update")
         await driver.press("enter")
         await until(lambda: "is installed" in under(sheet), driver)
 
         assert [one.version for one in shelf.installed("mine")] == ["0.2.0"]
         drawn = str(
-            sheet.query_one("#choices", OptionList).get_option("=mine/demo").prompt
+            sheet.query_one("#choices", OptionList).get_option("=@mine/demo").prompt
         )
         assert "0.2.0" in drawn
         assert "↑" not in drawn
@@ -386,7 +386,7 @@ async def test_the_whole_walk_is_a_click_apiece(mine: Shelf) -> None:
         await until(lambda: sheet._page == HOME, driver)
         await clicks(app, driver, INSTALLED)
         await until(lambda: sheet._page == INSTALLED, driver)
-        assert "mine/demo" in rows(app)
+        assert "@mine/demo" in rows(app)
 
 
 @pytest.mark.timeout(90)
@@ -546,11 +546,11 @@ async def test_a_flow_s_own_page_updates_and_uninstalls_it_with_a_click(
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
         sheet = cast("Flows", app.screen)
-        await until(lambda: "mine/demo" in rows(app), driver)
+        await until(lambda: "@mine/demo" in rows(app), driver)
 
-        await clicks(app, driver, "mine/demo")
+        await clicks(app, driver, "@mine/demo")
         await until(lambda: sheet._inside, driver)
-        assert sheet._flow == "mine/demo"
+        assert sheet._flow == "@mine/demo"
         assert {"update", "uninstall", "copy"} <= set(bar(app))
 
         await driver.click("#act-update")
@@ -560,7 +560,7 @@ async def test_a_flow_s_own_page_updates_and_uninstalls_it_with_a_click(
 
         await driver.click("#act-uninstall")
         await until(lambda: sheet._page == INSTALLED, driver)
-        assert "mine/demo is uninstalled" in under(sheet)
-        assert "mine/demo" not in rows(app)
+        assert "@mine/demo is uninstalled" in under(sheet)
+        assert "@mine/demo" not in rows(app)
         assert sheet._flow == "chat"
         assert not sheet._changed

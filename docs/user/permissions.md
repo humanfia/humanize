@@ -204,7 +204,7 @@ grants it `online` of `NONE` is refused (see
 
 Copy the flow into your project: in `/flow`, put the cursor on it and press **Copy here** under
 the list. Then change the role's grant in the copy, as [Writing a flow](/weaver/writing-a-flow)
-shows. The copy runs as `local/<flow>`.
+shows. The copy runs as `@local/<flow>`.
 
 ### On a machine somebody else manages
 

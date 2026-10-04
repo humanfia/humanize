@@ -150,7 +150,7 @@ async def test_claims_and_answers_are_drawn_on_both(
     bob = Bob(host)
     app = Humanize(link=linked(host, "alice", "tui"))
     async with app.run_test() as driver:
-        bob.link.start("asks", "the parser", budget={"cost": 1})
+        bob.link.start("./asks", "the parser", budget={"cost": 1})
         await until(lambda: app._run is not None, driver)
         assert app._run is not None
         assert app._run.by == "bob"
@@ -209,7 +209,7 @@ async def test_what_each_says_to_an_agent_is_said_by_whom_on_both(
             AgentConfig(model="m", effort="high"),
             None,
         )
-        bob.link.start("steers", TURN, agents={"coder": driver_}, budget={"cost": 1})
+        bob.link.start("./steers", TURN, agents={"coder": driver_}, budget={"cost": 1})
         (workspace / "start").write_text("")
         await until(lambda: "coder/1" in app._working, driver)
 
@@ -237,7 +237,7 @@ async def test_leaving_lets_go_of_this_interface_and_not_of_the_run(
     bob = Bob(host)
     app = Humanize(link=linked(host, "alice", "tui"))
     async with app.run_test() as driver:
-        bob.link.start("asks", "the parser", budget={"cost": 1})
+        bob.link.start("./asks", "the parser", budget={"cost": 1})
         await until(lambda: app._run is not None, driver)
         app._now_reading("outworlder:planner")
         await _types(app, driver, "/claim")

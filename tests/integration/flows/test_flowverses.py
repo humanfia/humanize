@@ -265,7 +265,7 @@ def test_fetching_takes_what_the_index_says_now_and_leaves_what_runs_alone(
     assert index(again).flows() == ["loop", "review", "third"]
     assert [one.version for one in index(again).versions("loop")] == ["0.2.0", "0.1.0"]
     assert installed() == [before]
-    assert _offered("theirs") == ["theirs/loop"]
+    assert _offered("theirs") == ["@theirs/loop"]
 
 
 def test_fetching_one_that_was_never_fetched_clones_it(
@@ -300,7 +300,7 @@ def test_one_whose_clone_is_gone_still_offers_what_was_installed_out_of_it(
 
     (one,) = [one for one in flowverses() if one.name == "theirs"]
     assert (one.url, one.fetched) == ("", False)
-    assert _offered("theirs") == ["theirs/loop"]
+    assert _offered("theirs") == ["@theirs/loop"]
     with pytest.raises(ValueError, match="no clone of an index in it"):
         store.fetch("theirs")
     assert store.remove("theirs")
@@ -330,7 +330,7 @@ def test_taking_one_away_takes_away_what_was_installed_out_of_it(theirs: Path) -
     assert not kept("theirs").exists()
     assert installed() == []
     assert _offered("theirs") == []
-    assert find("theirs/loop") == "theirs/loop"
+    assert find("@theirs/loop") == ""
 
 
 # ------------------------------------------------------------------- racing clones
@@ -479,8 +479,8 @@ def test_what_an_index_lists_is_not_a_flow_to_run_until_it_is_installed(
     store.add(str(theirs))
 
     assert _offered("theirs") == []
-    assert find("theirs/loop") == "theirs/loop"
-    assert find("loop") == "loop"
+    assert find("@theirs/loop") == ""
+    assert find("loop") == ""
 
 
 def test_an_installed_flow_is_offered_under_the_name_of_the_index_it_came_out_of(
@@ -491,9 +491,9 @@ def test_an_installed_flow_is_offered_under_the_name_of_the_index_it_came_out_of
 
     install("theirs", "loop")
 
-    assert ("theirs", "theirs/loop", "A flow of somebody else's.") in found()
-    assert _offered("theirs") == ["theirs/loop"]  # and not what it did not install
-    assert find("theirs/loop") == str((kept("theirs") / "loop" / ENTRY).resolve())
+    assert ("theirs", "@theirs/loop", "A flow of somebody else's.") in found()
+    assert _offered("theirs") == ["@theirs/loop"]  # and not what it did not install
+    assert find("@theirs/loop") == str((kept("theirs") / "loop" / ENTRY).resolve())
     # And humanize's own are still called by a bare name.
     assert (OFFICIAL, "chat") in [(one.whose, one.name) for one in found()]
 
@@ -504,7 +504,7 @@ def test_an_installed_flow_runs_by_that_name(theirs: Path) -> None:
 
     store.add(str(theirs))
     install("theirs", "loop")
-    flow = resolved("theirs/loop")
+    flow = resolved("@theirs/loop")
 
     assert [one.name for one in flow.describe().agents] == ["agent"]
     assert (
@@ -521,9 +521,9 @@ def test_uninstalling_one_takes_it_away_from_everything_that_offers_it(
     assert uninstall("theirs", "loop")
 
     assert _offered("theirs") == []
-    assert find("theirs/loop") == "theirs/loop"
+    assert find("@theirs/loop") == ""
     with pytest.raises(FlowNotFound, match="not installed"):
-        resolved("theirs/loop")
+        resolved("@theirs/loop")
     assert not uninstall("theirs", "loop")
 
 
@@ -533,7 +533,7 @@ def test_one_installed_out_of_humanize_s_own_is_said_the_same_way_as_the_package
     """One name for humanize's flows: which of its two places one is in is humanize's business.
 
     So `chat`, which is in the package, and `loop`, which was installed out of humanize's
-    index, are both a bare name -- and `official/` in front of either is the spelling that
+    index, are both a bare name -- and `@official/` in front of either is the spelling that
     says whose it is, which goes on resolving for both.
     """
     monkeypatch.setattr(store, "OFFICIAL_URL", str(theirs))
@@ -543,9 +543,9 @@ def test_one_installed_out_of_humanize_s_own_is_said_the_same_way_as_the_package
 
     assert done.called == "loop"
     assert _offered(OFFICIAL) == sorted([*SHIPPED, "loop"])
-    assert find("official/chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
+    assert find("@official/chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
     assert find("loop") == str((kept(OFFICIAL) / "loop" / ENTRY).resolve())
-    assert find("official/loop") == find("loop")
+    assert find("@official/loop") == find("loop")
 
 
 def test_the_package_s_own_wins_a_name_an_install_also_holds(
@@ -562,7 +562,7 @@ def test_the_package_s_own_wins_a_name_an_install_also_holds(
 
     assert _offered(OFFICIAL).count("chat") == 1
     assert find("chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
-    assert find("official/chat") == find("chat")
+    assert find("@official/chat") == find("chat")
 
 
 def test_a_flow_of_your_own_still_wins_a_bare_name(
@@ -582,8 +582,8 @@ def test_a_flow_of_your_own_still_wins_a_bare_name(
     assert find("loop") == str((project / ".hmz/flows/loop" / ENTRY).resolve())
     assert find("review") == str((project / ".hmz/flows/review" / ENTRY).resolve())
     # But a flowverse's own name for one is not a name anything of yours can stand in for.
-    assert find("official/loop") == str((kept(OFFICIAL) / "loop" / ENTRY).resolve())
-    assert find("theirs/review") == str((kept("theirs") / "review" / ENTRY).resolve())
+    assert find("@official/loop") == str((kept(OFFICIAL) / "loop" / ENTRY).resolve())
+    assert find("@theirs/review") == str((kept("theirs") / "review" / ENTRY).resolve())
 
 
 def test_an_installed_flow_forked_is_yours_and_says_nothing_of_where_it_came_from(
@@ -594,7 +594,7 @@ def test_an_installed_flow_forked_is_yours_and_says_nothing_of_where_it_came_fro
     install("theirs", "loop")
     monkeypatch.chdir(tmp_path)
 
-    at = fork("theirs/loop")
+    at = fork("@theirs/loop")
 
     assert at == ".hmz/flows/loop"
     assert sorted(one.name for one in (tmp_path / at).iterdir()) == [ENTRY]
@@ -615,9 +615,9 @@ def test_a_flow_an_index_lists_and_nobody_installed_says_how_to_have_it(
 
     with pytest.raises(
         FlowNotFound,
-        match=r"^theirs/loop: not installed -- install it from /flow \(flowverse theirs\)$",
+        match=r"^@theirs/loop: not installed -- install it from /flow \(flowverse theirs\)$",
     ):
-        resolved("theirs/loop")
+        resolved("@theirs/loop")
     with pytest.raises(
         FlowNotFound,
         match=r"^review: not installed -- install it from /flow \(flowverse theirs\)$",
@@ -631,10 +631,10 @@ def test_a_flowverse_that_has_not_been_fetched_says_so_rather_than_that_there_is
     """The name may be right and the download has not happened, which is a different thing."""
     with pytest.raises(
         FlowNotFound,
-        match=r"^official/nobody_wrote_this: the official flowverse has not been fetched "
+        match=r"^@official/nobody_wrote_this: the official flowverse has not been fetched "
         r"yet -- fetch it from /flow$",
     ):
-        resolved(f"{OFFICIAL}/nobody_wrote_this")
+        resolved(f"@{OFFICIAL}/nobody_wrote_this")
 
 
 def test_a_bare_name_says_so_too_when_humanize_s_own_has_not_been_fetched(

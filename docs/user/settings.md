@@ -1118,7 +1118,7 @@ carries on with what it opened with.
     whether a run of it is [profiled](#whether-a-run-of-it-is-profiled).
 
 Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one humanize
-ships, `local/twice` for a project flow, `user/twice` for a personal one. Within a flow, each
+ships, `@local/twice` for a project flow, `@user/twice` for a personal one. Within a flow, each
 agent is kept under its role name. A flow that gains a new role does not hand an existing
 role's model to it.
 

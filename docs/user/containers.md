@@ -485,7 +485,7 @@ More are in [Troubleshooting](/user/troubleshooting).
 
 ::: details `boxed`: one agent at work in a container of its own
 Save it as `.hmz/flows/boxed/__init__.py` in your project, and it is offered as
-`local/boxed`. What each line means is the [Weaver Guide's](/weaver/writing-a-flow) to explain.
+`@local/boxed`. What each line means is the [Weaver Guide's](/weaver/writing-a-flow) to explain.
 
 ```python
 """One agent at work in a container of its own."""

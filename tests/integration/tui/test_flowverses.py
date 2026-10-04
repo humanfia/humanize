@@ -109,16 +109,16 @@ async def test_a_flow_an_index_only_lists_is_not_one_to_run(mine: Shelf) -> None
     app = Humanize()
     async with app.run_test(size=(120, 40)) as driver:
         await _open(app, driver)
-        assert "mine/demo" not in rows(app)
+        assert "@mine/demo" not in rows(app)
 
     shelf.install("mine", "demo")
     again = Humanize()
     async with again.run_test(size=(120, 40)) as driver:
         sheet = await _open(again, driver)
-        await until(lambda: "mine/demo" in rows(again), driver)
+        await until(lambda: "@mine/demo" in rows(again), driver)
 
         # Under the flowverse it came from, at the release it is at.
-        assert "0.1.0" in _drawn(sheet, "mine/demo")
+        assert "0.1.0" in _drawn(sheet, "@mine/demo")
         assert " [$primary]mine[/]" in [
             str(one.prompt) for one in sheet.query_one("#choices", OptionList).options
         ]
@@ -133,13 +133,13 @@ async def test_the_flows_of_your_own_are_listed_under_where_they_are(
     app = Humanize()
     async with app.run_test(size=(120, 40)) as driver:
         sheet = await _open(app, driver)
-        await until(lambda: "local/theirs" in rows(app), driver)
+        await until(lambda: "@local/theirs" in rows(app), driver)
 
         assert " [$primary]local[/]" in [
             str(one.prompt) for one in sheet.query_one("#choices", OptionList).options
         ]
         # Nothing to update or uninstall: it is yours, and nothing installed it.
-        await onto(app, driver, "local/theirs")
+        await onto(app, driver, "@local/theirs")
         await driver.pause()
         assert app.screen.query_one("#act-uninstall", Button).disabled
         assert app.screen.query_one("#act-update", Button).disabled
@@ -220,11 +220,11 @@ async def test_one_of_the_flows_a_file_holds_is_chosen_like_any_other(
     app = Humanize()
     async with app.run_test(size=(120, 40)) as driver:
         sheet = await _open(app, driver)
-        await until(lambda: "local/three:rlcr" in rows(app), driver)
-        assert "local/three:gen-idea" in rows(app)
+        await until(lambda: "@local/three:rlcr" in rows(app), driver)
+        assert "@local/three:gen-idea" in rows(app)
 
         # The first of them takes an `n`, asked as it is chosen.
-        await onto(app, driver, "local/three:gen-idea")
+        await onto(app, driver, "@local/three:gen-idea")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Configures), driver)
         await driver.press("escape")
@@ -234,10 +234,10 @@ async def test_one_of_the_flows_a_file_holds_is_chosen_like_any_other(
 
         await driver.press("escape")
         await until(lambda: not sheet._inside, driver)
-        await onto(app, driver, "local/three:rlcr")
+        await onto(app, driver, "@local/three:rlcr")
         await driver.press("enter")
         await until(lambda: sheet._inside, driver)
-        assert sheet._flow == "local/three:rlcr"
+        assert sheet._flow == "@local/three:rlcr"
         await into_agent(app, driver)
         assert isinstance(app.screen, Agent)
         assert "builder" in str(app.screen.query_one("#asked", Label).content)
@@ -265,7 +265,7 @@ async def test_a_flow_is_copied_here_to_be_changed(
         await until(lambda: "copied to" in _under(sheet), driver)
 
         assert "chat now points to it" in _under(sheet)
-        await until(lambda: "local/chat" in rows(app), driver)
+        await until(lambda: "@local/chat" in rows(app), driver)
 
         # And once more is a copy already made: one to edit, run or take away instead.
         await onto(app, driver, "chat")
@@ -287,13 +287,13 @@ async def test_a_flow_that_will_not_load_says_why_it_would_not(tmp_path: Path) -
     app = Humanize()
     async with app.run_test(size=(120, 40)) as driver:
         sheet = await _open(app, driver)
-        await until(lambda: "local/broken" in rows(app), driver)
-        await onto(app, driver, "local/broken")
+        await until(lambda: "@local/broken" in rows(app), driver)
+        await onto(app, driver, "@local/broken")
         await driver.press("enter")
         await until(lambda: "failed to load" in _under(sheet), driver)
 
         said = _under(sheet)
-        assert "local/broken failed to load" in said
+        assert "@local/broken failed to load" in said
         assert "a_module_that_is_not_installed_anywhere" in said
 
 
@@ -339,7 +339,7 @@ async def test_a_newer_release_of_an_installed_flow_is_said_once_it_is_fetched(
     async with app.run_test() as driver:
         await until(lambda: "updates available" in transcript(app), driver)
 
-        assert "mine/demo 0.1.0 ↑ 0.2.0" in transcript(app)
+        assert "@mine/demo 0.1.0 ↑ 0.2.0" in transcript(app)
         assert "update from /flow" in transcript(app)
 
     assert [one.version for one in shelf.installed()] == ["0.1.0"]
@@ -383,11 +383,11 @@ async def test_a_fetch_that_lands_makes_an_open_menu_read_again(
     app = Humanize()
     async with app.run_test(size=(120, 40)) as driver:
         sheet = await _open(app, driver)
-        await until(lambda: "mine/demo" in rows(app), driver)
-        assert "↑" not in _drawn(sheet, "mine/demo")
+        await until(lambda: "@mine/demo" in rows(app), driver)
+        assert "↑" not in _drawn(sheet, "@mine/demo")
 
         mine.releases("0.2.0")
         await asyncio.to_thread(store.fetch, "mine")
         app._flows_changed()
 
-        await until(lambda: "↑ 0.2.0" in _drawn(sheet, "mine/demo"), driver)
+        await until(lambda: "↑ 0.2.0" in _drawn(sheet, "@mine/demo"), driver)

@@ -229,13 +229,14 @@ _UNWINDING = "it is finishing the turn it was in"
 #: The flow the interface opens on, which is the one that is only talking to one agent.
 _STARTS_ON = "chat"
 
-#: What a `$` may name, which is a flow by the name it is offered under: a letter, then what
-#: the directory holding a flow is called, `<where it came from>/<flow>` for one that says
-#: which place it came from, and `:<inside>` for one of the several a file holds. Only a line
-#: whose `$` is followed by that and then by whitespace or nothing is a flow being started --
-#: anything else after the `$`, a space, a bracket, a figure, nothing at all, names no flow
-#: there could be, and is a line somebody happened to begin with a `$`.
-_NAMED = re.compile(r"[A-Za-z][\w.-]*(?:/[A-Za-z][\w.-]*)*(?::[\w.-]+)?")
+#: What a `$` may name, which is a flow by the name it is offered under: `@<where it came
+#: from>/` for one that is not humanize's, or else a letter; then what the directory holding a
+#: flow is called, `<user>/<flow>` for one an index lists under a user, and `:<inside>` for one
+#: of the several a file holds. Only a line whose `$` is followed by that and then by
+#: whitespace or nothing is a flow being started -- anything else after the `$`, a space, a
+#: bracket, a figure, nothing at all, names no flow there could be, and is a line somebody
+#: happened to begin with a `$`.
+_NAMED = re.compile(r"(?:@[\w.-]+/|(?=[A-Za-z]))[\w.-]+(?:/[\w.-]+)?(?::[\w.-]+)?")
 
 #: How long a request made on the way out is given to be answered: the interface is going,
 #: and a host that will not answer is not one to be left behind a frozen screen for.

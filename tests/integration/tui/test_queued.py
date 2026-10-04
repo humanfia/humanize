@@ -502,7 +502,7 @@ async def test_what_a_flow_that_ended_never_took_is_said_to_have_been_dropped(
     """
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await _types(driver, "the task")
         await until(lambda: app._run is not None, driver)
 

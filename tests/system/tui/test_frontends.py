@@ -39,7 +39,7 @@ pytestmark = pytest.mark.skipif(
 PATIENCE = 60.0
 
 #: What the flow is offered as, being this project's own.
-FLOW = "local/asks"
+FLOW = "@local/asks"
 
 
 @pytest.fixture

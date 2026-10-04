@@ -219,9 +219,9 @@ class Fetches(Form[tuple[str, str]]):
         """Says what a flowverse is."""
         self.query_one("#asked", Label).update("Add a flowverse")
         self.query_one("#about", Label).update(
-            "A git repository indexing flows: flows/<flow>/<version>/flow.yaml, one "
-            "manifest per release. Its index is cloned under ~/.hmz/flowverses, and "
-            "the flows you install from it are offered under the flowverse name."
+            "A git repository indexing flows: flows/[<user>/]<flow>/<version>/flow.yaml, "
+            "one manifest per release. Its index is cloned under ~/.hmz/flowverses, and "
+            "the flows you install from it are offered as @<name>/[<user>/]<flow>."
         )
         self._fill()
 
@@ -446,10 +446,10 @@ class Flows(Drafts[Chosen]):
         return self._offers
 
     def _installs(self) -> dict[tuple[str, str], Installed]:
-        """Every flow installed out of an index, by flowverse and flow, read once."""
+        """Every flow installed out of an index, by flowverse and what it lists, read once."""
         if self._records is None:
             self._records = {
-                (one.verse, one.name): one for one in _hmz().verses.installed()
+                (one.verse, one.listed): one for one in _hmz().verses.installed()
             }
         return self._records
 
@@ -457,7 +457,7 @@ class Flows(Drafts[Chosen]):
         """The newer release each installed flow's index lists, by flowverse and flow."""
         if self._newer is None:
             self._newer = {
-                (one.installed.verse, one.installed.name): one.version
+                (one.installed.verse, one.installed.listed): one.version
                 for one in _hmz().verses.updates()
             }
         return self._newer
@@ -506,7 +506,7 @@ class Flows(Drafts[Chosen]):
         A module that holds several flows offers `<flow>:<inside>` for each but the one named
         after it, and all of them are the one install.
         """
-        from hmz.runtime.flowing.index import split
+        from hmz.runtime.flowing.verses import split
 
         return split(offer.name.partition(":")[0])
 
@@ -863,13 +863,13 @@ class Flows(Drafts[Chosen]):
         """Installs the newer release of the flow under the cursor."""
         held, newer = self._record_of_cursor(), self._newer_of_cursor()
         if held is not None and newer is not None:
-            self._installs_release(held.verse, held.name, newer)
+            self._installs_release(held.verse, held.listed, newer)
 
     def _uninstalls_cursor(self) -> None:
         """Takes the flow under the cursor away."""
         held = self._record_of_cursor()
         if held is not None:
-            self._uninstalls(held.verse, held.name)
+            self._uninstalls(held.verse, held.listed)
 
     def _forks(self) -> None:
         """Copies the flow under the cursor into this project's own, to be changed.
@@ -1412,6 +1412,9 @@ class Flows(Drafts[Chosen]):
 
     def _nothing_listed(self, listed: Index, shown: bool) -> str:  # noqa: FBT001
         """What to say under a flowverse's flows: why there are none, and what did not read."""
+        from hmz.runtime.flowing.index import RELEASE
+        from hmz.runtime.flowing.verses import FLOWS
+
         said: list[str] = []
         one = self._verse_under()
         if not shown:
@@ -1423,7 +1426,9 @@ class Flows(Drafts[Chosen]):
                 said.append("this index lists no flows yet")
         if listed.skipped:
             first = listed.skipped[0]
-            where = "/".join(first.at.parts[-3:-1])
+            # What of `flows/` it is: `<flow>/<version>`, `<user>/<flow>/<version>`, `<user>`.
+            parts = first.at.parts[:-1] if first.at.name == RELEASE else first.at.parts
+            where = "/".join(parts[len(parts) - parts[::-1].index(FLOWS) :])
             more = (
                 f" and {len(listed.skipped) - 1} more"
                 if len(listed.skipped) > 1
@@ -1458,7 +1463,7 @@ class Flows(Drafts[Chosen]):
     def _installing(self) -> Action:
         """The button that installs, updates or switches to the release under the cursor."""
         one = self._release_under()
-        held = None if one is None else self._installs().get((self._verse, one.name))
+        held = None if one is None else self._installs().get((self._verse, one.listed))
         if one is None or held is None:
             label = f"install {one.version}" if one is not None else "install"
         elif held.version == one.version:
@@ -1474,7 +1479,7 @@ class Flows(Drafts[Chosen]):
             lambda: (
                 (under := self._release_under()) is not None
                 and (
-                    (have := self._installs().get((self._verse, under.name))) is None
+                    (have := self._installs().get((self._verse, under.listed))) is None
                     or have.version != under.version
                 )
                 and not self._busy
@@ -1561,12 +1566,12 @@ class Flows(Drafts[Chosen]):
 
         Args:
           verse: The flowverse.
-          flow: The flow.
+          flow: The flow, as its index lists it.
           version: The release.
         """
-        from hmz.runtime.flowing import OFFICIAL
+        from hmz.runtime.flowing.verses import called as calling
 
-        called = flow if verse == OFFICIAL else f"{verse}/{flow}"
+        called = calling(verse, flow)
         #: Every flow the install came to, the ones it needs as well as the one asked for.
         touched: set[str] = set()
 
@@ -1575,7 +1580,7 @@ class Flows(Drafts[Chosen]):
             touched.update(one.called for one in done)
             asked, *needs = reversed(done)
             also = (
-                f", with {', '.join(f'{one.name} {one.version}' for one in needs)}"
+                f", with {', '.join(f'{one.called} {one.version}' for one in needs)}"
                 if needs
                 else ""
             )
@@ -1596,11 +1601,11 @@ class Flows(Drafts[Chosen]):
 
         Args:
           verse: The flowverse it was installed out of.
-          flow: The flow.
+          flow: The flow, as its index lists it.
         """
-        from hmz.runtime.flowing import OFFICIAL
+        from hmz.runtime.flowing.verses import called as calling
 
-        called = flow if verse == OFFICIAL else f"{verse}/{flow}"
+        called = calling(verse, flow)
 
         def uninstalling() -> str:
             _hmz().verses.uninstall(called)
@@ -1626,7 +1631,7 @@ class Flows(Drafts[Chosen]):
         """Installs the release the install button is about."""
         one = self._release_under()
         if one is not None:
-            self._installs_release(self._verse, one.name, one.version)
+            self._installs_release(self._verse, one.listed, one.version)
 
     @work
     async def _adds_verse(self) -> None:

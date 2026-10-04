@@ -1,11 +1,17 @@
 """Where flows come from: every place there is one, and what each of them is called.
 
-A flowverse is an index: a git repository of `flows/<flow>/<version>/flow.yaml`, one manifest
-per release of a flow, saying which repository and commit that release is (:mod:`index`). It is
-cloned into `~/.hmz/flowverses/<name>/index/`, and holds no code: what runs is what somebody
-chose to install out of it, which is kept beside the clone, in `installed/`, and offered under
-the flowverse's name. Fetching an index again changes what may be installed, and never what
-runs.
+A flowverse is an index: a git repository of `flows/<flow>/<version>/flow.yaml` for the flows
+it lists bare and `flows/<user>/<flow>/<version>/flow.yaml` for the ones it lists under their
+owner, one manifest per release of a flow, saying which repository and commit that release is
+(:mod:`index`). It is cloned into `~/.hmz/flowverses/<name>/index/`, and holds no code: what
+runs is what somebody chose to install out of it, which is kept beside the clone, in
+`installed/`, and offered under the flowverse's name. Fetching an index again changes what may
+be installed, and never what runs.
+
+What a flow is called says which flowverse it is of. humanize's own are said as `official`
+lists them -- `aot`, `alice/kernel` -- and every other place's after an `@` and its name:
+`@theirs/review`, `@theirs/alice/kernel`, `@local/scheduler`. Anything starting with `.`, `/`
+or `~` is a path instead, and nothing else is.
 
 Three are always there, and none of them can be added or taken away. `official` is humanize's
 own, and is there whether or not it has been fetched yet: a list that only mentioned it once
@@ -24,7 +30,7 @@ Those last two are places rather than indexes -- nothing fetches them, nothing i
 into them, and what is in one is whatever you put there -- but they are flowverses all the same,
 because everything that goes looking for a flow has one question to ask and one list to ask it
 of. A flow of yours is read where it stands, offered under the name of the place it is in the
-way an installed flow is, and looked in first: `local/chat` says which one it is, and a bare
+way an installed flow is, and looked in first: `@local/chat` says which one it is, and a bare
 `chat` finds yours before humanize's.
 
 Nothing here runs a flow, and nothing here reads one. It is the answer to "which flows are
@@ -45,24 +51,30 @@ from pathlib import Path, PurePosixPath
 from hmz import here, home
 
 __all__ = [
+    "AT",
     "FLOWS",
     "INDEX",
     "INSTALLED",
     "LOCAL",
     "MINE",
     "OFFICIAL",
+    "OWNER",
     "USER",
     "Flowverse",
     "add",
+    "called",
     "clone",
     "edited",
     "fetch",
     "flowverses",
     "holds",
     "nearest",
+    "pathed",
     "plain",
     "refresh",
     "remove",
+    "renamed",
+    "split",
     "standing",
     "under",
 ]
@@ -109,6 +121,17 @@ INSTALLED = "installed"
 #: What a flowverse may be called: one directory name, and one that cannot climb out of the
 #: directory they are kept in.
 _NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+
+#: What a flow's name starts with where it is of a flowverse other than `official`, whose own
+#: are said bare: `@theirs/review`, `@local/scheduler`.
+AT = "@"
+
+#: Who an index may list flows under, `flows/<user>/<flow>/`: a GitHub user or organisation,
+#: in lower case, which is who owns the repository the flow is in.
+OWNER = re.compile(r"[a-z0-9][a-z0-9-]*\Z")
+
+#: What a path starts with, which is how it is told from a flow's name: nothing else is one.
+_PATHED = (".", "/", "~")
 
 #: How long a fetch is given before it is called off. A clone of a repository of text files is
 #: seconds; a minute is the difference between slow and not answering.
@@ -295,6 +318,77 @@ def named(name: str) -> Flowverse | None:
     return next((one for one in flowverses() if one.name == name), None)
 
 
+def pathed(said: str) -> bool:
+    """Whether what names a flow is a path to one rather than its name: `./x`, `/x`, `~/x`."""
+    return said.startswith(_PATHED)
+
+
+def called(verse: str, flow: str) -> str:
+    """What a flow is called, given its flowverse and what that flowverse calls it.
+
+    Args:
+      verse: The flowverse.
+      flow: The flow as it lists it -- `review`, `alice/kernel` -- and `:<inside>` after it for
+        one of the other flows of its module.
+
+    Returns:
+      The name as it is for `official`, and after `@<flowverse>/` for every other one.
+    """
+    return flow if verse == OFFICIAL else f"{AT}{verse}/{flow}"
+
+
+def split(name: str) -> tuple[str, str]:
+    """A flow's name, as :func:`called` makes one, into its flowverse and what that one calls it.
+
+    Args:
+      name: `[@<flowverse>/][<user>/]<flow>`, without the `:<inside>`.
+
+    Returns:
+      The two: `@theirs/alice/kernel` is `theirs` and `alice/kernel`, and a name with no `@` is
+      `official`'s.
+
+    Raises:
+      ValueError: For what is no such name: a part empty or hidden, or one too many -- your
+        own places keep flows by name alone, so a `<user>/` is one too many in either.
+    """
+    verse, flow = OFFICIAL, name
+    if name.startswith(AT):
+        verse, _, flow = name.removeprefix(AT).partition("/")
+    parts = flow.split("/")
+    if (
+        not _NAMED.match(verse)
+        or any(not one or one.startswith(".") for one in parts)
+        or len(parts) > (1 if verse in MINE else 2)
+    ):
+        raise ValueError(
+            f"{name!r} is not a flow's name, [@<flowverse>/][<user>/]<flow>"
+        )
+    return verse, flow
+
+
+def renamed(name: str) -> str:
+    """What a flow said the way names were said before the `@` is called now.
+
+    `local/x` and `user/x` are `@local/x` and `@user/x`, `<flowverse>/x` is `@<flowverse>/x`
+    for a flowverse there is, and `official/x` is `x`. Anything else -- a name said as names
+    are now, a path, a ref, a bare name -- is as it was.
+
+    Args:
+      name: What the flow was called, `:<inside>` and all.
+
+    Returns:
+      What it is called now.
+    """
+    head, colon, inside = name.rpartition(":")
+    if not colon or "/" in inside:
+        head, inside = name, ""
+    whose, _, flow = head.partition("/")
+    if not flow or "/" in flow or named(whose) is None:
+        return name
+    now = called(whose, flow)
+    return f"{now}:{inside}" if inside else now
+
+
 def add(url: str, name: str = "") -> Flowverse:
     """Fetches a flowverse's index, and answers with what was fetched.
 
@@ -450,20 +544,32 @@ def flows(one: Flowverse) -> list[str]:
 
     Returns:
       One name per flow in the directories it holds them in, alphabetically -- a directory with
-      an `__init__.py` in it, or a single `.py` file, both of which are a module. A directory
-      without an entry point is what the flows beside it import rather than a flow, and
-      neither is a name that starts with an underscore. Nothing at all for an index nothing
-      has been installed out of: what it lists is offered to install, not to run.
+      an `__init__.py` in it, or a single `.py` file, both of which are a module -- as the
+      flowverse calls it: `review`, and `alice/kernel` for one installed out of an index's
+      `flows/alice/`. A directory without an entry point is what the flows beside it import
+      rather than a flow, and neither is a name that starts with an underscore or a dot.
+      Nothing at all for an index nothing has been installed out of: what it lists is offered
+      to install, not to run.
 
       One name apiece for `official`, which is kept in two places: a flow the package and an
       install both hold is one name here, and which of the two it resolves to is the order
       :func:`holds` puts them in.
     """
-    from .finding import offered
+    from .finding import ENTRY, offered
+    from .index import kept
 
     found_: list[str] = []
     for under_ in holds(one):
-        found_.extend(name for name in offered(under_) if name not in found_)
+        names = offered(under_)
+        if one.name not in MINE and under_ == kept(one.name):
+            # What was installed out of an index under somebody's name is a directory deeper.
+            names += [
+                f"{owner.name}/{name}"
+                for owner in sorted(_directories(under_))
+                if OWNER.match(owner.name) and not (owner / ENTRY).is_file()
+                for name in offered(owner)
+            ]
+        found_.extend(name for name in names if name not in found_)
     return sorted(found_)
 
 

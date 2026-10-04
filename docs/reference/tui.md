@@ -398,9 +398,10 @@ environment; remembered params validate against the flow's `FlowParams`; there i
 unless the flow needs none (`chat`). A flow that fails to load counts as set up (and fails
 when run).
 
-Names are those offered by completion: bare for the flows built in and those installed from
-`official` (`$chat`), `$local/<flow>`, `$user/<flow>`, `$<flowverse>/<flow>` for one installed
-from another flowverse, and `…:<name>` for another flow in the same module.
+Names are those offered by completion, which are what `-f` takes: as `official` lists them for
+the flows built in and those installed from it (`$chat`, `$alice/kernel`), `$@local/<flow>`,
+`$@user/<flow>`, `$@<flowverse>/[<user>/]<flow>` for one installed from another flowverse, and
+`…:<name>` for another flow in the same module.
 
 ## Talking to a running flow {#talking-to-a-running-flow}
 
@@ -720,7 +721,7 @@ removing happen at once.
   │   Talks to one agent for as long as you keep answering it.                               │
   │                                                                                          │
   │ mine                                                                                     │
-  │ mine/review                                                               0.1.0  ↑ 0.2.0 │
+  │ @mine/review                                                              0.1.0  ↑ 0.2.0 │
   │   Review the current diff and write the findings to REVIEW.md.                           │
   ╰──────────────────────────────────────────────────────────────────────────────────────────╯
 
@@ -809,7 +810,7 @@ files changed in the clone); under it the URL with credentials removed, `<n> flo
 
 | Button | Rule |
 | --- | --- |
-| **Add flowverse…** | Form `Add a flowverse` (`A git repository indexing flows: flows/<flow>/<version>/flow.yaml, one manifest per release. …`): `repository` (`a URL, or owner/repo for one on GitHub`), `name` (`flowverse name, or leave blank for the repository name`); **Done** `clones its index; install flows from it next`. Refusals: `repository URL is required`; `'<x>' is not a flowverse name: letters, digits, dot, dash and underscore, starting with a letter or a digit`; reserved and taken names. Then `fetching <name>…`, `<name> is fetched`; the cursor goes to it. |
+| **Add flowverse…** | Form `Add a flowverse` (`A git repository indexing flows: flows/[<user>/]<flow>/<version>/flow.yaml, one manifest per release. …`): `repository` (`a URL, or owner/repo for one on GitHub`), `name` (`flowverse name, or leave blank for the repository name`); **Done** `clones its index; install flows from it next`. Refusals: `repository URL is required`; `'<x>' is not a flowverse name: letters, digits, dot, dash and underscore, starting with a letter or a digit`; reserved and taken names. Then `fetching <name>…`, `<name> is fetched`; the cursor goes to it. |
 | **Fetch again** (**Fetch** if never fetched) | Fetches the one under the cursor: `<name> is fetched`. Not a clone: `<name> is a directory that is not a clone of anything; remove it and add it again; there is nothing to fetch`. |
 | **Remove** | Not for `official`. Asks, in a [box](#boxes), `Remove <name>?` (`Takes its index away[ and <n> installed flow(s)].`): **Remove** or **Keep**. Then `<name> was removed`. |
 | **Search…** | |
@@ -818,17 +819,18 @@ files changed in the clone); under it the URL with credentials removed, `<n> flo
 
 ### One flowverse {#flowverse-page}
 
-Each flow its index lists, alphabetically: its name, the newest release's description under it,
-and at the far end that release, `✔ <v> installed`, or `✔ <installed>  ↑ <newest>`. Under the
-list, where nothing is listed: `not fetched yet: press fetch to clone its index`,
-`this index lists no flows yet` or `no matching flows`; and where a manifest was skipped,
-yellow, `skipped <flow>/<version>: <why>[ and <n> more]`. Search: name and description. Keys
+Each flow its index lists, alphabetically, by what the index calls it (`aot`, `alice/kernel`): its
+name, the newest release's description under it, and at the far end that release,
+`✔ <v> installed`, or `✔ <installed>  ↑ <newest>`. Under the list, where nothing is listed:
+`not fetched yet: press fetch to clone its index`, `this index lists no flows yet` or
+`no matching flows`; and where a manifest or a `<user>` directory was skipped, yellow,
+`skipped [<user>/]<flow>/<version>: <why>[ and <n> more]`. Search: name and description. Keys
 `enter releases   / search   tab actions   esc back`.
 
 | Button | Rule |
 | --- | --- |
-| **Install `<v>`** · **Update to `<v>`** · **Switch to `<v>`** · **Installed** | For the flow under the cursor at its newest release: installs it and what it needs, `<flow> <v> is installed[, with <dep> <v>, …]`. **Installed** (disabled) where that release is in. |
-| **Uninstall** | Where it is installed: `<flow> is uninstalled`. |
+| **Install `<v>`** · **Update to `<v>`** · **Switch to `<v>`** · **Installed** | For the flow under the cursor at its newest release: installs it and what it needs, `<name> <v> is installed[, with <name> <v>, …]`, each by the name `-f` takes (`alice/kernel`, `@mine/review`). **Installed** (disabled) where that release is in. |
+| **Uninstall** | Where it is installed: `<name> is uninstalled`. |
 | **Fetch again** · **Search…** | As on Flowverses. |
 
 ### Releases {#releases-page}
@@ -1777,8 +1779,8 @@ and when the width changes. The status line says `· copied` for 2 s.
 | `workspaces.<dir>.flow` | directory | saving `/flow` |
 | `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, profile}` | directory, per flow | saving `/flow` |
 
-`<flow>` is the name the flow is offered under (`chat`, `local/<f>`, `user/<f>`,
-`<flowverse>/<f>`), so two flows with one bare name never share a setup. Roles are keyed by
+`<flow>` is the name the flow is offered under (`chat`, `<user>/<f>`, `@local/<f>`,
+`@user/<f>`, `@<flowverse>/<f>`), so two flows with one bare name never share a setup. Roles are keyed by
 their declared names. Params are read back through the flow's `FlowParams`. Away, claims, the
 monitor's graph/list choice are not persisted.
 

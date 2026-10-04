@@ -13,7 +13,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | accounts | `H/providers/<cli>/<name>/provider.json`; CLIs added by hand under [`clis`](#clis) in `H/settings.yaml` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
 | runtimes | [`runtimes`](#runtimes) in `H/settings.yaml` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
 | fallbacks | [`fallbacks`](#fallbacks) in `H/settings.yaml` | this machine | Fallback | this page |
-| flowverses | `H/flowverses/<name>/index/` (index clones), `H/flowverses/<name>/installed/<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
+| flowverses | `H/flowverses/<name>/index/` (index clones), `H/flowverses/<name>/installed/[<user>/]<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
 
 `H` is `$HUMANIZE_HOME`, else `~/.hmz`. A workspace is identified by its absolute,
 symlink-resolved path.
@@ -44,6 +44,7 @@ enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
 spelling: 2                        # how envs are spelled; written with every change
+naming: 2                          # how flows are named; written with every change
 fallbacks:                         # this machine; the Fallback page
 - spec: claude@work/claude-opus-5
   to: [codex/gpt-5.6-sol, dsh/deepseek-v4-flash]
@@ -65,6 +66,7 @@ runtimes:                          # this machine; the Runtimes page
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › Settings › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
 | `btw` | `str`: `cli[@account]/model:effort` | `""`: the running flow's first agent | `/settings` › Settings › **/btw agent** | the TUI | the next time `/btw` is entered |
 | <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
+| <span id="naming"></span>`naming` | `int` | absent: written before flows of other places than `official` were named after an `@` | every write of the file, as `2` | every process, as it reads the file | absent, every workspace's `flow` and `flows` keys said as before (`local/x`, `user/x`, `<flowverse>/x` for a flowverse there is, `official/x`) are renamed once (`@local/x`, `@user/x`, `@<flowverse>/x`, `x`); `2`, as written |
 
 What error reports contain and exclude is listed on `/settings` › Settings › **What is sent**.
 
@@ -84,8 +86,9 @@ loaded, and the next launch starts without it.
 ### Per flow
 
 Under `workspaces.<path>.flows.<flow>`, keyed by the flow's listed name (`rlar`,
-`local/twice`, `theirs/review`, `humanize1:gen-plan`), so a local flow never inherits the setup
-of the built-in or installed flow it shadows.
+`alice/kernel`, `@local/twice`, `@theirs/review`, `humanize1:gen-plan`), so a local flow never
+inherits the setup of the built-in or installed flow it shadows. One kept under a name from
+before the `@` is renamed once: see [`naming`](#naming).
 
 | Key | Type | Meaning | Read back |
 | --- | --- | --- | --- |

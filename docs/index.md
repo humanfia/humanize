@@ -212,7 +212,7 @@ async def twice(
 
 :::
 
-Run it like any other flow: by name from your shell, or as `$local/twice` at the prompt.
+Run it like any other flow: by name from your shell, or as `$@local/twice` at the prompt.
 
 ::: code-group
 
@@ -221,7 +221,7 @@ hmz exec -f twice -a builder=claude/claude-opus-5:high -p budget.cost=5 "Add a s
 ```
 
 ```text [at the prompt]
-$local/twice Add a subtract function to calc.py.
+$@local/twice Add a subtract function to calc.py.
 ```
 
 :::

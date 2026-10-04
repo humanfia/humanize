@@ -7,10 +7,12 @@ A ref is one of::
     git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr
                                               a flow of a repository, at a ref
 
-and, where no flow is asking -- a command line naming what to run -- `official/rlar`,
-`local/scheduler` and a path, looked up nearest first as :mod:`finding` always has. A flow
-named bare is the flow named after its directory, else the one visible flow its module holds,
-else nothing: the choice is not the runtime's to make.
+and, where no flow is asking -- a command line naming what to run -- `alice/kernel`,
+`@local/scheduler` and a path, which starts with `.`, `/` or `~`, looked up as :mod:`finding`
+does. A flow installed out of an index finds `humanize1` and `alice/kernel` among the flows
+installed out of that index first, by what it calls them. A flow named bare is the flow named
+after its directory, else the one visible flow its module holds, else nothing: the choice is
+not the runtime's to make.
 
 A `git+` ref says where a flow is the way an index's manifest does: a repository, a revision,
 and the directory of it the flow is in after the `#` -- its root where there is none -- so a
@@ -58,6 +60,7 @@ from hmz.flows import (
 
 from .declaring import NAME
 from .engine import FlowImpl, current
+from .verses import AT, INSTALLED, pathed, split, under
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -96,7 +99,7 @@ class Ref:
     Attributes:
       url: The repository of a VCS ref, as git fetches it; None otherwise.
       rev: The ref after its `@`, or None for the repository's default branch.
-      where: The flow part: a flow's name, `<flowverse>/<flow>`, a path, or "" for
+      where: The flow part: a flow's name, `[@<flowverse>/][<user>/]<flow>`, a path, or "" for
         `:<sub>` -- and for a VCS ref, the directory of the repository the flow is in, "" for
         its root.
       sub: The flow inside it after the colon, or "" for the bare form.
@@ -118,7 +121,8 @@ def parse(ref: str) -> Ref:
     """Reads a ref.
 
     Raises:
-      FlowRefError: For anything that is not one.
+      FlowRefError: For anything that is not one -- a name with a part too many among them,
+        which is what a path written without the `./` before it is.
     """
     if not isinstance(ref, str) or not ref.strip():  # pyright: ignore[reportUnnecessaryIsInstance]
         raise FlowRefError(f"{ref!r} is not a flow ref")
@@ -132,9 +136,14 @@ def parse(ref: str) -> Ref:
         return Ref(None, None, "", sub)
     where, colon, sub = said.rpartition(":")
     if not colon or "/" in sub or os.sep in sub:
-        return Ref(None, None, said, "")
-    if not where or not NAME.match(sub):
+        where, sub = said, ""
+    elif not where or not NAME.match(sub):
         raise FlowRefError(f"{ref!r} is not <flow>:<subflow>")
+    if not pathed(where):
+        try:
+            split(where)
+        except ValueError as why:
+            raise FlowRefError(f"{why}; a path starts with ./, / or ~") from None
     return Ref(None, None, where, sub)
 
 
@@ -559,11 +568,31 @@ def load(ref: str, caller_globals: Mapping[str, Any]) -> FlowImpl | Remote:
             )
         return _sub(asking, said.sub, ref)
     verse = None if asking is None else asking.verse
-    if verse is not None and "/" not in said.where:
-        entry = _entry(verse, said.where)
+    if verse is not None and not pathed(said.where) and not said.where.startswith(AT):
+        entry = _neighbour(verse, said.where)
         if entry is not None:
             return pick(module_of(entry, run), said.sub, ref)
     return pick(module_of(_found(said.where, ref), run), said.sub, ref)
+
+
+def _neighbour(verse: Path, name: str) -> Path | None:
+    """The entry point of the flow a name means beside the flow asking, or None for none.
+
+    Among the flows installed out of the same index, for a flow that is one of them, by what
+    that index calls them -- `humanize1`, `alice/kernel` -- whichever directory of them the
+    flow asking is in. Else in the directory of flows it is in, by a bare name.
+
+    Args:
+      verse: The directory of flows the flow asking is in.
+      name: The name, as it was written.
+    """
+    kept = Path(os.path.realpath(under()))
+    if verse.is_relative_to(kept):
+        # `<flowverse>/installed/`, or `<flowverse>/installed/<user>/` for one under a user.
+        parts = verse.relative_to(kept).parts
+        if len(parts) > 1 and parts[1] == INSTALLED:
+            return _entry(kept / parts[0] / INSTALLED, name)
+    return None if "/" in name else _entry(verse, name)
 
 
 def _entry(verse: Path, name: str) -> Path | None:
@@ -584,8 +613,12 @@ def _found(where: str, ref: str) -> Path:
     from .finding import find
 
     found = find(where)
-    if not Path(found).is_file():
-        raise FlowNotFound(f"{ref}: no flow is called {where!r}, and it is not a path")
+    if not found:
+        raise FlowNotFound(
+            f"{ref}: there is no flow at {where}"
+            if pathed(where)
+            else f"{ref}: no flow is called {where!r}"
+        )
     return Path(found)
 
 

@@ -458,7 +458,7 @@ async def test_a_line_typed_while_a_flow_runs_reaches_the_agent(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await driver.press(*"start")
         await driver.press("enter")
         # The turn will not end until it has been told something else, so this cannot race.
@@ -525,7 +525,7 @@ async def test_a_flow_that_fails_as_it_is_read_is_a_line_to_correct_and_not_the_
     written(workspace, "broken", 'raise FileNotFoundError("no prompt.md beside me")\n')
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "broken")
+        set_up(app, "./broken")
         await driver.press(*"do it")
         await driver.press("enter")
         await until(lambda: "prompt.md" in transcript(app), driver)
@@ -547,7 +547,7 @@ async def test_what_the_flow_did_is_on_monitor(workspace: Path) -> None:
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
@@ -779,7 +779,7 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
@@ -800,7 +800,7 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
-        assert app._flow_named == "flow"  # nothing got anywhere
+        assert app._flow_named == "./flow"  # nothing got anywhere
         assert app._models == {"coder": Runs("claude/m:high")}
         # And the monitor is not refused either: it is read, so nothing conflicts with it.
         assert "flow" in await up(app, driver)
@@ -829,7 +829,7 @@ async def test_an_agent_set_up_under_a_running_flow_is_what_the_next_run_starts_
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(lambda: bool(app._seen) and app._run is not None, driver)
@@ -865,7 +865,7 @@ async def test_two_ctrl_c_stop_the_flow_and_not_just_the_turn(workspace: Path) -
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
@@ -899,7 +899,7 @@ async def test_the_run_is_read_by_going_up_to_it_and_neither_key_stops_it(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        set_up(app, "flow")
+        set_up(app, "./flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
@@ -1984,6 +1984,28 @@ async def test_looking_at_the_flows_and_walking_out_changes_nothing(
 
 
 @pytest.mark.timeout(60)
+async def test_a_hidden_file_beside_the_flows_is_not_one_of_them(
+    tmp_path: Path,
+) -> None:
+    """A `._lx.py` a macOS tarball left behind, or a flow hidden by a dot, is listed as nothing.
+
+    No name may start with a dot, so offering one would be offering what `-f` refuses -- and
+    the menu that reads the name back would fall over on it.
+    """
+    flows = tmp_path / ".hmz" / "flows"
+    written(flows, "lx", FLOW)
+    (flows / "._lx.py").write_text(FLOW)
+    (flows / ".old").mkdir()
+    (flows / ".old" / "__init__.py").write_text(FLOW)
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_flows(app, driver)
+
+        mine = [one for one in rows(app) if one.startswith("@local/")]
+        assert mine == ["@local/lx"]
+
+
+@pytest.mark.timeout(60)
 async def test_it_is_drawn_in_the_terminals_own_colours() -> None:
     """Nothing here is a colour of ours, so there is nothing to read off the terminal.
 
@@ -2679,7 +2701,7 @@ async def test_a_list_too_long_to_walk_is_narrowed_by_typing_at_it(
 
         # This project's own flows, there being more than one of those to narrow.
         def flows() -> list[str]:
-            return [one for one in rows(app) if one.startswith("local/")]
+            return [one for one in rows(app) if one.startswith("@local/")]
 
         await until(lambda: len(flows()) == 3, driver)
         every = listing.option_count
@@ -2687,7 +2709,7 @@ async def test_a_list_too_long_to_walk_is_narrowed_by_typing_at_it(
         await driver.press("slash")
         await driver.press("c", "h", "a", "t", "t", "e")
         await driver.pause()
-        assert flows() == ["local/chatter"]
+        assert flows() == ["@local/chatter"]
 
         await driver.press("backspace")  # and one letter back is a wider list again
         await driver.pause()
@@ -3107,7 +3129,7 @@ async def test_the_person_asked_for_a_shape_is_asked_a_question_at_a_time(
     async with app.run_test() as driver:
         # As `/flow` sets it: the flow, and no agent role -- the only one it has is the
         # person, and nobody chooses who that is.
-        set_up(app, "flow", {})
+        set_up(app, "./flow", {})
         await driver.press(*"how should I do this")
         await driver.press("enter")
 
