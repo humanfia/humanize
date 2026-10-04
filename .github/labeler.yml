@@ -100,6 +100,7 @@ area/ci:
           - .github/dependabot.yml
           - .github/labeler.yml
           - .github/labels.yml
+          - .github/release.yml
           - .pre-commit-config.yaml
           - .editorconfig
           - .gitattributes

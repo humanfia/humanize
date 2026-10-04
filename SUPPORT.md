@@ -25,8 +25,9 @@ Most questions are answered already, and these answer faster than a person can:
 ## What to expect
 
 humanize is maintained by a few people, as well as they can. There is no paid support and no
-promised response time. Only the latest release and `main` are supported, so upgrade first and
-check the problem is still there.
+promised response time. Only the latest release and `main` are supported, so
+[upgrade](https://docs.humanfia.ai/humanize/user/installation#upgrade) first and check the
+problem is still there.
 
 Some questions are for someone else:
 

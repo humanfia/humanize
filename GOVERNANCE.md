@@ -31,7 +31,7 @@ Maintainers are responsible for the project as a whole. They:
 - review and merge pull requests, and decide what is in scope;
 - triage issues and set priorities;
 - keep `specs/`, the contract the code is held to;
-- cut releases;
+- cut releases, as [Releasing](https://docs.humanfia.ai/humanize/contributing/releasing) says;
 - handle vulnerability reports, as [SECURITY.md](SECURITY.md) says;
 - enforce the [Code of Conduct](CODE_OF_CONDUCT.md);
 - grant and remove access to the repositories this file covers.
