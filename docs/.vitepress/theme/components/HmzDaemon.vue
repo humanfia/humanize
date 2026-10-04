@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A run held apart from the terminal that started it. `hmz` holds a directory's runs in a host
-// of their own, one per directory, and every interface is a frontend of it over a socket
-// (`src/hmz/daemon/`, and `docs/reference/daemon.md`). Closing a terminal lets go of that
+// of their own, one per directory, and every interface is a frontend of it through the one
+// daemon socket of the machine (`src/hmz/daemon/`, and `docs/reference/daemon.md`). Closing a terminal lets go of that
 // frontend and the run goes on taking turns; `hmz` in the same directory opens a new one on
 // it, read from the top. Any number of frontends read one run: interfaces, and programs on
 // the SDK. An outworlder role one of them claims is that frontend's alone to answer; a

@@ -1,10 +1,10 @@
 """The runs humanize is holding apart from a terminal, as a tool outside reaches them.
 
 A workspace's runs outlive the program that asked for them: they are held in a process of
-their own, one per workspace, and are reached over the socket beside it. That is the other way
-in -- :class:`hmz.runtime.doing.core.Hmz` runs a flow here, in the process that asked, and
-this starts a host somewhere a terminal closing cannot end it and reaches whichever are
-already running.
+their own, one per workspace, and are reached through the one daemon of the machine. That is
+the other way in -- :class:`hmz.runtime.doing.core.Hmz` runs a flow here, in the process that
+asked, and this starts a host somewhere a terminal closing cannot end it and reaches whichever
+are already running.
 
 :mod:`hmz.daemon` is where all of it is done; this is the one object it is asked through, so
 that a tool holds one thing per way in rather than a module of functions apiece.

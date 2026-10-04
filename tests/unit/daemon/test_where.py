@@ -4,36 +4,47 @@ from __future__ import annotations
 
 import json
 import os
+import stat
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz import home
 from hmz.daemon import where
 
 if TYPE_CHECKING:
     import pathlib
 
 
-def test_two_checkouts_of_one_repository_are_two_daemons(
+def test_two_checkouts_of_one_repository_are_two_workspaces(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Named after the project and then after the whole path, so a name is not enough."""
+    """Known by the whole path, so a name is not enough."""
     one = tmp_path / "a" / "humanize"
     other = tmp_path / "b" / "humanize"
     one.mkdir(parents=True)
     other.mkdir(parents=True)
 
-    assert where.at(one) != where.at(other)
-    # And still readable: which project it is is the front of the name.
-    assert where.at(one).name.startswith("humanize-")
+    assert where.workspace(one) != where.workspace(other)
 
 
-def test_the_same_directory_is_the_same_daemon(tmp_path: pathlib.Path) -> None:
+def test_the_same_directory_is_the_same_workspace(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """However it was spelled, since a run is looked for from wherever somebody stands."""
     (tmp_path / "ws").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path / "ws")
+    monkeypatch.chdir(tmp_path / "ws")
 
-    assert where.at(tmp_path / "ws") == where.at(tmp_path / "ws" / ".")
+    spelled = {
+        where.workspace(tmp_path / "ws"),
+        where.workspace(tmp_path / "ws" / "."),
+        where.workspace(tmp_path / "link"),
+        where.workspace(),
+    }
+    assert len(spelled) == 1
 
 
 def test_a_directory_with_nothing_in_it_holds_no_daemon(tmp_path: pathlib.Path) -> None:
@@ -90,11 +101,26 @@ def test_only_one_process_holds_a_workspace_at_a_time(tmp_path: pathlib.Path) ->
     os.close(again)
 
 
-def test_every_daemon_is_kept_under_humanize_s_own_home(
-    tmp_path: pathlib.Path,
-) -> None:
-    """So that a machine holding more than one has them all in one place to list."""
-    assert where.under() == where.at(tmp_path).parent
+def test_the_daemon_is_kept_on_the_machine_it_runs_on() -> None:
+    """In this user's own corner of the machine's temporary directory, not under the home.
+
+    A home directory is mounted by every machine sharing it, and a daemon is one machine's
+    process: kept there, each machine would list the others' and check their pids against
+    its own kernel. One fixed place on the machine, so that every frontend finds the one.
+    """
+    assert where.at() == Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}"
+    assert not where.at().is_relative_to(home())
+    assert stat.S_IMODE(where.at().stat().st_mode) & 0o077 == 0
+
+
+def test_a_corner_somebody_else_could_write_is_not_trusted_with_a_daemon() -> None:
+    """In a temporary directory everybody shares, it could hold a socket of theirs."""
+    planted = Path(tempfile.gettempdir()) / f"humanize-{os.getuid()}"
+    planted.mkdir(mode=0o700)
+    planted.chmod(0o777)
+
+    with pytest.raises(PermissionError, match="only this user can write"):
+        where.at()
 
 
 def _too_long_to_name_whole(tmp_path: pathlib.Path) -> pathlib.Path:

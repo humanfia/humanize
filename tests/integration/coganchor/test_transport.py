@@ -515,6 +515,10 @@ def test_archives_nobody_has_used_in_a_while_are_swept(private_temp: Path) -> No
     old, _ = transport._built(tree, transport._stamped(tree))
     lately = old.with_name("humanize-feedfacefeedface.pyz")
     lately.write_bytes(b"used a moment ago")
+    # And this machine's daemon, which keeps its lock beside the archives for as long as it
+    # runs and never touches it by holding it.
+    lock = old.with_name("daemon.lock")
+    lock.write_bytes(b"")
     long_ago = time.time() - transport._KEPT_FOR - 60
     for stale in old.parent.iterdir():
         if stale != lately:
@@ -529,6 +533,7 @@ def test_archives_nobody_has_used_in_a_while_are_swept(private_temp: Path) -> No
 
     assert current.exists()
     assert lately.exists(), "an archive in use was swept"
+    assert lock.exists(), "the daemon's lock was swept from under it"
     assert not old.exists(), "an archive nobody had used in a while was kept"
     assert not legacy.exists()
 

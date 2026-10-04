@@ -23,14 +23,18 @@ wherever the test that takes it is filed.
 
 from __future__ import annotations
 
+import itertools
 import shutil
 import signal
+import tempfile
 import unittest.mock
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
 import pytest
 
 import hmz.coganchor.models
+import hmz.coganchor.transport
 import hmz.runtime.flowing.verses
 from hmz.runtime import telemetry
 from tests import tiers
@@ -38,7 +42,6 @@ from tests.llm import serving
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
     from hmz.coganchor.backends import Model
     from tests.llm import Serving
@@ -146,6 +149,44 @@ def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # answers it -- and the ones about the question itself do -- leaves the answer behind for
     # every test after it, and the next one that expects to be asked is never asked at all.
     telemetry.again()
+
+
+@pytest.fixture(scope="session")
+def _temporary() -> Iterator[Path]:
+    """One directory of the suite's own in the machine's temporary directory, gone after it.
+
+    Short, which `tmp_path` is not: a socket in it is reached by an address of about a
+    hundred bytes, and pytest's paths spend most of them. And removed only once the suite is
+    over rather than after each test, because what a process made there once -- a CLI's
+    scratch directory -- it goes on reaching for in the tests after.
+    """
+    held = Path(tempfile.mkdtemp(prefix="hmz-"))
+    try:
+        yield held
+    finally:
+        shutil.rmtree(held, ignore_errors=True)
+
+
+#: The next test's own directory under the suite's.
+_tests = itertools.count(1)
+
+
+@pytest.fixture(autouse=True)
+def _machine_temp(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keeps what is this machine's alone out of the temporary directory of whoever runs these.
+
+    The daemon is kept there, one per user, and a test reaching for it would otherwise reach
+    whatever humanize that person has running -- and a test stopping one could stop it. A
+    directory per test, so that each finds no daemon but the one it started; said to the
+    processes a test starts as well, so that one of them hosting runs is the daemon the test
+    looks for; and the archive a process has built is forgotten, being in the directory the
+    last test had.
+    """
+    held = _temporary / f"{next(_tests)}"
+    held.mkdir()
+    monkeypatch.setenv("TMPDIR", str(held))
+    monkeypatch.setattr(tempfile, "tempdir", str(held))
+    monkeypatch.setattr(hmz.coganchor.transport, "_bundle_held", None)
 
 
 def _handlers() -> dict[int, Any]:

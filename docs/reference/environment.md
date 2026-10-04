@@ -9,7 +9,8 @@ where humanize reads them too.
 | Process | Reads its environment when |
 | --- | --- |
 | `hmz` (the TUI) | at start; terminal and theme variables |
-| the runs host (daemon) | forked from the first `hmz` that starts it; **every variable read while a run executes is that first `hmz`'s environment**, not that of frontends attached later |
+| a workspace's runs host | forked from the first `hmz` in that workspace that starts it; **every variable read while a run executes is that first `hmz`'s environment**, not that of frontends attached later |
+| the daemon | forked from the first `hmz` on the machine that starts it; reads none for a run. `TMPDIR` decides [where it is](/reference/daemon#files): two `hmz` with different ones reach different daemons |
 | `hmz exec` | at start, and throughout its run |
 | a Python program using `hmz.sdk` / `hmz.runtime` | throughout |
 | `hmz internal …` | at start (flag defaults) |

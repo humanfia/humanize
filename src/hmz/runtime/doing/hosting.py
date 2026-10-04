@@ -46,6 +46,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+    from pathlib import Path
 
     from hmz.coganchor.agents import AgentBase, Board, Event, Question, SessionBase
     from hmz.runtime.doing.core import Hmz
@@ -55,7 +56,7 @@ if TYPE_CHECKING:
 __all__ = ["PROTOCOL", "Host", "record"]
 
 #: Which version of the messages this speaks, said to every frontend as it arrives.
-PROTOCOL = 1
+PROTOCOL = 2
 
 #: How long one text in a message may be before the rest of it is counted instead. A turn's
 #: answer is kilobytes; a tool that printed a file is the case this is for, and a frame of the
@@ -491,6 +492,13 @@ class Host:
         """Whether this host has been closed."""
         with self._lock:
             return self._closed
+
+    @property
+    def epic(self) -> Path | None:
+        """The epic of the run in view -- running, else stopping, else the last -- if any."""
+        with self._lock:
+            shown = self._current or self._stopping or self._last
+        return shown.run.epic if shown is not None else None
 
     def away_for(self, role: str) -> bool:
         """Whether nobody is there to answer as one `Outworlder` role.

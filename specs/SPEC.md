@@ -10,11 +10,15 @@ no file is named for is bound by the nearest one above it.
 ```python
 # __init__.py
 def home() -> pathlib.Path: ...
+def machine() -> pathlib.Path: ...
 ```
 
 - `home` MUST answer where humanize keeps what outlives one run of one flow, MUST be
   overridable per machine by `HUMANIZE_HOME`, and MUST NOT create the directory.
-- The top of the package MUST expose `home` and nothing else.
+- `machine` MUST answer where humanize keeps what is this machine's alone: one directory per
+  user in the machine's temporary directory, never in `home`, which machines may share. It
+  MUST create it private, and MUST refuse one somebody else could write.
+- The top of the package MUST expose `home` and `machine` and nothing else.
 
 ## Packages
 
@@ -24,7 +28,7 @@ def home() -> pathlib.Path: ...
 | `flows` | The whole of what a flow imports, and nothing besides | [flows.md](flows.md) |
 | `runtime` | What a run is: finding the flow, driving it, writing it down, reading it back | [runtime/SPEC.md](runtime/SPEC.md) |
 | `cli` | The command line | [cli.md](cli.md) |
-| `daemon` | Holding a workspace's runs where a terminal closing cannot end them, for every frontend reading them | [daemon.md](daemon.md) |
+| `daemon` | Holding every workspace's runs on a machine where a terminal closing cannot end them, for every frontend reading them | [daemon.md](daemon.md) |
 | `tui` | The terminal interface | [tui.md](tui.md) |
 | `sdk` | The way in from outside | [sdk.md](sdk.md) |
 

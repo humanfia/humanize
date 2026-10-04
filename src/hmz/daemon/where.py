@@ -1,25 +1,27 @@
-"""Where one workspace's daemon keeps its socket, and what is written down beside it.
+"""Where this machine's daemon keeps its socket, and what is written down beside it.
 
-One daemon per workspace, under humanize's own home: a directory named for the project it is
-holding, with the socket frontends reach it through and a note of what is running there. The
-note is what tells a daemon that is running from one whose machine went down without it -- a
-socket file outlives the process that bound it, and a stale one is a frontend that hangs.
+One daemon per machine and user, holding the runs of every workspace there: one directory,
+with the socket frontends reach it through and a note of what is running there. The note is
+what tells a daemon that is running from one whose machine went down without it -- a socket
+file outlives the process that bound it, and a stale one is a frontend that hangs.
+
+In the machine's temporary directory rather than under humanize's home, because a daemon is a
+process and a process is one machine's: a home directory many machines mount would have each
+of them read the others' notes, and check another kernel's pid against its own.
 """
 
 from __future__ import annotations
 
 import contextlib
 import errno
-import hashlib
 import json
 import os
-import re
 import socket
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz import home
+from hmz import machine
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -34,34 +36,28 @@ __all__ = [
     "connects",
     "held",
     "holds",
+    "now",
     "reached",
-    "under",
+    "workspace",
     "wrote",
 ]
 
-#: The socket a frontend reaches the runs through, inside the daemon's own directory.
+#: The socket a frontend reaches the runs through, inside the daemon's directory.
 SOCKET = "daemon.sock"
 
 #: What is written down about the daemon there: which process, which workspace, since when.
 RECORD = "daemon.json"
 
-#: Where whatever the daemon itself could not say to a frontend goes -- a crash before one
-#: was attached, after the last one let go, or a directory that went away under
-#: whoever was reaching for the socket.
+#: Where whatever belongs to no run goes: what the daemon could not say to a frontend -- a
+#: crash before any run was started, a round of messages it could not carry -- and a
+#: directory that went away under whoever was reaching for the socket. What belongs to a run
+#: is written into that run's epic instead.
 LOG = "daemon.log"
 
-#: What the one daemon of a workspace holds for as long as it is running. A lock rather than
+#: What the one daemon of this machine holds for as long as it is running. A lock rather than
 #: a file that is looked at: the kernel drops it when the process goes, however it goes, so
 #: there is no such thing as one left behind by a machine that was turned off.
 LOCK = "daemon.lock"
-
-#: What a directory may be called after: everything else in a path is flattened, the way a
-#: epic flattens the workspace it was run in.
-_PLAIN = re.compile(r"[^A-Za-z0-9]+")
-
-#: How much of the workspace's own name is kept in front of the digest of the whole path. A
-#: directory of these is read by people, and `humanize-a1b2c3d4e5f6` says which project.
-_KEPT = 24
 
 #: The longest a socket may be reached by its whole path. What a Unix socket address holds is
 #: about a hundred bytes -- 108 on Linux, 104 on macOS -- and the shorter of the two is what
@@ -70,28 +66,30 @@ _KEPT = 24
 _LONGEST = 100
 
 
-def under() -> Path:
-    """Where every workspace's daemon is kept, which is one directory under humanize's home."""
-    return home() / "daemons"
+def at() -> Path:
+    """The directory this machine's daemon keeps its socket in, made private where it is not yet.
+
+    This user's own directory in the machine's temporary directory, which nothing but humanize
+    names: one fixed place per machine and user, so that every frontend on the machine finds
+    the one daemon, and short, so that its socket is an address whole.
+
+    Raises:
+      PermissionError: If it is one somebody else could write, and so could have planted a
+        socket in.
+    """
+    return machine()
 
 
-def at(workspace: str | os.PathLike[str] | None = None) -> Path:
-    """The directory one workspace's daemon keeps its socket in.
+def workspace(where: str | os.PathLike[str] | None = None) -> str:
+    """A workspace as the daemon knows it by: the whole path, with every link followed.
 
     Args:
-      workspace: The project directory, or None for wherever humanize is being run.
+      where: The project directory, or None for wherever humanize is being run.
 
     Returns:
-      The directory. It is not made here: it is made by the daemon that binds the socket.
-
-    Note:
-      Named for the project and then for the whole path it is at, since two checkouts of one
-      repository are two workspaces and would otherwise be one daemon.
+      The path, which two spellings of one directory are one of.
     """
-    where = Path(workspace or Path.cwd()).resolve()
-    named = _PLAIN.sub("-", where.name).strip("-")[:_KEPT] or "workspace"
-    digest = hashlib.sha256(str(where).encode()).hexdigest()[:12]
-    return under() / f"{named}-{digest}"
+    return str(Path(where or Path.cwd()).resolve())
 
 
 @contextlib.contextmanager
@@ -186,12 +184,12 @@ def _logged(where: Path, about: str) -> None:
 
 
 def holds(where: Path) -> int:
-    """Takes the one daemon of this workspace, for as long as this process lives.
+    """Takes the one daemon of this machine, for as long as this process lives.
 
-    One daemon per workspace: two runs of one project in one directory are two flows writing
-    over each other's epic. A lock rather than a file somebody looks at, because looking is
-    what leaves a window between the look and the socket -- two `hmz` started in the same
-    second would both find nothing and both bind.
+    One daemon per machine: two would be two answers to which workspace is held where, and two
+    hosts of one project are two flows writing over each other's epic. A lock rather than a
+    file somebody looks at, because looking is what leaves a window between the look and the
+    socket -- two `hmz` started in the same second would both find nothing and both bind.
 
     Args:
       where: The daemon's own directory, which must already be there.
@@ -237,6 +235,17 @@ def wrote(where: Path, said: dict[str, Any]) -> None:
     except BaseException:
         Path(beside).unlink(missing_ok=True)
         raise
+
+
+def now() -> str:
+    """This moment, to the second, which is how long a note of when a process started has to be.
+
+    Returns:
+      It, in UTC, as `%Y-%m-%dT%H:%M:%SZ`.
+    """
+    import datetime
+
+    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def held(where: Path) -> dict[str, Any]:

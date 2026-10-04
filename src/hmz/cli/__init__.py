@@ -439,13 +439,14 @@ def opens() -> int:
     import time
 
     from hmz import daemon
+    from hmz.daemon.proto import PROTOCOL
 
     failed: OSError | None = None
     for _ in range(_TRIES):
         found = daemon.running()
-        if found is not None and not found.protocol:
-            # Runs held for a terminal by an older humanize, which nothing here can read and
-            # which a second host beside it would fight over the directory with.
+        if found is not None and found.protocol != PROTOCOL:
+            # This machine's runs held by an older humanize, which nothing here can read and
+            # which a second daemon beside it would fight over the socket with.
             print(f"hmz: {daemon.older(found)}", file=sys.stderr)
             return 1
         try:

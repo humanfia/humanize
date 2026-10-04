@@ -1,9 +1,9 @@
 """One frontend's end of a workspace's runs: requests out, and messages about the runs in.
 
-A frontend -- an interface or a program -- reaches the runs of a workspace one of
-two ways: over the socket of the host holding them where a terminal closing cannot end them,
-or in its own process, holding them itself. Both are this, so that a frontend is written once
-and is told which of the two it has been handed where it asks for one.
+A frontend -- an interface or a program -- reaches the runs of a workspace one of two ways:
+through this machine's daemon, handed to the host holding them where a terminal closing cannot
+end them, or in its own process, holding them itself. Both are this, so that a frontend is
+written once and is told which of the two it has been handed where it asks for one.
 
 What it is told arrives in order, on a thread that is not the caller's: handed to a listener
 once one is set, and read by iterating the link until then. What it asks is answered on the
@@ -369,12 +369,14 @@ class _Carried:
 
 
 def reached(
-    at: Path, name: str = "", kind: str = "sdk", *, replay: bool = True
+    at: Path, workspace: str, name: str = "", kind: str = "sdk", *, replay: bool = True
 ) -> Link:
-    """A frontend of runs a host is holding, reached over its socket.
+    """A frontend of runs a host is holding, reached through this machine's daemon.
 
     Args:
-      at: The daemon's own directory.
+      at: The daemon's directory.
+      workspace: The workspace whose runs these are, as :func:`hmz.daemon.where.workspace`
+        says it: the daemon hands this frontend to the host holding them.
       name: What the frontend is called, or "" for whoever is at this end.
       kind: What it is: `tui`, `cli` or `sdk`.
       replay: Whether to be told the run so far, or only what happens from here.
@@ -406,6 +408,7 @@ def reached(
         said = link.asked(
             {
                 "do": "hello",
+                "workspace": workspace,
                 "name": name or f"{user or 'somebody'}@{kind}",
                 "kind": kind,
                 "replay": replay,
