@@ -5,13 +5,13 @@ holds those agents back is worth reporting privately, and this file says how.
 
 ## Supported versions
 
-humanize is before 1.0. A security fix lands on `main` first and ships in the next release; it
-is not backported.
+humanize is before 1.0, and not released yet. A security fix lands on `main` first and, once
+there are releases, ships in the next one; it is not backported.
 
 | Version | Supported |
 | --- | --- |
-| the latest release | yes |
 | `main` | yes |
+| the latest release, once there is one | yes |
 | any older release | no: upgrade |
 
 ## Reporting a vulnerability

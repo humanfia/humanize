@@ -26,6 +26,6 @@ body:
     attributes:
       label: Version
       description: |
-        What `hmz --version` prints. If you installed from git rather than a release, say so, and
-        when.
+        What `hmz --version` prints, and when you installed or last upgraded it: nothing is
+        released yet, so every install is of `main` from git, which keeps one version number.
       placeholder: hmz 0.1.0

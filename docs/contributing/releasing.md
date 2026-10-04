@@ -10,7 +10,8 @@ never replaced: one that turns out broken is yanked, and the next one fixes it.
 ::: warning No release yet
 humanize has not been released, so every install is of `main` from GitHub. The first release
 also turns each `git+https://github.com/humanfia/humanize.git` in `README.md` and the docs
-into plain `hmz`.
+into plain `hmz`, and `SUPPORT.md`, `SECURITY.md` and the bug report and question templates
+back to supporting, and asking for, a release.
 :::
 
 ::: info Before you start
