@@ -21,9 +21,11 @@ runs, where somebody chose something and is waiting on the answer -- and everyth
 reads what was kept. A catalogue that has never been asked for is empty rather than guessed
 at: a model nobody can run is worse than a list somebody has to fill.
 
-What is kept for an account lives with that account, so that taking the account away takes its
-catalogue with it: they are the same fact. The account nobody chose -- the CLI as whoever is at
-this machine already runs it -- keeps its own under humanize's home.
+What is kept is a cache, and a cache is this machine's: it lives in humanize's directory for
+this machine, one file per backend and account, and is never kept in humanize's home. Taking an
+account away takes its catalogue with it, being the same fact. The account nobody chose -- the CLI
+as whoever is at this machine already runs it -- keeps its own beside them under a name no account
+can be made under.
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ import urllib.parse
 import urllib.request
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz import home
+from hmz import machine
 from hmz.coganchor import providers
 from hmz.coganchor.backends import Model, elsewhere, named, speaking
 
@@ -62,12 +64,13 @@ WAITING = 180.0
 #: -- and every id in a list nobody asked again is offered as if it were not.
 STALE = datetime.timedelta(days=7)
 
-#: Where the catalogue of the account nobody chose is kept, under humanize's own home. A
-#: provider's is kept in the provider's own directory instead.
+#: Where every catalogue is kept, under humanize's directory for this machine: one directory
+#: per backend, and one file in it per account.
 _UNDER = "models"
 
-#: What the file is called inside a provider's directory.
-_HELD = "models.json"
+#: What the catalogue of the account nobody chose is called. An account's name starts with a
+#: letter or a digit, so one starting with anything else is never somebody's account.
+_LOCAL = "_local"
 
 #: The id the one thing said to Claude Code is sent under, which it answers by.
 _ASKS = "models"
@@ -155,13 +158,15 @@ def where(cli: str, provider: str = "") -> Path:
     Raises:
       ValueError: If the backend is not one there is, or the name is not one a provider could
         have been made under.
+      PermissionError: If humanize's directory for this machine is not this user's alone.
     """
     profile = named(cli)
     if profile is None:
         raise ValueError(f"{cli}: no such coding agent")
     if provider:
-        return providers.where(profile.name, provider) / _HELD
-    return home() / _UNDER / f"{profile.name}.json"
+        # Asked for its refusal alone: a name no provider could be made under is not a file.
+        providers.where(profile.name, provider)
+    return machine() / _UNDER / profile.name / f"{provider or _LOCAL}.json"
 
 
 def offered(cli: str, provider: str = "") -> tuple[Model, ...]:

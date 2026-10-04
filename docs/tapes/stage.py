@@ -166,10 +166,13 @@ def _models() -> None:
             {"name": "gpt-5.6-sol", "efforts": ["xhigh", "high", "medium", "low"]},
         ],
     }
-    at = HOME / "models"
-    at.mkdir(parents=True, exist_ok=True)
+    from hmz.coganchor.models import where
+
     for cli, models in said.items():
-        (at / f"{cli}.json").write_text(
+        # Where a real catalogue goes: this machine's own directory, which is the image's.
+        at = where(cli)
+        at.parent.mkdir(parents=True, exist_ok=True)
+        at.write_text(
             json.dumps(
                 {
                     "asked": WHEN.strftime("%Y-%m-%dT%H:%M:%SZ"),

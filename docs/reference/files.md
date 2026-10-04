@@ -48,10 +48,8 @@ H/
 ├── fallbacks.json                      where a failed turn goes next
 ├── acp.json                            CLIs added by hand (ACP)
 ├── prices.json                         the price table
-├── models/<cli>.json                   model catalogue of the CLI's own sign-in
 ├── providers/<cli>/<name>/             accounts
 │   ├── provider.json
-│   ├── models.json
 │   └── home/ user/ config/             credential files the CLI writes
 ├── runtimes/                           was env-providers/; moved on first use
 │   ├── ssh/<name>/runtime.json
@@ -66,7 +64,6 @@ H/
 │   └── mirrors/<container or service>/<digest>/
 ├── harness/                            workdir of a harness an affinity puts on a docker daemon here
 ├── epics/<ws>/<stamp>-<hex6>/          one run
-├── sessions/<cli>/                     sessions of agents no run drives
 ├── compiled/{pi,qwen}/                 Node compile caches
 ├── docker-ssh/<sha256[:16]>/ssh        ssh shim for docker over ssh
 └── patched/<cli>-<pid>-<rand>/         patched CLI copies (unused in production)
@@ -150,8 +147,10 @@ naming) more than 10 min old, left by a process that exited mid-write.
 
 ### Model catalogues
 
-`H/models/<cli>.json` (the CLI's own sign-in) and `H/providers/<cli>/<name>/models.json` (an
-account):
+A cache, so on this machine rather than in `H`:
+`$TMPDIR/humanize-<uid>/models/<cli>/<name>.json` for an account, and
+`$TMPDIR/humanize-<uid>/models/<cli>/_local.json` for the CLI's own sign-in (no account name
+starts with `_`). An account's is deleted when the account is removed:
 
 ```json
 {"asked": "2026-09-30T05:33:55Z", "models": [{"name": "…", "efforts": ["low", "high"], "swarms": false}]}
@@ -363,12 +362,6 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 
 Epics are never deleted by humanize.
 
-### `H/sessions/<cli>/`
-
-Sessions of agents driven with no run (the agent API, `/btw`), laid out as the CLI's home.
-Like an epic's `sessions/`, it is the only copy of those conversations. Not used under
-[`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions).
-
 ### `<workspace>/.hmz/<epic>.epic.tar.gz`
 
 An [exported run](/reference/tracing#export). Written with `mkstemp` (mode `0600`) and renamed;
@@ -401,6 +394,7 @@ Every path in this section is safe to delete while humanize is not running.
 | `$TMPDIR/humanize-<uid>/daemon.sock`, `daemon.json` (`0600`) | the [daemon](/reference/daemon#files) of this machine and user, which every workspace's runs are reached through: its socket, and `{"pid": int, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "daemon", "protocol": int}` via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename | when the daemon closes |
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
 | `$TMPDIR/humanize-<uid>/daemon.log` (`0600`) | what belongs to no run: the daemon's stdout and stderr, and a host process's before it holds a run; what belongs to a run is the epic's [`host.log`](#h-epics-ws-stamp-hex6) | kept, never rotated |
+| `$TMPDIR/humanize-<uid>/models/<cli>/<name>.json`, `_local.json` | [model catalogues](#model-catalogues) of each account and of the CLI's own sign-in | an account's when it is removed; the rest kept |
 | `$TMPDIR/humanize-*` | a docker environment's cid file and machine shadow | with the container |
 | `${XDG_RUNTIME_DIR:-$TMPDIR}/humanize-ssh-<uid>/%C[-<hex8>]` (`0700`) | ssh control sockets ([`HUMANIZE_SSH_REUSE`](/reference/environment#humanize-ssh-reuse)) | 120 s after last use |
 | `/dev/shm/hmz-<pid>-<hex16>-*/<n>.<file>` (`0700`/`0600`) | credential copies staged for a turn (≤ 1 MiB each) | on close; dead-pid directories swept |
@@ -429,7 +423,7 @@ when their content changes.
 
 ## Retention
 
-Nothing prunes `epics/`, `sessions/`, `skills/`, worktrees under
+Nothing prunes `epics/`, `skills/`, worktrees under
 `envs/`, snapshot refs, `compiled/`, `docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
 Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
