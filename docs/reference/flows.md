@@ -56,7 +56,7 @@ Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__
 | Group | Names |
 | --- | --- |
 | Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
-| Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) |
+| Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`KeptSession`](#keptsession), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) |
 | Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent` ([table](#what-each-harness-serves)) |
 | Agent mixins | `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
@@ -286,7 +286,8 @@ class Agent(Protocol):
     effort: str
     provider: str
 
-    async def spawn(self, *, env: Env) -> Session: ...
+    async def spawn(self, *, env: Env,
+                    carry_on: KeptSession | None = None) -> Session: ...
     async def run(self, prompt: str, *, session: Session,
                   output_schema: type[M] | None = None,
                   budget: Budget | None = None) -> str | M: ...
@@ -581,16 +582,26 @@ answer.
 ### `Agent.spawn` {#spawn}
 
 ```python
-async def spawn(self, *, env: Env) -> Session
+async def spawn(self, *, env: Env, carry_on: KeptSession | None = None) -> Session
 ```
 
 Opens a session working in `env`'s workdir, on `env`'s machine. Starts no CLI: the CLI is
 started by the first turn. Where the session's harness runs is settled here; see
 [Harness placement](#harness-placement).
 
+With `carry_on`, the session is a fork of a conversation kept by this run or an earlier one:
+another session's [`kept`](#session), written down and handed back. Its first turn starts out
+knowing what that conversation knew, as a [fork](#fork)'s does. The conversation's files are
+copied into where this run keeps its sessions as that turn starts; the ones they were copied
+from are left as they were, so one kept conversation can be carried on any number of times.
+
 | Condition | Raises |
 | --- | --- |
 | `env` not an environment the run handed out | `TypeError`: `<env> is not an environment this run handed out` |
+| `carry_on` kept by another harness | `UnsupportedOperation`: `<harness> cannot carry on a conversation <harness> kept` |
+| `carry_on` on a harness that does not fork | `UnsupportedOperation`: `<harness> cannot fork a session` |
+| `carry_on` with `env` on another machine | `UnsupportedOperation`: `<harness> cannot carry a kept conversation onto another machine` |
+| `carry_on` not under its `directory` | `SessionError`: `the session cannot be forked: <harness>: no conversation <id> under <directory>` |
 | the call's caller or the run has ended | `FlowCancelled` |
 | the agent's driver is closed | `SessionError`: `the agent's driver is closed` |
 | a local workdir that is not a directory | `SessionError`: `<dir> is not a directory to open a session in` |
@@ -694,6 +705,7 @@ class Session(Protocol):
     agent: Agent       # read-only properties
     env: Env
     usage: Usage
+    kept: KeptSession | None
 ```
 
 | Property | Value |
@@ -701,6 +713,7 @@ class Session(Protocol):
 | `agent` | The agent whose conversation this is. |
 | `env` | The environment it works in. |
 | `usage` | What its turns have spent, current on every read. |
+| `kept` | Where its CLI keeps the conversation, for [`spawn(carry_on=…)`](#spawn) here or in a later run; `None` before a turn has named it, and always for an outworlder's session. |
 
 **Lifetime.** There is no `close`. A session is closed at the earlier of:
 
@@ -711,6 +724,21 @@ class Session(Protocol):
 Closing runs on the run's event loop exactly once and fires `SESSION_END`. A fork keeps its
 parent open until the fork's first turn. A turn that is cancelled (a `TaskGroup` sibling
 failing, a deadline, <kbd>ctrl+c</kbd>) interrupts the CLI.
+
+### `KeptSession` {#keptsession}
+
+```python
+@dataclass(frozen=True, slots=True)
+class KeptSession:
+    harness: HarnessKind
+    id: str          # what the CLI calls the conversation
+    directory: str   # where it is kept, laid out as the CLI lays out its home
+```
+
+Plain data: `dataclasses.asdict` writes one down and `KeptSession(**fields)` reads it back,
+so a flow can keep one beside a snapshot of its workspace and hand it to a run that has not
+started yet. `directory` is a run's `sessions/<cli>/` while the run's epic is there; a copy
+of that directory serves as well.
 
 ## Hooks {#hooks-in-a-flow}
 
@@ -845,7 +873,7 @@ the run; naming it with `-a` is refused
 
 | Member | Behaviour |
 | --- | --- |
-| `spawn(env=…)` | Opens a session of the outworlder. |
+| `spawn(env=…)` | Opens a session of the outworlder. With `carry_on`, `UnsupportedOperation`: `an outworlder carries on no conversation`. |
 | `run(prompt, session=…, output_schema=None)` | Asks the person and returns what they typed; with `output_schema`, asks one question per field and builds the model. |
 | `away` | `True` under `hmz exec` (no one is at a prompt) and while [`/afk`](/user/afk) is on for the role. |
 | `Outworlder.new()` | A new outworlder answered by the flow through `on_outworlder_run`. Away until a hook is hung. |

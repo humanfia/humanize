@@ -210,6 +210,12 @@ class Usage(pydantic.BaseModel):
     cost: float = 0.0 # In USD.
     output_tokens: int = 0
 
+@dataclass(frozen=True)
+class KeptSession:
+    harness: HarnessKind
+    id: str # The harness's own id for the conversation.
+    directory: str # Where it is kept, laid out as the harness lays out its home: a run's `sessions/<cli>/`, or a copy of one.
+
 class Session(Protocol):
     @property
     def agent(self) -> Agent: ...
@@ -219,6 +225,9 @@ class Session(Protocol):
 
     @property
     def usage(self) -> Usage: ... # Live updated.
+
+    @property
+    def kept(self) -> KeptSession | None: ... # None before a turn has named the conversation.
 
 class Agent(Protocol):
     _permission: ClassVar[Permission]
@@ -286,7 +295,9 @@ class Agent(Protocol):
         self,
         *,
         env: Env,
+        carry_on: KeptSession | None = None,
     ) -> Session: ...
+        # With `carry_on`, the session forks a conversation kept by this run or an earlier one, copied into where this run keeps its sessions; the copy it came from is left as it was. Refused (UnsupportedOperation) for a harness that cannot fork, did not keep it, or works on another machine, and (SessionError) for a conversation that is not where it says.
 
 class Outworlder(Agent, Protocol): ...
     # Automatically added to the agent collection if requested, and the user cannot override it.

@@ -68,6 +68,7 @@ if TYPE_CHECKING:
         EnvBackendKind,
         HarnessKind,
         HookResult,
+        KeptSession,
         Permission,
         Usage,
     )
@@ -517,6 +518,11 @@ class SessionHandle(Protocol):
         ...
 
     @property
+    def kept(self) -> KeptSession | None:
+        """Where the CLI keeps the conversation, or None before it has said its id."""
+        ...
+
+    @property
     def usage(self) -> Usage:
         """Everything this session's turns have spent, up to the moment it is read."""
         ...
@@ -609,6 +615,7 @@ class AgentDriver(Protocol):
         skills: tuple[Skill, ...],
         hooks: HookTable,
         fork_of: SessionHandle | None = None,
+        carry_on: KeptSession | None = None,
     ) -> SessionHandle:
         """Opens a session.
 
@@ -620,13 +627,17 @@ class AgentDriver(Protocol):
           skills: What skills it is given.
           hooks: What is hung on the agent, which the session reaches as its moments arrive.
           fork_of: A session of this driver to carry on from, or None for a fresh one.
+          carry_on: A conversation kept by this run or an earlier one to carry on from, or
+            None; never given with `fork_of`.
 
         Returns:
           The session.
 
         Raises:
           UnsupportedOperation: If `fork_of` is given and the harness cannot fork, or not
-            into `placement`.
+            into `placement`; or `carry_on` is, and the harness cannot fork, did not keep it,
+            or works on another machine.
+          SessionError: If `carry_on` is not where it says it is kept.
           HarnessNotInstalled: If the CLI is not installed where `placement` is.
           HarnessError: The leaf for why the CLI could not be started.
         """

@@ -10,7 +10,9 @@ go of it.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import gc
+import json
 import math
 import threading
 from typing import TYPE_CHECKING, Any, cast
@@ -25,12 +27,15 @@ from hmz.flows import (
     EnvCollection,
     FlowContext,
     FlowParams,
+    HarnessKind,
+    KeptSession,
     NotificationHookParams,
     NotificationHookResult,
     Session,
     SessionEndHookParams,
     SessionEndHookResult,
     SessionError,
+    UnsupportedOperation,
     UserPromptSubmitHookParams,
     UserPromptSubmitHookResult,
     flow,
@@ -555,3 +560,85 @@ async def test_a_hook_failing_between_turns_keeps_no_session_open() -> None:
         assert await run_fake(failing)
     finally:
         gc.enable()
+
+
+async def test_a_conversation_kept_by_one_run_is_carried_on_by_a_later_one() -> None:
+    """What a session's `kept` says outlives its run, and a later run's session forks it."""
+
+    @flow(agents=Solo, envs=Place, params=Rounds)
+    async def keeping(
+        task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
+    ) -> tuple[KeptSession | None, KeptSession | None]:
+        agent, env = agents["agent"], envs["env"]
+        session = await agent.spawn(env=env)
+        unnamed = session.kept
+        await agent.run("the codeword is papaya", session=session)
+        return unnamed, session.kept
+
+    @flow(agents=Solo, envs=Place, params=Rounds)
+    async def carrying(
+        task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
+    ) -> str:
+        agent, env = agents["agent"], envs["env"]
+        kept = KeptSession(**json.loads(task))
+        session = await agent.spawn(env=env, carry_on=kept)
+        return await agent.run("what was the codeword?", session=session)
+
+    first = FakeAgentDriver(reply=_echo)
+    unnamed, kept = await run_fake(keeping, agents={"agent": first})
+    assert unnamed is None
+    assert kept is not None
+    assert kept.harness is HarnessKind.CLAUDE
+    later = FakeAgentDriver(reply=_echo)
+    written = json.dumps(
+        dataclasses.asdict(kept)
+    )  # what a flow writes down, and reads back
+
+    assert await run_fake(carrying, written, agents={"agent": later}) == (
+        "what was the codeword?"
+    )
+    (carried,) = later.sessions
+    assert carried.carried_on == kept
+    assert carried.prompts == ["the codeword is papaya", "what was the codeword?"]
+    assert first.sessions[0].prompts == ["the codeword is papaya"]
+
+
+@pytest.mark.parametrize(
+    ("kept", "refused"),
+    [
+        (
+            KeptSession(HarnessKind.CODEX, "fake-1", "/fake/sessions/codex"),
+            "cannot carry on a conversation codex kept",
+        ),
+        (
+            KeptSession(HarnessKind.CLAUDE, "never-kept", "/fake/sessions/claude"),
+            "no conversation never-kept",
+        ),
+    ],
+)
+async def test_a_conversation_is_carried_on_only_by_the_harness_that_kept_it(
+    kept: KeptSession, refused: str
+) -> None:
+    @flow(agents=Solo, envs=Place, params=Rounds)
+    async def carrying(
+        task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
+    ) -> None:
+        await agents["agent"].spawn(env=envs["env"], carry_on=kept)
+
+    with pytest.raises((UnsupportedOperation, SessionError), match=refused):
+        await run_fake(carrying, agents={"agent": FakeAgentDriver(reply=_echo)})
+
+
+async def test_a_harness_that_cannot_fork_carries_no_conversation_on() -> None:
+    @flow(agents=Solo, envs=Place, params=Rounds)
+    async def carrying(
+        task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
+    ) -> None:
+        await agents["agent"].spawn(
+            env=envs["env"],
+            carry_on=KeptSession(HarnessKind.CLAUDE, "x", "/fake/sessions/claude"),
+        )
+
+    driver = FakeAgentDriver(reply=_echo, forks=False)
+    with pytest.raises(UnsupportedOperation, match="cannot fork"):
+        await run_fake(carrying, agents={"agent": driver})

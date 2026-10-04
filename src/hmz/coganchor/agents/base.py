@@ -12,6 +12,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -30,6 +31,7 @@ from typing import (
     Literal,
     Protocol,
     Self,
+    cast,
     overload,
 )
 
@@ -576,6 +578,13 @@ class SessionBase(ABC):
         #: was asked for -- which is the boundary the child is to be cut at, and is checked
         #: as the child opens. None for a session nobody forked.
         self._forked_at: tuple[weakref.ref[SessionBase], int] | None = None
+        #: Where a conversation :meth:`AgentBase.recall` answered for was kept before this
+        #: agent brought it in, which it does as a fork of it takes its first turn. None for
+        #: every conversation this agent opened itself.
+        self._recalled_from: Path | None = None
+        #: That recalled conversation, held by a fork of it until its first turn brings it in:
+        #: held strongly, unlike `_forked_at`, since nothing else holds it at all.
+        self._recalled: SessionBase | None = None
         #: How many turns have been sent to this conversation. Only a fork reads it, and only
         #: to know whether the conversation has moved since it was asked for.
         self._turns = 0
@@ -2491,6 +2500,8 @@ class SessionBase(ABC):
             self._carry(where)
         made = agent.new(where)
         made._forked_from = seed
+        if self._recalled_from is not None:
+            made._recalled = self
         # Where this conversation had got to when the fork was asked for, and a weak hold on
         # the conversation itself: the child checks both as it opens, so that a fork taken
         # here and used after two more turns is refused rather than cut from where those
@@ -2507,6 +2518,27 @@ class SessionBase(ABC):
         if self._tools:
             made.offers(self._tools)
         return made
+
+    def _bring(self, cwd: str) -> None:
+        """Copies a recalled conversation into where its agent keeps sessions, for a fork.
+
+        Every file under where it was kept that names it, to where it sat there -- a CLI's
+        files for one conversation all carry its id in their path -- and then wherever a
+        fork working in `cwd` looks for it. The files it was copied from are left as they were.
+
+        Args:
+          cwd: The directory the fork works in.
+        """
+        source = self._recalled_from
+        if source is None:
+            return
+        into = self._agent.kept()
+        for path in _naming(source, self.id):
+            target = into / path.relative_to(source)
+            if target.resolve() != path.resolve():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, target)
+        self._carry(cwd)
 
     def _carry(self, cwd: str) -> None:
         """Puts this conversation where a fork of it opened in another directory will look.
@@ -2552,6 +2584,11 @@ class SessionBase(ABC):
           RuntimeError: If a turn has been sent to the conversation this one was forked from
             since the fork was asked for.
         """
+        if self._recalled is not None:
+            # Brought in now rather than when it was recalled: where this agent keeps its
+            # sessions is settled by the run that drives it, which may be after it was made.
+            recalled, self._recalled = self._recalled, None
+            recalled._bring(self.cwd)
         if self._forked_at is None:
             return
         whence, at = self._forked_at
@@ -5619,6 +5656,51 @@ class AgentBase(ABC):
                 raise said
         return list(answered)
 
+    def recall(
+        self,
+        session_id: str,
+        kept: str | os.PathLike[str],
+        cwd: str | os.PathLike[str] | None = None,
+    ) -> SessionBase:
+        """A conversation kept somewhere else, as a session of this agent to be forked.
+
+        Somewhere else being an earlier run's `sessions/<cli>/`, or a copy of one: a
+        conversation outlives the run that held it, and :meth:`SessionBase.fork` of what this
+        answers carries it on in this one. Its files are copied into :meth:`kept` where they
+        sit in `kept` as that fork takes its first turn -- once the run driving this agent has
+        settled where that is -- and the ones they were copied from are left as they were.
+
+        Args:
+          session_id: What the CLI calls the conversation.
+          kept: Where it is kept, laid out as the CLI lays out its home.
+          cwd: The directory a fork of it is to work in, or None for the one the flow is
+            running in.
+
+        Returns:
+          A session holding the conversation, which takes no turn of its own.
+
+        Raises:
+          NotImplementedError: If this backend has no fork to carry a conversation on with.
+          RuntimeError: If nothing under `kept` is the conversation.
+        """
+        from pathlib import Path
+
+        held = self.new(cwd)
+        if not held.forks:
+            held.close()
+            raise NotImplementedError(
+                f"{self.backend} has no way of carrying a conversation into a second one"
+            )
+        source = Path(kept)
+        if not _naming(source, session_id):
+            held.close()
+            raise RuntimeError(
+                f"{self.backend}: no conversation {session_id} under {source}"
+            )
+        held._id = session_id
+        held._recalled_from = source
+        return held
+
     @abstractmethod
     def new(self, cwd: str | os.PathLike[str] | None = None) -> SessionBase:
         """Opens a new session, which stays unopened with the backend until its first turn.
@@ -5635,3 +5717,47 @@ class AgentBase(ABC):
         Returns:
           A session with no history yet.
         """
+
+
+def _naming(at: Path, session_id: str) -> list[Path]:
+    """Every file under a CLI's kept sessions that is one conversation's, lineage and all.
+
+    A conversation's files carry its id in their path. One cut from another -- Codex's
+    `thread/fork`, which a resumed or carried-on thread is -- says so on its first line, as
+    `forked_from_id`, and is read back only with the one it came from beside it: so the
+    files of every conversation up that line are its files too.
+    """
+    found: list[Path] = []
+    seen: set[str] = set()
+    wanted = [session_id]
+    files = [path for path in sorted(at.rglob("*")) if path.is_file()]
+    while wanted:
+        one = wanted.pop()
+        if one in seen:
+            continue
+        seen.add(one)
+        mine = [path for path in files if one in path.relative_to(at).as_posix()]
+        found += [path for path in mine if path not in found]
+        for path in mine:
+            parent = _forked_from(path)
+            if parent:
+                wanted.append(parent)
+    return found
+
+
+def _forked_from(path: Path) -> str | None:
+    """The conversation a kept one was cut from, as its first line says, if it says so."""
+    if path.suffix != ".jsonl":
+        return None
+    try:
+        with path.open(encoding="utf-8") as stream:
+            first = json.loads(stream.readline() or "null")
+    except (OSError, ValueError):
+        return None
+    if not isinstance(first, dict):
+        return None
+    line = cast("dict[str, object]", first)
+    payload = line.get("payload")
+    meta = cast("dict[str, object]", payload) if isinstance(payload, dict) else line
+    said = meta.get("forked_from_id")
+    return said if isinstance(said, str) and said else None

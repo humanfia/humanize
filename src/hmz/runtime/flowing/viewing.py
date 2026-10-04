@@ -100,6 +100,7 @@ if TYPE_CHECKING:
         HookFn,
         HookParams,
         HookResult,
+        KeptSession,
         NotificationHookResult,
         OutworlderRunHookResult,
         PermissionRequestHookResult,
@@ -347,8 +348,10 @@ class AgentView:
         view._line = self._lined()
         return view
 
-    async def spawn(self, *, env: Env) -> SessionView:
-        return await self._opened(env, None)
+    async def spawn(
+        self, *, env: Env, carry_on: KeptSession | None = None
+    ) -> SessionView:
+        return await self._opened(env, None, carry_on)
 
     async def fork(self, session: Session, *, env: Env) -> SessionView:
         forked = self._own(session)
@@ -356,7 +359,12 @@ class AgentView:
             raise SessionError(f"{self._role}: the session to fork is over")
         return await self._opened(env, forked)
 
-    async def _opened(self, env: Env, fork_of: SessionView | None) -> SessionView:
+    async def _opened(
+        self,
+        env: Env,
+        fork_of: SessionView | None,
+        carry_on: KeptSession | None = None,
+    ) -> SessionView:
         if type(env) is not EnvView:
             raise TypeError(f"{env!r} is not an environment this run handed out")
         node = self._node
@@ -373,6 +381,7 @@ class AgentView:
             skills=self._brought(),
             hooks=line.hooks,
             fork_of=None if fork_of is None else fork_of._handle,
+            carry_on=carry_on,
         )
         session = SessionView(self, env, handle)
         # A harness cuts a fork as the fork's first turn goes, from the session it was
@@ -691,6 +700,11 @@ class SessionView:
     def id(self) -> str | None:
         """The CLI's own id for the conversation, or None before it has said one."""
         return self._handle.id
+
+    @property
+    def kept(self) -> KeptSession | None:
+        """Where the CLI keeps the conversation, or None before it has said its id."""
+        return self._handle.kept
 
     def _named(self) -> None:
         """Its CLI has named it: written down and told, against the call that opened it.
@@ -1149,6 +1163,10 @@ class _Person:
         return None
 
     @property
+    def kept(self) -> KeptSession | None:
+        return None
+
+    @property
     def usage(self) -> Usage:
         return _NOTHING
 
@@ -1243,7 +1261,11 @@ class OutworlderView:
             raise CapabilityNotGranted(f"{self._role}: an outworlder has no skills")
         return self
 
-    async def spawn(self, *, env: Env) -> SessionView:
+    async def spawn(
+        self, *, env: Env, carry_on: KeptSession | None = None
+    ) -> SessionView:
+        if carry_on is not None:
+            raise UnsupportedOperation("an outworlder carries on no conversation")
         if type(env) is not EnvView:
             raise TypeError(f"{env!r} is not an environment this run handed out")
         if self._node is not None:

@@ -275,6 +275,25 @@ class Usage(pydantic.BaseModel):
     output_tokens: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class KeptSession:
+    """A conversation as its CLI keeps it: what a session of this run or a later one carries on.
+
+    Plain data, so that a flow can write it down -- beside a snapshot of the workspace it was
+    working in, say -- and hand it to :meth:`Agent.spawn` in a run that has not started yet.
+
+    Attributes:
+      harness: The CLI that holds it.
+      id: What that CLI calls it.
+      directory: Where it is kept, laid out as the CLI lays out its home: a run's
+        `sessions/<cli>/`, or a copy of one.
+    """
+
+    harness: HarnessKind
+    id: str
+    directory: str
+
+
 class Session(Protocol):
     """One conversation of one agent, held in one environment.
 
@@ -296,6 +315,15 @@ class Session(Protocol):
     @property
     def usage(self) -> Usage:
         """What its turns have spent so far, up to date whenever it is read."""
+        ...
+
+    @property
+    def kept(self) -> KeptSession | None:
+        """Where its CLI keeps the conversation, or None before a turn has named it.
+
+        What :meth:`Agent.spawn` takes as `carry_on`, here or in a later run, for as long as
+        that directory -- or a copy of it -- is still there.
+        """
         ...
 
 
@@ -454,16 +482,24 @@ class Agent(Protocol):
         self,
         *,
         env: Env,
+        carry_on: KeptSession | None = None,
     ) -> Session:
         """Opens a new session of this agent.
 
         Args:
           env: Where it works: commands run in its workdir, on its machine.
+          carry_on: A conversation kept by this run or an earlier one -- a session's
+            :attr:`Session.kept` -- for the new session to fork: it starts knowing what that
+            conversation knew, and goes on as one of its own. The conversation is copied into
+            where this run keeps its sessions, and the one it was copied from is left as it was.
 
         Returns:
           The session, with no turns taken yet.
 
         Raises:
+          UnsupportedOperation: If `carry_on` is given and this harness cannot fork a
+            conversation, is not the harness that kept it, or works on another machine.
+          SessionError: If the conversation is not where `carry_on` says it is kept.
           HarnessError: If the harness cannot be started there.
         """
         ...

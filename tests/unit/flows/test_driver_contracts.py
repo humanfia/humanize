@@ -24,6 +24,7 @@ from hmz.flows import (
     EnvFileNotFound,
     HarnessKind,
     HookKind,
+    KeptSession,
     LoopCommandAgentMixin,
     RewindError,
     SessionError,
@@ -77,6 +78,10 @@ class StubSession:
     @property
     def id(self) -> str | None:
         return "stub"
+
+    @property
+    def kept(self) -> KeptSession | None:
+        return KeptSession(HarnessKind.OPENCODE, "stub", "/stub/sessions")
 
     @property
     def usage(self) -> Usage:
@@ -161,9 +166,10 @@ class StubAgent:
         skills: tuple[Skill, ...],
         hooks: HookTable,
         fork_of: SessionHandle | None = None,
+        carry_on: KeptSession | None = None,
     ) -> StubSession:
         del placement, permission, skills
-        if fork_of is not None and not self.forks:
+        if (fork_of is not None or carry_on is not None) and not self.forks:
             raise UnsupportedOperation("the stub cannot fork")
         return StubSession(hooks)
 
@@ -372,6 +378,7 @@ async def test_the_agent_check_refuses_usage_the_sink_never_heard_of() -> None:
             skills: tuple[Skill, ...],
             hooks: HookTable,
             fork_of: SessionHandle | None = None,
+            carry_on: KeptSession | None = None,
         ) -> StubSession:
             return Unreported(hooks)
 

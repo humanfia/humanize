@@ -50,6 +50,7 @@ from hmz.flows import (
     HarnessThrottled,
     HarnessUnrecoverable,
     HookKind,
+    KeptSession,
     ModelUnavailable,
     OutputSchemaError,
     OutworlderAway,
@@ -645,6 +646,52 @@ def test_a_conversation_is_forked_only_where_its_backend_can_carry_it(
     stays = other.new(tmp_path)
     with pytest.raises(NotImplementedError):
         stays.fork(cwd=tmp_path / "elsewhere")
+
+
+async def test_a_kept_conversation_is_carried_on_only_where_it_can_be(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """By the harness that kept it, one that forks, from where it says it is kept."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-home"))
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: True)
+    placement = Placement(EnvBackendKind.LOCAL, "", PurePosixPath(str(tmp_path)))
+    snapshot = tmp_path / "snapshot"
+    kept = snapshot / "projects" / "-where-it-was-had"
+    kept.mkdir(parents=True)
+    (kept / "the-conversation.jsonl").write_text("{}\n")
+    claude = open_agent(_spec(HarnessKind.CLAUDE))
+    claude._installed = True
+    agy = open_agent(_spec(HarnessKind.AGY))
+    agy._installed = True
+
+    async def opened(driver: Any, carry_on: KeptSession) -> Any:
+        return await driver.open(
+            placement,
+            permission=EVERYTHING,
+            skills=(),
+            hooks=HookTable(),
+            carry_on=carry_on,
+        )
+
+    with pytest.raises(UnsupportedOperation, match="conversation codex kept"):
+        await opened(claude, KeptSession(HarnessKind.CODEX, "x", str(snapshot)))
+    with pytest.raises(UnsupportedOperation, match="cannot fork"):
+        await opened(agy, KeptSession(HarnessKind.AGY, "x", str(snapshot)))
+    with pytest.raises(SessionError, match="no conversation elsewhere"):
+        await opened(
+            claude, KeptSession(HarnessKind.CLAUDE, "elsewhere", str(snapshot))
+        )
+    handle = await opened(
+        claude, KeptSession(HarnessKind.CLAUDE, "the-conversation", str(snapshot))
+    )
+    assert handle.coganchor._holding() == [
+        "--resume",
+        "the-conversation",
+        "--fork-session",
+    ]
+    assert handle.kept is None  # its own id is the one its first turn is given
+    await claude.close()
+    await agy.close()
 
 
 async def test_a_change_of_hooks_is_settled_until_a_turn_has_settled_it(

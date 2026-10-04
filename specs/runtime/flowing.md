@@ -41,7 +41,7 @@ type BoundHook = Callable[[SessionHandle, dict[str, Any]], Awaitable[HookResult]
 def default_result(kind: HookKind) -> HookResult: ...
 class HookTable:  # set / get / `in` / async fire(kind, handle, /, **fields)
 class HookBridge:  # here() / call(make, *, default) / abandon() / close()
-class SessionHandle(Protocol): ...  # id, usage, turn, steer, interrupt, close
+class SessionHandle(Protocol): ...  # id, kept, usage, turn, steer, interrupt, close
 class AgentDriver(Protocol): ...  # harness, model, effort, provider, capabilities, open, close
 class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, resources, exec,
                                # read, write, derive_*, destroy_*, snapshot, rewind,
@@ -407,6 +407,10 @@ def under() -> Path: ...
   `SESSION_END` among them -- MUST be handed a stand-in that is over, never the view that went.
   A fork MUST keep the session it was forked from open until its own first turn, which is
   where a harness cuts it.
+- A session spawned to carry on a kept conversation MUST be refused before anything opens where
+  the harness did not keep it, cannot fork, or works on another machine, and MUST be the harness's
+  own fork of that conversation; `kept` MUST answer where the harness keeps a session's
+  conversation once its id is known, in a form a later run can be handed.
 - A call whose caller has ended MUST raise `FlowCancelled` at its next operation.
 - `running` MUST answer with every call going now, and nothing of a call once it has ended.
 

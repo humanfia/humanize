@@ -12,6 +12,7 @@ in a real epic is `tests/system/runtime/test_sessions.py`.
 
 from __future__ import annotations
 
+import json
 import sys
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ import pytest
 from hmz import home
 from hmz.coganchor import providers
 from hmz.coganchor.agents import KEEPING, ClaudeCodeAgent, ClaudeCodeAgentConfig
+from hmz.coganchor.agents.claude import _project
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -164,3 +166,80 @@ def test_a_fork_into_an_agent_keeping_its_sessions_elsewhere_is_refused(
 
     with pytest.raises(ValueError, match="cannot be carried on"):
         session.fork(into=other)
+
+
+def _conversation(at: Path, ident: str) -> Path:
+    """A Claude conversation as an earlier run kept it, beside one of somebody else's."""
+    project = at / "projects" / "-the-workspace-it-was-had-in"
+    (project / ident / "subagents").mkdir(parents=True)
+    (project / f"{ident}.jsonl").write_text('{"said": "the codeword is papaya"}\n')
+    (project / ident / "subagents" / "agent-1.jsonl").write_text("{}\n")
+    (project / "somebody-else.jsonl").write_text("{}\n")
+    return project / f"{ident}.jsonl"
+
+
+def test_a_conversation_kept_by_another_run_is_brought_in_as_a_fork_of_it_opens(
+    claude: Path, tmp_path: Path
+) -> None:
+    """Copied in where it sat, carried to where the fork works, and left where it was.
+
+    Not before the fork's first turn: the run driving the agent settles where it keeps its
+    sessions after the session is made, and a conversation brought in earlier would be
+    somewhere the fork's CLI never looks.
+    """
+    agent = ClaudeCodeAgent(CONFIG)
+    source = _conversation(tmp_path / "snapshot", "the-conversation")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    child = agent.recall("the-conversation", tmp_path / "snapshot", workspace).fork()
+    agent.epic = Run(
+        tmp_path / "epic" / "sessions"
+    )  # as a run does, once it has opened
+    assert not (tmp_path / "epic").exists()
+    child._at_the_boundary()  # where its first turn starts
+
+    kept = agent.kept()
+    sat = kept / "projects" / "-the-workspace-it-was-had-in"
+    assert (sat / "the-conversation.jsonl").read_text() == source.read_text()
+    assert (sat / "the-conversation" / "subagents" / "agent-1.jsonl").is_file()
+    assert not (sat / "somebody-else.jsonl").exists()
+    carried = kept / "projects" / _project(str(workspace)) / "the-conversation.jsonl"
+    assert carried.is_file()
+    assert source.is_file()
+    assert child._forked_from == "the-conversation"
+
+
+def test_a_conversation_nothing_kept_is_not_recalled(
+    claude: Path, tmp_path: Path
+) -> None:
+    agent = ClaudeCodeAgent(CONFIG)
+    agent.epic = Run(tmp_path / "epic" / "sessions")
+    _conversation(tmp_path / "snapshot", "the-conversation")
+
+    with pytest.raises(RuntimeError, match="no conversation another"):
+        agent.recall("another", tmp_path / "snapshot", tmp_path)
+
+
+def test_a_conversation_cut_from_another_is_recalled_with_its_whole_line(
+    tmp_path: Path,
+) -> None:
+    """Codex reads a forked thread back only beside the threads it was cut from."""
+    from hmz.coganchor.agents.base import _naming
+
+    day = tmp_path / "sessions" / "2026" / "10" / "03"
+    day.mkdir(parents=True)
+
+    def rollout(ident: str, parent: str | None) -> Path:
+        meta = {"id": ident, **({"forked_from_id": parent} if parent else {})}
+        path = day / f"rollout-2026-10-03T00-00-00-{ident}.jsonl"
+        path.write_text(json.dumps({"type": "session_meta", "payload": meta}) + "\n")
+        return path
+
+    first = rollout("first-thread", None)
+    second = rollout("second-thread", "first-thread")
+    third = rollout("third-thread", "second-thread")
+    rollout("somebody-else", None)
+
+    assert set(_naming(tmp_path, "third-thread")) == {first, second, third}
+    assert _naming(tmp_path, "first-thread") == [first]

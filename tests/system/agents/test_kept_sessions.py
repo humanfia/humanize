@@ -240,6 +240,75 @@ def test_a_real_session_is_kept_where_humanize_keeps_it_and_nothing_of_it_at_hom
                 one.stop()
 
 
+@pytest.mark.timeout(1500)
+@pytest.mark.parametrize(
+    "cli",
+    [one.name for one in backends.PROFILES if one.sessions and one.forks],
+    ids=lambda one: one,
+)
+def test_a_conversation_kept_by_one_run_is_carried_on_by_a_later_one(
+    cli: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Told a word in one run, copied out, the run gone: a fork in another run says it back.
+
+    Which is everything `recall` is for. The first agent keeps its conversation where a run
+    would, that is copied where a snapshot would copy it, and the run's own is removed; a
+    second agent keeping its sessions somewhere else, working in another directory, recalls
+    the copy and forks it -- a second process reading the conversation back, under an id of
+    its own.
+    """
+    if not _installed(cli):
+        pytest.skip(f"{cli} is not installed here")
+    word = f"tangerine{uuid.uuid4().int % 1000:03d}"
+    first = tmp_path / f"first-{uuid.uuid4().hex[:12]}"
+    first.mkdir()
+    monkeypatch.chdir(first)
+    agent, config = driver(cli)
+    held: list[AgentBase] = []
+    session: SessionBase | None = None
+    refused: subprocess.CalledProcessError | Failed | None = None
+    try:
+        for model, effort in _models(cli):
+            one = agent(config(model=model, effort=effort, provider=providers.LOCAL))
+            one.keeps = tmp_path / "first-run"
+            held.append(one)
+            session = one.new()
+            try:
+                session(f"Remember this codeword: {word}. Reply with exactly: OK")
+            except subprocess.CalledProcessError as why:
+                refused = why
+                continue
+            refused = None
+            break
+        if refused is not None or session is None:
+            pytest.skip(f"{cli} would not take a turn on this machine: {refused}")
+        ident = session.id
+        snapshot = tmp_path / "snapshot"
+        shutil.copytree(held[-1].kept(), snapshot)
+        held[-1].stop()
+        shutil.rmtree(tmp_path / "first-run")
+
+        later = tmp_path / "later"
+        later.mkdir()
+        carrying = agent(held[-1].config)
+        carrying.keeps = tmp_path / "later-run"
+        held.append(carrying)
+        child = carrying.recall(ident, snapshot, later).fork()
+        try:
+            said = child("What codeword were you told? Reply with only the word.")
+        except Failed as why:
+            if why.fault not in _ACCOUNTS:
+                raise
+            pytest.skip(f"{cli}'s account refused the carried-on turn: {why}")
+        assert word in str(said).lower(), f"{cli} carried on without the word: {said!r}"
+        assert child.id != ident
+        assert (snapshot / next(iter(_kept(snapshot)))).is_file()  # left as it was
+    finally:
+        for one in held:
+            with contextlib.suppress(Exception):
+                one.stop()
+
+
 def test_what_is_looked_for_at_home_is_every_session_path_there_is(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
