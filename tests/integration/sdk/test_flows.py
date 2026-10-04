@@ -13,7 +13,7 @@ The index fetched from, and the repository its releases live in, are git reposit
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -31,9 +31,6 @@ from hmz.sdk import Hmz
 from tests.flows.indexes import committed, listed, release
 from tests.flows.kit import SHIPPED
 from tests.stubs import written
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 #: A flow, as short as one can be, that says a line about itself and takes one agent.
 FLOW = '''"""A flow of somebody else's."""
@@ -342,6 +339,17 @@ def test_whether_a_flow_can_be_picked_up_is_what_the_flow_said(project: Path) ->
 
     assert flows.resumes("kept")
     assert not flows.resumes("mine")
+
+
+def test_a_path_handed_over_as_one_is_a_path_however_it_is_written(
+    project: Path,
+) -> None:
+    """`Path("elsewhere/kept")` is the directory, though `elsewhere/kept` alone is a name."""
+    written(project / "elsewhere", "kept", KEEPS)
+
+    assert Hmz().flows.resumes(Path("elsewhere/kept"))
+    with pytest.raises(FlowNotFound):
+        Hmz().flows.declared("elsewhere/kept")
 
 
 def test_a_flow_forked_into_this_project_is_offered_under_the_name_it_already_had(

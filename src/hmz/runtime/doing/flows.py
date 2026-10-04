@@ -331,8 +331,9 @@ class Flows:
             -- as the flow API names what went wrong.
         """
         from hmz.runtime.flowing import resolved
+        from hmz.runtime.flowing.verses import spelled
 
-        return resolved(str(named)).describe()
+        return resolved(spelled(named)).describe()
 
     def resumes(self, named: str | os.PathLike[str]) -> bool:
         """Whether a flow says it can be picked up where the last run of it left off."""

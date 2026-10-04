@@ -260,8 +260,9 @@ class Runner:
         from hmz.flows import Budget, FlowException
         from hmz.runtime.flowing import privileged, resolved
         from hmz.runtime.flowing.specs import EnvSpec as Spec
+        from hmz.runtime.flowing.verses import spelled
 
-        self._named = str(flow)
+        self._named = spelled(flow)
         self._workspace = Path(workspace) if workspace is not None else Path.cwd()
         try:
             impl = resolved(self._named)

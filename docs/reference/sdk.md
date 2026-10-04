@@ -258,7 +258,7 @@ A run, or a request to a host, refused before anything of it ran. `str(error)` i
 | `all()` | `list[Offer]` | Every runnable flow, in offer order. |
 | `find(named: str)` | `str` | The resolved file of a flow, or `""` where nothing resolves. A path starts with `.`, `/` or `~`; anything else is a name, never a file of that name in the working directory. |
 | `about(named: str)` | `str` | The flow's one-line description, or `""`. |
-| `declared(named: str \| PathLike)` | [`Declaration`](#declaration) | Imports the flow. Raises the flow API's `FlowException` for a flow that cannot load. |
+| `declared(named: str \| PathLike)` | [`Declaration`](#declaration) | A `str` as `-f` reads it; a `PathLike` always a path, `./`'d where it is relative. Imports the flow. Raises the flow API's `FlowException` for a flow that cannot load. |
 | `resumes(named: str \| PathLike)` | `bool` | Whether it is [resumable](/reference/flows#a-flow-that-can-be-picked-up). Imports the flow. |
 | `fork(named: str, into: str \| PathLike \| None = None)` | `str` | Copies the flow, what it imports and its skills into `./.hmz/flows/` (or `into`), as **Copy here** does in `/flow`; not an installed flow's `.installed.json`. Returns the directory. `ValueError`: not a flow, or already a copy here. `OSError`: cannot copy. |
 | `running()` | `tuple[LiveCall, ...]` | Every flow call in progress in this process, oldest first. |

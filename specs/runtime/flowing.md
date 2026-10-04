@@ -256,6 +256,7 @@ def edited(at: Path) -> bool: ...
 def standing(at: Path) -> str: ...
 def plain(url: str) -> str: ...  # a URL with whatever was signed into it taken out
 def pathed(said: str) -> bool: ...  # whether it starts with `.`, `/` or `~`
+def spelled(flow: str | os.PathLike[str]) -> str: ...  # as -f takes it; a PathLike always a path
 def called(verse: str, flow: str) -> str: ...  # `aot`, `alice/kernel`, `@theirs/alice/kernel`
 def split(name: str) -> tuple[str, str]: ...  # a name, to its flowverse and what that lists it as
 def renamed(name: str) -> str: ...  # a name said as before the `@`, as it is said now

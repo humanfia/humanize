@@ -74,6 +74,7 @@ __all__ = [
     "refresh",
     "remove",
     "renamed",
+    "spelled",
     "split",
     "standing",
     "under",
@@ -321,6 +322,17 @@ def named(name: str) -> Flowverse | None:
 def pathed(said: str) -> bool:
     """Whether what names a flow is a path to one rather than its name: `./x`, `/x`, `~/x`."""
     return said.startswith(_PATHED)
+
+
+def spelled(flow: str | os.PathLike[str]) -> str:
+    """A flow as `-f` takes it: a string as it is, and a path handed over as one a path.
+
+    `Path("./x")` is `x` as a string, which is a name; so a relative one is `./`'d.
+    """
+    if isinstance(flow, str):
+        return flow
+    at = os.fspath(flow)
+    return at if pathed(at) else f"./{at}"
 
 
 def called(verse: str, flow: str) -> str:
