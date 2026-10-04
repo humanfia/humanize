@@ -400,14 +400,19 @@ def test_a_command_turn_is_cut_off_and_its_process_ended(opencode: Path) -> None
 
 def test_a_command_turn_is_interrupted_by_hand(opencode: Path) -> None:
     """What a watchdog reaches for, and what it is handed: one turn, ended where it is."""
-    session = OpencodeAgent(OPENCODE).new()
+    agent = OpencodeAgent(OPENCODE)
+    said: list[str] = []
+    agent.watch(lambda _agent, _session, event: said.append(event.text))
+    session = agent.new()
     answered: list[str] = []
 
     turn = threading.Thread(target=lambda: answered.append(session("write something")))
     turn.start()
-    while session._underway is None:  # the turn has to have started to be cut off
+    # Cut off once it has said something, waited for rather than slept for: a stand-in
+    # written a moment ago can take longer than a pause or two to start, as macOS checks
+    # an executable the first time it runs.
+    while turn.is_alive() and not any("part 1" in text for text in said):
         time.sleep(0.01)
-    time.sleep(PAUSE * 2)
     session.interrupt(why="the watchdog says so")
     turn.join(timeout=PIECES * PAUSE)
 
