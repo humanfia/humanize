@@ -170,6 +170,9 @@ relative_files = true
 # The formatter wraps at 88; `pycodestyle` below lets prose the formatter cannot
 # split run to 100 rather than forcing a reflow of every docstring in the tree.
 line-length = 88
+# The Python in Markdown is left as written: a page lays its blocks out for the reader, and a
+# spec's signatures are the spec. Only `ruff format` with no paths would reach them.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 # Everything, less what this codebase has a reason to be without. A rule is off
