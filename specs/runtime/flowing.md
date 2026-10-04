@@ -210,7 +210,7 @@ class FlowModule:
 def module_of(entry: Path, run: Run | None) -> FlowModule: ...
 def pick(module: FlowModule, sub: str, ref: str) -> FlowImpl: ...
 class Remote: ...  # a flow of a repository, fetched when first called
-def pinned(url: str, rev: str | None) -> Path: ...
+def pinned(url: str, rev: str | None) -> Path: ...  # machine()/pinned/<url>/<commit>
 
 # fakes.py -- in-memory drivers, for testing a flow
 class FakeAgentDriver: ...  # (harness, *, reply, model, effort, provider, capabilities,
@@ -228,19 +228,21 @@ OFFICIAL = "official"
 LOCAL = "local"
 USER = "user"
 FLOWS = "flows"  # the directory an index keeps `<flow>/<version>/flow.yaml` under
+INDEX = "index"  # the clone of a flowverse's index, inside where(name)
+INSTALLED = "installed"  # what was installed out of it, beside INDEX
 MINE: dict[str, str]  # LOCAL and USER, by where each is kept
 @dataclass(frozen=True, slots=True)
 class Flowverse:
     name: str
     url: str
-    at: Path  # the index's clone, or your own directory
+    at: Path  # the index's clone, where(name)/INDEX, or your own directory
     fetched: bool  # whether its index is cloned; true for a directory of this machine's own
     fixed: bool  # whether it is one of the three that cannot be removed
 def flowverses() -> list[Flowverse]: ...  # the order they are offered in
 def nearest() -> list[Flowverse]: ...  # the order a name is looked up in
 def named(name: str) -> Flowverse | None: ...
-def where(name: str) -> Path: ...
-def under() -> Path: ...  # where the indexes are cloned
+def where(name: str) -> Path: ...  # under()/<name>: its index's clone, and what was installed
+def under() -> Path: ...  # where every flowverse is kept
 def holds(one: Flowverse) -> tuple[Path, ...]: ...  # the directories its flows are run from
 def flows(one: Flowverse) -> list[str]: ...
 def add(url: str, name: str = "") -> Flowverse: ...
@@ -298,7 +300,7 @@ class Update(NamedTuple):
     installed: Installed
     version: str
 def reserved() -> frozenset[str]: ...
-def kept(verse: str) -> Path: ...  # home()/installed/<verse>
+def kept(verse: str) -> Path: ...  # where(verse)/INSTALLED
 def split(called: str) -> tuple[str, str]: ...  # a name as offered, to flowverse and flow
 def satisfies(version: str, spec: str) -> bool: ...
 def index(one: Flowverse | str) -> Index: ...
@@ -450,7 +452,8 @@ def under() -> Path: ...
   files changed MUST be imported afresh by the next run nobody else is running it in, and a run
   MUST import a module at most once, however often it loads its flows.
 - A VCS ref MUST be fetched once per URL and ref per run, on a thread, pinned to the commit it
-  stands at, and cloned once per commit. What cannot be fetched MUST raise `FlowNotFound`.
+  stands at, and cloned once per commit into this machine's own directory rather than
+  humanize's home. What cannot be fetched MUST raise `FlowNotFound`.
 - A role's skills MUST be found in its flow's own `skills/` or fetched, at the call, raising
   `FlowDefinitionError` for one that is not there.
 
@@ -600,8 +603,8 @@ def under() -> Path: ...
   at all -- and a name MUST resolve nearest first: this project's flows, then yours, then the
   rest. A name qualified by a flowverse MUST NOT be stood in for, and a path MUST be taken
   outright. A module that will not import MUST still be listed, under its name.
-- Installing a release MUST copy its `subdir` at its `commit` into `installed/<flowverse>/<flow>/`
-  under humanize's home, with a record of what it was installed from, written before one
+- Installing a release MUST copy its `subdir` at its `commit` into `installed/<flow>/` of its
+  flowverse's own directory, beside the clone of its index, with a record of what it was installed from, written before one
   rename puts it in place over whatever release was there; what is at that place MUST be a
   whole release and its record at every moment. It MUST install with it the newest release
   of each flow it needs that the range takes, unless one installed already does, and MUST
@@ -621,7 +624,8 @@ def under() -> Path: ...
 - `fork` MUST copy the whole of a flow and MUST refuse a name already taken rather than write
   over it, and MUST NOT carry an installed flow's record; forking, installing, and adding,
   fetching or removing a flowverse, MUST leave nothing half-done behind when it fails;
-  removing one MUST take what was installed out of it too; and `official`, `local` and `user`
+  removing one MUST take its whole directory, what was installed out of it too; and
+  `official`, `local` and `user`
   MUST NOT be removable.
 - Every name above MUST be fetched only when it is named, so that listing flows costs nothing
   that reading or driving one does. Nothing here MAY be imported by `hmz.flows` at import, or

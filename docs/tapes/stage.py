@@ -650,7 +650,7 @@ def _index() -> None:
     then fails, quietly, having nothing to fetch from, and what is listed is what is written
     here.
     """
-    at = HOME / "flowverses" / "official"
+    at = HOME / "flowverses" / "official" / "index"
     (at / ".git").mkdir(parents=True, exist_ok=True)
     for name, about in RELEASES.items():
         for version in VERSIONS.get(name, ("0.1.0",)):

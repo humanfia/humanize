@@ -57,10 +57,9 @@ H/
 │   ├── ssh/<name>/runtime.json
 │   ├── docker/<name>/runtime.json, docker/.<name>.lock
 │   └── swarm/<name>/runtime.json, swarm/.<name>.lock
-├── flowverses/
-│   ├── official/  <name>/              index clones
-│   └── .pinned/<blake2b-8(url)>/<sha>/ checkouts of git+ refs and of releases installed
-├── installed/<flowverse>/<flow>/       installed flows, each with its .installed.json
+├── flowverses/<name>/                  one per flowverse, official included
+│   ├── index/                          the index clone
+│   └── installed/<flow>/               installed flows, each with its .installed.json
 ├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories
 ├── envs/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
@@ -263,19 +262,19 @@ counted, created and waited for until their task runs.
 
 ### `H/flowverses/<name>/`
 
-A `git clone --depth 1` of a [flowverse](/reference/flows#flowverses)'s index:
-`flows/<flow>/<version>/flow.yaml`. Cloned into `.<name>.XXXXXXXX` beside it and renamed into
-place; a leftover `.<name>.*` older than 60 s is removed before the next clone of that name.
-Fetch is `git fetch --depth 1 origin HEAD` then `git reset --hard FETCH_HEAD`. The origin URL is
-read from `.git/config`. Read as YAML, never imported. Deleted by *remove* (not `official`).
+One [flowverse](/reference/flows#flowverses): its index clone and the flows installed from it,
+side by side. Deleted whole, in one rename, by *remove* (not `official`). A directory here
+without `index/` is still listed, as a flowverse with nowhere to fetch from.
 
-### `H/flowverses/.pinned/<blake2b-8(url)>/<sha>/`
+### `H/flowverses/<name>/index/`
 
-Checkouts of [`git+` refs](/reference/flows#refs), and of the releases
-[installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`,
-checked out detached at `<sha>`, renamed into place. One per commit; never removed.
+A `git clone --depth 1` of the flowverse's index: `flows/<flow>/<version>/flow.yaml`. Cloned
+into `.index.XXXXXXXX` beside it and renamed into place; a leftover `.index.*` older than 60 s
+is removed before the next clone. Fetch is `git fetch --depth 1 origin HEAD` then
+`git reset --hard FETCH_HEAD`. The origin URL is read from `.git/config`. Read as YAML, never
+imported.
 
-### `H/installed/<flowverse>/<flow>/`
+### `H/flowverses/<name>/installed/<flow>/`
 
 A flow installed from that flowverse's index: the release's `subdir` at its commit, without
 `.git` and `__pycache__` (a single `<flow>.py` as `__init__.py`), and `.installed.json`.
@@ -397,6 +396,7 @@ Every path in this section is safe to delete while humanize is not running.
 | the same path, on a machine a supervised agent's commands run on | that agent's commands' `TMPDIR` there | kept |
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
 | `$TMPDIR/hmz-dsh-*/cordis.yml`, `hmz-qwen-*/` | per-session CLI configuration | with the session |
+| `$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>/` | checkouts of [`git+` refs](/reference/flows#refs), and of the releases [installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`, checked out detached at `<sha>`, renamed into place; one per commit | never; cloned again when missing |
 | `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
 | `$TMPDIR/humanize-<uid>/daemon.sock`, `daemon.json` (`0600`) | the [daemon](/reference/daemon#files) of this machine and user, which every workspace's runs are reached through: its socket, and `{"pid": int, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "daemon", "protocol": int}` via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename | when the daemon closes |
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
@@ -429,7 +429,7 @@ when their content changes.
 
 ## Retention
 
-Nothing prunes `epics/`, `sessions/`, `flowverses/.pinned/`, `skills/`, worktrees under
+Nothing prunes `epics/`, `sessions/`, `skills/`, worktrees under
 `envs/`, snapshot refs, `compiled/`, `docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
 Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
