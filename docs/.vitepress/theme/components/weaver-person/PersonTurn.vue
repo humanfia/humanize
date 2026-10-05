@@ -266,7 +266,7 @@ const scene = useScene({
           <rect class="card-box" :x="L.fill.x" :y="L.fill.y" :width="L.fill.w" height="66" rx="10" />
           <text class="fill-head" :x="L.fill.x + 12" :y="L.fill.y + 18">who fills the roles</text>
           <g class="row"><text class="row-line" :x="L.fill.x + 12" :y="L.fill.y + 36">assistant ← -a assistant=claude/…</text></g>
-          <g class="row row-bad"><text class="row-line" :x="L.fill.x + 12" :y="L.fill.y + 54">human     ← <tspan class="ty">humanize</tspan>, never -a</text></g>
+          <g class="row row-bad"><text class="row-line" :x="L.fill.x + 12" :y="L.fill.y + 54">{{ 'human     ← ' }}<tspan class="ty">humanize</tspan>, never -a</text></g>
         </g>
         <g v-for="(line, i) in ERROR" :key="i" class="err">
           <text class="err-text" :x="L.fill.x" :y="L.errY + i * 15">{{ line }}</text>
@@ -318,9 +318,9 @@ const scene = useScene({
         <g class="away">
           <rect class="card-box away-box" :x="L.away.x" :y="L.away.y" :width="L.away.w" height="74" rx="10" />
           <text class="away-head" :x="L.away.x + 12" :y="L.away.y + 17"><tspan class="mono">human.away</tspan> (hmz exec, or /afk): answers at once</text>
-          <g class="a-row"><text class="a-line" :x="L.away.x + 12" :y="L.away.y + 34">text                 → <tspan class="v">""</tspan></text></g>
-          <g class="a-row"><text class="a-line" :x="L.away.x + 12" :y="L.away.y + 49">schema, all defaults → <tspan class="v">the defaults</tspan></text></g>
-          <g class="a-row"><text class="a-line" :x="L.away.x + 12" :y="L.away.y + 64">otherwise            → <tspan class="x">OutworlderAway</tspan></text></g>
+          <g class="a-row"><text class="a-line" :x="L.away.x + 12" :y="L.away.y + 34">{{ 'text                 → ' }}<tspan class="v">""</tspan></text></g>
+          <g class="a-row"><text class="a-line" :x="L.away.x + 12" :y="L.away.y + 49">{{ 'schema, all defaults → ' }}<tspan class="v">the defaults</tspan></text></g>
+          <g class="a-row"><text class="a-line" :x="L.away.x + 12" :y="L.away.y + 64">{{ 'otherwise            → ' }}<tspan class="x">OutworlderAway</tspan></text></g>
         </g>
         <text class="zero" :x="L.x0 + 44" :y="L.yH + 28">runs no model, spends nothing</text>
       </g>
