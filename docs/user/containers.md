@@ -1,3 +1,7 @@
+<script setup>
+import ContainerEnv from '../.vitepress/theme/components/user-containers/ContainerEnv.vue'
+</script>
+
 # Containers
 
 Give a flow's work a container when the agents need a toolchain, an operating system or a set
@@ -97,6 +101,8 @@ A flow's environment role put on docker, with `-e role=docker/workdir` or
   `docker exec`. That is why the tool lines above name a `…/envs/mirrors/…` path while the edit
   lands in `/home/me/myproject`. Because the copy is kept there rather than at the directory's
   own path, the directory may be your own checkout.
+
+<ContainerEnv />
 
 `docker/…`, naming no daemon, is docker's default here with nothing saved. For a daemon
 elsewhere, a different image, or a cap on what a run may take, save the daemon under a name
