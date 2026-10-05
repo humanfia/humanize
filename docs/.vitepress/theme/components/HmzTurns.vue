@@ -13,6 +13,7 @@ import { count, createFx, streak, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
+import { breathe } from './sway'
 
 const MINUTES = [3.1, 1.4, 4.2, 2.0, 1.1, 3.6, 2.7, 1.8, 5.0, 2.3, 1.6, 3.3]
 const FILES = ['parser.py', 'printer.py', 'cli.py', 'billing.py', 'retry.py', 'store.py', 'search.py', 'auth.py', 'jobs.py', 'cache.py', 'email.py', 'models.py']
@@ -82,8 +83,9 @@ const G = computed(() => {
     n ? '' : `M${orb.x + orb.r} ${orb.y} C${orb.x + 50} ${orb.y} ${x0 - 40} ${y + bh / 2} ${x0 - 4} ${y + bh / 2}`,
   )
   const hit = { x: serial[0].x + serial[0].w * 0.6, y: serialY }
-  const bubble = Math.max(84, hit.x)
-  return { hit, bubble, n, w, h, x0, x1, k, orb, grid, serial, serialY, wide, laneY, bh, ends, makespan, rails, lanes, pitch }
+  const bubble = Math.max(n ? 116 : 112, hit.x)
+  const gain = n ? { x: 16, y: 84 } : { x: x0 + 132, y: 56 }
+  return { gain, hit, bubble, n, w, h, x0, x1, k, orb, grid, serial, serialY, wide, laneY, bh, ends, makespan, rails, lanes, pitch }
 })
 
 const labelled = (b: Box) => (b.w > 62 && b.h >= 18 ? 1 : 0)
@@ -112,6 +114,13 @@ const scene = useScene({
     const at = (b: Box, grow = true) => ({ x: b.x, y: b.y, width: grow ? b.w : 0, height: b.h })
     const text = (b: Box) => ({ x: b.x + 7, y: b.y + b.h / 2 + 4 })
     const clock = one('.tn-clock')
+    const cap = one('.tn-what')
+    // The words under the clock say what it adds up, and change when that does.
+    const say = (words: string, t: number) => {
+      tl.to(cap, { autoAlpha: 0, duration: 0.2, ease: 'power1.in' }, t)
+      tl.set(cap, { text: words }, t + 0.2)
+      tl.to(cap, { autoAlpha: 1, duration: 0.3, ease: 'power1.out' }, t + 0.2)
+    }
 
     tl.set(q('.tn-world'), { autoAlpha: 1 }, 0)
     tl.set(q('.tn-p, .tn-head, .tn-rail, .tn-serial, .tn-err, .tn-place, .tn-finish, .tn-ghost, .tn-sessions, .tn-one'), { autoAlpha: 0 }, 0)
@@ -121,6 +130,8 @@ const scene = useScene({
       tl.set(name[i], { attr: text(g.grid[i]), opacity: 1 }, 0)
     })
     tl.set(clock, { text: min(0) }, 0)
+    tl.set(cap, { text: 'wall clock', autoAlpha: 1 }, 0)
+    tl.set(one('.tn-gain'), { autoAlpha: 0 }, 0)
 
     // 0 · one agent, and twelve prompts for it.
     tl.addLabel('beat-0', 0)
@@ -161,6 +172,7 @@ const scene = useScene({
     tl.fromTo(one('.tn-head'), { attr: { x1: g.x0, x2: g.x0 } }, { attr: { x1: g.x0 + SERIAL * g.k, x2: g.x0 + SERIAL * g.k }, duration: SW, ease: 'none' }, play)
     tl.to(one('.tn-head'), { autoAlpha: 1, duration: 0.2 }, play)
     count(tl, clock, 0, SERIAL, play, { duration: SW, ease: 'none', format: min })
+    say(`wall clock = Σ of ${FILES.length} turns`, play - 0.3)
     tl.to(one('.tn-head'), { autoAlpha: 0, duration: 0.3 }, play + SW)
 
     // 2 · the same agent, more sessions: every turn flies to a lane of its own time, and the
@@ -182,6 +194,8 @@ const scene = useScene({
     const endX = g.x0 + g.makespan * g.k
     tl.fromTo(one('.tn-finish'), { autoAlpha: 0, attr: { x1: g.x0 + SERIAL * g.k - 2, x2: g.x0 + SERIAL * g.k - 2 } }, { autoAlpha: 1, attr: { x1: endX, x2: endX }, duration: 1.6, ease: 'cine' }, T2 + 0.5)
     count(tl, clock, SERIAL, g.makespan, T2 + 0.5, { duration: 1.6, ease: 'cine', format: min })
+    say(`wall clock = max of ${g.lanes} sessions`, T2 + 0.3)
+    tl.fromTo(one('.tn-gain'), { autoAlpha: 0, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: 'cine.out' }, T2 + 2.1)
     tl.call(() => fx?.spark(endX, g.laneY[0], palette.accent, 22, 110), [], T2 + 2.1)
 
     // 3 · each session works in a place of its own.
@@ -195,6 +209,7 @@ const scene = useScene({
     })
     tl.fromTo(q('.tn-one'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, T3 + 0.6)
     tl.addLabel('rest', T3 + 1.6)
+    breathe(tl, one('.tn-halo'), 1.6, T3 + 4.4, { period: 2.2, opacity: 0.55, scale: 1.08 })
     tl.to(q('.tn-world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T3 + 4.4)
   },
 })
@@ -212,7 +227,7 @@ const scene = useScene({
       :beats="BEATS"
       sim
       mobile-ratio="6 / 7"
-      :label="`Twelve prompts for one agent. On one session they run one after another, ${SERIAL.toFixed(1)} minutes in all, and asking it for a second turn while one is under way is an error. Over ${G.lanes} sessions the same agent runs them at once and the wall clock falls to ${G.makespan.toFixed(1)} minutes, each session working in a worktree of its own.`"
+      :label="`Twelve prompts for one agent. On one session they run one after another, ${SERIAL.toFixed(1)} minutes in all, and asking it for a second turn while one is under way raises SessionError: a turn of this session is under way. Over ${G.lanes} sessions the same agent runs them at once and the wall clock falls to ${G.makespan.toFixed(1)} minutes, the longest of the sessions rather than the sum of the turns, ${(SERIAL / G.makespan).toFixed(1)} times sooner for the same work, each session working in a worktree of its own.`"
     >
       <svg :viewBox="`0 0 ${G.w} ${G.h}`" aria-hidden="true">
         <defs>
@@ -224,7 +239,9 @@ const scene = useScene({
         <g class="tn-world">
           <g class="tn-clock-box">
             <text class="tn-clock" :x="G.n ? 16 : G.x0" :y="G.n ? 46 : 58">0.0 min</text>
-            <text class="tn-cap" :x="G.n ? 16 : G.x0" :y="G.n ? 64 : 78">wall clock</text>
+            <text class="tn-cap tn-what" :x="G.n ? 16 : G.x0" :y="G.n ? 64 : 78">wall clock</text>
+            <!-- moved as a group: a transform on a word itself fights the stage's lift of it -->
+            <g class="tn-gain"><text :x="G.gain.x" :y="G.gain.y">{{ (SERIAL / G.makespan).toFixed(1) }}× sooner, the same work</text></g>
           </g>
 
           <circle class="tn-halo" :cx="G.orb.x" :cy="G.orb.y" :r="G.orb.r * 3" fill="url(#hmz-turns-halo)" />
@@ -262,8 +279,9 @@ const scene = useScene({
           <line class="tn-finish" :x1="G.x0 + SERIAL * G.k - 2" :x2="G.x0 + SERIAL * G.k - 2" :y1="G.n ? 108 : 92" :y2="G.n ? 392 : 336" />
 
           <g :transform="`translate(${G.bubble} ${G.serialY + 50})`"><g class="tn-err">
-            <rect x="-66" y="-12" width="132" height="24" rx="12" />
-            <text y="4" text-anchor="middle">a second turn: error</text>
+            <rect x="-108" y="-19" width="216" height="38" rx="10" />
+            <text class="tn-err-kind" y="-3" text-anchor="middle">SessionError</text>
+            <text y="12" text-anchor="middle">a turn of this session is under way</text>
           </g></g>
 
           <g v-for="(m, j) in G.ends" :key="`p${j}`" :transform="`translate(${G.x0 + G.makespan * G.k + 10} ${G.laneY[j] + G.bh / 2})`"><g class="tn-place">
@@ -399,9 +417,21 @@ svg {
 }
 
 .tn-err text {
+  font-family: var(--vp-font-family-mono);
   font-size: 11px;
+  font-weight: 600;
+  fill: var(--hmz-stage-ink);
+}
+
+.tn-err .tn-err-kind {
   font-weight: 700;
   fill: var(--hmz-lane-5);
+}
+
+.tn-gain text {
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--hmz-accent);
 }
 
 .tn-branch {
