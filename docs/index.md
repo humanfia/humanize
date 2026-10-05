@@ -183,18 +183,19 @@ git diff before
 **Next.** The [User Guide](/user/) covers the interface, accounts and reading a run back, and
 its tutorials each take a real piece of work start to finish: [Beat a
 benchmark](/user/tutorials/take-home), [Port a project](/user/tutorials/port-a-project) and
-[Build a coding agent](/user/tutorials/build-an-agent). [Flows](/flows/) lists what else there
-is to run.
+[Build a coding agent](/user/tutorials/build-an-agent). [Flows](https://humanfia.ai/flows/), on
+humanfia.ai, lists what else there is to run.
 
 ## Weave a flow
 
 A flow is an async Python function that declares the agents it drives. Save this one in the
 scratch repository as `.hmz/flows/twice/__init__.py`. It has an agent do the task, then
-review its own work in the same conversation:
+review its own work in the same conversation. A conversation is only its history; each turn
+says where it runs, and one that names no environment runs in the directory you started in:
 
 ::: code-group
 
-```python{6,19,21-25} [.hmz/flows/twice/__init__.py]
+```python{6,19-23} [.hmz/flows/twice/__init__.py]
 from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
 from hmz.flows import LocalEnv, flow
 
@@ -212,13 +213,11 @@ async def twice(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
     """Does the work, then reads it back and fixes what is wrong."""
-    builder, workspace = agents["builder"], envs["workspace"]
-    session = await builder.spawn()  # one conversation
-    await builder.run(task, session=session, env=workspace)  # a turn, in the workspace
-    await builder.run(  # the same one, so this turn remembers the last
-        "Now review what you just did, and fix anything that is wrong.",
-        session=session,
-        env=workspace,
+    builder = agents["builder"]
+    session = await builder.spawn()  # one conversation: only its history
+    await builder.run(task, session=session, env=envs["workspace"])
+    await builder.run(  # the same one, so it remembers; no env: the workspace again
+        "Now review what you just did, and fix anything that is wrong.", session=session
     )
 ```
 
@@ -269,9 +268,9 @@ patch](/contributing/tutorials/first-patch) takes one change from a clone to a p
     <span>Running flows: the interface, agents and accounts, where the work lands, and reading
     a run back.</span>
   </a>
-  <a :href="withBase('/flows/')">
+  <a href="https://humanfia.ai/flows/">
     <strong>Flows</strong>
-    <span>Every flow humanize ships or its official flowverse lists, each with its loop played.</span>
+    <span>Every flow humanize ships or its official flowverse lists, each with its loop played, on humanfia.ai.</span>
   </a>
   <a :href="withBase('/weaver/')">
     <strong>Weaver Guide</strong>
