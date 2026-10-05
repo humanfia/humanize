@@ -73,7 +73,7 @@ const WIDE: Layout = {
   runA: { x: 16, y: 16, w: 220, h: 98 },
   runB: { x: 436, y: 44, w: 188, h: 98 },
   strip: { dx: 12, dy: 74, step: 46, w: 40 },
-  causes: { y: 126, w: 70, xs: [16, 91, 166] },
+  causes: { y: 126, w: 78, xs: [8, 87, 166] },
   record: { x: 36, y: 174, w: 180, h: 52 },
   recordBrace: 234,
   resume: { x: 252, y: 16, w: 170, h: 236 },
@@ -126,7 +126,7 @@ const boxX = (run: Box, i: number) => run.x + L.value.strip.dx + i * L.value.str
 const boxY = (run: Box) => run.y + L.value.strip.dy
 const counter = (run: Box): Point => ({ x: run.x + 92, y: run.y + 50 })
 const recordAt = computed<Point>(() => ({ x: L.value.record.x + 100, y: L.value.record.y + 36 }))
-const rowY = (i: number) => L.value.resume.y + (narrow.value ? 76 : 80) + i * 38
+const rowY = (i: number) => L.value.resume.y + (narrow.value ? 80 : 88) + i * 38
 const causeC = (i: number): Point => ({ x: L.value.causes.xs[i] + L.value.causes.w / 2, y: L.value.causes.y + 13 })
 
 const scene = useScene({
@@ -499,7 +499,7 @@ svg {
 
 .cause-word {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   fill: var(--hmz-lane-5);
 }
 

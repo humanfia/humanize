@@ -96,7 +96,7 @@ const WIDE: Layout = {
   short: { x: 106, y: 241 },
   deny2: { x: 110, y: 304 },
   online: { x: 456, y: 28, w: 168, h: 124 },
-  hosts: { web: { x: 540, y: 86 }, model: { x: 540, y: 120 }, webEnd: { x: 476, y: 86 }, modelEnd: { x: 476, y: 120 }, bend: [0.28, 0.18] },
+  hosts: { web: { x: 540, y: 86 }, model: { x: 540, y: 120 }, webEnd: { x: 476, y: 86 }, modelEnd: { x: 476, y: 120 }, bend: [0.4, 0.3] },
   grant: { x: 456, y: 168, w: 168, h: 172 },
   rowH: 30,
   rowTop: 52,
@@ -119,10 +119,10 @@ const NARROW: Layout = {
     user: { x: 24, y: 60, w: 312, h: 250 },
     local: { x: 36, y: 106, w: 288, h: 116 },
   },
-  agent: { x: 84, y: 172 },
+  agent: { x: 120, y: 166 },
   files: { inside: { x: 240, y: 176 }, gitconfig: { x: 110, y: 268 }, outside: { x: 180, y: 340 } },
-  hit: { x: 109, y: 213 },
-  strike: { x: 114, y: 222 },
+  hit: { x: 136, y: 213 },
+  strike: { x: 139, y: 222 },
   wall: [
     { x: 36, y: 222 },
     { x: 324, y: 222 },
@@ -131,7 +131,7 @@ const NARROW: Layout = {
   deny: { x: 180, y: 368 },
   written: { x: 240, y: 202 },
   read: { x: 110, y: 296 },
-  short: { x: 175, y: 175 },
+  short: { x: 174, y: 170 },
   deny2: { x: 240, y: 204 },
   online: { x: 12, y: 390, w: 336, h: 96 },
   hosts: { web: { x: 96, y: 460 }, model: { x: 264, y: 460 }, webEnd: { x: 96, y: 449 }, modelEnd: { x: 264, y: 449 }, bend: [-0.5, 0.3] },
@@ -401,7 +401,7 @@ const scene = useScene({
         <g class="deny">
           <g class="deny-in"><text class="deny-word" :x="L.deny.x" :y="L.deny.y" text-anchor="middle">permission denied</text></g>
         </g>
-        <g class="deny2"><text class="deny-word" :x="L.deny2.x" :y="L.deny2.y" text-anchor="middle">refused: local is READ</text></g>
+        <g class="deny2"><text class="deny-word" :x="L.deny2.x" :y="L.deny2.y" text-anchor="middle">write refused</text></g>
 
         <!-- The agent, and what it sends. -->
         <g :transform="`translate(${L.agent.x} ${L.agent.y})`"><g class="agent">
