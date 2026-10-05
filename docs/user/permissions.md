@@ -78,16 +78,16 @@ Most roles run at that default. These are the ones that do not:
 
 | Flow | Role | Grant |
 | --- | --- | --- |
-| [`aot`](/flows/aot) | `critic` | `local=READ`, `online=NONE`: it reads the draft and never writes |
-| [`parallel_flame_chase`](/flows/parallel-flame-chase) | every agent | `ALL` in every scope, `online` included |
-| [`parallel_flame_chase:git_pr`](/flows/parallel-flame-chase-git-pr) | the lane agents | the default, with `user=ALL` |
-| [`recursive_lean_prover`](/flows/recursive-lean-prover) | `worker`, `reviewer` | `local=ALL`, `user=ALL`, `system=READ`, `online=ALL` |
+| [`aot`](https://humanfia.ai/flows/aot) | `critic` | `local=READ`, `online=NONE`: it reads the draft and never writes |
+| [`parallel_flame_chase`](https://humanfia.ai/flows/parallel-flame-chase) | every agent | `ALL` in every scope, `online` included |
+| [`parallel_flame_chase:git_pr`](https://humanfia.ai/flows/parallel-flame-chase-git-pr) | the lane agents | the default, with `user=ALL` |
+| [`recursive_lean_prover`](https://humanfia.ai/flows/recursive-lean-prover) | `worker`, `reviewer` | `local=ALL`, `user=ALL`, `system=READ`, `online=ALL` |
 
 A flow's own page says what its roles are granted.
 
 ## Example: watch the default grant hold
 
-This is the run from [Try it](#try-it), in full. [`chat`](/flows/chat) declares nothing, so its
+This is the run from [Try it](#try-it), in full. [`chat`](https://humanfia.ai/flows/chat) declares nothing, so its
 one role runs at the default: `local` is the directory you started in, and `/tmp` beyond it is
 `system`, which is `READ`.
 
@@ -130,8 +130,8 @@ inside.txt
 ## Example: a role that checks each tool
 
 Some roles let the flow look at each tool call and refuse the ones it does not want: the
-builder of [`humanize1:rlcr`](/flows/humanize1) and the worker of
-[`recursive_lean_prover`](/flows/recursive-lean-prover) are two. Only some CLIs can fill such a
+builder of [`humanize1:rlcr`](https://humanfia.ai/flows/humanize1) and the worker of
+[`recursive_lean_prover`](https://humanfia.ai/flows/recursive-lean-prover) are two. Only some CLIs can fill such a
 role, and `hmz exec` checks before anything runs:
 
 ```sh

@@ -44,7 +44,7 @@ during it. Three things decide it, and none of them is a prompt:
 
 | What | Decided by | Where you check it |
 | --- | --- | --- |
-| what each agent may read, write and reach | the flow, one role at a time | the flow's code, or its page under [Flows](/flows/) |
+| what each agent may read, write and reach | the flow, one role at a time | the flow's code, or its page under [Flows](https://humanfia.ai/flows/) |
 | whose code runs at all | you, by installing a flow | `/flow`, on its Installed page |
 | whose credentials a turn uses | you, on the agent's `account` row | `/flow`, and the Accounts page of `/settings` |
 
@@ -53,7 +53,7 @@ into one diff you can read and one command that takes it back.
 
 ## Example: read a flow's grants before running it
 
-You want to run [`aot`](/flows/aot), which writes a flow from a description, in a repository
+You want to run [`aot`](https://humanfia.ai/flows/aot), which writes a flow from a description, in a repository
 you care about. First, make the run undoable:
 
 ```sh

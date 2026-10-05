@@ -115,7 +115,7 @@ The machine's side, the installed agents, accounts, skills and flowverses, is de
 
 ## Example: what one report carries
 
-Say humanize crashes in the middle of a [Ralph loop](/flows/ralph-loop) you started from
+Say humanize crashes in the middle of a [Ralph loop](https://humanfia.ai/flows/ralph-loop) you started from
 `hmz`, on a machine whose answer is yes. The report is the error, and two short files that
 describe the run and the machine. The error, as it arrives:
 

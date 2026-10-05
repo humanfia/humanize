@@ -17,15 +17,15 @@ See what a Claude Code agent will carry of yours and of this project:
 ls ~/.claude/skills .claude/skills
 ```
 
-Then run a flow that brings a skill, such as [`rlar`](/flows/rlar), and list `.claude/skills`
+Then run a flow that brings a skill, such as [`rlar`](https://humanfia.ai/flows/rlar), and list `.claude/skills`
 again while its reviewer works: `review-notes` is there, the flow's own, until the reviewer's
 session ends.
 
 ## Before you start
 
 - A coding agent CLI that loads skills. Every built-in CLI does but DeepSeek Harness (`dsh`).
-- For the flow's skills: a flow whose roles bring some. [`rlar`](/flows/rlar)'s reviewer and
-  both roles of [`aot`](/flows/aot) do; a flow's page says which.
+- For the flow's skills: a flow whose roles bring some. [`rlar`](https://humanfia.ai/flows/rlar)'s reviewer and
+  both roles of [`aot`](https://humanfia.ai/flows/aot) do; a flow's page says which.
 
 ## Yours and the flow's
 

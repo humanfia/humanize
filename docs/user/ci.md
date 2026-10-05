@@ -141,7 +141,7 @@ jobs:
    also need the `hmz[all]` extra: see [Installation](/user/installation).
 5. **Run the loop.** The same `hmz exec` line you ran by hand, with the CLI signed in from a
    secret. `-p budget.duration=45m,budget.cost=20` stops it at 45 minutes or $20, whichever
-   comes first, and the step still exits 0: a [Ralph loop](/flows/ralph-loop) usually ends this
+   comes first, and the step still exits 0: a [Ralph loop](https://humanfia.ai/flows/ralph-loop) usually ends this
    way. A fresh runner has no price list, so a run with a `cost` limit fetches one before its
    first turn (at most 20 s). The `duration` still bounds the run if the model has no price.
 6. **Trace the run.** `if: always()` traces a run that failed too, which is the one you most
@@ -213,7 +213,7 @@ Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/
 ## A flow from a flowverse
 
 `ralph_loop` ships with humanize, as do `chat` and the other loops
-[FlowBench scores](/flows/#the-loops-side-by-side), so `-f ralph_loop` runs on a fresh runner
+[FlowBench scores](https://humanfia.ai/flows/), so `-f ralph_loop` runs on a fresh runner
 as it is. A flow you [install](/weaver/flowverses) from a flowverse is not there: a fresh runner
 has fetched no flowverse and installed nothing, so `-f parallel_flame_chase` is refused with
 `the official flowverse has not been fetched yet`. Name that release by its repository

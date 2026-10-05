@@ -348,7 +348,7 @@ There are two moments to stop a tool at, and whether a refusal stops it depends 
 | `on_permission_request` | `claude`, `codex`, `kimi`, for what each asks about | <Badge type="info" text="not served" /> a role that [declares it](#declaring-a-mixin) is never given these CLIs |
 
 On Claude Code, where both moments can stop a tool, `on_pre_tool_use` answers first, and a tool
-it refuses is never put to `on_permission_request`. [`humanize1`](/flows/humanize1) guards its
+it refuses is never put to `on_permission_request`. [`humanize1`](https://humanfia.ai/flows/humanize1) guards its
 builder with both.
 
 ::: tip Hang these before the turn they should cover

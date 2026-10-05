@@ -20,7 +20,7 @@ flow ─── the loop: who is asked what, and until when
 
 ## One run, in these words
 
-Most of the words below meet in a single command. This one runs the [`rlar`](/flows/rlar)
+Most of the words below meet in a single command. This one runs the [`rlar`](https://humanfia.ai/flows/rlar)
 flow, where an actor works and a reviewer checks each of its turns:
 
 ```sh
@@ -107,7 +107,7 @@ opened. `/epics` lists the runs of this directory. See [Tracing](/user/tracing) 
 
 The loop: Python that says which agent is asked what, in what order, and when to stop. You
 choose one at `/flow` or name it with `$`. See [Your first run](/user/first-run) and
-[Flows](/flows/).
+[Flows](https://humanfia.ai/flows/).
 
 ## Flowverse
 

@@ -33,8 +33,8 @@ resuming 20260930T053826.667Z-55bb87: running ralph_loop from saved state
 ## Before you start
 
 - A flow that can be picked up. Most of the official loops can,
-  [`ralph_loop`](/flows/ralph-loop) and [`rlar`](/flows/rlar) among them; each flow's page says
-  whether it can. [`chat`](/flows/chat) cannot.
+  [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) and [`rlar`](https://humanfia.ai/flows/rlar) among them; each flow's page says
+  whether it can. [`chat`](https://humanfia.ai/flows/chat) cannot.
 - An earlier run of that flow, **in this directory**, that got far enough to save something.
   Runs are kept per directory, so start `hmz` or `hmz exec` where the first run started.
 - Nothing running here now. [Stop](/user/stopping) a running flow first.
@@ -76,7 +76,7 @@ runtime of theirs is saved as `local`, and an ssh host only while none is saved 
 
 ## Example: stop a Ralph loop on its budget, then carry it on
 
-A tiny project with two failing tests, and a [Ralph loop](/flows/ralph-loop) that tries the
+A tiny project with two failing tests, and a [Ralph loop](https://humanfia.ai/flows/ralph-loop) that tries the
 task again in a fresh session every round. The budget is deliberately small so the run stops
 by itself.
 

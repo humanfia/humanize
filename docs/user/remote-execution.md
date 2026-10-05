@@ -400,7 +400,7 @@ The CLI runs on the host when all three hold, and here otherwise:
 - the host can hold the role's [permission](/user/permissions), which takes Landlock there for
   any role not granted everything;
 - the flow hangs no hook on the role that decides whether each tool runs, such as the builder
-  of [`humanize1:rlcr`](/flows/humanize1): a CLI on another machine can only report what such a
+  of [`humanize1:rlcr`](https://humanfia.ai/flows/humanize1): a CLI on another machine can only report what such a
   hook would have decided, so that role stays here. A hook that answers the agent's questions
   is not one of those: a question comes back from wherever the CLI runs.
 

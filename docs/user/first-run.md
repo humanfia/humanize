@@ -112,7 +112,7 @@ The steps below take each of those in turn.
 Three words cover what you set up:
 
 - A **flow** is the loop: which agent is asked what, in what order, and when to stop.
-  [`ralph_loop`](/flows/ralph-loop), used here, gives one agent the same task again and again,
+  [`ralph_loop`](https://humanfia.ai/flows/ralph-loop), used here, gives one agent the same task again and again,
   in a fresh conversation each round, until its budget runs out or you stop it.
 - A **role** is a slot the flow declares, such as `agent`, `builder` or `reviewer`. You fill
   each role with an **agent**: a CLI, the account it runs as, a model, and an effort.
@@ -447,7 +447,7 @@ what you save there is what the next run starts with.
 humanize fills a role with the first CLI it found. <kbd>enter</kbd> on the role, then on
 `cli`, and pick another; then pick its model again.
 
-### A flow from the [Flows](/flows/) pages is not listed
+### A flow from the [Flows](https://humanfia.ai/flows/) pages is not listed
 
 Only the flows built into humanize are there from the start. Install the others from a
 flowverse: see the note under [step 3](#_3-choose-a-flow).
@@ -459,7 +459,7 @@ flowverse: see the note under [step 3](#_3-choose-a-flow).
   [Beat a benchmark](/user/tutorials/take-home),
   [Port a project](/user/tutorials/port-a-project) and
   [Build a coding agent](/user/tutorials/build-an-agent).
-- [Flows](/flows/) lists every flow humanize and its official flowverse offer.
+- [Flows](https://humanfia.ai/flows/) lists every flow humanize and its official flowverse offer.
 - [Run it unattended](/user/unattended): the same run as one `hmz exec` line.
 
 <style scoped>

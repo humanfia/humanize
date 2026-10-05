@@ -40,7 +40,7 @@ Three things set it apart from a coding agent:
 
 ## Example: a conversation
 
-`talk` is the shape of [`chat`](/flows/chat), the flow the interface opens on:
+`talk` is the shape of [`chat`](https://humanfia.ai/flows/chat), the flow the interface opens on:
 
 ```python
 # .hmz/flows/talk/__init__.py

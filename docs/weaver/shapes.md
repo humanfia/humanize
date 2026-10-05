@@ -119,7 +119,7 @@ async def reviewed(
 8. **`review.notes`** goes to the actor word for word, in the actor's own session, which
    remembers the work it is being asked to fix.
 
-This is the shape of the official [`rlar`](/flows/rlar) flow.
+This is the shape of the official [`rlar`](https://humanfia.ai/flows/rlar) flow.
 
 ### Run it
 

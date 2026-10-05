@@ -93,7 +93,7 @@ starts. Press <kbd>shift+tab</kbd> to read one at a time.
   conversation, and read the marks that say who is working and who has news.
 - **Use it when** a flow drives two or more agents, or one agent opens many conversations, and
   the combined transcript is hard to follow.
-- **You need** a flow running in `hmz`. A flow with two agents, such as [`rlar`](/flows/rlar),
+- **You need** a flow running in `hmz`. A flow with two agents, such as [`rlar`](https://humanfia.ai/flows/rlar),
   shows it best.
 :::
 

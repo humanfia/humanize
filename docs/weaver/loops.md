@@ -39,7 +39,7 @@ while True:
 
 | | `spawn` inside the loop | `spawn` before it |
 | --- | --- | --- |
-| The official flow | [`ralph_loop`](/flows/ralph-loop) | [`stateful_ralph`](/flows/stateful-ralph) |
+| The official flow | [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) |
 | Each turn starts from | the task and the repository | everything said and done so far |
 | Reach for it when | earlier attempts would mislead the next one | each round builds on what the last one learned |
 
@@ -379,7 +379,7 @@ async def ralph_loop(
 top. The agent then remembers every round, which helps when a round builds on what the last one
 learned, and costs more as the conversation grows.
 
-**Two agents taking turns.** [`flame_chase`](/flows/flame-chase) alternates two agents on the
+**Two agents taking turns.** [`flame_chase`](https://humanfia.ai/flows/flame-chase) alternates two agents on the
 same task. The heart of it is whose turn it is, kept in `ctx.state` so a resumed run goes on
 with the right one. Abridged:
 
@@ -398,11 +398,11 @@ change the copy. See [Flowverses](/weaver/flowverses#managing-flowverses).
 
 | Flow | Each round |
 | --- | --- |
-| [`ralph_loop`](/flows/ralph-loop) | a fresh session, the task again |
-| [`stateful_ralph`](/flows/stateful-ralph) | the same session, the task again |
-| [`continue_loop`](/flows/continue-loop) | the same session, the task once and then `continue` |
-| [`flame_chase`](/flows/flame-chase) | two agents in turn, a fresh session each |
-| [`goal`](/flows/goal) | no loop of its own: the task becomes the CLI's own [goal](/weaver/goals) |
+| [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | a fresh session, the task again |
+| [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) | the same session, the task again |
+| [`continue_loop`](https://humanfia.ai/flows/continue-loop) | the same session, the task once and then `continue` |
+| [`flame_chase`](https://humanfia.ai/flows/flame-chase) | two agents in turn, a fresh session each |
+| [`goal`](https://humanfia.ai/flows/goal) | no loop of its own: the task becomes the CLI's own [goal](/weaver/goals) |
 
 ## Pitfalls
 

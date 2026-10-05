@@ -113,7 +113,7 @@ Away belongs to the run rather than to your interface. It stays said after you
 
 ## Example: leave a Ralph loop for the evening
 
-A [`ralph_loop`](/flows/ralph-loop) is working through a refactor and will run for hours. You
+A [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) is working through a refactor and will run for hours. You
 want it to keep going even if an agent stops to ask something. Step through what the screen
 does:
 
@@ -147,7 +147,7 @@ A flow may have more than one outworlder, each with a transcript of its own that
 | every agent's transcript, or the monitor | every outworlder at once, undoing what was set for one |
 | one conversation's transcript | nothing: it is not offered there, and says where it works |
 
-Here is `/afk on` typed on the outworlder's transcript of a [`chat`](/flows/chat), recorded
+Here is `/afk on` typed on the outworlder's transcript of a [`chat`](https://humanfia.ai/flows/chat), recorded
 from a real run:
 
 <TermScreen title="hmz · chat" :frames="one" />
@@ -185,7 +185,7 @@ transcript, or on the outworlder's, and type it again.
 
 ### The chat ended as soon as I turned it on
 
-In [`chat`](/flows/chat), every reply asks you for the next message, and an empty answer ends
+In [`chat`](https://humanfia.ai/flows/chat), every reply asks you for the next message, and an empty answer ends
 the conversation. Leave `/afk` off in any flow built around talking to you.
 
 ### I came back and the run is waiting on me

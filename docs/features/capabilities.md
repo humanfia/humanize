@@ -16,7 +16,7 @@ import { withBase } from 'vitepress'
 
 | You can | Go to |
 | --- | --- |
-| **Ready-made loops.** A Ralph loop, a reviewer loop, three lanes at once. | [Flows](/flows/) |
+| **Ready-made loops.** A Ralph loop, a reviewer loop, three lanes at once. | [Flows](https://humanfia.ai/flows/) |
 | **Any coding agent.** Claude Code, Codex, Cursor, Kimi and more, most on the login they have. Add any Agent Client Protocol CLI. | [Accounts](/user/settings#accounts)<br><small>[Every coding agent you have](/features/backends)</small> |
 | **Model and effort.** Each agent's model, and how hard it thinks. | [Efforts](/user/efforts) |
 | **Two accounts of one CLI.** A subscription and a gateway side by side, each with its own login. | [Accounts](/user/settings#accounts)<br><small>[Two accounts of one CLI](/features/accounts)</small> |

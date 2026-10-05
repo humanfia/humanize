@@ -48,7 +48,7 @@ gathered when you export, so it covers the run as it stands then.
 
 ## Example: read the trace of a Ralph loop
 
-A [Ralph loop](/flows/ralph-loop) ran three rounds on a small project, each round a fresh
+A [Ralph loop](https://humanfia.ai/flows/ralph-loop) ran three rounds on a small project, each round a fresh
 session of Claude Code. Its `/epics` list:
 
 ```text

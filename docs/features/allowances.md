@@ -21,7 +21,7 @@ import Allowances from '../.vitepress/theme/components/features/Allowances.vue'
   not a sum.
 - **humanize holds it.** No flow and no hook can talk a spent budget into another turn.
 - **One per run.** A [picked-up](/features/resuming) run brings its own. Only
-  [`chat`](/flows/chat) runs without one.
+  [`chat`](https://humanfia.ai/flows/chat) runs without one.
 - **Unpriced is free.** A model with no listed price costs $0, so pair cost with a time or
   token limit.
 

@@ -64,8 +64,8 @@ this directory: the line is the whole setup.
 <role>=<cli>[@<account>]/<model>[:<effort>]
 ```
 
-- **role** is the name the flow gives the agent: `agent` for [ralph_loop](/flows/ralph-loop),
-  `actor` and `reviewer` for [rlar](/flows/rlar). Each flow's page lists its roles.
+- **role** is the name the flow gives the agent: `agent` for [ralph_loop](https://humanfia.ai/flows/ralph-loop),
+  `actor` and `reviewer` for [rlar](https://humanfia.ai/flows/rlar). Each flow's page lists its roles.
 - **cli** is one of `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mcode`,
   `mimo`, `opencode`, `pi`, `qwen`, or a CLI you added on [the Accounts page of
   `/settings`](/user/settings#accounts).
@@ -164,7 +164,7 @@ $ echo $?
 
 ### What each part means
 
-1. **`-f ralph_loop`** is the flow. A [Ralph loop](/flows/ralph-loop) gives the same task to a
+1. **`-f ralph_loop`** is the flow. A [Ralph loop](https://humanfia.ai/flows/ralph-loop) gives the same task to a
    fresh session every round, so each round reads the project as the last one left it.
 2. **`-a agent=claude/claude-haiku-4-5-20251001:low`** fills the loop's one role, `agent`, with
    Claude Code on a small model at a low effort. A small model and a low effort are the cheap
@@ -212,7 +212,7 @@ $ tail -2 run.log
 ✻ Worked for 9s · assistant
 ```
 
-1. **`> summary.txt`** takes the answer alone. [`chat`](/flows/chat) needs no budget, and with
+1. **`> summary.txt`** takes the answer alone. [`chat`](https://humanfia.ai/flows/chat) needs no budget, and with
    nobody at a prompt it answers once and returns.
 2. **`2> run.log`** keeps the run: every tool call, every turn's cost, and any
    `hmz exec: …` line. Redirected, the lines come out without colour or the ticking clock.

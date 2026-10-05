@@ -1594,13 +1594,13 @@ role.
 
 | Flow | Agent roles | Roles need | Resumable | Budget | Grant |
 | --- | --- | --- | :-: | --- | --- |
-| [`chat`](/flows/chat) | `assistant`, `human: Outworlder` | | | `Budget(cost=math.inf)` unless one is given | every mixin the harness serves |
-| [`ralph_loop`](/flows/ralph-loop) | `agent` | | ✓ | required | what each role declares |
-| [`stateful_ralph`](/flows/stateful-ralph) | `agent` | | ✓ | required | what each role declares |
-| [`continue_loop`](/flows/continue-loop) | `agent` | | ✓ | required | what each role declares |
-| [`goal`](/flows/goal) | `worker` | `GoalCommandAgentMixin` | | required | what each role declares |
-| [`flame_chase`](/flows/flame-chase) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
-| [`rlar`](/flows/rlar) | `actor`, `reviewer` | | ✓ | required | what each role declares |
+| [`chat`](https://humanfia.ai/flows/chat) | `assistant`, `human: Outworlder` | | | `Budget(cost=math.inf)` unless one is given | every mixin the harness serves |
+| [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | `agent` | | ✓ | required | what each role declares |
+| [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) | `agent` | | ✓ | required | what each role declares |
+| [`continue_loop`](https://humanfia.ai/flows/continue-loop) | `agent` | | ✓ | required | what each role declares |
+| [`goal`](https://humanfia.ai/flows/goal) | `worker` | `GoalCommandAgentMixin` | | required | what each role declares |
+| [`flame_chase`](https://humanfia.ai/flows/flame-chase) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
+| [`rlar`](https://humanfia.ai/flows/rlar) | `actor`, `reviewer` | | ✓ | required | what each role declares |
 
 `chat` opens one session and takes one turn per line the outworlder says; under `hmz exec`
 (outworlder away) it takes the task as its one turn and returns. The first turn's failure ends
@@ -1616,15 +1616,15 @@ Read [Security](/user/security) before running any.
 
 | Flow | Agent roles | Roles need | Resumable |
 | --- | --- | --- | :-: |
-| [`humanize1:gen-idea`](/flows/humanize1) | `drafter` | | |
-| [`humanize1:gen-plan`](/flows/humanize1) | `planner`, `analyst` | | |
-| [`humanize1:rlcr`](/flows/humanize1) | `builder`, `reviewer`, `human` | `builder`: `PermissionRequestHookAgentMixin` | ✓ |
-| [`parallel_flame_chase`](/flows/parallel-flame-chase) | `coordinator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`parallel_flame_chase:git_pr`](/flows/parallel-flame-chase-git-pr) | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`agent_cleanup:ralph_loop`](/flows/ralph-loop-agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
-| [`agent_cleanup:flame_chase`](/flows/flame-chase-agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
-| [`recursive_lean_prover`](/flows/recursive-lean-prover) | `worker`, `reviewer` | `worker`: `PermissionRequestHookAgentMixin` | ✓ |
-| [`aot`](/flows/aot) | `writer`, `critic`, `human` | | |
+| [`humanize1:gen-idea`](https://humanfia.ai/flows/humanize1) | `drafter` | | |
+| [`humanize1:gen-plan`](https://humanfia.ai/flows/humanize1) | `planner`, `analyst` | | |
+| [`humanize1:rlcr`](https://humanfia.ai/flows/humanize1) | `builder`, `reviewer`, `human` | `builder`: `PermissionRequestHookAgentMixin` | ✓ |
+| [`parallel_flame_chase`](https://humanfia.ai/flows/parallel-flame-chase) | `coordinator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
+| [`parallel_flame_chase:git_pr`](https://humanfia.ai/flows/parallel-flame-chase-git-pr) | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
+| [`agent_cleanup:ralph_loop`](https://humanfia.ai/flows/ralph-loop-agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
+| [`agent_cleanup:flame_chase`](https://humanfia.ai/flows/flame-chase-agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
+| [`recursive_lean_prover`](https://humanfia.ai/flows/recursive-lean-prover) | `worker`, `reviewer` | `worker`: `PermissionRequestHookAgentMixin` | ✓ |
+| [`aot`](https://humanfia.ai/flows/aot) | `writer`, `critic`, `human` | | |
 
 ## Command-line specs {#running-one}
 

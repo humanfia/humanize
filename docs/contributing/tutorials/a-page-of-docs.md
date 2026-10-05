@@ -26,7 +26,6 @@ A page answers one kind of question, and the question picks the section:
 | The reader wants | Section |
 | --- | --- |
 | to understand how something works | [Features](/features/) |
-| to pick a flow to run | [Flows](/flows/) |
 | to do something with `hmz` | [User Guide](/user/) |
 | to write a flow | [Weaver Guide](/weaver/) |
 | to change humanize itself | [Contributing](/contributing/) |

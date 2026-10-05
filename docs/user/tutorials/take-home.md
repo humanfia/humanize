@@ -119,7 +119,7 @@ Committing the task means `git log` later shows the agents' work and nothing of 
 
 ## Step 3: Start the loop
 
-The flow is [`flame_chase`](/flows/flame-chase). It gives two agents the task in turn, and
+The flow is [`flame_chase`](https://humanfia.ai/flows/flame-chase). It gives two agents the task in turn, and
 every turn opens a fresh **session**, a conversation with the model that has seen nothing
 before. What passes from one turn to the next is the repository and `NOTES.md`, not a
 transcript.

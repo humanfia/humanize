@@ -1,6 +1,6 @@
 // The page at the site's root is a hero and an architecture diagram, the features landing is a
 // set of diagrams rather than a page of prose, each feature page is one diagram of its own, and
-// every flow has its loop played on its own page -- so the theme exists to register them.
+// a tutorial plays the loop of the flow it runs -- so the theme exists to register them.
 // Everything else is VitePress's default theme untouched: the two role guides, contributing
 // and reference render exactly as they did.
 import type { Theme } from 'vitepress'
@@ -14,8 +14,6 @@ import HmzCast from './components/HmzCast.vue'
 import HmzDaemon from './components/HmzDaemon.vue'
 import HmzFeatures from './components/HmzFeatures.vue'
 import HmzFlow from './components/flow/FlowPlayer.vue'
-import HmzFlowLegend from './components/flow/FlowLegend.vue'
-import HmzFlows from './components/flow/FlowCatalogue.vue'
 import HmzGoal from './components/HmzGoal.vue'
 import HmzHero from './components/HmzHero.vue'
 import HmzLoops from './components/HmzLoops.vue'
@@ -44,8 +42,6 @@ export default {
     app.component('HmzDaemon', HmzDaemon)
     app.component('HmzFeatures', HmzFeatures)
     app.component('HmzFlow', HmzFlow)
-    app.component('HmzFlowLegend', HmzFlowLegend)
-    app.component('HmzFlows', HmzFlows)
     app.component('HmzGoal', HmzGoal)
     app.component('HmzHero', HmzHero)
     app.component('HmzLoops', HmzLoops)

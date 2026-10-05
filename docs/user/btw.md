@@ -127,7 +127,7 @@ The snapshot holds:
 
 ## Example: ask what the reviewer is waiting for
 
-An [`rlar`](/flows/rlar) run has been going a few minutes. The actor is working and the
+An [`rlar`](https://humanfia.ai/flows/rlar) run has been going a few minutes. The actor is working and the
 reviewer is idle, and you want to know why. You are on the transcript of every agent, so the
 btw agent answers. Step through it:
 

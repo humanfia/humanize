@@ -1,7 +1,7 @@
 # Build a coding agent
 
 In this tutorial you take one loose sentence, "a small terminal coding agent for
-`deepseek-v4-flash`", through the three phases of [`humanize1`](/flows/humanize1). Each phase
+`deepseek-v4-flash`", through the three phases of [`humanize1`](https://humanfia.ai/flows/humanize1). Each phase
 is a flow of its own, and each hands the next a file you can read and edit.
 
 ::: info At a glance
@@ -390,7 +390,7 @@ to step 4.
 - **Stop between phases and edit the file.** The draft and the plan are both meant to be read,
   and a text editor is the refinement step.
 - **Build from a plan you wrote.** Phase 3 needs a plan, not the first two phases:
-  `-p plan_file=…` names it. The [`humanize1`](/flows/humanize1) page has more of the
+  `-p plan_file=…` names it. The [`humanize1`](https://humanfia.ai/flows/humanize1) page has more of the
   phases' params.
 - **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export run** on
   any of them gives you its trace. See [Tracing](/user/tracing).

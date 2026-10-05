@@ -39,7 +39,7 @@ budget is what bounds a goal that never settles.
 
 ## Example: the task as a goal
 
-`aim` is the official [`goal`](/flows/goal) flow under a name of your own, returning the
+`aim` is the official [`goal`](https://humanfia.ai/flows/goal) flow under a name of your own, returning the
 answer it ended on:
 
 ```python

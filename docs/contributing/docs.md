@@ -28,14 +28,14 @@ pnpm check:anchors   # fails on a dead #fragment
 pnpm check:legible   # fails on a diagram's word drawn under 11px on a phone
 ```
 
-`check:legible` takes every scene on the Flows and Features pages, and on any other page,
-through in Chromium, at phone and tablet widths, moving and held still, and measures every word
-it draws. A moving scene is not played on a clock but held at one moment of its timeline after
-another, so a busy machine gets the same answer as an idle one. A word may be drawn small while
-it pops in, for under 0.3s of the scene's time, but never where the scene comes to rest: where a
+`check:legible` takes every scene on the Features pages, and on any other page, through in
+Chromium, at phone and tablet widths, moving and held still, and measures every word it draws.
+A moving scene is not played on a clock but held at one moment of its timeline after another,
+so a busy machine gets the same answer as an idle one. A word may be drawn small while it pops
+in, for under 0.3s of the scene's time, but never where the scene comes to rest: where a
 chapter ends or a step lands. The first run wants the browser:
-`pnpm exec playwright install chromium`. `--page flows/rlar --width 390` looks at one page, and
-`--overlap` also lists words drawn over each other, for you to look at.
+`pnpm exec playwright install chromium`. `--page user/tutorials/port-a-project --width 390`
+looks at one page, and `--overlap` also lists words drawn over each other, for you to look at.
 
 ## Where a page goes
 
@@ -44,7 +44,6 @@ Each section answers one kind of question. A page that answers two is two pages.
 | Section | The reader wants | A page there |
 | --- | --- | --- |
 | **Features** | to understand | One feature, built around a diagram the reader can push. **No commands and no code**: a guide is one click away |
-| **Flows** | to pick a flow | One flow, opening with its `hmz exec` line and the shape of its loop |
 | **User Guide** | to do something | One task for the person running flows, as a [guide page](#the-shape-of-a-guide-page). No Python |
 | **Weaver Guide** | to write a flow | The same, for whoever writes the flow. Every example a complete flow that runs |
 | **Contributing** | to change humanize | Setup, checks, the layers, and this, as guide pages too |
@@ -233,21 +232,19 @@ Add a Vue component only where a control settles a real question, not as decorat
 
 ### Flow diagrams
 
-Every flow's diagram, the cards on `/flows/` and the legend there are one grammar, drawn by the
-components in `docs/.vitepress/theme/components/flow/`. `<HmzFlow flow="rlar" />` plays a
-flow's scene on a page, `pick="a,b"` several with a strip to choose between them. To draw a
+A tutorial that runs a flow plays its loop: `<HmzFlow flow="rlar" />` plays a flow's scene on a
+page, `pick="a,b"` several with a strip to choose between them. Every diagram is one grammar,
+drawn by the components in `docs/.vitepress/theme/components/flow/`. Each flow's own page, with
+its loop played, is not here but at [humanfia.ai/flows](https://humanfia.ai/flows/). To draw a
 flow, add or change its scene in `theme/flows.ts` (roles, turns, passes, the loop and the ends,
 read off the flow's own code) and nothing else:
 
 - **One mark per idea.** A role's colour says what it is (`maker`, `partner`, `checker`,
   `steward`), you are a ring with a person, a program with no model is a square. A spark is a
   new session, a thread a held one; a solid pass is words, a dotted one files. The full list is
-  in `grammar.ts`, and the legend on `/flows/` draws it. A new idea gets a new mark there, in
-  the legend too, before any scene uses it.
+  in `grammar.ts`. A new idea gets a new mark there before any scene uses it.
 - **No drawing in a scene.** A scene says what happens, never where or how it looks. Layout,
   camera and motion are worked out from it by `stage.ts`, the same way for every flow.
-- **Every flow has its own page and scene**, and its card, its sidebar entry and its category
-  come from the same entry in `FLOWS`. A flow belongs to one kind in `KINDS`.
 - **Every word can be read.** No word in the grammar is set smaller than 11.5px, the camera
   closes in no further out than a zoom of 1, and a word it would draw under 11px fades out, so
   a wide shot on a phone is the marks alone. Where the whole run at rest does not fit the

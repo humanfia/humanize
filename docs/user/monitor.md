@@ -231,7 +231,7 @@ It draws them two ways: as a **graph**, with arrows for the handovers between ag
 
 ## Example: find out why an `rlar` run has stalled
 
-An [`rlar`](/flows/rlar) run has an actor and a reviewer. The actor has been working a while
+An [`rlar`](https://humanfia.ai/flows/rlar) run has an actor and a reviewer. The actor has been working a while
 and you want to see what the reviewer last said. Press the frames in order:
 
 <TermScreen title="hmz · rlar" :frames="monitor" art />

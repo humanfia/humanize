@@ -1,4 +1,4 @@
-// Every word on the Flows and Features pages, and on any other page a scene plays on, can be
+// Every word on the Features pages, and on any other page a scene plays on, can be
 // read on a phone: drawn at 11px or more, on a phone and on a tablet, with the animations
 // playing and held still, and no page scrolls sideways.
 //
@@ -17,10 +17,10 @@
 //   pnpm build && pnpm check:legible
 //
 // The first run wants a browser: `pnpm exec playwright install chromium`.
-// `--page flows/rlar --width 390` narrows it down; `--report` prints every moment's offenders
-// rather than the worst of each; `--clipped` also lists words cut off at the edge of what
-// shows them, and `--overlap` words drawn over one another: a camera pushing in and a scene in
-// motion do both on purpose, so neither is a failure, only something to look at.
+// `--page user/tutorials/port-a-project --width 390` narrows it down; `--report` prints every
+// moment's offenders rather than the worst of each; `--clipped` also lists words cut off at the
+// edge of what shows them, and `--overlap` words drawn over one another: a camera pushing in
+// and a scene in motion do both on purpose, so neither is a failure, only something to look at.
 
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -32,7 +32,7 @@ import { serve } from 'vitepress'
 const DIST = new URL('./dist/', import.meta.url).pathname
 const DOCS = new URL('../', import.meta.url).pathname
 const BASE = '/humanize/'
-const SECTIONS = ['features', 'flows']
+const SECTIONS = ['features']
 const MIN = 11
 const HEIGHT = 844 // px: a phone's screen
 // A moving scene is looked at every STEP seconds of its own timeline.
@@ -56,15 +56,10 @@ const { values: args } = parseArgs({
     jobs: { type: 'string', default: '6' },
   },
 })
-// The flows' diagrams are drawn for the width they are given. The feature scenes are drawn for
-// a 360-wide phone and scaled to fit, with their words lifted back on a narrower one: so 360
-// too, the width where nothing is lifted.
-const WIDTHS = {
-  // and every other page a scene plays on
-  features: [320, 360, 390, 768],
-  flows: [320, 390, 768],
-}
-const widthsOf = (path) => (args.width ? args.width.map(Number) : WIDTHS[path.split('/')[0]] ?? WIDTHS.features)
+// The feature scenes are drawn for a 360-wide phone and scaled to fit, with their words lifted
+// back on a narrower one: so 360 too, the width where nothing is lifted. A flow's diagram is
+// drawn for the width it is given, and is looked at across the same ones.
+const WIDTHS = args.width ? args.width.map(Number) : [320, 360, 390, 768]
 const MOTIONS = args.motion ?? ['reduce', 'no-preference']
 
 /** The built site under its base, served the way `pnpm preview` serves it, on a free port. */
@@ -75,7 +70,7 @@ async function start() {
   return server
 }
 
-/** Every page of the Flows and Features sections, and any other page a scene plays on. */
+/** Every page of the Features section, and any other page a scene plays on. */
 async function pages() {
   const found = []
   for (const file of (await readdir(DIST, { recursive: true })).sort()) {
@@ -343,8 +338,8 @@ async function check(browser, origin, path, width, motion) {
   try {
     await page.goto(`${origin}${BASE}${path}`, { waitUntil: 'load' })
     await started(page, motion)
-    // The whole page on the Flows and Features pages, but its scenes, which are looked at one by
-    // one below; elsewhere only its scenes.
+    // The whole page on the Features pages, but its scenes, which are looked at one by one
+    // below; elsewhere only its scenes.
     if (SECTIONS.includes(path.split('/')[0])) {
       // Down the page a screen at a time, so every entrance plays -- the cards of a grid rising
       // into place as they are scrolled to, say -- and then every one is over.
@@ -441,7 +436,7 @@ async function main() {
   const origin = `http://localhost:${server.address().port}`
   const browser = await chromium.launch()
   const jobs = []
-  for (const path of list) for (const width of widthsOf(path)) for (const motion of MOTIONS) jobs.push({ path, width, motion })
+  for (const path of list) for (const width of WIDTHS) for (const motion of MOTIONS) jobs.push({ path, width, motion })
   const found = []
   let next = 0
   const worker = async () => {

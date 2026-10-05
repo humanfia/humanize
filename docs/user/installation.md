@@ -267,7 +267,7 @@ Until it has a key, humanize lists `dsh` but does not pick it for you. Its model
 hmz exec -f chat -a assistant=dsh/deepseek-v4-flash:high "say hello"
 ```
 
-`chat` and the six loops [FlowBench scores](/flows/#the-loops-side-by-side) ship with
+`chat` and the six loops [FlowBench scores](https://humanfia.ai/flows/) ship with
 humanize. A flow from a flowverse, such as `parallel_flame_chase`, runs once you install it
 from `/flow`; `hmz exec` installs nothing.
 

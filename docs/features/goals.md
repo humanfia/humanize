@@ -30,7 +30,7 @@ import { withBase } from 'vitepress'
 Has a goal: <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="dsh" /> <Badge type="tip" text="kimi" />
 
 <div class="hmz-paths by-three">
-  <a :href="withBase('/flows/goal')">
+  <a href="https://humanfia.ai/flows/goal">
     <strong>Run one</strong>
     <span>The goal flow sets your task as the agent's goal, once.</span>
   </a>

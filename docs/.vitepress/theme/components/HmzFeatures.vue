@@ -321,7 +321,7 @@ function rest(event: PointerEvent) {
     </section>
     <div class="more">
       <a :href="withBase('/features/capabilities')">Everything it does, mapped →</a>
-      <a :href="withBase('/flows/')">Every flow, played →</a>
+      <a href="https://humanfia.ai/flows/">Every flow, played →</a>
     </div>
   </div>
 </template>

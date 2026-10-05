@@ -120,7 +120,7 @@ two shortcuts:
 
 ## Step 3: Run it
 
-The flow is [`rlar`](/flows/rlar), a Ralph loop with an actor and a reviewer. The **actor**
+The flow is [`rlar`](https://humanfia.ai/flows/rlar), a Ralph loop with an actor and a reviewer. The **actor**
 keeps one conversation for the whole run, so it remembers every decision it made. Each time it
 finishes a turn, the **reviewer** opens a fresh one, reads the repository with `git diff` and
 the tests, and answers two things: `done`, true or false, and `notes`. The notes become the

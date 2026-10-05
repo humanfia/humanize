@@ -33,7 +33,7 @@ const AREAS: Area[] = [
     code: 'A',
     name: 'Run it your way',
     items: [
-      { name: 'Ready-made loops', link: '/flows/' },
+      { name: 'Ready-made loops', link: 'https://humanfia.ai/flows/' },
       { name: 'Any coding agent', link: '/user/settings#accounts' },
       { name: 'Model and effort', link: '/user/efforts' },
       { name: 'Two accounts of one CLI', link: '/user/settings#accounts' },

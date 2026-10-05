@@ -225,7 +225,7 @@ async def test_a_step_over_its_budget_does_not_end_the_run() -> None:
 
 ## Example: a published flow
 
-`aimed` calls [`goal`](/flows/goal), which ships with humanize, then takes a turn of its own
+`aimed` calls [`goal`](https://humanfia.ai/flows/goal), which ships with humanize, then takes a turn of its own
 once the goal is met:
 
 ```python

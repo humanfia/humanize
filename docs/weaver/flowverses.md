@@ -534,7 +534,7 @@ then move the directory into a repository of its own to publish it.
 
 ## Next steps
 
-- [Flows](/flows/): every flow humanize offers, with the shape of each drawn
+- [Flows](https://humanfia.ai/flows/): every flow humanize offers, with the shape of each drawn
 - [humanfia/flowverse's CONTRIBUTING.md](https://github.com/humanfia/flowverse/blob/main/CONTRIBUTING.md):
   listing a flow in the official flowverse
 - [Testing a flow](/weaver/testing-flows)

@@ -47,7 +47,7 @@ Every file is scrubbed of credentials on the way in.
 
 ## Example: export a Ralph loop for an issue
 
-A [Ralph loop](/flows/ralph-loop) ran three rounds on a small project and was stopped by its
+A [Ralph loop](https://humanfia.ai/flows/ralph-loop) ran three rounds on a small project and was stopped by its
 budget. Open the run in `/epics`:
 
 ```text

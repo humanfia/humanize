@@ -77,5 +77,5 @@ What an agent may touch and what it carries are declared by the flow too:
 
 ## Next steps
 
-Real flows to read are in [Flows](/flows/). Every argument, refusal and return of the flow API
+Real flows to read are in [Flows](https://humanfia.ai/flows/). Every argument, refusal and return of the flow API
 is in [Reference › Flows](/reference/flows).

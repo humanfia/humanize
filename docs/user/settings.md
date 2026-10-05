@@ -317,7 +317,7 @@ prints along the way. Reach for it when a turn is slow or does something you did
 It is off until you turn it on, and it is remembered: the next `hmz` opens the way you left it.
 While it is on, the status line starts with `details`.
 
-Here is one turn of [`rlar`](/flows/rlar)'s actor, both ways:
+Here is one turn of [`rlar`](https://humanfia.ai/flows/rlar)'s actor, both ways:
 
 <TermScreen title="hmz · rlar" :frames="turn" />
 
@@ -1156,7 +1156,7 @@ reads only one thing from here: whether you said yes to [reporting](/user/report
 
 ### The first time
 
-With nothing remembered, `hmz` opens on the [`chat`](/flows/chat) flow, with the first
+With nothing remembered, `hmz` opens on the [`chat`](https://humanfia.ai/flows/chat) flow, with the first
 installed CLI that can run without further setup, at the first model that CLI lists, at effort
 `high` where the model offers it.
 

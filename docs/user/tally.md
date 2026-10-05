@@ -69,7 +69,7 @@ turn under `hmz exec`, and a running readout above the prompt in `hmz`.
    apart.
 
 A flow with two roles prints one such line per turn, per role. This is a real
-[`rlar`](/flows/rlar) run of two turns each, with the reviewer checking the actor's fix:
+[`rlar`](https://humanfia.ai/flows/rlar) run of two turns each, with the reviewer checking the actor's fix:
 
 ```text
 ✻ input 26 · output 376 · cache_read 55.6k · cache_write 7.3k · $0.02 · claude-haiku-4-5-20251001 · actor
@@ -84,7 +84,7 @@ role to give a cheaper model or a lower effort, not the actor.
 ## Example: watch the readout in `hmz`
 
 In the interface, once anything has been spent, the readout sits under the agent lines, above
-the editor. This one is a single [`chat`](/flows/chat) agent a minute in:
+the editor. This one is a single [`chat`](https://humanfia.ai/flows/chat) agent a minute in:
 
 ```text
                      assistant · claude/claude-haiku-4-5-20251001:low · ● 1   ①

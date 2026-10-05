@@ -7,7 +7,7 @@ nobody is there, and to count them from a script.
 
 ## Try it
 
-Start the interface, which opens on [`chat`](/flows/chat) with one agent, and ask for a
+Start the interface, which opens on [`chat`](https://humanfia.ai/flows/chat) with one agent, and ask for a
 question:
 
 ```sh

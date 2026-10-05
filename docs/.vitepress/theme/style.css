@@ -266,11 +266,9 @@
    of a front page, so the space around one is set here. Only a direct child of the content is
    matched: the same class names occur inside these components, laying out their own insides. */
 .vp-doc > div > .hmz-panel,
-.vp-doc > div > .flows,
 .vp-doc > div > .hmz-paths,
 .vp-doc > div > .grid,
 .VPHome .vp-doc > div > div > .hmz-panel,
-.VPHome .vp-doc > div > div > .flows,
 .VPHome .vp-doc > div > div > .hmz-paths,
 .VPHome .vp-doc > div > div > .grid {
   margin: 22px 0 30px;

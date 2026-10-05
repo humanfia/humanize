@@ -138,7 +138,7 @@ can take words mid-turn at all. Both are below.
 
 ## Example: add to the task four minutes in
 
-An [`rlar`](/flows/rlar) run has an **actor** fixing a flaky payment test and a **reviewer**
+An [`rlar`](https://humanfia.ai/flows/rlar) run has an **actor** fixing a flaky payment test and a **reviewer**
 that checks each of its turns. Four minutes into the actor's turn, you remember that the tests
 assert the old retry count, and want them fixed in the same turn. Step through what the screen
 does:

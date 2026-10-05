@@ -3,8 +3,6 @@ import { dirname, join } from 'node:path'
 
 import { defineConfig, type SiteConfig } from 'vitepress'
 
-import { FLOWS, KINDS } from './theme/flows'
-
 // Deployed to https://docs.humanfia.ai/humanize/ by .github/workflows/build-docs.yml.
 // The custom domain belongs to the organisation's own pages, so this repository is a project
 // page served under a subdirectory of it, and `base` is that subdirectory: without it every
@@ -13,9 +11,10 @@ import { FLOWS, KINDS } from './theme/flows'
 // the base to each of them -- so nothing in a page names the subdirectory.
 const BASE = '/humanize/'
 
-// Where a page used to be, and where it is now. Guides used to be one flat section serving two
-// audiences at once; they are a User Guide and a Weaver Guide now, and the tutorials went with
-// the audience each one teaches. GitHub Pages serves files and nothing else, so a page that
+// Where a page used to be, and where it is now: a path on this site, or the full URL of a page
+// that left it. Guides used to be one flat section serving two audiences at once; they are a
+// User Guide and a Weaver Guide now, and the tutorials went with the audience each one
+// teaches. GitHub Pages serves files and nothing else, so a page that
 // moved is a 404 for every bookmark and search result unless a file is left where it was --
 // which is what `buildEnd` below writes, one small redirect apiece.
 //
@@ -86,6 +85,27 @@ const MOVED_AGAIN: Record<string, string> = {
   'user/details': 'user/settings#details',
 }
 
+// Every flow had a page here, and has one at humanfia.ai now, under the same name: the flows
+// are humanfia's catalogue rather than this tool's manual, so they left for the site that holds
+// the rest of it.
+const HUMANFIA_FLOWS = 'https://humanfia.ai/flows/'
+const MOVED_TO_HUMANFIA = [
+  'chat',
+  'ralph-loop',
+  'stateful-ralph',
+  'continue-loop',
+  'goal',
+  'flame-chase',
+  'ralph-loop-agent-cleanup',
+  'flame-chase-agent-cleanup',
+  'rlar',
+  'humanize1',
+  'aot',
+  'parallel-flame-chase',
+  'parallel-flame-chase-git-pr',
+  'recursive-lean-prover',
+]
+
 const MOVED: Record<string, string> = {
   ...Object.fromEntries(MOVED_TO_USER.map((page) => [`guide/${page}`, `user/${page}`])),
   ...Object.fromEntries(MOVED_TO_WEAVER.map((page) => [`guide/${page}`, `weaver/${page}`])),
@@ -96,10 +116,16 @@ const MOVED: Record<string, string> = {
   'tutorials/take-home': 'user/tutorials/take-home',
   'tutorials/port-a-project': 'user/tutorials/port-a-project',
   'tutorials/build-an-agent': 'user/tutorials/build-an-agent',
-  // One page held both cleanup flows; each has its own now, and the first is where it went.
-  'flows/agent-cleanup': 'flows/ralph-loop-agent-cleanup',
+  ...Object.fromEntries(MOVED_TO_HUMANFIA.map((page) => [`flows/${page}`, `${HUMANFIA_FLOWS}${page}`])),
+  'flows/': HUMANFIA_FLOWS,
+  // One page here once held both cleanup flows; each has its own now, and the first is where
+  // it went.
+  'flows/agent-cleanup': `${HUMANFIA_FLOWS}ralph-loop-agent-cleanup`,
   ...MOVED_AGAIN,
 }
+
+/** Where a moved page is now: a path on this site, or a full URL on another. */
+const wayTo = (to: string) => (/^https?:\/\//.test(to) ? to : `${BASE}${to}`)
 
 export default defineConfig({
   base: BASE,
@@ -130,14 +156,13 @@ export default defineConfig({
     // the README's banner links it.
     logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: 'humanize' },
 
-    // Six sections, in the order a reader comes to need them. The home page's quickstart ends
-    // on a first run, and what that reader wants next is the guide to running flows, then the
-    // flows there are to run; after that, writing one of their own. Features explains how it
-    // all works, for whoever wants to know why; reference spells every part of it out; and
-    // contributing is for the few working on humanize itself.
+    // Five sections, in the order a reader comes to need them. The home page's quickstart ends
+    // on a first run, and what that reader wants next is the guide to running flows; after
+    // that, writing one of their own. Features explains how it all works, for whoever wants to
+    // know why; reference spells every part of it out; and contributing is for the few working
+    // on humanize itself. The flows there are to run are humanfia's, at humanfia.ai/flows.
     nav: [
       { text: 'User Guide', link: '/user/', activeMatch: '/user/' },
-      { text: 'Flows', link: '/flows/', activeMatch: '/flows/' },
       { text: 'Weaver Guide', link: '/weaver/', activeMatch: '/weaver/' },
       { text: 'Features', link: '/features/', activeMatch: '/features/' },
       { text: 'Reference', link: '/reference/', activeMatch: '/reference/' },
@@ -207,21 +232,6 @@ export default defineConfig({
             { text: 'Cap a single turn', link: '/features/budgets' },
           ],
         },
-      ],
-
-      // One page per flow, named the way `-f` takes it, sorted the way the catalogue on
-      // /flows/ sorts them: by how the agents in a flow work together. Both are built from
-      // `theme/flows.ts`, so the sidebar and the catalogue cannot disagree.
-      '/flows/': [
-        { text: 'Choosing a flow', link: '/flows/' },
-        ...KINDS.map((kind) => ({
-          text: kind.said,
-          collapsed: false,
-          items: FLOWS.filter((flow) => flow.kind === kind.id).map((flow) => ({
-            text: flow.name,
-            link: flow.link,
-          })),
-        })),
       ],
 
       // For the person who runs flows, in the order they need it: installing, a first run and
@@ -454,7 +464,7 @@ export default defineConfig({
     await Promise.all(
       Object.entries(MOVED).map(async ([from, to]) => {
         const at = join(site.outDir, from.endsWith('/') ? `${from}index.html` : `${from}.html`)
-        const way = `${BASE}${to}`
+        const way = wayTo(to)
         await mkdir(dirname(at), { recursive: true })
         await writeFile(
           at,
@@ -465,7 +475,7 @@ export default defineConfig({
             '<meta charset="utf-8">',
             '<meta name="robots" content="noindex">',
             `<meta http-equiv="refresh" content="0; url=${way}">`,
-            `<link rel="canonical" href="https://docs.humanfia.ai${way}">`,
+            `<link rel="canonical" href="${new URL(way, 'https://docs.humanfia.ai').href}">`,
             '<title>humanize</title>',
             '</head>',
             `<body>This page moved to <a href="${way}">${way}</a>.</body>`,
@@ -492,7 +502,7 @@ export default defineConfig({
             const to = MOVED[asked.slice(BASE.length)]
             if (to === undefined) return next()
             res.statusCode = 302
-            res.setHeader('location', `${BASE}${to}`)
+            res.setHeader('location', wayTo(to))
             res.end()
           })
         },
