@@ -548,7 +548,7 @@ svg {
 }
 
 .axis-word {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   fill: var(--hmz-stage-dim);
@@ -580,7 +580,7 @@ svg {
 }
 
 .met-word {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -651,7 +651,7 @@ svg {
 
 .hook-note-word {
   font-family: var(--vp-font-family-mono);
-  font-size: 11.5px;
+  font-size: 12px;
   fill: var(--hmz-stage-dim);
 }
 

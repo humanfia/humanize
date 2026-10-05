@@ -135,7 +135,7 @@ const WIDE: Layout = {
   mode: { x: 320, y: 238, anchor: 'middle' },
   sheet: { x: 212, y: 146, w: 32, h: 42 },
   gate: { x1: 399, y1: 128, x2: 399, y2: 206 },
-  gateLabel: { x: 399, y: 120, anchor: 'middle' },
+  gateLabel: { x: 399, y: 258, anchor: 'middle' },
   into: 'M200 167 L262 167',
   out: 'M378 167 L420 167',
   arc: 'M519 242 C519 332 112 332 112 248',
@@ -817,9 +817,8 @@ svg {
 }
 
 .sh-gate-ok {
-  stroke: var(--hmz-stage-ink);
-  stroke-width: 4.5;
-  opacity: 0.5;
+  stroke-width: 7;
+  opacity: 0.35;
 }
 
 .sh-slot-box {
