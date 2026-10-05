@@ -153,7 +153,9 @@ const scene = useScene({
     const one = (s: string) => q(s)[0]
 
     tl.set(q('.plot, .map'), { autoAlpha: 1 }, 0)
-    tl.set(q('.ridge, .land, .bar, .ok-zone, .bar-word, .axis, .axis-word, .kind, .legend, .dot, .miss, .done, .chase-path, .tag, .best, .stuck, .lower, .row, .wire'), { autoAlpha: 0 }, 0)
+    // What `create` and `drawOn` draw is hidden by its own stroke, drawn to nothing, rather than
+    // by its visibility: they fade a thing in from wherever it is, and from hidden that is out.
+    tl.set(q('.land, .ok-zone, .bar-word, .axis-word, .kind, .legend, .dot, .miss, .done, .tag, .best, .stuck, .lower, .row'), { autoAlpha: 0 }, 0)
     tl.set(one('.dot-r'), { x: at(ROUNDS[0]).x, y: at(ROUNDS[0]).y }, 0)
     tl.set(one('.dot-a'), { x: at(0.08).x, y: at(0.08).y }, 0)
     tl.set(one('.dot-b'), { x: at(0.22).x, y: at(0.22).y }, 0)
@@ -162,15 +164,15 @@ const scene = useScene({
 
     // 0 · constraint satisfaction: one feasible program is enough.
     tl.addLabel('beat-0', 0)
-    tl.set(one('.axis'), { autoAlpha: 1 }, 0.1)
     drawOn(tl, one('.axis'), 0.1, { duration: 0.6 })
-    write(tl, one('.axis-word'), 0.3)
+    tl.set(q('.axis-word, .kind, .bar-word'), { autoAlpha: 1 }, 0.3)
+    q('.axis-text').forEach((el, i) => write(tl, el, 0.3 + i * 0.2))
     create(tl, one('.ridge'), 0.4, { duration: 1.4 })
     tl.to(one('.land'), { autoAlpha: 1, duration: 0.8, ease: 'smooth' }, 1.2)
-    write(tl, one('.kind'), 0.5)
+    write(tl, one('.kind-text'), 0.5)
     drawOn(tl, one('.bar'), 1.6, { duration: 0.9 })
     tl.to(one('.ok-zone'), { autoAlpha: 1, duration: 0.6, ease: 'smooth' }, 2.1)
-    write(tl, one('.bar-word'), 2.2)
+    write(tl, one('.bar-text'), 2.2)
     growFrom(tl, one('.dot-r'), 2.9)
     ROUNDS.slice(1).forEach((u, i) => {
       const t = 3.5 + i * 0.95
@@ -226,7 +228,6 @@ const scene = useScene({
     ROWS.forEach((_, i) => {
       fadeIn(tl, one(`.row-${i} .from`), T3 + 0.6 + i * 0.55, { shift: { x: -14 } })
       tl.set(one(`.row-${i}`), { autoAlpha: 1 }, T3 + 0.6 + i * 0.55)
-      tl.set(one(`.wire-${i}`), { autoAlpha: 1 }, T3 + 0.9 + i * 0.55)
       drawOn(tl, one(`.wire-${i}`), T3 + 0.9 + i * 0.55, { duration: 0.6 })
       fadeIn(tl, one(`.row-${i} .to`), T3 + 1.3 + i * 0.55, { shift: { x: 14 } })
       passingFlash(tl, one(`.wire-${i}`), T3 + 1.5 + i * 0.55, { color: 'var(--hmz-accent)', duration: 0.7 })
@@ -265,14 +266,14 @@ const LABEL =
           <text class="miss-text" :x="at(u).x" :y="at(u).y + 22" text-anchor="middle">✗</text>
         </g>
         <g class="done">
-          <rect class="done-bg" :x="at(ROUNDS[3]).x + 14" :y="at(ROUNDS[3]).y - 40" width="122" height="24" rx="6" />
-          <text class="done-text" :x="at(ROUNDS[3]).x + 75" :y="at(ROUNDS[3]).y - 24" text-anchor="middle">✓ done: one is enough</text>
+          <rect class="done-bg" :x="at(ROUNDS[3]).x + 14" :y="at(ROUNDS[3]).y - 40" width="156" height="24" rx="6" />
+          <text class="done-text" :x="at(ROUNDS[3]).x + 92" :y="at(ROUNDS[3]).y - 24" text-anchor="middle">✓ done: one is enough</text>
         </g>
 
         <!-- Flame-chase: the path the work takes. -->
         <path v-for="(s, i) in CHASE" :key="`c${i}`" class="chase-path" :class="[`chase-${i}`, s.kind]" :d="s.kind === 'jump' ? leap(s.from, s.to) : ridge(s.from, s.to, 30)" />
         <g v-for="(s, i) in CHASE" :key="`t${i}`" class="tag" :class="[`tag-${i}`, s.kind]">
-          <text class="tag-text" :x="(at(s.from).x + at(s.to).x) / 2" :y="s.kind === 'jump' ? Math.min(at(s.from).y, at(s.to).y) - Math.abs(at(s.to).x - at(s.from).x) * 0.22 - 18 : (at(s.from).y + at(s.to).y) / 2 + 26" text-anchor="middle">{{ s.kind === 'jump' ? 'rewrite' : 'fine-tune' }}</text>
+          <text class="tag-text" :x="(at(s.from).x + at(s.to).x) / 2 + (s.kind === 'jump' ? 0 : 12)" :y="s.kind === 'jump' ? Math.min(at(s.from).y, at(s.to).y) - Math.abs(at(s.to).x - at(s.from).x) * 0.22 - 18 : (at(s.from).y + at(s.to).y) / 2 + 12" :text-anchor="s.kind === 'jump' ? 'middle' : 'start'">{{ s.kind === 'jump' ? 'rewrite' : 'fine-tune' }}</text>
         </g>
         <g class="best">
           <line class="best-line" :x1="L.plot.x0" :x2="L.plot.x1" y1="0" y2="0" />
