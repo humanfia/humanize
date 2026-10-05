@@ -1072,6 +1072,7 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
             "also:qwen",
             "also:opencode",
             "also:mimo",
+            "also:litellm",
         ]
         # Nothing is installed in this suite, so nothing starts switched on.
         assert not any(form._also(one) for one in ("pi", "qwen", "opencode", "mimo"))
@@ -1147,6 +1148,7 @@ async def test_an_account_that_travels_nowhere_is_not_asked_about() -> None:
             "also:pi",
             "also:opencode",
             "also:mimo",
+            "also:litellm",
         ]
         await _writes(app, driver, "name", *"only")
         await _writes(app, driver, "DEEPSEEK_API_KEY", *"sk-only")

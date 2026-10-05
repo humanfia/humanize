@@ -134,7 +134,6 @@ def test_a_flow_runs_its_turns_on_litellm(
             tmp_path / "flow",
             "hello",
             agents={"r": f"litellm@{MOCKED}/openai/mock/first-model"},
-            envs={"here": f"local{tmp_path}"},
             budget={"cost": 1},
         )
         .run()
@@ -148,7 +147,7 @@ def test_a_flow_runs_its_turns_on_litellm(
     turns = _messages(llm)
     assert len(turns) == 4
     # The fork carried what its session had said, and went its own way from there.
-    assert turns[2][:-1] == turns[1][:4]
+    assert turns[2][:3] == turns[1]
     assert turns[2][-1] == {"role": "user", "content": "aside"}
     # And the session it was cut from never heard what the fork was asked.
     assert {"role": "user", "content": "aside"} not in turns[3]

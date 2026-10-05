@@ -38,12 +38,13 @@ def test_dsh_is_installed_when_its_python_sdk_is_importable(
 
     found = discover.installed()
 
+    # litellm is a package too, and its module is not one this test says is there.
     assert list(found) == ["dsh"]
     assert [model.name for model in found["dsh"]] == [
         "deepseek-v4-flash",
         "deepseek-v4-pro",
     ]
-    assert discover.installable() == {}
+    assert list(discover.installable()) == ["litellm"]
 
 
 def test_a_missing_dsh_sdk_is_installable_but_not_installed(
@@ -66,7 +67,8 @@ def test_a_missing_dsh_sdk_is_installable_but_not_installed(
     ]
     # And nothing else: kimi is behind an extra too, but its CLI is not here either, so what
     # it is missing is not a package and a line naming one would be half an answer.
-    assert list(discover.installable()) == ["dsh"]
+    # litellm has no CLI either, so it is a package missing just as dsh is.
+    assert list(discover.installable()) == ["dsh", "litellm"]
 
 
 def test_kimi_without_its_websocket_client_is_installable_rather_than_hidden(
