@@ -211,9 +211,15 @@ Add a Vue component only where a control settles a real question, not as decorat
   `HmzStage`. The toolkit starts a scene when it is scrolled into view, pauses it off screen,
   holds it at its `still` frame under reduced motion, and turns the timeline's `beat-0`,
   `beat-1`… labels into the chapters under the picture: one short line each, so the words are
-  always on the page. Move the world with the camera from `camera.ts`, put sparks and light
-  trails on the canvas from `fx.ts`, keep a second layout for phone width with `useNarrow`,
-  and take GSAP from `motion()` rather than importing it bare. The toolkit also lists the scene
+  always on the page. Move the world with the camera from `camera.ts` (`shot`, `frame`,
+  `focus`, and `drift` and `pulse` to keep a held shot alive), put sparks, trails, rings and
+  flashes on the canvas from `fx.ts`, cut the drawing with the 3Blue1Brown verbs in `manim.ts`
+  (`create`, `write`, `transform`, `indicate`, `circumscribe`, `passingFlash`, `ticker`…) and
+  the eases named in `EASES` (`gsap.ts`), keep a second layout for phone width with
+  `useNarrow`, and take GSAP from `motion()` rather than importing it bare. Every colour is a
+  token from `style.css` (a canvas reads them through `usePalette`), never a literal, so a
+  scene follows the theme switch live. The stage draws graph paper behind a scene unless the
+  scene draws a `<pattern>` grid of its own, or sets `paper`. The toolkit also lists the scene
   for `check:legible` (`probe.ts`), which fails a scene it cannot hold still. A screen that
   holds links or controls sets `interactive`, so it is a group rather than a picture to a
   screen reader. Never tween the `x`, `y` or `scale` of an SVG element placed by a `transform`
