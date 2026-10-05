@@ -68,7 +68,7 @@ const WIDE: Layout = {
     drift: { x: 330, y: 150, s: 1.05 },
     stop: { x: 440, y: 90, s: 1.7 },
     kept: { x: 340, y: 270, s: 1.35 },
-    pick: { x: 340, y: 170, s: 1.15 },
+    pick: { x: 320, y: 172, s: 1.08 },
   },
 }
 
@@ -92,7 +92,7 @@ const NARROW: Layout = {
     drift: { x: 180, y: 150, s: 1.05 },
     stop: { x: 260, y: 104, s: 1.5 },
     kept: { x: 180, y: 300, s: 1.05 },
-    pick: { x: 190, y: 190, s: 1.1 },
+    pick: { x: 180, y: 200, s: 1.04 },
   },
 }
 
