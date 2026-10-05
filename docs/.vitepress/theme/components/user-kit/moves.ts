@@ -4,6 +4,9 @@
 // timeline and a place on it, and adds tweens there: nothing here starts a clock of its own,
 // so a scene stays seekable, and its reduced-motion still frame is a frame of the same moves.
 //
+// Move a `<g>` round a word rather than the `<text>` itself: `HmzStage` scales small words back
+// up on a narrow screen with CSS `scale`, and GSAP would bake that into a transform of its own.
+//
 // Colours are never passed in: what these touch takes its colour from the scene's CSS, which
 // reads the theme's variables, so a scene flips with the theme mid-play.
 type Timeline = gsap.core.Timeline
@@ -34,14 +37,13 @@ export function draw(tl: Timeline, el: Targets, at: gsap.Position, o: { duration
   tl.fromTo(el, { drawSVG: o.from ?? '0%', autoAlpha: 1 }, { drawSVG: '100%', duration: o.duration ?? 0.8, ease: o.ease ?? 'cine', stagger: o.stagger ?? 0 }, at)
 }
 
-/** A ring goes out from a thing and fades: something reached it. */
+/**
+ * A ring goes out from a thing and fades: something reached it. It starts invisible, so a
+ * seek to before it never leaves it hanging there.
+ */
 export function ring(tl: Timeline, el: Targets, at: gsap.Position, o: { to?: number; duration?: number } = {}) {
-  tl.fromTo(
-    el,
-    { autoAlpha: 0.9, scale: 0.7, transformOrigin: '50% 50%' },
-    { autoAlpha: 0, scale: o.to ?? 1.7, duration: o.duration ?? 0.9, ease: 'power2.out' },
-    at,
-  )
+  tl.fromTo(el, { autoAlpha: 0, scale: 0.7, transformOrigin: '50% 50%' }, { autoAlpha: 0.9, duration: 0.06, ease: 'none' }, at)
+  tl.to(el, { autoAlpha: 0, scale: o.to ?? 1.7, duration: o.duration ?? 0.9, ease: 'power2.out' }, '>')
 }
 
 /** A thing is jolted sideways: refused, cut, or hit. */

@@ -1,3 +1,7 @@
+<script setup>
+import RunAnatomy from '../.vitepress/theme/components/user-concepts/RunAnatomy.vue'
+</script>
+
 # Glossary
 
 The words the rest of these docs use, one entry each, with where to read more.
@@ -43,6 +47,8 @@ every round; each exchange inside a session is a [turn](#turn). All of them work
 [environment](#environment). The whole run is written down as an [epic](#epic), and afterwards
 its [trace](#trace) shows every turn on one timeline.
 
+<RunAnatomy />
+
 The same run at the prompt is `/flow`, the same choices made in menus, and the task typed at
 `❯`. See [Your first run](/user/first-run).
 
@@ -85,8 +91,10 @@ model has its own list. See [Efforts](/user/efforts).
 
 ## Environment
 
-Where a session's work lands: this directory, another directory, or a directory on another
-machine. A flow declares the ones it needs, and most need only this directory. See
+Where a turn's work lands: this directory, another directory, or a directory on another
+machine. A flow declares the ones it needs, and most need only this directory. The flow names
+one each time it runs a turn, so one [session](#session) may work in more than one; a turn
+that names none works in the [workspace](#workspace). See
 [Remote execution](/user/remote-execution) and [Containers](/user/containers).
 
 ## Epic
