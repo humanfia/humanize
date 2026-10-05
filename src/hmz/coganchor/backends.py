@@ -1704,42 +1704,142 @@ PROFILES = (
         # refresh token under. Both move together or a provider would refresh into the
         # other one's token.
         creds=("credentials", "oauth"),
+        # Every variable 2.1.1 builds an account out of beside the ones the ways below ask for:
+        # its own service's key and endpoints, and the rest of the `KIMI_MODEL_*` family, which
+        # shape the provider and model the gateway ways make -- a context size, a reasoning key
+        # or a temperature left in a shell profile would be laid over somebody's gateway as if
+        # its account had said so. Not the vendors' own names -- `OPENAI_API_KEY`,
+        # `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` and their base URLs -- although it does read
+        # them: only for a `[providers.*]` table of that vendor's type that names no key of its
+        # own, never as an account by themselves. Listed here they would also say an Anthropic
+        # key made for Claude is an account kimi could run as, which it is not.
         ambient=(
             "KIMI_API_KEY",
             "KIMI_BASE_URL",
             "KIMI_CODE_BASE_URL",
             "KIMI_CODE_CUSTOM_HEADERS",
             "KIMI_CODE_OAUTH_HOST",
+            "KIMI_MODEL_ADAPTIVE_THINKING",
+            "KIMI_MODEL_CAPABILITIES",
+            "KIMI_MODEL_DISPLAY_NAME",
+            "KIMI_MODEL_MAX_COMPLETION_TOKENS",
+            "KIMI_MODEL_MAX_CONTEXT_SIZE",
+            "KIMI_MODEL_MAX_OUTPUT_SIZE",
+            "KIMI_MODEL_MAX_TOKENS",
+            "KIMI_MODEL_REASONING_KEY",
+            "KIMI_MODEL_TEMPERATURE",
+            "KIMI_MODEL_THINKING_EFFORT",
+            "KIMI_MODEL_THINKING_KEEP",
+            "KIMI_MODEL_TOP_P",
             "KIMI_OAUTH_HOST",
             "KIMI_REGISTRY_API_KEY",
         ),
-        # The `model` way's endpoint rather than either of the two that move Kimi's own
-        # service: that way builds a provider out of it in memory and makes it the default,
-        # so it is where the turns of such an account go.
+        # The endpoint every way but the login asks for, rather than either of the two that
+        # move Kimi's own service: each of those ways builds a provider out of it in memory
+        # and makes it the default, so it is where the turns of such an account go.
         endpoint="KIMI_MODEL_BASE_URL",
+        # Every way but the login is the one provider 2.1.1 builds out of `KIMI_MODEL_*` in
+        # memory and makes the default, so nothing is written to the `config.toml` of the home
+        # every account shares. What tells them apart is `KIMI_MODEL_PROVIDER_TYPE`: its env
+        # loader validates the variable as any string and hands it to the same factory a
+        # `[providers.*]` table goes through, so every type that table takes is one this
+        # variable takes too -- and each was run here against a recording endpoint, landing
+        # at `/chat/completions`, `/responses`, `/v1/messages` and Gemini's
+        # `:streamGenerateContent` with the key the account was made with. All but Vertex:
+        # `vertexai` refuses a model that does not name its wire protocol, and that is said
+        # only in a `[models.*]` table, which no variable reaches.
         ways=(
             Way(
                 name="login",
                 about="sign in to a Kimi account, by the code it prints",
-                argv=("kimi", "login"),
+                # `--region` said rather than left to the CLI, whose bare login picks one off
+                # whatever the home already holds and otherwise lands on mainland China.
+                argv=("kimi", "login", "--region", "{KIMI_REGION}"),
+                asks=(
+                    Asked(
+                        env="KIMI_REGION",
+                        about="which Kimi: global (kimi.ai) or mainland-cn (kimi.com)",
+                        keep=False,
+                        fixed="global",
+                    ),
+                ),
             ),
             Way(
-                name="model",
-                about=_GATEWAY,
-                # Kimi builds a whole provider out of these and makes it the default, in
-                # memory: nothing is written to the config file it would otherwise be in.
+                name="kimi-key",
+                about=(
+                    "a Moonshot platform key, or a Kimi for Coding one at "
+                    "https://api.kimi.com/coding/v1"
+                ),
                 asks=(
+                    Asked(env="KIMI_MODEL_API_KEY", about="the API key", secret=True),
+                    Asked(
+                        env="KIMI_MODEL_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed="https://api.moonshot.ai/v1",
+                    ),
                     Asked(
                         env="KIMI_MODEL_NAME", about="the model to run, as it names it"
                     ),
-                    Asked(env="KIMI_MODEL_API_KEY", about="the key", secret=True),
+                ),
+                sets=(("KIMI_MODEL_PROVIDER_TYPE", "kimi"),),
+            ),
+            Way(
+                name="openai-gateway",
+                about="an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+                asks=(
                     Asked(env="KIMI_MODEL_BASE_URL", about="where it is, as a URL"),
                     Asked(
+                        env="KIMI_MODEL_API_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="KIMI_MODEL_NAME",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                    # A question rather than two ways: the one endpoint usually serves both,
+                    # and which of them a turn goes to is the provider type itself.
+                    Asked(
                         env="KIMI_MODEL_PROVIDER_TYPE",
-                        about="the protocol it speaks: anthropic, openai or kimi",
+                        about=(
+                            "which of its APIs: openai (Chat Completions) or "
+                            "openai_responses (Responses)"
+                        ),
                         fixed="openai",
                     ),
                 ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- "
+                    "a proxy, a router, another vendor"
+                ),
+                asks=(
+                    Asked(env="KIMI_MODEL_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="KIMI_MODEL_API_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="KIMI_MODEL_NAME",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                ),
+                sets=(("KIMI_MODEL_PROVIDER_TYPE", "anthropic"),),
+            ),
+            Way(
+                name="gemini-gateway",
+                about="an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
+                # Its root, which the Gemini SDK puts `/v1beta/models/...` under itself.
+                asks=(
+                    Asked(env="KIMI_MODEL_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="KIMI_MODEL_API_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="KIMI_MODEL_NAME",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                ),
+                sets=(("KIMI_MODEL_PROVIDER_TYPE", "google-genai"),),
             ),
         ),
     ),

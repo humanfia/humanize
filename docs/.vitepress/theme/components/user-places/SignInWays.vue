@@ -169,16 +169,51 @@ const BACKENDS: Backend[] = [
     cli: 'kimi',
     called: 'Kimi Code',
     ways: [
-      { name: 'login', about: 'sign in to a Kimi account, by the code it prints', runs: 'kimi login' },
       {
-        name: 'model',
-        about: GATEWAY,
+        name: 'login',
+        about: 'sign in to a Kimi account, by the code it prints',
+        asks: [{ env: 'KIMI_REGION', fixed: 'global' }],
+        runs: 'kimi login --region {KIMI_REGION}',
+      },
+      {
+        name: 'kimi-key',
+        about: 'a Moonshot platform key, or a Kimi for Coding one at https://api.kimi.com/coding/v1',
         asks: [
-          { env: 'KIMI_MODEL_NAME' },
           { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_BASE_URL', fixed: 'https://api.moonshot.ai/v1' },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=kimi'],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
+        asks: [
           { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
           { env: 'KIMI_MODEL_PROVIDER_TYPE', fixed: 'openai' },
         ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=anthropic'],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=google-genai'],
       },
       ENV,
     ],

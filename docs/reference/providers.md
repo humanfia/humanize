@@ -154,8 +154,11 @@ order, then `env` for every backend but `dsh`.
 | | `key` | — | `XAI_API_KEY` • | |
 | | `gateway` | — | `GROK_XAI_API_BASE_URL` (models listed at `/models`), `XAI_API_KEY` • | |
 | | `oidc` | — | `GROK_OIDC_ISSUER`, `GROK_OIDC_CLIENT_ID` | |
-| `kimi` | `login` | `kimi login` | — | |
-| | `model` | — | `KIMI_MODEL_NAME`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_PROVIDER_TYPE` (`openai`; `anthropic`, `openai` or `kimi`) | |
+| `kimi` | `login` | `kimi login --region {KIMI_REGION}` | `KIMI_REGION` ◦ (`global`; `global` or `mainland-cn`) | |
+| | `kimi-key` | — | `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_BASE_URL` (`https://api.moonshot.ai/v1`; Kimi for Coding is `https://api.kimi.com/coding/v1`), `KIMI_MODEL_NAME` | `KIMI_MODEL_PROVIDER_TYPE=kimi` |
+| | `openai-gateway` | — | `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE` (`openai`, Chat Completions; or `openai_responses`, Responses) | |
+| | `anthropic-gateway` | — | `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_NAME` | `KIMI_MODEL_PROVIDER_TYPE=anthropic` |
+| | `gemini-gateway` | — | `KIMI_MODEL_BASE_URL` (the root `/v1beta` goes under), `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_NAME` | `KIMI_MODEL_PROVIDER_TYPE=google-genai` |
 | `mcode` | `login` | `mcode login` | — | |
 | | `key` | `mcode provider set-minimax-key` | `MCODE_PROVIDER_API_KEY` • | |
 | | `gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format {MCODE_GATEWAY_FORMAT} --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦, `MCODE_GATEWAY_FORMAT` ◦ (`openai-completions`; `anthropic-messages`, `openai-completions` or `openai-responses`) | |
@@ -375,7 +378,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `cursor-agent` | `CURSOR_API_BASE_URL`, `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY`, `CURSOR_API_URL`, `CURSOR_AUTH_TOKEN`, `CURSOR_LOCAL_AGENT_API_KEY` |
 | `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL` |
 | `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_DEFAULT_MODEL`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
-| `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_OAUTH_HOST`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
+| `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_ADAPTIVE_THINKING`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_CAPABILITIES`, `KIMI_MODEL_DISPLAY_NAME`, `KIMI_MODEL_MAX_COMPLETION_TOKENS`, `KIMI_MODEL_MAX_CONTEXT_SIZE`, `KIMI_MODEL_MAX_OUTPUT_SIZE`, `KIMI_MODEL_MAX_TOKENS`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_MODEL_REASONING_KEY`, `KIMI_MODEL_TEMPERATURE`, `KIMI_MODEL_THINKING_EFFORT`, `KIMI_MODEL_THINKING_KEEP`, `KIMI_MODEL_TOP_P`, `KIMI_OAUTH_HOST`, `KIMI_REGION`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
 | `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
 | `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
 | `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
@@ -396,7 +399,7 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | `cursor-agent` | `gateway` | none |
 | `dsh` | `gateway` | `DEEPSEEK_BASE_URL` |
 | `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
-| `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
+| `kimi` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` (and `kimi-key`) | `KIMI_MODEL_BASE_URL` |
 | `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
 | `qwen` | `key` | `OPENAI_BASE_URL` |
 | `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
