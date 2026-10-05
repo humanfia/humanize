@@ -169,7 +169,7 @@ const scene = useScene({
     tl.set(one('.tether'), { drawSVG: '0%' }, 0)
     tl.set(bubbles, { autoAlpha: 0, scale: 0.4, transformOrigin: (i: number) => (BUBBLES[i].side === 'in' ? '0% 50%' : '100% 50%') }, 0)
     tl.set(scroll, { y: 0 }, 0)
-    tl.set(q('.dots, .shell, .shield, .unset, .badge, .timer, .again, .next'), { autoAlpha: 0 }, 0)
+    tl.set(q('.dots, .shell, .shield, .unset-in, .badge, .timer, .again-in, .next'), { autoAlpha: 0 }, 0)
     tl.set(q('.kind'), { autoAlpha: 1 }, 0)
     tl.set(one('.strike'), { drawSVG: '0%' }, 0)
     tl.set(one('.timer-fill'), { drawSVG: '0%' }, 0)
@@ -205,7 +205,7 @@ const scene = useScene({
     tl.to(key, { x: back.x, y: back.y, rotation: l.vertical ? -6 : 8, duration: 0.6, ease: 'power3.out' }, T1 + 1.55)
     tl.fromTo(thread, { x: 0 }, { keyframes: { x: [0, l.vertical ? 0 : -4, 0], y: [0, l.vertical ? 3 : 0, 0] }, duration: 0.3, ease: 'none', immediateRender: false }, T1 + 1.55)
     tl.to(one('.strike'), { drawSVG: '100%', duration: 0.25 }, T1 + 1.8)
-    tl.fromTo(one('.unset'), { autoAlpha: 0, y: 4 }, { autoAlpha: 1, y: 0, duration: 0.35 }, T1 + 1.95)
+    tl.fromTo(one('.unset-in'), { autoAlpha: 0, y: 4 }, { autoAlpha: 1, y: 0, duration: 0.35 }, T1 + 1.95)
     tl.to(q('.shell, .key'), { autoAlpha: 0, duration: 0.5 }, T1 + 2.9)
     tl.to(bubbles[2], { autoAlpha: 1, scale: 1, duration: 0.45, ease: 'back.out(1.7)' }, T1 + 2.8)
 
@@ -270,7 +270,7 @@ const scene = useScene({
     tl.call(() => fx?.spark(badgeAt(1).x, badgeAt(1).y, palette.danger, 26, 120), [], T3 + 0.4)
     tl.fromTo(card[1], { x: 0 }, { keyframes: { x: [0, -4, 4, -2, 0] }, duration: 0.35, ease: 'none', immediateRender: false }, T3 + 0.4)
     tl.to(q('.kind')[1], { autoAlpha: 0, duration: 0.2 }, T3 + 0.6)
-    tl.fromTo(one('.again'), { autoAlpha: 0, x: -6 }, { autoAlpha: 1, x: 0, duration: 0.35 }, T3 + 0.7)
+    tl.fromTo(one('.again-in'), { autoAlpha: 0, x: -6 }, { autoAlpha: 1, x: 0, duration: 0.35 }, T3 + 0.7)
     const M2 = T3 + 1.0
     tl.to(cam, { ...shot(l.vertical ? 1.08 : 1.22, (cc(2).x + threadC(2).x) / 2 - (l.vertical ? 0 : 60), (cc(2).y + threadC(2).y) / 2), duration: 1.0, ease: 'cine' }, M2)
     glide(2, M2, 0.8)
@@ -339,7 +339,7 @@ const scene = useScene({
             <rect class="card-edge" x="0" y="10" width="3" :height="L.card.h - 20" rx="1.5" />
             <text class="name" x="14" y="26">{{ a.name }}</text>
             <text class="kind" x="14" y="45">{{ a.kind }}</text>
-            <text v-if="i === 1" class="again" x="14" y="45">sign in again</text>
+            <g v-if="i === 1" class="again-in"><text class="again" x="14" y="45">sign in again</text></g>
             <g v-if="i === 0" :transform="`translate(${L.card.w - 26} ${L.card.h / 2 + 6})`">
               <g class="timer">
                 <circle class="timer-track" r="15" />
@@ -387,7 +387,7 @@ const scene = useScene({
           <rect class="key-bg" x="0" y="-12" width="162" height="24" rx="7" />
           <text class="key-name" x="81" y="4" text-anchor="middle">ANTHROPIC_API_KEY</text>
           <line class="strike" x1="8" y1="0" x2="154" y2="0" />
-          <text class="unset" x="81" y="30" text-anchor="middle">unset</text>
+          <g class="unset-in"><text class="unset" x="81" y="30" text-anchor="middle">unset</text></g>
         </g>
 
         <g class="next">
@@ -401,6 +401,11 @@ const scene = useScene({
 </template>
 
 <style scoped>
+/* Past its edges, so the paper under it is still there when the camera pulls back. */
+.cam svg {
+  overflow: visible;
+}
+
 .cam svg,
 .cam canvas {
   position: absolute;

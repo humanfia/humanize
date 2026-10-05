@@ -424,7 +424,7 @@ const scene = useScene({
                   :style="{ fill: k % 3 === 0 ? f.hue : undefined }"
                 />
               </g></g>
-              <text class="stopped t-stopped" x="12" :y="L.winH - 16">stopped by alice@tui</text>
+              <g class="stopped"><text class="t-stopped" x="12" :y="L.winH - 16">stopped by alice@tui</text></g>
             </g>
           </g></g>
         </g>

@@ -221,7 +221,7 @@ const scene = useScene({
     tl.set(toks, { text: '' }, 0)
     tl.set(bg, { autoAlpha: 0 }, 0)
     tl.set(under, { drawSVG: '0%' }, 0)
-    tl.set(role, { autoAlpha: 0, y: -6 }, 0)
+    tl.set(q('.role-in'), { autoAlpha: 0, y: -6 }, 0)
     tl.set(q('.list, .ladder, .stray, .reel-card, .reel-acp, .stray-word, .refused, .ghost'), { autoAlpha: 0 }, 0)
     drawPlane(tl, q, 0, { duration: 2.4 })
 
@@ -262,7 +262,7 @@ const scene = useScene({
     })
     tl.to(bg, { autoAlpha: 1, duration: 0.5, stagger: 0.08 }, S + 0.9)
     tl.to(under, { drawSVG: '100%', duration: 0.6, stagger: 0.08, ease: 'cine' }, S + 0.95)
-    tl.to(role, { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.08 }, S + 1.05)
+    tl.to(q('.role-in'), { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.08 }, S + 1.05)
     ;[0, 1, 2, 3].forEach((i) => {
       tl.call(() => fx?.spark(centre(i).x, centre(i).y, palette.lane[i], 12, 70), [], S + 1.1 + i * 0.08)
     })
@@ -497,7 +497,7 @@ onMounted(() => {
               <text y="5" text-anchor="middle">{{ stray }}</text>
               <line class="stray-cross" x1="-30" y1="0" x2="30" y2="0" />
             </g>
-            <text class="refused" y="32" text-anchor="middle">refused</text>
+            <g class="refused"><text y="32" text-anchor="middle">refused</text></g>
           </g>
 
           <path class="reel-wire" d="M0 0" />
@@ -519,7 +519,7 @@ onMounted(() => {
               <rect class="chip-bg" x="-9" :y="-L.fs - 5" width="10" :height="L.fs + 16" rx="9" />
               <text class="tok" :font-size="L.fs">{{ p }}</text>
               <line class="under" x1="0" :y1="L.fs * 0.35 + 4" x2="10" :y2="L.fs * 0.35 + 4" />
-              <text class="role" x="0" :y="L.fs + 20" text-anchor="middle">{{ ROLES[i] }}</text>
+              <g class="role-in"><text class="role" x="0" :y="L.fs + 20" text-anchor="middle">{{ ROLES[i] }}</text></g>
             </g>
             <rect class="caret" x="1" :y="L.lineY - L.fs + 1" width="2" :height="L.fs + 3" />
           </g>
@@ -563,6 +563,11 @@ onMounted(() => {
 
 .hmz-backends :deep(.hmz-stage) {
   margin-top: 12px;
+}
+
+/* Past its edges, so the paper under it is still there when the camera pulls back. */
+.cam svg {
+  overflow: visible;
 }
 
 .cam svg,
@@ -748,7 +753,7 @@ svg {
   stroke-width: 2;
 }
 
-.refused {
+.refused text {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;

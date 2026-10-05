@@ -386,7 +386,12 @@ const label = computed(
 </template>
 
 <style scoped>
-/* The camera moves this layer, so the light on the canvas moves with the drawing under it. */
+/* The camera moves this layer, so the light on the canvas moves with the drawing under it. The
+   drawing runs past its edges, so the paper under it is still there when the camera pulls back. */
+.cam svg {
+  overflow: visible;
+}
+
 .cam svg,
 .cam canvas {
   position: absolute;

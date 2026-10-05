@@ -404,9 +404,9 @@ const scene = useScene({
           <rect class="box term-lit" :x="L.term.x" :y="L.term.y" :width="L.term.w" :height="L.term.h" rx="10" />
           <circle v-for="i in 3" :key="i" class="term-dot" :cx="L.term.x + 6 + i * 9" :cy="L.term.y + 14" r="2.6" />
           <g class="term-head"><text class="term-title mono" :x="L.term.x + 44" :y="L.term.y + 18" /></g>
-          <text class="out mono" :x="L.term.x + 12" :y="L.term.y + 42">collected 42 items</text>
-          <text class="out mono dim" :x="L.term.x + 12" :y="L.term.y + 60">{{ '.'.repeat(Math.floor((L.term.w - 24) / 8.2)) }}</text>
-          <text class="out mono ok" :x="L.term.x + 12" :y="L.term.y + 78">42 passed</text>
+          <g class="out"><text class="out-line mono" :x="L.term.x + 12" :y="L.term.y + 42">collected 42 items</text></g>
+          <g class="out"><text class="out-line mono dim" :x="L.term.x + 12" :y="L.term.y + 60">{{ '.'.repeat(Math.floor((L.term.w - 24) / 8.2)) }}</text></g>
+          <g class="out"><text class="out-line mono ok" :x="L.term.x + 12" :y="L.term.y + 78">42 passed</text></g>
           <g :transform="`translate(${L.term.x + L.term.w - 38} ${L.term.y + L.term.h - 18})`">
             <g class="exit">
               <rect x="-30" y="-10" width="60" height="20" rx="10" />
@@ -643,17 +643,17 @@ svg {
   fill: var(--hmz-lane-3);
 }
 
-.out {
+.out-line {
   font-size: 11.5px;
   fill: var(--hmz-stage-ink);
 }
 
-.out.dim {
+.out-line.dim {
   fill: var(--hmz-accent);
   letter-spacing: 0.05em;
 }
 
-.out.ok {
+.out-line.ok {
   font-weight: 700;
   fill: var(--hmz-accent);
 }
