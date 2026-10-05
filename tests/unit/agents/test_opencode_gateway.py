@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor import backends
-from hmz.coganchor.providers.login import way_of
 from hmz.coganchor.agents import OpencodeAgent, OpencodeAgentConfig
+from hmz.coganchor.providers.login import way_of
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
