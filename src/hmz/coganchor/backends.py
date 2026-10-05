@@ -1595,6 +1595,22 @@ PROFILES = (
             "GROK_OAUTH2_ISSUER",
             "GROK_OIDC_CLIENT_ID",
             "GROK_OIDC_ISSUER",
+            # And the rest of what 1.0.46 takes an account from. The overlay pair is a config
+            # layer rather than a credential, but it carries `[models] extra_headers`, which is
+            # every request's headers -- a token in one is an account like any other. The OIDC
+            # pair narrow the sign-in the issuer and client id above start, and the label and
+            # the lifetime belong to the provider command. The protocol the gateways ask about
+            # is humanize's own rather than Grok Build's, and is here so that one exported in a
+            # shell is not read as the answer an account gave.
+            "GROK_AUTH_PROVIDER_LABEL",
+            "GROK_AUTH_TOKEN_TTL",
+            "GROK_CONFIG",
+            "GROK_CONFIG_PATH",
+            "GROK_GATEWAY_API_BACKEND",
+            "GROK_OIDC_AUDIENCE",
+            "GROK_OIDC_SCOPES",
+            "GROK_XAI_API_BASE_URL",
+            "XAI_API_KEY",
         ),
         # The one a turn's requests go to, rather than `GROK_MODELS_BASE_URL`, which moves
         # only where the CLI looks up its own catalogue: a list from somewhere a turn does
@@ -1612,13 +1628,79 @@ PROFILES = (
                 argv=("grok", "login", "--device-auth"),
             ),
             Way(
+                name="oidc",
+                about="your own identity provider, for an organisation that signs in through one",
+                # A login like the two above, through the issuer these name rather than xAI's:
+                # 1.0.46 reads the pair as the way to sign in and nothing else, so an account
+                # holding them and no token is a turn that says `Not signed in` and stops --
+                # traced headless, where no sign-in is ever started on a turn's behalf.
+                argv=("grok", "login"),
+                asks=(
+                    Asked(env="GROK_OIDC_ISSUER", about="the issuer, as a URL"),
+                    Asked(env="GROK_OIDC_CLIENT_ID", about="the client id"),
+                ),
+            ),
+            Way(
+                name="provider-command",
+                about="a command of your organisation's that prints a token",
+                # Grok Build's external auth provider: a command run through `sh -c` whose
+                # stdout is a bearer token, bare or as `{"access_token": ..., "expires_in":
+                # ...}`, sent to xAI as a sign-in's would be. Kept, because the CLI runs it
+                # again whenever the token nears its end or is refused -- with
+                # `GROK_AUTH_EXPIRED=1` and stdin closed. And signed in with once here, because a
+                # headless turn on 1.0.46 never runs it for a token it has not got yet -- it
+                # says `Not signed in` -- while `grok login` under it runs it, says `Signed in`
+                # and writes the token into `auth.json` as `"auth_mode": "external"`, which is
+                # the file an account keeps.
+                argv=("grok", "login"),
+                asks=(
+                    Asked(
+                        env="GROK_AUTH_PROVIDER_COMMAND",
+                        about="the command, as a shell would run it",
+                    ),
+                ),
+            ),
+            Way(
                 name="key",
                 about="an xAI API key, from the console",
                 asks=(Asked(env="XAI_API_KEY", about="the API key", secret=True),),
             ),
             Way(
-                name="gateway",
-                about=_GATEWAY,
+                name="openai-gateway",
+                about="an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+                # Which of OpenAI's two APIs is asked rather than left to the CLI, because left
+                # to it the answer is the model's name and not the endpoint's: under
+                # `GROK_XAI_API_BASE_URL` alone, 1.0.46 posts a model it ships -- `grok-4.5` --
+                # to `/responses` and any other id to `/chat/completions`, so one gateway was
+                # spoken to in two protocols by which id a flow happened to name. The answer
+                # is read by the driver, which says it to Grok Build the only way it can be
+                # said -- an `api_backend` on a `[model.*]` entry of the CLI's own
+                # `config.toml` (:mod:`hmz.coganchor.agents.grok`) -- while the URL and the key
+                # are what the CLI reads itself: the catalogue it fetches at `{url}/models`,
+                # and the bearer every request carries.
+                asks=(
+                    Asked(
+                        env="GROK_XAI_API_BASE_URL",
+                        about="where it is, as a URL: its models are listed at /models",
+                    ),
+                    Asked(env="XAI_API_KEY", about="the key it takes", secret=True),
+                    Asked(
+                        env="GROK_GATEWAY_API_BACKEND",
+                        about="the API it speaks: responses or chat_completions",
+                        fixed="responses",
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                    "another vendor"
+                ),
+                # The same two answers as the way above and the third one settled: `messages`
+                # is the `api_backend` 1.0.46 speaks Anthropic's API in, at `{url}/messages`.
+                # The key goes out as `x-api-key`, Anthropic's own header, beside the bearer --
+                # said by the driver in the environment a turn runs under, and never in a file.
                 asks=(
                     Asked(
                         env="GROK_XAI_API_BASE_URL",
@@ -1626,14 +1708,7 @@ PROFILES = (
                     ),
                     Asked(env="XAI_API_KEY", about="the key it takes", secret=True),
                 ),
-            ),
-            Way(
-                name="oidc",
-                about="your own identity provider, for an organisation that signs in through one",
-                asks=(
-                    Asked(env="GROK_OIDC_ISSUER", about="the issuer, as a URL"),
-                    Asked(env="GROK_OIDC_CLIENT_ID", about="the client id"),
-                ),
+                sets=(("GROK_GATEWAY_API_BACKEND", "messages"),),
             ),
         ),
     ),

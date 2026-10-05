@@ -47,6 +47,10 @@ dependencies = [
     # that reports its own failures is an install whose failures are not reported.
     "sentry-sdk>=2.68.1",
     "textual>=8.2.8",
+    # What an entry is added to Grok Build's `config.toml` with, for an account behind a
+    # gateway: the file is the person at this machine's, and what they wrote in it -- their
+    # comments and their order among it -- is still there after an entry is.
+    "tomlkit>=0.15.1",
     # A flow declares its agents and environments as TypedDicts open to more roles of one
     # type (PEP 728's `extra_items`), which no `typing` this package supports can say --
     # and a dependency the flow API imports is one it declares, whoever else brings it.

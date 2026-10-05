@@ -151,9 +151,11 @@ order, then `env` for every backend but `dsh`.
 | | `gateway` | — | `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY` • | |
 | `grok` | `login` | `grok login` | — | |
 | | `device` | `grok login --device-auth` | — | |
+| | `oidc` | `grok login` | `GROK_OIDC_ISSUER`, `GROK_OIDC_CLIENT_ID` | |
+| | `provider-command` | `grok login` | `GROK_AUTH_PROVIDER_COMMAND` (prints a token) | |
 | | `key` | — | `XAI_API_KEY` • | |
-| | `gateway` | — | `GROK_XAI_API_BASE_URL` (models listed at `/models`), `XAI_API_KEY` • | |
-| | `oidc` | — | `GROK_OIDC_ISSUER`, `GROK_OIDC_CLIENT_ID` | |
+| | `openai-gateway` | — | `GROK_XAI_API_BASE_URL` (models listed at `/models`), `XAI_API_KEY` •, `GROK_GATEWAY_API_BACKEND` (`responses`; `responses` or `chat_completions`) | |
+| | `anthropic-gateway` | — | `GROK_XAI_API_BASE_URL` (models listed at `/models`), `XAI_API_KEY` • | `GROK_GATEWAY_API_BACKEND=messages` |
 | `kimi` | `login` | `kimi login` | — | |
 | | `model` | — | `KIMI_MODEL_NAME`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_PROVIDER_TYPE` (`openai`; `anthropic`, `openai` or `kimi`) | |
 | `mcode` | `login` | `mcode login` | — | |
@@ -374,7 +376,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `codex` | `CODEX_ACCESS_TOKEN`, `CODEX_API_KEY`, `CODEX_AUTHAPI_BASE_URL`, `CODEX_PROVIDER_KEY`, `CODEX_PROVIDER_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` |
 | `cursor-agent` | `CURSOR_API_BASE_URL`, `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY`, `CURSOR_API_URL`, `CURSOR_AUTH_TOKEN`, `CURSOR_LOCAL_AGENT_API_KEY` |
 | `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL` |
-| `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_DEFAULT_MODEL`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
+| `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_AUTH_PROVIDER_LABEL`, `GROK_AUTH_TOKEN_TTL`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_CONFIG`, `GROK_CONFIG_PATH`, `GROK_DEFAULT_MODEL`, `GROK_GATEWAY_API_BACKEND`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_AUDIENCE`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_OIDC_SCOPES`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
 | `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_OAUTH_HOST`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
 | `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
 | `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
@@ -395,7 +397,7 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | `codex` | `gateway` | `CODEX_PROVIDER_URL` |
 | `cursor-agent` | `gateway` | none |
 | `dsh` | `gateway` | `DEEPSEEK_BASE_URL` |
-| `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
+| `grok` | `openai-gateway`, `anthropic-gateway` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
 | `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
 | `qwen` | `key` | `OPENAI_BASE_URL` |
@@ -415,6 +417,28 @@ account appends, and no `config.toml` is written:
 -c model_providers.humanize.env_key=CODEX_PROVIDER_KEY
 -c model_providers.humanize.wire_api=responses
 ```
+
+Grok Build reads which API a model speaks only from an `api_backend` on a `[model.*]` entry of
+`$GROK_HOME/config.toml` (the `GROK_CONFIG` overlay cannot set `model`). A turn under a grok
+`openai-gateway` or `anthropic-gateway` account merges one entry into that file, keeping
+everything else in it, and runs with `--model` naming it:
+
+```toml
+[model."hmz-<12 hex digits>/<model>"]
+model = "<model>"
+base_url = "<GROK_XAI_API_BASE_URL>"
+api_backend = "<GROK_GATEWAY_API_BACKEND>"
+env_key = "XAI_API_KEY"
+hidden = true
+```
+
+The entry is named by a hash of its contents, so the same endpoint, model and API reuse one
+entry. The key is never written; it is read from `XAI_API_KEY`. An `anthropic-gateway` turn
+also sets `GROK_CONFIG` to `{"models": {"extra_headers": {"x-api-key": <key>,
+"anthropic-version": "2023-06-01"}}}`, laid over the `GROK_CONFIG` the turn would otherwise
+have (none under an account, which hushes it): grok 1.0.46 drops a model's own headers on
+`grok agent stdio`. A turn on another machine is refused for an `anthropic-gateway` account,
+and for an `openai-gateway` account whose anchor drives the target's own CLI.
 
 ### Hosts reachable under a cut network
 
