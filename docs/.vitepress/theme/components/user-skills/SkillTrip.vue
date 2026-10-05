@@ -53,12 +53,12 @@ interface Layout {
 const WIDE: Layout = {
   w: 640,
   h: 360,
-  yours: { x: 16, y: 14, w: 176, h: 112 },
-  flows: { x: 16, y: 138, w: 176, h: 112 },
-  actor: { x: 218, y: 14, w: 176, h: 112 },
-  reviewer: { x: 218, y: 138, w: 176, h: 112 },
-  ws: { x: 420, y: 14, w: 204, h: 236 },
-  track: { x: 16, y: 262, w: 608, h: 86, label: 96 },
+  yours: { x: 16, y: 14, w: 176, h: 116 },
+  flows: { x: 16, y: 138, w: 176, h: 116 },
+  actor: { x: 218, y: 14, w: 176, h: 116 },
+  reviewer: { x: 218, y: 138, w: 176, h: 116 },
+  ws: { x: 420, y: 40, w: 204, h: 214 },
+  track: { x: 16, y: 264, w: 608, h: 86, label: 96 },
   shots: {
     yours: { x: 221, y: 124, s: 1.45 },
     flows: { x: 221, y: 196, s: 1.45 },
@@ -70,16 +70,16 @@ const WIDE: Layout = {
 const NARROW: Layout = {
   w: 360,
   h: 576,
-  yours: { x: 10, y: 12, w: 166, h: 112 },
-  flows: { x: 184, y: 12, w: 166, h: 112 },
-  actor: { x: 10, y: 136, w: 166, h: 112 },
-  reviewer: { x: 184, y: 136, w: 166, h: 112 },
-  ws: { x: 10, y: 260, w: 340, h: 196 },
-  track: { x: 10, y: 468, w: 340, h: 98, label: 78 },
+  yours: { x: 10, y: 12, w: 166, h: 116 },
+  flows: { x: 184, y: 12, w: 166, h: 116 },
+  actor: { x: 10, y: 136, w: 166, h: 116 },
+  reviewer: { x: 184, y: 136, w: 166, h: 116 },
+  ws: { x: 10, y: 262, w: 340, h: 208 },
+  track: { x: 10, y: 480, w: 340, h: 90, label: 78 },
   shots: {
     yours: { x: 180, y: 130, s: 1.05 },
     flows: { x: 180, y: 130, s: 1.05 },
-    mount: { x: 180, y: 290, s: 1.05 },
+    mount: { x: 180, y: 288, s: 1 },
     ws: { x: 180, y: 358, s: 1.1 },
   },
 }
@@ -99,7 +99,7 @@ const FLOWS = 'review-notes'
 const chipAt = (b: Box, row: number, i = 0, top = 50): Point => {
   let x = b.x + 12
   for (let k = 0; k < i; k += 1) x += chipW(MINE[k]) + 6
-  return { x, y: b.y + top + row * 28 }
+  return { x, y: b.y + top + row * 26 }
 }
 const chipMid = (b: Box, row: number, i: number, text: string, top = 50): Point => {
   const p = chipAt(b, row, i, top)
@@ -137,9 +137,9 @@ const givePath = computed(() => {
   const l = L.value
   if (narrow.value) return `M${l.flows.x + l.flows.w / 2} ${l.flows.y + l.flows.h + 2} V${l.reviewer.y - 2}`
   const from = chipMid(l.flows, 1, 0, FLOWS)
-  return curve({ x: from.x + chipW(FLOWS) / 2 + 4, y: from.y - 28 }, { x: chipAt(l.reviewer, 1).x - 4, y: chipMid(l.reviewer, 1, 0, FLOWS).y }, -0.25)
+  return curve({ x: from.x + chipW(FLOWS) / 2 + 4, y: from.y - 26 }, { x: chipAt(l.reviewer, 1).x - 4, y: chipMid(l.reviewer, 1, 0, FLOWS).y }, -0.25)
 })
-const destY = (i: number) => L.value.ws.y + (narrow.value ? 104 : 116) + i * 26
+const destY = (i: number) => L.value.ws.y + 128 + i * 24
 const destTop = computed(() => destY(0) - 30)
 
 /** The sessions on one clock: the actor's kept all run, the reviewer's open for a round. */
@@ -147,7 +147,7 @@ const OPEN = 0.36
 const CLOSE = 0.74
 const trackX = computed(() => L.value.track.x + L.value.track.label)
 const trackW = computed(() => L.value.track.w - L.value.track.label - 12)
-const rowY = (k: number) => L.value.track.y + (narrow.value ? 30 : 26) + k * (narrow.value ? 24 : 21)
+const rowY = (k: number) => L.value.track.y + (narrow.value ? 30 : 26) + k * (narrow.value ? 22 : 21)
 
 const scene = useScene({
   still: 'rest',
@@ -168,7 +168,7 @@ const scene = useScene({
 
     tl.set(one('.world'), { autoAlpha: 1 }, 0)
     tl.set(
-      q('.panel, .chip, .note, .slot, .no-mark, .card, .git-path, .git-word, .give-path, .tree-line, .strike, .brace-made, .brace-gone, .track-box, .bar, .guide, .head, .dest-head, .dest-row, .dest-hl, .back, .read-path, .read-word, .lock'),
+      q('.panel, .chip, .note, .slot, .no-mark, .card, .git-path, .git-word, .give-path, .tree-line, .strike, .brace-made .brace-path, .brace-made .brace-label, .brace-gone, .track-box, .bar, .guide, .head, .dest-head, .dest-row, .dest-hl, .back, .read-path, .read-word, .lock'),
       { autoAlpha: 0 },
       0,
     )
@@ -306,13 +306,13 @@ const scene = useScene({
           <text class="title" :x="L.yours.x + 12" :y="L.yours.y + 20">yours</text>
           <text class="path yours-path" :x="L.yours.x + 12" :y="L.yours.y + 37">~/.claude/skills/</text>
           <text class="path" :x="L.yours.x + 12" :y="L.yours.y + 52">.claude/skills/</text>
-          <text class="carries" :x="L.yours.x + 12 + 16 * CW" :y="L.yours.y + 52">(none here)</text>
+          <text class="carries" :x="L.yours.x + 12 + 16 * CW" :y="L.yours.y + 52">(none)</text>
           <g v-for="(name, i) in MINE" :key="name" class="chip chip-mine">
             <rect :x="chipAt(L.yours, 0, i, 60).x" :y="chipAt(L.yours, 0, i, 60).y" :width="chipW(name)" :height="CHIP_H" rx="5" />
             <text :x="chipAt(L.yours, 0, i, 60).x + 7" :y="chipAt(L.yours, 0, i, 60).y + 13">{{ name }}</text>
           </g>
           <g class="note note-yours">
-            <text class="note-text" :x="L.yours.x + 26" :y="L.yours.y + 101">never changed by humanize</text>
+            <text class="note-text" :x="L.yours.x + 26" :y="L.yours.y + 101">untouched by humanize</text>
           </g>
           <g class="lock">
             <rect class="lock-body" :x="L.yours.x + 12" :y="L.yours.y + 96" width="8" height="7" rx="1.5" />
@@ -326,12 +326,18 @@ const scene = useScene({
           <text class="title" :x="L.flows.x + 12" :y="L.flows.y + 20">the flow's</text>
           <text class="path flows-path" :x="L.flows.x + 12" :y="L.flows.y + 38">rlar/skills/</text>
           <g class="chip chip-flows">
-            <rect :x="chipAt(L.flows, 1).x" :y="chipAt(L.flows, 1).y - 28" :width="chipW(FLOWS)" :height="CHIP_H" rx="5" />
-            <text :x="chipAt(L.flows, 1).x + 7" :y="chipAt(L.flows, 1).y - 15">{{ FLOWS }}</text>
+            <rect :x="chipAt(L.flows, 1).x" :y="chipAt(L.flows, 1).y - 26" :width="chipW(FLOWS)" :height="CHIP_H" rx="5" />
+            <text :x="chipAt(L.flows, 1).x + 7" :y="chipAt(L.flows, 1).y - 13">{{ FLOWS }}</text>
           </g>
         </g>
-        <path class="git-path" :d="`M${L.flows.x + 12} ${L.flows.y + 82} h12 m4 0 h12 m4 0 h12`" />
-        <g class="git-word"><text class="note-text" :x="L.flows.x + 12" :y="L.flows.y + 100">or fetched from a git repository</text></g>
+        <path class="git-path" :d="`M${L.flows.x + 16} ${L.flows.y + 104} V${L.flows.y + 84} M${L.flows.x + 16} ${L.flows.y + 98} q0 -6 7 -8`" />
+        <g class="git-word">
+          <circle class="git-dot" :cx="L.flows.x + 16" :cy="L.flows.y + 84" r="2.4" />
+          <circle class="git-dot" :cx="L.flows.x + 16" :cy="L.flows.y + 104" r="2.4" />
+          <circle class="git-dot" :cx="L.flows.x + 24" :cy="L.flows.y + 89" r="2.4" />
+          <text class="note-text" :x="L.flows.x + 34" :y="L.flows.y + 92">or fetched</text>
+          <text class="note-text" :x="L.flows.x + 34" :y="L.flows.y + 106">from a git repo</text>
+        </g>
 
         <!-- The two agents, both Claude Code, and what each carries. -->
         <g v-for="who in ['actor', 'reviewer']" :key="who" class="card" :class="`card-${who}`">
@@ -370,13 +376,13 @@ const scene = useScene({
           </g>
         </g>
         <g class="note note-give">
-          <text class="note-text" :x="L.reviewer.x + 12" :y="L.reviewer.y + L.reviewer.h - 8">the flow gives it to this role</text>
+          <text class="note-text" :x="L.reviewer.x + 12" :y="L.reviewer.y + L.reviewer.h - 6">the flow gives it to this role</text>
         </g>
         <g class="no-mark">
           <rect class="no-box" :x="chipAt(L.actor, 1).x" :y="chipAt(L.actor, 1).y" :width="chipW(FLOWS)" :height="CHIP_H" rx="5" />
           <text class="no-text" :x="chipAt(L.actor, 1).x + 7" :y="chipAt(L.actor, 1).y + 13">{{ FLOWS }}</text>
           <line class="no-line" :x1="chipAt(L.actor, 1).x + 4" :x2="chipAt(L.actor, 1).x + chipW(FLOWS) - 4" :y1="chipAt(L.actor, 1).y + CHIP_H / 2" :y2="chipAt(L.actor, 1).y + CHIP_H / 2" />
-          <text class="note-text" :x="L.actor.x + 12" :y="L.actor.y + L.actor.h - 8">not given to the actor</text>
+          <text class="note-text" :x="L.actor.x + 12" :y="L.actor.y + L.actor.h - 6">not given to the actor</text>
         </g>
 
         <!-- The workspace, where Claude Code reads a project's own skills. -->
@@ -420,7 +426,7 @@ const scene = useScene({
         <g v-for="(d, i) in DEST" :key="d.backend" class="dest-row" :class="`dest-row-${i}`">
           <text class="dest-who" :x="L.ws.x + 16" :y="destY(i)">{{ d.who }}</text>
           <g class="dest-place">
-            <text class="dest-text" :class="{ none: d.dest === 'none' }" :x="L.ws.x + (narrow ? 150 : 98)" :y="destY(i)">{{ d.dest }}</text>
+            <text class="dest-text" :class="{ none: d.dest === 'none' }" :x="L.ws.x + (narrow ? 150 : 92)" :y="destY(i)">{{ d.dest }}</text>
           </g>
         </g>
 
@@ -615,8 +621,12 @@ svg {
 
 .git-path {
   stroke-dasharray: none;
-  stroke-width: 2;
+  stroke-width: 1.6;
   stroke-linecap: round;
+}
+
+.git-dot {
+  fill: var(--hmz-accent-2);
 }
 
 .guide {
