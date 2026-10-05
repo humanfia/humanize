@@ -286,7 +286,6 @@ const scene = useScene({
     cam.shot(l.shots.whole, T5 + 4.6, 1.6)
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T5 + 8.4)
 
-    tl.fromTo(at('.hum'), { strokeDashoffset: 0 }, { strokeDashoffset: -80, duration: tl.duration(), ease: 'none' }, 0)
     gsap.set(caret, { opacity: 0 })
   },
 })
@@ -337,7 +336,7 @@ const scene = useScene({
         <g v-for="(f, i) in FILES" :key="f.name">
           <g class="lane-name"><text :x="L.label" :y="L.lanes[i] + 4">{{ f.name }}</text></g>
           <line class="lane" :x1="L.x0" :x2="L.x1" :y1="L.lanes[i]" :y2="L.lanes[i]" />
-          <line class="wait hum" :x1="L.x0" :x2="X(f.start)" :y1="L.lanes[i]" :y2="L.lanes[i]" />
+          <line class="wait" :x1="L.x0" :x2="X(f.start)" :y1="L.lanes[i]" :y2="L.lanes[i]" />
           <rect class="bar" :class="{ bad: f.failed }" :x="X(f.start)" :y="L.lanes[i] - 7" :width="X(f.end) - X(f.start)" height="14" rx="7" />
           <circle class="spawn" :cx="X(f.start)" :cy="L.lanes[i]" r="5" />
           <g v-if="!f.failed" class="end-ok">

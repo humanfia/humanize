@@ -246,8 +246,6 @@ const scene = useScene({
     cam.shot({ ...l.whole, s: l.whole.s * 1.03 }, T4 + 4.4, 3.2, 'sine.inOut')
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 7.6)
 
-    // The thread hums while the scene plays: a slow march of its dashes, the whole timeline long.
-    tl.fromTo(at('.hum'), { strokeDashoffset: 0 }, { strokeDashoffset: -120, duration: tl.duration(), ease: 'none' }, 0)
   },
 })
 </script>
@@ -291,7 +289,7 @@ const scene = useScene({
         <line class="lane" :x1="L.x0 + GUTTER - 6" :x2="L.x1" :y1="L.yR" :y2="L.yR" />
 
         <!-- the builder's one session: a thread that runs on while the reviewer works -->
-        <line class="thread-b hum" :x1="X(SPAN.t1[0])" :x2="X(SPAN.t2[1])" :y1="L.yB" :y2="L.yB" />
+        <line class="thread-b" :x1="X(SPAN.t1[0])" :x2="X(SPAN.t2[1])" :y1="L.yB" :y2="L.yB" />
         <circle class="spark spark-b" :cx="X(SPAN.t1[0])" :cy="L.yB" r="6" />
         <text class="fresh fresh-b" :x="X(SPAN.t1[0]) + 10" :y="L.yB + 22">session b · no turns yet</text>
         <path class="memory" :d="memory" />

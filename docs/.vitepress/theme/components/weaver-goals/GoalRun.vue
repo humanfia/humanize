@@ -248,11 +248,13 @@ const scene = useScene({
       tl.to(at('.flow-bar, .flow-clip'), { scaleX: grown(t.end + (last ? 8 : GAP / 2)), duration: dur, ease: 'none' }, when)
       tl.to(one('.left-bar'), { scaleX: LEFT[i + 1], duration: dur, ease: 'power1.inOut' }, when)
       count(tl, one('.left-n'), LEFT[i] * 100, LEFT[i + 1] * 100, when, { duration: dur, format: (n) => `$${(n / 100).toFixed(2)} left` })
-      tl.call(() => void (turnsN.textContent = said(i)), [], when - 0.002)
-      tl.call(() => void (turnsN.textContent = said(i + 1)), [], when)
+      // A set rather than a call: a set is undone when the timeline goes back over it, so the
+      // count reads right on every loop and after a jump to any chapter.
+      tl.set(turnsN, { text: said(i + 1) }, when)
       tl.fromTo(at('.met-dot')[i], { opacity: 0, scale: 0, transformOrigin: '50% 50%' }, { opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(2.4)' }, when + dur)
       cam.flare({ x: t.end, y: l.cliY }, last ? ok : warm, when + dur, last ? 26 : 10, 70)
     }
+    tl.set(turnsN, { text: said(0) }, 0)
     const T2 = T1 + 4.6
     tl.addLabel('beat-2', T2)
     tl.to(turnsN, { opacity: 1, duration: 0.4 }, T2)
@@ -355,7 +357,7 @@ const scene = useScene({
           <text class="answer-text" :x="L.x1" :y="L.flowY - 16" text-anchor="end">returns "I added subtract(a, b)…"</text>
         </g>
 
-        <line class="goal-line hum" :x1="turns[0].x" :x2="turns[turns.length - 1].end" :y1="L.goalY" :y2="L.goalY" />
+        <line class="goal-line" :x1="turns[0].x" :x2="turns[turns.length - 1].end" :y1="L.goalY" :y2="L.goalY" />
         <text class="goal-word" :x="(turns[0].x + turns[turns.length - 1].end) / 2" :y="L.goalY - 6" text-anchor="middle">{{ L.goal }}</text>
 
         <g v-for="(t, i) in turns" :key="i">

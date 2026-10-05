@@ -294,7 +294,6 @@ const scene = useScene({
     cam.shot({ ...l.shots.whole, s: 1.02 }, T5 + 5.6, 2.8, 'sine.inOut')
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T5 + 8.6)
 
-    tl.fromTo(at('.hum'), { strokeDashoffset: 0 }, { strokeDashoffset: -90, duration: tl.duration(), ease: 'none' }, 0)
     gsap.set(caret, { opacity: 0 })
   },
 })
@@ -369,8 +368,8 @@ const scene = useScene({
         <!-- the running tree -->
         <text class="head tree-head" :x="L.tree.x" :y="L.tree.head">running tree</text>
         <text class="head tree-head" :x="L.tree.x1" :y="L.tree.head" text-anchor="end">spent</text>
-        <path class="link hum" :d="link(0)" />
-        <path class="link link-deep hum" :d="link(1)" />
+        <path class="link" :d="link(0)" />
+        <path class="link link-deep" :d="link(1)" />
         <g class="node node-root">
           <circle class="dot dot-root" :cx="nodeX(0)" :cy="L.tree.rows[0]" r="6" />
           <text class="node-name" :x="nodeX(0) + 12" :y="L.tree.rows[0] + 4">steps</text>

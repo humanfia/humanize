@@ -308,7 +308,7 @@ const scene = useScene({
         <path class="up" :d="up" />
 
         <!-- the hook's turn, inside the builder's -->
-        <rect class="nest hum" :x="X(SPAN.ask) + 4" :y="L.yR - 22" :width="X(SPAN.back) - X(SPAN.ask) - 8" height="38" rx="8" />
+        <rect class="nest" :x="X(SPAN.ask) + 4" :y="L.yR - 22" :width="X(SPAN.back) - X(SPAN.ask) - 8" height="38" rx="8" />
         <circle class="r-spark" :cx="X(SPAN.rStart)" :cy="L.yR" r="5" />
         <rect class="r-turn" :x="X(SPAN.rStart) + 6" :y="L.yR - 8" :width="X(SPAN.rEnd) - X(SPAN.rStart) - 6" height="16" rx="8" />
         <text class="r-word" :x="(X(SPAN.rStart) + X(SPAN.rEnd)) / 2 + 3" :y="L.yR + 4" text-anchor="middle">review</text>

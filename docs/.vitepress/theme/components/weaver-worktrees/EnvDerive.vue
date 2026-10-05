@@ -331,7 +331,6 @@ const scene = useScene({
     cam.shot(l.shots.whole, E + 0.6, 1.6)
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, E + 5)
 
-    tl.fromTo(at('.hum'), { strokeDashoffset: 0 }, { strokeDashoffset: -80, duration: tl.duration(), ease: 'none' }, 0)
     gsap.set(caret, { opacity: 0 })
   },
 })
@@ -397,7 +396,7 @@ const scene = useScene({
         </g>
 
         <!-- what is derived from it -->
-        <rect v-for="(c, i) in L.cards" :key="`b${i}`" class="card-box hum" :class="`k-${CARDS[i].kind.replace(' ', '-')}`" :x="c.x" :y="c.y" :width="c.w" :height="c.h" rx="7" />
+        <rect v-for="(c, i) in L.cards" :key="`b${i}`" class="card-box" :class="`k-${CARDS[i].kind.replace(' ', '-')}`" :x="c.x" :y="c.y" :width="c.w" :height="c.h" rx="7" />
         <g v-for="(c, i) in L.cards" :key="`c${i}`" class="env-card">
           <text class="env-name" :x="c.x + 10" :y="c.y + 14">{{ CARDS[i].kind }} · <tspan class="mono">{{ CARDS[i].id }}</tspan></text>
           <text class="env-mixin" :x="c.x + 10" :y="c.y + 28">{{ CARDS[i].mixin }}</text>

@@ -306,9 +306,12 @@ function travel(i: number, n: number) {
       </li>
     </ol>
 
-    <Transition name="said" mode="out-in">
-      <p :key="said.text" class="said" :class="{ error: said.error }" aria-live="polite">{{ said.text }}</p>
-    </Transition>
+    <!-- The live region stays put and only what is in it changes, so every message is read out. -->
+    <div class="said-at" aria-live="polite">
+      <Transition name="said" mode="out-in">
+        <p :key="said.text" class="said" :class="{ error: said.error }">{{ said.text }}</p>
+      </Transition>
+    </div>
 
     <p class="key">
       <span class="chip sample" :style="{ '--tone': tone(1) }">3</span> a turn taken on this

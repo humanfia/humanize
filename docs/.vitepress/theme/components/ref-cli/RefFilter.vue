@@ -202,8 +202,12 @@ watch([query, chip], apply)
           spellcheck="false"
         />
       </label>
-      <span v-if="ready" class="count" aria-live="polite">
+      <!-- What is drawn runs to its number; what is read out is only the number it lands on. -->
+      <span v-if="ready" class="count" aria-hidden="true">
         {{ query || chip ? `${drawn} of ${total}` : `${total} rows` }}
+      </span>
+      <span v-if="ready" class="sr" aria-live="polite">
+        {{ query || chip ? `${shown} of ${total}` : `${total} rows` }}
       </span>
       <span v-if="ready" class="share" aria-hidden="true"><span :style="{ transform: `scaleX(${share})` }" /></span>
     </div>
@@ -389,6 +393,16 @@ watch([query, chip], apply)
     opacity: 0;
     transform: translateY(-4px);
   }
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .none {

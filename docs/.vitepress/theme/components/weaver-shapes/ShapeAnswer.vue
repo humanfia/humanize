@@ -344,7 +344,6 @@ const scene = useScene({
     cam.shot({ ...l.whole, s: l.whole.s * 1.03 }, T4 + 5.4, 3, 'sine.inOut')
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 8.6)
 
-    tl.fromTo(at('.hum'), { strokeDashoffset: 0 }, { strokeDashoffset: -120, duration: tl.duration(), ease: 'none' }, 0)
     gsap.set(caret, { opacity: 0 })
   },
 })

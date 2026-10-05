@@ -112,6 +112,8 @@ onMounted(() => {
   measure()
   sized = new ResizeObserver(measure)
   if (board.value) sized.observe(board.value)
+  // A web font that arrives late widens the buttons without resizing the board.
+  void document.fonts?.ready.then(measure)
 })
 onUnmounted(() => sized?.disconnect())
 // A ticked mixin is wider by its tick: the wires start where its button now ends.
