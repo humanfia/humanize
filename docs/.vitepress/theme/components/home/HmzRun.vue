@@ -80,7 +80,7 @@ const WIDE: Layout = {
   env: { x: 240, y: 136, w: 224, h: 142 },
   reviewer: { x: 484, y: 136, w: 132, h: 142 },
   loop: 'M 600 136 C 600 104, 420 122, 384 104',
-  trace: { label: { x: 24, y: 317 }, y: 306, x0: 86, x1: 616, tally: { x: 616, y: 297 } },
+  trace: { label: { x: 24, y: 317 }, y: 306, x0: 86, x1: 616, tally: { x: 616, y: 293 } },
   shots: {
     open: { x: 220, y: 110, s: 1.45 },
     work: { x: 360, y: 170, s: 1.3 },
@@ -321,9 +321,9 @@ const span = (t: (typeof TURNS)[number]) => {
           <g class="card card-1">
             <text class="field" :x="L.reviewer.x + 12" :y="L.reviewer.y + 74">done: <tspan class="yes">true</tspan></text>
             <text class="field" :x="L.reviewer.x + 12" :y="L.reviewer.y + 94">notes:</text>
-            <text class="field note-text" :x="L.reviewer.x + 12" :y="L.reviewer.y + 110">fixed, tested</text>
+            <text class="field note-text" :x="L.reviewer.x + 12" :y="L.reviewer.y + 110">all good</text>
           </g>
-          <g :transform="`translate(${L.reviewer.x + L.reviewer.w / 2} ${L.reviewer.y + L.reviewer.h - 12})`">
+          <g :transform="`translate(${L.reviewer.x + L.reviewer.w / 2} ${L.reviewer.y + L.reviewer.h - 16})`">
             <g class="stamp">
               <rect x="-34" y="-13" width="68" height="26" />
               <text y="5" text-anchor="middle">DONE</text>
@@ -337,7 +337,7 @@ const span = (t: (typeof TURNS)[number]) => {
         <!-- The notes, carried back up as the next prompt. -->
         <path :id="`${id}-loop`" class="loop-line" :d="L.loop" />
         <path :id="`${id}-words`" class="words-path" :d="backwards(L.loop)" />
-        <text class="loop-label" dy="-7"><textPath :href="`#${id}-words`" startOffset="50%" text-anchor="middle">notes → next prompt</textPath></text>
+        <text class="loop-label" dy="-7"><textPath :href="`#${id}-words`" :startOffset="narrow ? '64%' : '50%'" text-anchor="middle">{{ narrow ? 'next prompt' : 'notes → next prompt' }}</textPath></text>
 
         <!-- What the turns travel on. -->
         <path class="drop" :d="`M ${centre(L.session.tile(0)).x} ${centre(L.session.tile(0)).y} L ${centre(L.env).x - 40} ${L.env.y + 40}`" />

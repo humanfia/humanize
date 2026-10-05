@@ -301,10 +301,13 @@ onUnmounted(() => context?.revert())
   border: 1px solid var(--hmz-panel-border);
   background: var(--hmz-panel-bg);
   overflow: hidden;
+  /* Hover moves it by `left`, not `transform`: GSAP slides it in by `transform`, and a CSS
+     transition on that would be what GSAP reads back as where the band belongs. */
+  left: 0;
   transition:
     border-color 0.25s,
     background 0.25s,
-    transform 0.25s;
+    left 0.25s;
 }
 
 /* The band's edge: a bar in its tone, cut on the diagonal at the top. */
@@ -350,7 +353,7 @@ onUnmounted(() => context?.revert())
 .band:hover {
   border-color: var(--tone);
   background: var(--vp-c-bg);
-  transform: translateX(4px);
+  left: 4px;
 }
 
 header {
@@ -389,7 +392,7 @@ header p {
 .groups {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 26px;
+  gap: 16px 26px;
   margin-top: 13px;
 }
 
@@ -442,17 +445,23 @@ header p {
   transition: color 0.2s;
 }
 
+/* Lifted by `top` and `left`, as the band is moved, for the same reason. */
 .chips li:has(> a) {
+  position: relative;
+  top: 0;
+  left: 0;
   transition:
     border-color 0.2s,
     box-shadow 0.2s,
-    transform 0.2s;
+    top 0.2s,
+    left 0.2s;
 }
 
 .chips li:has(> a):hover {
   border-color: var(--tone);
   box-shadow: 3px 3px 0 var(--tone);
-  transform: translate(-1px, -1px);
+  top: -1px;
+  left: -1px;
 }
 
 .vp-doc .chips li > a:hover {
