@@ -104,10 +104,10 @@ async def review(  # ②
 ) -> None:
     """Review the current diff and write the findings to REVIEW.md."""  # ③
     reviewer = agents["reviewer"]
-    session = await reviewer.spawn(env=envs["workspace"])
+    session = await reviewer.spawn()
     await reviewer.run(
         f"Write what is wrong with the diff to REVIEW.md.\n\n{task}",
-        session=session,
+        session=session, env=envs["workspace"],
     )
 ```
 

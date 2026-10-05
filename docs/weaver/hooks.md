@@ -101,8 +101,8 @@ async def watched(
     agent = agents["agent"]
     agent.on_pre_tool_use(seen)  # ⑤
     agent.on_user_prompt_submit(remind)
-    session = await agent.spawn(env=envs["workspace"])
-    await agent.run(task, session=session)
+    session = await agent.spawn()
+    await agent.run(task, session=session, env=envs["workspace"])
 ```
 
 ### What each part does
@@ -198,8 +198,8 @@ async def gated(
     """Do the task, with every deletion refused."""
     builder = agents["builder"]
     builder.on_permission_request(no_deleting)  # ⑥
-    session = await builder.spawn(env=envs["workspace"])
-    await builder.run(task, session=session)
+    session = await builder.spawn()
+    await builder.run(task, session=session, env=envs["workspace"])
 ```
 
 ### What each part does

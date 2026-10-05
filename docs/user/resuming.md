@@ -272,8 +272,9 @@ async def nightly(
     fixer, state = agents["fixer"], ctx.state
     while True:
         state["round"] = (state["round"] if "round" in state else 0) + 1
-        session = await fixer.spawn(env=envs["workspace"])
-        await fixer.run(f"{task}\n\nRound {state['round']}.", session=session)
+        session = await fixer.spawn()
+        prompt = f"{task}\n\nRound {state['round']}."
+        await fixer.run(prompt, session=session, env=envs["workspace"])
 ```
 
 - Store only what JSON can hold. Anything else raises `StateNotSerializable` where it is set.

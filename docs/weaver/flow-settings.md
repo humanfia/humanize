@@ -93,16 +93,16 @@ async def polish(
 ) -> None:
     """Do the work, then review it for one thing, as many times as asked."""
     builder = agents["builder"]
-    session = await builder.spawn(env=envs["workspace"])
-    await builder.run(task, session=session)
+    session = await builder.spawn()
+    await builder.run(task, session=session, env=envs["workspace"])
     for _ in range(params.passes):  # ⑨
         await builder.run(
             f"Review what you just did for {params.focus} only, and fix what you find.",
-            session=session,
+            session=session, env=envs["workspace"],
         )
     if params.commit:
         said = f"the message {params.message!r}" if params.message else "a message of yours"
-        await builder.run(f"Commit your work with git, with {said}.", session=session)
+        await builder.run(f"Commit your work with git, with {said}.", session=session, env=envs["workspace"])
 ```
 
 ### What each part does

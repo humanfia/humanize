@@ -82,16 +82,16 @@ async def delegating(
         print(f"  asked: {params.question}")
         if not params.question.startswith("review "):  # ③
             return AskUserHookResult()
-        reading = await reviewer.spawn(env=workspace)  # ④
+        reading = await reviewer.spawn()  # ④
         said = await reviewer.run(
             f"Review {params.question.removeprefix('review ')}. Be brief.",
-            session=reading,
+            session=reading, env=workspace,
         )
         return AskUserHookResult(answer=said)  # ⑤
 
     builder.on_ask_user(asked)  # ⑥
-    session = await builder.spawn(env=workspace)
-    return await builder.run(f"{task}\n\n{ASKING}", session=session)  # ⑦
+    session = await builder.spawn()
+    return await builder.run(f"{task}\n\n{ASKING}", session=session, env=workspace)  # ⑦
 ```
 
 ### What each part does

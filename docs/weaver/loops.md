@@ -25,10 +25,10 @@ alone. This is a **Ralph loop**. Before the loop, every round is one more turn o
 conversation:
 
 ```python
-session = await agent.spawn(env=workspace)  # [!code ++]
+session = await agent.spawn()  # [!code ++]
 while True:
-    session = await agent.spawn(env=workspace)  # [!code --]
-    await agent.run(task, session=session)
+    session = await agent.spawn()  # [!code --]
+    await agent.run(task, session=session, env=workspace)
 ```
 
 | | `spawn` inside the loop | `spawn` before it |
@@ -124,9 +124,9 @@ async def checklist(
         rounds += 1
         state["rounds"] = rounds  # ⑥
         print(f"round {rounds}")
-        session = await agent.spawn(env=workspace)  # ⑦
+        session = await agent.spawn()  # ⑦
         try:
-            await agent.run(task, session=session)
+            await agent.run(task, session=session, env=workspace)
         except HarnessError as error:  # ⑧
             print(f"round {rounds} failed: {error}")
             continue
@@ -337,9 +337,9 @@ async def ralph_loop(
     while True:  # ①
         state["rounds"] = rounds = (state["rounds"] if "rounds" in state else 0) + 1  # ②
         print(f"round {rounds}")
-        session = await agent.spawn(env=envs["workspace"])
+        session = await agent.spawn()
         try:
-            answered = await agent.run(task, session=session)
+            answered = await agent.run(task, session=session, env=envs["workspace"])
         except HarnessError as error:
             print(f"round {rounds} failed: {error}")
             answered = ""  # ③
@@ -374,8 +374,8 @@ with the right one. Abridged:
 chasers = (agents["first_chaser"], agents["second_chaser"])
 at = (state["turn"] if "turn" in state else 0) % len(chasers)
 while True:
-    session = await chasers[at].spawn(env=envs["workspace"])
-    await chasers[at].run(task, session=session)
+    session = await chasers[at].spawn()
+    await chasers[at].run(task, session=session, env=envs["workspace"])
     at = (at + 1) % len(chasers)
     state["turn"] = at
 ```

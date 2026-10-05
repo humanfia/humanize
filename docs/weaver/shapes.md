@@ -76,18 +76,18 @@ async def reviewed(
     """Build under review until the reviewer says there is nothing left."""
     actor, reviewer = agents["actor"], agents["reviewer"]
     workspace = envs["workspace"]
-    working = await actor.spawn(env=workspace)
-    await actor.run(task, session=working)
+    working = await actor.spawn()
+    await actor.run(task, session=working, env=workspace)
     for _ in range(5):
-        reading = await reviewer.spawn(env=workspace)  # ④
+        reading = await reviewer.spawn()  # ④
         try:
-            review = await reviewer.run(REVIEW, session=reading, output_schema=Review)  # ⑤
+            review = await reviewer.run(REVIEW, session=reading, env=workspace, output_schema=Review)  # ⑤
         except HarnessError:  # ⑥
             continue
         print(f"review: done={review.done}")
         if review.done:  # ⑦
             return True
-        await actor.run(review.notes, session=working)  # ⑧
+        await actor.run(review.notes, session=working, env=workspace)  # ⑧
     return False
 ```
 

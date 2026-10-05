@@ -25,10 +25,10 @@ class Envs(EnvCollection):
 async def twice(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
                 ctx: FlowContext) -> None:
     """Two passes: do the work, then read it back and fix what is wrong."""
-    builder = agents["builder"]
-    session = await builder.spawn(env=envs["workspace"])
-    await builder.run(task, session=session)
-    await builder.run("Review what you did, and fix anything wrong.", session=session)
+    builder, workspace = agents["builder"], envs["workspace"]
+    session = await builder.spawn()
+    await builder.run(task, session=session, env=workspace)
+    await builder.run("Review what you did, and fix anything wrong.", session=session, env=workspace)
 ```
 
 ```sh
@@ -288,11 +288,11 @@ class Agent(Protocol):
     effort: str
     provider: str
 
-    async def spawn(self, *, env: Env) -> Session: ...
-    async def run(self, prompt: str, *, session: Session,
+    async def spawn(self) -> Session: ...
+    async def run(self, prompt: str, *, session: Session, env: Env | None = None,
                   output_schema: type[M] | None = None,
                   budget: Budget | None = None) -> str | M: ...
-    async def fork(self, session: Session, *, env: Env) -> Session: ...
+    async def fork(self, session: Session) -> Session: ...
     def derive(self, *, permission: Permission | None = None,
                skills: tuple[str, ...] | None = None) -> Self: ...
     def on_session_start(self, fn: HookFn | None) -> None: ...
@@ -431,7 +431,7 @@ class Permission:
 
 | Field | Scope | Default | Allowed |
 | --- | --- | --- | --- |
-| `local` | the workdir of the environment the session works in | `ALL` | `NONE`, `READ`, `ALL` |
+| `local` | the workdir of the environment the turn works in | `ALL` | `NONE`, `READ`, `ALL` |
 | `user` | the rest of the home directory of the user the CLI runs as | `READ` | `NONE`, `READ`, `ALL`; ≤ `local` |
 | `system` | everything else on the machine | `READ` | `NONE`, `READ`, `ALL`; ≤ `user` |
 | `online` | the network, including the CLI's own web search and fetch | `ALL` | `NONE`, `ALL` |
@@ -577,33 +577,27 @@ the other).
 
 ## Sessions and turns {#sessions-and-turns}
 
-A session is one conversation of one agent in one environment. A turn is one prompt and its
-answer.
+A session is one conversation of one agent: its history, and nothing of where it works. A
+turn is one prompt and its answer, and says where it works: `run(…, env=…)`. One session may
+take its turns in different environments.
 
 ### `Agent.spawn` {#spawn}
 
 ```python
-async def spawn(self, *, env: Env) -> Session
+async def spawn(self) -> Session
 ```
 
-Opens a session working in `env`'s workdir, on `env`'s machine. Starts no CLI: the CLI is
-started by the first turn. Where the session's harness runs is settled here; see
-[Harness placement](#harness-placement).
+Opens a session with no turns. Starts no CLI and settles nothing about where it works: its
+first turn does both, in the environment that turn is given.
 
 | Condition | Raises |
 | --- | --- |
-| `env` not an environment the run handed out | `TypeError`: `<env> is not an environment this run handed out` |
 | the call's caller or the run has ended | `FlowCancelled` |
-| the agent's driver is closed | `SessionError`: `the agent's driver is closed` |
-| a local workdir that is not a directory | `SessionError`: `<dir> is not a directory to open a session in` |
-| CLI not installed where its harness runs | `HarnessNotInstalled` |
-| the fence cannot be held | `HarnessSandboxed` |
-| the CLI cannot be configured as the session asks | `HarnessUnrecoverable` |
 
 ### `Agent.run` {#run}
 
 ```python
-async def run(self, prompt: str, *, session: Session,
+async def run(self, prompt: str, *, session: Session, env: Env | None = None,
               output_schema: type[M] | None = None,
               budget: Budget | None = None) -> str | M
 ```
@@ -612,28 +606,38 @@ async def run(self, prompt: str, *, session: Session,
 | --- | --- | --- |
 | `prompt` | `str` | The prompt. `/goal …` and `/loop …` need their [mixins](#asking-for-an-agent-that-can-do-something). |
 | `session` | `Session` | A session of this agent (or of an agent [derived](#derive) from it). |
+| `env` | `Env \| None` | Where this turn works: its workdir, on its machine. `None` is the run's own workspace, the directory the run was started in, on this machine. |
 | `output_schema` | `type[pydantic.BaseModel] \| None` | Return an instance of this model instead of text. |
 | `budget` | `Budget \| None` | A limit on this one turn, applied with every budget above it. See [Budgets](#what-a-run-may-spend). |
 
 Returns the text of the agent's last message, or an instance of `output_schema`.
 
+**Where the turn works.** The session's first turn starts its CLI in `env`, settling where
+its harness runs (see [Harness placement](#harness-placement)). A later turn given the same
+workdir on the same machine carries on as before. One given another workdir on the same
+machine carries the conversation there, as a [fork](#fork) of itself cut by that turn, on
+Claude Code, Codex and Kimi Code; every other harness refuses it, and every harness refuses
+another machine. A refused turn leaves the session where it was, ready for a turn there.
+
 **Order of events in one turn:**
 
 1. Capability check for `/goal`, `/loop`; budget check (a spent budget raises its
    [`BudgetExceeded`](#budgetexceeded) leaf before anything is sent).
-2. On the session's first turn only: `SESSION_START`. A non-empty `context` is prepended to
+2. The session's CLI is started in `env` (first turn) or the session is carried to `env`
+   (later turns), as above.
+3. On the session's first turn only: `SESSION_START`. A non-empty `context` is prepended to
    the prompt, separated by a blank line.
-3. `USER_PROMPT_SUBMIT` with the prompt as given. `block=True` raises `SessionError(reason)`
+4. `USER_PROMPT_SUBMIT` with the prompt as given. `block=True` raises `SessionError(reason)`
    (`a hook refused the prompt` for an empty reason). A non-empty `context` is appended after a
    blank line.
-4. The CLI takes the turn. Steers queued before it starts are appended, each after a blank
+5. The CLI takes the turn. Steers queued before it starts are appended, each after a blank
    line.
-5. If no steer is pending: `STOP` with `said` and `again`. `block=True` with a non-empty
+6. If no steer is pending: `STOP` with `said` and `again`. `block=True` with a non-empty
    `reason` sends `reason` as the next prompt of the same turn and increments `again`. An
    empty `reason` does not block.
-6. Steers that arrived during the CLI's turn are joined with blank lines and sent as the next
+7. Steers that arrived during the CLI's turn are joined with blank lines and sent as the next
    prompt of the same turn.
-7. With `output_schema`, the final text is parsed (below).
+8. With `output_schema`, the final text is parsed (below).
 
 **Reading `output_schema`.** The model is validated with `model_validate_json` against, in
 order: the whole answer stripped; each fenced code block (```` ```json ```` or ```` ``` ````);
@@ -643,8 +647,19 @@ does: `OutputSchemaError: the answer is not a <Model>: <first 200 chars, JSON-qu
 | Condition | Raises |
 | --- | --- |
 | `session` not this agent's | `SessionError`: `<role>: <session> is not one of this agent's` |
+| `env` not an environment the run handed out | `TypeError`: `<env> is not an environment this run handed out` |
 | a turn of the session is under way | `SessionError`: `<role>: a turn of this session is under way` |
 | the session is closed | `SessionError`: `<role>: the session is over` |
+| the call's caller or the run has ended | `FlowCancelled` |
+| the agent's driver is closed | `SessionError`: `the agent's driver is closed` |
+| a local workdir that is not a directory | `SessionError`: `<dir> is not a directory to open a session in` |
+| CLI not installed where its harness runs | `HarnessNotInstalled` |
+| the fence cannot be held | `HarnessSandboxed` |
+| the CLI cannot be configured as the session asks | `HarnessUnrecoverable` |
+| `env` on another machine than the session's last turn | `UnsupportedOperation`: `<harness> cannot move a session onto another machine` |
+| `env` elsewhere, on a harness that does not fork (`cursor-agent`, `mcode`, `agy`, `dsh`) | `UnsupportedOperation`: `<harness> cannot move a session` |
+| `env` another workdir, on a harness that forks only in place | `UnsupportedOperation`: `<harness> cannot move a session into another workdir` |
+| a fork's first turn, its parent having taken a turn since the fork | `SessionError`: `<role>: the session it was forked from has taken a turn since; …` |
 | the turn was interrupted | `SessionError`: `the turn was interrupted` |
 | a budget over the turn is spent | the `BudgetExceeded` leaf |
 | a hard (non-graceful) limit reached mid-turn | the `BudgetExceeded` leaf; the CLI stops |
@@ -671,22 +686,28 @@ closed session, and `SessionError` where the session has no turn under way.
 ### `Agent.fork` {#fork}
 
 ```python
-async def fork(self, session: Session, *, env: Env) -> Session
+async def fork(self, session: Session) -> Session
 ```
 
-Opens a new session that continues `session`'s conversation; `session` is unchanged.
+Opens a new session that continues `session`'s conversation; `session` is unchanged. The fork
+works wherever its turns are given: its first `run` cuts it, in that turn's `env`.
 
 | Condition | Raises |
 | --- | --- |
 | `session` not this agent's, or closed | `SessionError` (`<role>: the session to fork is over`) |
-| `session` has taken no turn | `SessionError`: `the session to fork has taken no turn to carry on from` |
+| `session` has taken no turn | `SessionError`: `<role>: the session to fork has taken no turn to carry on from` |
+
+What the harness cannot do is raised by the fork's first `run`:
+
+| Condition | Raises |
+| --- | --- |
 | harness does not fork (`cursor-agent`, `mcode`, `agy`, `dsh`) | `UnsupportedOperation`: `<harness> cannot fork a session` |
-| `env` on another machine | `UnsupportedOperation`: `<harness> cannot fork a session onto another machine` |
-| `env` another workdir, on a harness that forks only in place | `UnsupportedOperation`: `<harness> cannot fork a session into another workdir` |
+| the turn's `env` on another machine than the parent's last turn | `UnsupportedOperation`: `<harness> cannot fork a session onto another machine` |
+| the turn's `env` another workdir, on a harness that forks only in place | `UnsupportedOperation`: `<harness> cannot fork a session into another workdir` |
+| the parent has taken a turn since the fork | `SessionError`: `<role>: the session it was forked from has taken a turn since; …` |
 | the CLI cannot cut the fork | `SessionError`: `the session cannot be forked: <reason>` |
 
-A fork is cut when it takes its first turn. The parent is held open until then; if the parent
-has taken another turn in between, the fork's first turn is refused. See
+The parent is held open until the fork's first turn. See
 [Branching a conversation](/weaver/branching).
 
 ### `Session` {#session}
@@ -694,15 +715,15 @@ has taken another turn in between, the fork's first turn is refused. See
 ```python
 class Session(Protocol):
     agent: Agent       # read-only properties
-    env: Env
     usage: Usage
 ```
 
 | Property | Value |
 | --- | --- |
 | `agent` | The agent whose conversation this is. |
-| `env` | The environment it works in. |
 | `usage` | What its turns have spent, current on every read. |
+
+A session holds no environment: each turn is given one.
 
 **Lifetime.** There is no `close`. A session is closed at the earlier of:
 
@@ -791,8 +812,9 @@ The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.
   CLI is started, which apply from the next turn: `on_pre_tool_use` on a gating CLI, and
   `on_permission_request` or `on_ask_user` on Codex (whose app server is restarted between
   turns for it) and Kimi Code.
-- A session opened while any of `on_pre_tool_use`, `on_permission_request`, `on_ask_user` is
-  hung keeps its harness on this machine where its runtime has no affinity; see
+- A session whose CLI starts (its first turn, or a turn that carries it elsewhere) while any
+  of `on_pre_tool_use`, `on_permission_request`, `on_ask_user` is hung keeps its harness on
+  this machine where its runtime has no affinity; see
   [Harness placement](#harness-placement).
 
 ### `HookKind` {#hookkind}
@@ -847,8 +869,8 @@ the run; naming it with `-a` is refused
 
 | Member | Behaviour |
 | --- | --- |
-| `spawn(env=…)` | Opens a session of the outworlder. |
-| `run(prompt, session=…, output_schema=None)` | Asks the person and returns what they typed; with `output_schema`, asks one question per field and builds the model. |
+| `spawn()` | Opens a session of the outworlder. |
+| `run(prompt, session=…, env=None, output_schema=None)` | Asks the person and returns what they typed; with `output_schema`, asks one question per field and builds the model. A person works nowhere: `env` is checked and otherwise ignored. |
 | `away` | `True` under `hmz exec` (no one is at a prompt) and while [`/afk`](/user/afk) is on for the role. |
 | `Outworlder.new()` | A new outworlder answered by the flow through `on_outworlder_run`. Away until a hook is hung. |
 | `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. |
@@ -1745,6 +1767,9 @@ put on is opened as an environment of its own (its workdir, else `~` over ssh, e
 `$TMPDIR/humanize-<uid>/harness` for a daemon here), probed before the flow is called and closed with
 the run, and its own affinity is never walked.
 
+A session's harness is placed as its first turn starts, for the machine that turn's `env` is
+on, and placed again where a later turn carries the session to another workdir.
+
 **Probing.** Placement is settled once per agent role and machine. "The CLI is there" is
 asked by running `/bin/sh -c 'command -v -- "$1" || command -v -- "$2" || exit 69'` with the
 CLI's program and its basename down the same connection a native turn uses (300 s limit;
@@ -1765,7 +1790,8 @@ did not say within 300s whether <cli> is there`, or `could not be asked whether 
 there: <reason>`) rather than being passed by. Every affinity is walked for every agent
 against every environment (the workspace included) once the environments are probed, before
 the flow is called, so a run refuses as a line to correct rather than failing at a session; a
-session opened later (a callee's, under a narrower permission) is still refused as it opens.
+session started later (a callee's, under a narrower permission) is still refused as its first
+turn starts.
 Where each session's harness went is recorded in the epic (`opened.harness`: `local`, `self`,
 `<backend>:<name>`), for sessions whose work was on another machine.
 

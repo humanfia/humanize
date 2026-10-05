@@ -17,10 +17,10 @@ to keep notes out of the repository.
 
 ## How it works
 
-An **environment** is a working directory on a machine. A session works in the environment it
-was spawned in, for every turn it takes, and a flow is handed its environments by role:
-`envs["workspace"]`. From one environment a flow can **derive** others on the same machine, and
-spawn agents in them like in any other.
+An **environment** is a working directory on a machine. A turn works in the environment it is
+given, `run(…, env=…)`, and a flow is handed its environments by role: `envs["workspace"]`.
+From one environment a flow can **derive** others on the same machine, and give agents' turns
+to them like to any other.
 
 What a role may derive is declared on its type, with a mixin per capability, exactly as an
 agent's role declares what it may be asked. A call the role did not declare raises
@@ -86,8 +86,8 @@ async def parts(
     async def one(part: str) -> str:
         tree = await workspace.derive_worktree(ref="main")  # ②
         print(f"{part}: {tree.workdir}")
-        session = await agent.spawn(env=tree)  # ③
-        return await agent.run(f"{task}\n\nYou work on the {part}.", session=session)
+        session = await agent.spawn()  # ③
+        return await agent.run(f"{task}\n\nYou work on the {part}.", session=session, env=tree)
 
     return await asyncio.gather(*(one(part) for part in PARTS))  # ④
 ```
@@ -102,8 +102,8 @@ async def parts(
    `main`, and answers with an environment there. Leave `ref` out for whatever the workdir has
    checked out. `tree.workdir` is where it is: humanize picks a fresh directory unless you
    pass `dir=`.
-3. **`agent.spawn(env=tree)`** opens a session in the worktree, so every file it edits and
-   every command it runs is there, not in your checkout.
+3. **`run(…, env=tree)`** takes the session's turn in the worktree, so every file it edits
+   and every command it runs is there, not in your checkout.
 4. **`asyncio.gather`** runs the three at once and answers with their three answers, in the
    order of `PARTS`. The three sessions cannot touch each other's files or index. They are
    still one agent: one CLI, one model and one role in the [trace](/user/tracing).
@@ -229,8 +229,8 @@ async def guarded(
     """Try the task, and put everything back if the check fails."""
     agent, workspace = agents["agent"], envs["workspace"]
     before = await workspace.snapshot("before-task")  # ②
-    session = await agent.spawn(env=workspace)
-    await agent.run(task, session=session)
+    session = await agent.spawn()
+    await agent.run(task, session=session, env=workspace)
     code, _, err = await workspace.exec(CHECK)  # ③
     if code == 0:
         print("check passed: keeping the change")
@@ -385,8 +385,8 @@ git does not know and a `dir` that is taken each raise `WorktreeError`.
 
 ```python
 trial = await workspace.derive_temp_clone("try-1")
-session = await agent.spawn(env=trial)
-said = await agent.run("try the risky refactor here", session=session)
+session = await agent.spawn()
+said = await agent.run("try the risky refactor here", session=session, env=trial)
 await workspace.destroy_temp_clone("try-1")  # or let the flow end
 ```
 
@@ -434,7 +434,7 @@ a branch or a tag. It then behaves as `git reset --hard` followed by `git clean`
 branch checked out moved to that commit.
 
 **Try in a copy instead.** Where the workdir is not a git repository, or should not be touched
-at all while the attempt runs, derive a temporary copy and spawn the agent there.
+at all while the attempt runs, derive a temporary copy and give the agent's turns that.
 
 **Write against the interface.** Code that only snapshots and rewinds can take a
 `RewindableEnvMixin`, the interface `GitEnvMixin` implements. A role still declares
@@ -460,7 +460,7 @@ hmz exec -f parts -a agent=claude/claude-opus-5:high \
 ```
 
 Everything on this page works the same there. Worktrees, copies, scratch directories and
-snapshots are made on that machine, `workdir` is a path on it, and an agent spawned in one
+snapshots are made on that machine, `workdir` is a path on it, and an agent's turn given one
 works on it. In a container, what is not under the workdir goes with the container when the
 run ends. See [Remote execution](/user/remote-execution) and [Containers](/user/containers).
 
@@ -478,9 +478,10 @@ run ends. See [Remote execution](/user/remote-execution) and [Containers](/user/
 
 - **A rewind throws away commits too.** Anything the agent committed after the snapshot goes
   with it. Snapshot again once a change is worth keeping.
-- **A session stays where it was spawned.** Deriving a worktree does not move a session that
-  is already open. Spawn a new one there, or [fork](/weaver/branching#fork-into-another-directory)
-  the conversation into it.
+- **A turn works where it is given.** Deriving a worktree moves no session into it: give the
+  next turn the worktree as its `env`. On Claude Code, Codex and Kimi Code the conversation is
+  carried there; every other CLI refuses a session another directory with
+  `UnsupportedOperation`, so spawn a new one there instead.
 - **Worktrees pile up.** Nothing removes them, so a flow that makes one per round leaves one per
   round. Pass a fixed `dir=` and remove it yourself, or use a temporary copy.
 

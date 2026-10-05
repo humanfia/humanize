@@ -62,11 +62,11 @@ one, [export the run](/user/export) from `/epics` and open its [trace](/user/tra
 This is the heart of the flow, as humanize ships it:
 
 ```python
-conversation = await assistant.spawn(env=workspace)
-person = await human.spawn(env=workspace)
+conversation = await assistant.spawn()
+person = await human.spawn()
 said = task
 while said:
-    answered = await assistant.run(said, session=conversation)
+    answered = await assistant.run(said, session=conversation, env=workspace)
     said = await human.run(answered, session=person)
 ```
 

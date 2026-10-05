@@ -518,8 +518,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def boxed(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext):
     coder = agents["coder"]
-    session = await coder.spawn(env=envs["box"])
-    await coder.run(task, session=session)
+    session = await coder.spawn()
+    await coder.run(task, session=session, env=envs["box"])
 ```
 
 `boxed8`, in the refusal above, is the same flow with `CPUEnvMixin` and `_cpu_count = 8` on

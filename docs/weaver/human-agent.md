@@ -66,11 +66,11 @@ async def talk(
     """One conversation, and every line the person types is a turn of it."""
     assistant, human = agents["assistant"], agents["human"]
     workspace = envs["workspace"]
-    conversation = await assistant.spawn(env=workspace)
-    listening = await human.spawn(env=workspace)  # ②
+    conversation = await assistant.spawn()
+    listening = await human.spawn()  # ②
     said, turns = task, 0
     while said:  # ③
-        answered = await assistant.run(said, session=conversation)
+        answered = await assistant.run(said, session=conversation, env=workspace)
         turns += 1
         said = await human.run(answered, session=listening)  # ④
     print(f"talk: {turns} turns, away={human.away}")  # ⑤
@@ -81,7 +81,7 @@ async def talk(
 
 1. **`human: Outworlder`** declares the person as a role. The runtime fills it with whoever
    started the run.
-2. **`human.spawn(…)`** opens the person's session, as for any agent. It is where their turns
+2. **`human.spawn()`** opens the person's session, as for any agent. It is where their turns
    are recorded.
 3. **`while said:`** ends the conversation when the person answers with nothing. An empty line,
    or being away, is how they say they are done.
@@ -171,15 +171,15 @@ async def settle(
     """Ask the person how to build it, then have the builder build it that way."""
     builder, human = agents["builder"], agents["human"]
     workspace = envs["workspace"]
-    listening = await human.spawn(env=workspace)
+    listening = await human.spawn()
     settled = await human.run(  # ②
         f"How should I do this: {task}?", session=listening, output_schema=Settled
     )
     print(f"settled: {settled!r}")
     prompt = f"{task}\n\nBuild it the {settled.approach} way."  # ③
     prompt += " Write tests for it." if settled.tests else " Write no tests."
-    session = await builder.spawn(env=workspace)
-    return await builder.run(prompt, session=session)
+    session = await builder.spawn()
+    return await builder.run(prompt, session=session, env=workspace)
 ```
 
 1. **`Settled`** is the questionnaire. Each field is one question, and its `description` is the
@@ -344,12 +344,15 @@ answer, schema and all:
 
 ```python
 async def answered(params: OutworlderRunHookParams) -> OutworlderRunHookResult:
-    thinking = await supervisor.spawn(env=workspace)
+    thinking = await supervisor.spawn()
     if params.output_schema is None:
-        said = await supervisor.run(params.prompt, session=thinking)
+        said = await supervisor.run(params.prompt, session=thinking, env=workspace)
     else:
         said = await supervisor.run(
-            params.prompt, session=thinking, output_schema=params.output_schema
+            params.prompt,
+            session=thinking,
+            env=workspace,
+            output_schema=params.output_schema,
         )
     return OutworlderRunHookResult(output=said)
 ```

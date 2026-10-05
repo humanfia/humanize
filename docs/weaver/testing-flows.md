@@ -91,11 +91,11 @@ async def twice(
 ) -> None:
     """Do the work, then read it back and fix what is wrong."""
     builder = agents["builder"]
-    session = await builder.spawn(env=envs["workspace"])
-    await builder.run(task, session=session)
+    session = await builder.spawn()
+    await builder.run(task, session=session, env=envs["workspace"])
     await builder.run(
         "Now review what you just did, and fix anything that is wrong.",
-        session=session,
+        session=session, env=envs["workspace"],
     )
 ```
 
@@ -198,17 +198,17 @@ async def reviewed(
     state = ctx.state
     assert state is not None
     actor.on_permission_request(no_force_push)
-    working = await actor.spawn(env=workspace)
+    working = await actor.spawn()
     prompt = state["owed"] if "owed" in state else task
     for _ in range(params.rounds):
-        await actor.run(prompt, session=working)
+        await actor.run(prompt, session=working, env=workspace)
         code, out, _ = await workspace.exec(["python", "-m", "pytest", "-q"])
         if code != 0:
             prompt = f"The tests fail:\n\n{out}"
             continue
-        reading = await reviewer.spawn(env=workspace)
+        reading = await reviewer.spawn()
         try:
-            review = await reviewer.run(REVIEW, session=reading, output_schema=Review)
+            review = await reviewer.run(REVIEW, session=reading, env=workspace, output_schema=Review)
         except HarnessError:
             continue
         if review.done:
@@ -469,11 +469,11 @@ async def talk(
 ) -> None:
     """One conversation, and every line the person types is a turn of it."""
     assistant, human = agents["assistant"], agents["human"]
-    conversation = await assistant.spawn(env=envs["workspace"])
-    listening = await human.spawn(env=envs["workspace"])
+    conversation = await assistant.spawn()
+    listening = await human.spawn()
     said = task
     while said:
-        answered = await assistant.run(said, session=conversation)
+        answered = await assistant.run(said, session=conversation, env=envs["workspace"])
         said = await human.run(answered, session=listening)
 ```
 

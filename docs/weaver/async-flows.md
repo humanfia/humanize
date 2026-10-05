@@ -81,8 +81,9 @@ async def fanout(
 
     async def one(path: str) -> str:  # ④
         async with gate:
-            session = await agent.spawn(env=workspace)  # ⑤
-            return await agent.run(f"{task}\n\nThe file is {path}.", session=session)
+            session = await agent.spawn()  # ⑤
+            prompt = f"{task}\n\nThe file is {path}."
+            return await agent.run(prompt, session=session, env=workspace)
 
     said = await asyncio.gather(*(one(path) for path in paths), return_exceptions=True)  # ⑥
     answers: dict[str, str] = {}
@@ -107,8 +108,8 @@ async def fanout(
    depends on the CLI, your account's rate limits and the machine: see [Running
    together](/features/concurrency).
 4. **`one(path)`** is everything one file needs, written once, as a coroutine.
-5. **A session per file**, spawned inside the semaphore, so no more sessions are open than
-   turns are going. Each session is closed as soon as nothing holds it, here when `one`
+5. **A session per file**, spawned inside the semaphore and given its turn there, so no more
+   sessions are open than turns are going. Each session is closed as soon as nothing holds it, here when `one`
    returns.
 6. **`gather(…, return_exceptions=True)`** runs them all and waits for every one. The answers
    come back in the order of `paths`, whatever order the turns finish in, and a turn that
@@ -226,11 +227,11 @@ async def test_a_failed_turn_is_reported_and_the_rest_carry_on() -> None:
 Two agents, or one agent with different prompts, gather the same way. Each has its own session:
 
 ```python
-acting = await agents["actor"].spawn(env=workspace)
-reviewing = await agents["reviewer"].spawn(env=workspace)
+acting = await agents["actor"].spawn()
+reviewing = await agents["reviewer"].spawn()
 acted, reviewed = await asyncio.gather(
-    agents["actor"].run(task, session=acting),
-    agents["reviewer"].run(REVIEW + task, session=reviewing),
+    agents["actor"].run(task, session=acting, env=workspace),
+    agents["reviewer"].run(REVIEW + task, session=reviewing, env=workspace),
 )
 ```
 
@@ -276,8 +277,8 @@ except* HarnessError as failed:
 | `asyncio.TaskGroup` | cancelled at once, and each CLI stops | an `ExceptionGroup` of the failures |
 
 **A checkout per session.** Sessions that all write to one directory can trip over each other.
-Give each a [worktree](/weaver/worktrees) of its own with `derive_worktree`, and spawn the
-session there.
+Give each a [worktree](/weaver/worktrees) of its own with `derive_worktree`, and give the
+session's turns that worktree as their `env`.
 
 **A word into a running turn.** To add to a turn that is already going, rather than start a
 second one, `steer` it. That needs a role that declared `SteeringAgentMixin`, which Claude

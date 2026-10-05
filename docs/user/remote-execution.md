@@ -94,7 +94,7 @@ host in brackets; leave it off for this machine:
 | `apple-container/Users/me/myproject` | an [Apple container](/user/containers#apple-containers) of its own on this Mac, holding that directory |
 | `local/srv/project` | a directory on this machine |
 
-Every session the flow opens in `box` works on the host: the files it reads and writes are the
+Every turn the flow gives `box` works on the host: the files it reads and writes are the
 host's, every command it runs runs there, and the flow's own steps on `box`, such as `onbox`'s
 `git diff`, run there too.
 
@@ -166,7 +166,7 @@ hmz exec -f onbox                                               ①
 
 Nothing said where the builder's CLI runs, and a host nobody saved has no affinity, so with
 no `claude` on `build-box` it ran here. At the prompt the transcript says so as the role's
-first session opens:
+first turn starts:
 
 ```text
 ❯ Make test_calc.py pass.
@@ -380,7 +380,7 @@ only when the one before has no room:
 | **Needs on the host** | Python 3.12 | Python 3.12 | Python 3.12, the CLI, and Landlock for a fenced role | Python 3.12 |
 | **No room when** | never | never | the CLI is not on the host, or it cannot hold the role's fence | it cannot be reached, has no share left, or the role is fenced |
 
-Each role is settled once per machine, as its first session there opens, and before the flow
+Each role is settled once per machine, as its first turn there starts, and before the flow
 is called every role is walked against every machine of the run: where no place in an affinity
 has room, the run is refused before anything runs, with the last place's refusal. The
 affinity read is the one of the runtime the work is on; a runtime a harness is sent to is used
@@ -591,13 +591,15 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext):
     builder, reviewer = agents["builder"], agents["reviewer"]
-    working = await builder.spawn(env=envs["box"])
-    await builder.run(task, session=working)
+    working = await builder.spawn()
+    await builder.run(task, session=working, env=envs["box"])
     for _ in range(3):
         _, diff, _ = await envs["box"].exec(["git", "diff"])
-        reading = await reviewer.spawn(env=envs["workspace"])
-        review = await reviewer.run(f"Say what is wrong with this diff:\n\n{diff}", session=reading)
-        await builder.run(review, session=working)
+        reading = await reviewer.spawn()
+        review = await reviewer.run(
+            f"Say what is wrong with this diff:\n\n{diff}", session=reading, env=envs["workspace"]
+        )
+        await builder.run(review, session=working, env=envs["box"])
 ```
 
 :::

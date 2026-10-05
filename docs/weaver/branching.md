@@ -21,8 +21,8 @@ again.
 
 ## How it works
 
-`agent.fork(session, env=…)` makes a second session that starts out knowing everything the
-first one knows, and goes its own way from there:
+`agent.fork(session)` makes a second session that starts out knowing everything the first one
+knows, and goes its own way from there:
 
 - **Everything said after the fork belongs to one branch only.** The parent is untouched, and
   two forks never see each other's turns.
@@ -31,8 +31,9 @@ first one knows, and goes its own way from there:
   is closed the way every session is.
 - **A fork is cut at its own first turn**, not at the call to `fork`. The call itself costs
   nothing; the child's first turn is where the history is carried over.
-- **`env` is where the child works**, and it need not be the parent's, on the CLIs that can
-  carry a conversation into another directory.
+- **The child's turns say where it works**, with `env` as every turn does, and that need not
+  be where the parent worked, on the CLIs that can carry a conversation into another
+  directory.
 
 Take turns below and watch who knows what:
 
@@ -78,17 +79,18 @@ async def twoways(
 ) -> list[str]:
     """Read once, then try the task two ways, each in a worktree of its own."""
     agent, workspace = agents["agent"], envs["workspace"]
-    session = await agent.spawn(env=workspace)
-    await agent.run(READ, session=session)  # ②
+    session = await agent.spawn()
+    await agent.run(READ, session=session, env=workspace)  # ②
 
     async def attempt(way: str) -> str:
         tree = await workspace.derive_worktree()  # ③
-        try:
-            branch: Session = await agent.fork(session, env=tree)  # ④
-        except UnsupportedOperation:  # ⑤
-            branch = await agent.spawn(env=tree)
+        branch: Session = await agent.fork(session)  # ④
         print(f"{way}: {tree.workdir}")
-        return await agent.run(f"{task}, {way}.", session=branch)  # ⑥
+        try:
+            return await agent.run(f"{task}, {way}.", session=branch, env=tree)  # ⑤
+        except UnsupportedOperation:  # ⑥
+            fresh = await agent.spawn()
+            return await agent.run(f"{task}, {way}.", session=fresh, env=tree)
 
     return await asyncio.gather(*(attempt(way) for way in WAYS))  # ⑦
 ```
@@ -101,13 +103,14 @@ async def twoways(
    carry, so the parent must have taken at least one turn.
 3. **`derive_worktree()`** checks out a new worktree at what the workdir has checked out: a
    clean copy of the committed code for each attempt.
-4. **`fork(session, env=tree)`** makes a new session that carries the reading and works in the
-   worktree. Nothing is sent yet.
-5. **`UnsupportedOperation`** is what a CLI that cannot make this fork raises, at the call.
-   Falling back to a fresh `spawn` keeps the flow running on any CLI, at the price of the
-   history.
-6. **The fork's first turn** is where the conversation is cut and carried over. From here on
-   the two branches know only their own turns.
+4. **`fork(session)`** makes a new session that carries the reading. Nothing is sent yet, and
+   nothing is settled about where it works.
+5. **The fork's first turn**, given the worktree as its `env`, is where the conversation is
+   cut and carried over, into the worktree. From here on the two branches know only their own
+   turns.
+6. **`UnsupportedOperation`** is what a CLI that cannot make this fork raises, at that first
+   turn. Falling back to a fresh `spawn` keeps the flow running on any CLI, at the price of
+   the history.
 7. **`gather`** runs both attempts at once, and answers with both answers in the order of
    `WAYS`.
 
@@ -224,14 +227,15 @@ async def test_a_cli_that_cannot_fork_starts_afresh() -> None:
    reading.
 2. **A fork's `prompts` start with its parent's**, which is the history it carries.
 3. **The parent is untouched**: its prompts are the reading alone.
-4. **`forks=False`** makes a fake CLI that cannot fork, so `fork` raises
+4. **`forks=False`** makes a fake CLI that cannot fork, so a fork's first turn raises
    `UnsupportedOperation`.
 5. **The fallback ran**: three fresh sessions, each told one thing only.
 
 ## Which CLIs can fork
 
 `fork` is on every agent and needs no mixin. A CLI that cannot make the fork you ask for raises
-`UnsupportedOperation`, at the call.
+`UnsupportedOperation`, at the fork's first turn, which is where it is asked for: that turn's
+`env` is where the fork is to work.
 
 | CLI, as `-a` names it | Forks | Into another directory |
 | --- | --- | --- |
@@ -247,11 +251,11 @@ No CLI forks onto another machine.
 into the parent's own environment, which more CLIs can do:
 
 ```python
-careful = await agent.fork(session, env=workspace)
-quick = await agent.fork(session, env=workspace)
+careful = await agent.fork(session)
+quick = await agent.fork(session)
 await asyncio.gather(
-    agent.run("how would you fix the retry logic, carefully?", session=careful),
-    agent.run("how would you fix the retry logic, quickly?", session=quick),
+    agent.run("how would you fix it, carefully?", session=careful, env=workspace),
+    agent.run("how would you fix it, quickly?", session=quick, env=workspace),
 )
 ```
 
@@ -259,7 +263,7 @@ await asyncio.gather(
 
 | | Gives you | Carries the history? |
 | --- | --- | --- |
-| `agent.fork(session, env=…)` | another **conversation** of the same agent | yes |
+| `agent.fork(session)` | another **conversation** of the same agent | yes |
 | `agent.derive(permission=…)` | the same **agent** under a narrower grant | no: it holds no conversation |
 
 `derive` is covered in [A flow that calls a
@@ -272,23 +276,20 @@ flow](/weaver/calling-flows#narrow-what-you-hand-on).
   quietly branching from a later point:
 
   ```python
-  child = await agent.fork(session, env=workspace)
-  await agent.run("carry on here", session=session)  # parent moves on
-  await agent.run("and here", session=child)  # [!code error]
+  child = await agent.fork(session)
+  await agent.run("carry on here", session=session, env=workspace)  # parent moves on
+  await agent.run("and here", session=child, env=workspace)  # [!code error]
   ```
 
   ```text
-  SessionError: claude: the conversation this one was forked from has taken a turn since; fork it again to branch from where it is now
+  SessionError: agent: the session it was forked from has taken a turn since; fork it again to branch from where it is now
   ```
 
   Fork again when you want the newer point. Turns on a child never move its parent, so
   `twoways`, which only ever turns the children, is safe.
 - **A session with no turn has nothing to carry.** Forking one raises
-  `SessionError: the session to fork has taken no turn to carry on from`. `spawn` a fresh one
-  instead.
-- **The fake kit does not hold you to these two rules.** A fake agent forks a fresh session and
-  runs a stale child without complaint, so check the order of your turns on a real CLI before
-  you rely on it.
+  `SessionError: agent: the session to fork has taken no turn to carry on from`. `spawn` a
+  fresh one instead.
 
 ## Next steps
 

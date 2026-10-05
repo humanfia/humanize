@@ -134,10 +134,10 @@ async def build_under_test(
 ) -> None:
     """One agent writes, pytest judges, a reviewer reads what passed."""
     builder, reviewer, workspace = agents["builder"], agents["reviewer"], envs["workspace"]
-    working = await builder.spawn(env=workspace)
-    await builder.run(task, session=working)
-    reading = await reviewer.spawn(env=workspace)  # [!code highlight]
-    print(await reviewer.run(REVIEW + task, session=reading))
+    working = await builder.spawn()
+    await builder.run(task, session=working, env=workspace)
+    reading = await reviewer.spawn()  # [!code highlight]
+    print(await reviewer.run(REVIEW + task, session=reading, env=workspace))
 ```
 
 This already runs: the builder takes a turn, then the reviewer reads the result. Two things to
@@ -331,16 +331,16 @@ async def build_under_test(
 ) -> str:  # ⑤
     """One agent writes, pytest judges, a reviewer reads what passed."""
     builder, reviewer, workspace = agents["builder"], agents["reviewer"], envs["workspace"]
-    working = await builder.spawn(env=workspace)  # ⑥
+    working = await builder.spawn()  # ⑥
     prompt = task
     while True:  # ⑦
-        await builder.run(prompt, session=working)
+        await builder.run(prompt, session=working, env=workspace)
         passed, said = await suite(workspace)
         if not passed:  # ⑧
             prompt = f"`python -m pytest -q` fails. Read this and fix it.\n\n{said}"
             continue
-        reading = await reviewer.spawn(env=workspace)  # ⑨
-        review = await reviewer.run(REVIEW + task, session=reading, output_schema=Review)  # ⑩
+        reading = await reviewer.spawn()  # ⑨
+        review = await reviewer.run(REVIEW + task, session=reading, env=workspace, output_schema=Review)  # ⑩
         if review.good:  # ⑪
             print(review.notes)
             return review.notes

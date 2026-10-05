@@ -67,8 +67,8 @@ async def aim(
 ) -> str:
     """The task set once as the agent's own goal."""
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    return await worker.run(f"/goal {task}", session=session)  # ③
+    session = await worker.spawn()
+    return await worker.run(f"/goal {task}", session=session, env=envs["workspace"])  # ③
 ```
 
 ### What each part does
@@ -240,8 +240,8 @@ async def ticked(
         return StopHookResult()  # ⑤
 
     worker.on_stop(unfinished)  # ⑥
-    session = await worker.spawn(env=workspace)
-    await worker.run(task, session=session)
+    session = await worker.spawn()
+    await worker.run(task, session=session, env=workspace)
 ```
 
 1. **A plain `Agent`.** The stop hook is on every agent, so any CLI can fill the role.

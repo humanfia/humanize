@@ -83,8 +83,8 @@ async def one_step(
 ) -> bool:
     """Take one step, and say whether the check still passes."""
     builder, workspace = agents["builder"], envs["workspace"]
-    session = await builder.spawn(env=workspace)
-    await builder.run(task, session=session)
+    session = await builder.spawn()
+    await builder.run(task, session=session, env=workspace)
     code, _, _ = await workspace.exec(params.check)
     return code == 0  # ③
 
@@ -261,9 +261,9 @@ async def aimed(
         envs={},  # ④
         params=goal.expected_params(),
     )
-    session = await builder.spawn(env=envs["workspace"])
+    session = await builder.spawn()
     await builder.run(
-        "Describe the uncommitted change in one line, in CHANGES.md.", session=session
+        "Describe the uncommitted change in one line, in CHANGES.md.", session=session, env=envs["workspace"]
     )
 ```
 
@@ -385,7 +385,7 @@ from hmz.flows import Permission, PermissionKind
 
 read_only = Permission(local=PermissionKind.READ)
 reader = agents["builder"].derive(permission=read_only)
-reading = await reader.spawn(env=envs["workspace"])  # may not write
+reading = await reader.spawn()  # may not write
 ```
 
 It only narrows: asking for more than was granted raises `CapabilityNotGranted`. It is for a
@@ -437,8 +437,8 @@ async def split(
     task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext
 ) -> None:
     if params.left <= 0:
-        session = await agents["builder"].spawn(env=envs["workspace"])
-        await agents["builder"].run(task, session=session)
+        session = await agents["builder"].spawn()
+        await agents["builder"].run(task, session=session, env=envs["workspace"])
         return
     deeper = Params(left=params.left - 1)
     again = load(":split")

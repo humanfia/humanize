@@ -34,9 +34,9 @@ function needs, and the runtime hands it exactly those when it runs:
 The function never names a CLI or a model. It names a role, `builder`, and asks it for work in
 two steps:
 
-- **`spawn`** opens a **session**: one conversation of one agent, in one environment.
-- **`run`** takes a **turn** in that session: sends one prompt and waits until the agent is done
-  with it. It returns what the agent said.
+- **`spawn`** opens a **session**: one conversation of one agent.
+- **`run`** takes a **turn** in that session, in an environment: sends one prompt and waits
+  until the agent is done with it. It returns what the agent said.
 
 A second `run` in the same session carries on the same conversation. That is all `twice` needs.
 
@@ -75,12 +75,13 @@ async def twice(  # ④
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
     """Do the work, then read it back and fix what is wrong."""  # ⑤
-    builder = agents["builder"]  # ⑥
-    session = await builder.spawn(env=envs["workspace"])  # ⑦
-    await builder.run(task, session=session)  # ⑧
+    builder, workspace = agents["builder"], envs["workspace"]  # ⑥
+    session = await builder.spawn()  # ⑦
+    await builder.run(task, session=session, env=workspace)  # ⑧
     await builder.run(  # ⑨
         "Now review what you just did, and fix anything that is wrong.",
         session=session,
+        env=workspace,
     )
 ```
 
@@ -101,10 +102,14 @@ async def twice(  # ④
    is the run's [context](/reference/flows#flowcontext): its budget, what it has spent, and
    state that survives a stop. `twice` does not use it, but still has to take it.
 5. **The docstring's first line** is what `/flow` shows beside the flow's name.
-6. **`agents["builder"]`** is the agent that fills the role, whichever CLI and model that is.
-7. **`spawn(env=…)`** opens a session in the workspace. Nothing is sent to the agent yet.
-8. **`run(task, session=…)`** sends the task as the first prompt and waits for the turn to
-   end. It returns the agent's answer as a string, which `twice` ignores.
+6. **`agents["builder"]`** is the agent that fills the role, whichever CLI and model that is,
+   and `envs["workspace"]` is the directory.
+7. **`spawn()`** opens a session: a conversation with nothing in it yet. Nothing is sent to the
+   agent, and no CLI is started.
+8. **`run(task, session=…, env=…)`** sends the task as the first prompt, in the workspace, and
+   waits for the turn to end. It returns the agent's answer as a string, which `twice`
+   ignores. `env=None`, or no `env` at all, is the run's own workspace too: the directory the
+   run was started in, which no role has to name.
 9. **The second `run`** is in the same session, so the agent remembers the first turn and can
    review its own change. A new `spawn` here would start a stranger with no memory of it.
 
