@@ -291,6 +291,33 @@ async def test_a_fake_forks_only_where_its_harness_can(harness: HarnessKind) -> 
             await forked(there)
 
 
+@pytest.mark.parametrize("harness", sorted(HARNESS_CAPABILITIES))
+async def test_a_fake_session_moves_only_where_its_harness_can(
+    harness: HarnessKind,
+) -> None:
+    driver = FakeAgentDriver(harness)
+    session = await _opened(driver)
+    await session.turn(TurnRequest("one"), RecordingSink())
+    was = session.id
+    # Where it already works, under another name, is no move at all.
+    renamed = Placement(PLACED.backend, PLACED.provider, PLACED.workdir, env="other")
+    assert not await session.move(renamed)
+    assert session.id == was
+    with pytest.raises(UnsupportedOperation):
+        await session.move(Placement(EnvBackendKind.SSH, "box", PurePosixPath("/work")))
+    there = Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/there"))
+    if harness in {HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI}:
+        assert await session.move(there)
+        assert session.id != was
+        assert session.placements == [PLACED, renamed, there]
+        await session.turn(TurnRequest("two"), RecordingSink())
+        assert session.prompts == ["one", "two"]
+    else:
+        with pytest.raises(UnsupportedOperation):
+            await session.move(there)
+        assert session.placement == renamed
+
+
 # --------------------------------------------------------------------- the environments
 
 

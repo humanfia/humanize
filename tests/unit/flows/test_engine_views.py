@@ -685,6 +685,49 @@ async def test_a_harness_that_cannot_fork_says_so() -> None:
         await run_fake(forking, agents={"agent": FakeAgentDriver(forks=False)})
 
 
+async def test_a_session_takes_each_turn_where_that_turn_is_given() -> None:
+    @flow(agents=Plain, envs=Bare, params=Nothing)
+    async def moving(
+        task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
+    ) -> list[str]:
+        agent = agents["agent"]
+        session = await agent.spawn()
+        return [
+            await agent.run("one", session=session, env=envs["env"]),
+            await agent.run("two", session=session),
+            await agent.run("three", session=session, env=None),
+        ]
+
+    driver = FakeAgentDriver(reply=lambda prompt, **_: prompt)
+    assert await run_fake(moving, agents={"agent": driver}) == ["one", "two", "three"]
+    # One conversation, carried from the flow's environment into the run's own workspace.
+    (session,) = driver.sessions
+    assert session.prompts == ["one", "two", "three"]
+    assert [(one.workdir.as_posix(), one.env) for one in session.placements] == [
+        ("/env", "env"),
+        ("/here", ""),
+    ]
+
+
+async def test_a_session_is_not_carried_where_its_harness_cannot_carry_it() -> None:
+    @flow(agents=Plain, envs=Bare, params=Nothing)
+    async def moving(
+        task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
+    ) -> str:
+        agent = agents["agent"]
+        session = await agent.spawn()
+        await agent.run("one", session=session, env=envs["env"])
+        with pytest.raises(UnsupportedOperation):
+            await agent.run("two", session=session)
+        # Refused, it is still where it was, and goes on there.
+        return await agent.run("three", session=session, env=envs["env"])
+
+    driver = FakeAgentDriver(HarnessKind.OPENCODE)
+    assert await run_fake(moving, agents={"agent": driver}) == "ok"
+    (session,) = driver.sessions
+    assert session.prompts == ["one", "three"]
+
+
 async def test_a_session_says_what_it_is() -> None:
     @flow(agents=Plain, envs=Bare, params=Nothing)
     async def looking(

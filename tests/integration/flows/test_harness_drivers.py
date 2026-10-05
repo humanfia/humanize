@@ -10,6 +10,7 @@ outworlder. The stand-ins are :mod:`tests.flows.standins`.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import time
 from pathlib import Path, PurePosixPath
@@ -616,6 +617,54 @@ async def test_a_second_fork_elsewhere_carries_the_conversation_as_it_is_now(
         "Reply with the single word: two",
         "Reply with the single word: three",
     ]
+
+
+async def test_a_session_moved_elsewhere_carries_its_conversation_there(
+    clis: Logs, claude: HarnessDriver, tmp_path: Path
+) -> None:
+    here, there = _placement(tmp_path / "here"), _placement(tmp_path / "there")
+    handle = await _open(claude, here)
+    await handle.turn(TurnRequest("Reply with the single word: one"), RecordingSink())
+    was = handle.id
+    assert not await handle.move(dataclasses.replace(here, env="other"))
+    assert handle.id == was
+    assert await handle.move(there)
+    said = await handle.turn(
+        TurnRequest("Reply with the single word: two"), RecordingSink()
+    )
+    assert said == "two"
+    assert handle.id not in (None, was)
+    assert handle.placement == there
+    started = [one for one in clis.of("claude") if "argv" in one]
+    assert started[-1]["cwd"] == str(there.workdir)
+    assert "--fork-session" in started[-1]["argv"]
+    projects = tmp_path / "claude-home" / "projects"
+    (carried,) = projects.glob(f"*there/{handle.id}.jsonl")
+    told = [json.loads(line)["user"] for line in carried.read_text().splitlines()]
+    assert told == [
+        "Reply with the single word: one",
+        "Reply with the single word: two",
+    ]
+
+
+async def test_a_harness_that_forks_only_where_it_is_does_not_move(
+    clis: Logs, tmp_path: Path
+) -> None:
+    del clis
+    driver = open_agent(SPECS[HarnessKind.OPENCODE])
+    try:
+        handle = await _open(driver, _placement(tmp_path / "here"))
+        await handle.turn(
+            TurnRequest("Reply with the single word: one"), RecordingSink()
+        )
+        with pytest.raises(UnsupportedOperation):
+            await handle.move(_placement(tmp_path / "there"))
+        said = await handle.turn(
+            TurnRequest("Reply with the single word: two"), RecordingSink()
+        )
+        assert said == "two"
+    finally:
+        await driver.close()
 
 
 async def test_codex_counts_a_thread_picked_up_on_a_new_server_from_where_it_was(
