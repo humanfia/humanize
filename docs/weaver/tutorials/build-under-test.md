@@ -340,7 +340,9 @@ async def build_under_test(
             prompt = f"`python -m pytest -q` fails. Read this and fix it.\n\n{said}"
             continue
         reading = await reviewer.spawn()  # ⑨
-        review = await reviewer.run(REVIEW + task, session=reading, env=workspace, output_schema=Review)  # ⑩
+        review = await reviewer.run(  # ⑩
+            REVIEW + task, session=reading, env=workspace, output_schema=Review
+        )
         if review.good:  # ⑪
             print(review.notes)
             return review.notes

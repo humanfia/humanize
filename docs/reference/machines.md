@@ -221,9 +221,9 @@ container runs as this user. Any other daemon's workspace is a path on its host.
 
 ## Flow environments {#where-a-flow-s-agents-work}
 
-A flow never sets `AgentConfig.machine`. It declares environment roles, and each session is
-opened in one (`await agent.spawn(env=repo)`); the environment decides where that session's
-turns land. A `LocalEnv` role is filled by the runtime with the workspace the run started in;
+A flow never sets `AgentConfig.machine`. It declares environment roles, and each turn is
+given one (`await agent.run(task, session=session, env=repo)`, or `env=None` for the
+workspace); the environment decides where that turn lands. A `LocalEnv` role is filled by the runtime with the workspace the run started in;
 every other role is filled by `-e`.
 
 ### `-e` grammar

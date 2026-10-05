@@ -81,7 +81,9 @@ async def reviewed(
     for _ in range(5):
         reading = await reviewer.spawn()  # ④
         try:
-            review = await reviewer.run(REVIEW, session=reading, env=workspace, output_schema=Review)  # ⑤
+            review = await reviewer.run(  # ⑤
+                REVIEW, session=reading, env=workspace, output_schema=Review
+            )
         except HarnessError:  # ⑥
             continue
         print(f"review: done={review.done}")

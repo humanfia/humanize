@@ -107,7 +107,8 @@ async def review(  # ②
     session = await reviewer.spawn()
     await reviewer.run(
         f"Write what is wrong with the diff to REVIEW.md.\n\n{task}",
-        session=session, env=envs["workspace"],
+        session=session,
+        env=envs["workspace"],
     )
 ```
 

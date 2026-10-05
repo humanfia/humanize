@@ -665,9 +665,10 @@ history; its first turn performs the fork.
 - `into=` another agent of the same backend, account and machine; anything else is `ValueError`.
 - The child carries the session's effort, budget, skills and callbacks.
 - A child driven after its parent has taken another turn raises `RuntimeError`.
-- `session.forks` says whether this backend forks. Under a flow, `agent.fork(session, env=…)`;
-  a fork onto another machine is `UnsupportedOperation: <cli> cannot fork a session onto
-  another machine`.
+- `session.forks` says whether this backend forks. Under a flow, `agent.fork(session)`, cut by
+  its first `run(…, env=…)`; a fork onto another machine is `UnsupportedOperation: <cli>
+  cannot fork a session onto another machine`. A session whose turn is given another workdir
+  is carried there the same way, as a fork of itself, where the backend forks elsewhere.
 
 ### Working directory {#the-directory-a-session-works-in}
 

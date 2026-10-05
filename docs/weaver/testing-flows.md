@@ -95,7 +95,8 @@ async def twice(
     await builder.run(task, session=session, env=envs["workspace"])
     await builder.run(
         "Now review what you just did, and fix anything that is wrong.",
-        session=session, env=envs["workspace"],
+        session=session,
+        env=envs["workspace"],
     )
 ```
 
@@ -208,7 +209,9 @@ async def reviewed(
             continue
         reading = await reviewer.spawn()
         try:
-            review = await reviewer.run(REVIEW, session=reading, env=workspace, output_schema=Review)
+            review = await reviewer.run(
+                REVIEW, session=reading, env=workspace, output_schema=Review
+            )
         except HarnessError:
             continue
         if review.done:

@@ -256,8 +256,8 @@ What to look at in frame 1, by number:
 The frames after it walk the rest: <kbd>↓</kbd> to the reviewer, <kbd>space</kbd> to open it
 out, <kbd>ctrl+t</kbd> to the list, <kbd>enter</kbd> on the environment for its page, and
 <kbd>enter</kbd> on the reviewer to read it. In frame 3, the numbers mark **(1)** a session
-row, with its own turns, tokens and clock, and **(2)** the environment that session works in,
-with the directory. In frame 4, **(1)** the list's columns, **(2)** a working row moved to the
+row, with its own turns, tokens and clock, and **(2)** the environment that session's turns
+work in, with the directory. In frame 4, **(1)** the list's columns, **(2)** a working row moved to the
 top, and **(3)** the environment as a row of its own. Frame 5 is explained under
 [Environments](#environments).
 

@@ -263,7 +263,9 @@ async def aimed(
     )
     session = await builder.spawn()
     await builder.run(
-        "Describe the uncommitted change in one line, in CHANGES.md.", session=session, env=envs["workspace"]
+        "Describe the uncommitted change in one line, in CHANGES.md.",
+        session=session,
+        env=envs["workspace"],
     )
 ```
 

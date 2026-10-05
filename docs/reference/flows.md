@@ -28,7 +28,7 @@ async def twice(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
     builder, workspace = agents["builder"], envs["workspace"]
     session = await builder.spawn()
     await builder.run(task, session=session, env=workspace)
-    await builder.run("Review what you did, and fix anything wrong.", session=session, env=workspace)
+    await builder.run("Review what you did; fix anything wrong.", session=session, env=workspace)
 ```
 
 ```sh

@@ -85,7 +85,8 @@ async def delegating(
         reading = await reviewer.spawn()  # ④
         said = await reviewer.run(
             f"Review {params.question.removeprefix('review ')}. Be brief.",
-            session=reading, env=workspace,
+            session=reading,
+            env=workspace,
         )
         return AskUserHookResult(answer=said)  # ⑤
 
