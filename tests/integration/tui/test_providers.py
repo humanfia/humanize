@@ -784,7 +784,7 @@ async def test_a_secret_left_blank_while_correcting_keeps_the_one_it_has() -> No
     providers.add(
         "claude",
         "gate",
-        way="gateway",
+        way="anthropic-gateway",
         env={
             "ANTHROPIC_AUTH_TOKEN": "sk-kept",
             "ANTHROPIC_BASE_URL": "https://old.test",

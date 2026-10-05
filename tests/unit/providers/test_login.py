@@ -49,7 +49,7 @@ def test_a_way_is_found_under_the_name_the_backend_offers_it_by() -> None:
 
 
 def test_a_way_still_has_to_be_told_whatever_it_has_no_answer_for() -> None:
-    gateway = way("claude", "gateway")
+    gateway = way("claude", "anthropic-gateway")
 
     assert login.asked(gateway, {}) == ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]
     assert login.asked(gateway, {"ANTHROPIC_BASE_URL": "https://x.invalid"}) == [
@@ -74,14 +74,14 @@ def test_a_provider_is_what_its_way_in_was_answered_with(house: Path) -> None:
     provider = login.make(
         "claude",
         "mine",
-        way("claude", "gateway"),
+        way("claude", "anthropic-gateway"),
         {
             "ANTHROPIC_BASE_URL": "https://example.invalid/anthropic",
             "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
         },
     )
 
-    assert provider.way == "gateway"
+    assert provider.way == "anthropic-gateway"
     assert dict(provider.env) == {
         "ANTHROPIC_BASE_URL": "https://example.invalid/anthropic",
         "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
