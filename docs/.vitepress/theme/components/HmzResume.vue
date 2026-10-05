@@ -142,12 +142,21 @@ const scene = useScene({
     tl.set(at('.lane-0 .lane-dim'), { autoAlpha: 1 }, 0)
     tl.set(at('.link-line, .edit-line'), { drawSVG: '0%' }, 0)
     tl.set(round, { text: 'round: 36' }, 0)
+    tl.set(at('.cut-line, .axis-line'), { drawSVG: '0%' }, 0)
+    tl.set(at('.axis-word, .cut-flow'), { autoAlpha: 0 }, 0)
+    if (!narrow.value) tl.set(at('.state-name'), { autoAlpha: 0 }, 0)
+    tl.set(at('.cut-line'), { autoAlpha: 1 }, 0)
 
     // 0 · round after round, each one kept the moment it is written down.
     tl.addLabel('beat-0', 0)
     tl.fromTo(one('.lane-0'), { autoAlpha: 0, x: -20 }, { autoAlpha: 1, x: 0, duration: 0.7 }, 0.1)
     tl.fromTo(one('.kept'), { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 0.3)
     cam.shot(l.shots.drift, 0.4, 4.2, 'sine.inOut')
+    // The rounds stand on one axis across both runs, so a round has one place whichever run
+    // takes it.
+    tl.to(at('.axis-line'), { drawSVG: '100%', duration: 1.6, ease: 'cine' }, 0.2)
+    tl.fromTo(at('.axis-word'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 1.2)
+    if (!narrow.value) tl.fromTo(at('.state-name'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 0.9)
     const STEP = 0.95
     FIRST.forEach((n, i) => {
       const t = 0.7 + i * STEP
@@ -174,6 +183,12 @@ const scene = useScene({
     tl.fromTo(one('.shake'), { x: 0 }, { keyframes: { x: [0, -7, 6, -4, 3, 0] }, duration: 0.45, ease: 'none' }, T1 + 0.2)
     cam.flare(tileC(0, CUT), c.danger, T1 + 0.2, 34, 150)
     tl.to(fill(0, CUT), { autoAlpha: 0, duration: 0.5 }, T1 + 0.25)
+    // Where it stopped, marked down through both runs: the second will pick up on this line.
+    tl.to(at('.cut-line'), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, T1 + 0.3)
+    // Drawn, the line turns to a current running down it: from where one run stopped to where
+    // the next picks up.
+    tl.to(at('.cut-line'), { autoAlpha: 0, duration: 0.5 }, T1 + 1.1)
+    tl.to(at('.cut-flow'), { autoAlpha: 0.8, duration: 0.5 }, T1 + 1.1)
     tl.to(q(`.lane-0 .tile-${CUT} .cut`), { autoAlpha: 1, duration: 0.3 }, T1 + 0.25)
     tl.fromTo(at('.lane-0 .stopped'), { autoAlpha: 0, scale: 1.5, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(2)' }, T1 + 0.3)
     tl.to(one('.lane-0 .lane-dim'), { autoAlpha: 0.55, duration: 0.8 }, T1 + 0.9)
@@ -223,6 +238,13 @@ const scene = useScene({
     cam.beam({ x: l.code.x + l.code.w / 2, y: l.code.y }, { x: l.tag.x + 24, y: l.lanes[1] + l.tag.y + 4 }, c.warm, T4 + 1.4, { duration: 0.8, bend: -0.25, burst: 12 })
     tl.fromTo(one('.lane-1 .code-dot'), { autoAlpha: 0, scale: 0, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.3, ease: 'back.out(3)' }, T4 + 2.1)
     tl.addLabel('rest', T4 + 2.6)
+
+    // Under it all, what keeps a held frame alive: the stop line's dashes creep, and the kept
+    // state breathes. Over the whole timeline, so a seek lands on it like on anything else.
+    const D = T4 + 5.6
+    const loops = (period: number) => Math.max(0, Math.floor(D / period) - 1)
+    tl.fromTo(at('.cut-flow'), { strokeDashoffset: 0 }, { strokeDashoffset: -D * 8, duration: D, ease: 'none' }, 0)
+    tl.fromTo(at('.kept-breath'), { opacity: 0.15 }, { opacity: 0.6, duration: 1.3, ease: 'sine.inOut', yoyo: true, repeat: loops(1.3) }, 0)
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 5.0)
   },
 })
@@ -303,7 +325,7 @@ const scene = useScene({
               <rect class="slot" :x="L.col(n)" :y="lane + L.tileDy - TILE_H / 2" :width="L.tileW" :height="TILE_H" rx="7" />
               <rect v-if="!k && n === CUT" class="slot cut" :x="L.col(n)" :y="lane + L.tileDy - TILE_H / 2" :width="L.tileW" :height="TILE_H" rx="7" />
               <rect class="fill" :class="k ? 'two' : 'one'" :x="L.col(n)" :y="lane + L.tileDy - TILE_H / 2" :width="L.tileW" :height="TILE_H" rx="7" />
-              <text class="tile-word" :x="L.col(n) + L.tileW / 2" :y="lane + L.tileDy + 5" text-anchor="middle">{{ n }}</text>
+              <g class="tile-word"><text :x="L.col(n) + L.tileW / 2" :y="lane + L.tileDy + 5" text-anchor="middle">{{ n }}</text></g>
               <g v-if="!k && n === CUT" :transform="`translate(${L.col(n) + L.tileW / 2 + 10} ${lane + L.tileDy - TILE_H / 2 - 4}) rotate(-8)`">
                 <g class="stopped">
                   <rect x="-34" y="-10" width="68" height="20" rx="10" />
@@ -311,6 +333,16 @@ const scene = useScene({
                 </g>
               </g>
             </g>
+          </g>
+
+          <!-- The axis the rounds stand on, and the line where the first run stopped. -->
+          <g :transform="`translate(0 ${L.lanes[1] + L.laneH / 2 + 10})`">
+            <line class="axis-line" :x1="L.col(37) - 6" :x2="L.col(42) + L.tileW + 6" y1="0" y2="0" />
+            <text class="axis-word" :x="L.col(42) + L.tileW + 6" y="14" text-anchor="end">round →</text>
+          </g>
+          <g>
+            <line class="cut-line" :x1="L.col(CUT) + L.tileW / 2" :x2="L.col(CUT) + L.tileW / 2" :y1="L.lanes[0] - L.laneH / 2 - 6" :y2="L.lanes[1] + L.laneH / 2 + 4" />
+            <line class="cut-flow" :x1="L.col(CUT) + L.tileW / 2" :x2="L.col(CUT) + L.tileW / 2" :y1="L.lanes[0] - L.laneH / 2 - 6" :y2="L.lanes[1] + L.laneH / 2 + 4" />
           </g>
 
           <!-- What the flow kept. -->
@@ -321,6 +353,8 @@ const scene = useScene({
             </g>
             <rect class="kept-box" :x="L.kept.x" :y="L.kept.y" :width="L.kept.w" :height="L.kept.h" rx="14" />
             <rect class="kept-pulse" :x="L.kept.x" :y="L.kept.y" :width="L.kept.w" :height="L.kept.h" rx="14" />
+            <rect class="kept-breath" :x="L.kept.x - 4" :y="L.kept.y - 4" :width="L.kept.w + 8" :height="L.kept.h + 8" rx="17" />
+            <text v-if="!narrow" class="state-name" :x="L.kept.x + L.kept.w - 14" :y="L.kept.y + 50" text-anchor="end">ctx.state</text>
             <text class="kept-head" :x="L.kept.x + 14" :y="L.kept.y + 22">what the flow kept</text>
             <g class="kept-row">
               <text class="kept-round" :x="L.kept.x + 14" :y="L.kept.y + 50">round: 36</text>
@@ -422,7 +456,7 @@ svg {
 .fresh text {
   font-size: 11px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
 }
 
 .budget-word {
@@ -445,7 +479,7 @@ svg {
 .stopped text {
   font-size: 11px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
   letter-spacing: 0.04em;
 }
 
@@ -472,11 +506,49 @@ svg {
   stroke-width: 2;
 }
 
-.tile-word {
+.axis-line {
+  stroke: var(--hmz-stage-dim);
+  stroke-width: 1;
+}
+
+.axis-word {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  fill: var(--hmz-stage-dim);
+}
+
+.cut-line {
+  stroke: var(--hmz-lane-5);
+  stroke-width: 1.2;
+  opacity: 0.55;
+}
+
+.cut-flow {
+  stroke: var(--hmz-lane-5);
+  stroke-width: 2;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+}
+
+.state-name {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11.5px;
+  fill: var(--hmz-accent-2);
+}
+
+.kept-breath {
+  fill: none;
+  stroke: var(--hmz-accent-2);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.tile-word text {
   font-family: var(--vp-font-family-mono);
   font-size: 13px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-white);
 }
 
 .glow {

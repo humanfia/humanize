@@ -563,7 +563,7 @@ svg {
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
 }
 
 .sh-q-box {
@@ -603,6 +603,6 @@ svg {
 }
 
 .sh-choice-text.on {
-  fill: #fff;
+  fill: var(--vp-c-bg);
 }
 </style>

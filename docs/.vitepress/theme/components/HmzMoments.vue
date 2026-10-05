@@ -7,7 +7,7 @@
 // permission first and a hook is hung there, that refusal holds instead; everywhere else the hook
 // hears of the tool once it has started. A hook on the end of the turn sends the agent back, told
 // how often it already has. The turn itself is invented.
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
 import { createFx, type Fx } from '../motion/fx'
@@ -149,6 +149,7 @@ function tall(): Layout {
 const WIDE = wide()
 const TALL = tall()
 
+const id = useId()
 const palette = usePalette()
 const canvas = ref<HTMLCanvasElement | null>(null)
 let fx: Fx | undefined
@@ -157,6 +158,13 @@ const narrow = useNarrow(() => scene.rebuild())
 const L = computed(() => (narrow.value ? TALL : WIDE))
 
 const tagWidth = (text: string) => text.length * 7 + 20
+
+// A brace under the stations a turn spans, from the prompt to its end: drawn as two quarter-turns
+// out of each end and two into the point under the middle.
+function brace(x1: number, x2: number, y: number) {
+  const m = (x1 + x2) / 2
+  return `M${x1} ${y - 7} Q${x1} ${y} ${x1 + 9} ${y} H${m - 9} Q${m} ${y} ${m} ${y + 7} Q${m} ${y} ${m + 9} ${y} H${x2 - 9} Q${x2} ${y} ${x2} ${y - 7}`
+}
 
 const scene = useScene({
   still: 'rest',
@@ -235,6 +243,12 @@ const scene = useScene({
     tl.set(at('.question-text'), { opacity: 1 }, 0)
     tl.set(at('.tool-fill'), { scaleX: 0, transformOrigin: '0% 50%', smoothOrigin: false }, 0)
     tl.set(mote, { x: S[0].x, y: S[0].y, scale: 1 }, 0)
+    tl.set(at('.sway'), { transformOrigin: '50% 0%', smoothOrigin: false }, 0)
+    tl.set(at('.rail-flow, .grid'), { opacity: 0 }, 0)
+    if (!narrow.value) {
+      tl.set(at('.brace-word'), { opacity: 0 }, 0)
+      tl.set(at('.brace-line'), { drawSVG: '50% 50%' }, 0)
+    }
 
     // 0 · the turn laid out, and the hooks hung on it.
     tl.addLabel('beat-0', 0)
@@ -245,6 +259,12 @@ const scene = useScene({
     tl.fromTo(at('.thread'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.6, stagger: 0.18, ease: 'power2.out' }, 1.1)
     tl.fromTo(at('.hang'), { x: l.hangFrom.x, y: l.hangFrom.y, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 0.8, stagger: 0.18, ease: 'bounce.out' }, 1.1)
     tl.fromTo(at('.tag'), { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.18 }, 1.2)
+    tl.to(at('.grid'), { opacity: 0.6, duration: 1.4, ease: 'power1.out' }, 0)
+    tl.to(at('.rail-flow'), { opacity: 1, duration: 0.8 }, 1.4)
+    if (!narrow.value) {
+      tl.to(at('.brace-line'), { drawSVG: '0% 100%', duration: 1, ease: 'cine' }, 1.6)
+      tl.fromTo(at('.brace-word'), { opacity: 0 }, { opacity: 1, duration: 0.5 }, 2.1)
+    }
     tl.to(mote, { opacity: 1, duration: 0.3 }, 2.6)
     arrive(0, 2.6)
     follow(1, 2.8, 1.3)
@@ -354,6 +374,17 @@ const scene = useScene({
     tl.to(world, { ...shot(l.all), duration: 1.5, ease: 'cine' }, T4 + 5.1)
     tl.addLabel('rest', T4 + 6.8)
     tl.to(world, { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 8.8)
+
+    // Under it all, the motion that keeps a held frame alive: the hooks sway on their threads,
+    // the rail's current creeps from the session's start to its end, the mote breathes. Laid
+    // over the whole timeline, so a seek lands on it like on anything else.
+    const D = tl.duration()
+    at('.sway').forEach((el, k) => {
+      const period = 1.3 + k * 0.23
+      tl.fromTo(el, { rotation: -2.5 }, { rotation: 2.5, duration: period, ease: 'sine.inOut', yoyo: true, repeat: Math.max(0, Math.floor(D / period) - 1) }, 0)
+    })
+    tl.fromTo(at('.rail-flow'), { strokeDashoffset: 0 }, { strokeDashoffset: -D * 14, duration: D, ease: 'none' }, 0)
+    tl.fromTo(at('.mote-halo'), { scale: 0.85, transformOrigin: '50% 50%' }, { scale: 1.2, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: Math.max(0, Math.floor(D / 0.8) - 1) }, 0)
   },
 })
 
@@ -364,13 +395,22 @@ watch(cliName, () => void nextTick(() => scene.rebuild()))
   <HmzStage :scene="scene" :beats="BEATS" sim interactive mobile-ratio="9 / 14" :label="label">
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
+        <pattern :id="`${id}-grid`" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path class="grid-line" d="M20 0 H0 V20" />
+        </pattern>
         <radialGradient id="hmz-moments-mote">
           <stop offset="0" stop-color="var(--hmz-lane-1)" stop-opacity="0.85" />
           <stop offset="1" stop-color="var(--hmz-lane-1)" stop-opacity="0" />
         </radialGradient>
       </defs>
+      <rect class="grid" x="0" y="0" :width="L.w" :height="L.h" :fill="`url(#${id}-grid)`" />
       <g class="world">
         <path class="rail" :d="`M${L.st[0].x} ${L.st[0].y} L${L.st[7].x} ${L.st[7].y}`" />
+        <path class="rail-flow" :d="`M${L.st[0].x} ${L.st[0].y} L${L.st[7].x} ${L.st[7].y}`" />
+        <g v-if="!narrow" class="brace">
+          <path class="brace-line" :d="brace(L.st[1].x, L.st[6].x, 318)" />
+          <text class="brace-word" :x="(L.st[1].x + L.st[6].x) / 2" y="342" text-anchor="middle">one turn</text>
+        </g>
         <path class="back" :d="L.back" />
 
         <g v-for="(m, i) in MOMENTS" :key="i" class="station" :class="{ absent: !reached(i) }">
@@ -384,9 +424,9 @@ watch(cliName, () => void nextTick(() => scene.rebuild()))
         <g v-for="(text, i) in HOOKS" :key="`h${i}`" :class="['hook', `hook-${i}`, { absent: !reached(Number(i)) }]">
           <path class="thread" :d="L.thread(Number(i))" />
           <g class="hang">
-            <g :transform="L.glyph(Number(i))"><g class="swing">
+            <g :transform="L.glyph(Number(i))"><g class="sway"><g class="swing">
               <path class="glyph" d="M0 -6 V4 a5 5 0 0 1 -10 0" />
-            </g></g>
+            </g></g></g>
             <g class="tag" :transform="`translate(${L.tag(Number(i)).x} ${L.tag(Number(i)).y})`">
               <rect class="tag-box" :x="-tagWidth(text) / 2" y="-12" :width="tagWidth(text)" height="24" rx="12" />
               <rect class="tag-cool" :x="-tagWidth(text) / 2" y="-12" :width="tagWidth(text)" height="24" rx="12" />
@@ -409,8 +449,10 @@ watch(cliName, () => void nextTick(() => scene.rebuild()))
             <line class="tool-x" x1="-9" y1="-9" x2="9" y2="9" />
             <line class="tool-x" x1="9" y1="-9" x2="-9" y2="9" />
           </g>
-          <text class="verdict verdict-stopped" :y="narrow ? 21 : 28" text-anchor="middle">never ran</text>
-          <text class="verdict verdict-ran" :y="narrow ? 21 : 28" text-anchor="middle">ran · too late</text>
+          <!-- A word that moves is moved by its group: its own transform is the stage's, to lift
+               it on a phone. -->
+          <g class="verdict verdict-stopped"><text :y="narrow ? 21 : 28" text-anchor="middle">never ran</text></g>
+          <g class="verdict verdict-ran"><text :y="narrow ? 21 : 28" text-anchor="middle">ran · too late</text></g>
         </g>
 
         <!-- the question, and the hook's answer -->
@@ -423,7 +465,7 @@ watch(cliName, () => void nextTick(() => scene.rebuild()))
         </g>
 
         <g :transform="`translate(${L.act(6).x} ${L.act(6).y})`">
-          <text class="counter" y="4" text-anchor="middle">sent back 1</text>
+          <g class="counter"><text y="4" text-anchor="middle">sent back 1</text></g>
         </g>
 
         <g class="mini"><circle r="4" /></g>
@@ -456,6 +498,37 @@ svg {
   stroke: var(--hmz-stage-line);
   stroke-width: 3;
   stroke-linecap: round;
+}
+
+.grid-line {
+  fill: none;
+  stroke: var(--hmz-grid);
+  stroke-width: 0.6;
+}
+
+.rail-flow {
+  fill: none;
+  stroke: var(--hmz-lane-1);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1.5 11;
+  opacity: 0.8;
+}
+
+.brace-line {
+  fill: none;
+  stroke: var(--hmz-stage-dim);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.brace-word {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: var(--hmz-stage-dim);
 }
 
 .back {
@@ -568,18 +641,18 @@ svg {
   stroke-linecap: round;
 }
 
-.verdict {
+.verdict text {
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.verdict-stopped {
+.verdict-stopped text {
   fill: var(--hmz-accent);
 }
 
-.verdict-ran {
+.verdict-ran text {
   fill: var(--hmz-warm);
 }
 
@@ -603,7 +676,7 @@ svg {
   fill: var(--hmz-accent);
 }
 
-.counter {
+.counter text {
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
   font-weight: 700;

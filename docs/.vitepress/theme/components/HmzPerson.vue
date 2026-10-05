@@ -9,7 +9,7 @@
 // at once: with the defaults where every field has one, with `OutworlderAway` where not
 // (`away_answer` in `src/hmz/runtime/flowing/viewing.py`). The toggle over the scene picks
 // which of those two shapes the flow declared. The flow and its answers are drawn.
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
 import { createFx, type Fx } from '../motion/fx'
@@ -89,6 +89,7 @@ const NARROW: Layout = {
   glyph: { x: 28, y: 290 },
 }
 
+const id = useId()
 const palette = usePalette()
 const canvas = ref<HTMLCanvasElement | null>(null)
 let fx: Fx | undefined
@@ -133,7 +134,12 @@ const scene = useScene({
     fx?.clear()
     const at = (sel: string) => q(sel)
     const world = at('.world')
+    // A word is never moved itself (its transform is the stage's, to lift it on a phone): the
+    // value's group pops in, and the value's text is what changes.
     const values = at('.value')
+    const vgs = at('.value-g')
+    const ghosts = at('.ghost')
+    const ghostGs = at('.ghost-g')
     const holders = at('.holder')
     const ticks = at('.tick')
     const barW = g.bar.x2 - g.bar.x1
@@ -146,7 +152,11 @@ const scene = useScene({
     // Clean slate for every loop.
     tl.set(at('.q, .now, .tick, .cross, .stamp, .away, .check, .scan, .glow, .result, .bar-bad'), { autoAlpha: 0 }, 0)
     tl.set(at('.holder'), { autoAlpha: 1 }, 0)
-    tl.set(values, { text: '', autoAlpha: 1 }, 0)
+    tl.set(values, { text: '' }, 0)
+    tl.set(vgs, { autoAlpha: 1, x: 0 }, 0)
+    tl.set(ghostGs, { autoAlpha: 0, x: 0 }, 0)
+    tl.set(at('.parse-tag, .grid, .away-note'), { autoAlpha: 0 }, 0)
+    tl.to(at('.grid'), { autoAlpha: 0.6, duration: 1.4, ease: 'power1.out' }, 0)
     tl.set(at('.typed'), { text: '' }, 0)
     tl.set(at('.bar-fill'), { attr: { width: 0 } }, 0)
     tl.set(at('.bar-head'), { attr: { cx: g.bar.x1 } }, 0)
@@ -193,7 +203,7 @@ const scene = useScene({
       tl.set(at('.typed'), { text: '' }, sent)
       streakLine(inputAt, slotAt(field), () => palette.accent2, sent, 0.6, 12)
       tl.set(values[field], { text: answer }, sent + 0.55)
-      tl.fromTo(values[field], { autoAlpha: 0, scale: 1.4, transformOrigin: '0% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: 'back.out(2)' }, sent + 0.55)
+      tl.fromTo(vgs[field], { autoAlpha: 0, scale: 1.4, transformOrigin: '0% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: 'back.out(2)' }, sent + 0.55)
       tl.to(holders[field], { autoAlpha: 0, duration: 0.2 }, sent + 0.5)
       tl.to(at('.now')[field], { autoAlpha: 0, duration: 0.3 }, sent + 0.8)
       tl.to(at('.q')[n], { autoAlpha: 0, x: -18, duration: 0.3, ease: 'cine.in' }, sent + 0.75)
@@ -209,9 +219,16 @@ const scene = useScene({
     focus('.card-side', '.you-side', T2 - 0.2)
     tl.fromTo(at('.scan'), { autoAlpha: 1, attr: { y: g.shape.y + 30 } }, { attr: { y: g.shape.y + g.shape.h - 8 }, duration: 0.9, ease: 'power1.inOut' }, T2)
     tl.to(at('.scan'), { autoAlpha: 0, duration: 0.2 }, T2 + 0.9)
+    // What pydantic makes of them, said over the shape while it reads.
+    tl.fromTo(at('.parse-tag'), { autoAlpha: 0, y: 4 }, { autoAlpha: 1, y: 0, duration: 0.4 }, T2)
+    tl.fromTo(at('.parse-lead'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.5, ease: 'cine' }, T2 + 0.1)
     FIELDS.forEach((f, i) => {
       const moment = T2 + 0.25 + i * 0.25
       if (i < 2) {
+        // Typed as a word, read as a value: the word slides off, and the value slides in.
+        tl.set(ghosts[i], { text: f.typed }, moment)
+        tl.fromTo(ghostGs[i], { autoAlpha: 1, x: 0 }, { autoAlpha: 0, x: -26, duration: 0.45, ease: 'cine.in' }, moment)
+        tl.fromTo(vgs[i], { autoAlpha: 0, x: 18 }, { autoAlpha: 1, x: 0, duration: 0.45, ease: 'cine.out' }, moment + 0.08)
         tl.set(values[i], { text: f.read }, moment)
         tl.fromTo(ticks[i], { autoAlpha: 0, scale: 0, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(3)' }, moment)
       }
@@ -223,6 +240,7 @@ const scene = useScene({
     tl.call(() => fx?.spark(slotAt(2).x, slotAt(2).y, palette.danger, 22, 100), [], wrong)
     streakLine(slotAt(2), { x: g.q.x + 20, y: g.q.about }, () => palette.danger, wrong + 0.3, 0.6, 10)
     tl.to(at('.card-side, .you-side'), { scale: 1, opacity: 1, duration: 0.8, ease: 'cine' }, wrong + 0.4)
+    tl.to(at('.parse-tag'), { autoAlpha: 0, duration: 0.4 }, wrong + 0.6)
     t = ask(3, wrong + 0.8)
     tl.addLabel('rest', wrong + 1.6)
     tl.set(values[2], { attr: { class: 'value t-value' } }, t - 0.55)
@@ -248,9 +266,10 @@ const scene = useScene({
     tl.to(at('.person'), { opacity: 0.35, duration: 0.5 }, T4)
     tl.fromTo(at('.away'), { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.4 }, T4 + 0.1)
     tl.set(at('.status'), { text: 'asking again' }, T4 + 0.5)
+    tl.fromTo(at('.away-note'), { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.5 }, T4 + 0.9)
     tl.to(at('.check'), { autoAlpha: 0, duration: 0.2 }, T4 + 0.4)
     tl.to(at('.tick'), { autoAlpha: 0, duration: 0.2 }, T4 + 0.4)
-    tl.to(values, { autoAlpha: 0, duration: 0.3 }, T4 + 0.4)
+    tl.to(vgs, { autoAlpha: 0, duration: 0.3 }, T4 + 0.4)
     tl.to(holders, { autoAlpha: 1, duration: 0.3 }, T4 + 0.6)
     streakLine(shapeEdge, you, () => palette.accent2, T4 + 0.8, 0.55, 0)
     streakLine(you, shapeEdge, () => palette.dim, T4 + 1.35, 0.45, 0)
@@ -259,7 +278,7 @@ const scene = useScene({
       FIELDS.forEach((f, i) => {
         tl.set(values[i], { text: f.held }, back + i * 0.12)
         tl.to(holders[i], { autoAlpha: 0, duration: 0.15 }, back + i * 0.12)
-        tl.fromTo(values[i], { autoAlpha: 0, scale: 1.4, transformOrigin: '0% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(2)' }, back + i * 0.12)
+        tl.fromTo(vgs[i], { autoAlpha: 0, scale: 1.4, transformOrigin: '0% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(2)' }, back + i * 0.12)
       })
       tl.to(at('.result-ok'), { autoAlpha: 1, duration: 0.4 }, back + 0.4)
       streakLine({ x: g.shape.x + 40, y: g.shape.y + 8 }, barAt(STOP2), () => palette.accent, back + 0.5, 0.5, 24)
@@ -277,6 +296,14 @@ const scene = useScene({
     tl.to(at('.card-side'), { scale: 1, duration: 0.6 }, END)
     tl.to(world, { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, END)
     tl.set(world, { autoAlpha: 1 }, 0)
+
+    // Under it all, what keeps a held frame alive: the person's ring and the bar's head breathe,
+    // the caret blinks. Over the whole timeline, so a seek lands on it like on anything else.
+    const D = tl.duration()
+    const loops = (period: number) => Math.max(0, Math.floor(D / period) - 1)
+    tl.fromTo(at('.bar-head'), { attr: { r: 4.5 } }, { attr: { r: 6 }, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: loops(0.8) }, 0)
+    tl.fromTo(at('.person-ring'), { scale: 0.9, transformOrigin: '50% 50%' }, { scale: 1.15, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: loops(1.2) }, 0)
+    tl.fromTo(at('.caret-g'), { opacity: 1 }, { opacity: 0.25, duration: 0.5, ease: 'steps(1)', yoyo: true, repeat: loops(0.5) }, 0)
 
     function streakLine(from: { x: number; y: number }, to: { x: number; y: number }, color: () => string, when: number, duration: number, burst: number) {
       const p = { t: 0 }
@@ -329,6 +356,9 @@ function optionWidth(text: string) {
     <HmzStage :scene="scene" :beats="BEATS" sim mobile-ratio="36 / 53" :label="label">
       <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
         <defs>
+          <pattern :id="`${id}-grid`" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path class="grid-line" d="M20 0 H0 V20" />
+          </pattern>
           <radialGradient id="person-halo">
             <stop offset="0" stop-color="var(--hmz-accent-2)" stop-opacity="0.5" />
             <stop offset="1" stop-color="var(--hmz-accent-2)" stop-opacity="0" />
@@ -338,6 +368,7 @@ function optionWidth(text: string) {
             <stop offset="1" stop-color="var(--hmz-accent)" stop-opacity="0" />
           </radialGradient>
         </defs>
+        <rect class="grid" x="0" y="0" :width="L.w" :height="L.h" :fill="`url(#${id}-grid)`" />
         <g class="world">
           <!-- the flow, and the shape it asked for -->
           <g class="card-side"><g class="card-shake">
@@ -360,8 +391,12 @@ function optionWidth(text: string) {
             />
             <g class="shape">
               <rect class="shape-box" :x="G.shape.x" :y="G.shape.y" :width="G.shape.w" :height="G.shape.h" rx="10" />
-              <text class="t-shape" :x="G.shape.x + 12" :y="G.shape.y + 24">Settled</text>
-              <text class="check t-ok" :x="G.shape.x + 80" :y="G.shape.y + 24">✓</text>
+              <text class="t-shape" :x="G.shape.x + 12" :y="G.shape.y + 24">Settled<tspan class="t-base">(BaseModel)</tspan></text>
+              <text class="check t-ok" :x="G.shape.x + 170" :y="G.shape.y + 24">✓</text>
+              <g class="parse-tag">
+                <path class="parse-lead" :d="`M${G.shape.x + G.shape.w - 12} ${G.shape.y + 8} V${G.shape.y - 6}`" />
+                <text class="t-parse" :x="G.shape.x + G.shape.w - 12" :y="G.shape.y - 10" text-anchor="end">read together</text>
+              </g>
               <text class="result result-ok t-dim" :x="G.shape.x + G.shape.w - 12" :y="G.shape.y + 24" text-anchor="end">defaults</text>
               <rect class="scan" :x="G.shape.x + 6" :width="G.shape.w - 12" height="2" rx="1" :y="G.shape.y + 30" />
               <g v-for="(f, i) in FIELDS" :key="f.name" class="row">
@@ -369,9 +404,10 @@ function optionWidth(text: string) {
                 <text class="t-field" :x="G.shape.x + 14" :y="G.field[i].y">{{ f.name }}</text>
                 <rect class="slot" :x="G.slot.x" :y="G.field[i].y - 19" :width="G.slot.w" height="22" rx="6" />
                 <text class="holder t-dim" :x="G.slot.x + 10" :y="G.field[i].y - 4">{{ defaulted(i) ? `= ${f.held}` : '—' }}</text>
-                <text class="value t-value" :x="G.slot.x + 10" :y="G.field[i].y - 4" />
-                <text class="tick t-ok" :x="G.slot.x + G.slot.w - 16" :y="G.field[i].y - 3">✓</text>
-                <text v-if="i === 2" class="cross t-bad" :x="G.slot.x + G.slot.w - 16" :y="G.field[i].y - 3">✗</text>
+                <g class="ghost-g"><text class="ghost t-value t-ghost" :x="G.slot.x + 10" :y="G.field[i].y - 4" /></g>
+                <g class="value-g"><text class="value t-value" :x="G.slot.x + 10" :y="G.field[i].y - 4" /></g>
+                <g class="tick"><text class="t-ok" :x="G.slot.x + G.slot.w - 16" :y="G.field[i].y - 3">✓</text></g>
+                <g v-if="i === 2" class="cross"><text class="t-bad" :x="G.slot.x + G.slot.w - 16" :y="G.field[i].y - 3">✗</text></g>
               </g>
               <g :transform="`translate(${G.shape.x + G.shape.w / 2} ${G.shape.y + G.shape.h / 2 + 4})`"><g class="stamp">
                 <rect :x="-100" y="-17" width="200" height="34" rx="17" />
@@ -384,6 +420,7 @@ function optionWidth(text: string) {
           <g class="you-side">
           <g class="person">
             <circle class="person-halo" :cx="L.glyph.x" :cy="L.glyph.y" r="30" fill="url(#person-halo)" />
+            <circle class="person-ring" :cx="L.glyph.x" :cy="L.glyph.y" r="17" />
             <circle class="person-head" :cx="L.glyph.x" :cy="L.glyph.y - 5" r="5" />
             <path class="person-body" :d="`M ${L.glyph.x - 9} ${L.glyph.y + 9} a 9 8 0 0 1 18 0`" />
             <text class="t-title t-you" :x="L.glyph.x + 16" :y="L.glyph.y + 5">you</text>
@@ -403,8 +440,12 @@ function optionWidth(text: string) {
               <text class="t-option" :x="G.q.x + 20" :y="G.q.option + k * 24">{{ k + 1 }}. {{ option }}</text>
             </g>
           </g>
+          <g class="away-note">
+            <text class="t-away" :x="L.panel.x + L.panel.w / 2" :y="L.panel.y + L.panel.h / 2 - 22" text-anchor="middle">nobody is asked:</text>
+            <text class="t-away" :x="L.panel.x + L.panel.w / 2" :y="L.panel.y + L.panel.h / 2 - 4" text-anchor="middle">the flow is answered at once</text>
+          </g>
           <rect class="input" :x="G.input.x" :y="G.input.y" :width="G.input.w" :height="G.input.h" rx="9" />
-          <text class="t-caret" :x="G.input.x + 12" :y="G.input.y + G.input.h / 2 + 4.5">❯</text>
+          <g class="caret-g"><text class="t-caret" :x="G.input.x + 12" :y="G.input.y + G.input.h / 2 + 4.5">❯</text></g>
           <text class="typed t-typed" :x="G.input.x + 28" :y="G.input.y + G.input.h / 2 + 4.5" />
           </g>
         </g>
@@ -459,6 +500,48 @@ function optionWidth(text: string) {
 
 svg {
   font-family: var(--vp-font-family-base);
+}
+
+.grid-line {
+  fill: none;
+  stroke: var(--hmz-grid);
+  stroke-width: 0.6;
+}
+
+.t-base {
+  font-weight: 500;
+  fill: var(--hmz-stage-dim);
+}
+
+.t-ghost {
+  fill: var(--hmz-stage-dim);
+}
+
+.parse-lead {
+  fill: none;
+  stroke: var(--hmz-accent);
+  stroke-width: 1.2;
+}
+
+.t-away {
+  font-size: 12.5px;
+  font-style: italic;
+  fill: var(--hmz-stage-dim);
+}
+
+.t-parse {
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  fill: var(--hmz-accent);
+}
+
+.person-ring {
+  fill: none;
+  stroke: var(--hmz-accent-2);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  opacity: 0.7;
 }
 
 .card-bg,

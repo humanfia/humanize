@@ -4,9 +4,11 @@
 // code between the turns, and another flow can call it, handing down only the roles it
 // declared. Pick a flow to watch its loop. Each loop is the one the flow really runs, and all
 // four ship with humanize: `src/hmz/flows/builtin/<name>/__init__.py`. What a called flow is
-// handed is `specs/flows.md`. The CLIs in the sockets are only examples.
-import { computed, nextTick, ref } from 'vue'
-import { withBase } from 'vitepress'
+// handed is `specs/flows.md`. The CLIs in the sockets are only examples. Under the lanes, the
+// line of the flow running at each moment, written as the loop is: a session is opened with
+// `spawn()` and is only the conversation; where a turn works is the run's (`run(..., env=None)`,
+// the workspace, when it is not named). Each flow's page is on humanfia.ai.
+import { computed, nextTick, ref, useId } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
 import { createFx, streak, type Fx } from '../motion/fx'
@@ -19,6 +21,7 @@ interface Ev {
   text: string
   fresh?: boolean // a session opened for this turn alone
   field?: string // an answer in a shape: the field the flow reads
+  code: string // the line of the flow that this moment is
 }
 
 interface Loop {
@@ -34,7 +37,7 @@ interface Loop {
 const LOOPS: Loop[] = [
   {
     key: 'chat',
-    link: '/flows/chat',
+    link: 'https://humanfia.ai/flows/chat',
     roles: [
       { name: 'assistant', cli: 'claude' },
       { name: 'human', cli: 'you' },
@@ -44,49 +47,49 @@ const LOOPS: Loop[] = [
       { role: 1, label: 'human · you', kept: true },
     ],
     events: [
-      { lane: 0, text: 'answers' },
-      { lane: 1, text: 'replies' },
-      { lane: 0, text: 'answers' },
-      { lane: 1, text: 'nothing' },
-      { lane: -1, text: 'ends' },
+      { lane: 0, text: 'answers', code: 'a = await assistant.run(said, session=s)' },
+      { lane: 1, text: 'replies', code: 'said = await human.run(a, session=me)' },
+      { lane: 0, text: 'answers', code: 'a = await assistant.run(said, session=s)' },
+      { lane: 1, text: 'nothing', code: 'said = await human.run(a, session=me)  # ""' },
+      { lane: -1, text: 'ends', code: 'while said: ...  # nothing said: it ends' },
     ],
     split: 2,
     words: ['It answers, then asks you', 'One session; silence ends it'],
   },
   {
     key: 'ralph_loop',
-    link: '/flows/ralph-loop',
+    link: 'https://humanfia.ai/flows/ralph-loop',
     roles: [{ name: 'agent', cli: 'codex' }],
     lanes: [{ role: 0, label: 'agent · new session each round', kept: false }],
     events: [
-      { lane: 0, text: 'task', fresh: true },
-      { lane: -1, text: 'pause' },
-      { lane: 0, text: 'task', fresh: true },
-      { lane: -1, text: 'pause' },
-      { lane: 0, text: 'task', fresh: true },
+      { lane: 0, text: 'task', fresh: true, code: 'await agent.run(task, session=await agent.spawn())' },
+      { lane: -1, text: 'pause', code: 'await asyncio.sleep(PAUSE)' },
+      { lane: 0, text: 'task', fresh: true, code: 'await agent.run(task, session=await agent.spawn())' },
+      { lane: -1, text: 'pause', code: 'await asyncio.sleep(PAUSE)' },
+      { lane: 0, text: 'task', fresh: true, code: 'await agent.run(task, session=await agent.spawn())' },
     ],
     split: 2,
     words: ['A fresh session every round', 'Nothing remembered but the repo'],
   },
   {
     key: 'stateful_ralph',
-    link: '/flows/stateful-ralph',
+    link: 'https://humanfia.ai/flows/stateful-ralph',
     roles: [{ name: 'agent', cli: 'kimi' }],
     lanes: [{ role: 0, label: 'agent · one session, kept', kept: true }],
     events: [
-      { lane: -1, text: 'opens' },
-      { lane: 0, text: 'task' },
-      { lane: -1, text: 'pause' },
-      { lane: 0, text: 'task' },
-      { lane: -1, text: 'pause' },
-      { lane: 0, text: 'task' },
+      { lane: -1, text: 'opens', code: 's = await agent.spawn()  # once' },
+      { lane: 0, text: 'task', code: 'await agent.run(task, session=s)' },
+      { lane: -1, text: 'pause', code: 'await asyncio.sleep(PAUSE)' },
+      { lane: 0, text: 'task', code: 'await agent.run(task, session=s)' },
+      { lane: -1, text: 'pause', code: 'await asyncio.sleep(PAUSE)' },
+      { lane: 0, text: 'task', code: 'await agent.run(task, session=s)' },
     ],
     split: 3,
     words: ['One session, opened once', 'Every round remembers the last'],
   },
   {
     key: 'rlar',
-    link: '/flows/rlar',
+    link: 'https://humanfia.ai/flows/rlar',
     roles: [
       { name: 'actor', cli: 'claude' },
       { name: 'reviewer', cli: 'codex' },
@@ -96,12 +99,12 @@ const LOOPS: Loop[] = [
       { role: 1, label: 'reviewer · new each round', kept: false },
     ],
     events: [
-      { lane: 0, text: 'builds' },
-      { lane: 1, text: 'reviews', fresh: true, field: 'done: no' },
-      { lane: -1, text: 'notes →' },
-      { lane: 0, text: 'fixes' },
-      { lane: 1, text: 'reviews', fresh: true, field: 'done: yes' },
-      { lane: -1, text: 'ends' },
+      { lane: 0, text: 'builds', code: 'await actor.run(prompt, session=s)' },
+      { lane: 1, text: 'reviews', fresh: true, field: 'done: no', code: 'r = await reviewer.run(..., output_schema=Review)' },
+      { lane: -1, text: 'notes →', code: 'prompt = r.notes  # r.done is False' },
+      { lane: 0, text: 'fixes', code: 'await actor.run(prompt, session=s)' },
+      { lane: 1, text: 'reviews', fresh: true, field: 'done: yes', code: 'r = await reviewer.run(..., output_schema=Review)' },
+      { lane: -1, text: 'ends', code: 'if r.done: return r.notes' },
     ],
     split: 3,
     words: ['Builds; a fresh reviewer: no', 'The notes carry; now: yes'],
@@ -130,6 +133,7 @@ interface Pt {
   y: number
 }
 
+const id = useId()
 const palette = usePalette()
 const canvas = ref<HTMLCanvasElement | null>(null)
 let fx: Fx | undefined
@@ -226,6 +230,9 @@ const G = computed(() => {
     caller,
     calls,
     frame: n ? { x: 8, y: 10, w: 344, h: 380 } : { x: 10, y: 10, w: 620, h: 340 },
+    // The line of the flow running now, under the lanes; and the playhead over them.
+    ticker: n ? { x: 12, y: 362 } : { x: 222, y: 326 },
+    now: { y1: laneYs[0] - 24, y2: codeY + CHIP_H + 8 },
   }
 })
 
@@ -263,6 +270,9 @@ const scene = useScene({
     tl.set(q('.lp-cli'), { autoAlpha: 0, x: g.n ? 0 : -210, y: g.n ? -70 : 0 }, 0)
     tl.set(q('.lp-field-in'), { x: 0, y: 0, scale: 1 }, 0)
     tl.set(q('.lp-planner'), { opacity: 1, x: 0 }, 0)
+    tl.set(q('.lp-ticker, .lp-line, .lp-now'), { autoAlpha: 0, y: 0 }, 0)
+    tl.set(q('.lp-grid'), { opacity: 0 }, 0)
+    tl.to(q('.lp-grid'), { opacity: 0.6, duration: 1.4, ease: 'power1.out' }, 0)
 
     // 0 · the flow, close up: its name, its roles, and an agent docking in each.
     tl.addLabel('beat-0', 0)
@@ -297,6 +307,9 @@ const scene = useScene({
     tl.to(q('.lp-beam'), { autoAlpha: 1, duration: 0.1 }, T1 + 0.7)
     tl.fromTo(q('.lp-beam'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.7, stagger: 0.12, ease: 'cine' }, T1 + 0.7)
     tl.to(one('.lp-code'), { autoAlpha: 1, duration: 0.5 }, T1 + 0.9)
+    tl.fromTo(one('.lp-ticker'), { autoAlpha: 0, x: -10 }, { autoAlpha: 1, x: 0, duration: 0.6 }, T1 + 1.0)
+    const now = one('.lp-now')
+    tl.set(now, { x: mid(g.blocks[0]).x }, 0)
 
     // The turns and the code between them, one moment at a time. A mote of light is the baton:
     // what the flow does next starts where the last thing ended.
@@ -311,6 +324,13 @@ const scene = useScene({
       const from: Pt = last ?? (e.lane >= 0 ? { x: g.x0 - 4, y: c.y } : { x: g.x0, y: c.y })
       streak(tl, get, from, c, hue(e.lane), t - 0.35, { duration: 0.45, bend: 0.25, burst: e.lane < 0 ? 6 : 10, size: 2.6 })
       last = c
+      // The playhead moves to this moment, and the line of the flow that it is comes up under
+      // the lanes, in the colour of whoever runs it.
+      if (i === 0) tl.to(now, { autoAlpha: 1, duration: 0.3 }, t - 0.4)
+      else tl.to(now, { x: c.x, duration: 0.45, ease: 'cine' }, t - 0.35)
+      const line = q('.lp-line')[i]
+      tl.fromTo(line, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: 0.35, ease: 'cine.out' }, t - 0.15)
+      if (i > 0) tl.to(q('.lp-line')[i - 1], { autoAlpha: 0, y: -7, duration: 0.25, ease: 'cine.in' }, t - 0.2)
       tl.set(el, { autoAlpha: 1 }, t)
       if (e.lane < 0) {
         tl.fromTo(el.querySelector('.lp-pop')!, { scale: 0.5, transformOrigin: '50% 50%' }, { scale: 1, duration: 0.5, ease: 'back.out(2.2)' }, t)
@@ -355,6 +375,7 @@ const scene = useScene({
     tl.to(q('.lp-cli'), { autoAlpha: 0, duration: 0.4 }, T3 + 0.2)
     tl.to(q('.lp-slot-on'), { autoAlpha: 0, duration: 0.4 }, T3 + 0.2)
     tl.to(q('.lp-loop'), { opacity: g.n ? 0.1 : 0.3, duration: 1.2 }, T3 + 0.3)
+    tl.to(q('.lp-ticker, .lp-now'), { autoAlpha: 0, duration: 0.5 }, T3)
     tl.to(q('.lp-caller'), { autoAlpha: 1, duration: 0.2 }, T3 + 0.6)
     tl.fromTo(one('.lp-frame'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.2, ease: 'cine' }, T3 + 0.6)
     tl.fromTo(q('.lp-held'), { autoAlpha: 0, scale: 0.6, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.5, stagger: 0.15, ease: 'back.out(2)' }, T3 + 1)
@@ -386,6 +407,16 @@ const scene = useScene({
     tl.to(q('.lp-world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, TX)
     tl.set(q('.lp-caller'), { autoAlpha: 0 }, TX + 0.7)
     tl.set(q('.lp-loop'), { opacity: 1 }, TX + 0.7)
+
+    // Under it all, what keeps a held frame alive: the flow's halo breathes, the playhead's tip
+    // pulses, the caret blinks. Over the whole timeline, so a seek lands on it like on anything
+    // else.
+    const D = tl.duration()
+    const breathe = (sel: string, from: gsap.TweenVars, to: gsap.TweenVars, period: number) =>
+      tl.fromTo(q(sel), from, { ...to, duration: period, ease: 'sine.inOut', yoyo: true, repeat: Math.max(0, Math.floor(D / period) - 1) }, 0)
+    breathe('.lp-halo', { scale: 0.92, svgOrigin: `${cardMid.x} ${cardMid.y}` }, { scale: 1.08 }, 1.6)
+    breathe('.lp-now-tip', { opacity: 0.55 }, { opacity: 1 }, 0.6)
+    if (!g.n) tl.fromTo(q('.lp-ticker-caret'), { opacity: 1 }, { opacity: 0.2, duration: 0.5, ease: 'steps(1)', yoyo: true, repeat: Math.max(0, Math.floor(D / 0.5) - 1) }, 0)
   },
 })
 </script>
@@ -403,7 +434,7 @@ const scene = useScene({
       >
         {{ one.key }}
       </button>
-      <a class="open" :href="withBase(loop.link)">{{ loop.key }} →</a>
+      <a class="open" :href="loop.link" target="_blank" rel="noopener">{{ loop.key }} →</a>
     </div>
     <HmzStage
       :scene="scene"
@@ -414,11 +445,15 @@ const scene = useScene({
     >
       <svg :viewBox="`0 0 ${G.w} ${G.h}`" aria-hidden="true">
         <defs>
+          <pattern :id="`${id}-grid`" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path class="lp-grid-line" d="M20 0 H0 V20" />
+          </pattern>
           <radialGradient id="hmz-loops-glow">
             <stop offset="0" stop-color="var(--hmz-accent)" stop-opacity="0.5" />
             <stop offset="1" stop-color="var(--hmz-accent)" stop-opacity="0" />
           </radialGradient>
         </defs>
+        <rect class="lp-grid" x="0" y="0" :width="G.w" :height="G.h" :fill="`url(#${id}-grid)`" />
         <g class="lp-world">
           <!-- The caller, drawn behind the world it will hold. -->
           <g class="lp-caller">
@@ -432,7 +467,7 @@ const scene = useScene({
                 <text class="lp-held-name" :x="c.x + c.w / 2" :y="c.y + 18" text-anchor="middle">{{ G.held[i] }}</text>
               </g>
             </g>
-            <text class="lp-no" :x="G.caller[G.held.length - 1].x + G.caller[G.held.length - 1].w / 2" :y="G.caller[G.held.length - 1].y + (G.n ? -6 : 46)" text-anchor="middle">not declared</text>
+            <g class="lp-no"><text :x="G.caller[G.held.length - 1].x + G.caller[G.held.length - 1].w / 2" :y="G.caller[G.held.length - 1].y + (G.n ? -6 : 46)" text-anchor="middle">not declared</text></g>
           </g>
 
           <g class="lp-shrink">
@@ -493,6 +528,17 @@ const scene = useScene({
                   />
                   <text class="lp-block-text" :x="G.blocks[i].x + G.blocks[i].w / 2" :y="G.blocks[i].y + 19.5" text-anchor="middle">{{ e.text }}</text>
                 </template>
+              </g>
+              <!-- The playhead, and the line of the flow it is at. -->
+              <g class="lp-now">
+                <line class="lp-now-line" x1="0" x2="0" :y1="G.now.y1" :y2="G.now.y2" />
+                <path class="lp-now-tip" :d="`M-5 ${G.now.y1 - 8} L5 ${G.now.y1 - 8} L0 ${G.now.y1 - 1} Z`" />
+              </g>
+              <g class="lp-ticker">
+                <text v-if="!G.n" class="lp-ticker-caret" :x="G.ticker.x - 14" :y="G.ticker.y">▸</text>
+                <g v-for="(e, i) in loop.events" :key="`c${which}-${i}`" class="lp-line">
+                  <text class="lp-line-text" :x="G.ticker.x" :y="G.ticker.y" :style="{ fill: e.lane < 0 ? 'var(--hmz-accent)' : tone(e.lane) }">{{ e.code }}</text>
+                </g>
               </g>
               <g v-for="(e, i) in loop.events" :key="`f${which}-${i}`" :transform="`translate(${G.blocks[i].x + G.blocks[i].w / 2} ${G.blocks[i].y - 16})`" class="lp-field">
                 <g v-if="e.field" class="lp-field-in">
@@ -562,6 +608,36 @@ svg {
   font-family: var(--vp-font-family-base);
 }
 
+.lp-grid-line {
+  fill: none;
+  stroke: var(--hmz-grid);
+  stroke-width: 0.6;
+}
+
+.lp-now-line {
+  stroke: var(--hmz-stage-dim);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  opacity: 0.7;
+}
+
+.lp-now-tip {
+  fill: var(--hmz-stage-ink);
+}
+
+.lp-ticker-caret {
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  fill: var(--hmz-accent);
+}
+
+.lp-line-text {
+  white-space: pre;
+  font-family: var(--vp-font-family-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
 .lp-halo {
   opacity: calc(var(--hmz-glow) * 0.5);
 }
@@ -612,7 +688,7 @@ svg {
   font-family: var(--vp-font-family-mono);
   font-size: 13.5px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
 }
 
 .lp-beam {
@@ -691,7 +767,7 @@ svg {
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
 }
 
 .lp-frame {
@@ -725,7 +801,7 @@ svg {
   fill: var(--hmz-stage-ink);
 }
 
-.lp-no {
+.lp-no text {
   font-size: 11px;
   font-weight: 700;
   fill: var(--hmz-lane-5);
