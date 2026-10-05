@@ -1867,14 +1867,25 @@ PROFILES = (
     ),
     Profile(
         name="qwen",
-        # The Qwen OAuth host, which issues and refreshes the token, and the DashScope API a
-        # token's `resource_url` names -- `portal.qwen.ai` for most, DashScope's own for the
-        # rest, in either region.
+        # Where a turn goes when no variable says where: the DashScope API in either region,
+        # and the Coding Plan's and Token Plan's own hosts in either, which is where the
+        # machine's own account, configured through `/auth`, sends its turns from a settings
+        # file rather than from a variable the fence could follow. Then Google's two -- the
+        # Gemini API a key way talks to, and Vertex's global endpoint and the token exchange
+        # its credentials are refreshed at; a project run in a region of its own goes to
+        # `{region}-aiplatform`, which only `GOOGLE_VERTEX_BASE_URL` would let through. The
+        # Qwen OAuth hosts are gone with Qwen OAuth itself: 0.24.7 refuses `qwen-oauth`
+        # outright, its free tier discontinued on 2026-04-15, so no turn reaches them now.
         hosts=(
-            "chat.qwen.ai",
-            "portal.qwen.ai",
             "dashscope.aliyuncs.com",
             "dashscope-intl.aliyuncs.com",
+            "coding.dashscope.aliyuncs.com",
+            "coding-intl.dashscope.aliyuncs.com",
+            "token-plan.cn-beijing.maas.aliyuncs.com",
+            "token-plan.ap-southeast-1.maas.aliyuncs.com",
+            "generativelanguage.googleapis.com",
+            "aiplatform.googleapis.com",
+            "oauth2.googleapis.com",
         ),
         installs="npm i -g @qwen-code/qwen-code",
         # A Node script rather than a binary with a runtime inside it. Its entry point starts a
@@ -1911,10 +1922,30 @@ PROFILES = (
         # The shared one of its two, so a flow's skills reach it there.
         mounts=".agents/skills",
         #
-        # What its own sign-in leaves behind, and the lock two of its processes rotate the
-        # token under. Everything else it runs as is a variable.
-        creds=("oauth_creds.json", "oauth_creds.lock"),
+        # No `creds`: what its own sign-in left behind, `oauth_creds.json` and the lock it was
+        # rotated under, is a token 0.24.7 will not run on whatever it holds. Everything an
+        # account of it is runs as variables, so a turn under one needs nothing answered for
+        # it -- and no supervisor to answer it, on a machine that could not run one.
+        # Every name its `AUTH_ENV_MAPPINGS` reads a key, an endpoint or a model under, for
+        # each of the six `--auth-type`s 0.24.7 takes; the switch and the project the Google
+        # SDK beneath its Gemini and Vertex ones reads on its own; and the two plan keys and
+        # the auth type its `/auth` and its `settings.json` may name, any of which left in a
+        # shell would be taken over the account a turn was asked to run as.
         ambient=(
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_BASE_URL",
+            "ANTHROPIC_MODEL",
+            "BAILIAN_CODING_PLAN_API_KEY",
+            "BAILIAN_TOKEN_PLAN_API_KEY",
+            "GEMINI_API_KEY",
+            "GEMINI_MODEL",
+            "GOOGLE_API_KEY",
+            "GOOGLE_CLOUD_LOCATION",
+            "GOOGLE_CLOUD_PROJECT",
+            "GOOGLE_GEMINI_BASE_URL",
+            "GOOGLE_GENAI_USE_VERTEXAI",
+            "GOOGLE_MODEL",
+            "GOOGLE_VERTEX_BASE_URL",
             "OPENAI_API_BASE",
             "OPENAI_API_KEY",
             "OPENAI_BASE_URL",
@@ -1922,35 +1953,144 @@ PROFILES = (
             "QWEN_API_KEY",
             "QWEN_BASE_URL",
             "QWEN_CODE_MODEL",
+            "QWEN_DEFAULT_AUTH_TYPE",
             "QWEN_MODEL",
             "QWEN_OAUTH_MODELS",
         ),
-        # Qwen Code has no command that lists what it runs, being an OpenAI-compatible
-        # client: its catalogue was never the CLI's to know, and this is the only place it
-        # is written -- which is why the two names it ships pointed at are advisory.
+        # Qwen Code has no command that lists what it runs, being a client of whichever API
+        # it is pointed at: its catalogue was never the CLI's to know, and this is the only
+        # place it is written -- which is why the two names it ships pointed at are advisory.
+        # The OpenAI one of its several, since that is the one that answers `/v1/models` in
+        # the shape the catalogue reads; an account on any of the others -- Anthropic's
+        # endpoint, Gemini's, Vertex -- falls back to those two names, and a turn there is
+        # given whichever model it names regardless.
         endpoint="OPENAI_BASE_URL",
         ways=(
+            # No sign-in of its own any more. Qwen OAuth's free tier was discontinued on
+            # 2026-04-15, and 0.24.7 refuses `--auth-type qwen-oauth` with that sentence even
+            # holding a token it has not yet seen expire, so `qwen` opened for `/auth` signs
+            # nobody in. What `/auth` offers instead is everything below -- written into the
+            # machine's own `settings.json`, which no account of this one's holds -- so each
+            # is asked here instead, and said on the command line of every turn.
             Way(
-                name="login",
-                about="sign in to a Qwen account, in a session opened for it",
-                # It signs in from inside itself, so the way in is qwen with the terminal
-                # handed over: `/auth`, whichever provider, and `/quit` when it has landed.
-                argv=("qwen",),
+                name="coding-plan",
+                about="an Alibaba Cloud Model Studio Coding Plan",
+                # The plan is an OpenAI-compatible endpoint of its own, a region apiece:
+                # `coding-intl.dashscope.aliyuncs.com/v1` outside China. Its key goes in as
+                # the OpenAI key, which is the name `--auth-type openai` reads it under:
+                # `BAILIAN_CODING_PLAN_API_KEY`, the name `/auth` keeps it under, is read
+                # only through a `modelProviders` entry naming it, and headless there is none.
+                asks=(
+                    Asked(
+                        env="OPENAI_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed="https://coding.dashscope.aliyuncs.com/v1",
+                    ),
+                    Asked(env="OPENAI_API_KEY", about="the plan's key", secret=True),
+                ),
+                args=("--auth-type", "openai"),
             ),
             Way(
-                name="key",
-                about="a key for the OpenAI-compatible endpoint it runs against",
+                name="token-plan",
+                about="an Alibaba Cloud Model Studio Token Plan",
+                # The same arrangement as the Coding Plan's, at the Token Plan's own hosts:
+                # `token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` outside
+                # China, and `BAILIAN_TOKEN_PLAN_API_KEY` read as little as the other.
                 asks=(
-                    Asked(env="OPENAI_API_KEY", about="the API key", secret=True),
+                    Asked(
+                        env="OPENAI_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed=(
+                            "https://token-plan.cn-beijing.maas.aliyuncs.com"
+                            "/compatible-mode/v1"
+                        ),
+                    ),
+                    Asked(env="OPENAI_API_KEY", about="the plan's key", secret=True),
+                ),
+                args=("--auth-type", "openai"),
+            ),
+            Way(
+                name="gemini-key",
+                about="a Gemini API key, from AI Studio",
+                asks=(Asked(env="GEMINI_API_KEY", about="the API key", secret=True),),
+                args=("--auth-type", "gemini"),
+            ),
+            Way(
+                name="openai-gateway",
+                about="an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+                asks=(
                     Asked(
                         env="OPENAI_BASE_URL",
                         about="where it is, as a URL",
                         fixed="https://dashscope.aliyuncs.com/compatible-mode/v1",
                     ),
+                    Asked(env="OPENAI_API_KEY", about="the key it takes", secret=True),
+                    # Which of OpenAI's two APIs it speaks, spelled as `--auth-type` spells
+                    # them. Kept as the variable Qwen Code's own `/auth` reads its default
+                    # from, rather than only filled into the command line, because that line
+                    # is worked out again from what is kept whenever the account is edited --
+                    # and the variable is one the CLI only ever checks is one of its six.
+                    Asked(
+                        env="QWEN_DEFAULT_AUTH_TYPE",
+                        about=(
+                            "which API: openai for Chat Completions, openai-responses for"
+                            " Responses"
+                        ),
+                        fixed="openai",
+                    ),
                 ),
                 # Said rather than left to be inferred: qwen-code 0.24 given only the two
-                # variables answers "No auth type is selected" and takes no turn at all.
-                args=("--auth-type", "openai"),
+                # variables answers "No auth type is selected" and takes no turn at all --
+                # which is why every way here says its own.
+                args=("--auth-type", "{QWEN_DEFAULT_AUTH_TYPE}"),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- a proxy, a router,"
+                    " another vendor"
+                ),
+                # No default for where: 0.24.7 refuses `anthropic` without
+                # `ANTHROPIC_BASE_URL`, and sends the key as a bearer token to it.
+                asks=(
+                    Asked(env="ANTHROPIC_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="ANTHROPIC_API_KEY", about="the key it takes", secret=True
+                    ),
+                ),
+                args=("--auth-type", "anthropic"),
+            ),
+            Way(
+                name="gemini-gateway",
+                about="an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
+                # Qwen Code itself reads no base URL for `gemini` from the environment, but
+                # the Google SDK it hands the turn to does, wherever the CLI named none --
+                # which, with no `modelProviders` entry, it does not.
+                asks=(
+                    Asked(env="GOOGLE_GEMINI_BASE_URL", about="where it is, as a URL"),
+                    Asked(env="GEMINI_API_KEY", about="the key it takes", secret=True),
+                ),
+                args=("--auth-type", "gemini"),
+            ),
+            Way(
+                name="vertex",
+                about="Google's models on a Google Cloud project of yours",
+                # Application Default Credentials, which is what a project with no key asks
+                # the Google SDK for: whatever `gcloud auth application-default login` or
+                # `GOOGLE_APPLICATION_CREDENTIALS` left on this machine.
+                asks=(
+                    Asked(env="GOOGLE_CLOUD_PROJECT", about="the project id"),
+                    Asked(
+                        env="GOOGLE_CLOUD_LOCATION", about="the region", fixed="global"
+                    ),
+                ),
+                args=("--auth-type", "vertex-ai"),
+            ),
+            Way(
+                name="vertex-key",
+                about="a Vertex AI API key, for its express mode",
+                asks=(Asked(env="GOOGLE_API_KEY", about="the API key", secret=True),),
+                args=("--auth-type", "vertex-ai"),
             ),
         ),
     ),

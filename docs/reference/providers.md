@@ -165,13 +165,22 @@ order, then `env` for every backend but `dsh`.
 | | `wellknown` | `opencode auth login {OPENCODE_WELLKNOWN}` | `OPENCODE_WELLKNOWN` ◦ (URL answering at `/.well-known/opencode`) | |
 | | `zen` | — | `OPENCODE_API_KEY` • | |
 | `pi` | `login` | `pi` (interactive: `/login`, then `/exit`) | — | |
-| `qwen` | `login` | `qwen` (interactive: `/auth`, then `/quit`) | — | |
-| | `key` | — | `OPENAI_API_KEY` •, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) | appends `--auth-type openai` |
+| `qwen` | `coding-plan` | — | `OPENAI_BASE_URL` (`https://coding.dashscope.aliyuncs.com/v1`), `OPENAI_API_KEY` • | appends `--auth-type openai` |
+| | `token-plan` | — | `OPENAI_BASE_URL` (`https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`), `OPENAI_API_KEY` • | appends `--auth-type openai` |
+| | `gemini-key` | — | `GEMINI_API_KEY` • | appends `--auth-type gemini` |
+| | `openai-gateway` | — | `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`), `OPENAI_API_KEY` •, `QWEN_DEFAULT_AUTH_TYPE` (`openai`; `openai` or `openai-responses`) | appends `--auth-type {QWEN_DEFAULT_AUTH_TYPE}` |
+| | `anthropic-gateway` | — | `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY` • | appends `--auth-type anthropic` |
+| | `gemini-gateway` | — | `GOOGLE_GEMINI_BASE_URL`, `GEMINI_API_KEY` • | appends `--auth-type gemini` |
+| | `vertex` | — | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`global`); Application Default Credentials | appends `--auth-type vertex-ai` |
+| | `vertex-key` | — | `GOOGLE_API_KEY` • (Vertex AI express mode) | appends `--auth-type vertex-ai` |
 | every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
 
 - A model on an `mcode` `gateway` account is named `custom_provider:gateway/<id>`.
 - `mcode`'s `config.yaml` is a credential file, so a provider of it holds settings of its own.
 - `cursor-agent`'s `cli-config.json` is a credential file and also its settings.
+- `qwen` has no `login`: Qwen OAuth was discontinued on 2026-04-15 and `qwen` 0.24.7 refuses
+  `--auth-type qwen-oauth`. A plan's key goes in as `OPENAI_API_KEY`; the `BAILIAN_*` names
+  `/auth` keeps it under are read only through a `settings.json` `modelProviders` entry.
 
 ### The `env` way
 
@@ -215,7 +224,7 @@ directory entry covers everything inside it. In the provider's directory the thr
 | `mimo` | `$XDG_DATA_HOME/mimocode`, else `~/.local/share/mimocode` | `auth.json`, `mcp-auth.json` |
 | `opencode` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | `auth.json`, `mcp-auth.json` |
 | `pi` | `$PI_CODING_AGENT_DIR`, else `~/.pi/agent` | `auth.json`, `auth.json.lock` |
-| `qwen` | `$QWEN_HOME`, else `~/.qwen` | `oauth_creds.json`, `oauth_creds.lock` |
+| `qwen` | `$QWEN_HOME`, else `~/.qwen` | none |
 | an ACP CLI | none known | none |
 
 `Provider.swaps()` is one `(path the CLI names, path in the provider's directory)` pair per
@@ -255,7 +264,7 @@ which is how a token is rotated by rename).
 - The filter lets other architectures' syscalls through: a 32-bit process below the CLI is not
   intercepted.
 - Requires Linux on x86-64 or aarch64 with ptrace permitted. A backend with no credential
-  files (`dsh`, ACP CLIs), and a provider whose credentials are only variables on such a
+  files (`dsh`, `qwen`, ACP CLIs), and a provider whose credentials are only variables on such a
   backend, needs no supervisor for credentials.
 - An anchored turn is not wrapped: a process has one tracer, so the anchor is given the same
   pairs as `redirects` and its own supervisor answers them
@@ -267,8 +276,8 @@ which is how a token is rotated by rename).
 
 Some logins keep a refresh token in their credential file, and each refresh writes a new one and
 spends the old one: Codex signed in with ChatGPT (`auth.json`), Claude Code with a subscription
-(`.credentials.json`), and the OAuth logins of `cursor-agent`, `kimi`, `opencode`, `mimo`, `pi`
-and `qwen`. A spent refresh token presented again is read by the vendor as a stolen one, and the
+(`.credentials.json`), and the OAuth logins of `cursor-agent`, `kimi`, `opencode`, `mimo` and
+`pi`. A spent refresh token presented again is read by the vendor as a stolen one, and the
 whole sign-in is revoked, every copy of it included. API keys, gateway tokens and
 `CLAUDE_CODE_OAUTH_TOKEN` do not rotate.
 
@@ -345,7 +354,7 @@ MiniMax Code needs its sessions kept to run fenced: see
 | Effect | Rule |
 | --- | --- |
 | Added | `provider.env`, on top of the inherited environment (`agent.environment()`). |
-| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `gateway` way and `qwen`'s `key` way (`--auth-type openai`) have any. |
+| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `gateway` way and every `qwen` way (its `--auth-type`) have any. |
 | Removed | `agent.hushed()`: every variable the backend would read an account from ([below](#variables-taken-away)), except those `provider.env` sets. |
 | Redirected | `provider.swaps()`, as [above](#how-a-credential-path-is-answered). |
 
@@ -380,7 +389,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
 | `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
 | `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `KIMI_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `TOGETHER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
-| `qwen` | `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
+| `qwen` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL`, `BAILIAN_CODING_PLAN_API_KEY`, `BAILIAN_TOKEN_PLAN_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GEMINI_BASE_URL`, `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_MODEL`, `GOOGLE_VERTEX_BASE_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_DEFAULT_AUTH_TYPE`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
 | an ACP CLI | none |
 
 <small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.accounts`, `Profile.hushes`, `ALIKE`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`environment`, `hushed`).</small>
@@ -398,7 +407,8 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
 | `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
-| `qwen` | `key` | `OPENAI_BASE_URL` |
+| `qwen` | `openai-gateway` | `OPENAI_BASE_URL` |
+| `qwen` | `anthropic-gateway`, `gemini-gateway` | `OPENAI_BASE_URL`, which they do not set: their catalogue is the advisory one |
 | `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
 
 A backend with an endpoint variable has its catalogue read from the endpoint when the account

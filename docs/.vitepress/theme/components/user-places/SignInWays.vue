@@ -192,17 +192,62 @@ const BACKENDS: Backend[] = [
     cli: 'qwen',
     called: 'Qwen Code',
     ways: [
-      { name: 'login', about: 'sign in to a Qwen account, in a session opened for it', runs: 'qwen' },
       {
-        name: 'key',
-        about: 'a key for the OpenAI-compatible endpoint it runs against',
+        name: 'coding-plan',
+        about: 'an Alibaba Cloud Model Studio Coding Plan',
         asks: [
+          { env: 'OPENAI_BASE_URL', fixed: 'https://coding.dashscope.aliyuncs.com/v1' },
           { env: 'OPENAI_API_KEY', secret: true },
-          { env: 'OPENAI_BASE_URL', fixed: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
         ],
+      },
+      {
+        name: 'token-plan',
+        about: 'an Alibaba Cloud Model Studio Token Plan',
+        asks: [
+          {
+            env: 'OPENAI_BASE_URL',
+            fixed: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+          },
+          { env: 'OPENAI_API_KEY', secret: true },
+        ],
+      },
+      {
+        name: 'gemini-key',
+        about: 'a Gemini API key, from AI Studio',
+        asks: [{ env: 'GEMINI_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENAI_BASE_URL', fixed: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+          { env: 'OPENAI_API_KEY', secret: true },
+          { env: 'QWEN_DEFAULT_AUTH_TYPE', fixed: 'openai' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API -- a proxy, a router, another vendor',
+        asks: [{ env: 'ANTHROPIC_BASE_URL' }, { env: 'ANTHROPIC_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API -- a proxy, a router, another vendor',
+        asks: [{ env: 'GOOGLE_GEMINI_BASE_URL' }, { env: 'GEMINI_API_KEY', secret: true }],
+      },
+      {
+        name: 'vertex',
+        about: 'Google’s models on a Google Cloud project of yours',
+        asks: [{ env: 'GOOGLE_CLOUD_PROJECT' }, { env: 'GOOGLE_CLOUD_LOCATION', fixed: 'global' }],
+      },
+      {
+        name: 'vertex-key',
+        about: 'a Vertex AI API key, for its express mode',
+        asks: [{ env: 'GOOGLE_API_KEY', secret: true }],
       },
       ENV,
     ],
+    note: 'Qwen OAuth was discontinued on 2026-04-15, so there is no login: every way says its --auth-type on each turn.',
   },
   {
     cli: 'opencode',
