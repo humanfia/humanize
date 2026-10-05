@@ -116,8 +116,7 @@ def test_the_clouds_anthropics_own_api_is_sold_through_are_followed_too() -> Non
     aws = reachable(claude, {"CLAUDE_CODE_USE_ANTHROPIC_AWS": "1"})
     assert "aws-external-anthropic.us-east-1.api.aws" in aws
     google = reachable(claude, {"CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD": "1"})
-    assert "claude.googleapis.com" in google
-    assert "oauth2.googleapis.com" in google
+    assert google[-2:] == ("claude.googleapis.com", "oauth2.googleapis.com")
 
 
 def test_a_gateway_in_front_of_a_cloud_is_reached_at_its_own_url() -> None:
