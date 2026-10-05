@@ -756,8 +756,19 @@ def _litellm(profile: Profile, _run: Callable[..., str]) -> list[Model]:
     listed = cast("dict[str, dict[str, Any]]", vars(module).get("model_cost") or {})
     found: list[Model] = []
     for name, said in listed.items():
-        provider = str(said.get("litellm_provider") or "")
-        if said.get("mode") != "chat" or provider not in _LITELLM_PROVIDERS:
+        listed_as = str(said.get("litellm_provider") or "")
+        # By family rather than exactly: litellm files Vertex's models under
+        # `vertex_ai-language-models` and the like, and Bedrock's newer ones under
+        # `bedrock_converse`, and a turn names every one of them by the family.
+        provider = next(
+            (
+                one
+                for one in _LITELLM_PROVIDERS
+                if listed_as == one or listed_as.startswith((f"{one}-", f"{one}_"))
+            ),
+            None,
+        )
+        if said.get("mode") != "chat" or provider is None:
             continue
         spelled = name if name.startswith(f"{provider}/") else f"{provider}/{name}"
         efforts = profile.efforts if said.get("supports_reasoning") else ()

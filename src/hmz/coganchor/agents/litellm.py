@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, ClassVar, Protocol, cast
 
 from hmz.coganchor import backends
 
-from .base import AgentBase, SessionBase
+from .base import _IN_SHAPE, AgentBase, SessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
 from .watchdog import Watchdog
@@ -92,6 +92,8 @@ class _LiteLLM(Protocol):
     """The part of litellm a turn uses."""
 
     def completion(self, **kwargs: object) -> Iterable[object]: ...
+
+    def supports_response_schema(self, model: str) -> bool: ...
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -175,7 +177,7 @@ class LiteLLMSession(SessionBase):
             history = self._history()
             call: dict[str, object] = {
                 "model": model,
-                "messages": [*history, asked],
+                "messages": [*history, self._held_to(module, model, asked, schema)],
                 "stream": True,
                 "stream_options": {"include_usage": True},
                 "timeout": _SILENCE,
@@ -255,6 +257,32 @@ class LiteLLMSession(SessionBase):
         finally:
             self._attempt_id = None
             self._live = None
+
+    @staticmethod
+    def _held_to(
+        module: _LiteLLM,
+        model: str,
+        asked: dict[str, str],
+        schema: type[BaseModel] | None,
+    ) -> dict[str, str]:
+        """The prompt as it is sent: with the schema under it, where the model may not hold one.
+
+        `response_format` is a parameter `drop_params` leaves off for a model that does not
+        take it -- and an id litellm does not know, which every gateway's is, is one it cannot
+        say takes it. Such a turn is asked for the shape in its prompt as well, so that the
+        model is told one way or the other. What is kept in the conversation is the prompt as
+        the flow wrote it.
+        """
+        if schema is None:
+            return asked
+        try:
+            held = module.supports_response_schema(model=model)
+        except Exception:  # noqa: BLE001 -- a model litellm cannot place is one it cannot vouch for
+            held = False
+        if held:
+            return asked
+        shape = json.dumps(schema.model_json_schema(), indent=2)
+        return {**asked, "content": asked["content"] + _IN_SHAPE.format(schema=shape)}
 
     def _cuts(self) -> None:
         """Closes the answer being streamed, which is what stops the turn now."""

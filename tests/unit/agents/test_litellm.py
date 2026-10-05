@@ -39,6 +39,11 @@ class Completions:
         self.thinks = ""
         self.usage: dict[str, Any] = {"prompt_tokens": 10, "completion_tokens": 3}
         self.raises: Exception | None = None
+        self.holds = True
+
+    def supports_response_schema(self, model: str) -> bool:
+        del model
+        return self.holds
 
     def completion(self, **kwargs: object) -> Iterator[object]:
         self.calls.append(dict(kwargs))
@@ -225,6 +230,24 @@ def test_a_shape_is_sent_as_the_response_format(
     assert call["response_format"]["json_schema"]["name"] == "Verdict"
 
 
+def test_a_model_that_may_not_hold_a_shape_is_asked_for_it_as_well(
+    tmp_path: Path, completions: Completions
+) -> None:
+    completions.says = ['{"ok": false, "why": "no"}']
+    completions.holds = False
+    agent = _agent(tmp_path)
+    session = agent.new()
+
+    assert session("judge it", schema=Verdict) == Verdict(ok=False, why="no")
+
+    (call,) = completions.calls
+    assert call["messages"][-1]["content"].startswith("judge it")
+    assert '"why"' in call["messages"][-1]["content"]
+    assert "response_format" in call
+    # And what the conversation keeps is the prompt as the flow wrote it.
+    assert _rows(agent, session)[1]["message"]["content"] == "judge it"
+
+
 def test_an_effort_is_the_reasoning_effort(
     tmp_path: Path, completions: Completions
 ) -> None:
@@ -408,6 +431,10 @@ def test_its_catalogue_is_litellm_s_own_chat_models(
             "supports_reasoning": True,
         },
         "groq/llama": {"litellm_provider": "groq", "mode": "chat"},
+        "gemini-pro": {
+            "litellm_provider": "vertex_ai-language-models",
+            "mode": "chat",
+        },
         "text-embedding-3": {"litellm_provider": "openai", "mode": "embedding"},
         "somebody/else": {"litellm_provider": "nobody", "mode": "chat"},
     }
@@ -427,4 +454,5 @@ def test_its_catalogue_is_litellm_s_own_chat_models(
     assert [(one.name, bool(one.efforts)) for one in found] == [
         ("openai/gpt-5", True),
         ("groq/llama", False),
+        ("vertex_ai/gemini-pro", False),
     ]
