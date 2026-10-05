@@ -139,7 +139,8 @@ async def check_agent_driver(
     """Holds an agent driver to what :mod:`hmz.runtime.flowing.spi` promises.
 
     Opens a session, takes a plain turn and a schema turn, and checks that usage is reported
-    through the sink and adds up, that `interrupt` is idempotent from any thread, that
+    through the sink and adds up, that `interrupt` is idempotent from any thread, that a
+    session moved to where it already works stays the conversation it was, that
     `steer` is refused with no turn in flight where the driver steers at all, that a fork is
     either a session that takes turns or `UnsupportedOperation`, and that `close` is
     idempotent and final. Closes the driver at the end, whether or not it passed.
@@ -233,6 +234,9 @@ async def _takes_turns(
         again = await handle.turn(TurnRequest(PROMPT), sink)
         assert isinstance(again, str), (
             "a session interrupted at rest took no more turns"
+        )
+        assert not await handle.move(placement), (
+            "a session moved to where it already works became another conversation"
         )
 
         steers = SteeringAgentMixin in driver.capabilities

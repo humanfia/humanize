@@ -193,14 +193,16 @@ async def review(
     ctx: FlowContext,
 ) -> Verdict:
     reviewer = agents["reviewer"]
-    session = await reviewer.spawn(env=envs["repo"])
-    verdict = await reviewer.run(task, session=session, output_schema=Verdict)
+    session = await reviewer.spawn()
+    verdict = await reviewer.run(
+        task, session=session, env=envs["repo"], output_schema=Verdict
+    )
     if params.strict and "human" in agents:
         human = agents["human"]
-        human_session = await human.spawn(env=envs["repo"])
+        human_session = await human.spawn()
         if not human.away:
             verdict = await human.run(
-                task, session=human_session, output_schema=Verdict
+                task, session=human_session, env=envs["repo"], output_schema=Verdict
             )
     return verdict
 
@@ -225,14 +227,20 @@ async def everything(
     assert_type(coder.harness, HarnessKind)
     assert_type(workspace.workdir.name, str)
 
-    session = await coder.spawn(env=workspace)
-    said = await coder.run(task, session=session)
+    session = await coder.spawn()
+    said = await coder.run(task, session=session, env=workspace)
     assert_type(said, str)
     verdict = await coder.run(
-        "done?", session=session, output_schema=Verdict, budget=Budget(cost=0.5)
+        "done?",
+        session=session,
+        env=workspace,
+        output_schema=Verdict,
+        budget=Budget(cost=0.5),
     )
     assert_type(verdict, Verdict)
-    await coder.run(f"/goal {params.target}", session=session)
+    await coder.run(f"/goal {params.target}", session=session, env=workspace)
+    # The run's own workspace, which no role names.
+    assert_type(await coder.run("and here", session=session, env=None), str)
     assert_type(session.usage, Usage)
 
     coder.on_permission_request(refuse_rm)
@@ -245,13 +253,13 @@ async def everything(
     assert_type(narrow, MyAgent)
 
     steerer = agents["steerer"]
-    running = await steerer.spawn(env=workspace)
+    running = await steerer.spawn()
     await steerer.steer("focus on the tests", session=running, queued=False)
 
     claude = agents["claude"]
     claude.on_ask_user(answer)
     claude.on_subagent_stop(None)
-    forked = await claude.fork(session, env=workspace)
+    forked = await claude.fork(session)
     await claude.steer("and the docs", session=forked)
 
     code, out, err = await workspace.exec(["git", "status", "--short"])
@@ -336,6 +344,10 @@ async def misuse(agents: Agents, envs: Envs, session: Session) -> None:
 
     # A schema that is not a model.
     await plain.run("x", session=session, output_schema=dict)  # pyright: ignore[reportArgumentType]
+
+    # An environment given to a session rather than to a turn.
+    await plain.spawn(env=envs["plain"])  # pyright: ignore[reportCallIssue]
+    await plain.fork(session, env=envs["plain"])  # pyright: ignore[reportCallIssue]
 
     # Calling a flow without what it needs.
     await review("x")  # pyright: ignore[reportCallIssue]

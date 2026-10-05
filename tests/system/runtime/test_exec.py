@@ -63,13 +63,13 @@ class Params(FlowParams):
 @flow(agents=Agents, envs=Envs, params=Params)
 async def demo(task, *, agents, envs, params, ctx):
     worker, here = agents["worker"], envs["workspace"]
-    session = await worker.spawn(env=here)
+    session = await worker.spawn()
     said = []
     for n in range(params.rounds):
         said.append(
             await worker.run(
                 f"Reply with exactly one word, the word round{n}, and nothing else.",
-                session=session,
+                session=session, env=here,
             )
         )
     await here.write("demo.json", repr(said).encode())

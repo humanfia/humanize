@@ -112,8 +112,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def one(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    return await worker.run(task, session=session)
+    session = await worker.spawn()
+    return await worker.run(task, session=session, env=envs["workspace"])
 '''
 
 
@@ -172,8 +172,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def shaped(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    said = await worker.run(task, session=session, output_schema=Tally)
+    session = await worker.spawn()
+    said = await worker.run(task, session=session, env=envs["workspace"], output_schema=Tally)
     return said.model_dump()
 '''
 
@@ -259,8 +259,8 @@ async def hooked(task, *, agents, envs, params, ctx):
     worker.on_user_prompt_submit(prompted)
     worker.on_pre_tool_use(reached)
     worker.on_stop(stopping)
-    session = await worker.spawn(env=envs["workspace"])
-    said = await worker.run(task, session=session)
+    session = await worker.spawn()
+    said = await worker.run(task, session=session, env=envs["workspace"])
     return {"heard": heard, "said": said}
 '''
 
@@ -320,8 +320,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def steered(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    turn = asyncio.create_task(worker.run(task, session=session))
+    session = await worker.spawn()
+    turn = asyncio.create_task(worker.run(task, session=session, env=envs["workspace"]))
     await asyncio.sleep(SETTLE)
     if turn.done():
         return {"early": True, "said": turn.result()}
@@ -362,8 +362,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def interrupted(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    turn = asyncio.create_task(worker.run(task, session=session))
+    session = await worker.spawn()
+    turn = asyncio.create_task(worker.run(task, session=session, env=envs["workspace"]))
     await asyncio.sleep(SETTLE)
     early = turn.done() and repr(turn.result())
     began = time.monotonic()
@@ -373,7 +373,9 @@ async def interrupted(task, *, agents, envs, params, ctx):
     except asyncio.CancelledError:
         pass
     took = time.monotonic() - began
-    after = await worker.run("Reply with exactly one word: AFTER", session=session)
+    after = await worker.run(
+        "Reply with exactly one word: AFTER", session=session, env=envs["workspace"]
+    )
     return {"early": early, "took": took, "after": after}
 '''
 
@@ -507,15 +509,15 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def forked(task, *, agents, envs, params, ctx):
     worker, here = agents["worker"], envs["workspace"]
-    parent = await worker.spawn(env=here)
+    parent = await worker.spawn()
     await worker.run(
         f"Remember this code word: {task}. Reply with exactly one word: OK",
-        session=parent,
+        session=parent, env=here,
     )
-    child = await worker.fork(parent, env=here)
+    child = await worker.fork(parent)
     return await worker.run(
         "What is the code word I asked you to remember? Reply with the code word alone.",
-        session=child,
+        session=child, env=here,
     )
 '''
 
@@ -563,17 +565,17 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
 async def resumed(task, *, agents, envs, params, ctx):
     worker, here = agents["worker"], envs["workspace"]
-    session = await worker.spawn(env=here)
+    session = await worker.spawn()
     state = ctx.state
     if "first" not in state:
         state["first"] = await worker.run(
-            "Reply with exactly one word: FIRST", session=session
+            "Reply with exactly one word: FIRST", session=session, env=here
         )
         plug = pathlib.Path(str(here.workdir)) / "plug"
         if plug.exists():
             plug.unlink()
             raise RuntimeError("the plug was pulled")
-    second = await worker.run("Reply with exactly one word: SECOND", session=session)
+    second = await worker.run("Reply with exactly one word: SECOND", session=session, env=here)
     kept = {"first": state["first"], "second": second, "resumed": ctx.resumed}
     await here.write("resumed.json", json.dumps(kept).encode())
     return second
@@ -625,8 +627,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def skilled(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    return await worker.run(task, session=session)
+    session = await worker.spawn()
+    return await worker.run(task, session=session, env=envs["workspace"])
 '''
 
 SECRET = """---
@@ -691,8 +693,10 @@ async def guarded(task, *, agents, envs, params, ctx):
     said = {}
     for role in ("reader", "writer"):
         agent = agents[role]
-        session = await agent.spawn(env=envs["workspace"])
-        said[role] = await agent.run(task.replace("ROLE", role), session=session)
+        session = await agent.spawn()
+        said[role] = await agent.run(
+            task.replace("ROLE", role), session=session, env=envs["workspace"]
+        )
     return said
 '''
 
@@ -752,8 +756,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def fenced(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    return await worker.run(task, session=session)
+    session = await worker.spawn()
+    return await worker.run(task, session=session, env=envs["workspace"])
 '''
 
 #: The line of a process that is the fence's wrapper, as `/proc/<pid>/cmdline` or `ps` spells it.
@@ -1018,8 +1022,8 @@ async def asked(task, *, agents, envs, params, ctx):
         return PermissionRequestHookResult(allow=False, reason="not in this test")
 
     worker.on_permission_request(refused)
-    session = await worker.spawn(env=envs["workspace"])
-    said = await worker.run(task, session=session)
+    session = await worker.spawn()
+    said = await worker.run(task, session=session, env=envs["workspace"])
     return {"heard": heard, "said": said}
 '''
 
@@ -1117,8 +1121,8 @@ async def delegated(task, *, agents, envs, params, ctx):
         return SubagentStartHookResult()
 
     worker.on_subagent_start(heard)
-    session = await worker.spawn(env=envs["workspace"])
-    said = await worker.run(task, session=session)
+    session = await worker.spawn()
+    said = await worker.run(task, session=session, env=envs["workspace"])
     return {"started": started, "said": said}
 '''
 
@@ -1166,8 +1170,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def goaled(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    return await worker.run(f"/goal {task}", session=session)
+    session = await worker.spawn()
+    return await worker.run(f"/goal {task}", session=session, env=envs["workspace"])
 '''
 
 
@@ -1270,8 +1274,9 @@ class Params(FlowParams):
 @flow(agents=Agents, envs=Envs, params=Params)
 async def looped(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    return [await worker.run(task, session=session) for _ in range(params.rounds)]
+    session = await worker.spawn()
+    here = envs["workspace"]
+    return [await worker.run(task, session=session, env=here) for _ in range(params.rounds)]
 '''
 
 
@@ -1469,8 +1474,8 @@ class Envs(EnvCollection):
 async def rewound(task, *, agents, envs, params, ctx):
     worker, workspace = agents["worker"], envs["workspace"]
     before = await workspace.snapshot()
-    session = await worker.spawn(env=workspace)
-    said = await worker.run(task, session=session)
+    session = await worker.spawn()
+    said = await worker.run(task, session=session, env=workspace)
     written = (await workspace.read("proof.txt")).decode()
     await workspace.rewind(before)
     await workspace.write("seen.json", json.dumps({"written": written}).encode())
@@ -1555,8 +1560,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def remote(task, *, agents, envs, params, ctx):
     worker, box = agents["worker"], envs["box"]
-    session = await worker.spawn(env=box)
-    said = await worker.run(task, session=session)
+    session = await worker.spawn()
+    said = await worker.run(task, session=session, env=box)
     status, out, err = await box.exec(["cat", "landed.txt"])
     await envs["workspace"].write("seen.txt", out.encode())
     return said
@@ -1669,8 +1674,8 @@ async def boxed(task, *, agents, envs, params, ctx):
     worker, box = agents["worker"], envs["box"]
     _, name, _ = await box.exec(["hostname"])
     _, sshd, _ = await box.exec(["sh", "-c", "command -v sshd || echo none"])
-    session = await worker.spawn(env=box)
-    said = await worker.run(task, session=session)
+    session = await worker.spawn()
+    said = await worker.run(task, session=session, env=box)
     seen = {"hostname": name.strip(), "sshd": sshd.strip()}
     for one in ("proof.txt", "dockerenv.txt", "os-release.txt", "gpus.txt"):
         status, out, _ = await box.exec(["cat", one])
@@ -1907,8 +1912,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def fencedbox(task, *, agents, envs, params, ctx):
     worker, box = agents["worker"], envs["box"]
-    session = await worker.spawn(env=box)
-    said = await worker.run(task, session=session)
+    session = await worker.spawn()
+    said = await worker.run(task, session=session, env=box)
     _, inside, _ = await box.exec(["sh", "-c", "cat inside.txt || true"])
     _, home, _ = await box.exec(["sh", "-c", 'cat "$HOME/outside.txt" || echo none'])
     seen = {"inside": inside.strip(), "home": home.strip()}
@@ -2167,12 +2172,12 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def fronted(task, *, agents, envs, params, ctx):
     here, worker = envs["workspace"], agents["worker"]
-    session = await worker.spawn(env=here)
-    planner = await agents["planner"].spawn(env=here)
-    reviewer = await agents["reviewer"].spawn(env=here)
-    word = await agents["planner"].run("Which word?", session=planner)
-    colour = await agents["reviewer"].run("Which colour?", session=reviewer)
-    said = await worker.run(task.replace("WORD", str(word)), session=session)
+    session = await worker.spawn()
+    planner = await agents["planner"].spawn()
+    reviewer = await agents["reviewer"].spawn()
+    word = await agents["planner"].run("Which word?", session=planner, env=here)
+    colour = await agents["reviewer"].run("Which colour?", session=reviewer, env=here)
+    said = await worker.run(task.replace("WORD", str(word)), session=session, env=here)
     kept = {"word": word, "colour": colour, "said": said}
     await here.write("fronted.json", json.dumps(kept).encode())
     return said

@@ -115,8 +115,8 @@ async def rounds(
     driver = _driver(agent)
     live = kept = hooked = 0
     for _ in range(params.rounds):
-        session = await agent.spawn(env=env)
-        await agent.run(task, session=session)
+        session = await agent.spawn()
+        await agent.run(task, session=session, env=env)
         live = max(live, driver.live)
         kept = max(kept, len(cast("Any", ctx).res or ()))
         hooked = max(hooked, len(cast("Any", agent)._line.sessions))
@@ -147,8 +147,8 @@ async def fanned(
     live = 0
 
     async def one() -> str:
-        session = await agent.spawn(env=env)
-        return await agent.run(task, session=session)
+        session = await agent.spawn()
+        return await agent.run(task, session=session, env=env)
 
     for _ in range(params.rounds // params.fanout):
         said = await asyncio.gather(*(one() for _ in range(params.fanout)))
@@ -166,8 +166,8 @@ async def workers(
 
     async def worker(rounds: int) -> None:
         for _ in range(rounds):
-            session = await agent.spawn(env=env)
-            await agent.run(task, session=session)
+            session = await agent.spawn()
+            await agent.run(task, session=session, env=env)
 
     await asyncio.gather(
         *(worker(params.rounds // params.fanout) for _ in range(params.fanout))
@@ -220,8 +220,8 @@ async def test_an_on_disk_flow_run_over_drivers_holds_few_open(tmp_path: Path) -
                 async def churn(task, *, agents, envs, params, ctx: FlowContext) -> int:
                     agent = agents["agent"]
                     for _ in range(params.rounds):
-                        session = await agent.spawn(env=envs["env"])
-                        await agent.run(task, session=session)
+                        session = await agent.spawn()
+                        await agent.run(task, session=session, env=envs["env"])
                     return params.rounds
             """
         },
@@ -250,17 +250,19 @@ async def test_a_session_the_flow_still_holds_stays_open() -> None:
         task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
     ) -> tuple[list[bool], list[bool]]:
         agent, env = agents["agent"], envs["env"]
-        kept = await agent.spawn(env=env)
-        await agent.run("one", session=kept)
-        listed = [await agent.spawn(env=env)]
-        mapped = {"s": await agent.spawn(env=env)}
+        kept = await agent.spawn()
+        await agent.run("one", session=kept, env=env)
+        listed = [await agent.spawn()]
+        mapped = {"s": await agent.spawn()}
+        for one in (listed[0], mapped["s"]):
+            await agent.run("one", session=one, env=env)
         handles = [_handle(one) for one in (kept, listed[0], mapped["s"])]
         for _ in range(50):
-            await agent.run("churn", session=await agent.spawn(env=env))
+            await agent.run("churn", session=await agent.spawn(), env=env)
             gc.collect()
             await asyncio.sleep(0)
         for one in (kept, listed[0], mapped["s"]):
-            await agent.run("still here", session=one)
+            await agent.run("still here", session=one, env=env)
         del one
         before = [one.closed for one in handles]
         listed.clear()
@@ -275,8 +277,8 @@ async def test_a_session_the_flow_still_holds_stays_open() -> None:
 
 async def _turned(agent: Agent, env: Env) -> Session:
     """A session that has taken a turn, which is what a fork is cut from."""
-    session = await agent.spawn(env=env)
-    await agent.run("z", session=session)
+    session = await agent.spawn()
+    await agent.run("z", session=session, env=env)
     return session
 
 
@@ -286,20 +288,20 @@ async def test_a_fork_outlives_the_session_it_was_cut_from() -> None:
         task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
     ) -> tuple[list[bool], str, str, bool]:
         agent, env = agents["agent"], envs["env"]
-        parent = await agent.spawn(env=env)
-        await agent.run("a", session=parent)
-        child = await agent.fork(parent, env=env)
+        parent = await agent.spawn()
+        await agent.run("a", session=parent, env=env)
+        child = await agent.fork(parent)
         cut = _handle(parent)
         del parent
         await asyncio.sleep(0)
         # A harness cuts the fork as its first turn goes, so the parent is kept till then.
         closed = [cut.closed]
-        said = await agent.run("b", session=child)
+        said = await agent.run("b", session=child, env=env)
         await asyncio.sleep(0)
         closed.append(cut.closed)
-        orphan = await agent.fork(await _turned(agent, env), env=env)
+        orphan = await agent.fork(await _turned(agent, env))
         await asyncio.sleep(0)
-        again = await agent.run("c", session=orphan)
+        again = await agent.run("c", session=orphan, env=env)
         return closed, said, again, _handle(child).closed
 
     driver = FakeAgentDriver(reply=_echo)
@@ -327,18 +329,18 @@ async def test_a_fork_whose_first_turn_failed_still_holds_its_parent() -> None:
         task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
     ) -> list[bool]:
         agent, env = agents["agent"], envs["env"]
-        parent = await agent.spawn(env=env)
-        await agent.run("a", session=parent)
-        child = await agent.fork(parent, env=env)
+        parent = await agent.spawn()
+        await agent.run("a", session=parent, env=env)
+        child = await agent.fork(parent)
         cut = _handle(parent)
         del parent
         agent.on_user_prompt_submit(refusing)
         with pytest.raises(SessionError):
-            await agent.run("b", session=child)
+            await agent.run("b", session=child, env=env)
         await asyncio.sleep(0)
         closed = [cut.closed]
         agent.on_user_prompt_submit(None)
-        await agent.run("b", session=child)
+        await agent.run("b", session=child, env=env)
         await asyncio.sleep(0)
         return [*closed, cut.closed]
 
@@ -353,10 +355,10 @@ async def test_a_chain_of_forks_holds_few_open() -> None:
         agent, env = agents["agent"], envs["env"]
         driver = _driver(agent)
         live = 0
-        session = await agent.spawn(env=env)
+        session = await agent.spawn()
         for _ in range(params.rounds):
-            await agent.run(task, session=session)
-            session = await agent.fork(session, env=env)
+            await agent.run(task, session=session, env=env)
+            session = await agent.fork(session)
             live = max(live, driver.live)
         return live
 
@@ -364,7 +366,8 @@ async def test_a_chain_of_forks_holds_few_open() -> None:
     live = await run_fake(
         chaining, "go", agents={"agent": driver}, params={"rounds": 1_000}
     )
-    assert len(driver.sessions) == 1_001
+    # The last fork takes no turn, so its CLI is never started.
+    assert len(driver.sessions) == 1_000
     assert max(live, driver.peak) <= 3
     assert driver.live == 0
 
@@ -376,8 +379,8 @@ async def test_a_session_handed_up_closes_with_the_call_that_opened_it() -> None
     async def opening(
         task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
     ) -> Any:
-        session = await agents["agent"].spawn(env=envs["env"])
-        await agents["agent"].run("go", session=session)
+        session = await agents["agent"].spawn()
+        await agents["agent"].run("go", session=session, env=envs["env"])
         return session
 
     @flow(agents=Solo, envs=Place, params=Rounds)
@@ -387,7 +390,7 @@ async def test_a_session_handed_up_closes_with_the_call_that_opened_it() -> None
         session = await opening(task, agents=agents, envs=envs, params=params)
         closed = _handle(session).closed
         with pytest.raises(SessionError):
-            await agents["agent"].run("more", session=session)
+            await agents["agent"].run("more", session=session, env=envs["env"])
         closes = len(driver.closes)
         del session
         await asyncio.sleep(0)
@@ -407,8 +410,8 @@ async def test_a_session_let_go_of_as_its_call_ends_is_closed_once() -> None:
     async def leaving(
         task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
     ) -> None:
-        session = await agents["agent"].spawn(env=envs["env"])
-        await agents["agent"].run("go", session=session)
+        session = await agents["agent"].spawn()
+        await agents["agent"].run("go", session=session, env=envs["env"])
 
     @flow(agents=Solo, envs=Place, params=Rounds)
     async def caller(
@@ -432,8 +435,8 @@ async def test_a_close_under_way_as_its_call_ends_is_waited_for() -> None:
     async def dropping(
         task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
     ) -> int:
-        session = await agents["agent"].spawn(env=envs["env"])
-        await agents["agent"].run("go", session=session)
+        session = await agents["agent"].spawn()
+        await agents["agent"].run("go", session=session, env=envs["env"])
         del session
         await asyncio.sleep(0)
         return len(driver.closes)
@@ -461,8 +464,8 @@ async def test_a_session_let_go_of_on_another_thread_is_closed_on_the_loop(
     async def elsewhere(
         task: str, *, agents: Solo, envs: Place, params: Rounds, ctx: FlowContext
     ) -> tuple[list[tuple[str | None, int]], str | None]:
-        session = await agents["agent"].spawn(env=envs["env"])
-        await agents["agent"].run("go", session=session)
+        session = await agents["agent"].spawn()
+        await agents["agent"].run("go", session=session, env=envs["env"])
         name = _handle(session).id
         knot: list[Any] = [session]
         del session
@@ -512,8 +515,8 @@ async def test_a_hook_heard_once_a_session_is_let_go_of_gets_one_that_is_over() 
     ) -> tuple[Any, str]:
         agent = agents["agent"]
         agent.on_session_end(ending)
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("go", session=session)
+        session = await agent.spawn()
+        await agent.run("go", session=session, env=envs["env"])
         name = _handle(session).id
         del session
         await asyncio.sleep(0)
@@ -542,7 +545,8 @@ async def test_a_hook_failing_between_turns_keeps_no_session_open() -> None:
     ) -> bool:
         agent = agents["agent"]
         agent.on_notification(notified)
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
+        await agent.run("go", session=session, env=envs["env"])
         handle = _handle(session)
         await handle.notify("between turns")
         del session

@@ -656,7 +656,7 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def chat(task, *, agents, envs, params, ctx):
     chatter = agents["chatter"]
-    await chatter.spawn(env=envs["here"])
+    await chatter.run(task, session=await chatter.spawn(), env=envs["here"])
     return sorted(one.__name__ for one in chatter.grant.capabilities)
 
 

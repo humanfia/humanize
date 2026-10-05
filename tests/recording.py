@@ -51,8 +51,8 @@ class Envs(EnvCollection):
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def one(task, *, agents, envs, params, ctx):
-    session = await agents["builder"].spawn(env=envs["here"])
-    return await agents["builder"].run(task, session=session)
+    session = await agents["builder"].spawn()
+    return await agents["builder"].run(task, session=session, env=envs["here"])
 '''
 
 #: What the stand-in is driven as, after `builder=`.

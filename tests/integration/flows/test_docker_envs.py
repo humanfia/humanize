@@ -67,8 +67,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def gpu(task, *, agents, envs, params, ctx):
     status, out, _ = await envs["box"].exec(["sh", "-c", "echo $0", "inside"])
-    session = await agents["coder"].spawn(env=envs["box"])
-    await agents["coder"].run(task, session=session)
+    session = await agents["coder"].spawn()
+    await agents["coder"].run(task, session=session, env=envs["box"])
     return out.strip()
 """
 
@@ -351,8 +351,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def boxed(task, *, agents, envs, params, ctx):
     pathlib.Path(task).write_text("called")
-    session = await agents["coder"].spawn(env=envs["box"])
-    await agents["coder"].run(task, session=session)
+    session = await agents["coder"].spawn()
+    await agents["coder"].run(task, session=session, env=envs["box"])
 """
 
 
@@ -373,8 +373,8 @@ _OPEN = (
         "from hmz.flows import ImageEnvMixin, Permission, PermissionKind, ShellEnvMixin",
     )
     .replace(
-        """    session = await agents["coder"].spawn(env=envs["box"])
-    await agents["coder"].run(task, session=session)
+        """    session = await agents["coder"].spawn()
+    await agents["coder"].run(task, session=session, env=envs["box"])
 """,
         "",
     )

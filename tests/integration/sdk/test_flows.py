@@ -48,8 +48,8 @@ class Envs(EnvCollection):
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def run(task, *, agents, envs, params, ctx):
-    session = await agents["agent"].spawn(env=envs["here"])
-    await agents["agent"].run(task, session=session)
+    session = await agents["agent"].spawn()
+    await agents["agent"].run(task, session=session, env=envs["here"])
 '''
 
 #: One that says it can be picked up where the last run of it left off, and takes a param.

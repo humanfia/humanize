@@ -90,8 +90,8 @@ class Envs(EnvCollection):
 async def run(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
               ctx: FlowContext) -> None:
     async def hold(agent: Agent) -> None:
-        session = await agent.spawn(env=envs["workspace"])
-        await agent.run("hold", session=session)
+        session = await agent.spawn()
+        await agent.run("hold", session=session, env=envs["workspace"])
 
     # A turn apiece, open at the same time and neither answering until the fake CLI is let
     # go: two agents working at once is the case tab is for.

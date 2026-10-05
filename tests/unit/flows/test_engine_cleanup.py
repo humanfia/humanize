@@ -69,7 +69,8 @@ async def making(
     clone = await env.derive_temp_clone("copy")
     again = await env.derive_temp_clone("copy")
     scratch = await env.derive_scratch("notes")
-    session = await agents["agent"].spawn(env=clone)
+    session = await agents["agent"].spawn()
+    await agents["agent"].run(task, session=session, env=env)
     assert again.workdir == clone.workdir
     if params.wait:
         await asyncio.sleep(30)
@@ -227,7 +228,9 @@ async def test_a_hook_failing_as_a_session_closes_is_logged(
         task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
     ) -> Any:
         agents["agent"].on_session_end(ending)
-        await agents["agent"].spawn(env=envs["env"])
+        await agents["agent"].run(
+            task, session=await agents["agent"].spawn(), env=envs["env"]
+        )
         return ctx
 
     with caplog.at_level(logging.ERROR):
@@ -292,13 +295,17 @@ async def test_a_cancel_during_a_callee_s_cleanup_still_releases_the_caller_s() 
     async def child(
         task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
     ) -> None:
-        await agents["agent"].spawn(env=envs["env"])
+        await agents["agent"].run(
+            task, session=await agents["agent"].spawn(), env=envs["env"]
+        )
 
     @flow(agents=Solo, envs=Place, params=Nothing)
     async def parent(
         task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
     ) -> None:
-        await agents["agent"].spawn(env=envs["env"])
+        await agents["agent"].run(
+            task, session=await agents["agent"].spawn(), env=envs["env"]
+        )
         await child(task, agents=agents, envs=envs, params=params)
         await asyncio.sleep(30)
 
@@ -319,7 +326,9 @@ async def test_the_run_releases_what_calls_it_never_waited_for_made() -> None:
     async def lingering(
         task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
     ) -> None:
-        await agents["agent"].spawn(env=envs["env"])
+        await agents["agent"].run(
+            task, session=await agents["agent"].spawn(), env=envs["env"]
+        )
         started.set()
         await asyncio.sleep(30)
 

@@ -158,8 +158,8 @@ class Envs(EnvCollection):
 async def run(task, *, agents, envs, params, ctx):
     said = []
     for role in ("subscription", "gateway"):
-        session = await agents[role].spawn(env=envs["here"])
-        said.append(await agents[role].run(task, session=session))
+        session = await agents[role].spawn()
+        said.append(await agents[role].run(task, session=session, env=envs["here"]))
     Path("said.json").write_text(json.dumps(said))
 """,
     )

@@ -82,8 +82,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def boxed(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["box"])
-    return await worker.run(task, session=session)
+    session = await worker.spawn()
+    return await worker.run(task, session=session, env=envs["box"])
 '''
 
 

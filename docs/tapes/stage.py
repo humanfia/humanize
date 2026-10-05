@@ -80,11 +80,11 @@ async def twice(
 ) -> None:
     """Does the work, then reads it back and fixes what is wrong."""
     builder = agents["builder"]
-    session = await builder.spawn(env=envs["workspace"])
-    await builder.run(task, session=session)
+    session = await builder.spawn()
+    await builder.run(task, session=session, env=envs["workspace"])
     await builder.run(
         "Now review what you just did, and fix anything that is wrong.",
-        session=session,
+        session=session, env=envs["workspace"],
     )
 '''
 
@@ -124,8 +124,10 @@ async def nightly(
     assert state is not None  # a resumable flow always has one
     state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
     while True:
-        session = await fixer.spawn(env=envs["workspace"])
-        said = await fixer.run(f"{task}. Round {state['rounds']}.", session=session)
+        session = await fixer.spawn()
+        said = await fixer.run(
+            f"{task}. Round {state['rounds']}.", session=session, env=envs["workspace"]
+        )
         state["fixed"] = [*(state["fixed"] if "fixed" in state else []), said]
 '''
 
@@ -630,8 +632,8 @@ async def aot(
 ) -> None:
     """Writes a flow from a description, then loads, smoke-runs and reviews it."""
     author = agents["author"]
-    session = await author.spawn(env=envs["workspace"])
-    await author.run(task, session=session)
+    session = await author.spawn()
+    await author.run(task, session=session, env=envs["workspace"])
 '''
 
 

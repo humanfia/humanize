@@ -95,8 +95,8 @@ class Envs(EnvCollection):
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def mine(task, *, agents, envs, params, ctx):
-    session = await agents["agent"].spawn(env=envs["here"])
-    return await agents["agent"].run(task, session=session)
+    session = await agents["agent"].spawn()
+    return await agents["agent"].run(task, session=session, env=envs["here"])
 '''
 
 #: A flow whose role names one of its skills, and reads what its session was given while the
@@ -133,8 +133,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def reads(task, *, agents, envs, params, ctx):
     here = envs["here"]
-    session = await agents["agent"].spawn(env=here)
-    await agents["agent"].run(task, session=session)
+    session = await agents["agent"].spawn()
+    await agents["agent"].run(task, session=session, env=here)
     code, out, _ = await here.exec(["ls", ".claude/skills"])
     said = await here.read(".claude/skills/note-taking/SKILL.md") if "note-taking" in out else b""
     return out.split(), said.decode()

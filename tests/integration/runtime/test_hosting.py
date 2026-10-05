@@ -57,10 +57,10 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams, name="asks")
 async def asks(task, *, agents, envs, params, ctx):
     here = envs["workspace"]
-    planner = await agents["planner"].spawn(env=here)
-    reviewer = await agents["reviewer"].spawn(env=here)
-    plan = await agents["planner"].run(f"what is the plan for {task}?", session=planner)
-    review = await agents["reviewer"].run(f"is {plan!r} good?", session=reviewer)
+    planner = await agents["planner"].spawn()
+    reviewer = await agents["reviewer"].spawn()
+    plan = await agents["planner"].run(f"what is the plan for {task}?", session=planner, env=here)
+    review = await agents["reviewer"].run(f"is {plan!r} good?", session=reviewer, env=here)
     # Whole or not at all: the test reads it the moment it is there.
     Path("result.part").write_text(json.dumps({"plan": plan, "review": review}))
     Path("result.part").replace("result.json")
@@ -92,17 +92,17 @@ async def steers(task, *, agents, envs, params, ctx):
     here = envs["workspace"]
     while not Path("start").exists():
         await asyncio.sleep(0.02)
-    session = await agents["coder"].spawn(env=here)
-    person = await agents["planner"].spawn(env=here)
+    session = await agents["coder"].spawn()
+    person = await agents["planner"].spawn()
 
     async def asks():
         while not Path("ask").exists():
             if Path("go").exists():
                 return ""
             await asyncio.sleep(0.02)
-        return await agents["planner"].run("which way?", session=person)
+        return await agents["planner"].run("which way?", session=person, env=here)
 
-    said, asked = await asyncio.gather(agents["coder"].run(task, session=session), asks())
+    said, asked = await asyncio.gather(agents["coder"].run(task, session=session, env=here), asks())
     # Whole or not at all: the test reads it the moment it is there.
     Path("result.part").write_text(json.dumps({"said": said, "asked": asked}))
     Path("result.part").replace("result.json")
@@ -131,10 +131,10 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams, name="hands")
 async def hands(task, *, agents, envs, params, ctx):
     here = envs["workspace"]
-    session = await agents["coder"].spawn(env=here)
-    person = await agents["planner"].spawn(env=here)
-    plan = await agents["planner"].run("which way?", session=person)
-    said = await agents["coder"].run(task, session=session)
+    session = await agents["coder"].spawn()
+    person = await agents["planner"].spawn()
+    plan = await agents["planner"].run("which way?", session=person, env=here)
+    said = await agents["coder"].run(task, session=session, env=here)
     # Whole or not at all: the test reads it the moment it is there.
     Path("result.part").write_text(json.dumps({"plan": plan, "said": said}))
     Path("result.part").replace("result.json")

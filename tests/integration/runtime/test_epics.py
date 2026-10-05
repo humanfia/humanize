@@ -62,8 +62,8 @@ class Params(FlowParams):
 @flow(agents=Agents, envs=Envs, params=Params)
 async def flow_(task, *, agents, envs, params, ctx):
     for role in ("actor", "reviewer"):
-        session = await agents[role].spawn(env=envs["here"])
-        await agents[role].run(task, session=session)
+        session = await agents[role].spawn()
+        await agents[role].run(task, session=session, env=envs["here"])
 """
 
 #: A flow that raises, with nothing opened.
@@ -103,9 +103,9 @@ class Envs(EnvCollection):
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def loops(task, *, agents, envs, params, ctx):
-    session = await agents["builder"].spawn(env=envs["here"])
+    session = await agents["builder"].spawn()
     while True:
-        await agents["builder"].run(task, session=session)
+        await agents["builder"].run(task, session=session, env=envs["here"])
 """
 
 #: Flows calling flows: two branches at once, one of which goes a level deeper.
@@ -129,8 +129,8 @@ class Deep(FlowParams):
 
 @flow(agents=Agents, envs=Envs, params=Deep)
 async def branch(task, *, agents, envs, params, ctx):
-    session = await agents["builder"].spawn(env=envs["here"])
-    await agents["builder"].run(task, session=session)
+    session = await agents["builder"].spawn()
+    await agents["builder"].run(task, session=session, env=envs["here"])
     if params.depth:
         await branch(task, agents=agents, envs=envs, params=Deep(depth=params.depth - 1))
 
@@ -390,8 +390,8 @@ def test_a_log_written_after_the_last_turn_is_read_back_with_the_rest(
         tmp_path,
         "flow",
         ONE.replace(
-            '    return await agents["builder"].run(task, session=session)\n',
-            '    said = await agents["builder"].run(task, session=session)\n'
+            '    return await agents["builder"].run(task, session=session, env=envs["here"])\n',
+            '    said = await agents["builder"].run(task, session=session, env=envs["here"])\n'
             "    import os, pathlib\n"
             '    (log,) = pathlib.Path(os.environ["LOGS_UNDER"]).glob("*/*.jsonl")\n'
             '    late = log.with_suffix("") / "subagents" / "deep" / "explore.jsonl"\n'

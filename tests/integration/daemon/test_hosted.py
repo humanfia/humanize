@@ -57,10 +57,10 @@ async def asks(task, *, agents, envs, params, ctx):
     here = envs["workspace"]
     while not Path("go").exists():
         await asyncio.sleep(0.02)
-    planner = await agents["planner"].spawn(env=here)
-    reviewer = await agents["reviewer"].spawn(env=here)
-    plan = await agents["planner"].run(f"what is the plan for {task}?", session=planner)
-    review = await agents["reviewer"].run(f"is {plan!r} good?", session=reviewer)
+    planner = await agents["planner"].spawn()
+    reviewer = await agents["reviewer"].spawn()
+    plan = await agents["planner"].run(f"what is the plan for {task}?", session=planner, env=here)
+    review = await agents["reviewer"].run(f"is {plan!r} good?", session=reviewer, env=here)
     print(f"planned {plan} and reviewed {review}")
     Path("result.json").write_text(json.dumps({"plan": plan, "review": review}))
 """

@@ -67,7 +67,8 @@ async def test_a_ralph_loop_opens_a_session_a_round_and_stops_on_the_budget(
             journal=journal,
         )
 
-    assert len(agent.sessions) == 4
+    # The fourth round's turn is refused by the spent budget before its CLI is started.
+    assert len(agent.sessions) == 3
     assert agent.prompts == ["do the thing"] * 3
     assert {one.placement.workdir for one in agent.sessions} == {PurePosixPath("/here")}
     assert said(capsys) == ["round 1", "round 2", "round 3", "round 4"]

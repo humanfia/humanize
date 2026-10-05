@@ -74,8 +74,8 @@ class Envs(EnvCollection):
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def run(task, *, agents, envs, params, ctx):
-    session = await agents["agent"].spawn(env=envs["here"])
-    return await agents["agent"].run(task, session=session)
+    session = await agents["agent"].spawn()
+    return await agents["agent"].run(task, session=session, env=envs["here"])
 '''
 
 

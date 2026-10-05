@@ -737,8 +737,8 @@ async def boxed(task, *, agents, envs, params, ctx):
     box = envs["box"]
     _, name, _ = await box.exec(["hostname"])
     await box.write("truth.txt", name.encode())
-    session = await agents["coder"].spawn(env=box)
-    return await agents["coder"].run(task, session=session)
+    session = await agents["coder"].spawn()
+    return await agents["coder"].run(task, session=session, env=box)
 """
 
 _ASKED = (

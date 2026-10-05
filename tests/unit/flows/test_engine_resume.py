@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
@@ -296,7 +296,7 @@ async def test_the_journal_holds_every_record_a_run_makes(tmp_path: Path) -> Non
         state["b"] = 1
         del state["b"]
         agent = agents["agent"]
-        await agent.spawn(env=envs["env"])
+        await agent.run(task, session=await agent.spawn(), env=envs["env"])
         await envs["env"].derive_temp_clone("kept")
         await leaf(task, agents=agents, envs=envs, params=params)
 
@@ -337,19 +337,19 @@ async def test_a_session_is_written_down_once_its_cli_has_named_it(
         task: str, *, agents: Solo, envs: Place, params: Step, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        idle = await agent.spawn(env=envs["env"])
-        unnamed.append(driver.sessions[0].id is None)
+        session = await agent.spawn()
+        idle = await agent.spawn()
+        unnamed.append(cast("Any", session).id is None)
         # Twice, and through an agent derived from the one that opened it: written down once.
-        await agent.run(task, session=session)
-        await agent.derive().run(task, session=session)
+        await agent.run(task, session=session, env=envs["env"])
+        await agent.derive().run(task, session=session, env=envs["env"])
         del idle
 
     await _run(named, journal, resume=False, agents={"agent": driver})
-    used, idle = driver.sessions
+    # The idle one took no turn, so its CLI was never started.
+    (used,) = driver.sessions
     assert unnamed == [True]
     assert used.id is not None
-    assert idle.id is None
     records = _records(journal)
     (top,) = (one for one in records if one["t"] == "call")
     sessions = [one for one in records if one["t"] == "session"]
@@ -389,8 +389,8 @@ async def test_a_session_named_mid_turn_is_written_down_before_the_turn_ends(
 
         agent = agents["agent"]
         agent.on_stop(stopping)
-        session = await agent.spawn(env=envs["env"])
-        await agent.run(task, session=session)
+        session = await agent.spawn()
+        await agent.run(task, session=session, env=envs["env"])
 
     await _run(
         long, journal, resume=False, agents={"agent": FakeAgentDriver(names_late=True)}

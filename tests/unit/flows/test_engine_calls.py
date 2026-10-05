@@ -309,8 +309,8 @@ async def asking(
     task: str, *, agents: WithHuman, envs: NoEnvs, params: Nothing, ctx: FlowContext
 ) -> Any:
     human = agents["human"]
-    session = await human.spawn(env=_nowhere(ctx))
-    return await human.run(task, session=session)
+    session = await human.spawn()
+    return await human.run(task, session=session, env=_nowhere(ctx))
 
 
 def _nowhere(ctx: Any) -> Any:
@@ -977,7 +977,8 @@ async def test_a_recorder_hears_every_call_and_session() -> None:
     async def recorded(
         task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
     ) -> None:
-        session = await agents["agent"].spawn(env=envs["env"])
+        session = await agents["agent"].spawn()
+        await agents["agent"].run("hello", session=session, env=envs["env"])
         with pytest.raises(BoomError):
             await boom("under", agents={}, envs={}, params=Depth())
         del session
@@ -1019,8 +1020,8 @@ async def test_a_recorder_may_leave_out_what_it_was_first_written_without() -> N
     async def recorded(
         task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
     ) -> None:
-        session = await agents["agent"].spawn(env=envs["env"])
-        await agents["agent"].run("hello", session=session)
+        session = await agents["agent"].spawn()
+        await agents["agent"].run("hello", session=session, env=envs["env"])
 
     heard = HeardFirst()
     await run_fake(recorded, "over", recorder=cast("Recorder", heard))
@@ -1089,7 +1090,7 @@ async def test_an_orphan_is_cancelled_at_its_next_step() -> None:
         started.set()
         await carry_on.wait()
         try:
-            await agents["agent"].spawn(env=envs["env"])
+            await agents["agent"].spawn()
         except FlowCancelled:
             outcome.append("cancelled")
             raise

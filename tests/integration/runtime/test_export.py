@@ -64,8 +64,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def flow_(task, *, agents, envs, params, ctx):
     for role in ("actor", "reviewer"):
-        session = await agents[role].spawn(env=envs["here"])
-        await agents[role].run(task, session=session)
+        session = await agents[role].spawn()
+        await agents[role].run(task, session=session, env=envs["here"])
 """
 
 #: A flow that calls another, so that a bundle has a record beside the run's own to carry;
@@ -108,8 +108,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
 async def flow_(task, *, agents, envs, params, ctx):
     ctx.state["rounds"] = 3
-    session = await agents["builder"].spawn(env=envs["here"])
-    return await agents["builder"].run(task, session=session)
+    session = await agents["builder"].spawn()
+    return await agents["builder"].run(task, session=session, env=envs["here"])
 """
 
 

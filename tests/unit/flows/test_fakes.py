@@ -432,13 +432,13 @@ async def wanting(
     task: str, *, agents: Wants, envs: Places, params: Nothing, ctx: FlowContext
 ) -> list[Any]:
     human = agents["human"]
-    session = await human.spawn(env=envs["big"])
+    session = await human.spawn()
     return [
         agents["claude"].harness,
         agents["codex"].harness,
         agents["plain"].harness,
         envs["big"].workdir,
-        await human.run("ok?", session=session),
+        await human.run("ok?", session=session, env=envs["big"]),
     ]
 
 

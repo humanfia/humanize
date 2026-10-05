@@ -64,7 +64,7 @@ async def demo(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
                ctx: FlowContext) -> None:
     """Somebody else's demo, RELEASE."""
     worker = agents["worker"]
-    await worker.run(task, session=await worker.spawn(env=envs["workspace"]))
+    await worker.run(task, session=await worker.spawn(), env=envs["workspace"])
 '''
 
 

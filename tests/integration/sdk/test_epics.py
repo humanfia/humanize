@@ -44,8 +44,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
 async def counts(task, *, agents, envs, params, ctx):
     ctx.state["rounds"] = (ctx.state["rounds"] if "rounds" in ctx.state else 0) + 1
-    session = await agents["actor"].spawn(env=envs["here"])
-    await agents["actor"].run(task, session=session)
+    session = await agents["actor"].spawn()
+    await agents["actor"].run(task, session=session, env=envs["here"])
 '''
 
 

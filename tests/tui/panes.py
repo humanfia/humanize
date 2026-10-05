@@ -43,10 +43,10 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams, name="asks")
 async def asks(task, *, agents, envs, params, ctx):
     here = envs["workspace"]
-    planner = await agents["planner"].spawn(env=here)
-    reviewer = await agents["reviewer"].spawn(env=here)
-    plan = await agents["planner"].run(f"what is the plan for {task}?", session=planner)
-    review = await agents["reviewer"].run(f"is {plan!r} good?", session=reviewer)
+    planner = await agents["planner"].spawn()
+    reviewer = await agents["reviewer"].spawn()
+    plan = await agents["planner"].run(f"what is the plan for {task}?", session=planner, env=here)
+    review = await agents["reviewer"].run(f"is {plan!r} good?", session=reviewer, env=here)
     print(f"RESULT plan={plan!r} review={review!r}")
     Path("result.json").write_text(json.dumps({"plan": plan, "review": review}))
 """

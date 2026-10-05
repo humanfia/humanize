@@ -65,9 +65,9 @@ async def spender(
         )
     else:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         for _ in range(params.turns):
-            await agent.run("spend", session=session)
+            await agent.run("spend", session=session, env=envs["env"])
         below = []
     usage = ctx.usage
     return [(params.left, usage.cost, usage.output_tokens), *below]
@@ -107,8 +107,8 @@ async def test_a_budget_is_the_tighter_of_a_flow_s_own_and_what_remains_above() 
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> list[Budget]:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("spend", session=session)
+        session = await agent.spawn()
+        await agent.run("spend", session=session, env=envs["env"])
 
         @flow(agents=Solo, envs=Place, params=Depth)
         async def inner(
@@ -168,17 +168,17 @@ async def test_a_spent_budget_stays_spent(
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> int:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         taken = 0
         for _ in range(100):
             try:
-                await agent.run("again", session=session)
+                await agent.run("again", session=session, env=envs["env"])
             except raised:
                 break
             taken += 1
         for _ in range(3):
             with pytest.raises(raised):
-                await agent.run("once more", session=session)
+                await agent.run("once more", session=session, env=envs["env"])
         return taken
 
     driver = FakeAgentDriver(cost=0.25, output_tokens=5)
@@ -200,8 +200,8 @@ async def test_a_child_s_own_budget_runs_out_without_its_caller_s() -> None:
                 budget=Budget(cost=0.5),
             )
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("still fine", session=session)
+        session = await agent.spawn()
+        await agent.run("still fine", session=session, env=envs["env"])
         return ctx.usage.cost, ctx.budget.cost or 0.0
 
     spent, left = await run_fake(
@@ -217,8 +217,8 @@ async def test_a_caller_s_spent_budget_stops_its_children() -> None:
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("spend it all", session=session)
+        session = await agent.spawn()
+        await agent.run("spend it all", session=session, env=envs["env"])
         with pytest.raises(CostExceeded):
             await spender(
                 task,
@@ -239,12 +239,13 @@ async def test_a_turn_is_told_what_it_may_spend() -> None:
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("one", session=session)
+        session = await agent.spawn()
+        await agent.run("one", session=session, env=envs["env"])
         with pytest.raises(CostExceeded):
             await agent.run(
                 "two",
                 session=session,
+                env=envs["env"],
                 budget=Budget(cost=0.1, output_tokens=3, graceful=False),
             )
         assert ctx.usage.cost == 0.35
@@ -273,9 +274,9 @@ async def test_a_hard_limit_is_kept_inside_the_turn_by_the_driver() -> None:
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> float:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         with pytest.raises(CostExceeded):
-            await agent.run("too much", session=session)
+            await agent.run("too much", session=session, env=envs["env"])
         return ctx.usage.cost
 
     spent = await run_fake(
@@ -360,8 +361,8 @@ async def test_a_graceful_deadline_lets_the_turn_under_way_finish() -> None:
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("slow", session=session)
+        session = await agent.spawn()
+        await agent.run("slow", session=session, env=envs["env"])
         finished.append("after the turn")
         await asyncio.sleep(30)
 
@@ -397,8 +398,8 @@ async def test_a_hard_deadline_interrupts_the_turn_under_way() -> None:
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("slow", session=session)
+        session = await agent.spawn()
+        await agent.run("slow", session=session, env=envs["env"])
 
     driver = FakeAgentDriver(reply=reply)
     with pytest.raises(DurationExceeded):
@@ -433,9 +434,9 @@ async def test_a_spent_deadline_refuses_the_next_turn() -> None:
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         time.sleep(0.06)  # noqa: ASYNC251 -- the loop must not see the deadline go by
-        await agent.run("too late", session=session)
+        await agent.run("too late", session=session, env=envs["env"])
 
     with pytest.raises(DurationExceeded):
         await run_fake(
@@ -501,10 +502,10 @@ async def test_usage_and_budget_are_read_off_the_call_as_it_goes() -> None:
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> list[float]:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         said: list[float] = []
         for _ in range(3):
-            await agent.run("x", session=session)
+            await agent.run("x", session=session, env=envs["env"])
             said.append(ctx.usage.cost)
             said.append(ctx.budget.cost or 0.0)
         return said
@@ -546,8 +547,8 @@ async def test_a_turn_is_hard_where_a_budget_that_binds_it_is(
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("x", session=session, budget=turn)
+        session = await agent.spawn()
+        await agent.run("x", session=session, env=envs["env"], budget=turn)
 
     @flow(agents=Solo, envs=Place, params=Depth)
     async def calling(
@@ -588,7 +589,7 @@ async def held_turn(
 ) -> float:
     """Takes one turn that nothing ends but a deadline, and says when it was ended."""
     agent = agents["agent"]
-    session = await agent.spawn(env=envs["env"])
+    session = await agent.spawn()
     started = time.monotonic()
     turn = (
         Budget(duration=_seconds(params.turn), graceful=not params.turn_hard)
@@ -596,7 +597,7 @@ async def held_turn(
         else None
     )
     try:
-        await agent.run("hold on", session=session, budget=turn)
+        await agent.run("hold on", session=session, env=envs["env"], budget=turn)
     except DurationExceeded:
         return time.monotonic() - started
     return -1.0
@@ -657,8 +658,10 @@ async def test_a_turn_hard_for_its_cost_is_told_the_hard_deadline_not_a_graceful
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("x", session=session, budget=Budget(cost=1, graceful=False))
+        session = await agent.spawn()
+        await agent.run(
+            "x", session=session, env=envs["env"], budget=Budget(cost=1, graceful=False)
+        )
 
     @flow(agents=Solo, envs=Place, params=Depth)
     async def calling(
@@ -686,8 +689,8 @@ async def test_a_flow_returning_as_its_graceful_deadline_lets_go_returns() -> No
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> str:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        return await agent.run("slow", session=session)
+        session = await agent.spawn()
+        return await agent.run("slow", session=session, env=envs["env"])
 
     @flow(agents=Solo, envs=Place, params=Depth)
     async def calling(
@@ -725,10 +728,10 @@ async def test_the_timer_a_turn_is_held_to_goes_with_the_turn(
         task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         hard = Budget(duration=_seconds(120), graceful=False)
         for _ in range(params.turns):
-            await agent.run("x", session=session, budget=hard)
+            await agent.run("x", session=session, env=envs["env"], budget=hard)
 
     monkeypatch.setattr(loop, "call_later", arming)
     await run_fake(many, params={"turns": 10_000}, budget=Budget(duration=_seconds(60)))

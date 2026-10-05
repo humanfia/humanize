@@ -262,7 +262,7 @@ async def test_a_plain_agent_is_refused_what_it_did_not_declare(refused: str) ->
         task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         await AGENT_REFUSALS[refused](agent, session)
 
     driver = FakeAgentDriver(HarnessKind.CLAUDE)
@@ -426,11 +426,11 @@ async def test_what_is_declared_is_granted() -> None:
         ctx: FlowContext,
     ) -> list[Any]:
         agent, env = agents["agent"], envs["env"]
-        session = await agent.spawn(env=env)
+        session = await agent.spawn()
         said: list[Any] = [
-            await agent.run("/goal ship it", session=session),
-            await agent.run("/loop 5m check", session=session),
-            await agent.run("/goalkeeper is no command", session=session),
+            await agent.run("/goal ship it", session=session, env=env),
+            await agent.run("/loop 5m check", session=session, env=env),
+            await agent.run("/goalkeeper is no command", session=session, env=env),
         ]
         for hang in (
             agent.on_permission_request,
@@ -526,8 +526,8 @@ DERIVING = """
             )
         with pytest.raises(TypeError):
             agent.derive(permission="read")
-        await narrow.spawn(env=envs["env"])
-        await same.spawn(env=envs["env"])
+        for one in (narrow, same):
+            await one.run("x", session=await one.spawn(), env=envs["env"])
         return [(one.grant.permission, one.grant.skills) for one in (narrow, same)]
 """
 
@@ -568,12 +568,12 @@ async def test_a_derived_agent_shares_the_hooks_and_the_sessions_it_came_from() 
         reader = agent.derive(
             permission=Permission(local=PermissionKind.READ, user=PermissionKind.READ)
         )
-        mine = await reader.spawn(env=envs["env"])
-        await reader.run("one", session=mine)
-        theirs = await agent.spawn(env=envs["env"])
-        await reader.run("two", session=theirs)
+        mine = await reader.spawn()
+        await reader.run("one", session=mine, env=envs["env"])
+        theirs = await agent.spawn()
+        await reader.run("two", session=theirs, env=envs["env"])
         reader.on_stop(None)
-        await agent.run("three", session=mine)
+        await agent.run("three", session=mine, env=envs["env"])
         driver: FakeAgentDriver = cast("Any", reader).driver
         return driver.sessions[0].permission
 
@@ -601,18 +601,20 @@ async def test_a_session_is_its_agent_s_alone() -> None:
         task: str, *, agents: Two, envs: Bare, params: Nothing, ctx: FlowContext
     ) -> None:
         a, b = agents["a"], agents["b"]
-        session = await a.spawn(env=envs["env"])
+        session = await a.spawn()
         with pytest.raises(SessionError):
-            await b.run("x", session=session)
+            await b.run("x", session=session, env=envs["env"])
         with pytest.raises(SessionError):
-            await b.fork(session, env=envs["env"])
+            await b.fork(session)
         with pytest.raises(SessionError):
             await a.run("x", session=object())  # pyright: ignore[reportArgumentType]
         with pytest.raises(TypeError):
-            await a.spawn(env=object())  # pyright: ignore[reportArgumentType]
-        await a.run("x", session=session)
-        forked = await a.fork(session, env=envs["env"])
-        assert await a.run("in the fork", session=forked) == "ok"
+            await a.run("x", session=session, env=object())  # pyright: ignore[reportArgumentType]
+        with pytest.raises(SessionError, match="no turn"):
+            await a.fork(session)
+        await a.run("x", session=session, env=envs["env"])
+        forked = await a.fork(session)
+        assert await a.run("in the fork", session=forked, env=envs["env"]) == "ok"
 
     await run_fake(two)
 
@@ -623,14 +625,14 @@ async def test_a_session_takes_one_turn_at_a_time() -> None:
         task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        first = agent.run("slow", session=session)
+        session = await agent.spawn()
+        first = agent.run("slow", session=session, env=envs["env"])
         import asyncio
 
         turning = asyncio.ensure_future(first)
         await asyncio.sleep(0)
         with pytest.raises(SessionError, match="under way"):
-            await agent.run("again", session=session)
+            await agent.run("again", session=session, env=envs["env"])
         view: SessionView = session  # pyright: ignore[reportAssignmentType]
         handle: Any = view._handle
         handle.interrupt()
@@ -655,10 +657,12 @@ async def test_an_answer_that_is_not_the_schema_asked_for_is_refused() -> None:
         task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
     ) -> Answer:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         with pytest.raises(OutputSchemaError):
-            await agent.run("x", session=session, output_schema=Strict)
-        return await agent.run("y", session=session, output_schema=Answer)
+            await agent.run("x", session=session, env=envs["env"], output_schema=Strict)
+        return await agent.run(
+            "y", session=session, env=envs["env"], output_schema=Answer
+        )
 
     answered = await run_fake(
         schema, agents={"agent": FakeAgentDriver(reply=['{"said": 1}', {"said": "y"}])}
@@ -672,9 +676,10 @@ async def test_a_harness_that_cannot_fork_says_so() -> None:
         task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("x", session=session)
-        await agent.fork(session, env=envs["env"])
+        session = await agent.spawn()
+        await agent.run("x", session=session, env=envs["env"])
+        forked = await agent.fork(session)
+        await agent.run("y", session=forked, env=envs["env"])
 
     with pytest.raises(UnsupportedOperation):
         await run_fake(forking, agents={"agent": FakeAgentDriver(forks=False)})
@@ -686,12 +691,11 @@ async def test_a_session_says_what_it_is() -> None:
         task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
     ) -> tuple[Any, ...]:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         before = session.usage.output_tokens
-        await agent.run("x", session=session)
+        await agent.run("x", session=session, env=envs["env"])
         return (
             session.agent is agent,
-            session.env is envs["env"],
             before,
             session.usage.output_tokens,
             agent.role,
@@ -718,7 +722,6 @@ async def test_a_session_says_what_it_is() -> None:
     )
     assert said == (
         True,
-        True,
         0,
         3,
         "agent",
@@ -743,10 +746,12 @@ async def test_an_agent_answers_the_steer_it_was_given() -> None:
         import asyncio
 
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         with pytest.raises(SessionError):
             await agent.steer("nobody is listening", session=session)
-        turning = asyncio.ensure_future(agent.run("wait", session=session))
+        turning = asyncio.ensure_future(
+            agent.run("wait", session=session, env=envs["env"])
+        )
         await asyncio.sleep(0)
         await agent.steer("now", session=session, queued=False)
         return await turning
@@ -795,8 +800,8 @@ async def test_permission_request_hooks_answer_the_tools_an_agent_reaches_for() 
         agent = agents["agent"]
         agent.on_pre_tool_use(pre)
         agent.on_permission_request(guard)
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("go", session=session)
+        session = await agent.spawn()
+        await agent.run("go", session=session, env=envs["env"])
         return ctx
 
     async def reply(prompt: str, *, session: Any, output_schema: Any) -> str:
@@ -843,8 +848,8 @@ async def test_ask_user_hooks_answer_the_agent() -> None:
     ) -> str:
         agent = agents["agent"]
         agent.on_ask_user(answer)
-        session = await agent.spawn(env=envs["env"])
-        return await agent.run("go", session=session)
+        session = await agent.spawn()
+        return await agent.run("go", session=session, env=envs["env"])
 
     async def reply(prompt: str, *, session: Any, output_schema: Any) -> str | None:
         del prompt, output_schema

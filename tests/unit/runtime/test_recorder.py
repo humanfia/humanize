@@ -49,8 +49,8 @@ async def rounds(
     task: str, *, agents: Solo, envs: Here, params: Rounds, ctx: FlowContext
 ) -> None:
     for _ in range(params.rounds):
-        session = await agents["agent"].spawn(env=envs["here"])
-        await agents["agent"].run(task, session=session)
+        session = await agents["agent"].spawn()
+        await agents["agent"].run(task, session=session, env=envs["here"])
 
 
 @flow(agents=Solo, envs=Here, params=Rounds)
@@ -98,8 +98,8 @@ async def test_a_loop_of_ten_thousand_sessions_leaves_the_recorder_holding_none(
     ) -> None:
         agent = agents["agent"]
         for n in range(params.rounds):
-            session = await agent.spawn(env=envs["here"])
-            await agent.run(task, session=session)
+            session = await agent.spawn()
+            await agent.run(task, session=session, env=envs["here"])
             open_at.append(len(recorder.sessions))
             if n in (SESSIONS // 10, SESSIONS - 1):
                 grown.append(_held_by(recorder))
@@ -135,11 +135,11 @@ async def test_what_a_run_spent_counts_its_open_sessions_and_its_closed_ones() -
         task: str, *, agents: Solo, envs: Here, params: Rounds, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        first = await agent.spawn(env=envs["here"])
-        await agent.run(task, session=first)
+        first = await agent.spawn()
+        await agent.run(task, session=first, env=envs["here"])
         del first
-        kept = await agent.spawn(env=envs["here"])
-        await agent.run(task, session=kept)
+        kept = await agent.spawn()
+        await agent.run(task, session=kept, env=envs["here"])
         seen.append((len(recorder.sessions), recorder.usage().output_tokens))
 
     with epic:

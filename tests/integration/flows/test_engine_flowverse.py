@@ -55,8 +55,8 @@ class Params(FlowParams):
 
 async def turn(agents, envs, prompt):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["repo"])
-    return await worker.run(prompt, session=session)
+    session = await worker.spawn()
+    return await worker.run(prompt, session=session, env=envs["repo"])
 
 
 @flow(agents=Agents, envs=Envs, params=Params, resumable=True)
@@ -105,17 +105,17 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def beta(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["repo"])
-    await worker.run("beta", session=session)
+    session = await worker.spawn()
+    await worker.run("beta", session=session, env=envs["repo"])
     return f"beta cost {ctx.usage.cost}"
 
 
 @flow(agents=Agents, envs=Envs, params=FlowParams, name="second", hidden=True)
 async def second_flow(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["repo"])
+    session = await worker.spawn()
     for _ in range(3):
-        await worker.run("second", session=session)
+        await worker.run("second", session=session, env=envs["repo"])
     return "beta:second"
 """
 
@@ -143,8 +143,8 @@ async def gamma(task, *, agents, envs, params, ctx):
 @flow(agents=Agents, envs=Envs, params=FlowParams, hidden=True)
 async def deep(task, *, agents, envs, params, ctx):
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["repo"])
-    await worker.run("deep", session=session)
+    session = await worker.spawn()
+    await worker.run("deep", session=session, env=envs["repo"])
     return f"deep {VERSION}"
 """
 

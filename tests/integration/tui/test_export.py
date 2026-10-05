@@ -54,7 +54,7 @@ class Envs(EnvCollection):
 async def plain(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
                 ctx: FlowContext) -> None:
     worker = agents["worker"]
-    await worker.run(task, session=await worker.spawn(env=envs["workspace"]))
+    await worker.run(task, session=await worker.spawn(), env=envs["workspace"])
 '''
 
 #: A `claude` that answers whatever it is told and logs the session where Claude Code logs

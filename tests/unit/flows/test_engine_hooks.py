@@ -114,8 +114,8 @@ async def test_every_moment_reaches_its_hook_with_what_it_says() -> None:
         agent.on_subagent_stop(sub_stop)
         agent.on_stop(stop)
         agent.on_session_end(end)
-        session = await agent.spawn(env=envs["env"])
-        said = await agent.run("go", session=session)
+        session = await agent.spawn()
+        said = await agent.run("go", session=session, env=envs["env"])
         return ctx, session, said
 
     async def reply(prompt: str, *, session: Any, output_schema: Any) -> str:
@@ -154,11 +154,11 @@ async def test_a_hook_taken_down_is_not_heard() -> None:
         task: str, *, agents: Claude, envs: Place, params: Nothing, ctx: FlowContext
     ) -> None:
         agent = agents["agent"]
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         agent.on_stop(stop)
-        await agent.run("heard", session=session)
+        await agent.run("heard", session=session, env=envs["env"])
         agent.on_stop(None)
-        await agent.run("not heard", session=session)
+        await agent.run("not heard", session=session, env=envs["env"])
 
     await run_fake(unhooking, agents={"agent": FakeAgentDriver(reply=_echo)})
     assert heard == ["heard"]
@@ -174,10 +174,10 @@ async def test_a_prompt_a_hook_blocks_is_not_taken() -> None:
     ) -> str:
         agent = agents["agent"]
         agent.on_user_prompt_submit(refuse)
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         with pytest.raises(SessionError, match="no"):
-            await agent.run("the secret", session=session)
-        return await agent.run("fine", session=session)
+            await agent.run("the secret", session=session, env=envs["env"])
+        return await agent.run("fine", session=session, env=envs["env"])
 
     driver = FakeAgentDriver()
     assert await run_fake(blocked, agents={"agent": driver}) == "ok"
@@ -194,11 +194,11 @@ async def test_a_hook_that_raises_fails_the_turn_with_what_it_raised() -> None:
     ) -> str:
         agent = agents["agent"]
         agent.on_stop(failing)
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         with pytest.raises(BoomError, match="first"):
-            await agent.run("x", session=session)
+            await agent.run("x", session=session, env=envs["env"])
         agent.on_stop(None)
-        return await agent.run("y", session=session)
+        return await agent.run("y", session=session, env=envs["env"])
 
     driver = FakeAgentDriver(reply=["first", "second"])
     assert await run_fake(failing_flow, agents={"agent": driver}) == "second"
@@ -219,8 +219,8 @@ async def test_a_hook_that_raises_while_a_turn_waits_interrupts_it() -> None:
     ) -> None:
         agent = agents["agent"]
         agent.on_notification(failing)
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("x", session=session)
+        session = await agent.spawn()
+        await agent.run("x", session=session, env=envs["env"])
 
     with pytest.raises(BoomError, match="now"):
         await run_fake(waiting, agents={"agent": FakeAgentDriver(reply=reply)})
@@ -242,8 +242,8 @@ async def callee(
 
     agent = agents["agent"]
     agent.on_stop(mine)
-    session = await agent.spawn(env=envs["env"])
-    await agent.run("in the callee", session=session)
+    session = await agent.spawn()
+    await agent.run("in the callee", session=session, env=envs["env"])
 
 
 _CALLEE_HEARD: list[str] = []
@@ -263,9 +263,9 @@ async def test_a_hook_is_its_flow_s_alone() -> None:
     ) -> None:
         agent = agents["agent"]
         agent.on_stop(theirs)
-        session = await agent.spawn(env=envs["env"])
+        session = await agent.spawn()
         await callee(task, agents={"agent": agent}, envs=envs, params=params)
-        await agent.run("in the caller", session=session)
+        await agent.run("in the caller", session=session, env=envs["env"])
 
     await run_fake(caller, agents={"agent": FakeAgentDriver(reply=_echo)})
     assert heard == ["callee heard in the callee", "caller heard in the caller"]
@@ -297,8 +297,8 @@ async def test_a_hook_runs_as_its_flow_and_may_call_flows() -> None:
     ) -> None:
         agent = agents["agent"]
         agent.on_stop(stop)
-        session = await agent.spawn(env=envs["env"])
-        await agent.run("x", session=session)
+        session = await agent.spawn()
+        await agent.run("x", session=session, env=envs["env"])
 
     await run_fake(hooked, agents={"agent": FakeAgentDriver(reply="done")})
     assert said == ["helped done"]
@@ -325,14 +325,18 @@ async def ask_human(
     task: str, *, agents: Human, envs: Place, params: Nothing, ctx: FlowContext
 ) -> list[Any]:
     human = agents["human"]
-    session = await human.spawn(env=envs["env"])
+    session = await human.spawn()
     said: list[Any] = [
         human.away,
-        await human.run(task, session=session),
-        await human.run(task, session=session, output_schema=Form),
+        await human.run(task, session=session, env=envs["env"]),
+        await human.run(task, session=session, env=envs["env"], output_schema=Form),
     ]
     try:
-        said.append(await human.run(task, session=session, output_schema=Required))
+        said.append(
+            await human.run(
+                task, session=session, env=envs["env"], output_schema=Required
+            )
+        )
     except OutworlderAway as error:
         said.append(type(error).__name__)
     return said
@@ -380,11 +384,13 @@ async def test_an_outworlder_s_wrong_answer_is_refused() -> None:
         task: str, *, agents: Human, envs: Place, params: Nothing, ctx: FlowContext
     ) -> None:
         human = agents["human"]
-        session = await human.spawn(env=envs["env"])
+        session = await human.spawn()
         with pytest.raises(OutputSchemaError):
-            await human.run(task, session=session)
+            await human.run(task, session=session, env=envs["env"])
         with pytest.raises(OutputSchemaError):
-            await human.run(task, session=session, output_schema=Required)
+            await human.run(
+                task, session=session, env=envs["env"], output_schema=Required
+            )
 
     class Wrong:
         def away_for(self, role: str) -> bool:
@@ -421,8 +427,8 @@ async def test_an_outworlder_asks_as_the_role_the_run_filled() -> None:
         task: str, *, agents: Human, envs: Place, params: Nothing, ctx: FlowContext
     ) -> list[Any]:
         human = agents["human"]
-        session = await human.spawn(env=envs["env"])
-        return [human.away, await human.run(task, session=session)]
+        session = await human.spawn()
+        return [human.away, await human.run(task, session=session, env=envs["env"])]
 
     @flow(agents=Roles, envs=Place, params=Nothing)
     async def handing(
@@ -451,17 +457,17 @@ async def test_an_outworlder_is_what_it_is() -> None:
             human.derive(skills=("x",))
         with pytest.raises(TypeError):
             human.derive(permission="all")  # pyright: ignore[reportArgumentType]
-        session = await human.spawn(env=envs["env"])
+        session = await human.spawn()
         assert session.usage.cost == 0
         with pytest.raises(UnsupportedOperation):
-            await human.fork(session, env=envs["env"])
+            await human.fork(session)
         with pytest.raises(CapabilityNotGranted):
             human.on_outworlder_run(None)
         human.on_stop(None)
         with pytest.raises(SessionError):
             await human.run("x", session=object())  # pyright: ignore[reportArgumentType]
         with pytest.raises(TypeError):
-            await human.spawn(env=object())  # pyright: ignore[reportArgumentType]
+            await human.run("x", session=session, env=object())  # pyright: ignore[reportArgumentType]
 
     await run_fake(looking)
 

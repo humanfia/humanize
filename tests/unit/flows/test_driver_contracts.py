@@ -124,6 +124,12 @@ class StubSession:
             raise SessionError("no turn is in flight")
         self._steered = prompt
 
+    async def move(self, placement: Placement) -> bool:
+        del placement
+        if self._closed:
+            raise SessionError("the session is closed")
+        return False
+
     def interrupt(self) -> None:
         self._interrupted.set()
 

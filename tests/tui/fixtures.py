@@ -158,8 +158,9 @@ class Params(FlowParams):
 @flow(agents=Agents, envs=Envs, params=Params, name="flow")
 async def run(task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext):
     coder = agents["coder"]
-    session = await coder.spawn(env=envs["workspace"])
-    Path("said.txt").write_text(await coder.run(task, session=session) + "\\n")
+    session = await coder.spawn()
+    said = await coder.run(task, session=session, env=envs["workspace"])
+    Path("said.txt").write_text(said + "\\n")
 """
 
 

@@ -3113,8 +3113,8 @@ class Settled(BaseModel):
 async def run(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
               ctx: FlowContext) -> None:
     human = agents["human"]
-    session = await human.spawn(env=envs["workspace"])
-    settled = await human.run(task, session=session, output_schema=Settled)
+    session = await human.spawn()
+    settled = await human.run(task, session=session, env=envs["workspace"], output_schema=Settled)
     Path("settled.json").write_text(settled.model_dump_json())
 '''
 

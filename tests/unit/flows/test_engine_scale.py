@@ -181,8 +181,8 @@ async def spawning(
     agent, env = agents["a"], envs["repo"]
     kept: list[Any] = []
     for _ in range(params.calls):
-        session = await agent.spawn(env=env)
-        await agent.run(task, session=session)
+        session = await agent.spawn()
+        await agent.run(task, session=session, env=env)
         if params.keep:
             kept.append(session)
 

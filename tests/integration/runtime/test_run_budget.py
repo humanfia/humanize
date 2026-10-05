@@ -60,11 +60,11 @@ class Envs(EnvCollection):
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def forever(task, *, agents, envs, params, ctx):
-    session = await agents["worker"].spawn(env=envs["here"])
+    session = await agents["worker"].spawn()
     at = 0
     while True:
         at += 1
-        said = await agents["worker"].run(task, session=session)
+        said = await agents["worker"].run(task, session=session, env=envs["here"])
         print(f"round {at}: {said}", flush=True)
 """
 

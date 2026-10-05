@@ -89,7 +89,7 @@ class Envs(EnvCollection):
 async def speaks(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
                  ctx: FlowContext) -> None:
     worker = agents["worker"]
-    await worker.run(task, session=await worker.spawn(env=envs["workspace"]))
+    await worker.run(task, session=await worker.spawn(), env=envs["workspace"])
 '''
 
 #: A `claude` that answers whatever it is told, since what is being tested is the run rather

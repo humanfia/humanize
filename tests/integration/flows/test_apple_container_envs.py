@@ -64,8 +64,8 @@ class Envs(EnvCollection):
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def box(task, *, agents, envs, params, ctx):
     status, out, _ = await envs["box"].exec(["sh", "-c", "echo $0", "inside"], timeout=60)
-    session = await agents["coder"].spawn(env=envs["box"])
-    await agents["coder"].run(task, session=session)
+    session = await agents["coder"].spawn()
+    await agents["coder"].run(task, session=session, env=envs["box"])
     return out.strip()
 """
 
