@@ -288,24 +288,34 @@ function changed(before: Drawn[]) {
   finish()
   if (still) return
   const tl = gsap.timeline({ onComplete: () => clear(tl) })
-  let at = 0
   const els = lineEls()
+  // What the frame before said, piece by piece, wherever it was: a line that only moved down
+  // because one was put above it is not new.
+  const key = (line: Drawn, k: number, said: string) => `${line.kind}:${k}:${said}`
+  const had = new Map<string, number>()
+  const lit = new Set<string>()
+  for (const was of before) {
+    const sigs = was.kind === 'row' ? [say(was.left), say(was.right)] : [say(was.kind === 'rule' ? was : was.runs)]
+    sigs.forEach((said, k) => had.set(key(was, k, said), (had.get(key(was, k, said)) ?? 0) + 1))
+    if ('hl' in was && was.hl) lit.add(say(was))
+  }
+  const work: { el: HTMLElement; fresh: Piece[]; swept: boolean }[] = []
   drawn.value.forEach((line, n) => {
     const el = els[n]
     if (!el) return
-    const was = before[n]
-    const now = pieces(line, el)
-    // What the same line said before, piece by piece; a line of another kind is all new.
-    const then = was && was.kind === line.kind ? pieces(was, el).map((p) => p.said) : []
-    let moved = false
-    now.forEach((one, k) => {
-      if (then[k] === one.said) return
-      enter(tl, one, at)
-      moved = true
+    const fresh = pieces(line, el).filter((one, k) => {
+      const count = had.get(key(line, k, one.said)) ?? 0
+      if (count) had.set(key(line, k, one.said), count - 1)
+      return !count
     })
-    const lit = 'hl' in line && line.hl
-    if (lit && (moved || !(was && 'hl' in was && was.hl))) sweep(tl, el, at)
-    if (moved || lit) at += 0.07
+    const swept = 'hl' in line && !!line.hl && (fresh.length > 0 || !lit.has(say(line)))
+    if (fresh.length || swept) work.push({ el, fresh, swept })
+  })
+  // However much changed, it is all on within about a second.
+  const gap = Math.min(0.08, 0.6 / Math.max(1, work.length))
+  work.forEach(({ el, fresh, swept }, n) => {
+    for (const one of fresh) enter(tl, one, n * gap)
+    if (swept) sweep(tl, el, n * gap)
   })
   // The caption under the screen rises in with the frame.
   const caption = root.value?.querySelector('.caption')
