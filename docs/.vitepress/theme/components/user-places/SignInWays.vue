@@ -90,6 +90,22 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'GEMINI_API_KEY', secret: true }],
       },
       {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API: a proxy, a router, another vendor',
+        asks: [{ env: 'AGY_LLM_GATEWAY_URL' }, { env: 'AGY_LLM_GATEWAY_API_KEY', secret: true }],
+        sets: ['AGY_LLM_GATEWAY_WIRE_PROTOCOL=genai'],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'AGY_LLM_GATEWAY_URL' },
+          { env: 'AGY_LLM_GATEWAY_API_KEY', secret: true },
+          { env: 'AGY_LLM_GATEWAY_MODELS' },
+        ],
+        sets: ['AGY_LLM_GATEWAY_WIRE_PROTOCOL=openai'],
+      },
+      {
         name: 'adc',
         about: 'Google Application Default Credentials, for a service account',
         asks: [{ env: 'GOOGLE_APPLICATION_CREDENTIALS' }],

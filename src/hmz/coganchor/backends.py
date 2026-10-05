@@ -1265,6 +1265,23 @@ PROFILES = (
             # sends every turn under an account of ours somewhere that account never named,
             # with its key -- and the answers come back looking exactly as they should.
             "GOOGLE_GEMINI_BASE_URL",
+            # The enterprise gateway the two gateway ways below are, every variable of it the
+            # binary names (agy 1.2.16). Any one of them left exported is a turn under some
+            # other account reaching that gateway instead -- the URL alone switches agy into
+            # the mode, ahead of whatever sign-in it was otherwise going to use.
+            "AGY_LLM_GATEWAY_API_KEY",
+            "AGY_LLM_GATEWAY_CA_CERT",
+            "AGY_LLM_GATEWAY_HEADERS",
+            "AGY_LLM_GATEWAY_MODELS",
+            "AGY_LLM_GATEWAY_PROXY_URL",
+            "AGY_LLM_GATEWAY_URL",
+            "AGY_LLM_GATEWAY_WIRE_PROTOCOL",
+            # Not the GenAI SDK's `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT` and
+            # `GOOGLE_CLOUD_LOCATION`, which the binary also carries. A turn run with all
+            # three under the key way still went to the Gemini API, so there is no Vertex way
+            # agy could be shown to take -- and the project is the one a Google sign-in or a
+            # service account may be billed to, which no way here could set back for an
+            # account that a shell exporting it had been supplying.
         ),
         # The Gemini endpoint a turn's requests go to. Google's own lists its models
         # somewhere else and in another shape, so this ordinarily falls back to asking agy;
@@ -1282,6 +1299,57 @@ PROFILES = (
                 name="key",
                 about="a Gemini API key, from AI Studio",
                 asks=(Asked(env="GEMINI_API_KEY", about="the API key", secret=True),),
+            ),
+            # The two gateways are agy's enterprise LLM gateway, which is variables and only
+            # variables: `AGY_LLM_GATEWAY_URL` puts it in that mode whatever it is signed into,
+            # `AGY_LLM_GATEWAY_API_KEY` goes as `Authorization: Bearer`, and the wire protocol
+            # is one of exactly two -- `gateway wireProtocol "bogus" is unsupported; must be
+            # "genai" or "openai"`, agy 1.2.16 says of any other. Traced against a mock on
+            # 2026-10-05: `genai` streams `{url}/v1beta/models/<model>:streamGenerateContent`,
+            # `openai` streams `{url}/v1/chat/completions` (a URL already ending in `/v1` is not
+            # given a second one), and the log of neither names a Google host it went to.
+            #
+            # The Gemini one is this rather than `GOOGLE_GEMINI_BASE_URL` beside the key, which
+            # also reaches an endpoint -- but only once `"modelProvider": "gemini"` is in agy's
+            # own `settings.json`, the one file every other account of it reads too, and which
+            # refuses to start without `GEMINI_API_KEY` while it is there. A setting no account
+            # can carry for itself is not a way in.
+            #
+            # Its catalogue is agy's own Gemini models, which is what an endpoint speaking
+            # Gemini serves. `AGY_LLM_GATEWAY_MODELS` replaces that catalogue outright -- `agy
+            # models` lists exactly it, and `--model` refuses anything else -- so the OpenAI one
+            # asks for it: none of Gemini's names is one such an endpoint is likely to answer to.
+            # Chat Completions is the only OpenAI protocol it speaks, so there is nothing to
+            # choose between.
+            Way(
+                name="gemini-gateway",
+                about="an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
+                sets=(("AGY_LLM_GATEWAY_WIRE_PROTOCOL", "genai"),),
+                asks=(
+                    Asked(env="AGY_LLM_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="AGY_LLM_GATEWAY_API_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                ),
+            ),
+            Way(
+                name="openai-gateway",
+                about="an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+                sets=(("AGY_LLM_GATEWAY_WIRE_PROTOCOL", "openai"),),
+                asks=(
+                    Asked(env="AGY_LLM_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="AGY_LLM_GATEWAY_API_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(
+                        env="AGY_LLM_GATEWAY_MODELS",
+                        about="the models it serves, comma-separated",
+                    ),
+                ),
             ),
             Way(
                 name="adc",
