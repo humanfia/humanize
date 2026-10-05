@@ -286,6 +286,8 @@ const scene = useScene({
     tl.to(one('.axis-line'), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, T2 - 0.6)
     tl.to(at('.axis-tick'), { drawSVG: '100%', duration: 0.5, stagger: 0.06, ease: 'cine.out' }, T2 - 0.4)
     tl.to(at('.axis-word'), { autoAlpha: 1, duration: 0.3, stagger: 0.06 }, T2 - 0.35)
+    // Drawn on, a guide takes its dashes back.
+    tl.set(at('.axis-tick'), { strokeDasharray: '2 4' }, T2 - 0.4 + 0.5 + 0.06 * ticks.value.length + 0.05)
     tl.to(q('.row-1 .track'), { drawSVG: '100%', duration: 0.6, ease: 'cine' }, when0(16.0))
     tl.to(one('.playhead'), { autoAlpha: 1, duration: 0.2 }, T2)
     count(tl, one('.playhead-t'), 0, SPAN, T2, { duration: SWEEP, ease: 'none', format: (n) => `t = ${Math.round(n)} s` })
