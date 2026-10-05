@@ -115,8 +115,8 @@ onMounted(() => {
         const t = i * 1.4
         loop!.fromTo(p, { x: from.x, y: from.y - 9, autoAlpha: 0 }, { x: to.x, y: to.y - 9, autoAlpha: 1, duration: 2.6, ease: 'power1.in' }, t)
         loop!.to(p, { autoAlpha: 0, duration: 0.12, ease: 'none' }, t + 2.6)
-        loop!.fromTo(one('.take'), { autoAlpha: 0.9, scale: 1 }, { autoAlpha: 0, scale: 1.35, duration: 0.7, ease: 'power2.out' }, t + 2.6)
-        loop!.fromTo(one('.wedge'), { scaleY: 1.12 }, { scaleY: 1, duration: 0.5, ease: 'back.out(3)' }, t + 2.6)
+        loop!.fromTo(one('.take'), { autoAlpha: 0.9, scale: 1 }, { autoAlpha: 0, scale: 1.35, duration: 0.7, ease: 'power2.out', immediateRender: false }, t + 2.6)
+        loop!.fromTo(one('.wedge'), { scaleY: 1.12 }, { scaleY: 1, duration: 0.5, ease: 'back.out(3)', immediateRender: false }, t + 2.6)
         loop!.call(() => {
           turn.value = String((Number(turn.value) % 99) + 1).padStart(2, '0')
         }, [], t + 2.62)
