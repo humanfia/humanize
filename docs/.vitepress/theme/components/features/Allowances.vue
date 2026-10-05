@@ -12,6 +12,7 @@ import { count, createFx, streak, type Fx } from '../../motion/fx'
 import { useNarrow } from '../../motion/layout'
 import { usePalette } from '../../motion/palette'
 import { useScene } from '../../motion/useScene'
+import { breathe } from '../sway'
 
 const BEATS = [
   'Three limits, set at the start',
@@ -54,9 +55,9 @@ const WIDE: Layout = {
     { x: 184, y: 238, w: 66 },
     { x: 258, y: 238, w: 66 },
   ],
-  review: { x: 334, y: 206, w: 190, h: 80 },
+  review: { x: 334, y: 206, w: 206, h: 80 },
   inner: [{ x: 346, y: 250, w: 80 }],
-  refused: { x: 536, y: 238, w: 68 },
+  refused: { x: 552, y: 238, w: 64 },
   stamp: { x: 320, y: 326 },
 }
 
@@ -102,6 +103,10 @@ let fx: Fx | undefined
 const narrow = useNarrow(() => scene.rebuild())
 const L = computed(() => (narrow.value ? NARROW : WIDE))
 const TURN_H = 24
+// A dial's ticks, every 30 degrees from the top.
+const TICKS = Array.from({ length: 12 }, (_, k) => (k * Math.PI) / 6)
+// How far round the duration dial the run gets: 2h 40m of 6 h.
+const DURATION = 160 / 360
 
 function hm(minutes: number) {
   const h = Math.floor(minutes / 60)
@@ -130,6 +135,9 @@ const scene = useScene({
     tl.fromTo(at('.cam'), { scale: 1.1, transformOrigin: '50% 40%' }, { scale: 1, duration: 2.4, ease: 'cine' }, 0)
     tl.fromTo(at('.ring-track'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.1, stagger: 0.15, ease: 'cine' }, 0.1)
     tl.fromTo(at('.gauge-words'), { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.7, stagger: 0.15 }, 0.5)
+    tl.fromTo(at('.tick'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.3, stagger: 0.025, ease: 'cine.out' }, 0.4)
+    tl.fromTo(at('.hand'), { autoAlpha: 0, rotation: 0, svgOrigin: '0 0' }, { autoAlpha: 1, duration: 0.4 }, 1.4)
+    tl.set(at('.formula, .first'), { autoAlpha: 0 }, 0)
     tl.set(ring, { drawSVG: '0%' }, 0)
     tl.set(at('.turn, .review, .refused, .stamp, .chip'), { autoAlpha: 0 }, 0)
     tl.set(value, { text: '0' }, 0)
@@ -141,7 +149,9 @@ const scene = useScene({
     const T0 = 2
     const STEP = 1.05
     tl.addLabel('beat-1', T0)
-    tl.to(ring[0], { drawSVG: '0% 44%', duration: 9, ease: 'none' }, T0)
+    tl.to(ring[0], { drawSVG: `0% ${DURATION * 100}%`, duration: 9, ease: 'none' }, T0)
+    // The duration dial's hand sweeps with the clock, whatever the turns are doing.
+    tl.to(at('.hand'), { rotation: DURATION * 360, svgOrigin: '0 0', duration: 9, ease: 'none' }, T0)
     count(tl, value[0], 0, 160, T0, { duration: 9, ease: 'none', format: hm })
     SPENT.forEach((s, i) => {
       const t = T0 + i * STEP
@@ -166,6 +176,7 @@ const scene = useScene({
     streak(tl, get, l.gauges[2], { x: l.review.x + l.review.w - 40, y: l.review.y + 20 }, () => palette.warm, T2 + 0.7, { duration: 0.6, bend: 0.3, burst: 10 })
     tl.fromTo(at('.chip-asked'), { opacity: 1 }, { opacity: 0.45, duration: 0.3 }, T2 + 1.6)
     tl.fromTo(at('.chip-strike'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.3 }, T2 + 1.6)
+    tl.fromTo(at('.formula'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, T2 + 1.3)
 
     // 3 · the review's turn spends the last dollar while it is still running.
     const T3 = T2 + 2.2
@@ -178,6 +189,7 @@ const scene = useScene({
     tl.to(ring[2], { drawSVG: '0% 100%', duration: 0.4, ease: 'power2.in' }, T3 + 0.5)
     count(tl, value[2], 49, 50, T3 + 0.5, { duration: 0.4, format: (n) => `$${Math.round(n)}` })
     tl.to(at('.ring-alarm'), { autoAlpha: 1, duration: 0.25 }, T3 + 0.9)
+    tl.fromTo(at('.first'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.35 }, T3 + 1)
     tl.to(at('.halo')[2], { autoAlpha: 1, scale: 1.25, duration: 0.35, ease: 'power2.out' }, T3 + 0.9)
     tl.to(at('.halo')[2], { autoAlpha: 0.55, scale: 1, duration: 0.8 }, T3 + 1.25)
     tl.call(() => fx?.spark(l.gauges[2].x, l.gauges[2].y - l.r, palette.danger, 36, 140), [], T3 + 0.9)
@@ -194,6 +206,7 @@ const scene = useScene({
     tl.to(at('.refused .bar'), { opacity: 0.35, duration: 0.4 }, T4 + 0.9)
     tl.fromTo(at('.stamp'), { autoAlpha: 0, scale: 1.4, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'back.out(1.6)' }, T4 + 1.1)
     tl.addLabel('rest', T4 + 2.2)
+    breathe(tl, at('.halo')[2], T3 + 2.1, T4 + 4.2, { period: 1.6, rest: 0.55, opacity: 0.2 })
     tl.to(at('.cam'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 4.2)
     tl.set(at('.cam'), { autoAlpha: 1 }, 0)
   },
@@ -206,7 +219,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="6 / 7"
-    label="A run's budget: duration, output tokens and cost. Each turn spends from all three. A review flow called with 2 dollars, while the run has 1 dollar left, gets 1 dollar. Its turn spends the last dollar, the cost limit is reached, that turn finishes, and the next turn is refused. The run ends with a budget error, exit status 0."
+    label="A run's budget: duration, output tokens and cost. Each turn spends from all three. A review flow called with 2 dollars, while the run has 1 dollar left, gets the smaller, 1 dollar. Its turn spends the last dollar, the cost limit is the first reached, that turn finishes, and the next turn is refused. The run ends with a budget error, exit status 0."
   >
     <div class="layer cam">
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
@@ -222,6 +235,11 @@ const scene = useScene({
           <circle class="ring-track" :r="L.r" :transform="`rotate(-90)`" />
           <circle class="ring-fill" :r="L.r" transform="rotate(-90)" :style="{ stroke: g.color }" />
           <circle v-if="i === 2" class="ring-alarm" :r="L.r" />
+          <line v-for="(a, k) in TICKS" :key="k" class="tick" :x1="Math.sin(a) * (L.r + 7)" :y1="-Math.cos(a) * (L.r + 7)" :x2="Math.sin(a) * (L.r + (k % 3 ? 10 : 13))" :y2="-Math.cos(a) * (L.r + (k % 3 ? 10 : 13))" />
+          <line v-if="i === 0" class="hand" x1="0" :y1="-L.r + 5" x2="0" :y2="-L.r - 9" :style="{ stroke: g.color }" />
+          <g v-if="i === 2" class="first">
+            <text :y="-L.r - 18" text-anchor="middle">first limit reached</text>
+          </g>
           <text class="value" y="5" text-anchor="middle">0</text>
           <g class="gauge-words">
             <text class="limit" :y="narrow ? 18 : 22" text-anchor="middle">{{ g.limit }}</text>
@@ -239,6 +257,9 @@ const scene = useScene({
         <g class="review">
           <rect class="review-frame" :x="L.review.x" :y="L.review.y" :width="L.review.w" :height="L.review.h" rx="12" />
           <text class="caption" :x="L.review.x + 12" :y="L.review.y + 22">review</text>
+          <g class="formula">
+            <text :x="L.review.x + 12" :y="L.review.y + 39">min($2 asked, $1 left) = $1</text>
+          </g>
           <g :transform="`translate(${L.review.x + L.review.w - 12} ${L.review.y + 16})`">
             <g class="chip">
               <text class="chip-asked" text-anchor="end" x="-44" y="5">$2</text>
@@ -358,7 +379,7 @@ svg {
 .turn-name {
   font-size: 11px;
   font-weight: 600;
-  fill: #fff;
+  fill: var(--vp-c-bg);
   pointer-events: none;
 }
 
@@ -385,7 +406,7 @@ svg {
 }
 
 .cross {
-  stroke: #fff;
+  stroke: var(--vp-c-bg);
   stroke-width: 2.5;
   stroke-linecap: round;
 }
@@ -409,5 +430,31 @@ svg {
 
 .halo {
   opacity: var(--hmz-glow);
+}
+
+.tick {
+  stroke: var(--hmz-stage-dim);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+
+.hand {
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.formula text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--hmz-stage-ink);
+}
+
+.first text {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  fill: var(--hmz-lane-5);
 }
 </style>
