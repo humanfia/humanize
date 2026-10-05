@@ -151,8 +151,8 @@ export function transform(tl: Timeline, from: Element, to: Element, at: gsap.Pos
  * Morph one path's outline into another's: `shape` is a path element, or a path's `d`. The two
  * need not have the same points; MorphSVG matches them up.
  */
-export function morph(tl: Timeline, path: Element, shape: Element | string, at: gsap.Position, opts: { duration?: number; ease?: string } = {}) {
-  tl.to(path, { morphSVG: { shape, type: 'rotational' }, duration: opts.duration ?? 1.1, ease: opts.ease ?? 'smooth' }, at)
+export function morph(tl: Timeline, path: Element, shape: SVGPathElement | string, at: gsap.Position, opts: { duration?: number; ease?: string } = {}) {
+  tl.to(path, { morphSVG: shape, duration: opts.duration ?? 1.1, ease: opts.ease ?? 'smooth' }, at)
 }
 
 /**
@@ -243,7 +243,7 @@ export function passingFlash(
   copy.removeAttribute('id')
   copy.setAttribute('fill', 'none')
   copy.setAttribute('stroke', opts.color ?? 'var(--hmz-red)')
-  copy.setAttribute('stroke-width', String(opts.width ?? Number(getComputedStyle(path).strokeWidth.replace('px', '')) * 1.8 || 3))
+  copy.setAttribute('stroke-width', String(opts.width ?? (parseFloat(getComputedStyle(path).strokeWidth) || 1.6) * 1.8))
   copy.setAttribute('stroke-linecap', 'round')
   copy.setAttribute('pointer-events', 'none')
   copy.setAttribute('aria-hidden', 'true')

@@ -10,6 +10,10 @@
   It powers on like a tube when it is first scrolled into view, leans toward the pointer, and
   plays only while it is on screen. Under `prefers-reduced-motion` none of that moves: it shows
   the recording's last frame, and the play button is there for anyone who wants the motion.
+
+  Its colours are the site's terminal tokens (`--hmz-term-*` in style.css): paper-light in the
+  light theme, night in the dark. The player reads its 16 colours once, when it is made, so a
+  switch of theme makes it again, at the moment it had got to and playing if it was.
 -->
 <script setup lang="ts">
 import 'asciinema-player/dist/bundle/asciinema-player.css'
@@ -40,16 +44,19 @@ function tick() {
   frame = requestAnimationFrame(tick)
 }
 
-async function load() {
+/** Make the player: showing its last frame, or -- made again on a switch of theme -- the
+ *  moment `at` it had got to, and playing on from there if `go`. */
+async function load(at?: number, go = false) {
   const { create } = await import('asciinema-player')
   player = create(withBase(`/demo/${props.name}.cast`), screen.value!, {
     fit: 'width',
     controls: false,
-    autoPlay: false,
+    autoPlay: go,
     preload: true,
     idleTimeLimit: 2,
     theme: 'hmz',
-    poster: 'npt:9999',
+    poster: at === undefined ? 'npt:9999' : `npt:${at}`,
+    ...(at === undefined ? {} : { startAt: at }),
     terminalFontFamily: 'var(--vp-font-family-mono)',
     terminalLineHeight: 1.25,
   })
@@ -93,6 +100,30 @@ async function replay() {
   await player.play()
 }
 
+// The theme changed: the player still has the old one's colours. Make it again where it was.
+let theming: MutationObserver | undefined
+let dark = false
+let remaking = false
+async function retheme() {
+  const now = document.documentElement.classList.contains('dark')
+  if (now === dark) return
+  dark = now
+  if (!player || remaking) return
+  remaking = true
+  try {
+    const was = state.value
+    // Not started, or over: the last frame, as it was made the first time.
+    const at = was === 'ended' || was === 'idle' ? undefined : player.getCurrentTime()
+    player.dispose()
+    player = undefined
+    screen.value!.replaceChildren()
+    await load(at, was === 'playing')
+    state.value = was === 'playing' ? 'playing' : was
+  } finally {
+    remaking = false
+  }
+}
+
 function toggle() {
   if (state.value === 'playing') player?.pause()
   else play()
@@ -126,6 +157,9 @@ function lean(el: HTMLElement) {
 
 onMounted(() => {
   still = matchMedia('(prefers-reduced-motion: reduce)').matches
+  dark = document.documentElement.classList.contains('dark')
+  theming = new MutationObserver(retheme)
+  theming.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   const el = root.value!
   let started = false
   seen = new IntersectionObserver(
@@ -158,6 +192,7 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(frame)
   seen?.disconnect()
+  theming?.disconnect()
   undo.forEach((f) => f())
   player?.dispose()
 })
@@ -223,20 +258,20 @@ onUnmounted(() => {
   border-radius: 14px;
   background: conic-gradient(
     from var(--hmz-cast-angle),
-    #14b8a6,
-    #4a90d9,
-    #a855f7,
-    #e0803a,
-    #14b8a6
+    var(--hmz-accent),
+    var(--hmz-lane-1),
+    var(--hmz-accent-2),
+    var(--hmz-warm),
+    var(--hmz-accent)
   );
   filter: blur(18px);
-  opacity: 0.35;
+  opacity: calc(0.35 * var(--hmz-glow) + 0.08);
   animation: hmz-cast-turn 8s linear infinite;
   transition: opacity 0.6s;
 }
 
 .hmz-cast.is-playing .hmz-cast-halo {
-  opacity: 0.6;
+  opacity: calc(0.6 * var(--hmz-glow) + 0.1);
 }
 
 .hmz-cast-window {
@@ -245,11 +280,11 @@ onUnmounted(() => {
   padding: 1px;
   background: conic-gradient(
     from var(--hmz-cast-angle),
-    rgba(20, 184, 166, 0.9),
-    rgba(74, 144, 217, 0.4),
-    rgba(168, 85, 247, 0.9),
-    rgba(224, 128, 58, 0.4),
-    rgba(20, 184, 166, 0.9)
+    color-mix(in srgb, var(--hmz-accent) 90%, transparent),
+    color-mix(in srgb, var(--hmz-lane-1) 40%, transparent),
+    color-mix(in srgb, var(--hmz-accent-2) 90%, transparent),
+    color-mix(in srgb, var(--hmz-warm) 40%, transparent),
+    color-mix(in srgb, var(--hmz-accent) 90%, transparent)
   );
   animation: hmz-cast-turn 8s linear infinite;
   overflow: hidden;
@@ -258,7 +293,7 @@ onUnmounted(() => {
 .hmz-cast-bar,
 .hmz-cast-glass,
 .hmz-cast-progress {
-  background: #16171d;
+  background: var(--hmz-term-bg);
 }
 
 .hmz-cast-bar {
@@ -268,8 +303,9 @@ onUnmounted(() => {
   height: 34px;
   padding: 0 10px 0 14px;
   border-radius: 11px 11px 0 0;
-  background: #202129;
-  color: #8b8e9c;
+  border-bottom: 1px solid var(--hmz-term-edge);
+  background: var(--hmz-term-bar);
+  color: var(--hmz-term-dim);
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
 }
@@ -283,15 +319,15 @@ onUnmounted(() => {
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: #ff5f57;
+  background: var(--hmz-term-close);
 }
 
 .hmz-cast-dots i:nth-child(2) {
-  background: #febc2e;
+  background: var(--hmz-term-min);
 }
 
 .hmz-cast-dots i:nth-child(3) {
-  background: #28c840;
+  background: var(--hmz-term-max);
 }
 
 .hmz-cast-title {
@@ -299,8 +335,8 @@ onUnmounted(() => {
 }
 
 .hmz-cast-live {
-  color: #f87171;
-  font-size: 10px;
+  color: var(--hmz-term-1);
+  font-size: 11px;
   letter-spacing: 0.12em;
 }
 
@@ -311,8 +347,8 @@ onUnmounted(() => {
   height: 7px;
   margin-right: 6px;
   border-radius: 50%;
-  background: #f87171;
-  box-shadow: 0 0 8px #f87171;
+  background: var(--hmz-term-1);
+  box-shadow: 0 0 8px var(--hmz-term-1);
   vertical-align: 1px;
   animation: hmz-cast-pulse 1.2s ease-in-out infinite;
 }
@@ -323,12 +359,12 @@ onUnmounted(() => {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  color: #e2e4ea;
+  color: var(--hmz-term-text);
   transition: background 0.2s;
 }
 
 .hmz-cast-button:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--hmz-term-text) 9%, transparent);
 }
 
 .hmz-cast-button svg {
@@ -353,7 +389,7 @@ onUnmounted(() => {
   pointer-events: none;
   background: radial-gradient(
     420px circle at var(--hmz-cast-x) var(--hmz-cast-y),
-    rgba(45, 212, 191, 0.09),
+    color-mix(in srgb, var(--hmz-accent) 9%, transparent),
     transparent 60%
   );
 }
@@ -363,18 +399,22 @@ onUnmounted(() => {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(to bottom, transparent 0, rgba(45, 212, 191, 0.06) 50%, transparent 100%) 0
+    linear-gradient(to bottom, transparent 0, color-mix(in srgb, var(--hmz-accent) 6%, transparent) 50%, transparent 100%) 0
       -30% / 100% 30% no-repeat,
-    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px);
+    repeating-linear-gradient(to bottom, color-mix(in srgb, var(--hmz-term-text) 3%, transparent) 0 1px, transparent 1px 3px);
   animation: hmz-cast-sweep 6s linear infinite;
-  mix-blend-mode: screen;
 }
 
 .hmz-cast-flash {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, #fff 0, rgba(45, 212, 191, 0.6) 30%, transparent 70%);
+  background: radial-gradient(
+    ellipse at center,
+    var(--vp-c-white) 0,
+    color-mix(in srgb, var(--hmz-accent) 60%, transparent) 30%,
+    transparent 70%
+  );
   opacity: 0;
 }
 
@@ -386,8 +426,8 @@ onUnmounted(() => {
 .hmz-cast-progress span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #14b8a6, #4a90d9, #a855f7);
-  box-shadow: 0 0 10px rgba(45, 212, 191, 0.8);
+  background: linear-gradient(90deg, var(--hmz-accent), var(--hmz-lane-1), var(--hmz-accent-2));
+  box-shadow: 0 0 calc(10px * var(--hmz-glow)) color-mix(in srgb, var(--hmz-accent) 80%, transparent);
   transform-origin: left;
 }
 
@@ -408,24 +448,24 @@ onUnmounted(() => {
 
 .hmz-cast .ap-player,
 .asciinema-player-theme-hmz {
-  --term-color-foreground: #e2e4ea;
-  --term-color-background: #16171d;
-  --term-color-0: #282a36;
-  --term-color-1: #ff5c57;
-  --term-color-2: #5af78e;
-  --term-color-3: #f3f99d;
-  --term-color-4: #57c7ff;
-  --term-color-5: #ff6ac1;
-  --term-color-6: #9aedfe;
-  --term-color-7: #f1f1f0;
-  --term-color-8: #686868;
-  --term-color-9: #ff5c57;
-  --term-color-10: #5af78e;
-  --term-color-11: #f3f99d;
-  --term-color-12: #57c7ff;
-  --term-color-13: #ff6ac1;
-  --term-color-14: #9aedfe;
-  --term-color-15: #f1f1f0;
+  --term-color-foreground: var(--hmz-term-text);
+  --term-color-background: var(--hmz-term-bg);
+  --term-color-0: var(--hmz-term-0);
+  --term-color-1: var(--hmz-term-1);
+  --term-color-2: var(--hmz-term-2);
+  --term-color-3: var(--hmz-term-3);
+  --term-color-4: var(--hmz-term-4);
+  --term-color-5: var(--hmz-term-5);
+  --term-color-6: var(--hmz-term-6);
+  --term-color-7: var(--hmz-term-7);
+  --term-color-8: var(--hmz-term-8);
+  --term-color-9: var(--hmz-term-9);
+  --term-color-10: var(--hmz-term-10);
+  --term-color-11: var(--hmz-term-11);
+  --term-color-12: var(--hmz-term-12);
+  --term-color-13: var(--hmz-term-13);
+  --term-color-14: var(--hmz-term-14);
+  --term-color-15: var(--hmz-term-15);
   border-radius: 0;
   background: transparent;
 }
