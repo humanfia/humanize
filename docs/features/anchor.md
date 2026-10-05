@@ -34,7 +34,7 @@ This is **CogAnchor**, humanize's remote-execution layer (`hmz.coganchor`). It s
 coding agent CLI and the machine its work is on: it takes each action the CLI makes, maps it
 to the target environment and workspace, and hands the result back to the CLI as if the work
 were local. How it is built, from the system calls up, is on
-[Deep Tech](https://humanfia.ai/) on humanfia.ai.
+[Deep Tech](https://humanfia.ai/research/deep-tech#coganchor) on humanfia.ai.
 
 <div class="hmz-paths by-three">
   <a :href="withBase('/user/remote-execution')">

@@ -46,7 +46,7 @@ No one flow suits every task, because tasks are different kinds of problem:
 
 Flow-level ablations on benchmarks say the same: the flow that wins on one kind of task loses
 on another. humanize lets you pick a flow for the task, configure one, or weave your own in
-Python. What the ablations found is on [Flow Science](https://humanfia.ai/), on humanfia.ai.
+Python. What the ablations found is on [Flow Science](https://humanfia.ai/research/flow-science#findings), on humanfia.ai.
 
 <p class="hmz-vision">Where this is going: one flow framework that puts <b>a 100T model</b>,
 <b>1K tokens per second</b>, <b>1M agents</b>, <b>1M environments</b> and <b>1M minutes</b> on
