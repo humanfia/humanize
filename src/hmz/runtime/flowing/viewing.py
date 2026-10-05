@@ -480,6 +480,11 @@ class AgentView:
         budget: Budget | None = None,
     ) -> str | pydantic.BaseModel:
         taken = self._own(session)
+        if env is not None and self._driver.harness is HarnessKind.LITELLM:
+            raise UnsupportedOperation(
+                f"{self._role}: litellm is a model called directly, with no tools and no "
+                "filesystem, so its turns work in no environment; run it with env=None"
+            )
         placement = self._placement(env)
         command = prompt.lstrip()
         if command.startswith("/"):

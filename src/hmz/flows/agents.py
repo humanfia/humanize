@@ -79,6 +79,7 @@ __all__ = [
     "GrokBuildAgent",
     "HarnessKind",
     "KimiCodeAgent",
+    "LiteLLMAgent",
     "LoopCommandAgentMixin",
     "MiMoCodeAgent",
     "MiniMaxCodeAgent",
@@ -98,7 +99,7 @@ __all__ = [
 
 
 class HarnessKind(StrEnum):
-    """Which coding agent CLI an agent is, by the name `-a` gives it."""
+    """Which coding agent CLI an agent is -- or `litellm`, a model -- by the name `-a` gives it."""
 
     CLAUDE = "claude"
     CODEX = "codex"
@@ -112,6 +113,9 @@ class HarnessKind(StrEnum):
     PI = "pi"
     AGY = "agy"
     DSH = "dsh"
+    #: A model called directly, one chat completion a turn over the session's history: no
+    #: CLI, no tools, no filesystem, and so no environment -- `env` on its turns is None.
+    LITELLM = "litellm"
     #: A CLI somebody added by hand, driven over the Agent Client Protocol.
     ACP = "acp"
 
@@ -671,6 +675,10 @@ class DeepSeekHarnessAgent(Agent, GoalCommandAgentMixin, Protocol):
     """DeepSeek Harness, with everything it can do."""
 
 
+class LiteLLMAgent(Agent, Protocol):
+    """A model called through litellm, with everything it can do: its turns take no `env`."""
+
+
 #: Each harness's own protocol, which is what a role typed as it asks for: that harness, and
 #: every mixin it serves. A CLI added by hand is known by the protocol it speaks and nothing
 #: else, so it is a plain `Agent`.
@@ -688,6 +696,7 @@ HARNESS_AGENTS: Mapping[HarnessKind, type] = MappingProxyType(
         HarnessKind.PI: PiAgent,
         HarnessKind.AGY: AntigravityAgent,
         HarnessKind.DSH: DeepSeekHarnessAgent,
+        HarnessKind.LITELLM: LiteLLMAgent,
         HarnessKind.ACP: Agent,
     }
 )

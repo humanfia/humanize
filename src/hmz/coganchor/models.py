@@ -711,6 +711,60 @@ def _dsh(profile: Profile, _run: Callable[..., str]) -> list[Model]:
     return [Model(name, profile.efforts, profile.swarms) for name in _ADVISORY["dsh"]]
 
 
+#: The providers litellm's own catalogue is read for: the ones its ways in give an account of.
+_LITELLM_PROVIDERS = frozenset(
+    {
+        "openai",
+        "anthropic",
+        "gemini",
+        "xai",
+        "openrouter",
+        "deepseek",
+        "groq",
+        "mistral",
+        "bedrock",
+        "vertex_ai",
+        "azure",
+    }
+)
+
+
+def _litellm(profile: Profile, _run: Callable[..., str]) -> list[Model]:
+    """The chat models litellm knows how to call, as a turn names them: `provider/id`.
+
+    Read off the catalogue litellm itself ships rather than asked of anybody: it is a library,
+    not a CLI, and what it can call is what it knows the price and the shape of. A gateway
+    account is answered by its endpoint instead and never reaches this.
+
+    Args:
+      profile: litellm's own.
+      _run: Unused, there being no command to run.
+
+    Returns:
+      Every chat model of a provider litellm has a way in for, at the whole ladder where
+      litellm says the model reasons and at none where it says it does not.
+
+    Raises:
+      ValueError: If litellm is not installed here.
+    """
+    import importlib
+
+    try:
+        module = importlib.import_module("litellm")
+    except ModuleNotFoundError as why:
+        raise ValueError(f"litellm is not installed here: {profile.installs}") from why
+    listed = cast("dict[str, dict[str, Any]]", vars(module).get("model_cost") or {})
+    found: list[Model] = []
+    for name, said in listed.items():
+        provider = str(said.get("litellm_provider") or "")
+        if said.get("mode") != "chat" or provider not in _LITELLM_PROVIDERS:
+            continue
+        spelled = name if name.startswith(f"{provider}/") else f"{provider}/{name}"
+        efforts = profile.efforts if said.get("supports_reasoning") else ()
+        found.append(Model(spelled, efforts, profile.swarms))
+    return found
+
+
 def _pi(profile: Profile, run: Callable[..., str]) -> list[Model]:
     """Pi's models, which it prints as a table of the providers it has credentials for.
 
@@ -1085,6 +1139,7 @@ _READING: dict[str, Callable[[Profile, Callable[..., str]], list[Model]]] = {
     "dsh": _dsh,
     "grok": _grok,
     "kimi": _kimi,
+    "litellm": _litellm,
     "mcode": _mcode,
     "pi": _pi,
     "qwen": _qwen,

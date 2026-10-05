@@ -3746,6 +3746,7 @@ _EXTRAS = {
         "Kimi Code is installed, but the websockets package is not",
         "'websockets>=15,<18'",
     ),
+    "litellm": ("litellm is not installed", f"'{backends.LITELLM_SDK}'"),
 }
 
 #: The ways an account of DeepSeek Harness can be made by, read off its profile rather than
@@ -5044,6 +5045,8 @@ class Accounts(Picks):
                     "variables"
                 )
                 if self._backend == "dsh"
+                else "use the API keys litellm reads from this machine's environment"
+                if self._backend == "litellm"
                 else "use the account signed in on this machine",
             ),
             *((one.name, one.name, _sets(one)) for one in found),

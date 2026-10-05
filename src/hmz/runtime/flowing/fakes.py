@@ -166,7 +166,9 @@ _UNFORKED = frozenset(
 
 #: The harnesses whose CLI forks into another workdir than the one it is in, as
 #: coganchor's sessions say; every other that forks does so only where it is.
-_FORKS_ELSEWHERE = frozenset({HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI})
+_FORKS_ELSEWHERE = frozenset(
+    {HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI, HarnessKind.LITELLM}
+)
 
 
 def _as(said: object, schema: type[pydantic.BaseModel] | None, who: str) -> Any:

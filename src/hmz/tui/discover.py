@@ -32,7 +32,11 @@ __all__ = ["installable", "installed", "ready_to_open"]
 #: half an extra is a backend that starts and then stops somewhere further in. A backend
 #: named here without its extra is offered with the line that adds it rather than hidden,
 #: because somebody who has the CLI and not the package is owed the difference.
-_EXTRAS = {"dsh": ("deepseek_harness", "dotenv"), "kimi": ("websockets",)}
+_EXTRAS = {
+    "dsh": ("deepseek_harness", "dotenv"),
+    "kimi": ("websockets",),
+    "litellm": ("litellm",),
+}
 
 
 def installed() -> dict[str, tuple[Model, ...]]:
@@ -90,8 +94,9 @@ def _has_extra(backend: str) -> bool:
 
 def _is_here(backend: str) -> bool:
     """Whether the program a backend's turns are taken by is on this machine."""
-    # dsh is driven through its SDK rather than its CLI, so there is no program to look for.
-    if backend == "dsh":
+    # dsh is driven through its SDK rather than its CLI, and litellm is a model called from
+    # this process, so for neither is there a program to look for.
+    if backend in ("dsh", "litellm"):
         return True
     # A CLI somebody added is started by the command they gave rather than by its own name.
     if (added := speaking().get(backend)) is not None:
@@ -116,8 +121,12 @@ def ready_to_open(backend: str, where: Path) -> bool:
       where: The workspace its local account would run in.
 
     Returns:
-      Whether the backend may be used as the implicit local fallback.
+      Whether the backend may be used as the implicit local fallback. Never litellm: a
+      model with no tools is something a flow asks for by name, and never what a prompt
+      falls back to doing work with.
     """
+    if backend == "litellm":
+        return False
     if backend != "dsh":
         return True
 

@@ -57,13 +57,13 @@ dependencies = [
     "typing-extensions>=4.13",
 ]
 
-# What two of the backends want from this Python environment, and nobody else does. Every
+# What three of the backends want from this Python environment, and nobody else does. Every
 # other backend humanize drives is a CLI somebody installs for themselves, and humanize
-# carries nothing for it; these two also want a package here, and one of them is not small --
+# carries nothing for it; these three also want a package here, and two of them are not small --
 # the DeepSeek runtime is a bundled executable, published as a wheel for three platforms and
 # no others, so an ordinary dependency would be a machine humanize cannot be installed on at
 # all, for the sake of a backend nobody there runs. Nothing below is imported where a module
-# is read: the two drivers load them where a turn needs one, so `hmz` starts, lists its
+# is read: the three drivers load them where a turn needs one, so `hmz` starts, lists its
 # backends, and takes every other backend's turns with none of this installed. What is
 # missing is said rather than crashed on -- the backend stays in the picker with the line
 # that adds it.
@@ -93,9 +93,15 @@ dsh = [
 kimi = [
     "websockets>=15,<18",
 ]
-# Both of them, for an install that would rather not choose.
+# A model called directly rather than through a coding agent CLI: litellm is the one client
+# that speaks every vendor's API, gateways and clouds alike, and it is a large install that only
+# a flow with a `litellm` role needs.
+litellm = [
+    "litellm>=1.104",
+]
+# All of them, for an install that would rather not choose.
 all = [
-    "hmz[dsh,kimi]",
+    "hmz[dsh,kimi,litellm]",
 ]
 
 [project.urls]

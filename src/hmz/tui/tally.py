@@ -77,6 +77,12 @@ _KINDS: dict[str, tuple[tuple[str, str], ...]] = {
         ("cache_read", "cacheRead"),
         ("cache_write", "cacheWrite"),
     ),
+    "litellm": (
+        ("input", "input"),
+        ("output", "output"),
+        ("cache_read", "cache_read"),
+        ("cache_write", "cache_write"),
+    ),
     "kimi": (
         ("input", "inputOther"),
         ("output", "output"),
@@ -197,10 +203,12 @@ def _spent(
             broken,
             None,
         )
-    if backend == "mcode":
+    if backend in ("mcode", "litellm"):
         # One record per message of the conversation, and an answer carries what the request
         # it came back on cost, under pi's names -- the cache beside the input, not inside it
         # -- and the provider and model that answered, which is what it is counted against.
+        # litellm's conversations are written by humanize in the same shape, its model
+        # already carrying the provider in front.
         said: dict[str, Any] = row.get("message") or {}
         if said.get("role") != "assistant":
             return None, 0, {}, None
@@ -274,7 +282,7 @@ def _written(backend: str, row: dict[str, Any]) -> float | None:
     """
     if backend == "dsh":
         return _moment(row.get("time"))
-    if backend == "mcode":
+    if backend in ("mcode", "litellm"):
         said: dict[str, Any] = row.get("message") or {}
         return _moment(said.get("timestamp") or row.get("timestamp"))
     envelope: dict[str, Any] = row.get("envelope") or {}

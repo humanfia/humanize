@@ -36,6 +36,7 @@ __all__ = [
     "AS_CONFIGURED",
     "AUTO",
     "DSH_SDK",
+    "LITELLM_SDK",
     "FAULTS",
     "PROFILES",
     "SIGNS",
@@ -1007,6 +1008,14 @@ _MCODE = ("max", "xhigh", "high", "medium", "low")
 #: ladder is the vocabulary, and `hmz.coganchor.models` narrows it per model to the ids the
 #: account was offered.
 _CURSOR = ("max", "xhigh", "extra-high", "high", "medium", "low", "minimal", "none")
+
+#: What litellm passes on as a reasoning effort, hardest first: its `reasoning_effort`, which it
+#: translates into each provider's own wording and leaves off for a model that takes none.
+_LITELLM = ("high", "medium", "low", "minimal", "none")
+
+#: The litellm the `[litellm]` extra installs, written the way somebody installing it by hand
+#: has to write it. It MUST be kept in step with `pyproject.toml`, which is the copy that binds.
+LITELLM_SDK = "litellm>=1.104"
 
 #: Every backend humanize drives, as each of them reported itself. Codex says which efforts
 #: each of its models takes and they differ, so they are written down as it gave them.
@@ -3806,6 +3815,140 @@ PROFILES = (
                         env="MCODE_GATEWAY_MODEL",
                         about="the model to run, as the endpoint names it",
                         keep=False,
+                    ),
+                ),
+            ),
+        ),
+    ),
+    Profile(
+        name="litellm",
+        # Not a CLI: a model called from this process through litellm, one chat completion a
+        # turn over the conversation so far, with no tool, no filesystem and no hook of the
+        # model's own. So nothing here is about a program -- there is none to find, start,
+        # put down or fence -- and everything is about the account and the conversation.
+        aliases=("litellm",),
+        installs=f"pip install '{LITELLM_SDK}'",
+        # A home of humanize's own rather than a CLI's, for the conversations of an agent no
+        # run drives: under the cache humanize keeps beside every agent's own state, since a
+        # run keeps its own under the run.
+        home_var="",
+        home_dir=".cache/humanize/litellm",
+        # One file a conversation, a JSON line a message, with what each answer spent on its
+        # line -- which is where the tally and the trace read it.
+        logs=("sessions/{ident}.jsonl",),
+        sessions=("sessions",),
+        told=True,
+        efforts=_LITELLM,
+        # A fork is the conversation's file copied under a new id, which any conversation
+        # can be.
+        forks=True,
+        # The one variable a gateway account is pointed by, which is what its catalogue is
+        # asked of.
+        endpoint="LITELLM_GATEWAY_URL",
+        # Each of these is passed on the call rather than set in the environment: a turn is
+        # a call in this process, whose environment is every turn's. With no account at all,
+        # litellm reads the variables it always reads -- `OPENAI_API_KEY` and the rest.
+        ways=(
+            *(
+                Way(
+                    name=f"{vendor}-key",
+                    about=about,
+                    asks=(Asked(env=env, about="the API key", secret=True),),
+                )
+                for vendor, env, about in (
+                    ("openai", "OPENAI_API_KEY", "an OpenAI API key, from the platform"),
+                    (
+                        "anthropic",
+                        "ANTHROPIC_API_KEY",
+                        "an Anthropic API key, from the console",
+                    ),
+                    (
+                        "gemini",
+                        "GEMINI_API_KEY",
+                        "a Gemini API key, from Google AI Studio",
+                    ),
+                    ("xai", "XAI_API_KEY", "an xAI API key, from the console"),
+                    ("openrouter", "OPENROUTER_API_KEY", "an OpenRouter API key"),
+                    (
+                        "deepseek",
+                        "DEEPSEEK_API_KEY",
+                        "a DeepSeek API key, from the platform",
+                    ),
+                    ("groq", "GROQ_API_KEY", "a Groq API key, from the console"),
+                    (
+                        "mistral",
+                        "MISTRAL_API_KEY",
+                        "a Mistral API key, from La Plateforme",
+                    ),
+                )
+            ),
+            # A gateway apiece for the two protocols litellm speaks to somebody else's
+            # endpoint: the URL and the key, and the protocol said by the way. A turn names
+            # the id the gateway serves, and the driver puts the protocol in front of it.
+            Way(
+                name="openai-gateway",
+                about=(
+                    "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor"
+                ),
+                asks=(
+                    Asked(env="LITELLM_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="LITELLM_GATEWAY_KEY", about="the key it takes", secret=True
+                    ),
+                ),
+                sets=(("LITELLM_GATEWAY_API", "openai"),),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                    "another vendor"
+                ),
+                asks=(
+                    Asked(env="LITELLM_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="LITELLM_GATEWAY_KEY", about="the key it takes", secret=True
+                    ),
+                ),
+                sets=(("LITELLM_GATEWAY_API", "anthropic"),),
+            ),
+            # The clouds, each as the parameters litellm's provider for it takes: a turn
+            # names `bedrock/...`, `vertex_ai/...` or `azure/...`. The cloud's own sign-in --
+            # the AWS profile, gcloud's application default credentials -- is wherever that
+            # cloud's tools keep it.
+            Way(
+                name="bedrock",
+                about="models on Amazon Bedrock, under an AWS account of yours",
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION_NAME", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            Way(
+                name="vertex",
+                about="models on Vertex AI, under a Google Cloud project of yours",
+                asks=(
+                    Asked(env="VERTEXAI_PROJECT", about="the project id"),
+                    Asked(
+                        env="VERTEXAI_LOCATION",
+                        about="the location",
+                        fixed="us-central1",
+                    ),
+                ),
+            ),
+            Way(
+                name="azure",
+                about="OpenAI's models on an Azure OpenAI resource of yours",
+                asks=(
+                    Asked(
+                        env="AZURE_API_BASE",
+                        about="the resource, as a URL: https://<resource>.openai.azure.com",
+                    ),
+                    Asked(env="AZURE_API_KEY", about="the API key", secret=True),
+                    Asked(
+                        env="AZURE_API_VERSION",
+                        about="the API version",
+                        fixed="2024-10-21",
                     ),
                 ),
             ),

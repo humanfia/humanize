@@ -68,6 +68,7 @@ from .hooks import (
 )
 from .human import HumanAgent, HumanSession
 from .kimi import KimiCodeCLIAgent, KimiCodeCLIAgentConfig, KimiCodeCLISession
+from .litellm import LiteLLMAgent, LiteLLMAgentConfig, LiteLLMSession
 from .mimo import MimoCodeAgent, MimoCodeAgentConfig, MimoCodeSession
 from .minimax import MiniMaxCodeAgent, MiniMaxCodeAgentConfig, MiniMaxCodeSession
 from .opencode import OpencodeAgent, OpencodeAgentConfig, OpencodeSession
@@ -75,7 +76,8 @@ from .pi import PiAgent, PiAgentConfig, PiSession
 from .qwen import QwenCodeAgent, QwenCodeAgentConfig, QwenCodeSession
 from .tools import Tool, Toolbox
 
-#: What each coding agent CLI is driven by here, under the name a command line calls it.
+#: What each coding agent CLI is driven by here, under the name a command line calls it --
+#: and litellm, which is a model called from this process rather than a CLI.
 #: One table rather than one apiece: whoever reads an `-a` builds an agent from it, and
 #: whoever offers the backends at a prompt asks what each of them can do, and neither should
 #: have to know that `kimi` is a `KimiCodeCLIAgent` for itself.
@@ -87,6 +89,7 @@ DRIVEN: dict[str, tuple[type[AgentBase], type[AgentConfig]]] = {
     "dsh": (DshAgent, DshAgentConfig),
     "grok": (GrokBuildAgent, GrokBuildAgentConfig),
     "kimi": (KimiCodeCLIAgent, KimiCodeCLIAgentConfig),
+    "litellm": (LiteLLMAgent, LiteLLMAgentConfig),
     "mcode": (MiniMaxCodeAgent, MiniMaxCodeAgentConfig),
     "mimo": (MimoCodeAgent, MimoCodeAgentConfig),
     "opencode": (OpencodeAgent, OpencodeAgentConfig),
@@ -177,6 +180,9 @@ __all__ = [
     "KimiCodeCLIAgentConfig",
     "KimiCodeCLISession",
     "Ledger",
+    "LiteLLMAgent",
+    "LiteLLMAgentConfig",
+    "LiteLLMSession",
     "McpServer",
     "Meter",
     "MimoCodeAgent",

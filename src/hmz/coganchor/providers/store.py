@@ -76,12 +76,14 @@ def ways(cli: str) -> tuple[backends.Way, ...]:
     Returns:
       What that backend offers, in the order it offers them, and variables of your own last
       where that backend accepts arbitrary credentials. DeepSeek Harness takes only the ways
-      it names -- its key and its gateways. Nothing at all for a name no backend answers to.
+      it names -- its key and its gateways -- and so does litellm, whose turns are calls in
+      this process and are handed the account rather than an environment to read it from.
+      Nothing at all for a name no backend answers to.
     """
     profile = backends.named(cli)
     if profile is None:
         return ()
-    if profile.name == "dsh":
+    if profile.name in ("dsh", "litellm"):
         return profile.ways
     return (*profile.ways, ENV)
 

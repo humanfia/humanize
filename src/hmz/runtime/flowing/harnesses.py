@@ -151,6 +151,15 @@ _RECUT: Final = 1.0
 #: How long a cancelled turn is waited for to end before `CancelledError` leaves it.
 _DRAIN: Final = 30.0
 
+#: The harnesses driven as a package of this Python rather than as a program, by the module
+#: that says the package is installed.
+_PACKAGES: Final = {"dsh": "deepseek_harness", "litellm": "litellm"}
+
+#: The harnesses whose turns work nowhere: a model called from this process, with no CLI to
+#: put on a machine and no workdir for it to work in. Their sessions are opened here whatever
+#: the placement says, which is the run's own workspace -- a turn of one is given no env.
+_NOWHERE: Final = frozenset({HarnessKind.LITELLM})
+
 #: The CLIs whose answer to a permission request carries no reason, which a refusal's reason
 #: is steered into the turn for instead: Codex's approvals are a decision and nothing else.
 _REASONLESS: Final = frozenset({HarnessKind.CODEX})
@@ -428,7 +437,11 @@ class HarnessDriver:
         cwd = self._where(placement)
         hung = frozenset(kind for kind in _STARTING if kind in hooks)
         config = self._configured(permission, placement, hung)
-        machine = await self._harnessed(placement, config, hung=hung)
+        machine = (
+            None
+            if self.harness in _NOWHERE
+            else await self._harnessed(placement, config, hung=hung)
+        )
         if machine is None:
             self._check_installed()
         config = dataclasses.replace(config, machine=machine)
@@ -460,7 +473,7 @@ class HarnessDriver:
           EnvError: If it ends on a runtime that cannot be reached.
           ResourceUnmet: If it ends on one with no share left.
         """
-        if self._harbors is None:
+        if self._harbors is None or self.harness in _NOWHERE:
             return
         for placement in placements:
             if not self._harbors.affinity(placement):
@@ -553,12 +566,13 @@ class HarnessDriver:
 
         from hmz.coganchor import backends
 
-        # DeepSeek Harness is a package rather than a program: what it installs is an SDK and
-        # the runtime it bundles, and no `dsh` on any PATH. Looked for as a program, it was
-        # never here, and every dsh agent whose harness runs on this machine was refused.
+        # DeepSeek Harness and litellm are packages rather than programs: what each installs
+        # is a module of this Python, and no program on any PATH. Looked for as a program,
+        # neither was ever here, and every agent of them was refused.
+        package = _PACKAGES.get(self._named())
         if (
-            importlib.util.find_spec("deepseek_harness") is None
-            if self._named() == "dsh"
+            importlib.util.find_spec(package) is None
+            if package is not None
             else backends.program(self._program()) is None
         ):
             raise HarnessNotInstalled(
