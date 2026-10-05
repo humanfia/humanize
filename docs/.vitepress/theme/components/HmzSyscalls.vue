@@ -514,7 +514,7 @@ svg {
   animation: syscalls-flow 1.8s linear infinite paused;
 }
 
-:global(.screen.running) .anchor-flow {
+.screen.running .anchor-flow {
   animation-play-state: running;
 }
 

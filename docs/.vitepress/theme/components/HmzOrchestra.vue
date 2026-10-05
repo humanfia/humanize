@@ -462,7 +462,7 @@ svg {
   animation: orchestra-flow 1.6s linear infinite paused;
 }
 
-:global(.screen.running) .spoke-flow {
+.screen.running .spoke-flow {
   animation-play-state: running;
 }
 
@@ -472,10 +472,11 @@ svg {
   }
 }
 
+/* Butt ends: a flash at rest is drawn at no length, and a round end would leave a dot. */
 .spoke-lit {
   fill: none;
   stroke-width: 3;
-  stroke-linecap: round;
+  stroke-linecap: butt;
 }
 
 .core-glow {
