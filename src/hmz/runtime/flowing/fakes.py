@@ -296,6 +296,9 @@ class FakeSession:
         self._turning = False
         self._started = False
         self.named = False
+        #: Whether it moved since its last turn into a conversation of another id, which a
+        #: real CLI says only as the next turn goes.
+        self._renamed = False
         self.turns = 0
         #: How many turns the session it was forked from had taken when the fork was asked
         #: for: where it is cut, as its first turn goes.
@@ -311,7 +314,7 @@ class FakeSession:
 
     @property
     def id(self) -> str | None:
-        if self.driver.names_late and not self.named:
+        if self.driver.names_late and (not self.named or self._renamed):
             return None
         return self._id
 
@@ -373,6 +376,7 @@ class FakeSession:
                 prompt = f"{prompt}\n\n{submitted.context}"
             self.requests.append(request)
             self.named = True
+            self._renamed = False
             again = 0
             while True:
                 self.prompts.append(prompt)
@@ -441,12 +445,23 @@ class FakeSession:
             raise SessionError(f"{self._id} is closed")
         if placement == self.placement:
             return False
-        moved = self.driver.carried(self.placement, placement, "move")
+        was = self.placement
+        if self.named:
+            moved = self.driver.carried(was, placement, "move")
+        else:
+            # Nothing to carry: started afresh wherever it is to work, as a real one is.
+            moved = (was.backend, was.provider, was.machine, was.workdir) != (
+                placement.backend,
+                placement.provider,
+                placement.machine,
+                placement.workdir,
+            )
         self.placement = placement
         self.placements.append(placement)
         if moved:
             # Carried on as a fork of itself, which a real CLI knows by another id.
             self._id = f"fake-{next(self._numbers)}"
+            self._renamed = True
         return moved
 
     async def steer(self, prompt: str, *, queued: bool) -> None:

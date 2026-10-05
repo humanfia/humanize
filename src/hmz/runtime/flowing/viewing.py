@@ -414,11 +414,7 @@ class AgentView:
                 raise SessionError(
                     f"{self._role}: the session it was forked from is over"
                 )
-            if parent._turns != session._forked_at:
-                raise SessionError(
-                    f"{self._role}: the session it was forked from has taken a turn "
-                    "since; fork it again to branch from where it is now"
-                )
+            self._fresh(session, parent)
         node.check()
         line = self._lined()
         if run.dropped:
@@ -430,12 +426,28 @@ class AgentView:
             hooks=line.hooks,
             fork_of=None if parent is None else parent._handle,
         )
+        if parent is not None:
+            try:
+                # Asked again: a turn of the parent that started while the fork was being
+                # cut may be in what it was cut from.
+                self._fresh(session, parent)
+            except SessionError:
+                await handle.close()
+                raise
         session._handle = handle
         opened = Opened(session, self, handle)
         line.sessions[id(handle)] = opened
         node.hold(opened)
         session._unnamed = run.spawned(node, self._role, handle, self._driver)
         return handle
+
+    def _fresh(self, session: SessionView, parent: SessionView) -> None:
+        """Refuses a fork whose parent has taken a turn since it was forked."""
+        if parent._turns != session._forked_at:
+            raise SessionError(
+                f"{self._role}: the session it was forked from has taken a turn since; "
+                "fork it again to branch from where it is now"
+            )
 
     @overload
     async def run(

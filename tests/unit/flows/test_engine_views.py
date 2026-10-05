@@ -728,6 +728,42 @@ async def test_a_session_is_not_carried_where_its_harness_cannot_carry_it() -> N
     assert session.prompts == ["one", "three"]
 
 
+async def test_a_fork_cut_while_its_parent_takes_a_turn_is_refused() -> None:
+    import asyncio
+
+    cutting, cut = asyncio.Event(), asyncio.Event()
+
+    class Slow(FakeAgentDriver):
+        async def open(self, *args: Any, **kwargs: Any) -> Any:
+            if kwargs.get("fork_of") is not None:
+                cutting.set()
+                await cut.wait()
+            return await super().open(*args, **kwargs)
+
+    @flow(agents=Plain, envs=Bare, params=Nothing)
+    async def racing(
+        task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
+    ) -> None:
+        agent, env = agents["agent"], envs["env"]
+        session = await agent.spawn()
+        await agent.run("one", session=session, env=env)
+        forked = await agent.fork(session)
+
+        async def meanwhile() -> None:
+            await cutting.wait()
+            await agent.run("two", session=session, env=env)
+            cut.set()
+
+        with pytest.raises(SessionError, match="taken a turn since"):
+            await asyncio.gather(agent.run("three", session=forked, env=env), meanwhile())
+
+    driver = Slow()
+    await run_fake(racing, agents={"agent": driver})
+    parent, fork = driver.sessions
+    assert parent.prompts == ["one", "two"]
+    assert fork.closed
+
+
 async def test_a_session_says_what_it_is() -> None:
     @flow(agents=Plain, envs=Bare, params=Nothing)
     async def looking(

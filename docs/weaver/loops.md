@@ -309,6 +309,8 @@ from hmz.flows import (
     FlowContext,
     FlowParams,
     HarnessError,
+    HarnessNotInstalled,
+    HarnessSandboxed,
     LocalEnv,
     flow,
 )
@@ -340,9 +342,11 @@ async def ralph_loop(
         session = await agent.spawn()
         try:
             answered = await agent.run(task, session=session, env=envs["workspace"])
+        except (HarnessNotInstalled, HarnessSandboxed):
+            raise  # ③
         except HarnessError as error:
             print(f"round {rounds} failed: {error}")
-            answered = ""  # ③
+            answered = ""
         stalled = 0 if answered else stalled + 1  # ④
         if stalled >= STALLED:
             print(f"stopping: {stalled} rounds in a row answered with nothing")
@@ -354,7 +358,10 @@ async def ralph_loop(
    would be content to spend in full.
 2. **The round count** lives in `ctx.state`, as in `checklist`, so `--resume` counts on.
 3. **A failed turn is a round answered with nothing**, rather than a skipped one, so a CLI that
-   fails every time counts towards the stall.
+   fails every time counts towards the stall. A CLI that cannot be started in the workspace at
+   all -- not installed there, or unable to hold its sandbox -- ends the run instead: a
+   session's CLI starts at its first turn, so that is where it says so, and no round would
+   start it.
 4. **Three empty rounds in a row end it.** `run` returns what the agent said, and an agent with
    nothing left to say, or a CLI failing every time, is a loop with nothing more to do.
 5. **`asyncio.sleep(PAUSE)`** waits five seconds between rounds, which gives a throttled
