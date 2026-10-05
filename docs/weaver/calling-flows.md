@@ -1,3 +1,7 @@
+<script setup>
+import FlowCall from '../.vitepress/theme/components/weaver-calling/FlowCall.vue'
+</script>
+
 # A flow that calls a flow
 
 In this guide you build flows out of other flows. You write `steps`, which splits its task
@@ -15,6 +19,8 @@ when a flow of your own has grown steps worth naming, testing and budgeting one 
 :::
 
 ## How it works
+
+<FlowCall />
 
 `load(ref)` finds a flow by its **ref**, such as `:one-step` or `humanize1:gen-plan`, and hands
 it back ready to call. Awaiting it runs that flow inside yours and answers with what it

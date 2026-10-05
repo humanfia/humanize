@@ -1,3 +1,7 @@
+<script setup>
+import AskFlow from '../.vitepress/theme/components/weaver-tools/AskFlow.vue'
+</script>
+
 # The agent asking the flow
 
 In this guide you let an agent, mid-turn, **ask the flow** for something, and answer with
@@ -16,6 +20,8 @@ flow, or a decision that is yours, and only the agent knows when it needs it.
 :::
 
 ## How it works
+
+<AskFlow />
 
 Most coding agent CLIs can stop in the middle of a turn and ask their user a question, and wait
 for the answer. In a flow, that user is your flow:

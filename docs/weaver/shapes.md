@@ -1,3 +1,7 @@
+<script setup>
+import ShapeAnswer from '../.vitepress/theme/components/weaver-shapes/ShapeAnswer.vue'
+</script>
+
 # Answers in a shape
 
 In this guide you have a turn answer with data your code can branch on, instead of prose. You
@@ -15,6 +19,8 @@ round again, which of two paths to take, what to pass on to the next agent.
 :::
 
 ## How it works
+
+<ShapeAnswer />
 
 Pass `run` a pydantic model as `output_schema=`, and the turn answers with an instance of that
 model:

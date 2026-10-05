@@ -1,3 +1,7 @@
+<script setup>
+import GoalRun from '../.vitepress/theme/components/weaver-goals/GoalRun.vue'
+</script>
+
 # Goals
 
 In this guide you hand an agent a **goal** instead of a prompt: an objective it keeps working
@@ -16,6 +20,8 @@ can judge it, such as a failing test or an unticked box, reach for the
 :::
 
 ## How it works
+
+<GoalRun />
 
 A prompt that starts with `/goal ` is not sent to the model as words. humanize hands the rest
 of it to the CLI's own goal feature, and the CLI keeps taking turns against the objective

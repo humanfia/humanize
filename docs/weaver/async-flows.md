@@ -1,3 +1,7 @@
+<script setup>
+import ManyTurns from '../.vitepress/theme/components/weaver-async/ManyTurns.vue'
+</script>
+
 # Many turns at once
 
 In this guide you have one flow take many turns at the same time. You build `fanout`, which
@@ -17,6 +21,8 @@ every module, an actor and a reviewer side by side, or one flow run on several p
 :::
 
 ## How it works
+
+<ManyTurns />
 
 A flow is an `async def`, and `agent.run` is a coroutine, so turns you start together run
 together. Nothing new is needed from humanize: `asyncio.gather` and its relatives do the
