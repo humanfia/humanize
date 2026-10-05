@@ -76,7 +76,7 @@ def ways(cli: str) -> tuple[backends.Way, ...]:
     Returns:
       What that backend offers, in the order it offers them, and variables of your own last
       where that backend accepts arbitrary credentials. DeepSeek Harness takes only the ways
-      it names -- its key and its gateway. Nothing at all for a name no backend answers to.
+      it names -- its key and its gateways. Nothing at all for a name no backend answers to.
     """
     profile = backends.named(cli)
     if profile is None:
@@ -296,7 +296,13 @@ def copies(one: Provider, cli: str, name: str = "") -> Provider:
     held = backends.serves(one.env, cli)
     if held is None:
         raise ValueError(f"{one.cli}/{one.name} cannot be used with {cli}")
-    return add(cli, name or one.name, _as_made(cli, held), held)
+    made = _as_made(cli, held)
+    # And what that way adds to the command line, filled in as making it would have: Qwen
+    # Code given an Anthropic key and endpoint with no `--auth-type anthropic` beside them
+    # takes no turn at all, so a copy said to be made by that way has to carry it too.
+    way = next((one for one in ways(cli) if one.name == made), ENV)
+    args = tuple(filled(one, held) for one in way.args)
+    return add(cli, name or one.name, made, held, args)
 
 
 def _as_made(cli: str, env: Mapping[str, str]) -> str:

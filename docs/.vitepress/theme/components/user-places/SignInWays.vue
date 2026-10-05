@@ -48,7 +48,12 @@ const BACKENDS: Backend[] = [
     cli: 'claude',
     called: 'Claude Code',
     ways: [
-      { name: 'login', about: 'sign in to an Anthropic account', runs: 'claude auth login' },
+      { name: 'login', about: 'sign in to a Claude subscription', runs: 'claude auth login' },
+      {
+        name: 'console',
+        about: 'sign in to an Anthropic Console account, billed per token',
+        runs: 'claude auth login --console',
+      },
       {
         name: 'token',
         about: 'a long-lived token, as claude setup-token prints one',
@@ -60,9 +65,36 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'wif',
+        about: 'Workload Identity Federation: a token another identity provider issues, traded for Anthropic’s',
+        asks: [
+          { env: 'ANTHROPIC_FEDERATION_RULE_ID' },
+          { env: 'ANTHROPIC_ORGANIZATION_ID' },
+          { env: 'ANTHROPIC_SERVICE_ACCOUNT_ID' },
+          { env: 'ANTHROPIC_IDENTITY_TOKEN_FILE' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
         asks: [{ env: 'ANTHROPIC_BASE_URL' }, { env: 'ANTHROPIC_AUTH_TOKEN', secret: true }],
+      },
+      {
+        name: 'bedrock-gateway',
+        about: 'an endpoint speaking Amazon Bedrock’s API, which holds the AWS credentials itself',
+        asks: [{ env: 'ANTHROPIC_BEDROCK_BASE_URL' }, { env: 'ANTHROPIC_AUTH_TOKEN', secret: true }],
+        sets: ['CLAUDE_CODE_USE_BEDROCK=1', 'CLAUDE_CODE_SKIP_BEDROCK_AUTH=1'],
+      },
+      {
+        name: 'vertex-gateway',
+        about: 'an endpoint speaking Vertex AI’s API, which holds the Google Cloud credentials itself',
+        asks: [
+          { env: 'ANTHROPIC_VERTEX_BASE_URL' },
+          { env: 'ANTHROPIC_AUTH_TOKEN', secret: true },
+          { env: 'ANTHROPIC_VERTEX_PROJECT_ID' },
+          { env: 'CLOUD_ML_REGION', fixed: 'us-east5' },
+        ],
+        sets: ['CLAUDE_CODE_USE_VERTEX=1', 'CLAUDE_CODE_SKIP_VERTEX_AUTH=1'],
       },
       {
         name: 'bedrock',
@@ -71,10 +103,48 @@ const BACKENDS: Backend[] = [
         sets: ['CLAUDE_CODE_USE_BEDROCK=1'],
       },
       {
+        name: 'bedrock-key',
+        about: 'Anthropic’s models on Amazon Bedrock, by a Bedrock API key',
+        asks: [{ env: 'AWS_BEARER_TOKEN_BEDROCK', secret: true }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+        sets: ['CLAUDE_CODE_USE_BEDROCK=1'],
+      },
+      {
+        name: 'mantle',
+        about: 'Anthropic’s models on Amazon Bedrock’s Mantle endpoint, on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+        sets: ['CLAUDE_CODE_USE_MANTLE=1'],
+      },
+      {
         name: 'vertex',
         about: 'Anthropic’s models on a Google Cloud project of yours',
         asks: [{ env: 'ANTHROPIC_VERTEX_PROJECT_ID' }, { env: 'CLOUD_ML_REGION', fixed: 'us-east5' }],
         sets: ['CLAUDE_CODE_USE_VERTEX=1'],
+      },
+      {
+        name: 'foundry',
+        about: 'Anthropic’s models on a Microsoft Foundry resource of yours',
+        asks: [{ env: 'ANTHROPIC_FOUNDRY_RESOURCE' }, { env: 'ANTHROPIC_FOUNDRY_API_KEY', secret: true }],
+        sets: ['CLAUDE_CODE_USE_FOUNDRY=1'],
+      },
+      {
+        name: 'aws',
+        about: 'Claude Platform on AWS: Anthropic’s API, billed through AWS',
+        asks: [
+          { env: 'ANTHROPIC_AWS_WORKSPACE_ID' },
+          { env: 'AWS_REGION', fixed: 'us-east-1' },
+          { env: 'ANTHROPIC_AWS_API_KEY', secret: true },
+        ],
+        sets: ['CLAUDE_CODE_USE_ANTHROPIC_AWS=1'],
+      },
+      {
+        name: 'google-cloud',
+        about: 'Claude Platform on Google Cloud: Anthropic’s API, billed through Google Cloud',
+        asks: [
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_PROJECT' },
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_LOCATION', fixed: 'global' },
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID' },
+        ],
+        sets: ['CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD=1'],
       },
       ENV,
     ],
@@ -127,7 +197,7 @@ const BACKENDS: Backend[] = [
   {
     cli: 'dsh',
     called: 'DeepSeek Harness',
-    note: 'No env way here: DeepSeek Harness takes only its own key and gateway.',
+    note: 'No env way here: DeepSeek Harness takes only its own key and its gateways.',
     ways: [
       {
         name: 'key',
@@ -135,8 +205,22 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'openai-gateway',
+        about: "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+        asks: [
+          { env: 'DEEPSEEK_BASE_URL' },
+          { env: 'DEEPSEEK_API_KEY', secret: true },
+          { env: 'DSH_GATEWAY_API', fixed: 'openai-completions' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: "an endpoint speaking Anthropic's Messages API -- a proxy, a router, another vendor",
+        asks: [{ env: 'DEEPSEEK_BASE_URL' }, { env: 'DEEPSEEK_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-gateway',
+        about: "an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
         asks: [{ env: 'DEEPSEEK_BASE_URL' }, { env: 'DEEPSEEK_API_KEY', secret: true }],
       },
     ],
@@ -169,16 +253,51 @@ const BACKENDS: Backend[] = [
     cli: 'kimi',
     called: 'Kimi Code',
     ways: [
-      { name: 'login', about: 'sign in to a Kimi account, by the code it prints', runs: 'kimi login' },
       {
-        name: 'model',
-        about: GATEWAY,
+        name: 'login',
+        about: 'sign in to a Kimi account, by the code it prints',
+        asks: [{ env: 'KIMI_REGION', fixed: 'global' }],
+        runs: 'kimi login --region {KIMI_REGION}',
+      },
+      {
+        name: 'kimi-key',
+        about: 'a Moonshot platform key, or a Kimi for Coding one at https://api.kimi.com/coding/v1',
         asks: [
-          { env: 'KIMI_MODEL_NAME' },
           { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_BASE_URL', fixed: 'https://api.moonshot.ai/v1' },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=kimi'],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
+        asks: [
           { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
           { env: 'KIMI_MODEL_PROVIDER_TYPE', fixed: 'openai' },
         ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=anthropic'],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=google-genai'],
       },
       ENV,
     ],
@@ -192,17 +311,62 @@ const BACKENDS: Backend[] = [
     cli: 'qwen',
     called: 'Qwen Code',
     ways: [
-      { name: 'login', about: 'sign in to a Qwen account, in a session opened for it', runs: 'qwen' },
       {
-        name: 'key',
-        about: 'a key for the OpenAI-compatible endpoint it runs against',
+        name: 'coding-plan',
+        about: 'an Alibaba Cloud Model Studio Coding Plan',
         asks: [
+          { env: 'OPENAI_BASE_URL', fixed: 'https://coding.dashscope.aliyuncs.com/v1' },
           { env: 'OPENAI_API_KEY', secret: true },
-          { env: 'OPENAI_BASE_URL', fixed: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
         ],
+      },
+      {
+        name: 'token-plan',
+        about: 'an Alibaba Cloud Model Studio Token Plan',
+        asks: [
+          {
+            env: 'OPENAI_BASE_URL',
+            fixed: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+          },
+          { env: 'OPENAI_API_KEY', secret: true },
+        ],
+      },
+      {
+        name: 'gemini-key',
+        about: 'a Gemini API key, from AI Studio',
+        asks: [{ env: 'GEMINI_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENAI_BASE_URL', fixed: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+          { env: 'OPENAI_API_KEY', secret: true },
+          { env: 'QWEN_DEFAULT_AUTH_TYPE', fixed: 'openai' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API -- a proxy, a router, another vendor',
+        asks: [{ env: 'ANTHROPIC_BASE_URL' }, { env: 'ANTHROPIC_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API -- a proxy, a router, another vendor',
+        asks: [{ env: 'GOOGLE_GEMINI_BASE_URL' }, { env: 'GEMINI_API_KEY', secret: true }],
+      },
+      {
+        name: 'vertex',
+        about: 'Google’s models on a Google Cloud project of yours',
+        asks: [{ env: 'GOOGLE_CLOUD_PROJECT' }, { env: 'GOOGLE_CLOUD_LOCATION', fixed: 'global' }],
+      },
+      {
+        name: 'vertex-key',
+        about: 'a Vertex AI API key, for its express mode',
+        asks: [{ env: 'GOOGLE_API_KEY', secret: true }],
       },
       ENV,
     ],
+    note: 'Qwen OAuth was discontinued on 2026-04-15, so there is no login: every way says its --auth-type on each turn.',
   },
   {
     cli: 'opencode',
