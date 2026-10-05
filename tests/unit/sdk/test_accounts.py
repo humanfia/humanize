@@ -32,13 +32,13 @@ def test_an_account_written_from_here_is_one_the_store_reads_back() -> None:
     made = held.write(
         "claude",
         "mine",
-        way="gateway",
+        way="anthropic-gateway",
         env={"ANTHROPIC_BASE_URL": "https://example.invalid/anthropic"},
         args=("--flag", "value"),
     )
 
     assert providers.find("claude", "mine") == made
-    assert made.way == "gateway"
+    assert made.way == "anthropic-gateway"
     assert made.env["ANTHROPIC_BASE_URL"] == "https://example.invalid/anthropic"
     assert made.args == ("--flag", "value")
 
@@ -61,7 +61,7 @@ def test_an_account_rewritten_with_its_answers_alone_keeps_the_arguments_its_way
     with none, the account was one whose turns asked api.openai.com with no key at all.
     """
     held = Hmz().accounts
-    gateway = held.way("codex", "gateway")
+    gateway = held.way("codex", "openai-gateway")
     assert gateway is not None
     held.make(
         "codex",
@@ -73,7 +73,7 @@ def test_an_account_rewritten_with_its_answers_alone_keeps_the_arguments_its_way
     written = held.write(
         "codex",
         "gw",
-        "gateway",
+        "openai-gateway",
         {"CODEX_PROVIDER_URL": "https://new.invalid/v1", "CODEX_PROVIDER_KEY": "k"},
     )
 
@@ -131,16 +131,16 @@ def test_the_ways_in_a_backend_offers_are_the_ones_it_is_asked_for() -> None:
 def test_a_way_in_is_found_by_name_and_a_name_it_does_not_offer_is_nothing() -> None:
     held = Hmz().accounts
 
-    way = held.way("claude", "gateway")
+    way = held.way("claude", "anthropic-gateway")
 
     assert way is not None
-    assert way.name == "gateway"
+    assert way.name == "anthropic-gateway"
     assert held.way("claude", "not-a-way") is None
 
 
 def test_what_a_way_in_still_has_to_be_told_is_what_was_not_answered() -> None:
     held = Hmz().accounts
-    way = held.way("claude", "gateway")
+    way = held.way("claude", "anthropic-gateway")
     assert way is not None
 
     assert held.asks(way, {}) == ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]
@@ -202,7 +202,7 @@ def test_the_other_backends_an_account_could_run_are_the_vendor_s_rather_than_th
 def test_an_account_that_cannot_travel_says_there_is_nowhere_for_it_to_go() -> None:
     """A gateway is reached under one backend's own variables and nothing else reads them."""
     held = Hmz().accounts
-    gateway = held.way("claude", "gateway")
+    gateway = held.way("claude", "anthropic-gateway")
     assert gateway is not None
     made = held.make(
         "claude",
@@ -370,17 +370,93 @@ def test_what_a_backend_said_it_runs_goes_stale_a_week_after_it_was_asked(
     assert Hmz().accounts.stale("grok") is stale
 
 
-def test_a_qwen_key_account_says_which_way_it_signs_in() -> None:
+def test_a_qwen_gateway_account_says_which_way_it_signs_in() -> None:
     """qwen-code given only a key and a URL answers `No auth type is selected`."""
     held = Hmz().accounts
-    key = held.way("qwen", "key")
-    assert key is not None
+    gateway = held.way("qwen", "openai-gateway")
+    assert gateway is not None
 
     made = held.make(
         "qwen",
         "gw",
-        key,
+        gateway,
         {"OPENAI_API_KEY": "k", "OPENAI_BASE_URL": "https://gw.invalid"},
     )
 
     assert made.args == ("--auth-type", "openai")
+    assert made.env["QWEN_DEFAULT_AUTH_TYPE"] == "openai"
+
+
+def test_a_qwen_gateway_speaking_responses_is_told_so_and_stays_told() -> None:
+    """The protocol is kept, so the command line worked out again from it says the same."""
+    held = Hmz().accounts
+    gateway = held.way("qwen", "openai-gateway")
+    assert gateway is not None
+    answers = {
+        "OPENAI_API_KEY": "k",
+        "OPENAI_BASE_URL": "https://gw.invalid/v1",
+        "QWEN_DEFAULT_AUTH_TYPE": "openai-responses",
+    }
+
+    made = held.make("qwen", "gw", gateway, answers)
+    edited = held.write("qwen", "gw", way=made.way, env=made.env)
+
+    assert made.args == ("--auth-type", "openai-responses")
+    assert edited.args == made.args
+    assert "k" not in made.args  # the key stays a variable
+
+
+@pytest.mark.parametrize(
+    ("way", "answers", "auth"),
+    [
+        ("coding-plan", {"OPENAI_API_KEY": "k"}, "openai"),
+        ("token-plan", {"OPENAI_API_KEY": "k"}, "openai"),
+        ("gemini-key", {"GEMINI_API_KEY": "k"}, "gemini"),
+        (
+            "anthropic-gateway",
+            {"ANTHROPIC_BASE_URL": "https://gw.invalid", "ANTHROPIC_API_KEY": "k"},
+            "anthropic",
+        ),
+        (
+            "gemini-gateway",
+            {"GOOGLE_GEMINI_BASE_URL": "https://gw.invalid", "GEMINI_API_KEY": "k"},
+            "gemini",
+        ),
+        ("vertex", {"GOOGLE_CLOUD_PROJECT": "p"}, "vertex-ai"),
+        ("vertex-key", {"GOOGLE_API_KEY": "k"}, "vertex-ai"),
+    ],
+)
+def test_every_qwen_way_names_the_auth_type_it_is(
+    way: str, answers: dict[str, str], auth: str
+) -> None:
+    """Each of Qwen Code's six auth types is one `--auth-type`, said on every turn."""
+    held = Hmz().accounts
+    chosen = held.way("qwen", way)
+    assert chosen is not None
+
+    made = held.make("qwen", way, chosen, answers)
+
+    assert made.args == ("--auth-type", auth)
+    assert all(value in made.env.values() for value in answers.values())
+
+
+def test_a_qwen_plan_or_cloud_is_pointed_where_it_lives_unless_told_otherwise() -> None:
+    """The fixed answers: each plan's mainland endpoint, and Vertex's global location."""
+    held = Hmz().accounts
+    plans = {
+        "coding-plan": "https://coding.dashscope.aliyuncs.com/v1",
+        "token-plan": (
+            "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+        ),
+    }
+    for name, url in plans.items():
+        way = held.way("qwen", name)
+        assert way is not None
+        assert held.make("qwen", name, way, {"OPENAI_API_KEY": "k"}).env == {
+            "OPENAI_API_KEY": "k",
+            "OPENAI_BASE_URL": url,
+        }
+    vertex = held.way("qwen", "vertex")
+    assert vertex is not None
+    made = held.make("qwen", "vx", vertex, {"GOOGLE_CLOUD_PROJECT": "p"})
+    assert made.env == {"GOOGLE_CLOUD_PROJECT": "p", "GOOGLE_CLOUD_LOCATION": "global"}

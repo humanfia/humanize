@@ -81,7 +81,11 @@ def test_what_a_provider_adds_to_the_command_line_is_added_to_the_backends(
 ) -> None:
     """Codex takes a provider as settings rather than variables, so a way may carry arguments."""
     providers.add(
-        "claude", "mine", way="gateway", env={"X": "1"}, args=("--flag", "value")
+        "claude",
+        "mine",
+        way="anthropic-gateway",
+        env={"X": "1"},
+        args=("--flag", "value"),
     )
     agent = ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
 
@@ -156,7 +160,10 @@ def test_an_anchored_turn_keeps_its_providers_variables_off_the_target(
     variables a provider hands it are named as the agent's own and dropped on the way over.
     """
     providers.add(
-        "claude", "gateway", way="gateway", env={"ANTHROPIC_AUTH_TOKEN": "not-a-token"}
+        "claude",
+        "gateway",
+        way="anthropic-gateway",
+        env={"ANTHROPIC_AUTH_TOKEN": "not-a-token"},
     )
     anchor = HereAnchor(target="tcp://stub:0")
     agent = ClaudeShellAgent(
@@ -213,7 +220,7 @@ def test_a_hushed_endpoint_opens_no_host_in_either_half_of_the_fence(
     providers.add(
         "claude",
         "gateway",
-        way="gateway",
+        way="anthropic-gateway",
         env={"ANTHROPIC_BASE_URL": "https://gw.example", "ANTHROPIC_API_KEY": "k"},
     )
     cut = Permission(

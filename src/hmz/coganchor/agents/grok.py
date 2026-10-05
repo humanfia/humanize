@@ -63,10 +63,12 @@ join the leader is refused (:meth:`GrokBuildAgent._serves`).
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 # What the protocol says a thing is, what a client may do, how a tool call is permitted and
@@ -250,6 +252,24 @@ _HANDSHAKE = 120.0
 #: Grok Build has a leader of its own that would be handed one.
 _WAITING = 5.0
 
+#: The variable a gateway account says which API its endpoint speaks in, and the three answers
+#: Grok Build has a word for -- spelled as its `api_backend` spells them. Humanize's variable
+#: rather than the CLI's: 1.0.46 reads no variable for it at all, only an `api_backend` on a
+#: `[model.*]` entry of `$GROK_HOME/config.toml`. The `GROK_CONFIG` overlay that would have
+#: carried one without a file is allowlisted to a few soft tables and drops `model`, which was
+#: run against it -- an entry said there was posted to `/chat/completions` all the same.
+_SPEAKS = "GROK_GATEWAY_API_BACKEND"
+_APIS = frozenset({"responses", "chat_completions", "messages"})
+
+#: Where the endpoint is and what it is paid with, as the gateway ways keep them: the variables
+#: 1.0.46 itself reads for an endpoint's catalogue and for the bearer it sends there.
+_AT = "GROK_XAI_API_BASE_URL"
+_KEY = "XAI_API_KEY"
+
+#: The version an Anthropic-shaped endpoint refuses to answer without, which 1.0.46 does not
+#: send of its own accord -- its own guide's Anthropic example adds it by hand, as this does.
+_DATED = "2023-06-01"
+
 
 class GrokBuildSession(StreamSessionBase):
     """A Grok Build conversation, held open on the process that opened it.
@@ -409,6 +429,36 @@ class GrokBuildSession(StreamSessionBase):
             self._environ() or dict(os.environ),
         )
 
+    def _model(self) -> str:
+        """What this conversation asks Grok Build for its model by.
+
+        The model itself for every account but one behind a gateway, which is asked for by
+        the entry :func:`_routed` keeps for it -- the one place the API that gateway speaks
+        can be said. Read off the environment a turn runs under, which is the account's.
+
+        Not for a turn on another machine, where the API cannot be said both truly and
+        privately: the entry is written into this machine's `config.toml`, which a target's
+        own `grok` never reads, and the headers an Anthropic-shaped endpoint wants travel in a
+        variable holding the key, which every command the agent runs on a target would
+        inherit. Refused there rather than run in whatever API the CLI picks by the model's
+        name, which would be the account's answer quietly not given.
+
+        Returns:
+          The name `--model` takes.
+
+        Raises:
+          Unrecoverable: For a gateway account on a target whose own CLI takes the turn, or
+            on any target for one speaking Anthropic's API.
+        """
+        environ = self._environ() or os.environ
+        speaks = environ.get(_SPEAKS, "").strip()
+        if self._agent.config.machine is not None and speaks and environ.get(_AT):
+            anchor = self._agent.anchor
+            if anchor is not None and (anchor.native or speaks == "messages"):
+                said = f"a grok account speaking {speaks} to a gateway runs on this machine"
+                raise Unrecoverable(1, [_COMMAND], "", said)
+        return _routed(self._agent.config.model, environ)
+
     def _stale(self) -> bool:
         """Restarts before settings or mounted flow resources change."""
         return self._launched is not None and self._launched != self._requested
@@ -430,7 +480,7 @@ class GrokBuildSession(StreamSessionBase):
             _COMMAND,
             "agent",
             "--model",
-            self._agent.config.model,
+            self._model(),
             # Where there is a rung. `grok agent` takes any word at all here and says nothing
             # until the first shaped turn goes out on the command line, so an agent at no rung
             # is better off saying nothing than saying "".
@@ -797,7 +847,7 @@ class GrokBuildSession(StreamSessionBase):
             "--output-format",
             "streaming-json",
             "--model",
-            config.model,
+            self._model(),
             "--effort",
             self.effort,
             *_PERMITTED[config.permission],
@@ -1153,6 +1203,154 @@ def _extras(config: AgentConfig) -> list[str]:
     return argv
 
 
+def _routed(model: str, environ: Mapping[str, str]) -> str:
+    """The name a turn asks for `model` by, under an account's environment.
+
+    An account behind a gateway is told which API to speak by a `[model.*]` entry, there
+    being nowhere else 1.0.46 reads an `api_backend` from -- so the entry is written, into
+    the `config.toml` of the home this turn's CLI reads, and the turn asks for it rather than
+    for the model. The entry names the variable the key is in rather than the key, which is
+    what keeps a secret off a disk it was never meant for. The headers Anthropic's API wants
+    besides are not the entry's to carry: :meth:`GrokBuildAgent.environment` says why.
+
+    Named for what it holds, so that the same endpoint, model and API are always the same
+    entry: two accounts writing at once write the same thing or different things, and a turn
+    finding its entry already there writes nothing at all. Hidden, being humanize's rather
+    than something the person at this machine picked: `-m` still reaches it, and their
+    picker does not show it.
+
+    Args:
+      model: The model, as the endpoint names it.
+      environ: The environment the turn runs under.
+
+    Returns:
+      The entry's name, or `model` itself for an account that is not behind a gateway.
+
+    Raises:
+      Unrecoverable: If the account names an API Grok Build has no word for, which it would
+        otherwise drop the entry over and refuse the model as one it does not know -- and a
+        sentence `signs` reads as a busy catalogue, waited on and tried again for nothing.
+    """
+    speaks = environ.get(_SPEAKS, "").strip()
+    base = environ.get(_AT, "").strip()
+    if not speaks or not base:
+        return model
+    if speaks not in _APIS:
+        said = f"{_SPEAKS} is {speaks!r}, which is none of {', '.join(sorted(_APIS))}"
+        raise Unrecoverable(1, [_COMMAND], "", said)
+    entry: dict[str, Any] = {
+        "model": model,
+        "base_url": base,
+        "api_backend": speaks,
+        "env_key": _KEY,
+        "hidden": True,
+    }
+    said = json.dumps(entry, sort_keys=True).encode()
+    named = f"hmz-{hashlib.sha256(said).hexdigest()[:12]}/{model}"
+    from hmz.coganchor.backends import named as profile
+
+    found = profile(_COMMAND)
+    home = found.directory(environ) if found is not None else Path.home() / ".grok"
+    _entered(home / "config.toml", named, entry)
+    return named
+
+
+def _entered(at: Path, named: str, entry: dict[str, Any]) -> None:
+    """Puts one `[model.*]` entry into a Grok Build `config.toml`, and nothing else of it.
+
+    The file is the person at this machine's -- their settings, and what `/settings` writes
+    for them -- so it is merged into rather than written: read again under a lock every writer
+    here takes, the one entry set, and the whole of it moved into place, with their comments
+    and their order still where they put them. Through a link to wherever it really is, as a
+    file kept among somebody's dotfiles often is, so that the link is still a link afterwards.
+
+    Args:
+      at: The file, which need not be there yet.
+      named: The entry's name.
+      entry: What it holds.
+
+    Raises:
+      Unrecoverable: If the file is there and is not TOML, which Grok Build would refuse
+        too: it is somebody's to correct, and writing over it would lose what they wrote.
+    """
+    import fcntl
+
+    import tomlkit
+    from tomlkit.exceptions import TOMLKitError
+
+    from hmz import machine
+    from hmz.coganchor import atomic
+
+    at = at.resolve()
+
+    def reading() -> tomlkit.TOMLDocument:
+        try:
+            return tomlkit.parse(at.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return tomlkit.document()
+        except (TOMLKitError, UnicodeDecodeError) as error:
+            said = f"{at} cannot be read as TOML ({error}): correct it"
+            raise Unrecoverable(1, [_COMMAND], "", said) from error
+
+    def held(doc: tomlkit.TOMLDocument) -> bool:
+        kept = cast("dict[str, object]", doc).get("model")
+        if not isinstance(kept, dict):
+            return False
+        return _plain(cast("dict[str, object]", kept).get(named)) == entry
+
+    if held(reading()):
+        return
+    at.parent.mkdir(parents=True, exist_ok=True)
+    with (machine() / "grok-config.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        doc = reading()
+        if held(doc):
+            return
+        if "model" not in doc:
+            doc["model"] = tomlkit.table(is_super_table=True)
+        cast("dict[str, Any]", doc["model"])[named] = entry
+        atomic.writes(at, tomlkit.dumps(doc), mode=None if at.exists() else 0o600)
+
+
+def _overlaid(theirs: str, headers: Mapping[str, str]) -> str:
+    """A `GROK_CONFIG` overlay sending `headers` with every request, over one already set.
+
+    Args:
+      theirs: The overlay the environment already holds, or "" for none. One that is not a
+        JSON object is one Grok Build would ignore with a warning, and is replaced here.
+      headers: What to send.
+
+    Returns:
+      The overlay, as the JSON object `GROK_CONFIG` takes: theirs, with `[models]
+      extra_headers` holding these over whatever it held.
+    """
+    try:
+        held: object = json.loads(theirs) if theirs.strip() else {}
+    except ValueError:
+        held = {}
+    overlay = cast("dict[str, Any]", held) if isinstance(held, dict) else {}
+    models = overlay.get("models")
+    models = cast("dict[str, Any]", models) if isinstance(models, dict) else {}
+    sent = models.get("extra_headers")
+    sent = cast("dict[str, Any]", sent) if isinstance(sent, dict) else {}
+    overlay["models"] = models | {"extra_headers": sent | dict(headers)}
+    return json.dumps(overlay)
+
+
+def _plain(said: object) -> object:
+    """What a value read out of TOML is, without what kept its spelling.
+
+    Args:
+      said: A value tomlkit read, or anything else.
+
+    Returns:
+      The plain Python it holds -- a table as a dict, a string as a str -- so that it
+      compares equal to what would be written for it.
+    """
+    unwrap = getattr(said, "unwrap", None)
+    return unwrap() if callable(unwrap) else said
+
+
 @dataclass(frozen=True, kw_only=True)
 class GrokBuildAgentConfig(AgentConfig):
     """What Grok Build is configured with: the common model and effort, and five of its own.
@@ -1242,10 +1440,39 @@ class GrokBuildAgent(AgentBase):
         `.agents/skills` were there and never seen. `GROK_FOLDER_TRUST=0` takes the question
         away, as a workspace humanize was told to work in is trusted already.
 
+        And for an account behind an Anthropic-shaped gateway, the two headers that API asks
+        for: the key as `x-api-key` and the version it answers in. Said in the `GROK_CONFIG`
+        overlay rather than on the account's `[model.*]` entry, because 1.0.46 applies a
+        model's own `extra_headers` and `env_http_headers` to a `grok -p` run and drops both on
+        `grok agent stdio` -- traced against a recording endpoint, where the held-open
+        process sent neither and the command line both. The overlay's `[models]
+        extra_headers` reaches both transports. It holds the key itself, which is where that
+        table takes a value from, and is a variable rather than a file: the key is in this
+        process's environment as `XAI_API_KEY` already, and nothing here writes it down. A
+        `GROK_CONFIG` the turn would have had anyway is kept, with these laid over it -- which
+        under an account is none, the overlay being hushed like anything else that can carry
+        one. Never for an agent on another machine, whose commands there would inherit it:
+        :meth:`GrokBuildSession._model` refuses that turn instead.
+
         Returns:
           The variables to add.
         """
-        return {**super().environment(), "GROK_FOLDER_TRUST": "0"}
+        added = {**super().environment(), "GROK_FOLDER_TRUST": "0"}
+        hushed = self.hushed()
+        said = {k: v for k, v in os.environ.items() if k not in hushed} | added
+        key = said.get(_KEY, "")
+        speaks = said.get(_SPEAKS, "").strip()
+        if (
+            self.config.machine is None
+            and speaks == "messages"
+            and said.get(_AT)
+            and key
+        ):
+            added["GROK_CONFIG"] = _overlaid(
+                said.get("GROK_CONFIG", ""),
+                {"x-api-key": key, "anthropic-version": _DATED},
+            )
+        return added
 
     def _serves(self, config: AgentConfig) -> None:
         """Refuses what the base class refuses, and a fenced agent set up to join the leader.

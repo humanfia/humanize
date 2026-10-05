@@ -88,9 +88,9 @@ async def _says(app: Humanize, driver: Pilot[None], *said: str) -> str:
 async def test_settings_accounts(asking: None) -> None:
     """An account added on the one form of `/settings accounts` is one a real turn runs as.
 
-    DeepSeek's `gateway` way, filled in with what this machine's own `dsh` account for the
-    gateway holds: the form lands it in the store, the page asks it what it runs, and a turn
-    is taken under it.
+    DeepSeek's `openai-gateway` way at its own default protocol, filled in with what this
+    machine's own `dsh` account for the gateway holds: the form lands it in the store, the
+    page asks it what it runs, and a turn is taken under it.
     """
     del asking
     from hmz.sdk import Hmz
@@ -117,7 +117,7 @@ async def test_settings_accounts(asking: None) -> None:
             await into_settings(app, driver, "accounts")
             await _adds(app, driver)
             await _chooses(app, driver, "cli", "dsh")
-            await _chooses(app, driver, "way", "gateway")
+            await _chooses(app, driver, "way", "openai-gateway")
             await _writes(app, driver, "name", *MADE)
             await _pastes(app, driver, "DEEPSEEK_BASE_URL", url)
             await _pastes(app, driver, "DEEPSEEK_API_KEY", key)
@@ -131,8 +131,12 @@ async def test_settings_accounts(asking: None) -> None:
 
         made = accounts.find("dsh", MADE)
         assert made is not None
-        assert made.way == "gateway"
-        assert dict(made.env) == {"DEEPSEEK_BASE_URL": url, "DEEPSEEK_API_KEY": key}
+        assert made.way == "openai-gateway"
+        assert dict(made.env) == {
+            "DEEPSEEK_BASE_URL": url,
+            "DEEPSEEK_API_KEY": key,
+            "DSH_GATEWAY_API": "openai-completions",
+        }
         refused = places._answers(places.Place("dsh", MADE, MODEL, "off"))
         assert not refused, refused
     finally:

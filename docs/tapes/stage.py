@@ -520,7 +520,7 @@ def _account() -> None:
     providers.add(
         "claude",
         "gateway",
-        "gateway",
+        "anthropic-gateway",
         {
             "ANTHROPIC_BASE_URL": "https://gateway.example.invalid",
             "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
