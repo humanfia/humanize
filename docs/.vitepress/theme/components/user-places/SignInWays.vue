@@ -7,7 +7,9 @@
 // the way's `argv`, `asks` its `Asked`s, `sets` its `sets`. A way with a command of its own
 // hands that command the terminal; one without is only answers. A way changed in
 // `backends.py` is a way to change here.
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+
+import { motion } from '../../motion/gsap'
 
 interface Asked {
   env: string
@@ -778,64 +780,251 @@ const BACKENDS: Backend[] = [
   },
 ]
 
+
 const chosen = ref(BACKENDS[0].cli)
 const open = computed(() => BACKENDS.find((one) => one.cli === chosen.value) ?? BACKENDS[0])
+
+// The motion, laid over the lookup without changing what it says. Choosing a CLI glides the
+// lit pill to it, draws a branch from the CLI to each of its ways, reflows the ways both CLIs
+// share to where they now stand, lets the details of each way in after its branch reaches it,
+// and types each command on. Under reduced motion each of those is its final frame.
+const clis = ref<HTMLElement | null>(null)
+const glide = ref<HTMLElement | null>(null)
+const list = ref<HTMLElement | null>(null)
+const rows = ref<HTMLElement | null>(null)
+const live = ref(false)
+const count = ref(open.value.ways.length)
+// How much of each way's command has been typed; a way not in here shows all of its command.
+const typing = reactive<Record<string, number>>({})
+// The connectors, in the pixels of the rows they join: a spine down from the CLI, a branch
+// curving off it to each way.
+const tree = reactive({ spine: '', branches: [] as { d: string; x: number; y: number }[] })
+const X = 7
+
+let tl: gsap.core.Timeline | undefined
+let sizes: ResizeObserver | undefined
+let seen: IntersectionObserver | undefined
+
+const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+function shown(way: Way): string {
+  const n = typing[way.name]
+  return n === undefined ? (way.runs ?? '') : (way.runs ?? '').slice(0, Math.floor(n))
+}
+
+function unshown(way: Way): string {
+  const n = typing[way.name]
+  return n === undefined ? '' : (way.runs ?? '').slice(Math.floor(n))
+}
+
+// The pill behind the chosen CLI, moved to it: gliding there when `move`, else at once.
+function place(move: boolean) {
+  const button = clis.value?.querySelector<HTMLElement>('button.on')
+  if (!button || !glide.value) return
+  const to = { x: button.offsetLeft, y: button.offsetTop, width: button.offsetWidth, height: button.offsetHeight }
+  const gsap = motion()
+  if (!move || still()) {
+    gsap.set(glide.value, { ...to, autoAlpha: 1 })
+    return
+  }
+  gsap.to(glide.value, { ...to, autoAlpha: 1, duration: 0.55, ease: 'cine', overwrite: 'auto' })
+  gsap.fromTo(glide.value, { scaleY: 1 }, { keyframes: { scaleY: [1, 0.8, 1.06, 1] }, duration: 0.55, ease: 'none' })
+}
+
+// How far down `box` an element's layout box stands. A row reflowing to its new place is moved
+// with a transform, which makes it the offset parent of what is in it, so climb to `box`.
+function within(el: HTMLElement, box: HTMLElement): number {
+  let y = 0
+  for (let at: HTMLElement | null = el; at && at !== box; at = at.offsetParent as HTMLElement | null) y += at.offsetTop
+  return y
+}
+
+function measure() {
+  const box = rows.value
+  if (!box) return
+  const names = [...box.querySelectorAll<HTMLElement>('.way:not(.leaving) .name')]
+  const ys = names.map((one) => Math.round(within(one, box) + one.offsetHeight / 2))
+  const last = ys.at(-1)
+  tree.spine = last === undefined ? '' : `M${X} -4 V${last - 7}`
+  tree.branches = ys.map((y) => ({ d: `M${X} ${y - 7} Q${X} ${y} ${X + 7} ${y} H${X + 12}`, x: X + 12, y }))
+}
+
+// The ways of the chosen CLI arrive: the spine is drawn down, and each way, as its branch
+// reaches it, has its name, its words and its command let in, one after another.
+function play(): gsap.core.Timeline | undefined {
+  const box = rows.value
+  if (!box || still()) return
+  const gsap = motion()
+  tl?.kill()
+  const ways = open.value.ways
+  const els = [...box.querySelectorAll<HTMLElement>('.way:not(.leaving)')]
+  for (const way of ways) if (way.runs) typing[way.name] = 0
+  const t = gsap.timeline({
+    onComplete() {
+      for (const way of ways) delete typing[way.name]
+    },
+  })
+  tl = t
+  const step = Math.min(0.11, 0.7 / Math.max(ways.length, 1))
+  const branches = box.querySelectorAll('.branch')
+  const knots = box.querySelectorAll('.knot')
+  const flow = box.querySelector('.flow')
+  const spine = box.querySelector('.spine')
+  t.fromTo(box.querySelector('.root'), { autoAlpha: 0, scale: 0.3, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(2.4)' }, 0)
+  if (spine) t.fromTo(spine, { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.2 + step * ways.length, ease: 'cine' }, 0.05)
+  if (flow) t.set(flow, { autoAlpha: 0 }, 0)
+  const tally = { n: 0 }
+  t.to(tally, { n: ways.length, duration: 0.25 + step * ways.length, ease: 'power2.out', onUpdate: () => void (count.value = Math.round(tally.n)) }, 0)
+  els.forEach((row, i) => {
+    const at = 0.1 + i * step
+    const way = ways[i]
+    if (branches[i]) t.fromTo(branches[i], { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.3, ease: 'cine.out' }, at)
+    if (knots[i]) t.fromTo(knots[i], { autoAlpha: 0, scale: 0.2, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(3)' }, at + 0.2)
+    t.fromTo(row.querySelector('.name'), { autoAlpha: 0, x: -10 }, { autoAlpha: 1, x: 0, duration: 0.45 }, at + 0.18)
+    t.fromTo(row.querySelector('.about'), { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.45 }, at + 0.24)
+    t.fromTo(row.querySelectorAll('.does > *'), { autoAlpha: 0, y: 5 }, { autoAlpha: 1, y: 0, duration: 0.35, stagger: 0.05 }, at + 0.32)
+    if (way?.runs) t.to(typing, { [way.name]: way.runs.length, duration: way.runs.length / 55, ease: 'none' }, at + 0.5)
+  })
+  if (flow) t.to(flow, { autoAlpha: 1, duration: 0.6, ease: 'none' }, '>-0.2')
+  return t
+}
+
+// A way the new CLI does not have leaves from where it stood, while the rest reflow round it.
+function leave(el: Element, done: () => void) {
+  if (still()) return done()
+  const row = el as HTMLElement
+  Object.assign(row.style, {
+    position: 'absolute',
+    top: `${row.offsetTop}px`,
+    left: `${row.offsetLeft}px`,
+    width: `${row.offsetWidth}px`,
+  })
+  row.classList.add('leaving')
+  motion().to(row, { autoAlpha: 0, x: 18, duration: 0.28, ease: 'cine.in', onComplete: done })
+}
+
+async function choose(cli: string) {
+  if (cli === chosen.value) return
+  const from = list.value?.offsetHeight ?? 0
+  chosen.value = cli
+  await nextTick()
+  place(true)
+  measure()
+  if (still()) {
+    count.value = open.value.ways.length
+    return
+  }
+  const box = list.value
+  if (box && from) {
+    const to = box.offsetHeight
+    motion().fromTo(box, { height: from }, { height: to, duration: 0.5, ease: 'cine', clearProps: 'height' })
+  }
+  await nextTick()
+  play()
+}
+
+onMounted(() => {
+  live.value = true
+  sizes = new ResizeObserver(() => {
+    place(false)
+    measure()
+  })
+  if (clis.value) sizes.observe(clis.value)
+  if (rows.value) sizes.observe(rows.value)
+  // The first CLI's ways are drawn in the first time the lookup is scrolled to: held at the
+  // start of their entrance till then.
+  nextTick(() => {
+    place(false)
+    measure()
+    nextTick(() => play()?.pause(0))
+  })
+  seen = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((one) => one.isIntersecting)) return
+      seen?.disconnect()
+      tl?.play()
+    },
+    { threshold: 0.3 },
+  )
+  if (rows.value) seen.observe(rows.value)
+})
+
+onBeforeUnmount(() => {
+  tl?.kill()
+  sizes?.disconnect()
+  seen?.disconnect()
+})
 </script>
 
 <template>
-  <div class="ways hmz-panel">
+  <div class="ways hmz-panel" :class="{ live }">
     <div class="bar">
       <span class="lab">sign in to</span>
-      <div class="clis" role="group" aria-label="choose a coding agent CLI">
+      <div ref="clis" class="clis" role="group" aria-label="choose a coding agent CLI">
+        <span ref="glide" class="glide" aria-hidden="true" />
         <button
           v-for="one in BACKENDS"
           :key="one.cli"
           type="button"
           :aria-pressed="chosen === one.cli"
           :class="{ on: chosen === one.cli, own: one.own }"
-          @click="chosen = one.cli"
+          @click="choose(one.cli)"
         >
           {{ one.cli }}
         </button>
       </div>
     </div>
 
-    <div class="list">
+    <div ref="list" class="list">
       <p class="head" aria-live="polite">
         <strong>{{ open.called }}</strong>
-        <span>{{ open.ways.length }} {{ open.ways.length === 1 ? 'way' : 'ways' }} in</span>
+        <span>{{ live ? count : open.ways.length }} {{ open.ways.length === 1 ? 'way' : 'ways' }} in</span>
       </p>
       <p v-if="open.own" class="note">{{ open.note }}</p>
-      <div v-for="way in open.ways" :key="way.name" class="way">
-        <code class="name">{{ way.name }}</code>
-        <div class="said">
-          <p class="about">{{ way.about }}</p>
-          <p class="does">
-            <template v-if="way.asks">
-              <span class="kind asks">asks</span>
-              <span
-                v-for="one in way.asks"
-                :key="one.env"
-                class="var"
-                :class="{ secret: one.secret }"
-                >{{ one.env }}<em v-if="one.secret"> · secret</em
-                ><em v-if="one.fixed"> · {{ one.fixed }}, filled in</em></span
-              >
-            </template>
-            <template v-if="way.typed">
-              <span class="kind asks">asks</span>
-              <span class="var">NAME=VALUE<em> one per line</em></span>
-            </template>
-            <template v-if="way.runs">
-              <span class="kind runs">{{ way.asks ? 'then runs' : 'runs' }}</span>
-              <code class="cmd">{{ way.runs }}</code>
-            </template>
-            <template v-if="way.sets">
-              <span class="kind sets">and sets</span>
-              <span v-for="one in way.sets" :key="one" class="var">{{ one }}</span>
-            </template>
-          </p>
-        </div>
+      <div ref="rows" class="rows">
+        <svg class="tree" aria-hidden="true">
+          <circle class="root" :cx="X" cy="-4" r="3.5" />
+          <path class="spine" :d="tree.spine" />
+          <path class="flow" :d="tree.spine" />
+          <path v-for="(one, at) in tree.branches" :key="`b${at}`" class="branch" :d="one.d" />
+          <circle v-for="(one, at) in tree.branches" :key="`k${at}`" class="knot" :cx="one.x" :cy="one.y" r="2.6" />
+        </svg>
+        <TransitionGroup tag="div" name="way" @leave="leave">
+          <div v-for="way in open.ways" :key="way.name" class="way">
+            <code class="name">{{ way.name }}</code>
+            <div class="said">
+              <p class="about">{{ way.about }}</p>
+              <p class="does">
+                <template v-if="way.asks">
+                  <span class="kind asks">asks</span>
+                  <span
+                    v-for="one in way.asks"
+                    :key="one.env"
+                    class="var"
+                    :class="{ secret: one.secret }"
+                    >{{ one.env }}<em v-if="one.secret"> · secret</em
+                    ><em v-if="one.fixed"> · {{ one.fixed }}, filled in</em></span
+                  >
+                </template>
+                <template v-if="way.typed">
+                  <span class="kind asks">asks</span>
+                  <span class="var">NAME=VALUE<em> one per line</em></span>
+                </template>
+                <template v-if="way.runs">
+                  <span class="kind runs">{{ way.asks ? 'then runs' : 'runs' }}</span>
+                  <code class="cmd" :class="{ typing: typing[way.name] !== undefined }" :aria-label="way.runs"
+                    ><span aria-hidden="true">{{ shown(way) }}</span
+                    ><span class="ghost" aria-hidden="true">{{ unshown(way) }}</span></code
+                  >
+                </template>
+                <template v-if="way.sets">
+                  <span class="kind sets">and sets</span>
+                  <span v-for="one in way.sets" :key="one" class="var">{{ one }}</span>
+                </template>
+              </p>
+            </div>
+          </div>
+        </TransitionGroup>
       </div>
       <p v-if="open.note && !open.own" class="note">{{ open.note }}</p>
     </div>
@@ -867,9 +1056,24 @@ const open = computed(() => BACKENDS.find((one) => one.cli === chosen.value) ?? 
 }
 
 .clis {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* The lit pill behind the chosen CLI, which glides from one to the next. It shows only once the
+   page has its script; until then the chosen button lights itself. */
+.glide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  border: 1px solid var(--vp-c-brand-1);
+  border-radius: 999px;
+  background: var(--vp-c-brand-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vp-c-brand-1) 12%, transparent);
+  pointer-events: none;
 }
 
 .clis button {
@@ -881,6 +1085,7 @@ const open = computed(() => BACKENDS.find((one) => one.cli === chosen.value) ?? 
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
   cursor: pointer;
+  position: relative;
 }
 
 .clis button:hover {
@@ -898,6 +1103,64 @@ const open = computed(() => BACKENDS.find((one) => one.cli === chosen.value) ?? 
   border-color: var(--vp-c-brand-1);
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-1);
+}
+
+.live .clis button.on {
+  border-color: transparent;
+  background: transparent;
+}
+
+.list {
+  overflow: hidden;
+}
+
+/* The ways hang off a tree drawn in the gutter on their left: a spine down from the CLI and a
+   branch to each way. */
+.rows {
+  position: relative;
+  padding-left: 26px;
+}
+
+.tree {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 26px;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tree path {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.tree .spine,
+.tree .branch {
+  stroke: var(--hmz-accent);
+  stroke-width: 1.5;
+  opacity: 0.75;
+}
+
+.tree .flow {
+  stroke: var(--hmz-accent);
+  stroke-width: 2.5;
+  stroke-dasharray: 2 46;
+}
+
+.tree .root {
+  fill: var(--hmz-accent);
+}
+
+.tree .knot {
+  fill: var(--vp-c-bg);
+  stroke: var(--hmz-accent);
+  stroke-width: 1.5;
+}
+
+.way-move {
+  transition: transform 0.5s cubic-bezier(0.7, 0, 0.2, 1);
 }
 
 .list {
@@ -953,7 +1216,7 @@ const open = computed(() => BACKENDS.find((one) => one.cli === chosen.value) ?? 
 }
 
 .kind {
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--vp-c-text-3);
@@ -992,6 +1255,17 @@ const open = computed(() => BACKENDS.find((one) => one.cli === chosen.value) ?? 
   overflow-wrap: anywhere;
 }
 
+/* The part of a command not typed yet keeps its room, so the line does not reflow as it types;
+   the caret rides at the end of what has been typed. */
+.cmd .ghost {
+  color: transparent;
+}
+
+.cmd.typing .ghost {
+  border-left: 2px solid var(--hmz-warm);
+  margin-left: -2px;
+}
+
 .note {
   margin: 4px 0 10px;
   font-size: 12.5px;
@@ -1024,6 +1298,23 @@ const open = computed(() => BACKENDS.find((one) => one.cli === chosen.value) ?? 
       background 0.15s,
       border-color 0.15s,
       color 0.15s;
+  }
+
+  /* A mote of light runs down the spine for as long as the lookup is on screen. */
+  .tree .flow {
+    animation: flow 2.8s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tree .flow {
+    display: none;
+  }
+}
+
+@keyframes flow {
+  to {
+    stroke-dashoffset: -48;
   }
 }
 </style>
