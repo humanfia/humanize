@@ -1288,7 +1288,10 @@ effort, rung, approval, service tier, `outputSchema`); steering is `turn/steer`.
   with `--disable shell_snapshot` unless `features` names it: Codex writes its shell capture
   into its own home and sources it from each command, which runs on the target, where that
   home is not. Each command is a login shell on the target instead.
-- A `gateway` account appends `-c model_provider=humanize …` ([Providers › Gateways](/reference/providers#gateways)).
+- An `openai-gateway` or `azure` account appends `-c model_provider=humanize …`
+  ([Providers › Gateways](/reference/providers#gateways)); a `bedrock` or `bedrock-key` one
+  `-c model_provider=amazon-bedrock …`, and an `ollama` or `lmstudio` one
+  `-c model_provider=ollama` or `lmstudio` ([Providers › Ways by backend](/reference/providers#ways-by-backend)).
 
 ### Cursor Agent {#cursor-agent}
 

@@ -121,7 +121,7 @@ def test_an_answer_is_filled_into_what_the_backend_takes_on_its_command_line(
     provider = login.make(
         "codex",
         "mine",
-        way("codex", "gateway"),
+        way("codex", "openai-gateway"),
         {
             "CODEX_PROVIDER_URL": "https://example.invalid/v1",
             "CODEX_PROVIDER_KEY": "not-a-real-key",
@@ -133,6 +133,111 @@ def test_an_answer_is_filled_into_what_the_backend_takes_on_its_command_line(
     )
     assert "model_providers.humanize.wire_api=responses" in provider.args
     assert provider.env["CODEX_PROVIDER_KEY"] == "not-a-real-key"
+
+
+def test_an_azure_resource_is_a_provider_codex_speaks_azure_to(house: Path) -> None:
+    """Named `azure`, so codex sends it what Azure takes, at the version nobody was asked for."""
+    provider = login.make(
+        "codex",
+        "mine",
+        way("codex", "azure"),
+        {
+            "AZURE_OPENAI_BASE_URL": "https://res.openai.azure.com/openai",
+            "AZURE_OPENAI_API_KEY": "not-a-real-key",
+        },
+    )
+
+    assert provider.args == (
+        "-c",
+        "model_provider=humanize",
+        "-c",
+        "model_providers.humanize.name=azure",
+        "-c",
+        "model_providers.humanize.base_url=https://res.openai.azure.com/openai",
+        "-c",
+        "model_providers.humanize.env_key=AZURE_OPENAI_API_KEY",
+        "-c",
+        'model_providers.humanize.query_params.api-version="2025-04-01-preview"',
+        "-c",
+        "model_providers.humanize.wire_api=responses",
+    )
+    # The key reaches the turn as the variable codex was told to read, never as an argument.
+    assert provider.env["AZURE_OPENAI_API_KEY"] == "not-a-real-key"
+    assert not any("not-a-real-key" in one for one in provider.args)
+
+
+@pytest.mark.parametrize(
+    ("named", "answers", "args"),
+    [
+        (
+            "bedrock",
+            {"AWS_PROFILE": "work"},
+            (
+                "-c",
+                "model_provider=amazon-bedrock",
+                "-c",
+                "model_providers.amazon-bedrock.aws.profile=work",
+                "-c",
+                "model_providers.amazon-bedrock.aws.region=us-east-1",
+            ),
+        ),
+        (
+            "bedrock-key",
+            {"AWS_BEARER_TOKEN_BEDROCK": "not-a-real-key", "AWS_REGION": "eu-west-1"},
+            (
+                "-c",
+                "model_provider=amazon-bedrock",
+                "-c",
+                "model_providers.amazon-bedrock.aws.region=eu-west-1",
+            ),
+        ),
+        ("ollama", {}, ("-c", "model_provider=ollama")),
+        ("lmstudio", {}, ("-c", "model_provider=lmstudio")),
+    ],
+)
+def test_a_provider_codex_has_built_in_is_named_on_its_command_line(
+    house: Path, named: str, answers: dict[str, str], args: tuple[str, ...]
+) -> None:
+    """Bedrock and the local servers are codex's own providers: the account says which."""
+    provider = login.make("codex", "mine", way("codex", named), answers)
+
+    assert provider.args == args
+    assert not any("not-a-real-key" in one for one in provider.args)
+
+
+def test_a_local_server_is_where_it_usually_is_unless_somebody_says(
+    house: Path,
+) -> None:
+    """The one variable codex reads a local server's place from, at its own port."""
+    ollama = login.make("codex", "o", way("codex", "ollama"))
+    elsewhere = login.make(
+        "codex",
+        "l",
+        way("codex", "lmstudio"),
+        {"CODEX_OSS_BASE_URL": "http://box:9/v1"},
+    )
+
+    assert ollama.env == {"CODEX_OSS_BASE_URL": "http://localhost:11434/v1"}
+    assert elsewhere.env == {"CODEX_OSS_BASE_URL": "http://box:9/v1"}
+
+
+def test_a_workload_identity_is_its_two_variables(house: Path) -> None:
+    """Nothing to run: codex trades the token file for a workspace's tokens each start."""
+    provider = login.make(
+        "codex",
+        "ci",
+        way("codex", "workload"),
+        {
+            "OPENAI_FEDERATION_RULE_ID": "rule-1",
+            "OPENAI_IDENTITY_TOKEN_FILE": "/var/run/token",
+        },
+    )
+
+    assert dict(provider.env) == {
+        "OPENAI_FEDERATION_RULE_ID": "rule-1",
+        "OPENAI_IDENTITY_TOKEN_FILE": "/var/run/token",
+    }
+    assert provider.args == ()
 
 
 def test_variables_of_your_own_are_kept_whatever_they_are_called(house: Path) -> None:

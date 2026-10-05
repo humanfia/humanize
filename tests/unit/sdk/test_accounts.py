@@ -61,7 +61,7 @@ def test_an_account_rewritten_with_its_answers_alone_keeps_the_arguments_its_way
     with none, the account was one whose turns asked api.openai.com with no key at all.
     """
     held = Hmz().accounts
-    gateway = held.way("codex", "gateway")
+    gateway = held.way("codex", "openai-gateway")
     assert gateway is not None
     held.make(
         "codex",
@@ -73,7 +73,7 @@ def test_an_account_rewritten_with_its_answers_alone_keeps_the_arguments_its_way
     written = held.write(
         "codex",
         "gw",
-        "gateway",
+        "openai-gateway",
         {"CODEX_PROVIDER_URL": "https://new.invalid/v1", "CODEX_PROVIDER_KEY": "k"},
     )
 

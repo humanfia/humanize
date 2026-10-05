@@ -117,9 +117,43 @@ const BACKENDS: Backend[] = [
         runs: 'codex login --with-access-token',
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'workload',
+        about: 'a ChatGPT workspace’s workload identity, where nobody signs in',
+        asks: [{ env: 'OPENAI_FEDERATION_RULE_ID' }, { env: 'OPENAI_IDENTITY_TOKEN_FILE' }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
         asks: [{ env: 'CODEX_PROVIDER_URL' }, { env: 'CODEX_PROVIDER_KEY', secret: true }],
+      },
+      {
+        name: 'azure',
+        about: 'OpenAI’s models on an Azure OpenAI resource of yours',
+        asks: [
+          { env: 'AZURE_OPENAI_BASE_URL' },
+          { env: 'AZURE_OPENAI_API_KEY', secret: true },
+          { env: 'AZURE_OPENAI_API_VERSION', fixed: '2025-04-01-preview' },
+        ],
+      },
+      {
+        name: 'bedrock',
+        about: 'OpenAI’s models on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'bedrock-key',
+        about: 'the same, with a Bedrock API key',
+        asks: [{ env: 'AWS_BEARER_TOKEN_BEDROCK', secret: true }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'ollama',
+        about: 'open models served by Ollama',
+        asks: [{ env: 'CODEX_OSS_BASE_URL', fixed: 'http://localhost:11434/v1' }],
+      },
+      {
+        name: 'lmstudio',
+        about: 'open models served by LM Studio',
+        asks: [{ env: 'CODEX_OSS_BASE_URL', fixed: 'http://localhost:1234/v1' }],
       },
       ENV,
     ],

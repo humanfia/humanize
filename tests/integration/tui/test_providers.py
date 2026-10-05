@@ -765,14 +765,14 @@ async def test_a_backspace_trims_a_name_written_in_rather_than_clearing_it() -> 
         await into_settings(app, driver, "accounts")
         form = await _adds(app, driver)
         await _chooses(app, driver, "cli", "codex")
-        await _chooses(app, driver, "way", "gateway")
-        assert form._typed_in["name"] == "gateway"
+        await _chooses(app, driver, "way", "openai-gateway")
+        assert form._typed_in["name"] == "openai-gateway"
 
         await onto(app, driver, "name")
         await driver.press("backspace", "y", "s")
         await driver.press("enter")
         await driver.pause()
-        assert form._typed_in["name"] == "gateways"
+        assert form._typed_in["name"] == "openai-gateways"
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms | Providers), driver)

@@ -50,7 +50,7 @@ def test_a_credential_the_other_backend_has_no_name_for_is_not_one_it_could_run(
     one = providers.add(
         "codex",
         "gate",
-        "gateway",
+        "openai-gateway",
         {"CODEX_PROVIDER_URL": "https://x", "CODEX_PROVIDER_KEY": "k"},
     )
 

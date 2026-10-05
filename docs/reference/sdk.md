@@ -322,7 +322,7 @@ a backend. An account `name` of `""` is the machine's own login (*as local*).
 | `asks(way: Way, given: Mapping[str, str])` | `list[str]` | Variables still unanswered. |
 | `make(cli, name, way: Way, answers=None)` | `Provider` | Writes an account from a way's answers; makes its directory. `ValueError`: bad backend or name. `OSError`. |
 | `sign_in(provider, way, answers=None)` | `int` | **Runs** the backend's sign-in command under the account's paths; its exit status. |
-| `write(cli, name, way="", env=None, args=())` | `Provider` | Writes an account as given, replacing `env`/`args`, keeping credentials. With `args` empty, a named `way` that adds arguments (codex's `gateway`) has them filled from `env`. `ValueError`, `OSError`. |
+| `write(cli, name, way="", env=None, args=())` | `Provider` | Writes an account as given, replacing `env`/`args`, keeping credentials. With `args` empty, a named `way` that adds arguments (codex's `openai-gateway`) has them filled from `env`. `ValueError`, `OSError`. |
 | `where(cli, name)` | `Path` | Its credentials directory. `ValueError`: unknown backend or invalid name. |
 | `serves(one: Provider)` | `tuple[str, ...]` | Other backends its credentials could run. |
 | `copies(one, cli, name="")` | `Provider` | Writes the same account for another backend. `ValueError`: that backend cannot use it. |

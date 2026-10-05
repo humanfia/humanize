@@ -143,7 +143,13 @@ order, then `env` for every backend but `dsh`.
 | | `device` | `codex login --device-auth` | — | |
 | | `key` | `codex login --with-api-key`, key on stdin | `OPENAI_API_KEY` • ◦ | |
 | | `token` | `codex login --with-access-token`, token on stdin | `CODEX_ACCESS_TOKEN` • ◦ | |
-| | `gateway` | — | `CODEX_PROVIDER_URL`, `CODEX_PROVIDER_KEY` • | appends `-c` arguments ([below](#gateways)) |
+| | `workload` | — | `OPENAI_FEDERATION_RULE_ID`, `OPENAI_IDENTITY_TOKEN_FILE` (a file path) | |
+| | `openai-gateway` | — | `CODEX_PROVIDER_URL`, `CODEX_PROVIDER_KEY` • | appends `-c` arguments ([below](#gateways)) |
+| | `azure` | — | `AZURE_OPENAI_BASE_URL` (`https://<resource>.openai.azure.com/openai`), `AZURE_OPENAI_API_KEY` •, `AZURE_OPENAI_API_VERSION` (`2025-04-01-preview`) | appends `-c` arguments ([below](#gateways)) |
+| | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | appends `-c model_provider=amazon-bedrock -c model_providers.amazon-bedrock.aws.profile=<AWS_PROFILE> -c model_providers.amazon-bedrock.aws.region=<AWS_REGION>` |
+| | `bedrock-key` | — | `AWS_BEARER_TOKEN_BEDROCK` •, `AWS_REGION` (`us-east-1`) | appends `-c model_provider=amazon-bedrock -c model_providers.amazon-bedrock.aws.region=<AWS_REGION>` |
+| | `ollama` | — | `CODEX_OSS_BASE_URL` (`http://localhost:11434/v1`) | appends `-c model_provider=ollama` |
+| | `lmstudio` | — | `CODEX_OSS_BASE_URL` (`http://localhost:1234/v1`) | appends `-c model_provider=lmstudio` |
 | `cursor-agent` | `login` | `cursor-agent login` | — | |
 | | `key` | — | `CURSOR_API_KEY` • | |
 | | `gateway` | — | `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY` • | |
@@ -345,7 +351,7 @@ MiniMax Code needs its sessions kept to run fenced: see
 | Effect | Rule |
 | --- | --- |
 | Added | `provider.env`, on top of the inherited environment (`agent.environment()`). |
-| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `gateway` way and `qwen`'s `key` way (`--auth-type openai`) have any. |
+| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `openai-gateway`, `azure`, `bedrock`, `bedrock-key`, `ollama` and `lmstudio` ways and `qwen`'s `key` way (`--auth-type openai`) have any. |
 | Removed | `agent.hushed()`: every variable the backend would read an account from ([below](#variables-taken-away)), except those `provider.env` sets. |
 | Redirected | `provider.swaps()`, as [above](#how-a-credential-path-is-answered). |
 
@@ -371,7 +377,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | --- | --- |
 | `agy` | `AGY_ADC_AUTH`, `CLOUD_CODE_URL`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_GEMINI_BASE_URL` |
 | `claude` | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_CONFIG_DIR`, `ANTHROPIC_CUSTOM_HEADERS`, `ANTHROPIC_MODEL`, `ANTHROPIC_OAUTH_TOKEN`, `ANTHROPIC_VERTEX_PROJECT_ID`, `AWS_PROFILE`, `AWS_REGION`, `CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`, `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_FOUNDRY`, `CLAUDE_CODE_USE_GATEWAY`, `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` |
-| `codex` | `CODEX_ACCESS_TOKEN`, `CODEX_API_KEY`, `CODEX_AUTHAPI_BASE_URL`, `CODEX_PROVIDER_KEY`, `CODEX_PROVIDER_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` |
+| `codex` | `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `CODEX_ACCESS_TOKEN`, `CODEX_API_KEY`, `CODEX_AUTHAPI_BASE_URL`, `CODEX_OSS_BASE_URL`, `CODEX_PROVIDER_KEY`, `CODEX_PROVIDER_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_FEDERATION_RULE_ID`, `OPENAI_IDENTITY_TOKEN_FILE` |
 | `cursor-agent` | `CURSOR_API_BASE_URL`, `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY`, `CURSOR_API_URL`, `CURSOR_AUTH_TOKEN`, `CURSOR_LOCAL_AGENT_API_KEY` |
 | `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL` |
 | `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_DEFAULT_MODEL`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
@@ -392,7 +398,7 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | Backend | Gateway way | Endpoint variable (`Profile.endpoint`) |
 | --- | --- | --- |
 | `claude` | `gateway` | `ANTHROPIC_BASE_URL` |
-| `codex` | `gateway` | `CODEX_PROVIDER_URL` |
+| `codex` | `openai-gateway` | `CODEX_PROVIDER_URL` |
 | `cursor-agent` | `gateway` | none |
 | `dsh` | `gateway` | `DEEPSEEK_BASE_URL` |
 | `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
@@ -405,14 +411,28 @@ A backend with an endpoint variable has its catalogue read from the endpoint whe
 sets it ([model catalogues](#models-json)). `pi`, `opencode` and `mimo` have none: their models are
 named `provider/id`, which an endpoint's ids do not carry.
 
-Codex reads a gateway from configuration, not variables. A turn under a codex `gateway`
-account appends, and no `config.toml` is written:
+Codex reads a gateway from configuration, not variables. A turn under a codex
+`openai-gateway` account appends, and no `config.toml` is written:
 
 ```text
 -c model_provider=humanize
 -c model_providers.humanize.name=humanize
 -c model_providers.humanize.base_url=<CODEX_PROVIDER_URL>
 -c model_providers.humanize.env_key=CODEX_PROVIDER_KEY
+-c model_providers.humanize.wire_api=responses
+```
+
+Codex 0.160 speaks only the Responses API (it refuses `wire_api = "chat"`), so the way asks no
+protocol. A codex `azure` account appends the same with Azure's name, endpoint, key variable
+and API version; its catalogue is codex's own, a resource's `/models` not being its
+deployments:
+
+```text
+-c model_provider=humanize
+-c model_providers.humanize.name=azure
+-c model_providers.humanize.base_url=<AZURE_OPENAI_BASE_URL>
+-c model_providers.humanize.env_key=AZURE_OPENAI_API_KEY
+-c model_providers.humanize.query_params.api-version="<AZURE_OPENAI_API_VERSION>"
 -c model_providers.humanize.wire_api=responses
 ```
 
@@ -437,7 +457,9 @@ it there, so a hushed variable opens no host:
 | `CLAUDE_CODE_USE_VERTEX` | `{r}-aiplatform.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` | `CLOUD_ML_REGION` (`us-east5`) |
 | `CLAUDE_CODE_USE_FOUNDRY` | `{r}.services.ai.azure.com` | `ANTHROPIC_FOUNDRY_RESOURCE` (none) |
 
-A region value that is not one DNS label adds no cloud host. Example: a `claude` account with
+A region value that is not one DNS label adds no cloud host. A `codex` `bedrock` or
+`bedrock-key` account adds none either: its endpoint, `bedrock-mantle.<region>.api.aws`, is
+not opened. Example: a `claude` account with
 `ANTHROPIC_BASE_URL=https://gw.example:8443/v1` reaches `api.anthropic.com`,
 `platform.claude.com`, `claude.ai` and `gw.example:8443` (that port only).
 

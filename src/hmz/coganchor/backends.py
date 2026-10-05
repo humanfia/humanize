@@ -1350,11 +1350,21 @@ PROFILES = (
         # `CODEX_AUTHAPI_BASE_URL` is an account for the reason a key is: codex sends the
         # credential it was signed in with to whatever it names, so a turn run under a
         # provider with somebody's copy of it still exported would hand that provider's token
-        # to somebody's endpoint.
-        ambient=("CODEX_API_KEY", "CODEX_AUTHAPI_BASE_URL", "OPENAI_BASE_URL"),
-        # The gateway way's own, rather than either of the ambient two: codex takes a
+        # to somebody's endpoint. The Azure and the local ways' URLs are here although their
+        # ways ask for them, because this is where a fence reads where a turn goes from: an
+        # account of either sends every request there and nowhere else.
+        ambient=(
+            "AZURE_OPENAI_BASE_URL",
+            "CODEX_API_KEY",
+            "CODEX_AUTHAPI_BASE_URL",
+            "CODEX_OSS_BASE_URL",
+            "OPENAI_BASE_URL",
+        ),
+        # The OpenAI gateway way's own, rather than any of the ambient ones: codex takes a
         # provider as settings, and `model_providers.humanize.base_url` -- which is where
         # every request of such a turn goes -- is filled from this and from nothing else.
+        # Azure's is a variable of its own rather than this one: what a resource lists at
+        # `/models` is the models Azure has, and what a turn names is a deployment of one.
         endpoint="CODEX_PROVIDER_URL",
         ways=(
             Way(
@@ -1397,9 +1407,31 @@ PROFILES = (
                 ),
                 stdin="CODEX_ACCESS_TOKEN",
             ),
+            # A ChatGPT workspace's account with no person signing in: codex trades the
+            # identity token a platform mounts -- a cloud's, a CI runner's -- for the
+            # workspace's own tokens at `auth.openai.com`, under the federation rule the
+            # workspace's admin made for it. Read out of the environment each time it starts
+            # rather than written to its store, so there is no command to run; and the file
+            # is a path rather than a secret, what is in it being the platform's to rotate.
             Way(
-                name="gateway",
-                about=_GATEWAY,
+                name="workload",
+                about="a ChatGPT workspace's workload identity, where nobody signs in",
+                asks=(
+                    Asked(
+                        env="OPENAI_FEDERATION_RULE_ID",
+                        about="the federation rule's id",
+                    ),
+                    Asked(
+                        env="OPENAI_IDENTITY_TOKEN_FILE",
+                        about="the identity token's file, as a path",
+                    ),
+                ),
+            ),
+            Way(
+                name="openai-gateway",
+                about=(
+                    "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor"
+                ),
                 asks=(
                     Asked(env="CODEX_PROVIDER_URL", about="where it is, as a URL"),
                     Asked(
@@ -1408,9 +1440,10 @@ PROFILES = (
                 ),
                 # Codex takes a provider as settings rather than as variables, and `-c` is
                 # how a setting is given for one run without writing anybody's config file.
-                # The wire is written out rather than asked: codex takes one protocol now,
-                # and refuses to start at all on the other, so a question about it would be
-                # a question with one answer and a way to get a provider that cannot run.
+                # The wire is written out rather than asked: codex takes one protocol now --
+                # 0.160.0 refuses `wire_api = "chat"` as no longer supported, and will not
+                # start at all on it -- so a question about it would be a question with one
+                # answer and a way to get a provider that cannot run.
                 args=(
                     "-c",
                     "model_provider=humanize",
@@ -1423,6 +1456,120 @@ PROFILES = (
                     "-c",
                     "model_providers.humanize.wire_api=responses",
                 ),
+            ),
+            # Azure OpenAI is a provider codex has no built-in for and knows all the same: one
+            # named `azure` is spoken to the way Azure's Responses API takes it, which is the
+            # name this gives it. The version is a query parameter on every request, quoted
+            # so that it is read as the string it is; the default is the one codex's own
+            # example of an Azure provider names, and a resource on a newer one says so. The
+            # key goes as a variable codex is told the name of, never on the command line.
+            Way(
+                name="azure",
+                about="OpenAI's models on an Azure OpenAI resource of yours",
+                asks=(
+                    Asked(
+                        env="AZURE_OPENAI_BASE_URL",
+                        about="where it is, as https://<resource>.openai.azure.com/openai",
+                    ),
+                    Asked(env="AZURE_OPENAI_API_KEY", about="its key", secret=True),
+                    Asked(
+                        env="AZURE_OPENAI_API_VERSION",
+                        about="the API version",
+                        fixed="2025-04-01-preview",
+                    ),
+                ),
+                args=(
+                    "-c",
+                    "model_provider=humanize",
+                    "-c",
+                    "model_providers.humanize.name=azure",
+                    "-c",
+                    "model_providers.humanize.base_url={AZURE_OPENAI_BASE_URL}",
+                    "-c",
+                    "model_providers.humanize.env_key=AZURE_OPENAI_API_KEY",
+                    "-c",
+                    (
+                        "model_providers.humanize.query_params.api-version"
+                        '="{AZURE_OPENAI_API_VERSION}"'
+                    ),
+                    "-c",
+                    "model_providers.humanize.wire_api=responses",
+                ),
+            ),
+            # Bedrock is one of codex's own providers, `amazon-bedrock`, and the one built-in
+            # it lets a setting move: its endpoint, its auth, its headers and its `aws` table
+            # and nothing else, the table being where the region and the profile go. Its
+            # endpoint is made of the region -- `bedrock-mantle.<region>.api.aws` -- so the
+            # region is asked for here rather than left to whatever this machine's AWS
+            # configuration would say. A profile in that table outranks every other
+            # credential codex would find, so a turn of this account is that profile's
+            # whatever else is lying about.
+            Way(
+                name="bedrock",
+                about="OpenAI's models on an AWS account of yours",
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+                args=(
+                    "-c",
+                    "model_provider=amazon-bedrock",
+                    "-c",
+                    "model_providers.amazon-bedrock.aws.profile={AWS_PROFILE}",
+                    "-c",
+                    "model_providers.amazon-bedrock.aws.region={AWS_REGION}",
+                ),
+            ),
+            # The same as a Bedrock API key rather than a profile: codex takes one from
+            # `AWS_BEARER_TOKEN_BEDROCK` before any AWS credential it would otherwise find,
+            # and refuses one it is given no region for.
+            Way(
+                name="bedrock-key",
+                about="the same, with a Bedrock API key",
+                asks=(
+                    Asked(
+                        env="AWS_BEARER_TOKEN_BEDROCK",
+                        about="the Bedrock API key",
+                        secret=True,
+                    ),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+                args=(
+                    "-c",
+                    "model_provider=amazon-bedrock",
+                    "-c",
+                    "model_providers.amazon-bedrock.aws.region={AWS_REGION}",
+                ),
+            ),
+            # Open models served by Ollama or by LM Studio, each a provider codex has built in
+            # under its own name. `--oss` is how `codex exec` says the same and `codex
+            # app-server` does not take it, so the provider is named as a setting instead.
+            # Where the server is, is the one variable codex reads it from, which a server
+            # on its usual port on this machine need not be asked about. Nothing to sign in
+            # to and no key to keep.
+            Way(
+                name="ollama",
+                about="open models served by Ollama",
+                asks=(
+                    Asked(
+                        env="CODEX_OSS_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed="http://localhost:11434/v1",
+                    ),
+                ),
+                args=("-c", "model_provider=ollama"),
+            ),
+            Way(
+                name="lmstudio",
+                about="open models served by LM Studio",
+                asks=(
+                    Asked(
+                        env="CODEX_OSS_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed="http://localhost:1234/v1",
+                    ),
+                ),
+                args=("-c", "model_provider=lmstudio"),
             ),
         ),
     ),
