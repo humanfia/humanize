@@ -14,6 +14,11 @@
 //
 // Nothing here touches `window` or `document`, so it renders the same on the server as in the
 // browser: every row is in the HTML, and the filter only hides rows once somebody clicks.
+//
+// It moves only to say what changed: a row the filter drops goes, and the rows under it slide
+// up into its place; one that comes back eases in; pointing at a column or a chip lights that
+// column down the table and fades the rows that cannot; and each backend carries a meter of
+// how much of the table it can do, one notch a column.
 import { computed, ref } from 'vue'
 
 type Tone = 'tip' | 'warning' | 'info'
@@ -115,6 +120,8 @@ const ROWS: Row[] = [
 ]
 
 const picked = ref<Set<Key>>(new Set())
+/** The column pointed at, lit down the table. */
+const hot = ref<Key | null>(null)
 
 function toggle(key: Key) {
   const next = new Set(picked.value)
@@ -126,6 +133,9 @@ function toggle(key: Key) {
 const shown = computed(() =>
   ROWS.filter((r) => [...picked.value].every((key) => r.cells[key].can)),
 )
+
+/** How many of the columns a backend can do, for its meter. */
+const can = (r: Row) => COLUMNS.filter((c) => r.cells[c.key].can).length
 
 const flowColumns = COLUMNS.filter((c) => c.group === 'flow')
 const driverColumns = COLUMNS.filter((c) => c.group === 'driver')
@@ -142,17 +152,23 @@ const driverColumns = COLUMNS.filter((c) => c.group === 'driver')
         class="chip"
         :aria-pressed="picked.has(c.key)"
         @click="toggle(c.key)"
+        @mouseenter="hot = c.key"
+        @mouseleave="hot = null"
+        @focus="hot = c.key"
+        @blur="hot = null"
       >
         {{ c.filter }}
       </button>
-      <button v-if="picked.size" type="button" class="clear" @click="picked = new Set()">
-        clear
-      </button>
+      <Transition name="fade">
+        <button v-if="picked.size" type="button" class="clear" @click="picked = new Set()">
+          clear
+        </button>
+      </Transition>
     </div>
     <div class="scroll">
       <table>
         <caption>
-          {{ shown.length }} of {{ ROWS.length }} backends. Read off what the harness protocols
+          <b class="tally">{{ shown.length }}</b> of {{ ROWS.length }} backends. Read off what the harness protocols
           and the drivers declare; nothing runs.
         </caption>
         <thead>
@@ -167,31 +183,36 @@ const driverColumns = COLUMNS.filter((c) => c.group === 'driver')
               v-for="(c, at) in COLUMNS"
               :key="c.key"
               scope="col"
-              :class="{ split: at === flowColumns.length }"
+              :class="{ split: at === flowColumns.length, hot: hot === c.key }"
+              @mouseenter="hot = c.key"
+              @mouseleave="hot = null"
             >
-              <a :href="c.href">{{ c.head }}</a>
+              <a :href="c.href" @focus="hot = c.key" @blur="hot = null">{{ c.head }}</a>
             </th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-for="r in shown" :key="r.name">
+        <TransitionGroup tag="tbody" name="row">
+          <tr v-for="r in shown" :key="r.name" :class="{ dim: hot && !r.cells[hot].can }">
             <th scope="row" class="name">
               <code>{{ r.name }}</code>
               <span class="product">{{ r.product }}</span>
+              <span class="meter" :title="`${can(r)} of ${COLUMNS.length}`" aria-hidden="true">
+                <i v-for="c in COLUMNS" :key="c.key" :class="[c.group, { on: r.cells[c.key].can, part: !r.cells[c.key].can && r.cells[c.key].text, hot: hot === c.key }]" />
+              </span>
             </th>
             <td
               v-for="(c, at) in COLUMNS"
               :key="c.key"
-              :class="{ split: at === flowColumns.length }"
+              :class="{ split: at === flowColumns.length, hot: hot === c.key }"
             >
               <Badge v-if="r.cells[c.key].text" :type="r.cells[c.key].tone" :text="r.cells[c.key].text" />
               <template v-else><span class="dash" aria-hidden="true">—</span><span class="sr">no</span></template>
             </td>
           </tr>
-          <tr v-if="!shown.length">
+          <tr v-if="!shown.length" key="none">
             <td :colspan="COLUMNS.length + 1" class="none">No backend does all of these.</td>
           </tr>
-        </tbody>
+        </TransitionGroup>
       </table>
     </div>
   </div>
@@ -298,7 +319,7 @@ const driverColumns = COLUMNS.filter((c) => c.group === 'driver')
 }
 
 .matrix thead .groups th {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -379,9 +400,106 @@ const driverColumns = COLUMNS.filter((c) => c.group === 'driver')
   padding: 14px 16px;
 }
 
+/* ---- motion: what changed, and nothing else ---- */
+
+.matrix thead th {
+  transition: background-color 0.2s;
+}
+
+.matrix tbody td {
+  transition: background-color 0.2s, opacity 0.25s;
+}
+
+/* The column pointed at, lit from its head to its last row; the rows that cannot, faded. */
+.matrix .hot {
+  background: color-mix(in srgb, var(--vp-c-brand-1) 9%, transparent);
+}
+
+.matrix thead th.hot a {
+  color: var(--vp-c-brand-1);
+}
+
+.matrix tbody tr.dim td {
+  opacity: 0.3;
+}
+
+.tally {
+  display: inline-block;
+  min-width: 1.1em;
+  font-variant-numeric: tabular-nums;
+  color: var(--vp-c-brand-1);
+}
+
+.meter {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.meter i {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--vp-c-divider);
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.meter i.on.flow {
+  background: var(--hmz-lane-1);
+}
+
+.meter i.on.driver {
+  background: var(--hmz-accent);
+}
+
+.meter i.part {
+  background: var(--hmz-warm);
+  opacity: 0.6;
+}
+
+.meter i.hot {
+  transform: scaleY(1.8);
+}
+
+/* A row the filter drops is gone at once, so the rows under it can slide up from where they
+   were; one that comes back eases in. */
+.row-move {
+  transition: transform 0.45s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+.row-enter-active {
+  transition: opacity 0.35s 0.1s, transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.row-leave-active {
+  display: none;
+}
+
+.row-enter-from {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chip,
-  .clear {
+  .clear,
+  .matrix thead th,
+  .matrix tbody td,
+  .meter i,
+  .row-move,
+  .row-enter-active,
+  .fade-enter-active,
+  .fade-leave-active {
     transition: none;
   }
 }

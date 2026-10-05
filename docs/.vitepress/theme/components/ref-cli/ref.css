@@ -23,3 +23,11 @@
   font-size: 12.5px;
   line-height: 1.45;
 }
+
+/* A word typed into a `RefFilter` box, lit where it was found (the CSS Custom Highlight API:
+   the table's own markup is left alone). Global, since the rows are the page's, not the
+   filter's. */
+::highlight(hmz-ref-hit) {
+  background-color: color-mix(in srgb, var(--hmz-warm) 32%, transparent);
+  color: var(--vp-c-text-1);
+}
