@@ -416,9 +416,6 @@ class Carrier:
                 self._host.detach(client)
             answer = {"ok": True, "let go": len(clients)}
         elif doing == "stop":
-            threading.Thread(
-                target=_quietly, args=(self._host.close,), daemon=True
-            ).start()
             answer = {"ok": True}
         else:
             answer = {"ok": False, "why": f"no such request: {doing!r}"}
@@ -428,6 +425,11 @@ class Carrier:
             reading.one.sendall(spoken(CONTROL, answer))
         with contextlib.suppress(OSError):
             reading.one.close()
+        if doing == "stop":
+            # Only once it has been answered: closing is what ends this process, and an answer
+            # not yet written by then is never heard -- whoever asked reads the host on its way
+            # out as one that would not stop.
+            _quietly(self._host.close)
 
     def _asks(
         self, reading: _Reading, asking: queue.SimpleQueue[dict[str, Any] | None]
