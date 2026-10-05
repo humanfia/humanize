@@ -10,11 +10,12 @@
 import { computed, ref, useId } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
-import { createFx, type Fx } from '../motion/fx'
+import { count, createFx, type as typeOut, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
 import { rig, type Point, type Shot } from '../motion/camera'
+import { breathe } from './sway'
 
 const BEATS = [
   'A CLI logs sessions under bare ids',
@@ -234,6 +235,9 @@ const scene = useScene({
     tl.set(at('.ledger, .ledger-line, .row, .axis, .playhead, .divider, .chrome, .lock, .link, .slice-word, .log-halo'), { autoAlpha: 0 }, 0)
     tl.set(at('.slice'), { scaleX: 0, transformOrigin: '0% 50%' }, 0)
     tl.set(at('.link-line'), { drawSVG: '0%' }, 0)
+    tl.set(at('.track, .axis-line, .axis-tick, .divider-line, .chrome-frame, .chrome-bar'), { drawSVG: '0%' }, 0)
+    tl.set(at('.axis-word, .profile'), { autoAlpha: 0 }, 0)
+    tl.set(one('.chrome-file'), { text: '' }, 0)
 
     // 0 · sessions, as the CLIs left them: ids, some this run's, most not.
     tl.addLabel('beat-0', 0)
@@ -271,13 +275,20 @@ const scene = useScene({
       tl.to(q('.log-id')[i], { autoAlpha: 0, duration: 0.3 }, T1b + 1.0)
       tl.to(at('.log')[i], { autoAlpha: 0, duration: 0.4 }, T1b + 1.35)
       tl.to(rowEls[r], { autoAlpha: 1, duration: 0.4 }, T1b + 1.2)
+      tl.to(q(`.row-${r} .track`), { drawSVG: '100%', duration: 0.9, ease: 'cine' }, T1b + 1.2)
     })
 
     // 2 · one clock: the playhead crosses the run and every slice grows as it happened.
     const T2 = T1b + 1.9
+    const when0 = (t: number) => T2 + (t / SPAN) * SWEEP
     tl.addLabel('beat-2', T2)
-    tl.to(one('.axis'), { autoAlpha: 1, duration: 0.5 }, T2 - 0.3)
+    tl.to(one('.axis'), { autoAlpha: 1, duration: 0.01 }, T2 - 0.6)
+    tl.to(one('.axis-line'), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, T2 - 0.6)
+    tl.to(at('.axis-tick'), { drawSVG: '100%', duration: 0.5, stagger: 0.06, ease: 'cine.out' }, T2 - 0.4)
+    tl.to(at('.axis-word'), { autoAlpha: 1, duration: 0.3, stagger: 0.06 }, T2 - 0.35)
+    tl.to(q('.row-1 .track'), { drawSVG: '100%', duration: 0.6, ease: 'cine' }, when0(16.0))
     tl.to(one('.playhead'), { autoAlpha: 1, duration: 0.2 }, T2)
+    count(tl, one('.playhead-t'), 0, SPAN, T2, { duration: SWEEP, ease: 'none', format: (n) => `t = ${Math.round(n)} s` })
     tl.fromTo(one('.playhead-in'), { x: 0 }, { x: l.x1 - l.x0, duration: SWEEP, ease: 'none' }, T2)
     cam.shot(l.shots.sweepTo, T2, SWEEP, 'sine.inOut')
     const when = (t: number) => T2 + (t / SPAN) * SWEEP
@@ -301,7 +312,11 @@ const scene = useScene({
     const T3 = T2 + SWEEP + 0.4
     tl.addLabel('beat-3', T3)
     cam.shot(l.shots.push, T3, 1.4)
-    tl.to(one('.divider'), { autoAlpha: 1, duration: 0.5 }, T3 + 0.4)
+    tl.to(one('.divider'), { autoAlpha: 1, duration: 0.01 }, T3 + 0.4)
+    tl.to(one('.divider-line'), { drawSVG: '100%', duration: 0.8, ease: 'cine' }, T3 + 0.4)
+    // Only a run started with `--profile` records its programs.
+    tl.fromTo(one('.profile'), { autoAlpha: 0, x: 14 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: 'back.out(1.8)' }, T3 + 0.5)
+    tl.fromTo(q('.profile rect'), { strokeWidth: 1.2 }, { strokeWidth: 3, duration: 0.2, yoyo: true, repeat: 1, ease: 'power2.out' }, T3 + 0.9)
     STARTED.forEach((link, k) => {
       const t = T3 + (k === 0 ? 0.9 : 2.9 + (k - 1) * 0.7)
       const call = ROWS[link.row].slices[link.slice]
@@ -310,12 +325,14 @@ const scene = useScene({
       tl.to(q('.link-line')[k], { drawSVG: '100%', duration: 0.5, ease: 'power2.in' }, t)
       cam.beam({ x: X(call.t0) + 3, y: l.rowY[link.row] + l.rowH }, { x: X(prog.slices[0].t0) + 3, y: l.rowY[link.prog] }, lane(prog.lane), t, { duration: 0.5, bend: 0, burst: 14, ease: 'power2.in' })
       tl.to(rowEls[link.prog], { autoAlpha: 1, duration: 0.3 }, t + 0.35)
+      tl.to(q(`.row-${link.prog} .track`), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, t + 0.35)
       tl.to(slicesOf(link.prog)[0], { scaleX: 1, duration: 0.7, ease: 'cine.out' }, t + 0.45)
       tl.to(q(`.row-${link.prog} .slice-word`), { autoAlpha: 1, duration: 0.3 }, t + 0.9)
       if (k === 0) {
         // pytest's threads, one under the other.
         ;[4, 5].forEach((r, n) => {
           tl.fromTo(rowEls[r], { autoAlpha: 0, y: -12 }, { autoAlpha: 1, y: 0, duration: 0.4 }, t + 0.9 + n * 0.3)
+          tl.to(q(`.row-${r} .track`), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, t + 0.9 + n * 0.3)
           tl.to(slicesOf(r)[0], { scaleX: 1, duration: 0.7, ease: 'cine.out' }, t + 1.0 + n * 0.3)
           tl.to(q(`.row-${r} .slice-word`), { autoAlpha: 1, duration: 0.3 }, t + 1.5 + n * 0.3)
         })
@@ -328,9 +345,13 @@ const scene = useScene({
     tl.addLabel('beat-4', T4)
     cam.shot(l.shots.end, T4, 1.6)
     tl.fromTo(one('.chrome'), { autoAlpha: 0, scale: 1.04, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.9 }, T4 + 0.5)
+    tl.to(one('.chrome-frame'), { drawSVG: '100%', duration: 1.4, ease: 'cine' }, T4 + 0.5)
+    tl.to(one('.chrome-bar'), { drawSVG: '100%', duration: 0.6, ease: 'cine' }, T4 + 1.1)
+    typeOut(tl, one('.chrome-file'), 'export.trace.json', T4 + 0.7, 16)
     tl.fromTo(one('.lock'), { autoAlpha: 0, scale: 1.4, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'back.out(2)' }, T4 + 1.3)
     cam.flare(l.lock, () => palette.accent, T4 + 1.35, 22, 90)
     tl.addLabel('rest', T4 + 2.2)
+    breathe(tl, q('.lock rect'), T4 + 1.9, T4 + 4.4, { period: 1.2, opacity: 0.55 })
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 4.6)
   },
 })
@@ -400,6 +421,12 @@ const scene = useScene({
           />
         </g>
 
+        <!-- Only a run started with it records its programs: over the links, so it reads. -->
+        <g class="profile">
+          <rect :x="L.x1 - 150" :y="L.divider - 10" width="150" height="20" rx="10" />
+          <text :x="L.x1 - 75" :y="L.divider + 4" text-anchor="middle">hmz exec … --profile</text>
+        </g>
+
         <!-- The rows. -->
         <g v-for="(row, r) in ROWS" :key="r" class="row" :class="`row-${r}`">
           <line class="track" :x1="L.x0" :x2="L.x1" :y1="L.rowY[r] + L.rowH / 2" :y2="L.rowY[r] + L.rowH / 2" />
@@ -415,6 +442,7 @@ const scene = useScene({
           <g class="playhead-in">
             <rect x="-10" :y="L.axis - 6" width="20" :height="L.rowY[2] + L.rowH - L.axis + 16" :fill="`url(#${id}-head)`" opacity="0.25" />
             <line :y1="L.axis - 6" :y2="L.rowY[2] + L.rowH + 10" class="playhead-line" />
+            <text class="playhead-t" x="-6" :y="L.rowY[2] + L.rowH + 22" text-anchor="end">t = 0 s</text>
           </g>
         </g>
 
@@ -586,7 +614,7 @@ svg {
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
   pointer-events: none;
 }
 
@@ -611,6 +639,26 @@ svg {
 .playhead-line {
   stroke: var(--hmz-accent);
   stroke-width: 2;
+}
+
+.playhead-t {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  fill: var(--hmz-accent);
+}
+
+.profile rect {
+  fill: color-mix(in srgb, var(--hmz-lane-4) 14%, var(--hmz-stage-card));
+  stroke: var(--hmz-lane-4);
+  stroke-width: 1.2;
+}
+
+.profile text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--hmz-stage-ink);
 }
 
 .chrome-frame {
