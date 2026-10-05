@@ -332,7 +332,13 @@ def usage(thread, named, step):
     with writing:
         totals = json.loads(TOTALS.read_text()) if TOTALS.exists() else {}
         total = totals[thread] = totals.get(thread, 0) + step
-        TOTALS.write_text(json.dumps(totals))
+        # Written beside it and moved over it, so that it is always whole, as it was or as it
+        # now is: a server put down mid-turn is killed mid-write, and an emptied file would
+        # fail the next server's turn on a thread of its own, which nobody hears, leaving the
+        # driver waiting forever.
+        written = TOTALS.with_name(f"{TOTALS.name}.{os.getpid()}")
+        written.write_text(json.dumps(totals))
+        os.replace(written, TOTALS)
     notify("thread/tokenUsage/updated", {"threadId": thread, "turnId": named, "tokenUsage": {
         "last": {"inputTokens": 10 * step, "outputTokens": step},
         "total": {"inputTokens": 10 * total, "outputTokens": total}}})
