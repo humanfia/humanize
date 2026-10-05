@@ -8,6 +8,11 @@
 // every agent is spelled the way `hmz exec -a` takes it (role=cli/model:effort,
 // with the effort on that CLI's ladder in `coganchor/backends.py`), and who takes a turn after
 // whom is the flow's own order. What is invented: the calls, their lengths, and the models.
+//
+// Drawn the way a lecture draws it: the squared paper first, the flow's loop in one stroke, a
+// wire out of it to every agent, and each agent's name carried down to its row of the
+// timeline, so the row is visibly the same agent. A turn is a flash of light down its wire and
+// back up it; a current runs down every wire while the scene plays.
 import { computed, nextTick, ref } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
@@ -15,6 +20,8 @@ import { createFx, streak, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
+import ScenePlane from './scene/ScenePlane.vue'
+import { drawPlane, glide } from './scene/plane'
 
 interface Lane {
   role: string
@@ -106,7 +113,7 @@ function schedule(play: Play): Turn[] {
     }
     turns.push({ lane, t0: at, t1, calls })
     busy[lane] = t1
-    for (const to of play.after(lane)) queue.push({ lane: to, at: t1 + 0.45 })
+    for (const to of play.after(lane)) queue.push({ lane: to, at: t1 + 0.8 })
   }
   return turns
 }
@@ -134,7 +141,7 @@ const layout = computed(() => {
         nodes[lane] = { x: x0 + c * colW + 18, y: g.length === 1 ? 164 : 144 + r * 42 }
       }),
     )
-    return { w, h: 360, core: { x: 76, y: 60 }, nodes, strip: { x: 40, y: 236, w: 560, h: 96 } }
+    return { w, h: 360, core: { x: 76, y: 60 }, nodes, strip: { x: 150, y: 232, w: 450, h: 92 }, label: 40 }
   }
   const w = 360
   const nodes: { x: number; y: number }[] = []
@@ -144,16 +151,26 @@ const layout = computed(() => {
     }),
   )
   const top = 132 + p.groups.length * 42 + 8
-  return { w, h: top + 150, core: { x: 180, y: 58 }, nodes, strip: { x: 16, y: top, w: 328, h: 118 } }
+  return { w, h: top + 158, core: { x: 56, y: 54 }, nodes, strip: { x: 34, y: top, w: 310, h: 118 }, label: 22 }
 })
 
 const L = layout
 const rowH = computed(() => L.value.strip.h / play.value.lanes.length)
+const rowY = (i: number) => L.value.strip.y + rowH.value * (i + 0.5)
 const sx = (t: number) => L.value.strip.x + (t / RUN) * L.value.strip.w
 const short = (agent: string) => {
   const [cli] = agent.split('/')
   const effort = agent.split(':').pop()
   return `${cli} · ${effort}`
+}
+// The ticks of the timeline's clock, every three seconds of the run.
+const TICKS = [0, 3, 6, 9, 12]
+// Out of the bottom of the flow and into the top of an agent: the wire its turns go down.
+const spoke = (i: number) => {
+  const c = L.value.core
+  const n = L.value.nodes[i]
+  const y0 = c.y + 26
+  return `M ${c.x} ${y0} C ${c.x} ${y0 + 46}, ${n.x} ${n.y - 54}, ${n.x} ${n.y - 13}`
 }
 
 const scene = useScene({
@@ -169,42 +186,84 @@ const scene = useScene({
     const pct = (x: number, y: number) => `${(x / l.w) * 100}% ${(y / l.h) * 100}%`
     const nodes = q('.node')
     const halos = q('.node-halo')
+    const spokes = q('.spoke')
+    const lit = q('.spoke-lit')
+    const rows = q('.row-label')
     const tone = (lane: number) => () => palette.lane[play.value.lanes[lane].tone - 1]
     const core = l.core
+    const name = q('.flow-name')[0]
 
-    // 0 · the flow, close up, then the camera pulls back to show whom it drives.
+    // 0 · the flow, close up, drawn on its squared paper; then the camera pulls back to show
+    // whom it drives.
     tl.addLabel('beat-0', 0)
     tl.set(q('.call'), { scaleX: 0, transformOrigin: '0% 50%' }, 0)
     tl.set(halos, { autoAlpha: 0 }, 0)
-    tl.set(q('.playhead'), { x: 0 }, 0)
+    tl.set(q('.playhead'), { x: 0, autoAlpha: 0 }, 0)
+    tl.set(lit, { drawSVG: '0% 0%' }, 0)
+    drawPlane(tl, q, 0.1, { duration: 2 })
     tl.fromTo(world, { scale: 1.9, transformOrigin: pct(core.x, core.y + 20), autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 2.6, ease: 'cine' }, 0)
     tl.fromTo(q('.core-ring'), { drawSVG: '50% 50%' }, { drawSVG: '0% 100%', duration: 1.2, ease: 'cine' }, 0.1)
-    tl.fromTo(q('.core-words'), { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.8 }, 0.5)
+    // The loop the flow is, drawn in one stroke: the arc, then its head.
+    tl.fromTo(q('.core-loop'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.9, ease: 'cine' }, 0.45)
+    tl.fromTo(q('.core-head'), { autoAlpha: 0, scale: 0.4, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(3)' }, 1.25)
+    tl.set(name, { text: '' }, 0)
+    tl.to(name, { text: { value: play.value.name }, duration: play.value.name.length / 30, ease: 'none' }, 0.45)
+    tl.fromTo(q('.flow-shape'), { autoAlpha: 0, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.7 }, 1)
 
-    // 1 · the agents, one per role, each on its own CLI.
-    tl.addLabel('beat-1', 1.3)
-    tl.fromTo(nodes, { autoAlpha: 0, scale: 0.3, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.6, ease: 'back.out(2.2)', stagger: 0.09 }, 1.3)
-    tl.fromTo(q('.strip'), { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: 0.9 }, 1.9)
+    // 1 · the agents, one per role, each down a wire of its own; and their rows on the
+    // timeline, each one's name carried down to it.
+    tl.addLabel('beat-1', 1.4)
+    tl.fromTo(spokes, { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.7, ease: 'cine', stagger: 0.09 }, 1.4)
+    tl.fromTo(q('.spoke-flow'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.8 }, 2.4)
+    nodes.forEach((node, i) => {
+      const t = 1.4 + i * 0.09 + 0.55
+      tl.fromTo(node, { autoAlpha: 0, scale: 0.3, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.55, ease: 'back.out(2.2)' }, t)
+      tl.call(() => fx?.spark(l.nodes[i].x, l.nodes[i].y, tone(i)(), 8, 50), [], t)
+    })
+    tl.fromTo(q('.tag'), { autoAlpha: 0, x: -6 }, { autoAlpha: 1, x: 0, duration: 0.5, stagger: 0.04 }, 1.8)
+    tl.fromTo(q('.strip-frame'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.1, ease: 'cine' }, 2)
+    tl.fromTo(q('.strip-title, .tick'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, stagger: 0.05 }, 2.3)
+    tl.fromTo(q('.row'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.8, ease: 'cine', stagger: 0.05 }, 2.4)
+    rows.forEach((row, i) => {
+      const n = l.nodes[i]
+      // From the role's name beside its node (wide), or from the node itself (narrow), down to
+      // its row: the same name, now the row's.
+      const dx = narrow.value ? n.x - l.label : n.x + 18 - l.label
+      const dy = narrow.value ? n.y - rowY(i) : n.y - 2 - (rowY(i) + 4)
+      glide(tl, null, row, dx, dy, 2.4 + i * 0.06, { duration: 1 })
+    })
 
-    // 2 · the run: a beam out to the agent whose turn it is, its calls landing on its row,
-    // and its answer beamed back to the flow, which hands over to whoever goes next.
+    // 2 · the run: a flash down the wire to the agent whose turn it is, its calls landing on
+    // its row, and its answer flashed back up to the flow, which hands over to whoever goes
+    // next.
     tl.addLabel('beat-2', INTRO)
+    tl.to(q('.playhead'), { autoAlpha: 1, duration: 0.3 }, INTRO)
     tl.to(q('.core-spin'), { rotation: 360 * 3, svgOrigin: '0 0', duration: RUN, ease: 'none' }, INTRO)
-    tl.fromTo(q('.playhead'), { x: 0 }, { x: l.strip.w, duration: RUN, ease: 'none' }, INTRO)
+    tl.fromTo(q('.playhead'), { x: 0 }, { x: l.strip.w, duration: RUN, ease: 'none', immediateRender: false }, INTRO)
     const callEls = q('.call')
     let c = 0
     for (const turn of turns.value) {
       const at = INTRO + turn.t0
       const node = l.nodes[turn.lane]
-      streak(tl, get, { x: core.x, y: core.y + 26 }, node, tone(turn.lane), at - 0.35, { duration: 0.45, bend: 0.12, burst: 8 })
+      const wire = lit[turn.lane]
+      // Out: a segment of light runs the length of the wire, head first.
+      tl.fromTo(wire, { drawSVG: '0% 0%' }, { drawSVG: '0% 35%', duration: 0.12, ease: 'none', immediateRender: false }, at - 0.32)
+      tl.to(wire, { drawSVG: '65% 100%', duration: 0.2, ease: 'none' }, at - 0.2)
+      tl.to(wire, { drawSVG: '100% 100%', duration: 0.1, ease: 'none' }, at)
+      streak(tl, get, { x: core.x, y: core.y + 26 }, node, tone(turn.lane), at - 0.4, { duration: 0.45, bend: 0.12, burst: 8 })
       tl.to(halos[turn.lane], { autoAlpha: 1, duration: 0.2 }, at)
       tl.to(halos[turn.lane], { autoAlpha: 0, duration: 0.3 }, INTRO + turn.t1)
-      tl.fromTo(nodes[turn.lane], { scale: 1 }, { scale: 1.25, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out' }, at)
+      tl.fromTo(nodes[turn.lane], { scale: 1 }, { scale: 1.25, duration: 0.18, yoyo: true, repeat: 1, ease: 'power2.out', immediateRender: false }, at)
       for (const call of turn.calls) {
         tl.to(callEls[c], { scaleX: 1, duration: call.t1 - call.t0, ease: 'none' }, INTRO + call.t0)
         c += 1
       }
-      streak(tl, get, node, { x: core.x, y: core.y + 26 }, tone(turn.lane), INTRO + turn.t1, { duration: 0.45, bend: -0.12 })
+      // Back: the same light, running up the wire.
+      const back = INTRO + turn.t1
+      tl.fromTo(wire, { drawSVG: '100% 100%' }, { drawSVG: '65% 100%', duration: 0.12, ease: 'none', immediateRender: false }, back)
+      tl.to(wire, { drawSVG: '0% 35%', duration: 0.22, ease: 'none' }, back + 0.12)
+      tl.to(wire, { drawSVG: '0% 0%', duration: 0.12, ease: 'none' }, back + 0.34)
+      streak(tl, get, node, { x: core.x, y: core.y + 26 }, tone(turn.lane), back, { duration: 0.45, bend: -0.12 })
     }
 
     // 3 · the camera goes down onto the trace as it fills, and back out to the whole.
@@ -253,15 +312,23 @@ const label = computed(
             <stop offset="1" stop-color="var(--hmz-accent)" stop-opacity="0.9" />
           </linearGradient>
         </defs>
+        <ScenePlane :key="`plane-${narrow}`" :w="L.w" :h="L.h" :ox="L.core.x" :oy="L.core.y" :step="narrow ? 28 : 32" />
         <g class="world">
+          <g v-for="(lane, i) in play.lanes" :key="`w-${play.name}-${lane.role}`">
+            <path class="spoke" :d="spoke(i)" />
+            <path class="spoke-flow" :d="spoke(i)" />
+            <path class="spoke-lit" :d="spoke(i)" :style="{ stroke: `var(--hmz-lane-${lane.tone})` }" />
+          </g>
+
           <g class="core" :transform="`translate(${L.core.x} ${L.core.y})`">
             <circle class="core-glow" r="46" />
             <circle class="core-ring" r="26" />
             <circle class="core-spin" r="33" />
-            <text class="core-glyph" y="6" text-anchor="middle">↻</text>
+            <path class="core-loop" d="M 9.9 -9.9 A 14 14 0 1 0 14 0" />
+            <path class="core-head" d="M 14.6 -15.2 L 11.6 -4.6 L 4.4 -11.8 Z" />
             <g class="core-words">
-              <text class="flow-name" :x="narrow ? 0 : 44" :y="narrow ? 50 : -4" :text-anchor="narrow ? 'middle' : 'start'">{{ play.name }}</text>
-              <text v-if="!narrow" class="flow-shape" x="44" y="13">{{ play.shape }}</text>
+              <text class="flow-name" x="44" y="-4">{{ play.name }}</text>
+              <g v-if="!narrow" class="flow-shape"><text x="44" y="13">{{ play.shape }}</text></g>
             </g>
           </g>
 
@@ -271,22 +338,26 @@ const label = computed(
               <circle r="11" :style="{ fill: `var(--hmz-lane-${lane.tone})` }" />
               <circle r="4" class="node-eye" />
             </g>
-            <text class="role" x="18" y="-2">{{ lane.role }}</text>
-            <text class="spec" x="18" y="12">{{ short(lane.agent) }}</text>
+            <g class="tag">
+              <text class="role" x="18" y="-2">{{ lane.role }}</text>
+              <text class="spec" x="18" y="12">{{ short(lane.agent) }}</text>
+            </g>
           </g>
 
           <g class="strip">
-            <rect class="strip-frame" :x="L.strip.x - 8" :y="L.strip.y - 20" :width="L.strip.w + 16" :height="L.strip.h + 28" rx="10" />
-            <text class="strip-title" :x="L.strip.x" :y="L.strip.y - 7">one timeline</text>
-            <line
-              v-for="(lane, i) in play.lanes"
-              :key="`row-${i}`"
-              class="row"
-              :x1="L.strip.x"
-              :x2="L.strip.x + L.strip.w"
-              :y1="L.strip.y + rowH * (i + 0.5)"
-              :y2="L.strip.y + rowH * (i + 0.5)"
-            />
+            <rect class="strip-frame" :x="L.label - 12" :y="L.strip.y - 20" :width="L.strip.x + L.strip.w - L.label + 22" :height="L.strip.h + 46" rx="10" />
+            <text class="strip-title" :x="L.label" :y="L.strip.y - 7">one timeline</text>
+            <g v-for="(lane, i) in play.lanes" :key="`row-${play.name}-${i}`">
+              <line class="row" :x1="L.strip.x" :x2="L.strip.x + L.strip.w" :y1="rowY(i)" :y2="rowY(i)" />
+              <g class="row-label">
+                <circle v-if="narrow" :cx="L.label" :cy="rowY(i)" r="4.5" :style="{ fill: `var(--hmz-lane-${lane.tone})` }" />
+                <text v-else :x="L.label" :y="rowY(i) + 4" :style="{ fill: `var(--hmz-lane-${lane.tone})` }">{{ lane.role }}</text>
+              </g>
+            </g>
+            <g v-for="t in TICKS" :key="`t-${t}`" class="tick">
+              <line :x1="sx(t)" :x2="sx(t)" :y1="L.strip.y + L.strip.h + 3" :y2="L.strip.y + L.strip.h + 8" />
+              <text :x="sx(t)" :y="L.strip.y + L.strip.h + 20" :text-anchor="t === 0 ? 'start' : t === RUN ? 'end' : 'middle'">{{ t }}s</text>
+            </g>
             <template v-for="(turn, t) in turns" :key="`turn-${picked}-${t}`">
               <rect
                 v-for="(call, k) in turn.calls"
@@ -302,7 +373,7 @@ const label = computed(
               />
             </template>
             <g class="playhead">
-              <rect :x="L.strip.x - 10" :y="L.strip.y - 2" width="10" :height="L.strip.h + 4" fill="url(#orchestra-head)" transform="rotate(0)" />
+              <rect :x="L.strip.x - 10" :y="L.strip.y - 2" width="10" :height="L.strip.h + 4" fill="url(#orchestra-head)" />
               <line :x1="L.strip.x" :x2="L.strip.x" :y1="L.strip.y - 4" :y2="L.strip.y + L.strip.h + 4" />
             </g>
           </g>
@@ -315,7 +386,6 @@ const label = computed(
 </template>
 
 <style scoped>
-
 /* The camera moves this layer, so the light on the canvas moves with the drawing under it. */
 .cam svg,
 .cam canvas {
@@ -328,6 +398,7 @@ const label = computed(
 .cam canvas {
   pointer-events: none;
 }
+
 .orchestra {
   margin: 22px 0 30px;
 }
@@ -369,6 +440,39 @@ svg {
   font-family: var(--vp-font-family-base);
 }
 
+.spoke {
+  fill: none;
+  stroke: var(--hmz-stage-line);
+  stroke-width: 1.5;
+}
+
+/* The current down every wire, once it is drawn: always flowing, while the scene plays. A
+   path of its own, so the flow never fights the stroke that drew the wire on. */
+.spoke-flow {
+  fill: none;
+  stroke: color-mix(in srgb, var(--hmz-stage-dim) 55%, transparent);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 10;
+  stroke-linecap: round;
+  animation: orchestra-flow 1.6s linear infinite paused;
+}
+
+:global(.screen.running) .spoke-flow {
+  animation-play-state: running;
+}
+
+@keyframes orchestra-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+.spoke-lit {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
 .core-glow {
   fill: var(--hmz-accent);
   opacity: calc(0.12 * var(--hmz-glow));
@@ -388,9 +492,14 @@ svg {
   opacity: 0.7;
 }
 
-.core-glyph {
-  font-size: 22px;
-  font-weight: 700;
+.core-loop {
+  fill: none;
+  stroke: var(--hmz-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.core-head {
   fill: var(--hmz-accent);
 }
 
@@ -401,7 +510,7 @@ svg {
   fill: var(--hmz-stage-ink);
 }
 
-.flow-shape {
+.flow-shape text {
   font-size: 12px;
   fill: var(--hmz-stage-dim);
 }
@@ -411,8 +520,8 @@ svg {
 }
 
 .node-eye {
-  fill: #fff;
-  opacity: 0.85;
+  fill: var(--hmz-stage-card);
+  opacity: 0.9;
 }
 
 .role {
@@ -444,6 +553,22 @@ svg {
 .row {
   stroke: var(--hmz-stage-line);
   stroke-dasharray: 2 4;
+}
+
+.row-label text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tick line {
+  stroke: var(--hmz-stage-dim);
+}
+
+.tick text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  fill: var(--hmz-stage-dim);
 }
 
 .call.think {
