@@ -1015,9 +1015,10 @@ PROFILES = (
         name="claude",
         # The API, where a subscription's sign-in is refreshed -- `TOKEN_URL` in the binary's
         # own OAuth block is `platform.claude.com/v1/oauth/token` -- and the subscription's
-        # origin, which the same block names. Bedrock and Vertex are a cloud's hosts rather
-        # than Anthropic's, and :func:`reachable` names them from the region an account of
-        # either was made with.
+        # origin, which the same block names. Bedrock, Mantle, Vertex, Foundry and the Claude
+        # Platform on AWS and on Google Cloud are a cloud's hosts rather than Anthropic's, and
+        # :func:`reachable` names them from the region or resource an account of one was made
+        # with.
         hosts=("api.anthropic.com", "platform.claude.com", "claude.ai"),
         installs="npm i -g @anthropic-ai/claude-code",
         # `WebSearch` and `WebFetch` are tools like any other to Claude, and
@@ -1088,32 +1089,76 @@ PROFILES = (
             "~/.claude.json",
             "config/anthropic",
         ),
-        # Everything else Claude Code would read an account out of: the two the ways already
-        # name are there too, through `accounts()`. `ANTHROPIC_CONFIG_DIR` is an account for
-        # the reason the others are -- it moves the shared configuration directory whole, and
-        # a turn that read one this table had never heard of would be the wrong account.
+        # Everything else Claude Code would read an account out of: what the ways already name
+        # is there too, through `accounts()`. `ANTHROPIC_CONFIG_DIR` is an account for the
+        # reason the others are -- it moves the shared configuration directory whole, and a
+        # turn that read one this table had never heard of would be the wrong account.
+        #
+        # The rest are what 2.1.288's docs and binary say an account is beside the answers its
+        # ways ask for. Every `CLAUDE_CODE_USE_*` switch, because :func:`reachable` follows a
+        # cloud only by a switch written here, and a switch left in somebody's shell moves
+        # every turn onto that cloud. Every base URL a cloud's requests can be moved to, which
+        # is a gateway like any other to the fence. The `SKIP_*_AUTH` beside each, which is
+        # what a gateway in front of that cloud is told to sign nothing with. Foundry's bearer
+        # token, which outranks its key. And an Anthropic profile -- `ANTHROPIC_PROFILE`, or
+        # the federation variables the `wif` way does not ask for -- which the binary trades
+        # for a token of its own, and which outranks a subscription signed in to.
         ambient=(
+            "ANTHROPIC_AWS_BASE_URL",
+            "ANTHROPIC_BEDROCK_MANTLE_BASE_URL",
             "ANTHROPIC_CONFIG_DIR",
             "ANTHROPIC_CUSTOM_HEADERS",
+            "ANTHROPIC_FOUNDRY_AUTH_TOKEN",
+            "ANTHROPIC_FOUNDRY_BASE_URL",
+            "ANTHROPIC_GOOGLE_CLOUD_BASE_URL",
+            "ANTHROPIC_IDENTITY_TOKEN",
             "ANTHROPIC_MODEL",
+            "ANTHROPIC_PROFILE",
+            "ANTHROPIC_SCOPE",
+            "ANTHROPIC_VERTEX_BASE_URL",
+            "ANTHROPIC_WORKSPACE_ID",
             "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
             "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
             "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR",
+            "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH",
+            "CLAUDE_CODE_SKIP_ANTHROPIC_GOOGLE_CLOUD_AUTH",
+            "CLAUDE_CODE_SKIP_BEDROCK_AUTH",
+            "CLAUDE_CODE_SKIP_FOUNDRY_AUTH",
+            "CLAUDE_CODE_SKIP_MANTLE_AUTH",
+            "CLAUDE_CODE_SKIP_VERTEX_AUTH",
+            "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+            "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
+            "CLAUDE_CODE_USE_BEDROCK",
             "CLAUDE_CODE_USE_FOUNDRY",
             "CLAUDE_CODE_USE_GATEWAY",
+            "CLAUDE_CODE_USE_MANTLE",
             "CLAUDE_CODE_USE_VERTEX",
-            "CLAUDE_CODE_USE_BEDROCK",
         ),
-        # Where a turn actually goes when it is not going to Anthropic: the gateway way sets
-        # it, and Claude Code sends every request of that turn there under the id it was
-        # given. Both protocols list what is behind it the same way, so what it serves is
-        # what a turn may name.
+        # Where a turn actually goes when it is not going to Anthropic: the
+        # `anthropic-gateway` way sets it, and Claude Code sends every request of that turn
+        # there under the id it was given. Both protocols list what is behind it the same way,
+        # so what it serves is what a turn may name. The cloud gateways have base URLs of
+        # their own, and none of them answers `/v1/models` in a shape this reads.
         endpoint="ANTHROPIC_BASE_URL",
+        # Sign-ins first, then a credential of Anthropic's own, then an endpoint of somebody
+        # else's, then a cloud's -- each set up the way Claude Code's own docs set it up, and
+        # each checked against what 2.1.288 reads: `strings` of the binary names every
+        # variable here.
         ways=(
             Way(
                 name="login",
-                about="sign in to an Anthropic account, as `claude auth login` does",
+                about="sign in to a Claude subscription, as `claude auth login` does",
                 argv=("claude", "auth", "login"),
+            ),
+            # The same sign-in, onto the other kind of Anthropic account: the Console's, billed
+            # per token. What it leaves behind is either an Anthropic profile under
+            # `config/anthropic` or a key Claude Code minted for itself -- it asks which -- and
+            # both are among the places `creds` keeps.
+            Way(
+                name="console",
+                about="sign in to an Anthropic Console account, billed per token, as "
+                "`claude auth login --console` does",
+                argv=("claude", "auth", "login", "--console"),
             ),
             Way(
                 name="token",
@@ -1137,9 +1182,41 @@ PROFILES = (
                     ),
                 ),
             ),
+            # Workload Identity Federation: no secret of Anthropic's at all, but a token some
+            # other identity provider writes to a file and keeps fresh, which Claude Code
+            # trades at `api.anthropic.com` for one of Anthropic's. The binary takes this path
+            # once the rule and the organization are both set; the service account is who the
+            # exchange asks to act as, and the file is re-read on every exchange, which is why
+            # it is a path rather than the token. `ANTHROPIC_WORKSPACE_ID` is only for a rule
+            # that spans several workspaces, and is an `env` answer for the account that has
+            # one of those.
             Way(
-                name="gateway",
-                about=_GATEWAY,
+                name="wif",
+                about="Workload Identity Federation: a token another identity provider "
+                "issues, traded for Anthropic's",
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_FEDERATION_RULE_ID",
+                        about="the federation rule, as `fdrl_...`",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_ORGANIZATION_ID",
+                        about="the Anthropic organization's id",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_SERVICE_ACCOUNT_ID",
+                        about="the service account to act as, as `svac_...`",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_IDENTITY_TOKEN_FILE",
+                        about="the file the identity provider writes its token to",
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about="an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                "another vendor",
                 asks=(
                     Asked(
                         env="ANTHROPIC_BASE_URL",
@@ -1149,15 +1226,94 @@ PROFILES = (
                     # the key, and it is the one an endpoint of somebody else's takes.
                     Asked(
                         env="ANTHROPIC_AUTH_TOKEN",
-                        about="the token it takes",
+                        about="the key it takes",
                         secret=True,
                     ),
+                ),
+            ),
+            # A gateway in front of Bedrock, speaking Bedrock's own InvokeModel rather than
+            # Anthropic's protocol: the requests are Bedrock's, at `/model/<id>/invoke...`, and
+            # the gateway is what holds AWS's credentials -- which is what skipping the signing
+            # says. Its own key goes as a bearer, and only while no Bedrock API key is set: one
+            # would be sent in its place, which is why that is among what a turn is hushed of.
+            Way(
+                name="bedrock-gateway",
+                about="an endpoint speaking Amazon Bedrock's API, which holds the AWS "
+                "credentials itself",
+                sets=(
+                    ("CLAUDE_CODE_USE_BEDROCK", "1"),
+                    ("CLAUDE_CODE_SKIP_BEDROCK_AUTH", "1"),
+                ),
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_BEDROCK_BASE_URL",
+                        about="where it is, as a URL",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_AUTH_TOKEN",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                ),
+            ),
+            # The same in front of Vertex, whose paths name a project and a region -- so those
+            # are asked as Vertex itself would ask them, and reach the gateway in the path of
+            # every request.
+            Way(
+                name="vertex-gateway",
+                about="an endpoint speaking Vertex AI's API, which holds the Google Cloud "
+                "credentials itself",
+                sets=(
+                    ("CLAUDE_CODE_USE_VERTEX", "1"),
+                    ("CLAUDE_CODE_SKIP_VERTEX_AUTH", "1"),
+                ),
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_VERTEX_BASE_URL",
+                        about="where it is, as a URL",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_AUTH_TOKEN",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(env="ANTHROPIC_VERTEX_PROJECT_ID", about="the project id"),
+                    Asked(env="CLOUD_ML_REGION", about="the region", fixed="us-east5"),
                 ),
             ),
             Way(
                 name="bedrock",
                 about="Anthropic's models on an AWS account of yours",
                 sets=(("CLAUDE_CODE_USE_BEDROCK", "1"),),
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            # Bedrock's own API keys, which are a bearer rather than a signature and so need
+            # no AWS profile at all.
+            Way(
+                name="bedrock-key",
+                about="Anthropic's models on Amazon Bedrock, by a Bedrock API key",
+                sets=(("CLAUDE_CODE_USE_BEDROCK", "1"),),
+                asks=(
+                    Asked(
+                        env="AWS_BEARER_TOKEN_BEDROCK",
+                        about="the Bedrock API key",
+                        secret=True,
+                    ),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            # Bedrock's other endpoint, `bedrock-mantle.<region>.api.aws`, which serves
+            # Anthropic's own Messages API rather than InvokeModel and has a lineup of its own:
+            # its ids are `anthropic.claude-...`, with no version after them. The credentials
+            # are the AWS ones Bedrock takes.
+            Way(
+                name="mantle",
+                about="Anthropic's models on Amazon Bedrock's Mantle endpoint, on an AWS "
+                "account of yours",
+                sets=(("CLAUDE_CODE_USE_MANTLE", "1"),),
                 asks=(
                     Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
                     Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
@@ -1170,6 +1326,68 @@ PROFILES = (
                 asks=(
                     Asked(env="ANTHROPIC_VERTEX_PROJECT_ID", about="the project id"),
                     Asked(env="CLOUD_ML_REGION", about="the region", fixed="us-east5"),
+                ),
+            ),
+            # Microsoft Foundry, by the resource's key. A resource rather than a URL: Claude
+            # Code builds `<resource>.services.ai.azure.com` itself and refuses a host here.
+            # With no key it falls back to Azure's own credential chain, which is an `env`
+            # account.
+            Way(
+                name="foundry",
+                about="Anthropic's models on a Microsoft Foundry resource of yours",
+                sets=(("CLAUDE_CODE_USE_FOUNDRY", "1"),),
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_FOUNDRY_RESOURCE", about="the resource's name"
+                    ),
+                    Asked(
+                        env="ANTHROPIC_FOUNDRY_API_KEY",
+                        about="the resource's API key",
+                        secret=True,
+                    ),
+                ),
+            ),
+            # Claude Platform on AWS: Anthropic's own API, billed through AWS Marketplace, at
+            # `aws-external-anthropic.<region>.api.aws`. Every request names the workspace; the
+            # workspace's key outranks any AWS credentials, and an account that signs with
+            # those instead is `ANTHROPIC_AWS_WORKSPACE_ID` and `AWS_PROFILE` written as `env`.
+            Way(
+                name="aws",
+                about="Claude Platform on AWS: Anthropic's API, billed through AWS",
+                sets=(("CLAUDE_CODE_USE_ANTHROPIC_AWS", "1"),),
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_AWS_WORKSPACE_ID",
+                        about="the workspace, as `wrkspc_...`",
+                    ),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                    Asked(
+                        env="ANTHROPIC_AWS_API_KEY",
+                        about="the workspace's API key",
+                        secret=True,
+                    ),
+                ),
+            ),
+            # Claude Platform on Google Cloud, the same arrangement at `claude.googleapis.com`,
+            # signed with Google's Application Default Credentials the way Vertex is. Not in
+            # Claude Code's docs as of 2.1.288: the variables are the ones its bundled SDK
+            # reads, and `global` is the location that SDK takes when it is told none.
+            Way(
+                name="google-cloud",
+                about="Claude Platform on Google Cloud: Anthropic's API, billed through "
+                "Google Cloud",
+                sets=(("CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD", "1"),),
+                asks=(
+                    Asked(env="ANTHROPIC_GOOGLE_CLOUD_PROJECT", about="the project id"),
+                    Asked(
+                        env="ANTHROPIC_GOOGLE_CLOUD_LOCATION",
+                        about="the location",
+                        fixed="global",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID",
+                        about="the workspace, as `wrkspc_...`",
+                    ),
                 ),
             ),
         ),
@@ -1418,11 +1636,21 @@ PROFILES = (
         # `CODEX_AUTHAPI_BASE_URL` is an account for the reason a key is: codex sends the
         # credential it was signed in with to whatever it names, so a turn run under a
         # provider with somebody's copy of it still exported would hand that provider's token
-        # to somebody's endpoint.
-        ambient=("CODEX_API_KEY", "CODEX_AUTHAPI_BASE_URL", "OPENAI_BASE_URL"),
-        # The gateway way's own, rather than either of the ambient two: codex takes a
+        # to somebody's endpoint. The Azure and the local ways' URLs are here although their
+        # ways ask for them, because this is where a fence reads where a turn goes from: an
+        # account of either sends every request there and nowhere else.
+        ambient=(
+            "AZURE_OPENAI_BASE_URL",
+            "CODEX_API_KEY",
+            "CODEX_AUTHAPI_BASE_URL",
+            "CODEX_OSS_BASE_URL",
+            "OPENAI_BASE_URL",
+        ),
+        # The OpenAI gateway way's own, rather than any of the ambient ones: codex takes a
         # provider as settings, and `model_providers.humanize.base_url` -- which is where
         # every request of such a turn goes -- is filled from this and from nothing else.
+        # Azure's is a variable of its own rather than this one: what a resource lists at
+        # `/models` is the models Azure has, and what a turn names is a deployment of one.
         endpoint="CODEX_PROVIDER_URL",
         ways=(
             Way(
@@ -1465,9 +1693,31 @@ PROFILES = (
                 ),
                 stdin="CODEX_ACCESS_TOKEN",
             ),
+            # A ChatGPT workspace's account with no person signing in: codex trades the
+            # identity token a platform mounts -- a cloud's, a CI runner's -- for the
+            # workspace's own tokens at `auth.openai.com`, under the federation rule the
+            # workspace's admin made for it. Read out of the environment each time it starts
+            # rather than written to its store, so there is no command to run; and the file
+            # is a path rather than a secret, what is in it being the platform's to rotate.
             Way(
-                name="gateway",
-                about=_GATEWAY,
+                name="workload",
+                about="a ChatGPT workspace's workload identity, where nobody signs in",
+                asks=(
+                    Asked(
+                        env="OPENAI_FEDERATION_RULE_ID",
+                        about="the federation rule's id",
+                    ),
+                    Asked(
+                        env="OPENAI_IDENTITY_TOKEN_FILE",
+                        about="the identity token's file, as a path",
+                    ),
+                ),
+            ),
+            Way(
+                name="openai-gateway",
+                about=(
+                    "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor"
+                ),
                 asks=(
                     Asked(env="CODEX_PROVIDER_URL", about="where it is, as a URL"),
                     Asked(
@@ -1476,9 +1726,10 @@ PROFILES = (
                 ),
                 # Codex takes a provider as settings rather than as variables, and `-c` is
                 # how a setting is given for one run without writing anybody's config file.
-                # The wire is written out rather than asked: codex takes one protocol now,
-                # and refuses to start at all on the other, so a question about it would be
-                # a question with one answer and a way to get a provider that cannot run.
+                # The wire is written out rather than asked: codex takes one protocol now --
+                # 0.160.0 refuses `wire_api = "chat"` as no longer supported, and will not
+                # start at all on it -- so a question about it would be a question with one
+                # answer and a way to get a provider that cannot run.
                 args=(
                     "-c",
                     "model_provider=humanize",
@@ -1491,6 +1742,120 @@ PROFILES = (
                     "-c",
                     "model_providers.humanize.wire_api=responses",
                 ),
+            ),
+            # Azure OpenAI is a provider codex has no built-in for and knows all the same: one
+            # named `azure` is spoken to the way Azure's Responses API takes it, which is the
+            # name this gives it. The version is a query parameter on every request, quoted
+            # so that it is read as the string it is; the default is the one codex's own
+            # example of an Azure provider names, and a resource on a newer one says so. The
+            # key goes as a variable codex is told the name of, never on the command line.
+            Way(
+                name="azure",
+                about="OpenAI's models on an Azure OpenAI resource of yours",
+                asks=(
+                    Asked(
+                        env="AZURE_OPENAI_BASE_URL",
+                        about="where it is, as https://<resource>.openai.azure.com/openai",
+                    ),
+                    Asked(env="AZURE_OPENAI_API_KEY", about="its key", secret=True),
+                    Asked(
+                        env="AZURE_OPENAI_API_VERSION",
+                        about="the API version",
+                        fixed="2025-04-01-preview",
+                    ),
+                ),
+                args=(
+                    "-c",
+                    "model_provider=humanize",
+                    "-c",
+                    "model_providers.humanize.name=azure",
+                    "-c",
+                    "model_providers.humanize.base_url={AZURE_OPENAI_BASE_URL}",
+                    "-c",
+                    "model_providers.humanize.env_key=AZURE_OPENAI_API_KEY",
+                    "-c",
+                    (
+                        "model_providers.humanize.query_params.api-version"
+                        '="{AZURE_OPENAI_API_VERSION}"'
+                    ),
+                    "-c",
+                    "model_providers.humanize.wire_api=responses",
+                ),
+            ),
+            # Bedrock is one of codex's own providers, `amazon-bedrock`, and the one built-in
+            # it lets a setting move: its endpoint, its auth, its headers and its `aws` table
+            # and nothing else, the table being where the region and the profile go. Its
+            # endpoint is made of the region -- `bedrock-mantle.<region>.api.aws` -- so the
+            # region is asked for here rather than left to whatever this machine's AWS
+            # configuration would say. A profile in that table outranks every other
+            # credential codex would find, so a turn of this account is that profile's
+            # whatever else is lying about.
+            Way(
+                name="bedrock",
+                about="OpenAI's models on an AWS account of yours",
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+                args=(
+                    "-c",
+                    "model_provider=amazon-bedrock",
+                    "-c",
+                    "model_providers.amazon-bedrock.aws.profile={AWS_PROFILE}",
+                    "-c",
+                    "model_providers.amazon-bedrock.aws.region={AWS_REGION}",
+                ),
+            ),
+            # The same as a Bedrock API key rather than a profile: codex takes one from
+            # `AWS_BEARER_TOKEN_BEDROCK` before any AWS credential it would otherwise find,
+            # and refuses one it is given no region for.
+            Way(
+                name="bedrock-key",
+                about="the same, with a Bedrock API key",
+                asks=(
+                    Asked(
+                        env="AWS_BEARER_TOKEN_BEDROCK",
+                        about="the Bedrock API key",
+                        secret=True,
+                    ),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+                args=(
+                    "-c",
+                    "model_provider=amazon-bedrock",
+                    "-c",
+                    "model_providers.amazon-bedrock.aws.region={AWS_REGION}",
+                ),
+            ),
+            # Open models served by Ollama or by LM Studio, each a provider codex has built in
+            # under its own name. `--oss` is how `codex exec` says the same and `codex
+            # app-server` does not take it, so the provider is named as a setting instead.
+            # Where the server is, is the one variable codex reads it from, which a server
+            # on its usual port on this machine need not be asked about. Nothing to sign in
+            # to and no key to keep.
+            Way(
+                name="ollama",
+                about="open models served by Ollama",
+                asks=(
+                    Asked(
+                        env="CODEX_OSS_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed="http://localhost:11434/v1",
+                    ),
+                ),
+                args=("-c", "model_provider=ollama"),
+            ),
+            Way(
+                name="lmstudio",
+                about="open models served by LM Studio",
+                asks=(
+                    Asked(
+                        env="CODEX_OSS_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed="http://localhost:1234/v1",
+                    ),
+                ),
+                args=("-c", "model_provider=lmstudio"),
             ),
         ),
     ),
@@ -1550,10 +1915,36 @@ PROFILES = (
         # the harness gives the two endpoints two variables. It is the same key at the other
         # end of it, so one left in a shell profile is an account's key sent somewhere the
         # account never named -- which is what listing it here stops.
-        ambient=("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_SEARCH_BASE_URL"),
+        # `DSH_GATEWAY_API` beside them because it is a gateway account's answer too, and one
+        # left in a shell profile would be somebody else's answer to a question an account
+        # asks.
+        ambient=(
+            "DEEPSEEK_API_KEY",
+            "DEEPSEEK_BASE_URL",
+            "DEEPSEEK_SEARCH_BASE_URL",
+            "DSH_GATEWAY_API",
+        ),
         # Its SDK has no model-list request at all, so an endpoint that answers one is the
         # only way this backend ever says something other than the two names it ships with.
         endpoint="DEEPSEEK_BASE_URL",
+        # Every gateway is somebody else's protocol, spoken by the runtime's own generic
+        # adapter rather than by DeepSeek's. The stock `@deepseek-ai/dsh-llm-deepseek` does
+        # post OpenAI chat completions, but in DeepSeek's dialect: put to a recording server
+        # with the 0.1.1rc1 runtime, an agent nobody gave an effort still sent `thinking`,
+        # `reasoning_effort` and `max_tokens: 256000`, which is a request an OpenAI-shaped
+        # endpoint that is not DeepSeek's refuses. `@deepseek-ai/dsh-llm-pi-ai`, bundled in
+        # the same runtime, is the harness's way of declaring a route by hand: a base URL, a
+        # key variable, one of `openai-completions`, `openai-responses` or
+        # `anthropic-messages`, and the models it serves -- and Gemini's own protocol through
+        # pi-ai's `google` catalogue route with its base URL moved. The driver composes it
+        # per way (`agents/dsh.py`), so every way below asks for the same URL and the same
+        # key under the names the key way and the stock adapter already use: one URL for
+        # `endpoint` to list models from and the fence to follow, one secret for the driver
+        # to require. Each was put to a recording server through that runtime and seen to
+        # arrive on its own path with the account's key -- `/chat/completions` and
+        # `/responses` under a URL that ends in `/v1`, `/v1/messages` under one that does
+        # not, `/models/{model}:streamGenerateContent` under one that ends in `/v1beta`,
+        # each spelled as that vendor's own SDK takes its base URL.
         ways=(
             Way(
                 name="key",
@@ -1561,17 +1952,45 @@ PROFILES = (
                 asks=(Asked(env="DEEPSEEK_API_KEY", about="the API key", secret=True),),
             ),
             Way(
-                name="gateway",
-                about=_GATEWAY,
-                # The same key the way above asks for, as Grok Build's gateway asks for the
-                # same `XAI_API_KEY` its key way does: the adapter resolves one credential
-                # under one name whether the endpoint at the other end is DeepSeek's own or
-                # somebody's proxy, so a second variable here would be a second name for the
-                # one thing the request carries. Both of these are what `endpoint` above
-                # already names and what `ambient` already lists; this is the way in that
-                # lets an account hold them. Without it a key made for a gateway was a key
-                # sent to `https://api.deepseek.com` -- the adapter's own default, which
-                # refuses every key that is not DeepSeek's own.
+                name="openai-gateway",
+                about=(
+                    "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor"
+                ),
+                # Chat Completions or Responses, which is one question rather than two ways:
+                # the URL, the key and the models are the same either way, and the answer is
+                # pi-ai's own name for the protocol, handed to the route unchanged -- so the
+                # runtime refuses a third spelling when it boots rather than this guessing at
+                # what one meant.
+                asks=(
+                    Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="DEEPSEEK_API_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="DSH_GATEWAY_API",
+                        about="which API: openai-completions or openai-responses",
+                        fixed="openai-completions",
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API "
+                    "-- a proxy, a router, another vendor"
+                ),
+                asks=(
+                    Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="DEEPSEEK_API_KEY", about="the key it takes", secret=True
+                    ),
+                ),
+            ),
+            Way(
+                name="gemini-gateway",
+                about=(
+                    "an endpoint speaking Gemini's API -- a proxy, a router, another vendor"
+                ),
                 asks=(
                     Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
                     Asked(
@@ -1772,42 +2191,142 @@ PROFILES = (
         # refresh token under. Both move together or a provider would refresh into the
         # other one's token.
         creds=("credentials", "oauth"),
+        # Every variable 2.1.1 builds an account out of beside the ones the ways below ask for:
+        # its own service's key and endpoints, and the rest of the `KIMI_MODEL_*` family, which
+        # shape the provider and model the gateway ways make -- a context size, a reasoning key
+        # or a temperature left in a shell profile would be laid over somebody's gateway as if
+        # its account had said so. Not the vendors' own names -- `OPENAI_API_KEY`,
+        # `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` and their base URLs -- although it does read
+        # them: only for a `[providers.*]` table of that vendor's type that names no key of its
+        # own, never as an account by themselves. Listed here they would also say an Anthropic
+        # key made for Claude is an account kimi could run as, which it is not.
         ambient=(
             "KIMI_API_KEY",
             "KIMI_BASE_URL",
             "KIMI_CODE_BASE_URL",
             "KIMI_CODE_CUSTOM_HEADERS",
             "KIMI_CODE_OAUTH_HOST",
+            "KIMI_MODEL_ADAPTIVE_THINKING",
+            "KIMI_MODEL_CAPABILITIES",
+            "KIMI_MODEL_DISPLAY_NAME",
+            "KIMI_MODEL_MAX_COMPLETION_TOKENS",
+            "KIMI_MODEL_MAX_CONTEXT_SIZE",
+            "KIMI_MODEL_MAX_OUTPUT_SIZE",
+            "KIMI_MODEL_MAX_TOKENS",
+            "KIMI_MODEL_REASONING_KEY",
+            "KIMI_MODEL_TEMPERATURE",
+            "KIMI_MODEL_THINKING_EFFORT",
+            "KIMI_MODEL_THINKING_KEEP",
+            "KIMI_MODEL_TOP_P",
             "KIMI_OAUTH_HOST",
             "KIMI_REGISTRY_API_KEY",
         ),
-        # The `model` way's endpoint rather than either of the two that move Kimi's own
-        # service: that way builds a provider out of it in memory and makes it the default,
-        # so it is where the turns of such an account go.
+        # The endpoint every way but the login asks for, rather than either of the two that
+        # move Kimi's own service: each of those ways builds a provider out of it in memory
+        # and makes it the default, so it is where the turns of such an account go.
         endpoint="KIMI_MODEL_BASE_URL",
+        # Every way but the login is the one provider 2.1.1 builds out of `KIMI_MODEL_*` in
+        # memory and makes the default, so nothing is written to the `config.toml` of the home
+        # every account shares. What tells them apart is `KIMI_MODEL_PROVIDER_TYPE`: its env
+        # loader validates the variable as any string and hands it to the same factory a
+        # `[providers.*]` table goes through, so every type that table takes is one this
+        # variable takes too -- and each was run here against a recording endpoint, landing
+        # at `/chat/completions`, `/responses`, `/v1/messages` and Gemini's
+        # `:streamGenerateContent` with the key the account was made with. All but Vertex:
+        # `vertexai` refuses a model that does not name its wire protocol, and that is said
+        # only in a `[models.*]` table, which no variable reaches.
         ways=(
             Way(
                 name="login",
                 about="sign in to a Kimi account, by the code it prints",
-                argv=("kimi", "login"),
+                # `--region` said rather than left to the CLI, whose bare login picks one off
+                # whatever the home already holds and otherwise lands on mainland China.
+                argv=("kimi", "login", "--region", "{KIMI_REGION}"),
+                asks=(
+                    Asked(
+                        env="KIMI_REGION",
+                        about="which Kimi: global (kimi.ai) or mainland-cn (kimi.com)",
+                        keep=False,
+                        fixed="global",
+                    ),
+                ),
             ),
             Way(
-                name="model",
-                about=_GATEWAY,
-                # Kimi builds a whole provider out of these and makes it the default, in
-                # memory: nothing is written to the config file it would otherwise be in.
+                name="kimi-key",
+                about=(
+                    "a Moonshot platform key, or a Kimi for Coding one at "
+                    "https://api.kimi.com/coding/v1"
+                ),
                 asks=(
+                    Asked(env="KIMI_MODEL_API_KEY", about="the API key", secret=True),
+                    Asked(
+                        env="KIMI_MODEL_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed="https://api.moonshot.ai/v1",
+                    ),
                     Asked(
                         env="KIMI_MODEL_NAME", about="the model to run, as it names it"
                     ),
-                    Asked(env="KIMI_MODEL_API_KEY", about="the key", secret=True),
+                ),
+                sets=(("KIMI_MODEL_PROVIDER_TYPE", "kimi"),),
+            ),
+            Way(
+                name="openai-gateway",
+                about="an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+                asks=(
                     Asked(env="KIMI_MODEL_BASE_URL", about="where it is, as a URL"),
                     Asked(
+                        env="KIMI_MODEL_API_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="KIMI_MODEL_NAME",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                    # A question rather than two ways: the one endpoint usually serves both,
+                    # and which of them a turn goes to is the provider type itself.
+                    Asked(
                         env="KIMI_MODEL_PROVIDER_TYPE",
-                        about="the protocol it speaks: anthropic, openai or kimi",
+                        about=(
+                            "which of its APIs: openai (Chat Completions) or "
+                            "openai_responses (Responses)"
+                        ),
                         fixed="openai",
                     ),
                 ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- "
+                    "a proxy, a router, another vendor"
+                ),
+                asks=(
+                    Asked(env="KIMI_MODEL_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="KIMI_MODEL_API_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="KIMI_MODEL_NAME",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                ),
+                sets=(("KIMI_MODEL_PROVIDER_TYPE", "anthropic"),),
+            ),
+            Way(
+                name="gemini-gateway",
+                about="an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
+                # Its root, which the Gemini SDK puts `/v1beta/models/...` under itself.
+                asks=(
+                    Asked(env="KIMI_MODEL_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="KIMI_MODEL_API_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="KIMI_MODEL_NAME",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                ),
+                sets=(("KIMI_MODEL_PROVIDER_TYPE", "google-genai"),),
             ),
         ),
     ),
@@ -1935,14 +2454,25 @@ PROFILES = (
     ),
     Profile(
         name="qwen",
-        # The Qwen OAuth host, which issues and refreshes the token, and the DashScope API a
-        # token's `resource_url` names -- `portal.qwen.ai` for most, DashScope's own for the
-        # rest, in either region.
+        # Where a turn goes when no variable says where: the DashScope API in either region,
+        # and the Coding Plan's and Token Plan's own hosts in either, which is where the
+        # machine's own account, configured through `/auth`, sends its turns from a settings
+        # file rather than from a variable the fence could follow. Then Google's two -- the
+        # Gemini API a key way talks to, and Vertex's global endpoint and the token exchange
+        # its credentials are refreshed at; a project run in a region of its own goes to
+        # `{region}-aiplatform`, which only `GOOGLE_VERTEX_BASE_URL` would let through. The
+        # Qwen OAuth hosts are gone with Qwen OAuth itself: 0.24.7 refuses `qwen-oauth`
+        # outright, its free tier discontinued on 2026-04-15, so no turn reaches them now.
         hosts=(
-            "chat.qwen.ai",
-            "portal.qwen.ai",
             "dashscope.aliyuncs.com",
             "dashscope-intl.aliyuncs.com",
+            "coding.dashscope.aliyuncs.com",
+            "coding-intl.dashscope.aliyuncs.com",
+            "token-plan.cn-beijing.maas.aliyuncs.com",
+            "token-plan.ap-southeast-1.maas.aliyuncs.com",
+            "generativelanguage.googleapis.com",
+            "aiplatform.googleapis.com",
+            "oauth2.googleapis.com",
         ),
         installs="npm i -g @qwen-code/qwen-code",
         # A Node script rather than a binary with a runtime inside it. Its entry point starts a
@@ -1979,10 +2509,30 @@ PROFILES = (
         # The shared one of its two, so a flow's skills reach it there.
         mounts=".agents/skills",
         #
-        # What its own sign-in leaves behind, and the lock two of its processes rotate the
-        # token under. Everything else it runs as is a variable.
-        creds=("oauth_creds.json", "oauth_creds.lock"),
+        # No `creds`: what its own sign-in left behind, `oauth_creds.json` and the lock it was
+        # rotated under, is a token 0.24.7 will not run on whatever it holds. Everything an
+        # account of it is runs as variables, so a turn under one needs nothing answered for
+        # it -- and no supervisor to answer it, on a machine that could not run one.
+        # Every name its `AUTH_ENV_MAPPINGS` reads a key, an endpoint or a model under, for
+        # each of the six `--auth-type`s 0.24.7 takes; the switch and the project the Google
+        # SDK beneath its Gemini and Vertex ones reads on its own; and the two plan keys and
+        # the auth type its `/auth` and its `settings.json` may name, any of which left in a
+        # shell would be taken over the account a turn was asked to run as.
         ambient=(
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_BASE_URL",
+            "ANTHROPIC_MODEL",
+            "BAILIAN_CODING_PLAN_API_KEY",
+            "BAILIAN_TOKEN_PLAN_API_KEY",
+            "GEMINI_API_KEY",
+            "GEMINI_MODEL",
+            "GOOGLE_API_KEY",
+            "GOOGLE_CLOUD_LOCATION",
+            "GOOGLE_CLOUD_PROJECT",
+            "GOOGLE_GEMINI_BASE_URL",
+            "GOOGLE_GENAI_USE_VERTEXAI",
+            "GOOGLE_MODEL",
+            "GOOGLE_VERTEX_BASE_URL",
             "OPENAI_API_BASE",
             "OPENAI_API_KEY",
             "OPENAI_BASE_URL",
@@ -1990,35 +2540,144 @@ PROFILES = (
             "QWEN_API_KEY",
             "QWEN_BASE_URL",
             "QWEN_CODE_MODEL",
+            "QWEN_DEFAULT_AUTH_TYPE",
             "QWEN_MODEL",
             "QWEN_OAUTH_MODELS",
         ),
-        # Qwen Code has no command that lists what it runs, being an OpenAI-compatible
-        # client: its catalogue was never the CLI's to know, and this is the only place it
-        # is written -- which is why the two names it ships pointed at are advisory.
+        # Qwen Code has no command that lists what it runs, being a client of whichever API
+        # it is pointed at: its catalogue was never the CLI's to know, and this is the only
+        # place it is written -- which is why the two names it ships pointed at are advisory.
+        # The OpenAI one of its several, since that is the one that answers `/v1/models` in
+        # the shape the catalogue reads; an account on any of the others -- Anthropic's
+        # endpoint, Gemini's, Vertex -- falls back to those two names, and a turn there is
+        # given whichever model it names regardless.
         endpoint="OPENAI_BASE_URL",
         ways=(
+            # No sign-in of its own any more. Qwen OAuth's free tier was discontinued on
+            # 2026-04-15, and 0.24.7 refuses `--auth-type qwen-oauth` with that sentence even
+            # holding a token it has not yet seen expire, so `qwen` opened for `/auth` signs
+            # nobody in. What `/auth` offers instead is everything below -- written into the
+            # machine's own `settings.json`, which no account of this one's holds -- so each
+            # is asked here instead, and said on the command line of every turn.
             Way(
-                name="login",
-                about="sign in to a Qwen account, in a session opened for it",
-                # It signs in from inside itself, so the way in is qwen with the terminal
-                # handed over: `/auth`, whichever provider, and `/quit` when it has landed.
-                argv=("qwen",),
+                name="coding-plan",
+                about="an Alibaba Cloud Model Studio Coding Plan",
+                # The plan is an OpenAI-compatible endpoint of its own, a region apiece:
+                # `coding-intl.dashscope.aliyuncs.com/v1` outside China. Its key goes in as
+                # the OpenAI key, which is the name `--auth-type openai` reads it under:
+                # `BAILIAN_CODING_PLAN_API_KEY`, the name `/auth` keeps it under, is read
+                # only through a `modelProviders` entry naming it, and headless there is none.
+                asks=(
+                    Asked(
+                        env="OPENAI_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed="https://coding.dashscope.aliyuncs.com/v1",
+                    ),
+                    Asked(env="OPENAI_API_KEY", about="the plan's key", secret=True),
+                ),
+                args=("--auth-type", "openai"),
             ),
             Way(
-                name="key",
-                about="a key for the OpenAI-compatible endpoint it runs against",
+                name="token-plan",
+                about="an Alibaba Cloud Model Studio Token Plan",
+                # The same arrangement as the Coding Plan's, at the Token Plan's own hosts:
+                # `token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` outside
+                # China, and `BAILIAN_TOKEN_PLAN_API_KEY` read as little as the other.
                 asks=(
-                    Asked(env="OPENAI_API_KEY", about="the API key", secret=True),
+                    Asked(
+                        env="OPENAI_BASE_URL",
+                        about="where it is, as a URL",
+                        fixed=(
+                            "https://token-plan.cn-beijing.maas.aliyuncs.com"
+                            "/compatible-mode/v1"
+                        ),
+                    ),
+                    Asked(env="OPENAI_API_KEY", about="the plan's key", secret=True),
+                ),
+                args=("--auth-type", "openai"),
+            ),
+            Way(
+                name="gemini-key",
+                about="a Gemini API key, from AI Studio",
+                asks=(Asked(env="GEMINI_API_KEY", about="the API key", secret=True),),
+                args=("--auth-type", "gemini"),
+            ),
+            Way(
+                name="openai-gateway",
+                about="an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+                asks=(
                     Asked(
                         env="OPENAI_BASE_URL",
                         about="where it is, as a URL",
                         fixed="https://dashscope.aliyuncs.com/compatible-mode/v1",
                     ),
+                    Asked(env="OPENAI_API_KEY", about="the key it takes", secret=True),
+                    # Which of OpenAI's two APIs it speaks, spelled as `--auth-type` spells
+                    # them. Kept as the variable Qwen Code's own `/auth` reads its default
+                    # from, rather than only filled into the command line, because that line
+                    # is worked out again from what is kept whenever the account is edited --
+                    # and the variable is one the CLI only ever checks is one of its six.
+                    Asked(
+                        env="QWEN_DEFAULT_AUTH_TYPE",
+                        about=(
+                            "which API: openai for Chat Completions, openai-responses for"
+                            " Responses"
+                        ),
+                        fixed="openai",
+                    ),
                 ),
                 # Said rather than left to be inferred: qwen-code 0.24 given only the two
-                # variables answers "No auth type is selected" and takes no turn at all.
-                args=("--auth-type", "openai"),
+                # variables answers "No auth type is selected" and takes no turn at all --
+                # which is why every way here says its own.
+                args=("--auth-type", "{QWEN_DEFAULT_AUTH_TYPE}"),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- a proxy, a router,"
+                    " another vendor"
+                ),
+                # No default for where: 0.24.7 refuses `anthropic` without
+                # `ANTHROPIC_BASE_URL`, and sends the key as a bearer token to it.
+                asks=(
+                    Asked(env="ANTHROPIC_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="ANTHROPIC_API_KEY", about="the key it takes", secret=True
+                    ),
+                ),
+                args=("--auth-type", "anthropic"),
+            ),
+            Way(
+                name="gemini-gateway",
+                about="an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
+                # Qwen Code itself reads no base URL for `gemini` from the environment, but
+                # the Google SDK it hands the turn to does, wherever the CLI named none --
+                # which, with no `modelProviders` entry, it does not.
+                asks=(
+                    Asked(env="GOOGLE_GEMINI_BASE_URL", about="where it is, as a URL"),
+                    Asked(env="GEMINI_API_KEY", about="the key it takes", secret=True),
+                ),
+                args=("--auth-type", "gemini"),
+            ),
+            Way(
+                name="vertex",
+                about="Google's models on a Google Cloud project of yours",
+                # Application Default Credentials, which is what a project with no key asks
+                # the Google SDK for: whatever `gcloud auth application-default login` or
+                # `GOOGLE_APPLICATION_CREDENTIALS` left on this machine.
+                asks=(
+                    Asked(env="GOOGLE_CLOUD_PROJECT", about="the project id"),
+                    Asked(
+                        env="GOOGLE_CLOUD_LOCATION", about="the region", fixed="global"
+                    ),
+                ),
+                args=("--auth-type", "vertex-ai"),
+            ),
+            Way(
+                name="vertex-key",
+                about="a Vertex AI API key, for its express mode",
+                asks=(Asked(env="GOOGLE_API_KEY", about="the API key", secret=True),),
+                args=("--auth-type", "vertex-ai"),
             ),
         ),
     ),
@@ -2249,8 +2908,16 @@ PROFILES = (
                 about="a Cursor API key, from the dashboard",
                 asks=(Asked(env="CURSOR_API_KEY", about="the API key", secret=True),),
             ),
+            # Named for the protocol it speaks, which is Cursor's own: `CURSOR_API_ENDPOINT`
+            # stands in for `api2.cursor.sh`, the backend that signs a turn in and runs it,
+            # and not for a model's API. So what answers there is a proxy in front of Cursor
+            # rather than another vendor. Taking a turn to an endpoint speaking OpenAI's or
+            # Anthropic's API is something its bundle has the flags for -- `--base-url`,
+            # `--authless` -- and refuses outside an `agent-cli-local` build the installer
+            # does not ship, with `--authless can only be used with agent-cli-local`: so no
+            # third-party gateway is offered here, there being none it would answer through.
             Way(
-                name="gateway",
+                name="cursor-gateway",
                 about=_GATEWAY,
                 asks=(
                     Asked(env="CURSOR_API_ENDPOINT", about="where it is, as a URL"),
@@ -2322,13 +2989,21 @@ PROFILES = (
         # and `auth/` what a sign-in leaves -- a directory per build, and the lock two of its
         # processes refresh a token under.
         creds=("config.yaml", "auth"),
-        # The endpoints and the region that say whose account a turn is taken as, and the
-        # vendor's own names for a key. None of them is a way in of its own.
+        # The endpoints and the regions that say whose account a turn is taken as, and the
+        # vendor's own names for a key. None of them is a way in of its own. `MAVIS_REGION`
+        # is the one its runtime reads first, ahead of the region a sign-in left, so one left
+        # in a shell would send a signed-in account's turns to the other region's API. And
+        # `MCODE_GATEWAY_URL` is not read by the CLI at all -- the URL a gateway way is given
+        # is written into `config.yaml` -- but it is kept with the account, and listed here
+        # so that a turn fenced off the network is still let through to the endpoint it was
+        # pointed at, which a variable ending `_URL` is how `reachable` is told of.
         ambient=(
+            "MAVIS_REGION",
             "MCODE_API_BASE_URL",
             "MCODE_AUTH_BASE_URL",
             "MCODE_AUTH_PROVIDER",
             "MCODE_CLIENT_ID",
+            "MCODE_GATEWAY_URL",
             "MCODE_REGION",
             "MINIMAX_API_KEY",
             "MINIMAX_CN_API_KEY",
@@ -2344,7 +3019,19 @@ PROFILES = (
             Way(
                 name="login",
                 about="sign in to a MiniMax account, in a browser",
-                argv=("mcode", "login"),
+                # In the region asked, which is a different account on a different site:
+                # with no `--region` it signs in to the Chinese one. The answer is only its
+                # command line's -- the region a turn is then taken in is read back off the
+                # sign-in it left.
+                argv=("mcode", "login", "--region", "{MCODE_REGION}"),
+                asks=(
+                    Asked(
+                        env="MCODE_REGION",
+                        about="the account's region: global or cn",
+                        fixed="global",
+                        keep=False,
+                    ),
+                ),
             ),
             Way(
                 name="key",
@@ -2357,15 +3044,36 @@ PROFILES = (
                     Asked(
                         env="MCODE_PROVIDER_API_KEY", about="the API key", secret=True
                     ),
+                    # Which of its two APIs the key is for, which nothing on its command
+                    # line says: with no sign-in to read a region off, a turn goes to
+                    # `api.minimaxi.com` unless this says `en`, when it goes to
+                    # `api.minimax.io`. Kept, since it is read at every turn and not when
+                    # the key is saved; and in its runtime's own spelling, any other word
+                    # being one it ignores.
+                    Asked(
+                        env="MAVIS_REGION",
+                        about=(
+                            "where the key is from: en, for platform.minimax.io, "
+                            "or cn, for platform.minimaxi.com"
+                        ),
+                        fixed="en",
+                    ),
                 ),
             ),
+            # A provider of its own, added to its `config.yaml` with the one model named here
+            # and made the default -- after a request to it, so an endpoint that does not
+            # answer is a way in that fails where it is made rather than a provider nothing
+            # can use. One way per vendor protocol, `--api-format` being the CLI's word for
+            # which: chat completions or responses for OpenAI's, which is one protocol asked
+            # for in two spellings, and messages for Anthropic's. It has none for Gemini's.
+            # Each is added under the one name `gateway` whichever, so that a model on any of
+            # them is `custom_provider:gateway/<id>` -- one account is one provider, and the
+            # name is the account's, under the CLI's own data home, rather than the way's.
             Way(
-                name="gateway",
-                about=_GATEWAY,
-                # A provider of its own, added to its `config.yaml` with the one model named
-                # here and made the default -- after a request to it, so an endpoint that
-                # does not answer is a way in that fails where it is made rather than a
-                # provider nothing can use.
+                name="openai-gateway",
+                about=(
+                    "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor"
+                ),
                 argv=(
                     "mcode",
                     "provider",
@@ -2397,10 +3105,46 @@ PROFILES = (
                     Asked(
                         env="MCODE_GATEWAY_FORMAT",
                         about=(
-                            "the protocol it speaks: anthropic-messages, "
-                            "openai-completions or openai-responses"
+                            "which of its APIs it speaks: openai-completions, for chat "
+                            "completions, or openai-responses, for responses"
                         ),
                         fixed="openai-completions",
+                        keep=False,
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                    "another vendor"
+                ),
+                argv=(
+                    "mcode",
+                    "provider",
+                    "add",
+                    "--name",
+                    "gateway",
+                    "--base-url",
+                    "{MCODE_GATEWAY_URL}",
+                    "--api-format",
+                    "anthropic-messages",
+                    "--model",
+                    "{MCODE_GATEWAY_MODEL}",
+                    "--api-key-env",
+                    "MCODE_PROVIDER_API_KEY",
+                    "--use",
+                ),
+                asks=(
+                    Asked(env="MCODE_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="MCODE_PROVIDER_API_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(
+                        env="MCODE_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
                         keep=False,
                     ),
                 ),
@@ -2836,9 +3580,10 @@ _LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
 #: The clouds a backend can be switched onto, by the variable that switches it: the
 #: variables its hosts are spelled out of, with what each is taken to be where the account
 #: says nothing; the hosts the cloud's model API and its credentials are at; and the
-#: variables that move that API somewhere else instead. Claude's Bedrock, Vertex and Foundry
-#: ways, the accounts whose model API is a cloud's rather than Anthropic's, and whose host is
-#: made of a region or a resource rather than written anywhere.
+#: variables that move that API somewhere else instead. Claude's Bedrock, Mantle, Vertex and
+#: Foundry ways and its Claude Platform on AWS and on Google Cloud: the accounts whose model
+#: API is at a cloud's host rather than Anthropic's, a host made of a region or a resource
+#: rather than written anywhere -- or, for Google Cloud's, the one host it has.
 _CLOUDS: dict[str, tuple[dict[str, str], tuple[str, ...], tuple[str, ...]]] = {
     "CLAUDE_CODE_USE_BEDROCK": (
         {"AWS_REGION": "us-east-1"},
@@ -2862,6 +3607,24 @@ _CLOUDS: dict[str, tuple[dict[str, str], tuple[str, ...], tuple[str, ...]]] = {
         {"ANTHROPIC_FOUNDRY_RESOURCE": ""},
         ("{ANTHROPIC_FOUNDRY_RESOURCE}.services.ai.azure.com",),
         ("ANTHROPIC_FOUNDRY_BASE_URL",),
+    ),
+    "CLAUDE_CODE_USE_MANTLE": (
+        {"AWS_REGION": "us-east-1"},
+        ("bedrock-mantle.{AWS_REGION}.api.aws", "sts.{AWS_REGION}.amazonaws.com"),
+        ("ANTHROPIC_BEDROCK_MANTLE_BASE_URL",),
+    ),
+    "CLAUDE_CODE_USE_ANTHROPIC_AWS": (
+        {"AWS_REGION": "us-east-1"},
+        (
+            "aws-external-anthropic.{AWS_REGION}.api.aws",
+            "sts.{AWS_REGION}.amazonaws.com",
+        ),
+        ("ANTHROPIC_AWS_BASE_URL",),
+    ),
+    "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD": (
+        {},
+        ("claude.googleapis.com", "oauth2.googleapis.com"),
+        ("ANTHROPIC_GOOGLE_CLOUD_BASE_URL",),
     ),
 }
 

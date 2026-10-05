@@ -126,7 +126,7 @@ def test_an_endpoint_written_with_its_version_is_not_asked_for_a_second_one(
     providers.add(
         "claude",
         "versioned",
-        "gateway",
+        "anthropic-gateway",
         {"ANTHROPIC_BASE_URL": f"{llm.base}/v1/", "ANTHROPIC_AUTH_TOKEN": KEY},
     )
 

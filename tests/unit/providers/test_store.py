@@ -44,7 +44,7 @@ def test_a_provider_is_read_back_as_it_was_written_down() -> None:
     written = providers.add(
         "claude",
         "mine",
-        way="gateway",
+        way="anthropic-gateway",
         env={
             "ANTHROPIC_BASE_URL": "https://example.invalid/anthropic",
             "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
@@ -56,7 +56,7 @@ def test_a_provider_is_read_back_as_it_was_written_down() -> None:
 
     assert read == written
     assert read is not None
-    assert read.way == "gateway"
+    assert read.way == "anthropic-gateway"
     assert read.env["ANTHROPIC_BASE_URL"] == "https://example.invalid/anthropic"
     assert read.args == ("--flag", "value")
     assert _MADE.fullmatch(read.made), read.made
@@ -180,7 +180,10 @@ def test_what_a_provider_holds_is_replaced_rather_than_merged() -> None:
     providers.add("claude", "mine", way="key", env={"ANTHROPIC_API_KEY": "not-real"})
 
     landed = providers.add(
-        "claude", "mine", way="gateway", env={"ANTHROPIC_BASE_URL": "https://x.invalid"}
+        "claude",
+        "mine",
+        way="anthropic-gateway",
+        env={"ANTHROPIC_BASE_URL": "https://x.invalid"},
     )
 
     assert providers.find("claude", "mine") == landed
@@ -324,14 +327,26 @@ def test_a_backend_offers_its_own_ways_in_and_then_variables_of_your_own() -> No
 def test_deepseek_harness_offers_only_the_ways_it_names() -> None:
     offered = providers.ways("deepseek-harness")
 
-    assert [way.name for way in offered] == ["key", "gateway"]
+    assert [way.name for way in offered] == [
+        "key",
+        "openai-gateway",
+        "anthropic-gateway",
+        "gemini-gateway",
+    ]
     assert [one.env for one in offered[0].asks] == ["DEEPSEEK_API_KEY"]
     # The endpoint first, as every gateway way spells it, and the key it takes after: the
-    # SDK sends one credential under one name wherever the account points it.
-    assert [one.env for one in offered[1].asks] == [
-        "DEEPSEEK_BASE_URL",
-        "DEEPSEEK_API_KEY",
-    ]
+    # SDK sends one credential under one name wherever the account points it -- and, for
+    # OpenAI's, which of its two APIs, at Chat Completions unless somebody says otherwise.
+    for gateway in offered[1:]:
+        assert [one.env for one in gateway.asks[:2]] == [
+            "DEEPSEEK_BASE_URL",
+            "DEEPSEEK_API_KEY",
+        ]
+        assert gateway.asks[1].secret
+    (protocol,) = offered[1].asks[2:]
+    assert protocol.env == "DSH_GATEWAY_API"
+    assert protocol.fixed == "openai-completions"
+    assert [len(gateway.asks) for gateway in offered[2:]] == [2, 2]
 
 
 def test_variables_of_your_own_are_read_off_the_lines_they_were_typed_as() -> None:
@@ -418,7 +433,10 @@ def test_two_writing_at_once_do_not_take_each_others_files_away(
         except BaseException as up:  # noqa: BLE001 -- the thread's, to be raised on the main one
             went.append(up)
 
-    both = [threading.Thread(target=writes, args=(one,)) for one in ("key", "gateway")]
+    both = [
+        threading.Thread(target=writes, args=(one,))
+        for one in ("key", "anthropic-gateway")
+    ]
     for one in both:
         one.start()
     for one in both:
@@ -429,7 +447,7 @@ def test_two_writing_at_once_do_not_take_each_others_files_away(
     assert (
         found is not None
     )  # and what is on disk is one whole account, not half of two
-    assert found.way in ("key", "gateway")
+    assert found.way in ("key", "anthropic-gateway")
     # And nothing is left lying beside it: every write took its own file with it.
     assert sorted(one.name for one in found.at.iterdir()) == [
         "config",

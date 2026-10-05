@@ -368,7 +368,7 @@ In `hmz`:
    you, what that way asks, and which other CLIs to write it down for](/demo/account-form.png)
 
 3. Choose the way: <kbd>↓</kbd> to `way`, <kbd>enter</kbd> (or click it), and pick, say,
-   `gateway` from the list dropped under it. The rows under it change to what that way asks, and the cursor
+   `anthropic-gateway` from the list dropped under it. The rows under it change to what that way asks, and the cursor
    goes to the first of them. Type each answer and press <kbd>enter</kbd>; a secret shows as
    bullets. The name is written in for you (the way's own, unless an account is already called
    that); type over it to call it something else, `deepseek` here.
@@ -469,7 +469,7 @@ goes back to the prompt.
   hmz › /flow › Installed › ralph_loop › agent › Select the account to run as
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ as local ✔                use the account signed in on this machine      │
-  │ deepseek                  gateway · ANTHROPIC_AUTH_TOKEN,                │
+  │ deepseek                  anthropic-gateway · ANTHROPIC_AUTH_TOKEN,      │
   │                           ANTHROPIC_BASE_URL                             │
   │ work                      login                                          │
   ╰──────────────────────────────────────────────────────────────────────────╯
