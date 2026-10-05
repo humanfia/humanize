@@ -1,3 +1,7 @@
+<script setup>
+import FirstFlow from '../.vitepress/theme/components/weaver-first/FirstFlow.vue'
+</script>
+
 # Your first flow
 
 In this guide you write `twice`: a flow that has one coding agent do a task, then read its own
@@ -30,6 +34,8 @@ function needs, and the runtime hands it exactly those when it runs:
 | the **agents** it drives, one per **role** | an `AgentCollection` subclass | whoever runs it, with `-a ROLE=CLI/MODEL:EFFORT` |
 | the **environments** they work in: a directory on a machine | an `EnvCollection` subclass | the runtime, for a `LocalEnv`; otherwise `-e` |
 | its **params**: settings of its own | a `FlowParams` subclass | `-p KEY=VALUE`, or a form at the prompt |
+
+<FirstFlow />
 
 The function never names a CLI or a model. It names a role, `builder`, and asks it for work in
 two steps:

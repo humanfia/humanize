@@ -1,3 +1,7 @@
+<script setup>
+import LoopMemory from '../.vitepress/theme/components/weaver-loops/LoopMemory.vue'
+</script>
+
 # Loops
 
 In this guide you write `checklist`: a loop that hands an agent the same task round after
@@ -15,6 +19,8 @@ a test suite that passes, a checklist that is ticked, a file that exists.
 :::
 
 ## How a loop works
+
+<LoopMemory />
 
 A loop is an ordinary Python `while` or `for` around `spawn` and `run`. Writing one comes down
 to three choices.

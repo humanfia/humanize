@@ -1,3 +1,7 @@
+<script setup>
+import ParamsForm from '../.vitepress/theme/components/weaver-params/ParamsForm.vue'
+</script>
+
 # Params of its own
 
 In this guide you give a flow settings of its own, called **params**: how many review passes to
@@ -14,6 +18,8 @@ file to write to. Anything the flow always does the same way stays a constant in
 :::
 
 ## How params work
+
+<ParamsForm />
 
 `FlowParams` is a pydantic model. You subclass it, one field per param, and hand the class to
 `@flow(params=…)`. From then on:
