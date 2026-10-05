@@ -118,12 +118,17 @@ export default defineConfig({
   head: [
     // Written out with the base in it: VitePress prepends the base to a theme's own
     // links and to what a page names, and hands `head` to the template as it is.
-    ['link', { rel: 'icon', href: '/humanize/logo.svg' }],
-    ['meta', { name: 'theme-color', content: '#2a6ea6' }],
+    // The favicon draws the mark on a tile of its own and follows the viewer's light or dark.
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/humanize/favicon.svg' }],
+    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#f4efe6' }],
+    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#16161a' }],
   ],
 
   themeConfig: {
-    logo: '/logo.svg',
+    // A fixed pair rather than `logo.svg`, which follows the viewer's preference: the nav
+    // follows the site's own light/dark switch instead. `logo.svg` is for everywhere else --
+    // the README's banner links it.
+    logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: 'humanize' },
 
     // Six sections, in the order a reader comes to need them. The home page's quickstart ends
     // on a first run, and what that reader wants next is the guide to running flows, then the

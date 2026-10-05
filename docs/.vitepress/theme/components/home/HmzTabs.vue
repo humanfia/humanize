@@ -13,7 +13,11 @@
 //
 // Every panel is rendered and the ones not chosen are hidden, so the page reads whole before
 // any script runs. A link to an id inside a hidden panel -- a heading, say -- opens that panel.
-import { onMounted, onUnmounted, ref, useId } from 'vue'
+//
+// Choosing a tab moves a red bar under the tab bar across to it, skewed on the way like a
+// plane in motion, and the panel coming in is wiped in on the diagonal. Under reduced motion
+// the bar jumps and the panel is simply there.
+import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue'
 
 interface Tab {
   /** The slot the panel is written in, and the key it is chosen by. */
@@ -29,6 +33,30 @@ const props = defineProps<{ tabs: Tab[]; label?: string }>()
 const uid = useId()
 const chosen = ref(props.tabs[0]?.id ?? '')
 const root = ref<HTMLElement>()
+const bar = ref<HTMLElement>()
+
+// Where the red bar is: under the chosen tab, measured, since the tabs are as wide as their words.
+const ink = ref({ left: 0, width: 0 })
+const moving = ref(false)
+const entered = ref('')
+function place() {
+  const at = props.tabs.findIndex((tab) => tab.id === chosen.value)
+  const button = bar.value?.querySelectorAll<HTMLElement>('[role=tab]')[at]
+  if (!button) return
+  ink.value = { left: button.offsetLeft, width: button.offsetWidth }
+}
+const inkStyle = computed(() => ({ transform: `translateX(${ink.value.left}px)`, width: `${ink.value.width}px` }))
+
+let settling: ReturnType<typeof setTimeout> | undefined
+watch(chosen, (now, was) => {
+  if (now === was) return
+  entered.value = now
+  moving.value = true
+  clearTimeout(settling)
+  settling = setTimeout(() => (moving.value = false), 450)
+  void nextTick(place)
+})
+let sized: ResizeObserver | undefined
 
 // The keys the WAI-ARIA tabs pattern moves by: the arrows step, Home and End jump.
 function move(event: KeyboardEvent, at: number) {
@@ -68,15 +96,22 @@ function follow() {
 
 onMounted(() => {
   follow()
+  place()
+  sized = new ResizeObserver(place)
+  if (bar.value) sized.observe(bar.value)
   window.addEventListener('hashchange', follow)
 })
 
-onUnmounted(() => window.removeEventListener('hashchange', follow))
+onUnmounted(() => {
+  sized?.disconnect()
+  clearTimeout(settling)
+  window.removeEventListener('hashchange', follow)
+})
 </script>
 
 <template>
   <div ref="root" class="hmz-tabs">
-    <div class="bar" role="tablist" :aria-label="label">
+    <div ref="bar" class="bar" role="tablist" :aria-label="label">
       <button
         v-for="(tab, at) in tabs"
         :id="`${uid}-tab-${tab.id}`"
@@ -92,6 +127,7 @@ onUnmounted(() => window.removeEventListener('hashchange', follow))
         <span class="name">{{ tab.name }}</span>
         <span v-if="tab.hint" class="hint">{{ tab.hint }}</span>
       </button>
+      <span class="ink" :class="{ moving }" :style="inkStyle" aria-hidden="true"></span>
     </div>
     <div
       v-for="tab in tabs"
@@ -99,6 +135,7 @@ onUnmounted(() => window.removeEventListener('hashchange', follow))
       :id="`${uid}-panel-${tab.id}`"
       :key="tab.id"
       class="panel"
+      :class="{ entering: entered === tab.id }"
       role="tabpanel"
       :aria-labelledby="`${uid}-tab-${tab.id}`"
     >
@@ -117,6 +154,7 @@ onUnmounted(() => window.removeEventListener('hashchange', follow))
 }
 
 .bar {
+  position: relative;
   display: flex;
   gap: 6px;
   padding: 6px;
@@ -150,8 +188,68 @@ onUnmounted(() => window.removeEventListener('hashchange', follow))
 .bar button[aria-selected='true'] {
   border-color: var(--hmz-panel-border);
   background: var(--vp-c-bg);
-  color: var(--vp-c-brand-1);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  color: var(--vp-c-text-1);
+}
+
+/* The chosen tab's mark: a red bar along the foot of the tab bar, which slides to the tab
+   chosen next and leans into the move while it travels. */
+.ink {
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 4px;
+  background: var(--hmz-red);
+  transition:
+    transform 0.45s cubic-bezier(0.7, 0, 0.2, 1),
+    width 0.45s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+.ink.moving {
+  animation: hmz-lean 0.45s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+@keyframes hmz-lean {
+  50% {
+    clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%);
+    scale: 1 1.6;
+  }
+}
+
+/* The panel coming in: wiped in on the diagonal, its contents rising a little behind it. */
+.panel.entering {
+  animation: hmz-wipe 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel.entering > :deep(*) {
+  animation: hmz-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.panel.entering > :deep(*:nth-child(2)) {
+  animation-delay: 0.04s;
+}
+
+.panel.entering > :deep(*:nth-child(3)) {
+  animation-delay: 0.08s;
+}
+
+.panel.entering > :deep(*:nth-child(n + 4)) {
+  animation-delay: 0.12s;
+}
+
+@keyframes hmz-wipe {
+  from {
+    clip-path: polygon(0 0, 0 0, 0 100%, 0 100%);
+  }
+  to {
+    clip-path: polygon(0 0, 200% 0, 100% 100%, 0 100%);
+  }
+}
+
+@keyframes hmz-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 
 .bar button:focus-visible {
@@ -201,8 +299,15 @@ onUnmounted(() => window.removeEventListener('hashchange', follow))
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bar button {
+  .bar button,
+  .ink {
     transition: none;
+  }
+
+  .ink.moving,
+  .panel.entering,
+  .panel.entering > :deep(*) {
+    animation: none;
   }
 }
 </style>

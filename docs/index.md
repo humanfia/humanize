@@ -4,6 +4,7 @@ layout: home
 
 <script setup>
 import { withBase } from 'vitepress'
+import HmzRun from './.vitepress/theme/components/home/HmzRun.vue'
 import HmzTabs from './.vitepress/theme/components/home/HmzTabs.vue'
 
 const WAYS = [
@@ -15,6 +16,15 @@ const WAYS = [
 <HmzHero />
 
 ## How it fits together
+
+A flow is a Python function that says which agents take turns, what each is asked, and when it
+stops. Here is one run of `rlar`, the review loop humanize ships: one agent works, a fresh one
+reads what it did, and the review is the next prompt.
+
+<HmzRun />
+
+Under every run, the same four layers: the flow decides, humanize carries each turn out and
+records it, a coding agent does the work, and the work lands in an environment.
 
 <HmzArch />
 

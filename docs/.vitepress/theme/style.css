@@ -336,8 +336,33 @@
   max-width: 46rem;
 }
 
-/* The hero sits on a slow-drifting field, so the first screenful is moving before anything is
-   scrolled. It is drawn behind everything and takes no clicks. */
+/* The constructivist pair the humanize mark is drawn in, and the home page with it: ink and
+   paper, which trade places in the dark, and one red. `--hmz-ink` is whatever is drawn on the
+   page; `--hmz-paper` is the page under it. The rest are those at the strengths the page's
+   construction lines, marks and planes are drawn at. */
+:root {
+  --hmz-ink: #16161a;
+  --hmz-paper: #f4efe6;
+  --hmz-red: #d6331f;
+  --hmz-red-soft: rgba(214, 51, 31, 0.12);
+  --hmz-con-line: rgba(22, 22, 26, 0.07);
+  --hmz-con-mark: rgba(22, 22, 26, 0.38);
+  --hmz-con-plane: rgba(22, 22, 26, 0.06);
+}
+
+.dark {
+  --hmz-ink: #ece6da;
+  --hmz-paper: #1b1b1f;
+  --hmz-red: #ff5a43;
+  --hmz-red-soft: rgba(255, 90, 67, 0.16);
+  --hmz-con-line: rgba(236, 230, 218, 0.07);
+  --hmz-con-mark: rgba(236, 230, 218, 0.4);
+  --hmz-con-plane: rgba(236, 230, 218, 0.055);
+}
+
+/* The hero sits on a ruled sheet with one plane laid across it on the diagonal, so the first
+   screenful is a drawing before anything is scrolled. The plane drifts along its own axis,
+   slowly. It is drawn behind everything and takes no clicks. */
 .VPHome {
   position: relative;
   isolation: isolate;
@@ -348,38 +373,45 @@
   overflow-x: clip;
 }
 
-.VPHome::before {
+.VPHome::before,
+.VPHome::after {
   content: '';
   position: absolute;
   top: 0;
-  left: -20%;
-  right: -20%;
-  /* Tall enough to cover the hero and to fade out inside the diagram under it, capped so a
-     tall window does not stretch the same three blooms over two screens. */
-  height: min(115svh, 1080px);
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(38% 46% at 22% 18%, rgba(96, 138, 177, 0.28), transparent 70%),
-    radial-gradient(34% 42% at 78% 12%, rgba(20, 184, 166, 0.22), transparent 70%),
-    radial-gradient(30% 38% at 55% 46%, rgba(124, 108, 240, 0.18), transparent 72%);
-  animation: hmz-drift 24s ease-in-out infinite alternate;
+  /* Tall enough to cover the hero and to fade out inside the diagram under it, capped so a
+     tall window does not stretch it over two screens. */
+  height: min(115svh, 1080px);
+  -webkit-mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 55%, transparent);
 }
 
-/* The same three blooms, lifted: over #1b1b1f the light-mode alphas read as grey haze. */
-.dark .VPHome::before {
+/* The sheet: a 48px rule, and a heavier one every fourth line. */
+.VPHome::before {
+  left: 0;
+  right: 0;
   background:
-    radial-gradient(38% 46% at 22% 18%, rgba(140, 184, 222, 0.22), transparent 70%),
-    radial-gradient(34% 42% at 78% 12%, rgba(45, 212, 191, 0.16), transparent 70%),
-    radial-gradient(30% 38% at 55% 46%, rgba(192, 132, 252, 0.15), transparent 72%);
+    linear-gradient(var(--hmz-con-line) 1px, transparent 1px) 0 0 / 192px 192px,
+    linear-gradient(90deg, var(--hmz-con-line) 1px, transparent 1px) 0 0 / 192px 192px,
+    linear-gradient(var(--hmz-con-line) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, var(--hmz-con-line) 1px, transparent 1px) 0 0 / 48px 48px;
+}
+
+/* The plane: one band across the page, on the mark's diagonal. */
+.VPHome::after {
+  left: -20%;
+  right: -20%;
+  background: linear-gradient(-16.4deg, transparent 50%, var(--hmz-con-plane) 50%, var(--hmz-con-plane) 61%, transparent 61%);
+  animation: hmz-drift 30s ease-in-out infinite alternate;
 }
 
 @keyframes hmz-drift {
   from {
-    transform: translate3d(-2%, 0, 0) scale(1);
+    transform: translate3d(-3%, 0.9%, 0);
   }
   to {
-    transform: translate3d(3%, 3%, 0) scale(1.08);
+    transform: translate3d(3%, -0.9%, 0);
   }
 }
 
@@ -478,7 +510,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .VPHome::before {
+  .VPHome::after {
     animation: none;
   }
 

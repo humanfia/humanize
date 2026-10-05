@@ -1,7 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="humanize">
   <title>humanize</title>
-  <path d="M 30 24 L 60 50 L 30 76" fill="none" stroke="#608ab1" stroke-width="13"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 92 76 L 68 76" fill="none" stroke="#608ab1" stroke-width="13"
-        stroke-linecap="round"/>
+  <!-- The prompt, `>_`, cut from flat planes: an ink chevron, and a red wedge rising on the
+       one diagonal. Ink where the viewer reads light, paper where they read dark. The docs'
+       nav takes the fixed pair, logo-light.svg and logo-dark.svg, since the site's own switch
+       is not the viewer's. -->
+  <style>
+    .ink { fill: #16161a; }
+    .red { fill: #d6331f; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #ece6da; }
+      .red { fill: #ff5a43; }
+    }
+  </style>
+  <polygon class="ink" points="12,16 32,16 62,50 32,84 12,84 42,50"/>
+  <polygon class="red" points="60,84 94,84 94,64 60,74"/>
 </svg>
