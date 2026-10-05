@@ -1,3 +1,7 @@
+<script setup>
+import GrantScopes from '../.vitepress/theme/components/user-permissions/GrantScopes.vue'
+</script>
+
 # Permissions
 
 What an agent may touch is decided by the flow, one role at a time. You choose the CLI and the
@@ -61,6 +65,8 @@ gets when its flow says nothing:
 So by default an agent changes its workdir, reads around it, and searches the web, and cannot
 change anything else of yours. An outer scope never gets more than the one inside it, and
 `online` is either `NONE` or `ALL`.
+
+<GrantScopes />
 
 Every agent can still read what any program needs to run (the system's programs, libraries and
 certificates), and write its own settings and login, its sessions, and a temporary directory of
