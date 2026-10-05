@@ -56,6 +56,13 @@ def test_every_spelling_of_where_a_backend_goes_is_followed() -> None:
     )
 
 
+def test_the_endpoint_an_mcode_gateway_was_added_with_is_followed() -> None:
+    """Which the CLI never reads -- it is in `config.yaml` -- but the account keeps."""
+    mcode = _profile("mcode")
+    hosts = reachable(mcode, {"MCODE_GATEWAY_URL": "https://gw.example:8443/v1"})
+    assert hosts == (*mcode.hosts, "gw.example:8443")
+
+
 def test_base_urls_and_oauth_hosts_among_the_ambient_are_added() -> None:
     kimi = _profile("kimi")
     hosts = reachable(

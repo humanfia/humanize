@@ -146,7 +146,7 @@ order, then `env` for every backend but `dsh`.
 | | `gateway` | — | `CODEX_PROVIDER_URL`, `CODEX_PROVIDER_KEY` • | appends `-c` arguments ([below](#gateways)) |
 | `cursor-agent` | `login` | `cursor-agent login` | — | |
 | | `key` | — | `CURSOR_API_KEY` • | |
-| | `gateway` | — | `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY` • | |
+| | `cursor-gateway` | — | `CURSOR_API_ENDPOINT` (an endpoint speaking Cursor's own protocol), `CURSOR_API_KEY` • | |
 | `dsh` | `key` | — | `DEEPSEEK_API_KEY` • | |
 | | `gateway` | — | `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY` • | |
 | `grok` | `login` | `grok login` | — | |
@@ -156,9 +156,10 @@ order, then `env` for every backend but `dsh`.
 | | `oidc` | — | `GROK_OIDC_ISSUER`, `GROK_OIDC_CLIENT_ID` | |
 | `kimi` | `login` | `kimi login` | — | |
 | | `model` | — | `KIMI_MODEL_NAME`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_PROVIDER_TYPE` (`openai`; `anthropic`, `openai` or `kimi`) | |
-| `mcode` | `login` | `mcode login` | — | |
-| | `key` | `mcode provider set-minimax-key` | `MCODE_PROVIDER_API_KEY` • | |
-| | `gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format {MCODE_GATEWAY_FORMAT} --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦, `MCODE_GATEWAY_FORMAT` ◦ (`openai-completions`; `anthropic-messages`, `openai-completions` or `openai-responses`) | |
+| `mcode` | `login` | `mcode login --region {MCODE_REGION}` | `MCODE_REGION` ◦ (`global`; `global` or `cn`) | |
+| | `key` | `mcode provider set-minimax-key` | `MCODE_PROVIDER_API_KEY` •, `MAVIS_REGION` (`en`; `en`, for platform.minimax.io, or `cn`, for platform.minimaxi.com) | |
+| | `openai-gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format {MCODE_GATEWAY_FORMAT} --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦, `MCODE_GATEWAY_FORMAT` ◦ (`openai-completions`; `openai-completions` or `openai-responses`) | |
+| | `anthropic-gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format anthropic-messages --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦ | |
 | `mimo` | `login` | `mimo auth login` | — | |
 | | `key` | — | `XIAOMI_API_KEY` • | |
 | `opencode` | `login` | `opencode auth login` | — | |
@@ -169,7 +170,10 @@ order, then `env` for every backend but `dsh`.
 | | `key` | — | `OPENAI_API_KEY` •, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) | appends `--auth-type openai` |
 | every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
 
-- A model on an `mcode` `gateway` account is named `custom_provider:gateway/<id>`.
+- A model on an `mcode` `openai-gateway` or `anthropic-gateway` account is named
+  `custom_provider:gateway/<id>`.
+- An `mcode` `key` account with `MAVIS_REGION` other than `en` takes its turns at
+  `api.minimaxi.com`; a `login` account's region is the one it signed in to.
 - `mcode`'s `config.yaml` is a credential file, so a provider of it holds settings of its own.
 - `cursor-agent`'s `cli-config.json` is a credential file and also its settings.
 
@@ -376,7 +380,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL` |
 | `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_DEFAULT_MODEL`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
 | `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_OAUTH_HOST`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
-| `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
+| `mcode` | `MAVIS_REGION`, `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
 | `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
 | `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
 | `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `KIMI_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `TOGETHER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
@@ -393,11 +397,11 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | --- | --- | --- |
 | `claude` | `gateway` | `ANTHROPIC_BASE_URL` |
 | `codex` | `gateway` | `CODEX_PROVIDER_URL` |
-| `cursor-agent` | `gateway` | none |
+| `cursor-agent` | `cursor-gateway` | none |
 | `dsh` | `gateway` | `DEEPSEEK_BASE_URL` |
 | `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
-| `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
+| `mcode` | `openai-gateway`, `anthropic-gateway` | none (`mcode provider list --json` is the catalogue) |
 | `qwen` | `key` | `OPENAI_BASE_URL` |
 | `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
 

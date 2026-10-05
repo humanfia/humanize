@@ -2181,8 +2181,16 @@ PROFILES = (
                 about="a Cursor API key, from the dashboard",
                 asks=(Asked(env="CURSOR_API_KEY", about="the API key", secret=True),),
             ),
+            # Named for the protocol it speaks, which is Cursor's own: `CURSOR_API_ENDPOINT`
+            # stands in for `api2.cursor.sh`, the backend that signs a turn in and runs it,
+            # and not for a model's API. So what answers there is a proxy in front of Cursor
+            # rather than another vendor. Taking a turn to an endpoint speaking OpenAI's or
+            # Anthropic's API is something its bundle has the flags for -- `--base-url`,
+            # `--authless` -- and refuses outside an `agent-cli-local` build the installer
+            # does not ship, with `--authless can only be used with agent-cli-local`: so no
+            # third-party gateway is offered here, there being none it would answer through.
             Way(
-                name="gateway",
+                name="cursor-gateway",
                 about=_GATEWAY,
                 asks=(
                     Asked(env="CURSOR_API_ENDPOINT", about="where it is, as a URL"),
@@ -2254,13 +2262,21 @@ PROFILES = (
         # and `auth/` what a sign-in leaves -- a directory per build, and the lock two of its
         # processes refresh a token under.
         creds=("config.yaml", "auth"),
-        # The endpoints and the region that say whose account a turn is taken as, and the
-        # vendor's own names for a key. None of them is a way in of its own.
+        # The endpoints and the regions that say whose account a turn is taken as, and the
+        # vendor's own names for a key. None of them is a way in of its own. `MAVIS_REGION`
+        # is the one its runtime reads first, ahead of the region a sign-in left, so one left
+        # in a shell would send a signed-in account's turns to the other region's API. And
+        # `MCODE_GATEWAY_URL` is not read by the CLI at all -- the URL a gateway way is given
+        # is written into `config.yaml` -- but it is kept with the account, and listed here
+        # so that a turn fenced off the network is still let through to the endpoint it was
+        # pointed at, which a variable ending `_URL` is how `reachable` is told of.
         ambient=(
+            "MAVIS_REGION",
             "MCODE_API_BASE_URL",
             "MCODE_AUTH_BASE_URL",
             "MCODE_AUTH_PROVIDER",
             "MCODE_CLIENT_ID",
+            "MCODE_GATEWAY_URL",
             "MCODE_REGION",
             "MINIMAX_API_KEY",
             "MINIMAX_CN_API_KEY",
@@ -2276,7 +2292,19 @@ PROFILES = (
             Way(
                 name="login",
                 about="sign in to a MiniMax account, in a browser",
-                argv=("mcode", "login"),
+                # In the region asked, which is a different account on a different site:
+                # with no `--region` it signs in to the Chinese one. The answer is only its
+                # command line's -- the region a turn is then taken in is read back off the
+                # sign-in it left.
+                argv=("mcode", "login", "--region", "{MCODE_REGION}"),
+                asks=(
+                    Asked(
+                        env="MCODE_REGION",
+                        about="the account's region: global or cn",
+                        fixed="global",
+                        keep=False,
+                    ),
+                ),
             ),
             Way(
                 name="key",
@@ -2289,15 +2317,36 @@ PROFILES = (
                     Asked(
                         env="MCODE_PROVIDER_API_KEY", about="the API key", secret=True
                     ),
+                    # Which of its two APIs the key is for, which nothing on its command
+                    # line says: with no sign-in to read a region off, a turn goes to
+                    # `api.minimaxi.com` unless this says `en`, when it goes to
+                    # `api.minimax.io`. Kept, since it is read at every turn and not when
+                    # the key is saved; and in its runtime's own spelling, any other word
+                    # being one it ignores.
+                    Asked(
+                        env="MAVIS_REGION",
+                        about=(
+                            "where the key is from: en, for platform.minimax.io, "
+                            "or cn, for platform.minimaxi.com"
+                        ),
+                        fixed="en",
+                    ),
                 ),
             ),
+            # A provider of its own, added to its `config.yaml` with the one model named here
+            # and made the default -- after a request to it, so an endpoint that does not
+            # answer is a way in that fails where it is made rather than a provider nothing
+            # can use. One way per vendor protocol, `--api-format` being the CLI's word for
+            # which: chat completions or responses for OpenAI's, which is one protocol asked
+            # for in two spellings, and messages for Anthropic's. It has none for Gemini's.
+            # Each is added under the one name `gateway` whichever, so that a model on any of
+            # them is `custom_provider:gateway/<id>` -- one account is one provider, and the
+            # name is the account's, under the CLI's own data home, rather than the way's.
             Way(
-                name="gateway",
-                about=_GATEWAY,
-                # A provider of its own, added to its `config.yaml` with the one model named
-                # here and made the default -- after a request to it, so an endpoint that
-                # does not answer is a way in that fails where it is made rather than a
-                # provider nothing can use.
+                name="openai-gateway",
+                about=(
+                    "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor"
+                ),
                 argv=(
                     "mcode",
                     "provider",
@@ -2329,10 +2378,46 @@ PROFILES = (
                     Asked(
                         env="MCODE_GATEWAY_FORMAT",
                         about=(
-                            "the protocol it speaks: anthropic-messages, "
-                            "openai-completions or openai-responses"
+                            "which of its APIs it speaks: openai-completions, for chat "
+                            "completions, or openai-responses, for responses"
                         ),
                         fixed="openai-completions",
+                        keep=False,
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                    "another vendor"
+                ),
+                argv=(
+                    "mcode",
+                    "provider",
+                    "add",
+                    "--name",
+                    "gateway",
+                    "--base-url",
+                    "{MCODE_GATEWAY_URL}",
+                    "--api-format",
+                    "anthropic-messages",
+                    "--model",
+                    "{MCODE_GATEWAY_MODEL}",
+                    "--api-key-env",
+                    "MCODE_PROVIDER_API_KEY",
+                    "--use",
+                ),
+                asks=(
+                    Asked(env="MCODE_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="MCODE_PROVIDER_API_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(
+                        env="MCODE_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
                         keep=False,
                     ),
                 ),

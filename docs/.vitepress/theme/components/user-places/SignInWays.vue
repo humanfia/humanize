@@ -255,7 +255,7 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'CURSOR_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
+        name: 'cursor-gateway',
         about: GATEWAY,
         asks: [{ env: 'CURSOR_API_ENDPOINT' }, { env: 'CURSOR_API_KEY', secret: true }],
       },
@@ -266,16 +266,21 @@ const BACKENDS: Backend[] = [
     cli: 'mcode',
     called: 'MiniMax Code',
     ways: [
-      { name: 'login', about: 'sign in to a MiniMax account, in a browser', runs: 'mcode login' },
+      {
+        name: 'login',
+        about: 'sign in to a MiniMax account, in a browser',
+        asks: [{ env: 'MCODE_REGION', fixed: 'global' }],
+        runs: 'mcode login --region …',
+      },
       {
         name: 'key',
         about: 'a MiniMax API key, from the platform',
-        asks: [{ env: 'MCODE_PROVIDER_API_KEY', secret: true }],
+        asks: [{ env: 'MCODE_PROVIDER_API_KEY', secret: true }, { env: 'MAVIS_REGION', fixed: 'en' }],
         runs: 'mcode provider set-minimax-key',
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API -- a proxy, a router, another vendor',
         asks: [
           { env: 'MCODE_GATEWAY_URL' },
           { env: 'MCODE_PROVIDER_API_KEY', secret: true },
@@ -283,6 +288,16 @@ const BACKENDS: Backend[] = [
           { env: 'MCODE_GATEWAY_FORMAT', fixed: 'openai-completions' },
         ],
         runs: 'mcode provider add --name gateway … --use',
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'MCODE_GATEWAY_URL' },
+          { env: 'MCODE_PROVIDER_API_KEY', secret: true },
+          { env: 'MCODE_GATEWAY_MODEL' },
+        ],
+        runs: 'mcode provider add --name gateway --api-format anthropic-messages … --use',
       },
       ENV,
     ],
