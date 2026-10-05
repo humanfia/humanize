@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.agents import DshAgentConfig
-from hmz.coganchor.agents.dsh import _WEB, _composed
+from hmz.coganchor.agents.dsh import _GATEWAYS, _WEB, _composed
 
 # Asked before any test is collected rather than inside `_boots`: composing reads the bundled
 # runtime too, so without the extra every test would error before reaching the skip.
@@ -38,12 +38,20 @@ if TYPE_CHECKING:
 CONFIG = DshAgentConfig(model="deepseek-chat", effort="high")
 
 
-def _boots(cordis: str, where: Path) -> None:
+def _boots(
+    cordis: str,
+    where: Path,
+    provider: str = "deepseek-official",
+    env: dict[str, str] | None = None,
+) -> None:
     """Starts the bundled runtime from one composition and puts it straight back down.
 
     Args:
       cordis: The composition, as `_composed` wrote it.
       where: A directory of this test's own for the runtime to work and keep sessions in.
+      provider: The adapter route the session is opened on, which the runtime refuses at
+        the handshake where nothing in the composition registered it.
+      env: What the account would add to the runtime's environment.
 
     Raises:
       Exception: Whatever the SDK raises for a runtime that would not come up, which for a
@@ -58,7 +66,7 @@ def _boots(cordis: str, where: Path) -> None:
     written = where / "cordis.yml"
     written.write_text(cordis, encoding="utf-8")
     started = harness.DeepSeekHarness(
-        provider="deepseek-official",
+        provider=provider,
         model=CONFIG.model,
         cwd=str(where),
         runtime_cwd=str(where),
@@ -66,7 +74,11 @@ def _boots(cordis: str, where: Path) -> None:
         cordis=str(written),
         # A key it never spends: the runtime resolves one as it boots and a turn is what
         # would have to be answered, which this test does not take.
-        env={"DEEPSEEK_API_KEY": "not-a-real-key", "HMZ_DSH_EFFORT": "high"},
+        env={
+            "DEEPSEEK_API_KEY": "not-a-real-key",
+            "HMZ_DSH_EFFORT": "high",
+            **(env or {}),
+        },
         launch_args_override=tuple(runtime.resolve_bundled_launch_args()),
         request_timeout_seconds=120.0,
     )
@@ -99,3 +111,26 @@ def test_an_agent_told_not_to_search_is_composed_without_them_and_still_boots(
     assert not any(plugin["name"] in quiet for plugin in _WEB)
 
     _boots(quiet, tmp_path)
+
+
+@pytest.mark.parametrize("way", sorted(_GATEWAYS))
+def test_a_gateway_account_is_composed_onto_a_route_the_runtime_registers(
+    way: str, tmp_path: Path
+) -> None:
+    """pi-ai's adapter, its one route and the web less its search, all loaded together.
+
+    The route's protocol, base URL and model are read off the environment as the runtime
+    boots, and a route it cannot serve is refused there -- so this is where a protocol name
+    pi-ai stopped taking, or a catalogue route it stopped shipping, would show.
+    """
+    composed = _composed(replace(CONFIG, web_search=True), way)
+
+    _boots(
+        composed,
+        tmp_path,
+        provider=_GATEWAYS[way][0],
+        env={
+            "DEEPSEEK_BASE_URL": "https://gateway.invalid/v1",
+            "DSH_GATEWAY_API": "openai-responses",
+        },
+    )

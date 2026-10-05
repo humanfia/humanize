@@ -161,11 +161,10 @@ in, redirected from where it would write them at home:
 | `grok` | `home/auth.json`, `home/mcp_credentials.json` |
 | `kimi` | `home/credentials`, `home/oauth` |
 | `pi` | `home/auth.json`, `home/auth.json.lock` |
-| `qwen` | `home/oauth_creds.json`, `home/oauth_creds.lock` |
 | `opencode`, `mimo` | `home/auth.json`, `home/mcp-auth.json` |
 | `cursor-agent` | `home/cli-config.json`, `config/cursor/auth.json`, `user/.cursor/auth.json` |
 | `mcode` | `home/config.yaml`, `home/auth` |
-| `dsh` | none |
+| `dsh`, `qwen` | none |
 
 Removing an account deletes its directory.
 

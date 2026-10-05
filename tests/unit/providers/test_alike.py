@@ -25,7 +25,7 @@ def test_a_vendor_key_is_an_account_every_backend_that_reads_it_could_run() -> N
     """Worked out from what each backend says it would take an account from."""
     one = providers.add("claude", "work", "key", {"ANTHROPIC_API_KEY": "sk-x"})
 
-    assert providers.serves(one) == ("pi", "opencode", "mimo")
+    assert providers.serves(one) == ("pi", "qwen", "opencode", "mimo")
 
 
 def test_one_credential_under_two_names_is_one_credential() -> None:
@@ -50,7 +50,7 @@ def test_a_credential_the_other_backend_has_no_name_for_is_not_one_it_could_run(
     one = providers.add(
         "codex",
         "gate",
-        "gateway",
+        "openai-gateway",
         {"CODEX_PROVIDER_URL": "https://x", "CODEX_PROVIDER_KEY": "k"},
     )
 
@@ -82,8 +82,23 @@ def test_a_copy_says_it_was_made_by_the_way_that_asks_for_exactly_it() -> None:
 
     assert (
         providers.copies(one, "qwen").way == providers.ENV.name
-    )  # qwen's key asks two
+    )  # qwen's gateway asks three
     assert providers.copies(one, "pi").way == "openai-key"  # pi's asks for exactly it
+
+
+def test_a_copy_carries_what_its_way_adds_to_the_command_line() -> None:
+    """Qwen Code given an Anthropic key and endpoint takes no turn without its auth type."""
+    one = providers.add(
+        "claude",
+        "gw",
+        "gateway",
+        {"ANTHROPIC_BASE_URL": "https://gw.invalid", "ANTHROPIC_API_KEY": "k"},
+    )
+
+    copied = providers.copies(one, "qwen")
+
+    assert copied.way == "anthropic-gateway"
+    assert copied.args == ("--auth-type", "anthropic")
 
 
 def test_copying_over_one_already_there_is_how_a_key_is_rotated_everywhere() -> None:

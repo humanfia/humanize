@@ -280,14 +280,19 @@ async def test_deepseek_offers_its_own_ways_and_no_env_from_providers() -> None:
         form = await _adds(app, driver)
         await _chooses(app, driver, "cli", "dsh")
 
-        # Its own two, and no `env`: dsh is the one backend that takes no variables of
+        # Its own four, and no `env`: dsh is the one backend that takes no variables of
         # somebody's own, so the ways it names are the whole of what it offers.
-        assert list(form.choices("way")) == ["key", "gateway"]
+        assert list(form.choices("way")) == [
+            "key",
+            "openai-gateway",
+            "anthropic-gateway",
+            "gemini-gateway",
+        ]
         assert form._typed_in["way"] == "key"
         listing = app.screen.query_one("#choices", OptionList)
         assert "DeepSeek API key" in str(listing.get_option("=way").prompt)
-        await _chooses(app, driver, "way", "gateway")
-        assert "endpoint speaking" in str(listing.get_option("=way").prompt)
+        await _chooses(app, driver, "way", "anthropic-gateway")
+        assert "Anthropic's Messages API" in str(listing.get_option("=way").prompt)
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms | Providers), driver)
@@ -765,14 +770,14 @@ async def test_a_backspace_trims_a_name_written_in_rather_than_clearing_it() -> 
         await into_settings(app, driver, "accounts")
         form = await _adds(app, driver)
         await _chooses(app, driver, "cli", "codex")
-        await _chooses(app, driver, "way", "gateway")
-        assert form._typed_in["name"] == "gateway"
+        await _chooses(app, driver, "way", "openai-gateway")
+        assert form._typed_in["name"] == "openai-gateway"
 
         await onto(app, driver, "name")
         await driver.press("backspace", "y", "s")
         await driver.press("enter")
         await driver.pause()
-        assert form._typed_in["name"] == "gateways"
+        assert form._typed_in["name"] == "openai-gateways"
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms | Providers), driver)
@@ -784,7 +789,7 @@ async def test_a_secret_left_blank_while_correcting_keeps_the_one_it_has() -> No
     providers.add(
         "claude",
         "gate",
-        way="gateway",
+        way="anthropic-gateway",
         env={
             "ANTHROPIC_AUTH_TOKEN": "sk-kept",
             "ANTHROPIC_BASE_URL": "https://old.test",
@@ -1064,11 +1069,12 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
         # And then the question this is about: which of the others hold it too.
         assert [one for one in rows(app) if one.startswith("also:")] == [
             "also:pi",
+            "also:qwen",
             "also:opencode",
             "also:mimo",
         ]
         # Nothing is installed in this suite, so nothing starts switched on.
-        assert not any(form._also(one) for one in ("pi", "opencode", "mimo"))
+        assert not any(form._also(one) for one in ("pi", "qwen", "opencode", "mimo"))
         await nexts(app, driver, "also:opencode")
         # Said where answering it is: by the button that answers it.
         assert "for opencode too" in str(
@@ -1135,11 +1141,12 @@ async def test_an_account_that_travels_nowhere_is_not_asked_about() -> None:
         assert not [one for one in rows(app) if one.startswith("also:")]
 
         await _chooses(app, driver, "cli", "dsh")
-        # DeepSeek's key is read by pi and opencode, so those are asked about -- off, since
-        # neither is installed here -- and left off.
+        # DeepSeek's key is read by pi, opencode and mimocode, so those are asked about --
+        # off, since none is installed here -- and left off.
         assert [one for one in rows(app) if one.startswith("also:")] == [
             "also:pi",
             "also:opencode",
+            "also:mimo",
         ]
         await _writes(app, driver, "name", *"only")
         await _writes(app, driver, "DEEPSEEK_API_KEY", *"sk-only")

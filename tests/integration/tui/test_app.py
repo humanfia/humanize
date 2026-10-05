@@ -2368,7 +2368,12 @@ async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
         # No question of which CLI -- it is the one the agent is on -- and only dsh's own
         # ways in, stepped where they stand.
         assert rows(app)[:3] == ["way", "name", "DEEPSEEK_API_KEY"]
-        assert list(sheet.choices("way")) == ["key", "gateway"]
+        assert list(sheet.choices("way")) == [
+            "key",
+            "openai-gateway",
+            "anthropic-gateway",
+            "gemini-gateway",
+        ]
         shown = " ".join(
             [
                 str(app.screen.query_one("#asked", Label).content),

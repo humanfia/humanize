@@ -48,7 +48,12 @@ const BACKENDS: Backend[] = [
     cli: 'claude',
     called: 'Claude Code',
     ways: [
-      { name: 'login', about: 'sign in to an Anthropic account', runs: 'claude auth login' },
+      { name: 'login', about: 'sign in to a Claude subscription', runs: 'claude auth login' },
+      {
+        name: 'console',
+        about: 'sign in to an Anthropic Console account, billed per token',
+        runs: 'claude auth login --console',
+      },
       {
         name: 'token',
         about: 'a long-lived token, as claude setup-token prints one',
@@ -60,9 +65,36 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'wif',
+        about: 'Workload Identity Federation: a token another identity provider issues, traded for Anthropic’s',
+        asks: [
+          { env: 'ANTHROPIC_FEDERATION_RULE_ID' },
+          { env: 'ANTHROPIC_ORGANIZATION_ID' },
+          { env: 'ANTHROPIC_SERVICE_ACCOUNT_ID' },
+          { env: 'ANTHROPIC_IDENTITY_TOKEN_FILE' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
         asks: [{ env: 'ANTHROPIC_BASE_URL' }, { env: 'ANTHROPIC_AUTH_TOKEN', secret: true }],
+      },
+      {
+        name: 'bedrock-gateway',
+        about: 'an endpoint speaking Amazon Bedrock’s API, which holds the AWS credentials itself',
+        asks: [{ env: 'ANTHROPIC_BEDROCK_BASE_URL' }, { env: 'ANTHROPIC_AUTH_TOKEN', secret: true }],
+        sets: ['CLAUDE_CODE_USE_BEDROCK=1', 'CLAUDE_CODE_SKIP_BEDROCK_AUTH=1'],
+      },
+      {
+        name: 'vertex-gateway',
+        about: 'an endpoint speaking Vertex AI’s API, which holds the Google Cloud credentials itself',
+        asks: [
+          { env: 'ANTHROPIC_VERTEX_BASE_URL' },
+          { env: 'ANTHROPIC_AUTH_TOKEN', secret: true },
+          { env: 'ANTHROPIC_VERTEX_PROJECT_ID' },
+          { env: 'CLOUD_ML_REGION', fixed: 'us-east5' },
+        ],
+        sets: ['CLAUDE_CODE_USE_VERTEX=1', 'CLAUDE_CODE_SKIP_VERTEX_AUTH=1'],
       },
       {
         name: 'bedrock',
@@ -71,10 +103,48 @@ const BACKENDS: Backend[] = [
         sets: ['CLAUDE_CODE_USE_BEDROCK=1'],
       },
       {
+        name: 'bedrock-key',
+        about: 'Anthropic’s models on Amazon Bedrock, by a Bedrock API key',
+        asks: [{ env: 'AWS_BEARER_TOKEN_BEDROCK', secret: true }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+        sets: ['CLAUDE_CODE_USE_BEDROCK=1'],
+      },
+      {
+        name: 'mantle',
+        about: 'Anthropic’s models on Amazon Bedrock’s Mantle endpoint, on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+        sets: ['CLAUDE_CODE_USE_MANTLE=1'],
+      },
+      {
         name: 'vertex',
         about: 'Anthropic’s models on a Google Cloud project of yours',
         asks: [{ env: 'ANTHROPIC_VERTEX_PROJECT_ID' }, { env: 'CLOUD_ML_REGION', fixed: 'us-east5' }],
         sets: ['CLAUDE_CODE_USE_VERTEX=1'],
+      },
+      {
+        name: 'foundry',
+        about: 'Anthropic’s models on a Microsoft Foundry resource of yours',
+        asks: [{ env: 'ANTHROPIC_FOUNDRY_RESOURCE' }, { env: 'ANTHROPIC_FOUNDRY_API_KEY', secret: true }],
+        sets: ['CLAUDE_CODE_USE_FOUNDRY=1'],
+      },
+      {
+        name: 'aws',
+        about: 'Claude Platform on AWS: Anthropic’s API, billed through AWS',
+        asks: [
+          { env: 'ANTHROPIC_AWS_WORKSPACE_ID' },
+          { env: 'AWS_REGION', fixed: 'us-east-1' },
+          { env: 'ANTHROPIC_AWS_API_KEY', secret: true },
+        ],
+        sets: ['CLAUDE_CODE_USE_ANTHROPIC_AWS=1'],
+      },
+      {
+        name: 'google-cloud',
+        about: 'Claude Platform on Google Cloud: Anthropic’s API, billed through Google Cloud',
+        asks: [
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_PROJECT' },
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_LOCATION', fixed: 'global' },
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID' },
+        ],
+        sets: ['CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD=1'],
       },
       ENV,
     ],
@@ -88,6 +158,22 @@ const BACKENDS: Backend[] = [
         name: 'key',
         about: 'a Gemini API key, from AI Studio',
         asks: [{ env: 'GEMINI_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API: a proxy, a router, another vendor',
+        asks: [{ env: 'AGY_LLM_GATEWAY_URL' }, { env: 'AGY_LLM_GATEWAY_API_KEY', secret: true }],
+        sets: ['AGY_LLM_GATEWAY_WIRE_PROTOCOL=genai'],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'AGY_LLM_GATEWAY_URL' },
+          { env: 'AGY_LLM_GATEWAY_API_KEY', secret: true },
+          { env: 'AGY_LLM_GATEWAY_MODELS' },
+        ],
+        sets: ['AGY_LLM_GATEWAY_WIRE_PROTOCOL=openai'],
       },
       {
         name: 'adc',
@@ -117,9 +203,43 @@ const BACKENDS: Backend[] = [
         runs: 'codex login --with-access-token',
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'workload',
+        about: 'a ChatGPT workspace’s workload identity, where nobody signs in',
+        asks: [{ env: 'OPENAI_FEDERATION_RULE_ID' }, { env: 'OPENAI_IDENTITY_TOKEN_FILE' }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
         asks: [{ env: 'CODEX_PROVIDER_URL' }, { env: 'CODEX_PROVIDER_KEY', secret: true }],
+      },
+      {
+        name: 'azure',
+        about: 'OpenAI’s models on an Azure OpenAI resource of yours',
+        asks: [
+          { env: 'AZURE_OPENAI_BASE_URL' },
+          { env: 'AZURE_OPENAI_API_KEY', secret: true },
+          { env: 'AZURE_OPENAI_API_VERSION', fixed: '2025-04-01-preview' },
+        ],
+      },
+      {
+        name: 'bedrock',
+        about: 'OpenAI’s models on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'bedrock-key',
+        about: 'the same, with a Bedrock API key',
+        asks: [{ env: 'AWS_BEARER_TOKEN_BEDROCK', secret: true }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'ollama',
+        about: 'open models served by Ollama',
+        asks: [{ env: 'CODEX_OSS_BASE_URL', fixed: 'http://localhost:11434/v1' }],
+      },
+      {
+        name: 'lmstudio',
+        about: 'open models served by LM Studio',
+        asks: [{ env: 'CODEX_OSS_BASE_URL', fixed: 'http://localhost:1234/v1' }],
       },
       ENV,
     ],
@@ -127,7 +247,7 @@ const BACKENDS: Backend[] = [
   {
     cli: 'dsh',
     called: 'DeepSeek Harness',
-    note: 'No env way here: DeepSeek Harness takes only its own key and gateway.',
+    note: 'No env way here: DeepSeek Harness takes only its own key and its gateways.',
     ways: [
       {
         name: 'key',
@@ -135,8 +255,22 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'openai-gateway',
+        about: "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+        asks: [
+          { env: 'DEEPSEEK_BASE_URL' },
+          { env: 'DEEPSEEK_API_KEY', secret: true },
+          { env: 'DSH_GATEWAY_API', fixed: 'openai-completions' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: "an endpoint speaking Anthropic's Messages API -- a proxy, a router, another vendor",
+        asks: [{ env: 'DEEPSEEK_BASE_URL' }, { env: 'DEEPSEEK_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-gateway',
+        about: "an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
         asks: [{ env: 'DEEPSEEK_BASE_URL' }, { env: 'DEEPSEEK_API_KEY', secret: true }],
       },
     ],
@@ -148,19 +282,36 @@ const BACKENDS: Backend[] = [
       { name: 'login', about: 'sign in to an xAI account, in a browser', runs: 'grok login' },
       { name: 'device', about: BROWSERLESS, runs: 'grok login --device-auth' },
       {
+        name: 'oidc',
+        about: 'your own identity provider, for an organisation that signs in through one',
+        runs: 'grok login',
+        asks: [{ env: 'GROK_OIDC_ISSUER' }, { env: 'GROK_OIDC_CLIENT_ID' }],
+      },
+      {
+        name: 'provider-command',
+        about: "a command of your organisation's that prints a token",
+        runs: 'grok login',
+        asks: [{ env: 'GROK_AUTH_PROVIDER_COMMAND' }],
+      },
+      {
         name: 'key',
         about: 'an xAI API key, from the console',
         asks: [{ env: 'XAI_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
-        asks: [{ env: 'GROK_XAI_API_BASE_URL' }, { env: 'XAI_API_KEY', secret: true }],
+        name: 'openai-gateway',
+        about: "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+        asks: [
+          { env: 'GROK_XAI_API_BASE_URL' },
+          { env: 'XAI_API_KEY', secret: true },
+          { env: 'GROK_GATEWAY_API_BACKEND', fixed: 'responses' },
+        ],
       },
       {
-        name: 'oidc',
-        about: 'your own identity provider, for an organisation that signs in through one',
-        asks: [{ env: 'GROK_OIDC_ISSUER' }, { env: 'GROK_OIDC_CLIENT_ID' }],
+        name: 'anthropic-gateway',
+        about: "an endpoint speaking Anthropic's Messages API -- a proxy, a router, another vendor",
+        asks: [{ env: 'GROK_XAI_API_BASE_URL' }, { env: 'XAI_API_KEY', secret: true }],
+        sets: ['GROK_GATEWAY_API_BACKEND=messages'],
       },
       ENV,
     ],
@@ -169,16 +320,51 @@ const BACKENDS: Backend[] = [
     cli: 'kimi',
     called: 'Kimi Code',
     ways: [
-      { name: 'login', about: 'sign in to a Kimi account, by the code it prints', runs: 'kimi login' },
       {
-        name: 'model',
-        about: GATEWAY,
+        name: 'login',
+        about: 'sign in to a Kimi account, by the code it prints',
+        asks: [{ env: 'KIMI_REGION', fixed: 'global' }],
+        runs: 'kimi login --region {KIMI_REGION}',
+      },
+      {
+        name: 'kimi-key',
+        about: 'a Moonshot platform key, or a Kimi for Coding one at https://api.kimi.com/coding/v1',
         asks: [
-          { env: 'KIMI_MODEL_NAME' },
           { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_BASE_URL', fixed: 'https://api.moonshot.ai/v1' },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=kimi'],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
+        asks: [
           { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
           { env: 'KIMI_MODEL_PROVIDER_TYPE', fixed: 'openai' },
         ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=anthropic'],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'KIMI_MODEL_BASE_URL' },
+          { env: 'KIMI_MODEL_API_KEY', secret: true },
+          { env: 'KIMI_MODEL_NAME' },
+        ],
+        sets: ['KIMI_MODEL_PROVIDER_TYPE=google-genai'],
       },
       ENV,
     ],
@@ -269,17 +455,62 @@ const BACKENDS: Backend[] = [
     cli: 'qwen',
     called: 'Qwen Code',
     ways: [
-      { name: 'login', about: 'sign in to a Qwen account, in a session opened for it', runs: 'qwen' },
       {
-        name: 'key',
-        about: 'a key for the OpenAI-compatible endpoint it runs against',
+        name: 'coding-plan',
+        about: 'an Alibaba Cloud Model Studio Coding Plan',
         asks: [
+          { env: 'OPENAI_BASE_URL', fixed: 'https://coding.dashscope.aliyuncs.com/v1' },
           { env: 'OPENAI_API_KEY', secret: true },
-          { env: 'OPENAI_BASE_URL', fixed: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
         ],
+      },
+      {
+        name: 'token-plan',
+        about: 'an Alibaba Cloud Model Studio Token Plan',
+        asks: [
+          {
+            env: 'OPENAI_BASE_URL',
+            fixed: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+          },
+          { env: 'OPENAI_API_KEY', secret: true },
+        ],
+      },
+      {
+        name: 'gemini-key',
+        about: 'a Gemini API key, from AI Studio',
+        asks: [{ env: 'GEMINI_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENAI_BASE_URL', fixed: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+          { env: 'OPENAI_API_KEY', secret: true },
+          { env: 'QWEN_DEFAULT_AUTH_TYPE', fixed: 'openai' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API -- a proxy, a router, another vendor',
+        asks: [{ env: 'ANTHROPIC_BASE_URL' }, { env: 'ANTHROPIC_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API -- a proxy, a router, another vendor',
+        asks: [{ env: 'GOOGLE_GEMINI_BASE_URL' }, { env: 'GEMINI_API_KEY', secret: true }],
+      },
+      {
+        name: 'vertex',
+        about: 'Google’s models on a Google Cloud project of yours',
+        asks: [{ env: 'GOOGLE_CLOUD_PROJECT' }, { env: 'GOOGLE_CLOUD_LOCATION', fixed: 'global' }],
+      },
+      {
+        name: 'vertex-key',
+        about: 'a Vertex AI API key, for its express mode',
+        asks: [{ env: 'GOOGLE_API_KEY', secret: true }],
       },
       ENV,
     ],
+    note: 'Qwen OAuth was discontinued on 2026-04-15, so there is no login: every way says its --auth-type on each turn.',
   },
   {
     cli: 'opencode',
@@ -301,6 +532,87 @@ const BACKENDS: Backend[] = [
         about: 'an OpenCode Zen key, which its own models run on',
         asks: [{ env: 'OPENCODE_API_KEY', secret: true }],
       },
+      {
+        name: 'anthropic-key',
+        about: 'an Anthropic API key, from the console',
+        asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-key',
+        about: 'an OpenAI API key, from the platform',
+        asks: [{ env: 'OPENAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-key',
+        about: 'a Gemini API key, from AI Studio',
+        asks: [{ env: 'GOOGLE_GENERATIVE_AI_API_KEY', secret: true }],
+      },
+      {
+        name: 'xai-key',
+        about: 'an xAI API key, from its console',
+        asks: [{ env: 'XAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'openrouter-key',
+        about: 'an OpenRouter key, for every model it routes to',
+        asks: [{ env: 'OPENROUTER_API_KEY', secret: true }],
+      },
+      {
+        name: 'deepseek-key',
+        about: 'a DeepSeek API key, from its platform',
+        asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }],
+      },
+      {
+        name: 'mistral-key',
+        about: 'a Mistral API key, from its console',
+        asks: [{ env: 'MISTRAL_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENCODE_GATEWAY_URL' },
+          { env: 'OPENCODE_GATEWAY_KEY', secret: true },
+          { env: 'OPENCODE_GATEWAY_MODEL' },
+          { env: 'OPENCODE_GATEWAY_NPM', fixed: '@ai-sdk/openai-compatible' },
+        ],
+        sets: ['OPENCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENCODE_GATEWAY_URL' },
+          { env: 'OPENCODE_GATEWAY_KEY', secret: true },
+          { env: 'OPENCODE_GATEWAY_MODEL' },
+        ],
+        sets: ['OPENCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENCODE_GATEWAY_URL' },
+          { env: 'OPENCODE_GATEWAY_KEY', secret: true },
+          { env: 'OPENCODE_GATEWAY_MODEL' },
+        ],
+        sets: ['OPENCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'bedrock',
+        about: 'the models on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'vertex',
+        about: 'the models on a Google Cloud project of yours',
+        asks: [{ env: 'GOOGLE_CLOUD_PROJECT' }, { env: 'GOOGLE_CLOUD_LOCATION', fixed: 'global' }],
+      },
+      {
+        name: 'azure',
+        about: 'the models deployed on an Azure OpenAI resource of yours',
+        asks: [{ env: 'AZURE_RESOURCE_NAME' }, { env: 'AZURE_API_KEY', secret: true }],
+      },
       ENV,
     ],
   },
@@ -318,6 +630,82 @@ const BACKENDS: Backend[] = [
         about: 'a MiMo key, which its own models run on',
         asks: [{ env: 'XIAOMI_API_KEY', secret: true }],
       },
+      {
+        name: 'anthropic-key',
+        about: 'an Anthropic API key, from the console',
+        asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-key',
+        about: 'an OpenAI API key, from the platform',
+        asks: [{ env: 'OPENAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-key',
+        about: 'a Gemini API key, from Google AI Studio',
+        asks: [{ env: 'GOOGLE_GENERATIVE_AI_API_KEY', secret: true }],
+      },
+      {
+        name: 'xai-key',
+        about: 'an xAI API key, from its console',
+        asks: [{ env: 'XAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'openrouter-key',
+        about: 'an OpenRouter key, which every model it routes to runs on',
+        asks: [{ env: 'OPENROUTER_API_KEY', secret: true }],
+      },
+      {
+        name: 'deepseek-key',
+        about: 'a DeepSeek API key, from its platform',
+        asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'MIMO_GATEWAY_URL' },
+          { env: 'MIMO_GATEWAY_KEY', secret: true },
+          { env: 'MIMO_GATEWAY_MODEL' },
+          { env: 'MIMO_GATEWAY_API', fixed: '@ai-sdk/openai-compatible' },
+        ],
+        sets: ['MIMOCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'MIMO_GATEWAY_URL' },
+          { env: 'MIMO_GATEWAY_KEY', secret: true },
+          { env: 'MIMO_GATEWAY_MODEL' },
+        ],
+        sets: ['MIMO_GATEWAY_API=@ai-sdk/anthropic', 'MIMOCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'MIMO_GATEWAY_URL' },
+          { env: 'MIMO_GATEWAY_KEY', secret: true },
+          { env: 'MIMO_GATEWAY_MODEL' },
+        ],
+        sets: ['MIMO_GATEWAY_API=@ai-sdk/google', 'MIMOCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'vertex',
+        about: 'Gemini and Anthropic’s models on a Google Cloud project of yours',
+        asks: [{ env: 'GOOGLE_CLOUD_PROJECT' }, { env: 'GOOGLE_VERTEX_LOCATION', fixed: 'us-central1' }],
+      },
+      {
+        name: 'bedrock',
+        about: 'the models on Amazon Bedrock, on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'azure',
+        about: 'the models on an Azure OpenAI resource of yours',
+        asks: [{ env: 'AZURE_RESOURCE_NAME' }, { env: 'AZURE_API_KEY', secret: true }],
+      },
       ENV,
     ],
   },
@@ -332,7 +720,7 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'CURSOR_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
+        name: 'cursor-gateway',
         about: GATEWAY,
         asks: [{ env: 'CURSOR_API_ENDPOINT' }, { env: 'CURSOR_API_KEY', secret: true }],
       },
@@ -343,16 +731,21 @@ const BACKENDS: Backend[] = [
     cli: 'mcode',
     called: 'MiniMax Code',
     ways: [
-      { name: 'login', about: 'sign in to a MiniMax account, in a browser', runs: 'mcode login' },
+      {
+        name: 'login',
+        about: 'sign in to a MiniMax account, in a browser',
+        asks: [{ env: 'MCODE_REGION', fixed: 'global' }],
+        runs: 'mcode login --region …',
+      },
       {
         name: 'key',
         about: 'a MiniMax API key, from the platform',
-        asks: [{ env: 'MCODE_PROVIDER_API_KEY', secret: true }],
+        asks: [{ env: 'MCODE_PROVIDER_API_KEY', secret: true }, { env: 'MAVIS_REGION', fixed: 'en' }],
         runs: 'mcode provider set-minimax-key',
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API -- a proxy, a router, another vendor',
         asks: [
           { env: 'MCODE_GATEWAY_URL' },
           { env: 'MCODE_PROVIDER_API_KEY', secret: true },
@@ -360,6 +753,16 @@ const BACKENDS: Backend[] = [
           { env: 'MCODE_GATEWAY_FORMAT', fixed: 'openai-completions' },
         ],
         runs: 'mcode provider add --name gateway … --use',
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'MCODE_GATEWAY_URL' },
+          { env: 'MCODE_PROVIDER_API_KEY', secret: true },
+          { env: 'MCODE_GATEWAY_MODEL' },
+        ],
+        runs: 'mcode provider add --name gateway --api-format anthropic-messages … --use',
       },
       ENV,
     ],

@@ -195,7 +195,8 @@ and a negative cap (`a budget cannot be less than nothing`).
 | --- | --- | --- |
 | `agy`, `claude`, `codex`, `dsh`, `grok`, `qwen` | the id the CLI or its endpoint serves | `claude-opus-5`, `gpt-5.6-sol`, `deepseek-v4-flash` |
 | `kimi` | Kimi Code's `provider/id` | `kimi-code/k3` |
-| `pi`, `opencode`, `mimo` | `provider/id` | `openai-codex/gpt-5.5`, `opencode/big-pickle` |
+| `pi`, `opencode` | `provider/id` | `openai-codex/gpt-5.5`, `opencode/big-pickle` |
+| `mimo` | `provider/id`; under a gateway account, the id its endpoint serves (sent as `humanize/<id>`) | `xiaomi/mimo-v2.5`, `gpt-5.6-sol` |
 | `cursor-agent` | an id from the account's list, the rung and tier written into it | `composer-2.5-high-fast` |
 | `mcode` | `minimax/<id>`, or `custom_provider:<name>/<id>` for an added provider; `""` for its configured default | `minimax/MiniMax-M3` |
 | an ACP CLI | `as configured` | |
@@ -574,10 +575,10 @@ network](/reference/providers#hosts-reachable-under-a-cut-network)).
 | `grok` | `cli-chat-proxy.grok.com`, `auth.x.ai`, `api.x.ai` |
 | `kimi` | `api.kimi.com`, `auth.kimi.com`, `api.kimi.ai`, `auth.kimi.ai`, `api.moonshot.ai`, `api.moonshot.cn` |
 | `mcode` | `agent.minimax.io`, `agent.minimaxi.com`, `agent.minimax.cn`, `api.minimax.io`, `api.minimaxi.com`, `account.minimax.io`, `account.minimax.cn` (a cut network is refused anyway) |
-| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
-| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`; plus the `options.baseURL` of the provider `opencode/opencode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`, `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`, `api.mistral.ai`; plus the `options.baseURL` of the provider `opencode/opencode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
 | `pi` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider pi's own `models.json` declares for the model |
-| `qwen` | `chat.qwen.ai`, `portal.qwen.ai`, `dashscope.aliyuncs.com`, `dashscope-intl.aliyuncs.com` |
+| `qwen` | `dashscope.aliyuncs.com`, `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com`, `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com`, `token-plan.ap-southeast-1.maas.aliyuncs.com`, `generativelanguage.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` |
 | an ACP CLI | its declared `hosts` |
 
 <small>Defined in [`src/hmz/coganchor/fence/`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fence) (`Fence`, `enforceable`, `wrapper`, `proxy`, `loopback`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`fenced`, `natively`, `_abroad`), [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.hosts`, `reachable`).</small>
@@ -1290,7 +1291,10 @@ effort, rung, approval, service tier, `outputSchema`); steering is `turn/steer`.
   with `--disable shell_snapshot` unless `features` names it: Codex writes its shell capture
   into its own home and sources it from each command, which runs on the target, where that
   home is not. Each command is a login shell on the target instead.
-- A `gateway` account appends `-c model_provider=humanize …` ([Providers › Gateways](/reference/providers#gateways)).
+- An `openai-gateway` or `azure` account appends `-c model_provider=humanize …`
+  ([Providers › Gateways](/reference/providers#gateways)); a `bedrock` or `bedrock-key` one
+  `-c model_provider=amazon-bedrock …`, and an `ollama` or `lmstudio` one
+  `-c model_provider=ollama` or `lmstudio` ([Providers › Ways by backend](/reference/providers#ways-by-backend)).
 
 ### Cursor Agent {#cursor-agent}
 
