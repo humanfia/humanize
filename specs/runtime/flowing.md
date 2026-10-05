@@ -41,7 +41,7 @@ type BoundHook = Callable[[SessionHandle, dict[str, Any]], Awaitable[HookResult]
 def default_result(kind: HookKind) -> HookResult: ...
 class HookTable:  # set / get / `in` / async fire(kind, handle, /, **fields)
 class HookBridge:  # here() / call(make, *, default) / abandon() / close()
-class SessionHandle(Protocol): ...  # id, usage, turn, steer, interrupt, close
+class SessionHandle(Protocol): ...  # id, usage, turn, move, steer, interrupt, close
 class AgentDriver(Protocol): ...  # harness, model, effort, provider, capabilities, open, close
 class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, resources, exec,
                                # read, write, derive_*, destroy_*, snapshot, rewind,
@@ -416,6 +416,14 @@ def under() -> Path: ...  # machine()/skills
   in. A callee's hooks MUST NOT be heard by its caller's sessions, nor the other way round.
 - A session MUST take one turn at a time and belong to the agent that opened it. A turn
   cancelled MUST interrupt the session.
+- A session MUST be only its conversation: `spawn` and `fork` MUST take no environment and
+  start no CLI, and each turn MUST work where `run` is given -- the run's own workspace where
+  it is given None. A session's driver session MUST be opened as its first turn goes, there,
+  and the engine MUST start holding it, and tell the recorder of it, only then; before each
+  later turn it MUST be moved to where that turn works, and the recorder told of it again
+  where the move made it a conversation of another id. A fork MUST be refused with
+  `SessionError` when its session has taken no turn, and at its first turn when that session
+  has taken one since.
 - An outworlder that is away MUST answer `""` for text, the schema built from its defaults
   where every field has one, and `OutworlderAway` otherwise. One made with `Outworlder.new()`
   MUST be away until a hook is hung on it with `on_outworlder_run`.
@@ -602,6 +610,12 @@ def under() -> Path: ...  # machine()/skills
 - Before the flow is called, the affinity of every machine of the run MUST be walked for every
   agent, opening and probing every runtime a harness goes to, and one with no room anywhere
   MUST refuse the run.
+- A session's turn working on another machine than its last MUST be refused with
+  `UnsupportedOperation` on every harness, and one working in another workdir there on every
+  harness but those that fork into another workdir (Claude Code, Codex, Kimi Code), where the
+  conversation MUST carry on as a fork of itself, from a harness of its own settled for the
+  new place as a session's is, the one it leaves kept until the session closes. A refused move
+  MUST leave the session where it was.
 - The machine MUST be asked whether it has the CLI down the road a native turn takes, one
   question at a time, and a run stopped while it asks MUST take the asking down with it; where
   the harness went -- `local`, `self`, or `<backend>:<name>` -- MUST be written down with each

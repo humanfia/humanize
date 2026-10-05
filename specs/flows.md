@@ -215,11 +215,10 @@ class Usage(pydantic.BaseModel):
     output_tokens: int = 0
 
 class Session(Protocol):
+    # Only a conversation's history: where a turn works is the turn's own (`run(env=...)`),
+    # so one session may take its turns in different environments.
     @property
     def agent(self) -> Agent: ...
-
-    @property
-    def env(self) -> Env: ...
 
     @property
     def usage(self) -> Usage: ... # Live updated.
@@ -254,9 +253,7 @@ class Agent(Protocol):
     async def fork(
         self,
         session: Session,
-        *,
-        env: Env,
-    ) -> Session: ...
+    ) -> Session: ... # Cut at its own first turn, in the environment that turn is given.
 
     @overload
     def hook(
@@ -273,6 +270,7 @@ class Agent(Protocol):
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None, # None: the run's own workspace, the default local env.
         budget: Budget | None = None,
     ) -> str: ...
 
@@ -282,15 +280,12 @@ class Agent(Protocol):
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         output_schema: Type[TOutput],
         budget: Budget | None = None,
     ) -> TOutput: ...
 
-    async def spawn(
-        self,
-        *,
-        env: Env,
-    ) -> Session: ...
+    async def spawn(self) -> Session: ... # Starts no CLI: its first turn does, where it works.
 
 class Outworlder(Agent, Protocol): ...
     # Automatically added to the agent collection if requested, and the user cannot override it.
