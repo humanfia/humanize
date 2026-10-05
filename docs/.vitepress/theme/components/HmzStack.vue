@@ -17,10 +17,16 @@ interface Layer {
 
 const ALLOWED: Record<string, string[]> = {
   'hmz.coganchor': ['hmz.runtime.telemetry'],
-  'hmz.coganchor.serve': ['hmz.coganchor.proto'],
+  'hmz.coganchor.serve': [
+    'hmz.coganchor.proto',
+    'hmz.coganchor.fence',
+    'hmz.coganchor.linux.landlock',
+    'hmz.coganchor.linux.seccomp',
+    'hmz.coganchor.linux.syscalls',
+  ],
   'hmz.runtime': [],
-  'hmz.runtime.kept': [],
-  'hmz.runtime.settings': ['hmz.runtime.kept'],
+  'hmz.runtime.kept': ['hmz.coganchor.spelling'],
+  'hmz.runtime.settings': ['hmz.runtime.kept', 'hmz.coganchor.machines.store', 'hmz.coganchor.settings'],
   'hmz.runtime.telemetry': ['hmz.runtime.settings'],
   'hmz.runtime.epic': ['hmz.coganchor', 'hmz.runtime.tracing'],
   'hmz.runtime.tracing': ['hmz.coganchor'],
@@ -230,12 +236,23 @@ const names = (l: Layer) =>
 const active = ref('runner')
 const layer = computed(() => byId[active.value])
 
-// What it names outright, and what it may reach because it sits inside one of those, or
-// inside its own package.
+// What it names outright, what it reaches into (a layer holding a module it names, without
+// naming the layer), and what it may reach because it sits inside one of those, or inside its
+// own package.
 const named = computed(() =>
   LAYERS.filter((o) => o.id !== active.value && names(layer.value).includes(o.dotted)).map(
     (o) => o.id,
   ),
+)
+const leaf = computed(() =>
+  LAYERS.filter(
+    (o) =>
+      o.id !== active.value &&
+      !named.value.includes(o.id) &&
+      names(layer.value).some((n) => n !== o.dotted && covers(o.dotted, n) && !byDotted[n]) &&
+      // the nearest layer holding it, not every one above that
+      !LAYERS.some((p) => p !== o && covers(o.dotted, p.dotted) && p.dotted !== o.dotted && names(layer.value).some((n) => covers(p.dotted, n))),
+  ).map((o) => o.id),
 )
 const inside = computed(() => {
   const grants = layer.value.id === 'cli' ? ['hmz'] : [layer.value.dotted, ...names(layer.value)]
@@ -243,6 +260,7 @@ const inside = computed(() => {
     (o) =>
       o.id !== active.value &&
       !named.value.includes(o.id) &&
+      !leaf.value.includes(o.id) &&
       grants.some((g) => covers(g, o.dotted)),
   ).map((o) => o.id)
 })
@@ -258,6 +276,7 @@ const handed = (id: string) =>
 function role(id: string) {
   if (id === active.value) return 'on'
   if (named.value.includes(id)) return handed(id) ? 'named handed' : 'named'
+  if (leaf.value.includes(id)) return 'leaf'
   if (inside.value.includes(id)) return 'inside'
   if (namedBy.value.includes(id)) return 'by'
   return 'off'
@@ -297,6 +316,14 @@ function draw() {
     const t = at(id)
     if (band[id] > mine)
       out.push({ key: `to-${id}`, d: curve(me.x, me.bottom, t.x, t.top), kind: 'to' })
+  }
+  for (const id of leaf.value) {
+    const t = at(id)
+    // A leaf may sit above the layer reaching into it (settings into coganchor): up, then.
+    if (band[id] > mine)
+      out.push({ key: `leaf-${id}`, d: curve(me.x, me.bottom, t.x, t.top), kind: 'leaf' })
+    else if (band[id] < mine)
+      out.push({ key: `leaf-${id}`, d: curve(me.x, me.top, t.x, t.bottom + 4), kind: 'leaf' })
   }
   for (const id of namedBy.value) {
     const s = at(id)
@@ -349,15 +376,19 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
             <marker id="hmz-stack-to" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
               <path d="M0 0 L8 4 L0 8 z" class="head to" />
             </marker>
+            <marker id="hmz-stack-leaf" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0 0 L8 4 L0 8 z" class="head leaf" />
+            </marker>
             <marker id="hmz-stack-by" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
               <path d="M0 0 L8 4 L0 8 z" class="head by" />
             </marker>
           </defs>
           <path
-            v-for="a in arrows"
+            v-for="(a, i) in arrows"
             :key="`${active}-${a.key}`"
             :d="a.d"
             :class="['wire', a.kind]"
+            :style="{ animationDelay: `${i * 0.07}s` }"
             :marker-end="`url(#hmz-stack-${a.kind})`"
             pathLength="1"
           />
@@ -400,6 +431,9 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
           >
             {{ id }}
           </button>
+          <button v-for="id in leaf" :key="id" type="button" class="tag leaf" @click="pick(id)">
+            {{ id }} (in part)
+          </button>
           <button v-for="id in inside" :key="id" type="button" class="tag inside" @click="pick(id)">
             {{ id }}
           </button>
@@ -433,6 +467,7 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
     <p class="legend">
       <span><i class="sw on" /> picked</span>
       <span><i class="sw named" /> may import</span>
+      <span><i class="sw leaf" /> only some of its modules</span>
       <span><i class="sw inside" /> inside one of those</span>
       <span><i class="sw by" /> imports it</span>
       <span><i class="sw off" /> may not</span>
@@ -501,7 +536,24 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
   stroke-width: 1.6;
   stroke-dasharray: 1;
   stroke-dashoffset: 0;
-  animation: draw 0.45s ease-out;
+  animation: draw 0.6s cubic-bezier(0.7, 0, 0.2, 1) backwards;
+}
+
+.wire.leaf {
+  stroke: var(--vp-c-brand-3);
+  stroke-dasharray: 0.02 0.015;
+  animation: draw-leaf 0.6s cubic-bezier(0.7, 0, 0.2, 1) backwards;
+}
+
+.head.leaf {
+  fill: var(--vp-c-brand-3);
+}
+
+@keyframes draw-leaf {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 0.3;
+  }
 }
 
 .wire.to {
@@ -542,7 +594,7 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
   margin-bottom: 4px;
   padding-right: 6px;
   background: var(--hmz-panel-bg);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--vp-c-text-3);
@@ -597,6 +649,13 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
   border-style: dashed;
 }
 
+.chip.leaf {
+  border-style: dashed;
+  border-color: var(--vp-c-brand-3);
+  background: color-mix(in srgb, var(--vp-c-brand-soft) 50%, var(--vp-c-bg));
+  color: var(--vp-c-brand-1);
+}
+
 .chip.inside {
   border-style: dotted;
   border-color: var(--vp-c-brand-3);
@@ -641,7 +700,7 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
 
 .read .k {
   margin-top: 14px;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--vp-c-text-3);
@@ -671,6 +730,11 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
 
 .tag.handed {
   border: 1px dashed var(--vp-c-brand-1);
+}
+
+.tag.leaf {
+  border: 1px dashed var(--vp-c-brand-3);
+  color: var(--vp-c-brand-1);
 }
 
 .tag.inside {
@@ -752,6 +816,11 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
   border-color: var(--vp-c-brand-1);
 }
 
+.sw.leaf {
+  border-style: dashed;
+  border-color: var(--vp-c-brand-3);
+}
+
 .sw.inside {
   border-style: dotted;
   border-color: var(--vp-c-brand-3);
@@ -773,6 +842,10 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
 
   .chip {
     transition: none;
+  }
+
+  .wire.leaf {
+    animation: none;
   }
 }
 </style>
