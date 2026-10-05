@@ -7505,12 +7505,14 @@ class _Daemon[T: (DockerRuntime, SwarmRuntime)](Form["Runtime"]):
         )
         self.changed()
         self._fill()
-        # On the first of them, for the typing over, from the button that asked.
+        # On the first of them, for the typing over, from the button that asked. Moved now
+        # rather than by `focus`, which leaves it to a message after this: what detecting
+        # wrote in and where the focus is are one change, never seen one without the other.
         rows = [one.held for one in self._now or []]
         if _CPUS in rows:
             listing = self.query_one("#choices", OptionList)
             listing.highlighted = rows.index(_CPUS)
-            listing.focus()
+            self.set_focus(listing)
             self._fill()
 
     def kept(self, row: str) -> None:
@@ -7928,12 +7930,14 @@ class Containing(Form["Runtime"]):
         self._noted = escape(f"detected {_has(said)}: auto-filled")
         self.changed()
         self._fill()
-        # On the first of them, for the typing over, from the button that asked.
+        # On the first of them, for the typing over, from the button that asked. Moved now
+        # rather than by `focus`, which leaves it to a message after this: what detecting
+        # wrote in and where the focus is are one change, never seen one without the other.
         rows = [one.held for one in self._now or []]
         if _CPUS in rows:
             listing = self.query_one("#choices", OptionList)
             listing.highlighted = rows.index(_CPUS)
-            listing.focus()
+            self.set_focus(listing)
             self._fill()
 
     def kept(self, row: str) -> None:
