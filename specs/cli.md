@@ -130,8 +130,7 @@ def tools(argv: list[str]) -> int: ...
   `git+` ref MUST be read as a flow's name: `<flow>` or `<user>/<flow>` for one of `official`'s,
   and after `@<flowverse>/` for one of any other -- `@local/<flow>` and `@user/<flow>` for your
   own. A name said as it was before the `@` -- `local/x`, `<flowverse>/x`, `official/x` -- and a
-  path without its `./` MUST be refused saying how it is said now; a flow kept that way in
-  settings MUST be read as it is said now, and settings MUST be written again that way, marked so.
+  path without its `./` MUST be refused saying how it is said now.
 - Where every agent's harness runs MUST NOT be said on the line: it is the affinity of the
   runtime its work is on, as `runtime/flowing` says. A runtime's affinity with no room anywhere
   for an agent MUST refuse the run before any agent has started.

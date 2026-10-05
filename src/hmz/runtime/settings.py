@@ -44,12 +44,6 @@ __all__ = ["Settings"]
 #: :data:`hmz.coganchor.machines.store.SPELLING`.
 _SPELLING = "spelling"
 
-#: Where the file says how it names a flow, which every write writes, and how flows are named
-#: now: `@local/x` and `@theirs/x` rather than `local/x` and `theirs/x`, which is the first way
-#: of naming them to be written down.
-_NAMING = "naming"
-_NAMED = 2
-
 
 class Settings:
     """What one workspace was last set up to run, read once and written as it changes."""
@@ -64,11 +58,10 @@ class Settings:
 
         self._where = str(Path(workspace or Path.cwd()).resolve())
         self._held = settings.read()
-        if _rewritten(copy.deepcopy(self._held)):
+        if _SPELLING not in self._held and _respelled(copy.deepcopy(self._held)):
             # Once, for every workspace, and marked so as every write is: `ssh@gpu/x` kept
-            # from here on is the runtime `gpu`, never read again as a host nobody saved, and
-            # `theirs/x` is `@theirs/x`, never read again as a flow of humanize's.
-            self._write(_rewrite)
+            # from here on is the runtime `gpu`, never read again as a host nobody saved.
+            self._write(_respell)
 
     @property
     def flow(self) -> str:
@@ -399,7 +392,6 @@ class Settings:
         def marked(held: dict[str, Any]) -> None:
             change(held)
             held[_SPELLING] = _spelling()
-            held[_NAMING] = _NAMED
 
         try:
             self._held = settings.changes(marked)
@@ -447,65 +439,14 @@ def _respelled(held: dict[str, Any]) -> bool:
     return changed
 
 
-def _renamed(held: dict[str, Any]) -> bool:
-    """Names every flow in one reading of the file as flows are named now.
+def _respell(held: dict[str, Any]) -> None:
+    """:func:`_respelled`, as a change :meth:`Settings._write` makes.
 
-    What was kept before a flow of anywhere but `official` was named after an `@` -- `local/x`,
-    `theirs/x`, `official/x` -- in every workspace: the flow it was last run with, and the name
-    what each flow was set up with is kept under.
-
-    Args:
-      held: The reading, which is changed in place.
-
-    Returns:
-      Whether anything was.
+    Of a reading not marked yet, and only that: another writer since may have respelled and
+    marked it, after which what it holds is spelled as it is meant.
     """
-    entries = [_mapping(entry) for entry in _mapping(held.get("workspaces")).values()]
-    if not any(entries):
-        return False  # nothing to read, and nothing of the flows to load to read it
-    from hmz.runtime.flowing.verses import renamed
-
-    changed = False
-    for entry in entries:
-        flow = entry.get("flow")
-        if isinstance(flow, str) and (now := renamed(flow)) != flow:
-            entry["flow"] = now
-            changed = True
-        flows = _mapping(entry.get("flows"))
-        # What is kept under the name already said as now wins over what an old name of the
-        # same flow comes to -- `aot` over `official/aot` -- whichever the file holds first.
-        kept: dict[str, Any] = {}
-        for name, one in flows.items():
-            now = renamed(name)
-            if now == name or now not in flows:
-                kept[now] = one
-        if list(kept) != list(flows):
-            flows.clear()
-            flows.update(kept)
-            changed = True
-    return changed
-
-
-def _rewritten(held: dict[str, Any]) -> bool:
-    """Spells every environment and names every flow in one reading as they are now.
-
-    Each only where the reading is not marked as written that way already: another writer
-    since may have done it and marked it, after which what it holds is as it is meant.
-
-    Args:
-      held: The reading, which is changed in place.
-
-    Returns:
-      Whether anything was.
-    """
-    respelled = _SPELLING not in held and _respelled(held)
-    renamed = _NAMING not in held and _renamed(held)
-    return respelled or renamed
-
-
-def _rewrite(held: dict[str, Any]) -> None:
-    """:func:`_rewritten`, as a change :meth:`Settings._write` makes."""
-    _rewritten(held)
+    if _SPELLING not in held:
+        _respelled(held)
 
 
 def _mapping(held: object) -> dict[str, Any]:

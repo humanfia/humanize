@@ -513,7 +513,7 @@ then move the directory into a repository of its own to publish it.
   with why, and lists the rest.
 - **Names from before the `@`.** `local/review` and `yours/review` were how this project's
   flows and a flowverse's were named. Said that way now, they are refused saying how they are
-  said, and settings remembered under them are renamed for you:
+  said:
 
   ```text
   hmz exec: error: yours/review: a flow of yours is called @yours/review now

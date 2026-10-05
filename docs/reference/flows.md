@@ -1394,8 +1394,9 @@ nothing answers to raises `FlowNotFound` (`<ref>: no flow is called '<name>'`; a
 | `@user/chat` | `~/.hmz/flows/chat` |
 
 `-f` takes the listed name; the TUI starts a flow by it (`$@local/twice`). What `/flow`
-remembers is keyed by the listed name, and one remembered under a name from before the `@` is
-renamed the first time the settings are read ([Settings](/reference/settings)).
+remembers is keyed by the listed name ([Settings](/reference/settings)), so what it remembered
+under a name from before the `@` (`local/x`, `<flowverse>/x`, `official/x`) is not renamed and
+no longer matches any flow.
 
 **Copying here.** **Copy here** on `/flow`'s Installed page, and
 [`Hmz().flows.fork(name)`](/reference/sdk#flows), copy the whole flow into

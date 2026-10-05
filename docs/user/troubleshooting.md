@@ -182,8 +182,8 @@ read as a path.
 under the GitHub user `alice`, and a relative path needs its `./`
 (`flows/twice: a path starts with ./, / or ~, as ./flows/twice does`).
 
-**Fix.** Say it as the message does. What `/flow` remembered under the old names is renamed for
-you the first time `hmz` reads its settings.
+**Fix.** Say it as the message does. What `/flow` remembered under the old name is not carried
+over: set the flow up again under its new one.
 
 **Verify.** The line is refused for nothing, or for what the flow itself needs.
 

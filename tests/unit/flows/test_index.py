@@ -40,7 +40,16 @@ from hmz.runtime.flowing.index import (
     uninstall,
     updates,
 )
-from hmz.runtime.flowing.verses import FLOWS, LOCAL, OFFICIAL, USER, Flowverse, split
+from hmz.runtime.flowing.verses import (
+    FLOWS,
+    LOCAL,
+    OFFICIAL,
+    USER,
+    Flowverse,
+    renamed,
+    split,
+    under,
+)
 from tests.flows.indexes import listed, manifest, release
 
 if TYPE_CHECKING:
@@ -830,6 +839,31 @@ def test_what_is_no_flow_s_name_is_refused(called: str) -> None:
     """A part too many -- your own places keep flows by name alone -- or one empty or hidden."""
     with pytest.raises(ValueError, match="is not a flow's name"):
         split(called)
+
+
+@pytest.mark.parametrize(
+    ("was", "now"),
+    [
+        ("local/x", "@local/x"),
+        ("user/x:inner", "@user/x:inner"),
+        ("theirs/review", "@theirs/review"),
+        ("official/aot", "aot"),
+        # Already as names are now, or nothing a name could have meant before.
+        ("@local/x", "@local/x"),
+        ("chat", "chat"),
+        ("humanize1:rlcr", "humanize1:rlcr"),
+        ("ghost/review", "ghost/review"),
+        ("./flows/x", "./flows/x"),
+        ("/abs/x", "/abs/x"),
+        ("git+https://example.invalid/r#x", "git+https://example.invalid/r#x"),
+    ],
+)
+def test_a_name_said_before_the_at_is_told_what_it_is_called_now(
+    was: str, now: str
+) -> None:
+    """What a hint says such a name is called now: `theirs/x` is `@theirs/x` once `theirs` is."""
+    (under() / "theirs").mkdir(parents=True, exist_ok=True)
+    assert renamed(was) == now
 
 
 def test_what_is_installed_out_of_a_flowverse_is_kept_beside_its_index() -> None:
