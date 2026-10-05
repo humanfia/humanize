@@ -100,6 +100,14 @@ const W = computed(() => L.value.x1 - L.value.x0)
 const px = (share: number) => L.value.x0 + share * W.value
 const limitX = computed(() => px(LIMIT / TOTAL))
 const thousands = (n: number) => Math.round(n).toLocaleString('en-US')
+// What each lane's cut is, said as the sum that made it.
+const SPENT_AT_CUT = REQUESTS.slice(0, CROSS + 1).reduce((sum, one) => sum + one.tokens, 0)
+const WHY = [
+  `${thousands(SPENT_AT_CUT)} ≥ ${thousands(LIMIT)} → cut`,
+  `${thousands(TOTAL)} ≥ ${thousands(LIMIT)}, at the end`,
+  `t = ${DEADLINE * MINUTES} min → cut`,
+]
+const whyX = (i: number) => (i === 1 ? L.value.x1 : px(i === 2 ? DEADLINE : CUT) + 8)
 
 const scene = useScene({
   still: 'rest',
@@ -189,6 +197,9 @@ const scene = useScene({
     tl.set(q('.read'), { text: '0', opacity: 1 }, 0)
     tl.set(one(2, '.read'), { text: '0 min' }, 0)
     tl.set(lane, { opacity: 1 }, 0)
+    tl.set(q('.why'), { opacity: 0 }, 0)
+    tl.set(one(0, '.why text'), { text: WHY[0], fill: 'var(--hmz-warm)' }, 0)
+    const why = (i: number, at: number) => tl.to(one(i, '.why'), { opacity: 1, duration: 0.4, ease: 'power1.out' }, at)
 
     // 0 · the budget: three lanes drawn in, the camera settling, then onto the first.
     tl.addLabel('beat-0', 0)
@@ -220,6 +231,7 @@ const scene = useScene({
     tl.fromTo(one(0, '.kept'), { opacity: 0 }, { opacity: 1, duration: 0.5 }, T2 + 0.5)
     tl.fromTo(one(0, '.kept-line'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.6, ease: 'cine' }, T2 + 0.5)
     result(0, 'error', T2 + 0.7)
+    why(0, T2 + 0.3)
 
     // 3 · a CLI that says what it spent only when the turn ends: it runs on, then pays at once.
     const T3 = T2 + 2.4
@@ -236,6 +248,7 @@ const scene = useScene({
     sparkAt(limitX.value, l.lanes[1] - 28, () => palette.warm, 26, E3 + 0.15, 130)
     tl.to(one(1, '.head'), { opacity: 0, duration: 0.2 }, E3)
     result(1, 'error', E3 + 0.4)
+    why(1, E3 + 0.2)
 
     // 4 · a time limit: the clock runs whatever the turn says, even when it says nothing.
     const T4 = E3 + 1.7
@@ -251,6 +264,7 @@ const scene = useScene({
     cut(2, DEADLINE, S4 + DEADLINE * D + 0.05)
     tl.to(one(2, '.quiet'), { opacity: 0, duration: 0.3 }, S4 + DEADLINE * D + 0.1)
     result(2, 'error', S4 + DEADLINE * D + 0.6)
+    why(2, S4 + DEADLINE * D + 0.3)
 
     // 5 · the first turn again, graceful: nothing is cut, and it answers.
     const T5 = S4 + DEADLINE * D + 2
@@ -259,7 +273,7 @@ const scene = useScene({
     tl.to(one(0, '.toggle'), { opacity: 1, duration: 0.3 }, T5 + 0.3)
     tl.to(one(0, '.knob'), { x: 16, duration: 0.35, ease: 'back.out(2)' }, T5 + 0.7)
     tl.to(one(0, '.toggle-on'), { opacity: 1, duration: 0.3 }, T5 + 0.7)
-    tl.to(one(0, '.blade, .flare, .kept'), { opacity: 0, duration: 0.4 }, T5 + 1)
+    tl.to(one(0, '.blade, .flare, .kept, .why'), { opacity: 0, duration: 0.4 }, T5 + 1)
     tl.to(one(0, '.chip-error, .chip-error-halo'), { opacity: 0, scale: 0.8, duration: 0.35 }, T5 + 1)
     tl.to(one(0, '.lost'), { opacity: 1, y: 0, duration: 0.5, stagger: 0.05, ease: 'back.out(2)' }, T5 + 1.05)
     tl.set(one(0, '.head'), { opacity: 1 }, T5 + 1.2)
@@ -276,6 +290,8 @@ const scene = useScene({
     const E5 = S5 + (1 - CUT) * D
     tl.to(one(0, '.head'), { opacity: 0, duration: 0.2 }, E5)
     result(0, 'answer', E5 + 0.1)
+    tl.set(one(0, '.why text'), { text: 'graceful: no cut', fill: 'var(--hmz-accent)' }, E5)
+    why(0, E5 + 0.1)
 
     // Pull back on all three, hold, and fade for the loop.
     cam.shot({ x: l.w / 2, y: l.h / 2, s: 1 }, E5 + 0.8, 1.4)
@@ -292,7 +308,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="9 / 11"
-    label="One turn with a budget of its own. On a CLI that reports its spending live, the turn is cut off as the response that crosses the token limit lands, keeping what it did, and the flow gets an error. On a CLI that reports only at the end, the turn runs to its end, then the whole spend arrives and the flow gets an error. A time limit cuts the turn at the clock even while it is quiet. A graceful budget lets the turn finish and answer."
+    label="One turn with a budget of its own. On a CLI that reports its spending live, the turn is cut off as the response that crosses the token limit lands (4,500 of a 4,000 limit), keeping what it did, and the flow gets an error. On a CLI that reports only at the end, the turn runs to its end, then the whole spend arrives (6,300) and the flow gets an error. A time limit cuts the turn at the clock, at 5 minutes, even while it is quiet. A graceful budget lets the turn finish and answer, with no cut."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
@@ -347,6 +363,11 @@ const scene = useScene({
             <text :x="(L.x0 + px(CUT)) / 2" :y="L.lanes[i] + 39" text-anchor="middle">kept</text>
           </g>
 
+          <!-- the sum that made the cut, or, graceful, that there was none -->
+          <g class="why" :class="ln.kind">
+            <text :x="whyX(i)" :y="L.lanes[i] + 39" :text-anchor="i === 1 ? 'end' : 'start'">{{ WHY[i] }}</text>
+          </g>
+
           <g v-if="ln.kind === 'live'" class="toggle" :transform="`translate(${L.toggle.x} ${L.lanes[i] + L.toggle.dy})`">
             <rect class="toggle-track" x="0" y="-8" width="32" height="16" rx="8" />
             <rect class="toggle-on" x="0" y="-8" width="32" height="16" rx="8" />
@@ -376,6 +397,13 @@ const scene = useScene({
 <style scoped>
 svg {
   font-family: var(--vp-font-family-base);
+}
+
+.why text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--hmz-warm);
 }
 
 .caption {
