@@ -56,6 +56,13 @@ def test_every_spelling_of_where_a_backend_goes_is_followed() -> None:
     )
 
 
+def test_the_endpoint_an_mcode_gateway_was_added_with_is_followed() -> None:
+    """Which the CLI never reads -- it is in `config.yaml` -- but the account keeps."""
+    mcode = _profile("mcode")
+    hosts = reachable(mcode, {"MCODE_GATEWAY_URL": "https://gw.example:8443/v1"})
+    assert hosts == (*mcode.hosts, "gw.example:8443")
+
+
 def test_base_urls_and_oauth_hosts_among_the_ambient_are_added() -> None:
     kimi = _profile("kimi")
     hosts = reachable(
@@ -104,3 +111,30 @@ def test_a_cloud_switched_onto_adds_its_hosts_in_the_accounts_region() -> None:
     # A switch that is not the backend's own switches nothing.
     codex = _profile("codex")
     assert reachable(codex, {"CLAUDE_CODE_USE_BEDROCK": "1"}) == codex.hosts
+
+
+def test_the_clouds_anthropics_own_api_is_sold_through_are_followed_too() -> None:
+    """Mantle and the Claude Platform on AWS and on Google Cloud are hosts of a cloud's."""
+    claude = _profile("claude")
+    mantle = reachable(
+        claude, {"CLAUDE_CODE_USE_MANTLE": "1", "AWS_REGION": "eu-west-1"}
+    )
+    assert "bedrock-mantle.eu-west-1.api.aws" in mantle
+    aws = reachable(claude, {"CLAUDE_CODE_USE_ANTHROPIC_AWS": "1"})
+    assert "aws-external-anthropic.us-east-1.api.aws" in aws
+    google = reachable(claude, {"CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD": "1"})
+    assert google[-2:] == ("claude.googleapis.com", "oauth2.googleapis.com")
+
+
+def test_a_gateway_in_front_of_a_cloud_is_reached_at_its_own_url() -> None:
+    """What each cloud gateway way asks for is a base URL, and the fence follows it."""
+    claude = _profile("claude")
+    for switch, moved in (
+        ("CLAUDE_CODE_USE_BEDROCK", "ANTHROPIC_BEDROCK_BASE_URL"),
+        ("CLAUDE_CODE_USE_VERTEX", "ANTHROPIC_VERTEX_BASE_URL"),
+        ("CLAUDE_CODE_USE_MANTLE", "ANTHROPIC_BEDROCK_MANTLE_BASE_URL"),
+        ("CLAUDE_CODE_USE_ANTHROPIC_AWS", "ANTHROPIC_AWS_BASE_URL"),
+        ("CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD", "ANTHROPIC_GOOGLE_CLOUD_BASE_URL"),
+    ):
+        environ = {switch: "1", moved: "https://gw.example:8443/cloud"}
+        assert "gw.example:8443" in reachable(claude, environ), switch

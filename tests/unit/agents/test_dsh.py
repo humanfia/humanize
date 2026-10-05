@@ -690,7 +690,7 @@ def test_dsh_rejects_credentials_readable_by_other_users(
     assert Harness.made == []
 
 
-@pytest.mark.parametrize("way", ["env", "login"])
+@pytest.mark.parametrize("way", ["env", "login", "gateway"])
 def test_only_a_way_dsh_offers_can_authenticate_it(
     way: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -711,6 +711,8 @@ def test_only_a_way_dsh_offers_can_authenticate_it(
 
     assert [kind for kind, _text in heard].count("failed") == 1
     assert any("needs a DeepSeek API key" in text for _kind, text in heard)
+    # And which way it was, since the account holds a key and the way is what is wrong.
+    assert any(f"made by {way!r}" in text for _kind, text in heard)
     assert Harness.made == []
 
 
@@ -753,33 +755,51 @@ def test_provider_environment_reaches_the_sdk_runtime(
     assert launch[0].endswith("/env")
     # Both endpoints, because both are places this account's one key would be sent: the
     # adapter's and the search provider's, which the harness gives two variables because
-    # search and chat completions speak two protocols.
+    # search and chat completions speak two protocols. And a gateway's protocol, which a
+    # key account never answered either.
     assert launch[1:] == (
         "-u",
         "DEEPSEEK_BASE_URL",
         "-u",
         "DEEPSEEK_SEARCH_BASE_URL",
+        "-u",
+        "DSH_GATEWAY_API",
         "/opt/dsh-runtime",
     )
     assert made["request_timeout_seconds"] == 180.0
 
 
-def test_a_gateway_account_points_the_runtime_at_its_own_endpoint(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+#: Every gateway way, with the pi-ai route a turn under it runs on and the protocol that
+#: route is told -- the `!!js` the runtime evaluates for it, or None for one whose catalogue
+#: route already knows.
+_GATEWAYS = [
+    ("openai-gateway", "gateway", "process.env.DSH_GATEWAY_API"),
+    ("anthropic-gateway", "gateway", "'anthropic-messages'"),
+    ("gemini-gateway", "google", None),
+]
+
+
+def gateway(way: str) -> None:
+    """An account made by one gateway way, in front of this machine's own variables."""
     from hmz.coganchor import providers
 
+    env = {
+        "DEEPSEEK_BASE_URL": "https://gateway.example/v1",
+        "DEEPSEEK_API_KEY": "gateway-key",
+    }
+    if way == "openai-gateway":
+        env["DSH_GATEWAY_API"] = "openai-responses"
+    providers.add("dsh", "gateway", way=way, env=env)
+
+
+@pytest.mark.parametrize(("way", "route", "api"), _GATEWAYS)
+def test_a_gateway_account_points_the_runtime_at_its_own_endpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, way: str, route: str, api: str
+) -> None:
+    del api
     monkeypatch.setenv("DEEPSEEK_API_KEY", "whoever-is-at-this-machine")
     monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    providers.add(
-        "dsh",
-        "gateway",
-        way="gateway",
-        env={
-            "DEEPSEEK_BASE_URL": "https://gateway.example/v1",
-            "DEEPSEEK_API_KEY": "gateway-key",
-        },
-    )
+    gateway(way)
     Harness.next_scripts.append([assistant("done"), completed()])
 
     DshAgent(configured(provider="gateway")).new(tmp_path)("work")
@@ -787,24 +807,63 @@ def test_a_gateway_account_points_the_runtime_at_its_own_endpoint(
     made = Harness.made[0].config
     # The endpoint as well as the key: an account whose key belongs to somebody's proxy is an
     # account whose every request has to go there, and the SDK's own default is DeepSeek's --
-    # which refuses every key but DeepSeek's own. Both of this backend's endpoints, because
-    # the search provider mounted for an agent that may search has one of its own, and left
-    # at its own default it would send this gateway's key to DeepSeek's public one.
-    assert made["env"] == {
-        "DEEPSEEK_BASE_URL": "https://gateway.example/v1",
-        "DEEPSEEK_SEARCH_BASE_URL": "https://gateway.example/v1",
-        "DEEPSEEK_API_KEY": "gateway-key",
-        "HMZ_DSH_EFFORT": "high",
-    }
-    # Nothing is unset on the way in: what a turn under an account runs without is what that
-    # account did not set itself and this driver did not set for it -- and the search
-    # endpoint is set for it, out of the one endpoint the account named. Unsetting it here
-    # would strip the very value handed over a line above, since `env -u` takes the name out
-    # of what it execs with.
-    assert made["launch_args_override"] == ("/opt/dsh-runtime",)
-    # The adapter route the runtime registers, which is not a place and does not move for a
-    # gateway: the server refuses any other name at the handshake.
-    assert made["provider"] == "deepseek-official"
+    # which refuses every key but DeepSeek's own. And no search endpoint: the search provider
+    # is not mounted under a gateway, so there is nowhere for its key to be sent.
+    environment = cast("dict[str, str]", made["env"])
+    assert environment["DEEPSEEK_BASE_URL"] == "https://gateway.example/v1"
+    assert environment["DEEPSEEK_API_KEY"] == "gateway-key"
+    assert "DEEPSEEK_SEARCH_BASE_URL" not in environment
+    # Nothing of this machine's is left for the runtime to read past the account.
+    launch = cast("tuple[str, ...]", made["launch_args_override"])
+    assert "DEEPSEEK_BASE_URL" not in launch
+    assert "DEEPSEEK_API_KEY" not in launch
+    # The pi-ai route the composition declared for it, rather than DeepSeek's own adapter:
+    # the server refuses a name nothing registered at the handshake.
+    assert made["provider"] == route
+
+
+@pytest.mark.parametrize(("way", "route", "api"), _GATEWAYS)
+def test_a_gateway_account_is_composed_with_its_own_route(
+    way: str, route: str, api: str | None
+) -> None:
+    """One pi-ai route, reading the account's URL and key, serving the agent's model."""
+    gateway(way)
+
+    written = composed(DshAgent(configured(provider="gateway")))
+
+    (adapter,) = (one for one in written if one["id"] == "llm-pi-ai")
+    assert adapter["name"] == "@deepseek-ai/dsh-llm-pi-ai"
+    profile = adapter["config"]["providers"][route]
+    assert list(adapter["config"]["providers"]) == [route]
+    assert profile["apiKeyEnv"] == "DEEPSEEK_API_KEY"
+    assert isinstance(profile["baseURL"], dsh._Js)
+    assert str(profile["baseURL"]) == "process.env.DEEPSEEK_BASE_URL"
+    assert profile["models"] == [{"id": "deepseek-v4-flash"}]
+    if api is None:
+        assert "api" not in profile
+    else:
+        assert isinstance(profile["api"], dsh._Js)
+        assert str(profile["api"]) == api
+    # The web less its search, which is DeepSeek's and nobody else's.
+    ids = [one["id"] for one in written]
+    assert "web-search" not in ids
+    (tool,) = (one for one in written if one["id"] == "tool-web")
+    assert tool["config"] == {"search": False}
+    assert {"web", "web-fetch"} <= set(ids)
+
+
+def test_a_key_account_is_composed_with_deepseeks_own_adapter_alone() -> None:
+    from hmz.coganchor import providers
+
+    providers.add("dsh", "mine", way="key", env={"DEEPSEEK_API_KEY": "provider-key"})
+
+    written = composed(DshAgent(configured(provider="mine")))
+
+    ids = [one["id"] for one in written]
+    assert "llm-pi-ai" not in ids
+    # The whole of the web, search included: a DeepSeek key is what that provider takes.
+    assert {"web", "web-search", "web-fetch", "tool-web"} <= set(ids)
+    assert Harness.made[-1].config["provider"] == "deepseek-official"
 
 
 def failing(said: str) -> tuple[str, dict[str, Any]]:

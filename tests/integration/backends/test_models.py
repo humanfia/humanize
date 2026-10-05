@@ -347,7 +347,7 @@ def test_an_account_on_an_endpoint_is_asked_the_endpoint_and_not_its_cli(
         providers.add(
             "claude",
             "gateway",
-            "gateway",
+            "anthropic-gateway",
             {"ANTHROPIC_BASE_URL": base, "ANTHROPIC_AUTH_TOKEN": "the-secret"},
         )
 
@@ -372,7 +372,10 @@ def test_an_endpoint_written_with_its_version_is_not_asked_for_a_second_one(
     stands_in(monkeypatch, tmp_path / "bin", "claude", CLAUDE)
     with endpoint(SERVED) as (base, asked):
         providers.add(
-            "claude", "gateway", "gateway", {"ANTHROPIC_BASE_URL": f"{base}/v1/"}
+            "claude",
+            "gateway",
+            "anthropic-gateway",
+            {"ANTHROPIC_BASE_URL": f"{base}/v1/"},
         )
 
         models.ask("claude", "gateway")
@@ -393,7 +396,7 @@ def test_the_accounts_own_credential_is_sent_and_never_written_down(
         providers.add(
             "claude",
             "gateway",
-            "gateway",
+            "anthropic-gateway",
             {"ANTHROPIC_BASE_URL": base, "ANTHROPIC_AUTH_TOKEN": "the-secret"},
         )
 
@@ -412,7 +415,7 @@ def test_an_endpoint_that_moves_its_own_path_is_followed(
         providers.add(
             "claude",
             "gateway",
-            "gateway",
+            "anthropic-gateway",
             {"ANTHROPIC_BASE_URL": base, "ANTHROPIC_AUTH_TOKEN": "the-secret"},
         )
 

@@ -131,11 +131,20 @@ order, then `env` for every backend but `dsh`.
 | Backend | Way | Runs | Asks (secret •, not kept ◦, default in parentheses) | Sets |
 | --- | --- | --- | --- | --- |
 | `claude` | `login` | `claude auth login` | — | |
+| | `console` | `claude auth login --console` | — | |
 | | `token` | — | `CLAUDE_CODE_OAUTH_TOKEN` • | |
 | | `key` | — | `ANTHROPIC_API_KEY` • | |
-| | `gateway` | — | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` • | |
+| | `wif` | — | `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID`, `ANTHROPIC_IDENTITY_TOKEN_FILE` (a file path) | |
+| | `anthropic-gateway` | — | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` • | |
+| | `bedrock-gateway` | — | `ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` • | `CLAUDE_CODE_USE_BEDROCK=1`, `CLAUDE_CODE_SKIP_BEDROCK_AUTH=1` |
+| | `vertex-gateway` | — | `ANTHROPIC_VERTEX_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` •, `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION` (`us-east5`) | `CLAUDE_CODE_USE_VERTEX=1`, `CLAUDE_CODE_SKIP_VERTEX_AUTH=1` |
 | | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | `CLAUDE_CODE_USE_BEDROCK=1` |
+| | `bedrock-key` | — | `AWS_BEARER_TOKEN_BEDROCK` •, `AWS_REGION` (`us-east-1`) | `CLAUDE_CODE_USE_BEDROCK=1` |
+| | `mantle` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | `CLAUDE_CODE_USE_MANTLE=1` |
 | | `vertex` | — | `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION` (`us-east5`) | `CLAUDE_CODE_USE_VERTEX=1` |
+| | `foundry` | — | `ANTHROPIC_FOUNDRY_RESOURCE`, `ANTHROPIC_FOUNDRY_API_KEY` • | `CLAUDE_CODE_USE_FOUNDRY=1` |
+| | `aws` | — | `ANTHROPIC_AWS_WORKSPACE_ID`, `AWS_REGION` (`us-east-1`), `ANTHROPIC_AWS_API_KEY` • | `CLAUDE_CODE_USE_ANTHROPIC_AWS=1` |
+| | `google-cloud` | — | `ANTHROPIC_GOOGLE_CLOUD_PROJECT`, `ANTHROPIC_GOOGLE_CLOUD_LOCATION` (`global`), `ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID` | `CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD=1` |
 | `agy` | `login` | `agy` (interactive) | — | |
 | | `key` | — | `GEMINI_API_KEY` • | |
 | | `adc` | — | `GOOGLE_APPLICATION_CREDENTIALS` (a file path) | `AGY_ADC_AUTH=1` |
@@ -152,32 +161,54 @@ order, then `env` for every backend but `dsh`.
 | | `lmstudio` | — | `CODEX_OSS_BASE_URL` (`http://localhost:1234/v1`) | appends `-c model_provider=lmstudio` |
 | `cursor-agent` | `login` | `cursor-agent login` | — | |
 | | `key` | — | `CURSOR_API_KEY` • | |
-| | `gateway` | — | `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY` • | |
+| | `cursor-gateway` | — | `CURSOR_API_ENDPOINT` (an endpoint speaking Cursor's own protocol), `CURSOR_API_KEY` • | |
 | `dsh` | `key` | — | `DEEPSEEK_API_KEY` • | |
-| | `gateway` | — | `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY` • | |
+| | `openai-gateway` | — | `DEEPSEEK_BASE_URL` (ending in `/v1`), `DEEPSEEK_API_KEY` •, `DSH_GATEWAY_API` (`openai-completions`; or `openai-responses`) | |
+| | `anthropic-gateway` | — | `DEEPSEEK_BASE_URL` (without `/v1`), `DEEPSEEK_API_KEY` • | |
+| | `gemini-gateway` | — | `DEEPSEEK_BASE_URL` (ending in `/v1beta`), `DEEPSEEK_API_KEY` • | |
 | `grok` | `login` | `grok login` | — | |
 | | `device` | `grok login --device-auth` | — | |
 | | `key` | — | `XAI_API_KEY` • | |
 | | `gateway` | — | `GROK_XAI_API_BASE_URL` (models listed at `/models`), `XAI_API_KEY` • | |
 | | `oidc` | — | `GROK_OIDC_ISSUER`, `GROK_OIDC_CLIENT_ID` | |
-| `kimi` | `login` | `kimi login` | — | |
-| | `model` | — | `KIMI_MODEL_NAME`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_PROVIDER_TYPE` (`openai`; `anthropic`, `openai` or `kimi`) | |
-| `mcode` | `login` | `mcode login` | — | |
-| | `key` | `mcode provider set-minimax-key` | `MCODE_PROVIDER_API_KEY` • | |
-| | `gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format {MCODE_GATEWAY_FORMAT} --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦, `MCODE_GATEWAY_FORMAT` ◦ (`openai-completions`; `anthropic-messages`, `openai-completions` or `openai-responses`) | |
+| `kimi` | `login` | `kimi login --region {KIMI_REGION}` | `KIMI_REGION` ◦ (`global`; `global` or `mainland-cn`) | |
+| | `kimi-key` | — | `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_BASE_URL` (`https://api.moonshot.ai/v1`; Kimi for Coding is `https://api.kimi.com/coding/v1`), `KIMI_MODEL_NAME` | `KIMI_MODEL_PROVIDER_TYPE=kimi` |
+| | `openai-gateway` | — | `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE` (`openai`, Chat Completions; or `openai_responses`, Responses) | |
+| | `anthropic-gateway` | — | `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_NAME` | `KIMI_MODEL_PROVIDER_TYPE=anthropic` |
+| | `gemini-gateway` | — | `KIMI_MODEL_BASE_URL` (the root `/v1beta` goes under), `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_NAME` | `KIMI_MODEL_PROVIDER_TYPE=google-genai` |
+| `mcode` | `login` | `mcode login --region {MCODE_REGION}` | `MCODE_REGION` ◦ (`global`; `global` or `cn`) | |
+| | `key` | `mcode provider set-minimax-key` | `MCODE_PROVIDER_API_KEY` •, `MAVIS_REGION` (`en`; `en`, for platform.minimax.io, or `cn`, for platform.minimaxi.com) | |
+| | `openai-gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format {MCODE_GATEWAY_FORMAT} --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦, `MCODE_GATEWAY_FORMAT` ◦ (`openai-completions`; `openai-completions` or `openai-responses`) | |
+| | `anthropic-gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format anthropic-messages --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦ | |
 | `mimo` | `login` | `mimo auth login` | — | |
 | | `key` | — | `XIAOMI_API_KEY` • | |
 | `opencode` | `login` | `opencode auth login` | — | |
 | | `wellknown` | `opencode auth login {OPENCODE_WELLKNOWN}` | `OPENCODE_WELLKNOWN` ◦ (URL answering at `/.well-known/opencode`) | |
 | | `zen` | — | `OPENCODE_API_KEY` • | |
 | `pi` | `login` | `pi` (interactive: `/login`, then `/exit`) | — | |
-| `qwen` | `login` | `qwen` (interactive: `/auth`, then `/quit`) | — | |
-| | `key` | — | `OPENAI_API_KEY` •, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) | appends `--auth-type openai` |
+| `qwen` | `coding-plan` | — | `OPENAI_BASE_URL` (`https://coding.dashscope.aliyuncs.com/v1`), `OPENAI_API_KEY` • | appends `--auth-type openai` |
+| | `token-plan` | — | `OPENAI_BASE_URL` (`https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`), `OPENAI_API_KEY` • | appends `--auth-type openai` |
+| | `gemini-key` | — | `GEMINI_API_KEY` • | appends `--auth-type gemini` |
+| | `openai-gateway` | — | `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`), `OPENAI_API_KEY` •, `QWEN_DEFAULT_AUTH_TYPE` (`openai`; `openai` or `openai-responses`) | appends `--auth-type {QWEN_DEFAULT_AUTH_TYPE}` |
+| | `anthropic-gateway` | — | `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY` • | appends `--auth-type anthropic` |
+| | `gemini-gateway` | — | `GOOGLE_GEMINI_BASE_URL`, `GEMINI_API_KEY` • | appends `--auth-type gemini` |
+| | `vertex` | — | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`global`); Application Default Credentials | appends `--auth-type vertex-ai` |
+| | `vertex-key` | — | `GOOGLE_API_KEY` • (Vertex AI express mode) | appends `--auth-type vertex-ai` |
 | every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
 
-- A model on an `mcode` `gateway` account is named `custom_provider:gateway/<id>`.
+- `claude`'s `aws` and `google-cloud` are Claude Platform on AWS and on Google Cloud
+  (Anthropic's API, billed through that cloud); `mantle` is Amazon Bedrock's Mantle endpoint,
+  whose model ids are `anthropic.claude-…`. `google-cloud` and `vertex` sign with Google
+  Application Default Credentials, `bedrock` and `mantle` with the AWS profile.
+- A model on an `mcode` `openai-gateway` or `anthropic-gateway` account is named
+  `custom_provider:gateway/<id>`.
+- An `mcode` `key` account with `MAVIS_REGION` other than `en` takes its turns at
+  `api.minimaxi.com`; a `login` account's region is the one it signed in to.
 - `mcode`'s `config.yaml` is a credential file, so a provider of it holds settings of its own.
 - `cursor-agent`'s `cli-config.json` is a credential file and also its settings.
+- `qwen` has no `login`: Qwen OAuth was discontinued on 2026-04-15 and `qwen` 0.24.7 refuses
+  `--auth-type qwen-oauth`. A plan's key goes in as `OPENAI_API_KEY`; the `BAILIAN_*` names
+  `/auth` keeps it under are read only through a `settings.json` `modelProviders` entry.
 
 ### The `env` way
 
@@ -221,7 +252,7 @@ directory entry covers everything inside it. In the provider's directory the thr
 | `mimo` | `$XDG_DATA_HOME/mimocode`, else `~/.local/share/mimocode` | `auth.json`, `mcp-auth.json` |
 | `opencode` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | `auth.json`, `mcp-auth.json` |
 | `pi` | `$PI_CODING_AGENT_DIR`, else `~/.pi/agent` | `auth.json`, `auth.json.lock` |
-| `qwen` | `$QWEN_HOME`, else `~/.qwen` | `oauth_creds.json`, `oauth_creds.lock` |
+| `qwen` | `$QWEN_HOME`, else `~/.qwen` | none |
 | an ACP CLI | none known | none |
 
 `Provider.swaps()` is one `(path the CLI names, path in the provider's directory)` pair per
@@ -261,7 +292,7 @@ which is how a token is rotated by rename).
 - The filter lets other architectures' syscalls through: a 32-bit process below the CLI is not
   intercepted.
 - Requires Linux on x86-64 or aarch64 with ptrace permitted. A backend with no credential
-  files (`dsh`, ACP CLIs), and a provider whose credentials are only variables on such a
+  files (`dsh`, `qwen`, ACP CLIs), and a provider whose credentials are only variables on such a
   backend, needs no supervisor for credentials.
 - An anchored turn is not wrapped: a process has one tracer, so the anchor is given the same
   pairs as `redirects` and its own supervisor answers them
@@ -273,8 +304,8 @@ which is how a token is rotated by rename).
 
 Some logins keep a refresh token in their credential file, and each refresh writes a new one and
 spends the old one: Codex signed in with ChatGPT (`auth.json`), Claude Code with a subscription
-(`.credentials.json`), and the OAuth logins of `cursor-agent`, `kimi`, `opencode`, `mimo`, `pi`
-and `qwen`. A spent refresh token presented again is read by the vendor as a stolen one, and the
+(`.credentials.json`), and the OAuth logins of `cursor-agent`, `kimi`, `opencode`, `mimo` and
+`pi`. A spent refresh token presented again is read by the vendor as a stolen one, and the
 whole sign-in is revoked, every copy of it included. API keys, gateway tokens and
 `CLAUDE_CODE_OAUTH_TOKEN` do not rotate.
 
@@ -351,7 +382,7 @@ MiniMax Code needs its sessions kept to run fenced: see
 | Effect | Rule |
 | --- | --- |
 | Added | `provider.env`, on top of the inherited environment (`agent.environment()`). |
-| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `openai-gateway`, `azure`, `bedrock`, `bedrock-key`, `ollama` and `lmstudio` ways and `qwen`'s `key` way (`--auth-type openai`) have any. |
+| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `openai-gateway`, `azure`, `bedrock`, `bedrock-key`, `ollama` and `lmstudio` ways and every `qwen` way (its `--auth-type`) have any. |
 | Removed | `agent.hushed()`: every variable the backend would read an account from ([below](#variables-taken-away)), except those `provider.env` sets. |
 | Redirected | `provider.swaps()`, as [above](#how-a-credential-path-is-answered). |
 
@@ -376,17 +407,17 @@ is left exactly as found. All four apply whichever way the account was made.
 | Backend | `hushes()` |
 | --- | --- |
 | `agy` | `AGY_ADC_AUTH`, `CLOUD_CODE_URL`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_GEMINI_BASE_URL` |
-| `claude` | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_CONFIG_DIR`, `ANTHROPIC_CUSTOM_HEADERS`, `ANTHROPIC_MODEL`, `ANTHROPIC_OAUTH_TOKEN`, `ANTHROPIC_VERTEX_PROJECT_ID`, `AWS_PROFILE`, `AWS_REGION`, `CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`, `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_FOUNDRY`, `CLAUDE_CODE_USE_GATEWAY`, `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` |
+| `claude` | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_AWS_API_KEY`, `ANTHROPIC_AWS_BASE_URL`, `ANTHROPIC_AWS_WORKSPACE_ID`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_BEDROCK_MANTLE_BASE_URL`, `ANTHROPIC_CONFIG_DIR`, `ANTHROPIC_CUSTOM_HEADERS`, `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_FOUNDRY_API_KEY`, `ANTHROPIC_FOUNDRY_AUTH_TOKEN`, `ANTHROPIC_FOUNDRY_BASE_URL`, `ANTHROPIC_FOUNDRY_RESOURCE`, `ANTHROPIC_GOOGLE_CLOUD_BASE_URL`, `ANTHROPIC_GOOGLE_CLOUD_LOCATION`, `ANTHROPIC_GOOGLE_CLOUD_PROJECT`, `ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID`, `ANTHROPIC_IDENTITY_TOKEN`, `ANTHROPIC_IDENTITY_TOKEN_FILE`, `ANTHROPIC_MODEL`, `ANTHROPIC_OAUTH_TOKEN`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_PROFILE`, `ANTHROPIC_SCOPE`, `ANTHROPIC_SERVICE_ACCOUNT_ID`, `ANTHROPIC_VERTEX_BASE_URL`, `ANTHROPIC_VERTEX_PROJECT_ID`, `ANTHROPIC_WORKSPACE_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`, `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`, `CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH`, `CLAUDE_CODE_SKIP_ANTHROPIC_GOOGLE_CLOUD_AUTH`, `CLAUDE_CODE_SKIP_BEDROCK_AUTH`, `CLAUDE_CODE_SKIP_FOUNDRY_AUTH`, `CLAUDE_CODE_SKIP_MANTLE_AUTH`, `CLAUDE_CODE_SKIP_VERTEX_AUTH`, `CLAUDE_CODE_USE_ANTHROPIC_AWS`, `CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_FOUNDRY`, `CLAUDE_CODE_USE_GATEWAY`, `CLAUDE_CODE_USE_MANTLE`, `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` |
 | `codex` | `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `CODEX_ACCESS_TOKEN`, `CODEX_API_KEY`, `CODEX_AUTHAPI_BASE_URL`, `CODEX_OSS_BASE_URL`, `CODEX_PROVIDER_KEY`, `CODEX_PROVIDER_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_FEDERATION_RULE_ID`, `OPENAI_IDENTITY_TOKEN_FILE` |
 | `cursor-agent` | `CURSOR_API_BASE_URL`, `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY`, `CURSOR_API_URL`, `CURSOR_AUTH_TOKEN`, `CURSOR_LOCAL_AGENT_API_KEY` |
-| `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL` |
+| `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL`, `DSH_GATEWAY_API` |
 | `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_DEFAULT_MODEL`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
-| `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_OAUTH_HOST`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
-| `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
+| `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_ADAPTIVE_THINKING`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_CAPABILITIES`, `KIMI_MODEL_DISPLAY_NAME`, `KIMI_MODEL_MAX_COMPLETION_TOKENS`, `KIMI_MODEL_MAX_CONTEXT_SIZE`, `KIMI_MODEL_MAX_OUTPUT_SIZE`, `KIMI_MODEL_MAX_TOKENS`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_MODEL_REASONING_KEY`, `KIMI_MODEL_TEMPERATURE`, `KIMI_MODEL_THINKING_EFFORT`, `KIMI_MODEL_THINKING_KEEP`, `KIMI_MODEL_TOP_P`, `KIMI_OAUTH_HOST`, `KIMI_REGION`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
+| `mcode` | `MAVIS_REGION`, `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
 | `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
 | `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
 | `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `KIMI_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `TOGETHER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
-| `qwen` | `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
+| `qwen` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL`, `BAILIAN_CODING_PLAN_API_KEY`, `BAILIAN_TOKEN_PLAN_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GEMINI_BASE_URL`, `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_MODEL`, `GOOGLE_VERTEX_BASE_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_DEFAULT_AUTH_TYPE`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
 | an ACP CLI | none |
 
 <small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.accounts`, `Profile.hushes`, `ALIKE`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`environment`, `hushed`).</small>
@@ -397,14 +428,17 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 
 | Backend | Gateway way | Endpoint variable (`Profile.endpoint`) |
 | --- | --- | --- |
-| `claude` | `gateway` | `ANTHROPIC_BASE_URL` |
+| `claude` | `anthropic-gateway` | `ANTHROPIC_BASE_URL` |
+| | `bedrock-gateway` | none (its URL is `ANTHROPIC_BEDROCK_BASE_URL`) |
+| | `vertex-gateway` | none (its URL is `ANTHROPIC_VERTEX_BASE_URL`) |
 | `codex` | `openai-gateway` | `CODEX_PROVIDER_URL` |
-| `cursor-agent` | `gateway` | none |
-| `dsh` | `gateway` | `DEEPSEEK_BASE_URL` |
+| `cursor-agent` | `cursor-gateway` | none |
+| `dsh` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` | `DEEPSEEK_BASE_URL` |
 | `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
-| `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
-| `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
-| `qwen` | `key` | `OPENAI_BASE_URL` |
+| `kimi` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` (and `kimi-key`) | `KIMI_MODEL_BASE_URL` |
+| `mcode` | `openai-gateway`, `anthropic-gateway` | none (`mcode provider list --json` is the catalogue) |
+| `qwen` | `openai-gateway` | `OPENAI_BASE_URL` |
+| `qwen` | `anthropic-gateway`, `gemini-gateway` | `OPENAI_BASE_URL`, which they do not set: their catalogue is the advisory one |
 | `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
 
 A backend with an endpoint variable has its catalogue read from the endpoint when the account
@@ -436,6 +470,36 @@ deployments:
 -c model_providers.humanize.wire_api=responses
 ```
 
+A `dsh` gateway is a route of the runtime's generic `@deepseek-ai/dsh-llm-pi-ai` adapter, not
+the DeepSeek adapter, which speaks DeepSeek's own dialect. A turn under a `dsh` gateway account
+adds this to the agent's composition and opens its session on `<route>` instead of
+`deepseek-official`:
+
+```yaml
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      <route>:
+        apiKeyEnv: DEEPSEEK_API_KEY
+        baseURL: !!js process.env.DEEPSEEK_BASE_URL
+        models:
+        - id: <the agent's model>
+        api: <api>
+```
+
+| Way | `<route>` | `<api>` | Requests go to |
+| --- | --- | --- | --- |
+| `openai-gateway` | `gateway` | `!!js process.env.DSH_GATEWAY_API` | `{base}/chat/completions` or `{base}/responses`, `Authorization: Bearer` |
+| `anthropic-gateway` | `gateway` | `!!js 'anthropic-messages'` | `{base}/v1/messages`, `x-api-key` |
+| `gemini-gateway` | `google` (pi-ai's catalogue route) | omitted | `{base}/models/<model>:streamGenerateContent`, `x-goog-api-key` |
+
+- The agent's effort does not reach a gateway route: the turn runs at the endpoint's default.
+- An agent that may search gets `web_fetch` but no `web_search` under a gateway account:
+  `dsh-web-search-deepseek` is not mounted and `dsh-tool-web` is configured with `search: false`.
+- A `gemini-gateway` endpoint's model list is not in the shape `GET {base}/models` is read
+  for, so its catalogue is the DeepSeek one and the model is typed.
+
 ### Hosts reachable under a cut network
 
 A flow role whose `online` is `NONE` is fenced to the hosts `backends.reachable(profile,
@@ -447,15 +511,17 @@ it there, so a hushed variable opens no host:
 1. `Profile.hosts` (see [Agents › Network hosts](/reference/agents#network-hosts));
 2. the host (and `:port`, where one is written) of the endpoint variable and of every
    `ambient` variable ending `_URL`, `_BASE`, `_HOST`, `_ENDPOINT`, `_ORIGIN` or `_ISSUER`;
-3. for `claude` with `CLAUDE_CODE_USE_BEDROCK`, `…_VERTEX` or `…_FOUNDRY` set, the cloud's
-   hosts (below) and the host of `ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_VERTEX_BASE_URL` or
-   `ANTHROPIC_FOUNDRY_BASE_URL`.
+3. for `claude` with one of the switches below set, the cloud's hosts and the host of the
+   switch's base URL variable.
 
-| Switch | Hosts | Region variable (default) |
-| --- | --- | --- |
-| `CLAUDE_CODE_USE_BEDROCK` | `bedrock-runtime.{r}.amazonaws.com`, `bedrock.{r}.amazonaws.com`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) |
-| `CLAUDE_CODE_USE_VERTEX` | `{r}-aiplatform.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` | `CLOUD_ML_REGION` (`us-east5`) |
-| `CLAUDE_CODE_USE_FOUNDRY` | `{r}.services.ai.azure.com` | `ANTHROPIC_FOUNDRY_RESOURCE` (none) |
+| Switch | Hosts | Region variable (default) | Base URL variable |
+| --- | --- | --- | --- |
+| `CLAUDE_CODE_USE_BEDROCK` | `bedrock-runtime.{r}.amazonaws.com`, `bedrock.{r}.amazonaws.com`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) | `ANTHROPIC_BEDROCK_BASE_URL` |
+| `CLAUDE_CODE_USE_VERTEX` | `{r}-aiplatform.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` | `CLOUD_ML_REGION` (`us-east5`) | `ANTHROPIC_VERTEX_BASE_URL` |
+| `CLAUDE_CODE_USE_FOUNDRY` | `{r}.services.ai.azure.com` | `ANTHROPIC_FOUNDRY_RESOURCE` (none) | `ANTHROPIC_FOUNDRY_BASE_URL` |
+| `CLAUDE_CODE_USE_MANTLE` | `bedrock-mantle.{r}.api.aws`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) | `ANTHROPIC_BEDROCK_MANTLE_BASE_URL` |
+| `CLAUDE_CODE_USE_ANTHROPIC_AWS` | `aws-external-anthropic.{r}.api.aws`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) | `ANTHROPIC_AWS_BASE_URL` |
+| `CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD` | `claude.googleapis.com`, `oauth2.googleapis.com` | none | `ANTHROPIC_GOOGLE_CLOUD_BASE_URL` |
 
 A region value that is not one DNS label adds no cloud host. A `codex` `bedrock` or
 `bedrock-key` account adds none either: its endpoint, `bedrock-mantle.<region>.api.aws`, is

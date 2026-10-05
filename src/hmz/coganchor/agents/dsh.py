@@ -77,12 +77,14 @@ _COMPACTION = (
 #: second search provider mounted beside this one would be a `web_search` that fails on every
 #: call rather than a wider one.
 #:
-#: The endpoint is the search provider's own -- :data:`_SEARCH_URL_ENV` rather than
+#: The endpoint is the search provider's own -- `DEEPSEEK_SEARCH_BASE_URL` rather than
 #: `DEEPSEEK_BASE_URL`, because search speaks the Anthropic-compatible Messages API and chat
-#: completions do not, so one variable cannot serve both. Which is why `backends.py` lists
-#: that variable among this backend's ambient ones and why :meth:`DshSession._running` sets it
-#: to whatever endpoint an account named: mounting a provider that reaches out with the
-#: account's key is mounting one that has to reach the place the account said.
+#: completions do not, so one variable cannot serve both. Unset, it is DeepSeek's own
+#: `https://api.deepseek.com/anthropic/v1`, which is where a DeepSeek key belongs -- and why
+#: `backends.py` lists the variable among this backend's ambient ones, so that one left in a
+#: shell profile cannot send an account's key somewhere the account never named. Nor is it
+#: mounted for a gateway account at all (:data:`_GATEWAYS`): it asks a DeepSeek model for a
+#: DeepSeek server tool, which somebody else's endpoint has neither of.
 _WEB = (
     {"id": "web", "name": "@deepseek-ai/dsh-web"},
     {"id": "web-search", "name": "@deepseek-ai/dsh-web-search-deepseek"},
@@ -101,14 +103,35 @@ _API_KEY_ENV = "DEEPSEEK_API_KEY"
 _NATIVE_CACHE_ENV = "PKG_NATIVE_CACHE_PATH"
 _BASE_URL_ENV = "DEEPSEEK_BASE_URL"
 
-#: Where the search provider mounted for an agent that may search sends its requests, which
-#: is a second endpoint rather than the one above: search speaks the Anthropic-compatible
-#: Messages API with a native `web_search_20250305` server tool and chat completions do not,
-#: so the harness gives the two their own variables. Unset, the provider uses DeepSeek's own
-#: `https://api.deepseek.com/anthropic/v1` -- right for a key that is DeepSeek's, and a
-#: gateway's key sent to DeepSeek for one that is not, which is why an account that named an
-#: endpoint has this set to it.
-_SEARCH_URL_ENV = "DEEPSEEK_SEARCH_BASE_URL"
+#: The route the stock adapter owns, and the one a turn under DeepSeek's own key runs on.
+_DEEPSEEK = "deepseek-official"
+
+#: Which protocol an `openai-gateway` account said its endpoint speaks, as pi-ai names it.
+_GATEWAY_API_ENV = "DSH_GATEWAY_API"
+
+#: The ways in that reach somebody else's endpoint, each as the `@deepseek-ai/dsh-llm-pi-ai`
+#: route a turn under it runs on and the wire protocol that route is told, written as the
+#: `!!js` expression the runtime evaluates for it -- None for a route that already knows its
+#: own. None of them is the stock DeepSeek adapter, which speaks
+#: DeepSeek's own dialect of chat completions (see the dsh profile in `backends.py` for what
+#: it sends): pi-ai is the harness's generic client, and its hand-declared routes take
+#: exactly `openai-completions`, `openai-responses` and `anthropic-messages`. So:
+#:
+#: - `openai-gateway` reads which of the first two out of the account, which asked;
+#: - `anthropic-gateway` is the third, said here because the way is the answer;
+#: - `gemini-gateway` is pi-ai's `google` catalogue route with its base URL moved, which is
+#:   the one way pi-ai reaches Gemini's own protocol -- `google-generative-ai` is not a
+#:   protocol a hand-declared route may name, and a catalogue route keeps the one its
+#:   catalogue speaks. Named `google` for that reason and no other: the key is still the
+#:   account's, sent as `x-goog-api-key` over a `GEMINI_API_KEY` in the same environment.
+#:
+#: Every route is `gateway` but that one, which is a name no catalogue ships -- a catalogue
+#: route of the same name would hand the route its own protocol and models as defaults.
+_GATEWAYS: dict[str, tuple[str, str | None]] = {
+    "openai-gateway": ("gateway", f"process.env.{_GATEWAY_API_ENV}"),
+    "anthropic-gateway": ("gateway", "'anthropic-messages'"),
+    "gemini-gateway": ("google", None),
+}
 
 #: Which ways in an account a turn runs under may have been made by: all of dsh's own, read
 #: off its profile rather than written down again here. Every way `backends.py` declares for
@@ -129,8 +152,9 @@ _EXTRA = (
 _KEY_REQUIRED = (
     "DeepSeek Harness signs in with a key rather than a login and needs a DeepSeek API "
     "key. Save one in dsh under Settings -> Models; in hmz, type /settings accounts and "
-    "add a dsh account by key -- or by gateway, which is that same key and the endpoint "
-    "to send it to -- then choose it on the agent's account row; or set DEEPSEEK_API_KEY "
+    "add a dsh account by key -- or by openai-gateway, anthropic-gateway or "
+    "gemini-gateway, which is a key and the endpoint to send it to -- then choose it on "
+    "the agent's account row; or set DEEPSEEK_API_KEY "
     "before starting hmz."
 )
 _GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
@@ -546,13 +570,25 @@ class DshSession(SessionBase):
         if provider is None:
             return
         key = provider.env.get(_API_KEY_ENV, "")
-        if provider.way not in _WAYS or not key.strip():
+        if provider.way not in _WAYS:
+            # Said apart from a missing key, because the account may well hold one: an
+            # account made by `gateway`, which these ways were once one of, is not carried
+            # over to whichever of them it meant, and the way is what to make again.
+            said = f"The account {provider.name!r} was made by {provider.way!r}, which dsh "
+            raise Failed(
+                1,
+                ["dsh", session_id],
+                output="",
+                stderr=f"{said}does not offer. {_KEY_REQUIRED}",
+            )
+        if not key.strip():
             raise Failed(1, ["dsh", session_id], output="", stderr=_KEY_REQUIRED)
 
     def _running(self) -> _Harness:
         """Returns a runtime initialized for this session's current effort and composition."""
         effort = self.effort
-        composition = _composed(cast("DshAgentConfig", self._agent.config))
+        way = self._agent.provider.way if self._agent.provider is not None else None
+        composition = _composed(cast("DshAgentConfig", self._agent.config), way)
         # The account and the composition as well as the effort. A runtime is started with
         # one account's environment and its credential paths, and with one composition read
         # once at boot, and none of the three changes under one already up -- so an agent
@@ -576,7 +612,7 @@ class DshSession(SessionBase):
         started = where if self._agent.anchor is None else _nearest(where)
         launch = self._agent.spawned(list(_runtime_args()), self.cwd)
         # An account is the whole of what a turn under it runs on: its key, and the endpoint
-        # to send that key to where the account was made by the gateway way. The layers an
+        # to send that key to where the account was made by a gateway way. The layers an
         # installed dsh reads -- its `settings.yaml`, its credential store, the project's
         # `.env` -- are consulted only where there is no account, since under one they are
         # this machine's opinion about somebody else's credentials: a `baseURL` saved by the
@@ -586,20 +622,6 @@ class DshSession(SessionBase):
             environment = _native_dsh_environment(Path(where))
         else:
             environment = dict(self._agent.environment())
-            # And where an account's searches go, where that account named an endpoint at
-            # all. The search provider mounted for an agent that may search reads
-            # `DEEPSEEK_SEARCH_BASE_URL` and falls back to DeepSeek's own public one, so a
-            # gateway account -- whose key is the gateway's -- would have that key sent to
-            # DeepSeek. Which is the leak `hushes()` takes this machine's own copy of the
-            # variable away for, arriving through the provider's own default instead. An
-            # account named one place for its key to go, so both halves of the account go
-            # there; a key account named none, and DeepSeek's own is where a DeepSeek key
-            # belongs. Under an account only: with none there is nothing hushed and nothing
-            # of anybody's to protect, and this machine's own variable governs as it did.
-            if (named := environment.get(_BASE_URL_ENV)) and not environment.get(
-                _SEARCH_URL_ENV
-            ):
-                environment[_SEARCH_URL_ENV] = named
         # The rung, where there is one. The composition reads this variable straight into
         # the adapter's `reasoningEffort`, so an agent at no rung leaves it unset and the
         # adapter keeps its own default -- an empty string there is a level it has no word
@@ -638,14 +660,13 @@ class DshSession(SessionBase):
         harness: _Harness | None = None
         try:
             harness = harness_type(
-                # The SDK's own default for this one; passed rather than left out so that the
-                # provider a turn runs under is named where a reader looks for it. It stays this
-                # whatever endpoint the turn is pointed at: it names the adapter route the
-                # runtime registers rather than a place -- `@deepseek-ai/dsh-llm-deepseek` owns
-                # exactly this one and the server refuses the handshake with `no adapter
-                # registered for provider` for any other name. A gateway is a base URL under
-                # that same route, which is why it is carried in the environment below.
-                provider="deepseek-official",
+                # The adapter route the turn runs on, which names a route the composition
+                # registers rather than a place -- the server refuses the handshake with `no
+                # adapter registered for provider` for a name nothing registered. The SDK's
+                # own default for DeepSeek's key, which `@deepseek-ai/dsh-llm-deepseek` owns;
+                # the pi-ai route `_composed` declared for a gateway's. Where either sends
+                # its requests is carried in the environment below rather than here.
+                provider=_GATEWAYS.get(way or "", (_DEEPSEEK, None))[0],
                 model=self._agent.config.model,
                 cwd=where,
                 runtime_cwd=started,
@@ -916,7 +937,7 @@ def _plugin(composed: list[dict[str, Any]], plugin_id: str) -> dict[str, Any]:
     )
 
 
-def _composed(config: DshAgentConfig) -> str:
+def _composed(config: DshAgentConfig, way: str | None = None) -> str:
     """The composition one agent's runtime is started with, as YAML.
 
     The SDK's own default, plus only what humanize has to say over it. What it has to say
@@ -927,9 +948,18 @@ def _composed(config: DshAgentConfig) -> str:
     read is harmless for an agent set to none of it -- the variable is then never set, and an
     unset variable is the adapter left at its own reasoning level.
 
+    And, for an account made by a gateway way, the route its turns run on: pi-ai's adapter
+    with one route of :data:`_GATEWAYS` declared, reading the account's URL and key the way
+    the stock adapter does. Its one model is the agent's own, written in because a route
+    nobody's catalogue describes serves exactly the models it lists. The effort does not
+    reach it: a model listed by hand is one pi-ai says takes no reasoning level at all, and
+    the level each protocol would want spelled is the endpoint's to say rather than this
+    driver's to guess -- so a gateway's turn runs at its endpoint's own default.
+
     Args:
-      config: The agent's settings, whose `goals`, `compaction`, `session_compression` and
-        `web_search` are the four things that move.
+      config: The agent's settings, whose `goals`, `compaction`, `session_compression`,
+        `web_search` and -- under a gateway -- `model` are the things that move.
+      way: The way the account a turn runs under was made by, or None for no account.
 
     Returns:
       The composition to write out and point `$DSH_CORDIS_CONFIG` at.
@@ -963,6 +993,24 @@ def _composed(config: DshAgentConfig) -> str:
         # Appended rather than placed: cordis pends each plugin on the services it injects,
         # so where in the file a plugin is written makes no difference to what it gets.
         composed.extend(dict(plugin) for plugin in _COMPACTION)
+    # The account's gateway, where it was made by one.
+    gateway = _GATEWAYS.get(way or "")
+    if gateway is not None:
+        route, api = gateway
+        profile: dict[str, Any] = {
+            "apiKeyEnv": _API_KEY_ENV,
+            "baseURL": _Js(f"process.env.{_BASE_URL_ENV}"),
+            "models": [{"id": config.model}],
+        }
+        if api is not None:
+            profile["api"] = _Js(api)
+        composed.append(
+            {
+                "id": "llm-pi-ai",
+                "name": "@deepseek-ai/dsh-llm-pi-ai",
+                "config": {"providers": {route: profile}},
+            }
+        )
     # The web, where the agent is to have it. Said by mounting rather than by asking, which
     # is the only way this backend can be told at all -- and so it has to be said in the `on`
     # direction as well: the bundled composition mounts none of :data:`_WEB`, so a dsh turn
@@ -973,8 +1021,22 @@ def _composed(config: DshAgentConfig) -> str:
     # out, but they are two answers and not one, and a test that could not tell them apart
     # would mount the web for a turn nobody had asked about the moment the other two branches
     # grew.
+    #
+    # And under a gateway, the web less its search: `dsh-web-search-deepseek` is the only
+    # search provider that takes no second credential, and it asks a DeepSeek model for a
+    # DeepSeek server tool over DeepSeek's Anthropic-shaped endpoint -- none of which is at
+    # the other end of somebody else's. Left out, `web_search` would be a tool the model is
+    # shown and every call of fails for want of a provider, so `dsh-tool-web` is told not to
+    # offer it -- which the 0.1.1rc1 runtime was seen to honour, offering `web_fetch` alone.
+    # What the agent keeps is that, which is plain HTTP from this machine.
     if config.web_search is True:
-        composed.extend(dict(plugin) for plugin in _WEB)
+        composed.extend(
+            {**plugin, "config": {"search": False}}
+            if gateway is not None and plugin["id"] == "tool-web"
+            else dict(plugin)
+            for plugin in _WEB
+            if gateway is None or plugin["id"] != "web-search"
+        )
     return yaml.dump(
         composed, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
     )
