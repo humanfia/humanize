@@ -1482,10 +1482,36 @@ PROFILES = (
         # the harness gives the two endpoints two variables. It is the same key at the other
         # end of it, so one left in a shell profile is an account's key sent somewhere the
         # account never named -- which is what listing it here stops.
-        ambient=("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_SEARCH_BASE_URL"),
+        # `DSH_GATEWAY_API` beside them because it is a gateway account's answer too, and one
+        # left in a shell profile would be somebody else's answer to a question an account
+        # asks.
+        ambient=(
+            "DEEPSEEK_API_KEY",
+            "DEEPSEEK_BASE_URL",
+            "DEEPSEEK_SEARCH_BASE_URL",
+            "DSH_GATEWAY_API",
+        ),
         # Its SDK has no model-list request at all, so an endpoint that answers one is the
         # only way this backend ever says something other than the two names it ships with.
         endpoint="DEEPSEEK_BASE_URL",
+        # Every gateway is somebody else's protocol, spoken by the runtime's own generic
+        # adapter rather than by DeepSeek's. The stock `@deepseek-ai/dsh-llm-deepseek` does
+        # post OpenAI chat completions, but in DeepSeek's dialect: put to a recording server
+        # with the 0.1.1rc1 runtime, an agent nobody gave an effort still sent `thinking`,
+        # `reasoning_effort` and `max_tokens: 256000`, which is a request an OpenAI-shaped
+        # endpoint that is not DeepSeek's refuses. `@deepseek-ai/dsh-llm-pi-ai`, bundled in
+        # the same runtime, is the harness's way of declaring a route by hand: a base URL, a
+        # key variable, one of `openai-completions`, `openai-responses` or
+        # `anthropic-messages`, and the models it serves -- and Gemini's own protocol through
+        # pi-ai's `google` catalogue route with its base URL moved. The driver composes it
+        # per way (`agents/dsh.py`), so every way below asks for the same URL and the same
+        # key under the names the key way and the stock adapter already use: one URL for
+        # `endpoint` to list models from and the fence to follow, one secret for the driver
+        # to require. Each was put to a recording server through that runtime and seen to
+        # arrive on its own path with the account's key -- `/chat/completions` and
+        # `/responses` under a URL that ends in `/v1`, `/v1/messages` under one that does
+        # not, `/models/{model}:streamGenerateContent` under one that ends in `/v1beta`,
+        # each spelled as that vendor's own SDK takes its base URL.
         ways=(
             Way(
                 name="key",
@@ -1493,17 +1519,45 @@ PROFILES = (
                 asks=(Asked(env="DEEPSEEK_API_KEY", about="the API key", secret=True),),
             ),
             Way(
-                name="gateway",
-                about=_GATEWAY,
-                # The same key the way above asks for, as Grok Build's gateway asks for the
-                # same `XAI_API_KEY` its key way does: the adapter resolves one credential
-                # under one name whether the endpoint at the other end is DeepSeek's own or
-                # somebody's proxy, so a second variable here would be a second name for the
-                # one thing the request carries. Both of these are what `endpoint` above
-                # already names and what `ambient` already lists; this is the way in that
-                # lets an account hold them. Without it a key made for a gateway was a key
-                # sent to `https://api.deepseek.com` -- the adapter's own default, which
-                # refuses every key that is not DeepSeek's own.
+                name="openai-gateway",
+                about=(
+                    "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor"
+                ),
+                # Chat Completions or Responses, which is one question rather than two ways:
+                # the URL, the key and the models are the same either way, and the answer is
+                # pi-ai's own name for the protocol, handed to the route unchanged -- so the
+                # runtime refuses a third spelling when it boots rather than this guessing at
+                # what one meant.
+                asks=(
+                    Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="DEEPSEEK_API_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="DSH_GATEWAY_API",
+                        about="which API: openai-completions or openai-responses",
+                        fixed="openai-completions",
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API "
+                    "-- a proxy, a router, another vendor"
+                ),
+                asks=(
+                    Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="DEEPSEEK_API_KEY", about="the key it takes", secret=True
+                    ),
+                ),
+            ),
+            Way(
+                name="gemini-gateway",
+                about=(
+                    "an endpoint speaking Gemini's API -- a proxy, a router, another vendor"
+                ),
                 asks=(
                     Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
                     Asked(

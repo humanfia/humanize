@@ -127,7 +127,7 @@ const BACKENDS: Backend[] = [
   {
     cli: 'dsh',
     called: 'DeepSeek Harness',
-    note: 'No env way here: DeepSeek Harness takes only its own key and gateway.',
+    note: 'No env way here: DeepSeek Harness takes only its own key and its gateways.',
     ways: [
       {
         name: 'key',
@@ -135,8 +135,22 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'openai-gateway',
+        about: "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+        asks: [
+          { env: 'DEEPSEEK_BASE_URL' },
+          { env: 'DEEPSEEK_API_KEY', secret: true },
+          { env: 'DSH_GATEWAY_API', fixed: 'openai-completions' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: "an endpoint speaking Anthropic's Messages API -- a proxy, a router, another vendor",
+        asks: [{ env: 'DEEPSEEK_BASE_URL' }, { env: 'DEEPSEEK_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-gateway',
+        about: "an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
         asks: [{ env: 'DEEPSEEK_BASE_URL' }, { env: 'DEEPSEEK_API_KEY', secret: true }],
       },
     ],

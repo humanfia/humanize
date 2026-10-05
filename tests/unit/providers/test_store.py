@@ -324,14 +324,26 @@ def test_a_backend_offers_its_own_ways_in_and_then_variables_of_your_own() -> No
 def test_deepseek_harness_offers_only_the_ways_it_names() -> None:
     offered = providers.ways("deepseek-harness")
 
-    assert [way.name for way in offered] == ["key", "gateway"]
+    assert [way.name for way in offered] == [
+        "key",
+        "openai-gateway",
+        "anthropic-gateway",
+        "gemini-gateway",
+    ]
     assert [one.env for one in offered[0].asks] == ["DEEPSEEK_API_KEY"]
     # The endpoint first, as every gateway way spells it, and the key it takes after: the
-    # SDK sends one credential under one name wherever the account points it.
-    assert [one.env for one in offered[1].asks] == [
-        "DEEPSEEK_BASE_URL",
-        "DEEPSEEK_API_KEY",
-    ]
+    # SDK sends one credential under one name wherever the account points it -- and, for
+    # OpenAI's, which of its two APIs, at Chat Completions unless somebody says otherwise.
+    for gateway in offered[1:]:
+        assert [one.env for one in gateway.asks[:2]] == [
+            "DEEPSEEK_BASE_URL",
+            "DEEPSEEK_API_KEY",
+        ]
+        assert gateway.asks[1].secret
+    (protocol,) = offered[1].asks[2:]
+    assert protocol.env == "DSH_GATEWAY_API"
+    assert protocol.fixed == "openai-completions"
+    assert [len(gateway.asks) for gateway in offered[2:]] == [2, 2]
 
 
 def test_variables_of_your_own_are_read_off_the_lines_they_were_typed_as() -> None:

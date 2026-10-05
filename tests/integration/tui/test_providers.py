@@ -280,14 +280,19 @@ async def test_deepseek_offers_its_own_ways_and_no_env_from_providers() -> None:
         form = await _adds(app, driver)
         await _chooses(app, driver, "cli", "dsh")
 
-        # Its own two, and no `env`: dsh is the one backend that takes no variables of
+        # Its own four, and no `env`: dsh is the one backend that takes no variables of
         # somebody's own, so the ways it names are the whole of what it offers.
-        assert list(form.choices("way")) == ["key", "gateway"]
+        assert list(form.choices("way")) == [
+            "key",
+            "openai-gateway",
+            "anthropic-gateway",
+            "gemini-gateway",
+        ]
         assert form._typed_in["way"] == "key"
         listing = app.screen.query_one("#choices", OptionList)
         assert "DeepSeek API key" in str(listing.get_option("=way").prompt)
-        await _chooses(app, driver, "way", "gateway")
-        assert "endpoint speaking" in str(listing.get_option("=way").prompt)
+        await _chooses(app, driver, "way", "anthropic-gateway")
+        assert "Anthropic's Messages API" in str(listing.get_option("=way").prompt)
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms | Providers), driver)
