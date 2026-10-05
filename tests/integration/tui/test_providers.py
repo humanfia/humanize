@@ -1069,11 +1069,12 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
         # And then the question this is about: which of the others hold it too.
         assert [one for one in rows(app) if one.startswith("also:")] == [
             "also:pi",
+            "also:qwen",
             "also:opencode",
             "also:mimo",
         ]
         # Nothing is installed in this suite, so nothing starts switched on.
-        assert not any(form._also(one) for one in ("pi", "opencode", "mimo"))
+        assert not any(form._also(one) for one in ("pi", "qwen", "opencode", "mimo"))
         await nexts(app, driver, "also:opencode")
         # Said where answering it is: by the button that answers it.
         assert "for opencode too" in str(

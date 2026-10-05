@@ -137,7 +137,7 @@ kimi login                     # and the [kimi] extra, above
 
 ```sh [Qwen Code]
 npm i -g @qwen-code/qwen-code
-qwen                           # then /auth, and /quit once you are signed in
+qwen                           # then /auth for a plan or a key, and /quit once it is set
 ```
 
 ```sh [opencode]
