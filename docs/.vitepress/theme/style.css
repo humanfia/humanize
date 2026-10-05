@@ -1,6 +1,20 @@
 /* The palette comes from the logo -- #608ab1 -- rather than from VitePress's default green,
    so the chevron, the buttons, the links and every diagram on the site are one colour family.
-   Each diagram then adds one accent of its own from the pair below. */
+   Each diagram then adds one accent of its own from the pair below.
+
+   Every colour a component draws with is one of the tokens below, never a literal: a token is
+   set once for light and once under `.dark`, so a diagram follows the theme switch live, and a
+   canvas reads the same tokens through `motion/palette.ts`. The families:
+
+   - brand: `--vp-c-brand-*`, and the two accents and the warm one a diagram picks from;
+   - ink, paper and red: the constructivist three -- the drawing's black, the sheet it is drawn
+     on, and the one red that marks the thing to look at;
+   - lanes: the colour an agent is known by, one per lane, in order;
+   - outcomes: done, failed, out of budget -- the only greens, reds and ambers on a diagram;
+   - roles: what a role in a flow is -- maker, partner, checker, steward, program;
+   - stage: the screen a feature scene plays on, its graph paper and its depth;
+   - math: the face a label set as a formula is drawn in (`.hmz-math`);
+   - terminal: the window a terminal is drawn in, and its 16 ANSI colours. */
 
 :root {
   --vp-c-brand-1: #2a6ea6;
@@ -36,8 +50,63 @@
   --hmz-stage-dim: #5d6f86;
   --hmz-stage-line: rgba(42, 110, 166, 0.2);
   --hmz-stage-card: rgba(255, 255, 255, 0.86);
-  --hmz-stage-vignette: rgba(120, 146, 176, 0.18);
+  --hmz-stage-vignette: rgba(120, 146, 176, 0.14);
   --hmz-glow: 0.55;
+  /* Graph paper under a scene, the minor lines and every fifth; the light from above on the
+     screen's top edge, and the shade its sunk edges fall into. */
+  --hmz-stage-grid: rgba(42, 110, 166, 0.07);
+  --hmz-stage-grid-major: rgba(42, 110, 166, 0.13);
+  --hmz-stage-highlight: rgba(255, 255, 255, 0.95);
+  --hmz-stage-depth: rgba(19, 35, 58, 0.09);
+
+  /* The constructivist three. */
+  --hmz-ink: #16161a;
+  --hmz-paper: #f6f2ea;
+  --hmz-red: #d6331f;
+
+  /* How a run ends. */
+  --hmz-done: #16a34a;
+  --hmz-fail: #dc2626;
+  --hmz-budget: #ca8a04;
+
+  /* What a role is. */
+  --hmz-role-maker: #2f7fe0;
+  --hmz-role-partner: #0891b2;
+  --hmz-role-checker: #7c3aed;
+  --hmz-role-steward: #db2777;
+  --hmz-role-program: #64748b;
+
+  /* A label set as mathematics: an upright serif with a real italic, the face a formula is
+     typeset in, from the reader's own fonts. */
+  --hmz-math-font: 'Latin Modern Math', 'STIX Two Math', 'STIX Two Text', 'Cambria Math', Cambria, 'Times New Roman', serif;
+
+  /* The terminal: paper-light here, as the page is. */
+  --hmz-term-bg: #fbfaf7;
+  --hmz-term-bar: #efece6;
+  --hmz-term-text: #1f2329;
+  --hmz-term-dim: #6b7079;
+  --hmz-term-edge: rgba(22, 22, 26, 0.14);
+  --hmz-term-shadow: 0 6px 20px rgba(19, 35, 58, 0.1);
+  --hmz-term-close: #ff5f57;
+  --hmz-term-min: #febc2e;
+  --hmz-term-max: #28c840;
+  --hmz-term-0: #1f2329;
+  --hmz-term-1: #c4322a;
+  --hmz-term-2: #1f8a46;
+  --hmz-term-3: #9a6a00;
+  --hmz-term-4: #1f63c2;
+  --hmz-term-5: #b02c8f;
+  --hmz-term-6: #0d7f8c;
+  --hmz-term-7: #4a5059;
+  --hmz-term-8: #6b7079;
+  --hmz-term-9: #d93a2f;
+  --hmz-term-10: #23994f;
+  --hmz-term-11: #a87300;
+  --hmz-term-12: #2a72d6;
+  --hmz-term-13: #c0399e;
+  --hmz-term-14: #0f8f9d;
+  /* Bright white is a terminal's loudest word; on paper the loudest word is ink. */
+  --hmz-term-15: #16161a;
 }
 
 .dark {
@@ -66,8 +135,63 @@
   --hmz-stage-dim: #8d9bb5;
   --hmz-stage-line: rgba(140, 184, 222, 0.2);
   --hmz-stage-card: rgba(22, 32, 56, 0.86);
-  --hmz-stage-vignette: rgba(0, 0, 0, 0.45);
+  --hmz-stage-vignette: rgba(0, 0, 0, 0.4);
   --hmz-glow: 1;
+  --hmz-stage-grid: rgba(140, 184, 222, 0.055);
+  --hmz-stage-grid-major: rgba(140, 184, 222, 0.1);
+  --hmz-stage-highlight: rgba(170, 200, 240, 0.12);
+  --hmz-stage-depth: rgba(0, 0, 0, 0.35);
+
+  --hmz-ink: #ece6da;
+  --hmz-paper: #16161a;
+  --hmz-red: #ff5a43;
+
+  --hmz-done: #4ade80;
+  --hmz-fail: #f87171;
+  --hmz-budget: #facc15;
+
+  --hmz-role-maker: #60a5fa;
+  --hmz-role-partner: #22d3ee;
+  --hmz-role-checker: #a78bfa;
+  --hmz-role-steward: #f472b6;
+  --hmz-role-program: #94a3b8;
+
+  --hmz-term-bg: #16171d;
+  --hmz-term-bar: #202129;
+  --hmz-term-text: #e2e4ea;
+  --hmz-term-dim: #8b8e9c;
+  --hmz-term-edge: var(--vp-c-divider);
+  --hmz-term-shadow: none;
+  --hmz-term-0: #282a36;
+  --hmz-term-1: #ff5c57;
+  --hmz-term-2: #5af78e;
+  --hmz-term-3: #f3f99d;
+  --hmz-term-4: #57c7ff;
+  --hmz-term-5: #ff6ac1;
+  --hmz-term-6: #9aedfe;
+  --hmz-term-7: #f1f1f0;
+  --hmz-term-8: #686868;
+  --hmz-term-9: #ff5c57;
+  --hmz-term-10: #5af78e;
+  --hmz-term-11: #f3f99d;
+  --hmz-term-12: #57c7ff;
+  --hmz-term-13: #ff6ac1;
+  --hmz-term-14: #9aedfe;
+  --hmz-term-15: #f1f1f0;
+}
+
+/* A label set as mathematics in a scene or in prose: `<text class="hmz-math">t + 1</text>`.
+   Italic for the letters, as a formula sets them; a `tspan.up` inside stays upright, for a
+   digit or an operator a reader should not mistake for a variable. Numerals line up. */
+.hmz-math {
+  font-family: var(--hmz-math-font);
+  font-style: italic;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.hmz-math .up {
+  font-style: normal;
 }
 
 /* A feature page -- and a flow page, and the features landing the site's root goes to -- is a
@@ -478,7 +602,8 @@
 }
 
 /* A terminal window around a code block, for a line typed somewhere other than your shell --
-   at humanize's own prompt, say. Always dark, in both themes, as a terminal is:
+   at humanize's own prompt, say. Paper-light in the light theme and night-dark in the dark
+   one, as the reader's own terminal most likely is; its colours are the `--hmz-term-*` tokens:
 
      <div class="hmz-term" data-title="hmz">
 
@@ -491,22 +616,13 @@
    It also takes a bare <pre> for a screen written by hand; `.dim`, `.acc`, `.ok` and `.err`
    colour a span inside one. */
 .hmz-term {
-  --hmz-term-bg: #16171d;
-  --hmz-term-bar: #202129;
-  --hmz-term-text: #e2e4ea;
-  --hmz-term-dim: #8b8e9c;
   margin: 16px 0;
-  border: 1px solid rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--hmz-term-edge);
   border-radius: 10px;
   background: var(--hmz-term-bg);
   color: var(--hmz-term-text);
   overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-}
-
-.dark .hmz-term {
-  border-color: var(--vp-c-divider);
-  box-shadow: none;
+  box-shadow: var(--hmz-term-shadow);
 }
 
 /* The title bar: three dots, and whatever `data-title` says. */
@@ -516,11 +632,11 @@
   box-sizing: border-box;
   min-height: 32px;
   padding: 7px 14px 7px 66px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--hmz-term-edge);
   background:
-    radial-gradient(circle at 18px 50%, #ff5f57 5px, transparent 5.5px),
-    radial-gradient(circle at 36px 50%, #febc2e 5px, transparent 5.5px),
-    radial-gradient(circle at 54px 50%, #28c840 5px, transparent 5.5px),
+    radial-gradient(circle at 18px 50%, var(--hmz-term-close) 5px, transparent 5.5px),
+    radial-gradient(circle at 36px 50%, var(--hmz-term-min) 5px, transparent 5.5px),
+    radial-gradient(circle at 54px 50%, var(--hmz-term-max) 5px, transparent 5.5px),
     var(--hmz-term-bar);
   color: var(--hmz-term-dim);
   font-family: var(--vp-font-family-mono);
@@ -536,10 +652,6 @@
 
 .vp-doc .hmz-term [class*='language-'] code {
   color: var(--hmz-term-text);
-}
-
-html:not(.dark) .hmz-term .vp-code span {
-  color: var(--shiki-dark, inherit);
 }
 
 .vp-doc .hmz-term [class*='language-'] > span.lang {
@@ -561,15 +673,15 @@ html:not(.dark) .hmz-term .vp-code span {
 }
 
 .hmz-term .acc {
-  color: #2dd4bf;
+  color: var(--hmz-term-6);
 }
 
 .hmz-term .ok {
-  color: #4ade80;
+  color: var(--hmz-term-2);
 }
 
 .hmz-term .err {
-  color: #f87171;
+  color: var(--hmz-term-1);
 }
 
 /* A line under a terminal demo saying what it shows:

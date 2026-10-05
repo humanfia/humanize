@@ -18,7 +18,11 @@ export function hush(jump: () => void) {
   }
 }
 
+/** What a mote is drawn as: a dot of a trail, a stroke of a spark, a ring, a spoke of a flash. */
+type Kind = 'dot' | 'stroke' | 'ring' | 'spoke'
+
 interface Mote {
+  kind: Kind
   x: number
   y: number
   vx: number
@@ -28,13 +32,27 @@ interface Mote {
   size: number
   color: string
   drag: number
+  /** A ring's or a spoke's radii: where it starts and how far out it goes. */
+  r0: number
+  r1: number
+  /** A spoke's direction. */
+  angle: number
 }
 
 export interface Fx {
-  /** A burst of sparks, in viewBox units. */
+  /** A burst of sparks, in viewBox units: short strokes flying out evenly all round. */
   spark: (x: number, y: number, color: string, count?: number, speed?: number) => void
   /** One mote of a light trail. Call it every frame from the moving thing's `onUpdate`. */
   trail: (x: number, y: number, color: string, size?: number) => void
+  /** A ring that opens out from a point and fades as it goes: a thing landing, or sounding. */
+  ring: (x: number, y: number, color: string, opts?: { radius?: number; from?: number; life?: number; width?: number }) => void
+  /** Spokes of light thrown out from a point and gone: manim's `Flash`, the "here" of a scene. */
+  flash: (
+    x: number,
+    y: number,
+    color: string,
+    opts?: { lines?: number; radius?: number; from?: number; life?: number; width?: number },
+  ) => void
   /** Advance and draw. Put it in the scene's `tick`. */
   step: (dt: number) => void
   clear: () => void
@@ -71,23 +89,62 @@ export function createFx(canvas: HTMLCanvasElement, width: number, height: numbe
 
   const dark = () => document.documentElement.classList.contains('dark')
 
-  function add(m: Omit<Mote, 'age'>) {
+  function add(m: Partial<Mote> & Pick<Mote, 'kind' | 'x' | 'y' | 'life' | 'size' | 'color'>) {
     if (motes.length > 600) motes.shift()
-    motes.push({ ...m, age: 0 })
+    motes.push({ vx: 0, vy: 0, drag: 0, r0: 0, r1: 0, angle: 0, ...m, age: 0 })
   }
+
+  // How far a thing that decelerates has got, `t` through its life: fast out, slow in.
+  const out = (t: number) => 1 - (1 - t) ** 3
 
   return {
     spark(x, y, color, count = 16, speed = 90) {
       if (quiet) return
+      // Evenly round, from a turn picked at random, each a hair off its slot: a burst reads as
+      // one event rather than as noise, and no two bursts are the same.
+      const turn = Math.random() * Math.PI * 2
       for (let i = 0; i < count; i += 1) {
-        const a = Math.random() * Math.PI * 2
-        const v = speed * (0.35 + Math.random() * 0.65)
-        add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.5 + Math.random() * 0.6, size: 1.2 + Math.random() * 1.8, color, drag: 3.2 })
+        const a = turn + (i / count) * Math.PI * 2 + (Math.random() - 0.5) * (Math.PI / count) * 0.6
+        const v = speed * (0.7 + Math.random() * 0.3)
+        add({
+          kind: 'stroke',
+          x,
+          y,
+          vx: Math.cos(a) * v,
+          vy: Math.sin(a) * v,
+          life: 0.45 + Math.random() * 0.25,
+          size: 1.1 + Math.random() * 0.6,
+          color,
+          drag: 3.6,
+        })
       }
     },
     trail(x, y, color, size = 2.4) {
       if (quiet) return
-      add({ x, y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, life: 0.55, size, color, drag: 1 })
+      add({ kind: 'dot', x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, life: 0.55, size, color, drag: 1 })
+    },
+    ring(x, y, color, opts = {}) {
+      if (quiet) return
+      add({ kind: 'ring', x, y, r0: opts.from ?? 2, r1: opts.radius ?? 34, life: opts.life ?? 0.75, size: opts.width ?? 1.6, color })
+    },
+    flash(x, y, color, opts = {}) {
+      if (quiet) return
+      const lines = opts.lines ?? 12
+      const from = opts.from ?? 6
+      const radius = opts.radius ?? 30
+      for (let i = 0; i < lines; i += 1) {
+        add({
+          kind: 'spoke',
+          x,
+          y,
+          angle: (i / lines) * Math.PI * 2 - Math.PI / 2,
+          r0: from,
+          r1: from + radius,
+          life: opts.life ?? 0.55,
+          size: opts.width ?? 1.6,
+          color,
+        })
+      }
     },
     step(dt) {
       ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -95,7 +152,10 @@ export function createFx(canvas: HTMLCanvasElement, width: number, height: numbe
       if (!motes.length) return
       ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy)
       // Light adds up on a dark stage and would wash out to white on a light one.
-      ctx.globalCompositeOperation = dark() ? 'lighter' : 'source-over'
+      const night = dark()
+      const strength = night ? 0.9 : 0.62
+      ctx.globalCompositeOperation = night ? 'lighter' : 'source-over'
+      ctx.lineCap = 'round'
       for (let i = motes.length - 1; i >= 0; i -= 1) {
         const m = motes[i]
         m.age += dt
@@ -103,17 +163,68 @@ export function createFx(canvas: HTMLCanvasElement, width: number, height: numbe
           motes.splice(i, 1)
           continue
         }
+        const t = m.age / m.life
+        const left = 1 - t
+        ctx.strokeStyle = m.color
+        ctx.fillStyle = m.color
+        if (m.kind === 'ring') {
+          ctx.globalAlpha = left * left * strength
+          ctx.lineWidth = m.size * (0.4 + 0.6 * left)
+          ctx.beginPath()
+          ctx.arc(m.x, m.y, m.r0 + (m.r1 - m.r0) * out(t), 0, Math.PI * 2)
+          ctx.stroke()
+          continue
+        }
+        if (m.kind === 'spoke') {
+          // The far end races out, the near end follows it, and the line is gone when they
+          // meet: a stroke that is never longer than at the moment it is brightest.
+          const far = m.r0 + (m.r1 - m.r0) * out(Math.min(1, t * 1.5))
+          const near = m.r0 + (m.r1 - m.r0) * out(Math.max(0, t * 1.5 - 0.5))
+          const ux = Math.cos(m.angle)
+          const uy = Math.sin(m.angle)
+          ctx.globalAlpha = Math.min(1, left * 1.6) * strength
+          ctx.lineWidth = m.size
+          ctx.beginPath()
+          ctx.moveTo(m.x + ux * near, m.y + uy * near)
+          ctx.lineTo(m.x + ux * far, m.y + uy * far)
+          ctx.stroke()
+          continue
+        }
         const k = Math.exp(-m.drag * dt)
         m.vx *= k
         m.vy *= k
         m.x += m.vx * dt
         m.y += m.vy * dt
-        const left = 1 - m.age / m.life
-        ctx.globalAlpha = left * (dark() ? 0.9 : 0.6)
-        ctx.fillStyle = m.color
+        if (m.kind === 'stroke') {
+          // As long as the way it came in the last twentieth of a second, so it shortens as it
+          // slows: a spark thrown, coming to rest.
+          ctx.globalAlpha = left * strength
+          ctx.lineWidth = m.size
+          ctx.beginPath()
+          ctx.moveTo(m.x, m.y)
+          ctx.lineTo(m.x - m.vx * 0.05, m.y - m.vy * 0.05)
+          ctx.stroke()
+          continue
+        }
+        const r = m.size * (0.4 + 0.6 * left)
+        if (night) {
+          // A soft halo round a bright core: light in a dark room.
+          ctx.globalAlpha = left * 0.16
+          ctx.beginPath()
+          ctx.arc(m.x, m.y, r * 2.8, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.globalAlpha = left * strength
         ctx.beginPath()
-        ctx.arc(m.x, m.y, m.size * (0.4 + 0.6 * left), 0, Math.PI * 2)
+        ctx.arc(m.x, m.y, r, 0, Math.PI * 2)
         ctx.fill()
+        if (night) {
+          ctx.globalAlpha = left * 0.45
+          ctx.fillStyle = '#fff'
+          ctx.beginPath()
+          ctx.arc(m.x, m.y, r * 0.42, 0, Math.PI * 2)
+          ctx.fill()
+        }
       }
       ctx.globalAlpha = 1
       ctx.globalCompositeOperation = 'source-over'
@@ -126,6 +237,28 @@ export function createFx(canvas: HTMLCanvasElement, width: number, height: numbe
     destroy() {
       resize.disconnect()
     },
+  }
+}
+
+/**
+ * Rings opening one after another from a point, at `at` on the timeline: a thing arriving, or
+ * a signal going out from it. Light only, so a ripple costs the DOM nothing.
+ */
+export function ripple(
+  tl: Timeline,
+  fx: () => Fx | undefined,
+  p: { x: number; y: number },
+  color: string | (() => string),
+  at: gsap.Position,
+  opts: { rings?: number; gap?: number; radius?: number; life?: number; width?: number } = {},
+) {
+  const rings = opts.rings ?? 3
+  const gap = opts.gap ?? 0.14
+  const hue = () => (typeof color === 'function' ? color() : color)
+  for (let i = 0; i < rings; i += 1) {
+    // Each ring its own call on the timeline rather than a timer, so a pause holds them all.
+    const when = i === 0 ? at : `<${gap}`
+    tl.call(() => fx()?.ring(p.x, p.y, hue(), { radius: (opts.radius ?? 36) * (1 - i * 0.12), life: opts.life ?? 0.9, width: opts.width }), [], when)
   }
 }
 

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // The screen every feature scene plays on, and the deck under it.
 //
-// The screen is the scene's own markup on a stage-coloured backdrop, with a vignette over it.
+// The screen is the scene's own markup on a stage-coloured backdrop -- faint graph paper that
+// slides behind the scene's camera (`camera.ts`) and fades out at the edges -- sunk a little
+// into the page, lit along its top edge, with a vignette over it.
 // The deck is a play/pause button and the scene's beats, one chapter each: a bar that fills as
 // the chapter plays and the line of words that says what it shows. So the words are always on
 // the page -- to a screen reader they are the chapters' buttons, and under reduced motion they
@@ -24,9 +26,16 @@ const props = withDefaults(
     mobileRatio?: string
     /** The screen holds links or controls: a group, not a picture, so they stay reachable. */
     interactive?: boolean
+    /** Graph paper behind the scene. Left out, it is there unless the scene draws a grid of
+     *  its own (an SVG `<pattern>`), which two grids would fight. */
+    paper?: boolean
   }>(),
-  { sim: false, ratio: '16 / 9', mobileRatio: '', interactive: false },
+  { sim: false, ratio: '16 / 9', mobileRatio: '', interactive: false, paper: undefined },
 )
+
+// The play button's ring: how far through the loop the scene is.
+const RING = 2 * Math.PI * 14
+const ring = computed(() => RING * (1 - props.scene.progress.value))
 
 function fill(i: number) {
   const m = props.scene.marks.value
@@ -45,11 +54,14 @@ function fill(i: number) {
 // large enough to stay readable shrinks with the drawing, so it still fits the box it is in.
 const screen = ref<HTMLElement | null>(null)
 const lift = ref(1)
+const ownGrid = ref(false)
+const paper = computed(() => props.paper ?? !ownGrid.value)
 let sized: ResizeObserver | undefined
 // At once rather than on the next frame: a ResizeObserver is told before the frame is painted,
 // so no frame is ever drawn with its words unlifted.
 function measure() {
   const el = screen.value
+  ownGrid.value = !!el?.querySelector('svg pattern')
   const svg = el?.querySelector<SVGSVGElement>('svg[viewBox]')
   const box = svg?.viewBox.baseVal
   if (!el || !box?.width || !box.height) return
@@ -92,6 +104,7 @@ const style = computed(() => ({
   <figure :ref="bind" class="hmz-stage hmz-panel" :class="{ still: scene.reduced.value && !scene.playing.value, simulated: sim }" :style="style">
     <div ref="screen" class="screen" :class="{ running: scene.running.value, lifted: lift > 1 }" :role="interactive ? 'group' : 'img'" :aria-label="label">
       <div class="ambient" aria-hidden="true"><i /><i /></div>
+      <div v-if="paper" class="paper" aria-hidden="true" />
       <slot :beat="scene.beat.value" />
       <span v-if="sim" class="sim on-screen" aria-hidden="true">simulated</span>
     </div>
@@ -103,6 +116,10 @@ const style = computed(() => ({
         :aria-pressed="scene.playing.value"
         @click="scene.toggle()"
       >
+        <svg class="ring" viewBox="0 0 32 32" aria-hidden="true">
+          <circle class="track" cx="16" cy="16" r="14" />
+          <circle class="done" cx="16" cy="16" r="14" :stroke-dasharray="RING" :stroke-dashoffset="ring" />
+        </svg>
         <svg v-if="scene.playing.value" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3" width="3" height="10" rx="1" /><rect x="9.5" y="3" width="3" height="10" rx="1" /></svg>
         <svg v-else viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.8v10.4a.6.6 0 0 0 .9.5l8.3-5.2a.6.6 0 0 0 0-1L5.4 2.3a.6.6 0 0 0-.9.5z" /></svg>
       </button>
@@ -179,6 +196,31 @@ const style = computed(() => ({
   }
 }
 
+/* Graph paper: a fine grid and every fifth line heavier, as a 3Blue1Brown scene is drawn on
+   its number plane, so the stage reads as a space before anything is in it. It is drawn larger
+   than the screen and slides, a fifth as far as the world, wherever a scene's camera goes
+   (`--hmz-cam-*`, set by `camera.ts`), and fades out toward the edges. */
+.paper {
+  position: absolute;
+  inset: -12%;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--hmz-stage-grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hmz-stage-grid-major) 1px, transparent 1px),
+    linear-gradient(var(--hmz-stage-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hmz-stage-grid) 1px, transparent 1px);
+  background-size:
+    120px 120px,
+    120px 120px,
+    24px 24px,
+    24px 24px;
+  background-position: center;
+  transform: translate3d(calc(var(--hmz-cam-x, 0) * 100%), calc(var(--hmz-cam-y, 0) * 100%), 0) scale(var(--hmz-cam-s, 1));
+  -webkit-mask-image: radial-gradient(75% 70% at 50% 45%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(75% 70% at 50% 45%, #000 30%, transparent 100%);
+}
+
 /* The lens: the edges of the frame fall off, so the eye goes to the middle. */
 .screen::after {
   content: '';
@@ -186,7 +228,20 @@ const style = computed(() => ({
   inset: 0;
   pointer-events: none;
   z-index: 5;
-  background: radial-gradient(120% 95% at 50% 45%, transparent 55%, var(--hmz-stage-vignette) 100%);
+  background: radial-gradient(130% 105% at 50% 42%, transparent 62%, var(--hmz-stage-vignette) 100%);
+}
+
+/* The screen sits a little into the page: light catches its top edge and its sides fall into
+   shade, so the picture has a frame without a border drawn round it. */
+.screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow:
+    inset 0 1px 0 var(--hmz-stage-highlight),
+    inset 0 0 28px var(--hmz-stage-depth);
 }
 
 .screen :slotted(svg),
@@ -255,10 +310,44 @@ const style = computed(() => ({
   color: var(--vp-c-brand-1);
 }
 
+.play {
+  position: relative;
+}
+
 .play svg {
   width: 12px;
   height: 12px;
   fill: currentColor;
+}
+
+/* How far through its loop the scene is, round the button: a clock face that fills. */
+.play svg.ring {
+  position: absolute;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  fill: none;
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 2;
+}
+
+.ring .track {
+  stroke: transparent;
+}
+
+.ring .done {
+  stroke: var(--hmz-accent);
+  stroke-linecap: round;
+  transition: stroke 0.2s;
+}
+
+.still .ring .done {
+  stroke: transparent;
 }
 
 .chapters {
@@ -308,6 +397,19 @@ const style = computed(() => ({
   height: 100%;
   transform-origin: left center;
   background: linear-gradient(90deg, var(--hmz-lane-1), var(--hmz-accent));
+}
+
+/* The chapter under way glows, so the eye finds it among the rest. */
+.bar {
+  transition: box-shadow 0.4s;
+}
+
+.chapters li.on .bar {
+  box-shadow: 0 0 calc(10px * var(--hmz-glow)) color-mix(in srgb, var(--hmz-accent) 55%, transparent);
+}
+
+.chapters li.on .words b {
+  text-shadow: 0 0 calc(8px * var(--hmz-glow)) color-mix(in srgb, var(--hmz-accent) 60%, transparent);
 }
 
 .words {
@@ -380,6 +482,9 @@ const style = computed(() => ({
     position: absolute;
     left: 54px;
     right: 12px;
+    /* Each new chapter's words wipe on from the left as it starts: the one line on a phone
+       says which chapter it is by changing visibly. */
+    animation: caption-wipe 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   .hmz-stage:not(.still) .deck {
@@ -393,6 +498,28 @@ const style = computed(() => ({
 
   .still .chapters li {
     flex: none;
+  }
+}
+
+@keyframes caption-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.2;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hmz-stage .chapters li.on .words {
+    animation: none !important;
+  }
+
+  .bar,
+  .ring .done {
+    transition: none;
   }
 }
 </style>

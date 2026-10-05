@@ -6,44 +6,33 @@
    only thing that says it. */
 
 .hmz-flow {
-  --flow-maker: #2f7fe0;
-  --flow-partner: #0891b2;
-  --flow-checker: #7c3aed;
-  --flow-steward: #db2777;
+  --flow-maker: var(--hmz-role-maker);
+  --flow-partner: var(--hmz-role-partner);
+  --flow-checker: var(--hmz-role-checker);
+  --flow-steward: var(--hmz-role-steward);
   --flow-human: var(--vp-c-text-1);
-  --flow-program: #64748b;
+  --flow-program: var(--hmz-role-program);
 
-  --flow-done: #16a34a;
-  --flow-fail: #dc2626;
-  --flow-budget: #ca8a04;
+  --flow-done: var(--hmz-done);
+  --flow-fail: var(--hmz-fail);
+  --flow-budget: var(--hmz-budget);
   --flow-you: var(--vp-c-text-1);
 
-  --flow-plate: rgba(96, 138, 177, 0.07);
-  --flow-plate-edge: rgba(96, 138, 177, 0.28);
-  --flow-rail: rgba(96, 138, 177, 0.22);
+  /* The plate a flow is drawn on, its edge and its rails: the brand blue, thinned -- the
+     logo's blue on paper, the lighter one at night. */
+  --flow-blue: var(--vp-c-brand-3);
+  --flow-plate: color-mix(in srgb, var(--flow-blue) 7%, transparent);
+  --flow-plate-edge: color-mix(in srgb, var(--flow-blue) 28%, transparent);
+  --flow-rail: color-mix(in srgb, var(--flow-blue) 22%, transparent);
   --flow-ink: var(--vp-c-text-1);
   --flow-ink-2: var(--vp-c-text-2);
   --flow-ink-3: var(--vp-c-text-3);
   --flow-card: var(--vp-c-bg);
-  --flow-dust: rgba(96, 138, 177, 0.5);
+  --flow-dust: color-mix(in srgb, var(--flow-blue) 50%, transparent);
 }
 
 .dark .hmz-flow {
-  --flow-maker: #60a5fa;
-  --flow-partner: #22d3ee;
-  --flow-checker: #a78bfa;
-  --flow-steward: #f472b6;
-  --flow-program: #94a3b8;
-
-  --flow-done: #4ade80;
-  --flow-fail: #f87171;
-  --flow-budget: #facc15;
-
-  --flow-plate: rgba(140, 184, 222, 0.06);
-  --flow-plate-edge: rgba(140, 184, 222, 0.24);
-  --flow-rail: rgba(140, 184, 222, 0.18);
-  --flow-card: #1b1b20;
-  --flow-dust: rgba(140, 184, 222, 0.55);
+  --flow-blue: var(--vp-c-brand-1);
 }
 
 .hmz-flow .k-maker { --hue: var(--flow-maker); }
