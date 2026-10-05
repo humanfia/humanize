@@ -36,8 +36,8 @@ __all__ = [
     "AS_CONFIGURED",
     "AUTO",
     "DSH_SDK",
-    "LITELLM_SDK",
     "FAULTS",
+    "LITELLM_SDK",
     "PROFILES",
     "SIGNS",
     "SWARM",
@@ -3828,6 +3828,18 @@ PROFILES = (
         # put down or fence -- and everything is about the account and the conversation.
         aliases=("litellm",),
         installs=f"pip install '{LITELLM_SDK}'",
+        # The vendors' own APIs its key ways reach. A gateway's or a cloud's is wherever the
+        # account says, and a turn is never fenced anyway: it runs nothing to put one around.
+        hosts=(
+            "api.openai.com",
+            "api.anthropic.com",
+            "generativelanguage.googleapis.com",
+            "api.x.ai",
+            "openrouter.ai",
+            "api.deepseek.com",
+            "api.groq.com",
+            "api.mistral.ai",
+        ),
         # A home of humanize's own rather than a CLI's, for the conversations of an agent no
         # run drives: under the cache humanize keeps beside every agent's own state, since a
         # run keeps its own under the run.
@@ -3856,7 +3868,11 @@ PROFILES = (
                     asks=(Asked(env=env, about="the API key", secret=True),),
                 )
                 for vendor, env, about in (
-                    ("openai", "OPENAI_API_KEY", "an OpenAI API key, from the platform"),
+                    (
+                        "openai",
+                        "OPENAI_API_KEY",
+                        "an OpenAI API key, from the platform",
+                    ),
                     (
                         "anthropic",
                         "ANTHROPIC_API_KEY",

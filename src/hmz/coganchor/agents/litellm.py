@@ -27,12 +27,10 @@ from __future__ import annotations
 import contextlib
 import importlib
 import json
-import os
 import sys
 import time
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Protocol, cast
 
 from hmz.coganchor import backends
@@ -40,9 +38,12 @@ from hmz.coganchor import backends
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
+from .watchdog import Watchdog
 
 if TYPE_CHECKING:
+    import os
     from collections.abc import Iterable, Iterator, Mapping
+    from pathlib import Path
 
     from pydantic import BaseModel
 
@@ -67,7 +68,10 @@ _API = "LITELLM_GATEWAY_API"
 #: The clouds, each as the variables its account was made with and the litellm parameter
 #: each of them is passed as.
 _CLOUDS: dict[str, tuple[tuple[str, str], ...]] = {
-    "bedrock": (("AWS_PROFILE", "aws_profile_name"), ("AWS_REGION_NAME", "aws_region_name")),
+    "bedrock": (
+        ("AWS_PROFILE", "aws_profile_name"),
+        ("AWS_REGION_NAME", "aws_region_name"),
+    ),
     "vertex": (
         ("VERTEXAI_PROJECT", "vertex_project"),
         ("VERTEXAI_LOCATION", "vertex_location"),
@@ -190,23 +194,27 @@ class LiteLLMSession(SessionBase):
                         "schema": schema.model_json_schema(),
                     },
                 }
-            answer = module.completion(**call)
-            self._live = answer
-            for chunk in answer:
-                for choice in _listed(_field(chunk, "choices")):
-                    delta = _field(choice, "delta")
-                    for kind, name in (
-                        ("reasoning", "reasoning_content"),
-                        ("text", "content"),
-                    ):
-                        piece = _field(delta, name)
-                        if isinstance(piece, str) and piece:
-                            saying.delta(kind, piece)
-                spent = _usage(_field(chunk, "usage"))
-                if spent.total:
-                    usage = spent
-                if self._cut:
-                    break
+            # Under a clock, as every read a turn blocks on is: an endpoint that has stopped
+            # sending without closing is put down by the watchdog through `_lets_go`.
+            with Watchdog(self) as watch:
+                answer = module.completion(**call)
+                self._live = answer
+                for chunk in answer:
+                    watch.saw()
+                    for choice in _listed(_field(chunk, "choices")):
+                        delta = _field(choice, "delta")
+                        for kind, name in (
+                            ("reasoning", "reasoning_content"),
+                            ("text", "content"),
+                        ):
+                            piece = _field(delta, name)
+                            if isinstance(piece, str) and piece:
+                                saying.delta(kind, piece)
+                    spent = _usage(_field(chunk, "usage"))
+                    if spent.total:
+                        usage = spent
+                    if self._cut:
+                        break
             if usage.total:
                 self._spends(usage)
             said = list(saying.rest())
@@ -226,7 +234,7 @@ class LiteLLMSession(SessionBase):
             if not self._agent._watchers:
                 say(result.text, sys.stdout)
             yield result
-        except (ModuleNotFoundError, ValueError, RuntimeError):
+        except (ModuleNotFoundError, ValueError, RuntimeError, Failed):
             raise
         except Exception as why:
             rest = saying.rest()
@@ -256,6 +264,10 @@ class LiteLLMSession(SessionBase):
             if callable(close):
                 with contextlib.suppress(Exception):
                     close()
+
+    def _lets_go(self) -> None:
+        """The same, for a watchdog: the answer being streamed is the whole transport."""
+        self._cuts()
 
     def _shows(self, event: Event) -> Event:
         """Shows an event on an unwatched run and returns it for the stream."""
@@ -308,9 +320,11 @@ class LiteLLMSession(SessionBase):
             ),
             None,
         )
-        secret = next(
-            (asked.env for asked in way.asks if asked.secret), None
-        ) if way is not None else None
+        secret = (
+            next((asked.env for asked in way.asks if asked.secret), None)
+            if way is not None
+            else None
+        )
         if secret is None:
             said = (
                 f"The account {provider.name!r} was made by {provider.way!r}, which "
@@ -361,8 +375,11 @@ class LiteLLMSession(SessionBase):
         usage: Usage,
         model: str,
     ) -> None:
-        """Writes the turn down: the whole file for the turn that opens a conversation, the
-        two new lines for every turn after it.
+        """Writes the turn down, where the next turn reads the conversation back from.
+
+        The whole file for the turn that opens a conversation -- a fork's included, which is
+        where the history it was cut from is copied -- and the two new lines for every turn
+        after it.
         """
         path = self._file(session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -379,10 +396,12 @@ class LiteLLMSession(SessionBase):
                     "timestamp": now,
                 }
             )
-            rows += [
-                {"type": "message", "timestamp": now, "message": one}
+            # What it was cut from, as the words alone: what those turns spent was spent by
+            # the conversation they were taken in, and is counted there.
+            rows.extend(
+                dict[str, object](type="message", timestamp=now, message=one)
                 for one in history
-            ]
+            )
         rows.append({"type": "message", "timestamp": now, "message": asked})
         answer: dict[str, object] = {
             "role": "assistant",

@@ -111,6 +111,7 @@ const ROWS: Row[] = [
     goal: Y, steer: Y, perm: Y, ask: Y,
     fork: ELSEWHERE, web: Y, rungs: ALL4, trace: Y,
   }),
+  row('litellm', 'a model, called directly', { schema: Y, fork: ELSEWHERE, rungs: ALL4, trace: Y }),
   row('mcode', 'MiniMax Code', { sub: Y, schema: Y, rungs: NO_RO, trace: Y }),
   row('mimo', 'mimocode', { fork: Y, web: Y, rungs: ALL4, trace: Y }),
   row('opencode', 'opencode', { fork: Y, web: Y, rungs: ALL4, trace: Y }),

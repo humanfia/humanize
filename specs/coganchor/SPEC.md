@@ -151,6 +151,7 @@ SWARM: str
 AUTO: str
 AS_CONFIGURED: str                  # the rung every backend takes, that says nothing
 DSH_SDK: str
+LITELLM_SDK: str                    # litellm: a model called in-process, no CLI, no env
 
 def named(backend: str) -> Profile | None: ...
 def profiles() -> tuple[Profile, ...]: ...

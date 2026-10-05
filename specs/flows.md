@@ -161,6 +161,7 @@ class HarnessKind(StrEnum):
     CODEX = "codex"
     CURSOR_AGENT = "cursor-agent"
     ...
+    LITELLM = "litellm" # A model called directly: a chat completion a turn over the session's history, with no tools, no filesystem and no env.
 
 class PermissionKind(StrEnum):
     NONE = auto()
@@ -270,7 +271,7 @@ class Agent(Protocol):
         prompt: str,
         *,
         session: Session,
-        env: Env | None = None, # None: the run's own workspace, the default local env.
+        env: Env | None = None, # None: the run's own workspace, the default local env. Must be None for LITELLM: UnsupportedOperation otherwise.
         budget: Budget | None = None,
     ) -> str: ...
 

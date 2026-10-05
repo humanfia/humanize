@@ -63,6 +63,12 @@ PROFILES: tuple[AgentProfile, ...] = (
     ),
     # MiniMax Code keeps its settings, its sign-in, its sessions and the runtime it serves
     # them from under one directory, and read the one it used to be called before that.
+    # litellm is a model called from this process rather than a program, and keeps nothing
+    # but the conversations humanize writes for it.
+    AgentProfile(
+        name="litellm",
+        state_paths=("~/.cache/humanize/litellm",),
+    ),
     AgentProfile(
         name="mcode",
         state_paths=("~/.minimax", "~/.mavis"),

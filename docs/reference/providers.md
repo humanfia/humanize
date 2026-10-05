@@ -102,7 +102,9 @@ leaves an endpoint-sourced catalogue in place. Otherwise the CLI is asked (see
 ## The ways in {#the-ways-in}
 
 A way is one kind of account a backend offers. `ways(cli)` returns the backend's own ways in
-order, then `env` for every backend but `dsh`.
+order, then `env` for every backend but `dsh` and `litellm`: a `litellm` turn is a call in
+this process, handed the account's credentials as parameters, so it has no environment of its
+own for variables to be set in.
 
 `hmz.coganchor.backends.Way`:
 
@@ -168,6 +170,12 @@ order, then `env` for every backend but `dsh`.
 | | `openai-gateway` | — | `DEEPSEEK_BASE_URL` (ending in `/v1`), `DEEPSEEK_API_KEY` •, `DSH_GATEWAY_API` (`openai-completions`; or `openai-responses`) | |
 | | `anthropic-gateway` | — | `DEEPSEEK_BASE_URL` (without `/v1`), `DEEPSEEK_API_KEY` • | |
 | | `gemini-gateway` | — | `DEEPSEEK_BASE_URL` (ending in `/v1beta`), `DEEPSEEK_API_KEY` • | |
+| `litellm` | `openai-key`, `anthropic-key`, `gemini-key`, `xai-key`, `openrouter-key`, `deepseek-key`, `groq-key`, `mistral-key` | — | the vendor's own variable •: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`; passed as `api_key` | |
+| | `openai-gateway` | — | `LITELLM_GATEWAY_URL`, `LITELLM_GATEWAY_KEY` •; passed as `api_base`, `api_key` | `LITELLM_GATEWAY_API=openai` |
+| | `anthropic-gateway` | — | `LITELLM_GATEWAY_URL`, `LITELLM_GATEWAY_KEY` •; passed as `api_base`, `api_key` | `LITELLM_GATEWAY_API=anthropic` |
+| | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION_NAME` (`us-east-1`); passed as `aws_profile_name`, `aws_region_name` | |
+| | `vertex` | — | `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION` (`us-central1`); Application Default Credentials | |
+| | `azure` | — | `AZURE_API_BASE`, `AZURE_API_KEY` •, `AZURE_API_VERSION` (`2024-10-21`); passed as `api_base`, `api_key`, `api_version` | |
 | `grok` | `login` | `grok login` | — | |
 | | `device` | `grok login --device-auth` | — | |
 | | `oidc` | `grok login` | `GROK_OIDC_ISSUER`, `GROK_OIDC_CLIENT_ID` | |
@@ -238,7 +246,7 @@ order, then `env` for every backend but `dsh`.
 | | `gemini-gateway` | — | `GOOGLE_GEMINI_BASE_URL`, `GEMINI_API_KEY` • | appends `--auth-type gemini` |
 | | `vertex` | — | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`global`); Application Default Credentials | appends `--auth-type vertex-ai` |
 | | `vertex-key` | — | `GOOGLE_API_KEY` • (Vertex AI express mode) | appends `--auth-type vertex-ai` |
-| every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
+| every backend but `dsh` and `litellm`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
 
 - `claude`'s `aws` and `google-cloud` are Claude Platform on AWS and on Google Cloud
   (Anthropic's API, billed through that cloud); `mantle` is Amazon Bedrock's Mantle endpoint,
@@ -304,6 +312,7 @@ directory entry covers everything inside it. In the provider's directory the thr
 | `codex` | `$CODEX_HOME`, else `~/.codex` | `auth.json` |
 | `cursor-agent` | `$CURSOR_CONFIG_DIR`, else `~/.cursor` | `cli-config.json`, `config/cursor/auth.json`, `~/.cursor/auth.json` |
 | `dsh` | `$DSH_HOME`, else `~/.dsh` | none |
+| `litellm` | `~/.cache/humanize/litellm` | none |
 | `grok` | `$GROK_HOME`, else `~/.grok` | `auth.json`, `mcp_credentials.json` |
 | `kimi` | `$KIMI_CODE_HOME`, else `~/.kimi-code` | `credentials/`, `oauth/` |
 | `mcode` | `$MINIMAX_DATA_DIR`, else `~/.minimax` | `config.yaml`, `auth/` |
@@ -414,6 +423,7 @@ as the CLI writes into them, and an entry may be a glob of one path component.
 | `codex` | `sessions`, `archived_sessions`, `session_index.jsonl`, `state_*.sqlite*`, `thread_history_*.sqlite*`, `goals_*.sqlite*`, `queue_*.sqlite*`, `memories_*.sqlite*`, `thread-writer-locks`, `shell_snapshots` |
 | `cursor-agent` | `chats`, `projects/*/agent-transcripts` |
 | `dsh` | `sessions`, named to the SDK as its session root (`Profile.told`) rather than supervised |
+| `litellm` | `sessions`, written by humanize's own driver (`Profile.told`) |
 | `grok` | `sessions`, `active_sessions.*` |
 | `kimi` | `sessions`, `session_index.jsonl`, `workspaces.json`, `server/events`, `search-index`, `file-history` |
 | `mcode` | `v2/sqlite`, `v2/sessions`, `background-tasks` |
@@ -469,6 +479,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `codex` | `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `CODEX_ACCESS_TOKEN`, `CODEX_API_KEY`, `CODEX_AUTHAPI_BASE_URL`, `CODEX_OSS_BASE_URL`, `CODEX_PROVIDER_KEY`, `CODEX_PROVIDER_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_FEDERATION_RULE_ID`, `OPENAI_IDENTITY_TOKEN_FILE` |
 | `cursor-agent` | `CURSOR_API_BASE_URL`, `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY`, `CURSOR_API_URL`, `CURSOR_AUTH_TOKEN`, `CURSOR_LOCAL_AGENT_API_KEY` |
 | `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL`, `DSH_GATEWAY_API` |
+| `litellm` | `ANTHROPIC_API_KEY`, `AWS_PROFILE`, `AWS_REGION_NAME`, `AZURE_API_BASE`, `AZURE_API_KEY`, `AZURE_API_VERSION`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `LITELLM_GATEWAY_API`, `LITELLM_GATEWAY_KEY`, `LITELLM_GATEWAY_URL`, `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `VERTEXAI_LOCATION`, `VERTEXAI_PROJECT`, `XAI_API_KEY`; nothing is taken out of this process's environment, a turn being a call in it: the account is passed on the call instead |
 | `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_AUTH_PROVIDER_LABEL`, `GROK_AUTH_TOKEN_TTL`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_CONFIG`, `GROK_CONFIG_PATH`, `GROK_DEFAULT_MODEL`, `GROK_GATEWAY_API_BACKEND`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_AUDIENCE`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_OIDC_SCOPES`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
 | `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_ADAPTIVE_THINKING`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_CAPABILITIES`, `KIMI_MODEL_DISPLAY_NAME`, `KIMI_MODEL_MAX_COMPLETION_TOKENS`, `KIMI_MODEL_MAX_CONTEXT_SIZE`, `KIMI_MODEL_MAX_OUTPUT_SIZE`, `KIMI_MODEL_MAX_TOKENS`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_MODEL_REASONING_KEY`, `KIMI_MODEL_TEMPERATURE`, `KIMI_MODEL_THINKING_EFFORT`, `KIMI_MODEL_THINKING_KEEP`, `KIMI_MODEL_TOP_P`, `KIMI_OAUTH_HOST`, `KIMI_REGION`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
 | `mcode` | `MAVIS_REGION`, `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
@@ -492,6 +503,7 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | `codex` | `openai-gateway` | `CODEX_PROVIDER_URL` |
 | `cursor-agent` | `cursor-gateway` | none |
 | `dsh` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` | `DEEPSEEK_BASE_URL` |
+| `litellm` | `openai-gateway`, `anthropic-gateway` | `LITELLM_GATEWAY_URL` |
 | `grok` | `openai-gateway`, `anthropic-gateway` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` (and `kimi-key`) | `KIMI_MODEL_BASE_URL` |
 | `mcode` | `openai-gateway`, `anthropic-gateway` | none (`mcode provider list --json` is the catalogue) |
@@ -742,7 +754,7 @@ from hmz.coganchor.providers import login
 | `Provider(cli, name, way="env", env={}, args=(), made="")` | one account; `.at`, `.swaps()`, `.command(argv)`, `.held()` |
 | `LOCAL` | `""` |
 | `ENV` | the `env` way |
-| `ways(cli)` | the backend's ways, `env` last (not for `dsh`) |
+| `ways(cli)` | the backend's ways, `env` last (not for `dsh` or `litellm`) |
 | `providers(cli="")` | every account, or one backend's, by backend then name |
 | `find(cli, name)` | one account or `None`; never `None` for `LOCAL` of a known backend |
 | `where(cli, name)` | the account's directory |

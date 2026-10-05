@@ -66,7 +66,11 @@ def collect(
                 label="main",
                 title=title_of(short, actions),
                 parent=f"litellm:{parent}" if isinstance(parent, str) else None,
-                args={"log": str(path), "model": header.get("model"), "cwd": header.get("cwd")},
+                args={
+                    "log": str(path),
+                    "model": header.get("model"),
+                    "cwd": header.get("cwd"),
+                },
                 actions=actions,
             )
         )
@@ -119,7 +123,9 @@ def _parse(path: pathlib.Path, window: tuple[float, float]) -> list[Action]:
             think.args["thinking"] = truncate(reasoning)
         actions.append(think)
         actions.append(
-            Action(f"say: {summarize(body)}", "message", at, at, {"text": truncate(body)})
+            Action(
+                f"say: {summarize(body)}", "message", at, at, {"text": truncate(body)}
+            )
         )
         if turn is not None:
             turn.end = max(turn.end, at)

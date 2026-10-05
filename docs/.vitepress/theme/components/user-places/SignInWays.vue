@@ -2,7 +2,7 @@
 // Every way into each backend, as the Accounts page of `/settings` offers them once `a` has been told which CLI.
 // Read off the `ways` of each profile in `src/hmz/coganchor/backends.py`, in the order the
 // backends are listed there, plus `env` -- which `ways()` in
-// `src/hmz/coganchor/providers/store.py` adds to every backend but dsh, and which is the only
+// `src/hmz/coganchor/providers/store.py` adds to every backend but dsh and litellm, and which is the only
 // way into a CLI of your own once `_speaks` in `src/hmz/tui/pick.py` has added it. `runs` is
 // the way's `argv`, `asks` its `Asked`s, `sets` its `sets`. A way with a command of its own
 // hands that command the terminal; one without is only answers. A way changed in
@@ -767,6 +767,52 @@ const BACKENDS: Backend[] = [
         runs: 'mcode provider add --name gateway --api-format anthropic-messages … --use',
       },
       ENV,
+    ],
+  },
+  {
+    cli: 'litellm',
+    called: 'litellm',
+    note: 'No env way here: a litellm turn is a call in this process, handed the account on the call.',
+    ways: [
+      { name: 'openai-key', about: 'an OpenAI API key, from the platform', asks: [{ env: 'OPENAI_API_KEY', secret: true }] },
+      { name: 'anthropic-key', about: 'an Anthropic API key, from the console', asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }] },
+      { name: 'gemini-key', about: 'a Gemini API key, from Google AI Studio', asks: [{ env: 'GEMINI_API_KEY', secret: true }] },
+      { name: 'xai-key', about: 'an xAI API key, from the console', asks: [{ env: 'XAI_API_KEY', secret: true }] },
+      { name: 'openrouter-key', about: 'an OpenRouter API key', asks: [{ env: 'OPENROUTER_API_KEY', secret: true }] },
+      { name: 'deepseek-key', about: 'a DeepSeek API key, from the platform', asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }] },
+      { name: 'groq-key', about: 'a Groq API key, from the console', asks: [{ env: 'GROQ_API_KEY', secret: true }] },
+      { name: 'mistral-key', about: 'a Mistral API key, from La Plateforme', asks: [{ env: 'MISTRAL_API_KEY', secret: true }] },
+      {
+        name: 'openai-gateway',
+        about: "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+        asks: [{ env: 'LITELLM_GATEWAY_URL' }, { env: 'LITELLM_GATEWAY_KEY', secret: true }],
+        sets: ['LITELLM_GATEWAY_API=openai'],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: "an endpoint speaking Anthropic's Messages API -- a proxy, a router, another vendor",
+        asks: [{ env: 'LITELLM_GATEWAY_URL' }, { env: 'LITELLM_GATEWAY_KEY', secret: true }],
+        sets: ['LITELLM_GATEWAY_API=anthropic'],
+      },
+      {
+        name: 'bedrock',
+        about: 'models on Amazon Bedrock, under an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION_NAME', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'vertex',
+        about: 'models on Vertex AI, under a Google Cloud project of yours',
+        asks: [{ env: 'VERTEXAI_PROJECT' }, { env: 'VERTEXAI_LOCATION', fixed: 'us-central1' }],
+      },
+      {
+        name: 'azure',
+        about: "OpenAI's models on an Azure OpenAI resource of yours",
+        asks: [
+          { env: 'AZURE_API_BASE' },
+          { env: 'AZURE_API_KEY', secret: true },
+          { env: 'AZURE_API_VERSION', fixed: '2024-10-21' },
+        ],
+      },
     ],
   },
   {

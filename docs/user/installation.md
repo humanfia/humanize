@@ -68,16 +68,17 @@ release yet. `uv tool` and `pipx` put it in an environment of its own, on your `
 every directory. `pip` installs into whichever environment is active, so `hmz` is there only
 while that environment is.
 
-### Two backends need an extra {#the-two-backends-that-are-extras}
+### Three backends need an extra {#the-two-backends-that-are-extras}
 
-Skip this unless you want DeepSeek Harness or Kimi Code. Each needs a Python package in
+Skip this unless you want DeepSeek Harness, Kimi Code or litellm. Each needs a Python package in
 humanize's own environment:
 
 | Extra | For |
 | --- | --- |
 | `hmz[dsh]` | DeepSeek Harness (`dsh`). It has no CLI to install. |
 | `hmz[kimi]` | Kimi Code (`kimi`), alongside its CLI. |
-| `hmz[all]` | Both. |
+| `hmz[litellm]` | litellm (`litellm`): a model called directly, with no CLI to install. |
+| `hmz[all]` | All three. |
 
 ::: code-group
 
@@ -321,10 +322,10 @@ What a CLI runs is asked once and remembered for a week, then asked again in the
 ask now, open `/flow`, <kbd>enter</kbd> on a role, then on its `model` row, and press
 **Check again** under the list.
 
-### `dsh` or `kimi` is listed with an install command
+### `dsh`, `kimi` or `litellm` is listed with an install command
 
 Its extra is missing. Run the command on its row, or reinstall with the extra from
-[Two backends need an extra](#the-two-backends-that-are-extras).
+[Three backends need an extra](#the-two-backends-that-are-extras).
 
 ## Upgrade
 

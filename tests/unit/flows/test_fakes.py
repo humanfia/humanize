@@ -284,7 +284,12 @@ async def test_a_fake_forks_only_where_its_harness_can(harness: HarnessKind) -> 
     with pytest.raises(UnsupportedOperation):
         await forked(Placement(EnvBackendKind.SSH, "box", PurePosixPath("/work")))
     there = Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/there"))
-    if harness in {HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI}:
+    if harness in {
+        HarnessKind.CLAUDE,
+        HarnessKind.CODEX,
+        HarnessKind.KIMI,
+        HarnessKind.LITELLM,
+    }:
         assert (await forked(there)).placement == there
     else:
         with pytest.raises(UnsupportedOperation):
@@ -306,7 +311,12 @@ async def test_a_fake_session_moves_only_where_its_harness_can(
     with pytest.raises(UnsupportedOperation):
         await session.move(Placement(EnvBackendKind.SSH, "box", PurePosixPath("/work")))
     there = Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/there"))
-    if harness in {HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI}:
+    if harness in {
+        HarnessKind.CLAUDE,
+        HarnessKind.CODEX,
+        HarnessKind.KIMI,
+        HarnessKind.LITELLM,
+    }:
         assert await session.move(there)
         assert session.id != was
         assert session.placements == [PLACED, renamed, there]

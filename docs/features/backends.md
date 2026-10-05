@@ -19,9 +19,12 @@ import { withBase } from 'vitepress'
 - **Models are asked once.** When you make an account, and kept. On a gateway, the gateway
   answers.
 - **Auto sends nothing.** The model runs at its CLI's own default, on every backend.
-- **Skills stay yours.** A flow's skills come and go with the session. pi, DeepSeek Harness and
-  an ACP CLI take none.
-- **Two need an extra.** DeepSeek Harness and Kimi Code, at [install](/user/installation).
+- **Skills stay yours.** A flow's skills come and go with the session. pi, DeepSeek Harness,
+  litellm and an ACP CLI take none.
+- **Or no CLI at all.** `litellm` calls a model directly: one chat completion a turn over the
+  session's history, no tools, no environment.
+- **Three need an extra.** DeepSeek Harness, Kimi Code and litellm, at
+  [install](/user/installation).
 
 </div>
 

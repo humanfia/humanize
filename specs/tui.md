@@ -100,8 +100,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   the budget per flow; a run started MUST be profiled exactly where that says so.
 - MUST say where a role's harness went as its first session on another machine opens: here,
   on its environment's machine, or on the runtime its affinity sent it to.
-- MUST make an agent a CLI, an account, a model and an effort and nothing else, offering only
-  CLIs installed here whose harness is the one the role names and serves what the role asks,
+- MUST make an agent a CLI -- or litellm, a model called directly -- an account, a model and an
+  effort and nothing else, offering only CLIs installed here whose harness is the one the role names and serves what the role asks,
   this machine's own account as `as local`, models known runnable as the chosen account, and
   efforts that model takes -- and letting an account be made where one is asked for. An
   environment role MUST be set by its backend -- every one `-e` takes -- then, for a backend

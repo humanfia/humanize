@@ -47,6 +47,7 @@ const BACKENDS: Backend[] = [
   { name: 'opencode', called: 'opencode', model: 'anthropic/claude-opus-5', efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
   { name: 'mcode', called: 'MiniMax Code', model: 'minimax/MiniMax-M3.1-Flash-Preview', efforts: ['max', 'xhigh', 'high', 'medium', 'low'] },
   { name: 'mimo', called: 'mimocode', model: 'xiaomi/mimo-v2.5', efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
+  { name: 'litellm', called: 'litellm', model: 'openai/gpt-5', efforts: ['high', 'medium', 'low', 'minimal', 'none'] },
 ]
 
 // Every ladder above has it, so the climb always ends somewhere real.

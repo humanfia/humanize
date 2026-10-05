@@ -43,6 +43,7 @@ views the flow runtime makes over it (`hmz.runtime.flowing.harnesses.HarnessDriv
 | `dsh` | `dsh`, `deepseek-harness` | DeepSeek Harness | the Python SDK in this process, one runtime per agent |
 | `grok` | `grok`, `grok-build`, `grokbuild` | Grok Build | one `grok agent stdio` held open; `grok -p` for turns it cannot express |
 | `kimi` | `kimi`, `kimi-code` | Kimi Code | one `kimi web` daemon per agent, shared by its sessions |
+| `litellm` | `litellm` | a model, called directly ([litellm](#litellm)) | one chat completion per turn from this process, over the session's history; no CLI, no tools |
 | `mcode` | `mcode`, `minimax`, `minimax-code` | MiniMax Code | one `mcode exec` per turn |
 | `mimo` | `mimo`, `mimocode`, `mimo-code` | mimocode | one `mimo run` per turn |
 | `opencode` | `opencode` | opencode | one `opencode run` per turn |
@@ -60,6 +61,7 @@ views the flow runtime makes over it (`hmz.runtime.flowing.harnesses.HarnessDriv
 | `dsh` | `DshAgent` | `DshAgentConfig` | `DshSession` | `SessionBase` |
 | `grok` | `GrokBuildAgent` | `GrokBuildAgentConfig` | `GrokBuildSession` | `StreamSessionBase` |
 | `kimi` | `KimiCodeCLIAgent` | `KimiCodeCLIAgentConfig` | `KimiCodeCLISession` | `SessionBase` |
+| `litellm` | `LiteLLMAgent` | `LiteLLMAgentConfig` | `LiteLLMSession` | `SessionBase` |
 | `mcode` | `MiniMaxCodeAgent` | `MiniMaxCodeAgentConfig` | `MiniMaxCodeSession` | `CommandSessionBase` |
 | `mimo` | `MimoCodeAgent` | `MimoCodeAgentConfig` | `MimoCodeSession` | `CommandSessionBase` |
 | `opencode` | `OpencodeAgent` | `OpencodeAgentConfig` | `OpencodeSession` | `CommandSessionBase` |
@@ -81,6 +83,7 @@ All classes are importable from `hmz.coganchor.agents`.
 | `dsh` | `pip install 'deepseek-harness-sdk>=0.1.1rc1,<0.1.2' 'python-dotenv>=1.2.3'` (the `[dsh]` extra) | SDK `>=0.1.1rc1,<0.1.2` (`backends.DSH_SDK`) |
 | `grok` | `npm i -g @xai-official/grok` | 1.0.24 |
 | `kimi` | `npm i -g @moonshot-ai/kimi-code` (plus the `[kimi]` extra) | 0.42.0 |
+| `litellm` | `pip install 'litellm>=1.104'` (the `[litellm]` extra) | `>=1.104` (`backends.LITELLM_SDK`) |
 | `mcode` | `npm i -g @minimax-ai/code` | 0.5.9 |
 | `mimo` | `npm i -g @mimo-ai/cli` | not recorded |
 | `opencode` | `npm i -g opencode-ai` | not recorded |
@@ -195,6 +198,7 @@ and a negative cap (`a budget cannot be less than nothing`).
 | --- | --- | --- |
 | `agy`, `claude`, `codex`, `dsh`, `grok`, `qwen` | the id the CLI or its endpoint serves | `claude-opus-5`, `gpt-5.6-sol`, `deepseek-v4-flash` |
 | `kimi` | Kimi Code's `provider/id` | `kimi-code/k3` |
+| `litellm` | a litellm model string, `provider/id`; under a gateway account a bare id, sent as `openai/<id>` or `anthropic/<id>` | `openai/gpt-5`, `anthropic/claude-sonnet-4-5` |
 | `pi`, `opencode` | `provider/id` | `openai-codex/gpt-5.5`, `opencode/big-pickle` |
 | `mimo` | `provider/id`; under a gateway account, the id its endpoint serves (sent as `humanize/<id>`) | `xiaomi/mimo-v2.5`, `gpt-5.6-sol` |
 | `cursor-agent` | an id from the account's list, the rung and tier written into it | `composer-2.5-high-fast` |
@@ -219,6 +223,7 @@ hushed ones.
 | `claude` | `claude -p --input-format stream-json --output-format stream-json --verbose`, sent a `control_request` `list_models` | the model's `supportedEffortLevels` |
 | `codex` | `codex debug models` (models marked for listing) | per model |
 | `kimi` | `kimi provider list --json` | per model; swarm |
+| `litellm` | nothing: litellm's own `model_cost`, chat models of the providers it has a way in for, as `provider/id` | the ladder where litellm says the model reasons; none otherwise |
 | `agy` | `agy models` | the ladder |
 | `grok` | `grok models` | the ladder |
 | `cursor-agent` | `cursor-agent --list-models` | the rungs its listed variants carry (`gpt-5.2` at those `gpt-5.2-low` … are listed for); none for a model with no variants |
@@ -239,6 +244,7 @@ Where the account sets the backend's endpoint variable, the endpoint is asked fi
 | `dsh` | `DEEPSEEK_BASE_URL` |
 | `grok` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `KIMI_MODEL_BASE_URL` |
+| `litellm` | `LITELLM_GATEWAY_URL` |
 | `qwen` | `OPENAI_BASE_URL` |
 
 The request is `GET {base}/v1/models` (`{base}/models` when the base ends in a version);
@@ -268,6 +274,7 @@ CLI. An ACP CLI's ladder is the single word `as configured` and any effort is ac
 | `dsh` | `max`, `high`, `low`, `off` | written onto the SDK composition |
 | `grok` | `xhigh`, `high`, `medium`, `low` | `--effort` |
 | `kimi` | `max`, `high`, `medium`, `low`, each also `swarm`-prefixed | per turn on the daemon; `swarmmax` is `max` run as a fleet of subagents (`agents.SWARM == "swarm"`) |
+| `litellm` | `high`, `medium`, `low`, `minimal`, `none` | `reasoning_effort` on the call; litellm leaves it off for a model with none |
 | `mcode` | `max`, `xhigh`, `high`, `medium`, `low` | `--effort`, only where there is a rung; a rung the account's catalogue does not list for the model is `Unserved` |
 | `mimo`, `opencode` | `xhigh`, `high`, `medium`, `low`, `minimal` | `--variant` |
 | `pi` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` | `--thinking`; pi clamps a rung the model lacks to the nearest it has |
@@ -282,7 +289,7 @@ checked as a configured one is.
 
 | Backend | How a moved effort takes hold |
 | --- | --- |
-| `codex`, `kimi`, `opencode`, `mimo`, `cursor-agent`, `mcode` | sent with the next turn |
+| `codex`, `kimi`, `opencode`, `mimo`, `cursor-agent`, `mcode`, `litellm` | sent with the next turn |
 | `claude`, `dsh`, `agy`, `grok`, `qwen` | the process or runtime is restarted and resumes the same conversation |
 | `pi` | a command to the held process, between turns |
 
@@ -323,6 +330,7 @@ refused: `Unserved`):
 | `dsh` | refused | refused | refused | nothing sent |
 | `grok` | three read tools | web search off | every tool | — |
 | `kimi` | `manual` and plan mode | `auto` | `yolo` | `auto` |
+| `litellm` | nothing sent | — | — | — |
 | `mcode` | refused | `full` | `smart` | `full` |
 | `mimo`, `opencode` | `edit`, `bash` denied | web tools denied | nothing denied | — |
 | `pi` | four tools withheld | nothing withheld | — | — |
@@ -518,8 +526,9 @@ The minimum granted whatever the scopes is `LINUX_SYSTEM` and `LINUX_DEVICES` on
 `DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
 pseudo-terminals `/dev/ttys*` writable.
 
-No built-in backend enforces any part natively: every driver's `natively` returns the whole
-fence, for these reasons:
+No built-in CLI enforces any part natively: every driver's `natively` returns the whole fence,
+for the reasons below. `litellm` returns none of it: a turn is one request from this process
+and the model has no tool to reach anything with, so nothing is put around it.
 
 | Backend | Why its own confinement is not used |
 | --- | --- |
@@ -657,6 +666,7 @@ history; its first turn performs the fork.
 | `pi` | `--fork <parent>` | no |
 | `qwen` | `--resume <parent> --fork-session` | no |
 | an ACP CLI | `session/fork`, where the agent serves it | no |
+| `litellm` | the conversation's file copied under the child's id by its first turn | yes |
 | `agy`, `cursor-agent`, `dsh`, `mcode` | none | — |
 
 - Forking a session that has not landed a turn: `RuntimeError: session has not run a turn yet`.
@@ -996,6 +1006,7 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
 | `claude` | input, output, cache_read, cache_write | on each message |
 | `codex` | input, output (cached reads inside input) | on `thread/tokenUsage/updated` |
 | `dsh` | input, output, cache_read, cache_write | on each finalised assistant message |
+| `litellm` | input, output, cache_read, cache_write (cached reads taken out of input) | on the usage of the turn's one request |
 | `pi` | input, output, cache_read, cache_write | on each finalised assistant message |
 | `opencode`, `mimo` | all five | on each step |
 | `kimi` | input, output, cache_read, cache_write | on each `turn.step.completed` notification |
@@ -1181,6 +1192,7 @@ conversation.
 | `dsh` | `$DSH_HOME`, `~/.dsh` | `sessions/*/{ident}/session.jsonl` | yes | yes |
 | `grok` | `$GROK_HOME`, `~/.grok` | `sessions/*/{ident}/updates.jsonl` | yes | yes |
 | `kimi` | `$KIMI_CODE_HOME`, `~/.kimi-code` | `server/events/{ident}.jsonl` | yes | yes |
+| `litellm` | `~/.cache/humanize/litellm` | `sessions/{ident}.jsonl`, written by humanize | yes | — |
 | `mcode` | `$MINIMAX_DATA_DIR`, `~/.minimax` | `v2/sessions/*/*/*/*-session_{ident}/messages.jsonl`, `{ident}` URL-safe base64 without padding (`Profile.encodes`) | yes | no |
 | `mimo` | `$XDG_DATA_HOME/mimocode`, `~/.local/share/mimocode` | SQLite `mimocode.db` | yes | yes |
 | `opencode` | `$XDG_DATA_HOME/opencode`, `~/.local/share/opencode` | SQLite `opencode.db` | yes | yes |
@@ -1391,6 +1403,24 @@ rung, thinking level and swarm width, and question ids.
   `WebSearch`/`FetchURL` are in `disabled_tools` regardless of `web_search`.
 - `--add-dir`, `--skills-dir`, `--agent`, `--agent-file` are ignored by `kimi web` and not
   offered.
+
+### litellm {#litellm}
+
+`litellm`. A model called directly through litellm in this process: each turn is one streamed
+`litellm.completion` over the session's history and the prompt. No CLI, no tools, no
+filesystem, no hooks of its own; `HarnessKind.LITELLM` turns take no environment (`env` must
+be `None`, `UnsupportedOperation` otherwise). `LiteLLMAgentConfig` adds no fields.
+
+- The history is `sessions/<id>.jsonl` under the agent's kept directory: a `session` header,
+  then a `message` row per message, each answer with its `model` and `usage`. Every turn after
+  the first reads it back; a fork's first turn copies its parent's under a new id.
+- A shape is passed as `response_format` (`json_schema`), so `SessionBase.shapes` is `True`.
+- Under an account the credentials are passed on the call: `api_key` for a key way, `api_base`
+  and `api_key` for a gateway, the cloud's parameters for `bedrock`, `vertex`, `azure`.
+  Without one, litellm reads the environment as it always does (`OPENAI_API_KEY`, …).
+- `drop_params=True`: a parameter the provider does not take, such as an effort, is left off.
+- `Unrecoverable`: litellm's `ContextWindowExceededError`.
+- An interrupt or the watchdog closes the stream; the turn answers with what had arrived.
 
 ### MiniMax Code {#minimax-code}
 

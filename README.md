@@ -13,8 +13,8 @@ signed in to, such as Claude Code or Codex.
 uv tool install git+https://github.com/humanfia/humanize.git
 ```
 
-Two backends need a package of their own: `[dsh]` for DeepSeek Harness, `[kimi]` for Kimi
-Code, `[all]` for both.
+Three backends need a package of their own: `[dsh]` for DeepSeek Harness, `[kimi]` for Kimi
+Code, `[litellm]` for a model called directly, `[all]` for all three.
 
 ```sh
 uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'

@@ -57,7 +57,7 @@ Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__
 | --- | --- |
 | Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
 | Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) |
-| Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent` ([table](#what-each-harness-serves)) |
+| Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` ([table](#what-each-harness-serves)) |
 | Agent mixins | `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
 | Budgets | [`Budget`](#budget), [`Usage`](#usage) |
@@ -324,7 +324,8 @@ class Agent(Protocol):
 
 ### `HarnessKind` {#harnesskind}
 
-`class HarnessKind(StrEnum)`: which CLI an agent is. The value is the name `-a` uses.
+`class HarnessKind(StrEnum)`: which CLI an agent is -- or `LITELLM`, a model called directly.
+The value is the name `-a` uses.
 
 | Member | Value | CLI | Protocol (`HARNESS_AGENTS[kind]`) |
 | --- | --- | --- | --- |
@@ -340,6 +341,7 @@ class Agent(Protocol):
 | `PI` | `pi` | pi | `PiAgent` |
 | `AGY` | `agy` | Antigravity | `AntigravityAgent` |
 | `DSH` | `dsh` | DeepSeek Harness | `DeepSeekHarnessAgent` |
+| `LITELLM` | `litellm` | none: a model called through litellm, one chat completion a turn over the session's history, with no tools and no filesystem; its turns take `env=None` | `LiteLLMAgent` |
 | `ACP` | `acp` | any CLI added on the Accounts page of `/settings`, driven over the Agent Client Protocol; `-a` names it by the name it was added under | `Agent` |
 
 <span id="harness-agents"></span>`HARNESS_AGENTS: Mapping[HarnessKind, type]` (a read-only
@@ -382,6 +384,7 @@ Generated from `hmz.runtime.flowing.spi.HARNESS_CAPABILITIES` and the harness pr
 | `kimi` | ✓ | | ✓ | ✓ | | ✓ | any workdir | read-only, workspace-write, auto, bypass |
 | `pi` | | | ✓ | | | ✓ | same workdir | read-only, workspace-write, auto, bypass |
 | `dsh` | ✓ | | | | | | no | bypass |
+| `litellm` | | | | | | | any workdir | read-only, workspace-write, auto, bypass |
 | `cursor-agent` | | | | | ✓ | | no | read-only, workspace-write, auto, bypass |
 | `mcode` | | | | | ✓ | | no | workspace-write, auto, bypass |
 | `grok` `opencode` `mimo` `qwen` | | | | | | | same workdir | read-only, workspace-write, auto, bypass |
@@ -606,7 +609,7 @@ async def run(self, prompt: str, *, session: Session, env: Env | None = None,
 | --- | --- | --- |
 | `prompt` | `str` | The prompt. `/goal …` and `/loop …` need their [mixins](#asking-for-an-agent-that-can-do-something). |
 | `session` | `Session` | A session of this agent (or of an agent [derived](#derive) from it). |
-| `env` | `Env \| None` | Where this turn works: its workdir, on its machine. `None` is the run's own workspace, the directory the run was started in, on this machine. |
+| `env` | `Env \| None` | Where this turn works: its workdir, on its machine. `None` is the run's own workspace, the directory the run was started in, on this machine. Always `None` for `litellm`, which works nowhere. |
 | `output_schema` | `type[pydantic.BaseModel] \| None` | Return an instance of this model instead of text. |
 | `budget` | `Budget \| None` | A limit on this one turn, applied with every budget above it. See [Budgets](#what-a-run-may-spend). |
 
@@ -648,6 +651,7 @@ does: `OutputSchemaError: the answer is not a <Model>: <first 200 chars, JSON-qu
 | --- | --- |
 | `session` not this agent's | `SessionError`: `<role>: <session> is not one of this agent's` |
 | `env` not an environment the run handed out | `TypeError`: `<env> is not an environment this run handed out` |
+| `env` given to a `litellm` agent | `UnsupportedOperation`: `<role>: litellm is a model called directly, with no tools and no filesystem, so its turns work in no environment; run it with env=None` |
 | a turn of the session is under way | `SessionError`: `<role>: a turn of this session is under way` |
 | the session is closed | `SessionError`: `<role>: the session is over` |
 | the call's caller or the run has ended | `FlowCancelled` |
