@@ -4,7 +4,9 @@
 // hardest first; the check is `Profile.takes` there (`auto` and nothing pass everywhere, a
 // `swarm` prefix comes off on Kimi only, an added ACP CLI takes any word) and the refusal is
 // `AgentBase._thinks` in `src/hmz/coganchor/agents/base.py`, as `hmz exec` prints it.
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+
+import { motion } from '../../motion/gsap'
 
 interface Backend {
   cli: string
@@ -160,11 +162,215 @@ const verdict = computed<Verdict>(() => {
     text: `hmz exec: error: ${spec.value}: ${one.cli} cannot be asked to think at '${effort.value}'; expected one of ${one.ladder.join(', ')}`,
   }
 })
+
+// The motion, laid over the check without changing what it says. Picking a backend glides the
+// lit pill to it, builds its ladder up from the easiest rung, and sends a marker climbing to
+// the word being checked. A word on the ladder lands the marker with a ring, and the verdict is
+// typed on; a word off it drops the marker, jolts the terminal and types the refusal out.
+// Under reduced motion each of those is its final frame.
+const clis = ref<HTMLElement | null>(null)
+const glide = ref<HTMLElement | null>(null)
+const climb = ref<HTMLElement | null>(null)
+const marker = ref<HTMLElement | null>(null)
+const term = ref<HTMLElement | null>(null)
+const live = ref(false)
+// How much of the verdict has been typed; null shows all of it.
+const typing = ref<number | null>(null)
+
+const said = computed(() => (typing.value === null ? verdict.value.text : verdict.value.text.slice(0, Math.floor(typing.value))))
+const unsaid = computed(() => (typing.value === null ? '' : verdict.value.text.slice(Math.floor(typing.value))))
+
+let tl: gsap.core.Timeline | undefined
+let wait: ReturnType<typeof setTimeout> | undefined
+let keyed = false
+let shown = picked.value
+let sizes: ResizeObserver | undefined
+let seen: IntersectionObserver | undefined
+
+const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+// Where an element stands in `box`, climbing through any parent a transform has made its
+// offset parent.
+function within(el: HTMLElement, box: HTMLElement): { x: number; y: number } {
+  let x = 0
+  let y = 0
+  for (let at: HTMLElement | null = el; at && at !== box; at = at.offsetParent as HTMLElement | null) {
+    x += at.offsetLeft
+    y += at.offsetTop
+  }
+  return { x, y }
+}
+
+// The top of a rung's bar, or of `auto`'s word, which is where the marker stands on it.
+function top(button: HTMLElement): { x: number; y: number } {
+  const box = climb.value!
+  const bar = button.querySelector<HTMLElement>('.bar') ?? button.querySelector<HTMLElement>('code')!
+  const at = within(bar, box)
+  return { x: at.x + bar.offsetWidth / 2, y: at.y - (bar.classList.contains('bar') ? 0 : 7) }
+}
+
+function place(move: boolean) {
+  const button = clis.value?.querySelector<HTMLElement>('button.on')
+  if (!button || !glide.value) return
+  const to = { x: button.offsetLeft, y: button.offsetTop, width: button.offsetWidth, height: button.offsetHeight }
+  const gsap = motion()
+  if (!move || still()) {
+    gsap.set(glide.value, { ...to, autoAlpha: 1 })
+    return
+  }
+  gsap.to(glide.value, { ...to, autoAlpha: 1, duration: 0.55, ease: 'cine', overwrite: 'auto' })
+  gsap.fromTo(glide.value, { scaleY: 1 }, { keyframes: { scaleY: [1, 0.8, 1.06, 1] }, duration: 0.55, ease: 'none' })
+}
+
+// The marker on the checked rung at once, or gone if the word is on no rung.
+function settle() {
+  const box = climb.value
+  if (!box || !marker.value) return
+  const on = box.querySelector<HTMLElement>('button.on')
+  if (on) motion().set(marker.value, { ...top(on), autoAlpha: 1 })
+  else motion().set(marker.value, { autoAlpha: 0 })
+}
+
+// Plays what the check does, from a backend just picked (`built`) or a word just changed.
+function show(built: boolean) {
+  if (built) place(true)
+  if (still()) {
+    typing.value = null
+    settle()
+    return
+  }
+  const gsap = motion()
+  tl?.kill()
+  const t = gsap.timeline({ onComplete: () => void (typing.value = null) })
+  tl = t
+  const box = climb.value
+  const buttons = box ? [...box.querySelectorAll<HTMLElement>('.rungs li:not(.apart) button')] : []
+  let at = 0
+  if (built && box) {
+    // The ladder is built from its easiest rung up to its hardest.
+    const bars = buttons.map((one) => one.querySelector('.bar')).reverse()
+    const words = buttons.map((one) => one.querySelector('code')).reverse()
+    t.fromTo(bars, { scaleY: 0, transformOrigin: '50% 100%' }, { scaleY: 1, duration: 0.5, ease: 'back.out(1.8)', stagger: 0.06 }, 0)
+    t.fromTo(words, { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.06 }, 0.05)
+    t.fromTo(box.querySelector('.apart'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, 0.1 + 0.06 * buttons.length)
+    at = 0.2 + 0.06 * buttons.length
+  }
+  const mark = marker.value
+  const on = box?.querySelector<HTMLElement>('button.on')
+  if (mark && box && on) {
+    // The marker climbs rung by rung, from the easiest on a new ladder, or from where it stood.
+    const to = buttons.indexOf(on)
+    const was = Number(gsap.getProperty(mark, 'autoAlpha')) > 0.5 && !built ? nearest(buttons, mark) : buttons.length - 1
+    const path: number[] = []
+    if (to >= 0 && was >= 0) for (let i = was; i !== to; i += to < was ? -1 : 1) path.push(i)
+    const stops = [...path.map((i) => top(buttons[i])), top(on)]
+    if (built || Number(gsap.getProperty(mark, 'autoAlpha')) < 0.5) {
+      if (built) t.to(mark, { autoAlpha: 0, duration: 0.2, ease: 'none' }, 0)
+      t.set(mark, { ...stops[0], autoAlpha: 0 }, at)
+      t.to(mark, { autoAlpha: 1, duration: 0.15, ease: 'none' }, at)
+    }
+    const hop = Math.max(0.09, Math.min(0.16, 0.7 / stops.length))
+    stops.forEach((one, i) => t.to(mark, { ...one, duration: hop, ease: i === stops.length - 1 ? 'back.out(2.5)' : 'sine.inOut' }, i ? '>' : at))
+    at = t.duration()
+    t.fromTo(mark.querySelector('.land'), { autoAlpha: 0, scale: 0.5, transformOrigin: '50% 50%' }, { autoAlpha: 0.9, duration: 0.06, ease: 'none' }, at)
+    t.to(mark.querySelector('.land'), { autoAlpha: 0, scale: 2.6, duration: 0.8, ease: 'power2.out' }, '>')
+    t.fromTo(on.querySelector('code'), { scale: 1 }, { keyframes: { scale: [1, 1.12, 1] }, duration: 0.4, ease: 'sine.inOut' }, at)
+  } else if (mark) {
+    // Off the ladder: the marker falls away.
+    t.to(mark, { y: '+=14', autoAlpha: 0, duration: 0.35, ease: 'cine.in' }, 0)
+  }
+  const pane = term.value
+  if (!pane) return
+  const text = verdict.value.text
+  typing.value = 0
+  const cps = verdict.value.ok ? 70 : 110
+  const typed = { n: 0 }
+  t.fromTo(pane.querySelector('.mark'), { scale: 0.3, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.4, ease: 'back.out(3)' }, at)
+  t.to(typed, { n: text.length, duration: text.length / cps, ease: 'none', onUpdate: () => void (typing.value = typed.n) }, at + 0.05)
+  if (verdict.value.ok) {
+    t.fromTo(pane.querySelector('.sweep'), { xPercent: -100, autoAlpha: 1 }, { xPercent: 100, duration: 0.9, ease: 'cine' }, at)
+  } else {
+    t.fromTo(pane, { x: 0 }, { keyframes: { x: [0, -7, 6, -4, 2, 0] }, duration: 0.45, ease: 'none' }, at)
+    t.fromTo(pane.querySelector('.flash'), { autoAlpha: 0.9 }, { autoAlpha: 0, duration: 0.7, ease: 'power2.out' }, at)
+    t.fromTo(pane.querySelector('.after'), { autoAlpha: 0, y: 4 }, { autoAlpha: 1, y: 0, duration: 0.35 }, '>')
+  }
+}
+
+function keying() {
+  keyed = true
+}
+
+// The rung the marker stands over now.
+function nearest(buttons: HTMLElement[], mark: HTMLElement): number {
+  const gsap = motion()
+  const x = Number(gsap.getProperty(mark, 'x'))
+  const y = Number(gsap.getProperty(mark, 'y'))
+  let best = buttons.length - 1
+  let far = Infinity
+  buttons.forEach((one, i) => {
+    const p = top(one)
+    const d = Math.hypot(p.x - x, p.y - y)
+    if (d < far) {
+      far = d
+      best = i
+    }
+  })
+  return best
+}
+
+watch(
+  () => [picked.value, effort.value],
+  () => {
+    clearTimeout(wait)
+    const built = picked.value !== shown
+    shown = picked.value
+    // While a word is being typed, the check waits for a pause in the typing.
+    if (keyed && !built) wait = setTimeout(() => show(false), 320)
+    else show(built)
+    keyed = false
+  },
+  { flush: 'post' },
+)
+
+onMounted(() => {
+  live.value = true
+  sizes = new ResizeObserver(() => {
+    place(false)
+    if (!tl?.isActive()) settle()
+  })
+  if (clis.value) sizes.observe(clis.value)
+  nextTick(() => {
+    place(false)
+    settle()
+    if (climb.value) sizes?.observe(climb.value)
+    if (still()) return
+    show(true)
+    tl?.pause(0)
+    // The first ladder is built the first time the check is scrolled to.
+    seen = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((one) => one.isIntersecting)) return
+        seen?.disconnect()
+        tl?.play()
+      },
+      { threshold: 0.4 },
+    )
+    if (climb.value) seen.observe(climb.value)
+  })
+})
+
+onBeforeUnmount(() => {
+  tl?.kill()
+  clearTimeout(wait)
+  sizes?.disconnect()
+  seen?.disconnect()
+})
 </script>
 
 <template>
-  <div class="ladder hmz-panel">
-    <div class="clis" role="group" aria-label="backend">
+  <div class="ladder hmz-panel" :class="{ live }">
+    <div ref="clis" class="clis" role="group" aria-label="backend">
+      <span ref="glide" class="glide" aria-hidden="true" />
       <button
         v-for="one in BACKENDS"
         :key="one.cli"
@@ -183,26 +389,29 @@ const verdict = computed<Verdict>(() => {
         <span v-if="!backend.acp">hardest first · click a rung</span>
       </p>
 
-      <ol v-if="backend.ladder.length" class="rungs">
-        <li v-for="(one, at) in backend.ladder" :key="one">
-          <button
-            type="button"
-            :class="{ on: one === rung, soft: Boolean(backend.marks?.[one]) }"
-            :aria-pressed="one === rung"
-            :title="backend.marks?.[one]"
-            :style="{ '--depth': 1 - at / Math.max(backend.ladder.length - 1, 1) }"
-            @click="take(one)"
-          >
-            <span class="bar" />
-            <code>{{ one }}</code>
-          </button>
-        </li>
-        <li class="apart">
-          <button type="button" :class="{ on: rung === 'auto' }" :aria-pressed="rung === 'auto'" @click="take('auto')">
-            <code>auto</code>
-          </button>
-        </li>
-      </ol>
+      <div v-if="backend.ladder.length" ref="climb" class="climb">
+        <ol class="rungs">
+          <li v-for="(one, at) in backend.ladder" :key="`${backend.cli}/${one}`">
+            <button
+              type="button"
+              :class="{ on: one === rung, soft: Boolean(backend.marks?.[one]) }"
+              :aria-pressed="one === rung"
+              :title="backend.marks?.[one]"
+              :style="{ '--depth': 1 - at / Math.max(backend.ladder.length - 1, 1) }"
+              @click="take(one)"
+            >
+              <span class="bar" />
+              <code>{{ one }}</code>
+            </button>
+          </li>
+          <li class="apart">
+            <button type="button" :class="{ on: rung === 'auto' }" :aria-pressed="rung === 'auto'" @click="take('auto')">
+              <code>auto</code>
+            </button>
+          </li>
+        </ol>
+        <span ref="marker" class="marker" aria-hidden="true"><span class="halo" /><span class="land" /><span class="dot" /></span>
+      </div>
       <p v-else class="none">no ladder · <code>auto</code> or any word</p>
 
       <label v-if="backend.swarms" class="swarm">
@@ -212,16 +421,25 @@ const verdict = computed<Verdict>(() => {
 
       <label class="word">
         <span>or type a word</span>
-        <input v-model="typed" type="text" spellcheck="false" autocomplete="off" aria-label="effort" />
+        <input
+          v-model="typed"
+          type="text"
+          spellcheck="false"
+          autocomplete="off"
+          aria-label="effort"
+          @input="keying"
+        />
       </label>
 
-      <div class="term" :class="{ bad: !verdict.ok }">
+      <div ref="term" class="term" :class="{ bad: !verdict.ok }">
+        <span class="sweep" aria-hidden="true" />
+        <span class="flash" aria-hidden="true" />
         <p><span class="dim">$ hmz exec … -a</span> {{ spec }}</p>
         <p class="said">
-          <span class="mark">{{ verdict.ok ? '✓' : '✗' }}</span>
-          {{ verdict.text }}
+          <span class="mark">{{ verdict.ok ? '✓' : '✗' }}</span> <span aria-hidden="true">{{ said }}</span><span class="ghost" aria-hidden="true">{{ unsaid }}</span
+          ><span class="sr">{{ verdict.text }}</span>
         </p>
-        <p v-if="!verdict.ok" class="dim">exit status 2 · nothing ran</p>
+        <p v-if="!verdict.ok" class="dim after">exit status 2 · nothing ran</p>
       </div>
 
       <p class="note">{{ backend.note }}</p>
@@ -236,6 +454,7 @@ const verdict = computed<Verdict>(() => {
 
 <style scoped>
 .clis {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -254,6 +473,26 @@ const verdict = computed<Verdict>(() => {
   font-size: 12.5px;
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s, background 0.2s;
+  position: relative;
+}
+
+/* The lit pill behind the picked backend, which glides from one to the next. It shows only once
+   the page has its script; until then the picked button lights itself. */
+.glide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  border: 1px solid var(--vp-c-brand-1);
+  border-radius: 999px;
+  background: var(--vp-c-brand-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vp-c-brand-1) 12%, transparent);
+  pointer-events: none;
+}
+
+.live .clis button.on {
+  border-color: transparent;
+  background: transparent;
 }
 
 .clis button:hover {
@@ -288,6 +527,57 @@ const verdict = computed<Verdict>(() => {
 .called span {
   font-size: 12px;
   color: var(--vp-c-text-3);
+}
+
+.climb {
+  position: relative;
+  padding-top: 8px;
+}
+
+/* The marker that climbs the ladder to the checked word: a dot with a breathing halo, and a
+   ring that goes out from it when it lands. */
+.marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.marker > span {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.marker .dot {
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--hmz-accent);
+  background: var(--vp-c-bg);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--hmz-accent) 60%, transparent);
+}
+
+.marker .halo,
+.marker .land {
+  left: -11px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--hmz-accent);
+}
+
+.marker .halo {
+  opacity: 0.35;
+}
+
+.marker .land {
+  visibility: hidden;
+  border-width: 2px;
 }
 
 .rungs {
@@ -402,6 +692,8 @@ const verdict = computed<Verdict>(() => {
 }
 
 .term {
+  position: relative;
+  overflow: hidden;
   margin-top: 14px;
   padding: 10px 12px;
   border: 1px solid var(--vp-c-divider);
@@ -432,7 +724,38 @@ const verdict = computed<Verdict>(() => {
 }
 
 .term .mark {
+  display: inline-block;
   font-weight: 700;
+}
+
+.term .ghost {
+  color: transparent;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* A band of light across the terminal when a word is taken, and a red wash when it is not. */
+.term .sweep,
+.term .flash {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.term .sweep {
+  background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--hmz-accent) 22%, transparent) 50%, transparent 80%);
+}
+
+.term .flash {
+  background: color-mix(in srgb, var(--vp-c-danger-1) 14%, transparent);
 }
 
 .term .dim {
@@ -452,6 +775,19 @@ const verdict = computed<Verdict>(() => {
   font-size: 12px;
   line-height: 1.5;
   color: var(--vp-c-text-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .marker .halo {
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.08;
+    transform: scale(1.5);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
