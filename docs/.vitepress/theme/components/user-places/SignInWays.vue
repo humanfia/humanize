@@ -241,6 +241,82 @@ const BACKENDS: Backend[] = [
         about: 'a MiMo key, which its own models run on',
         asks: [{ env: 'XIAOMI_API_KEY', secret: true }],
       },
+      {
+        name: 'anthropic-key',
+        about: 'an Anthropic API key, from the console',
+        asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-key',
+        about: 'an OpenAI API key, from the platform',
+        asks: [{ env: 'OPENAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-key',
+        about: 'a Gemini API key, from Google AI Studio',
+        asks: [{ env: 'GOOGLE_GENERATIVE_AI_API_KEY', secret: true }],
+      },
+      {
+        name: 'xai-key',
+        about: 'an xAI API key, from its console',
+        asks: [{ env: 'XAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'openrouter-key',
+        about: 'an OpenRouter key, which every model it routes to runs on',
+        asks: [{ env: 'OPENROUTER_API_KEY', secret: true }],
+      },
+      {
+        name: 'deepseek-key',
+        about: 'a DeepSeek API key, from its platform',
+        asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'MIMO_GATEWAY_URL' },
+          { env: 'MIMO_GATEWAY_KEY', secret: true },
+          { env: 'MIMO_GATEWAY_MODEL' },
+          { env: 'MIMO_GATEWAY_API', fixed: '@ai-sdk/openai-compatible' },
+        ],
+        sets: ['MIMOCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'MIMO_GATEWAY_URL' },
+          { env: 'MIMO_GATEWAY_KEY', secret: true },
+          { env: 'MIMO_GATEWAY_MODEL' },
+        ],
+        sets: ['MIMO_GATEWAY_API=@ai-sdk/anthropic', 'MIMOCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'MIMO_GATEWAY_URL' },
+          { env: 'MIMO_GATEWAY_KEY', secret: true },
+          { env: 'MIMO_GATEWAY_MODEL' },
+        ],
+        sets: ['MIMO_GATEWAY_API=@ai-sdk/google', 'MIMOCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'vertex',
+        about: 'Gemini and Anthropic’s models on a Google Cloud project of yours',
+        asks: [{ env: 'GOOGLE_CLOUD_PROJECT' }, { env: 'GOOGLE_VERTEX_LOCATION', fixed: 'us-central1' }],
+      },
+      {
+        name: 'bedrock',
+        about: 'the models on Amazon Bedrock, on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'azure',
+        about: 'the models on an Azure OpenAI resource of yours',
+        asks: [{ env: 'AZURE_RESOURCE_NAME' }, { env: 'AZURE_API_KEY', secret: true }],
+      },
       ENV,
     ],
   },

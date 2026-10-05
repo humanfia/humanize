@@ -2053,12 +2053,21 @@ PROFILES = (
     Profile(
         name="mimo",
         # MiMo's API, which serves both the free default and a key, and its token plan's
-        # three regions.
+        # three regions -- and the APIs of the vendors whose keys are ways in of their own
+        # below, each the one host that vendor's provider in its catalogue is at, since an
+        # account of one of those is a turn with nowhere else to think. The clouds are not
+        # among them: their hosts are a region's, which no account here switches on by name.
         hosts=(
             "api.xiaomimimo.com",
             "token-plan-cn.xiaomimimo.com",
             "token-plan-sgp.xiaomimimo.com",
             "token-plan-ams.xiaomimimo.com",
+            "api.anthropic.com",
+            "api.openai.com",
+            "generativelanguage.googleapis.com",
+            "api.x.ai",
+            "openrouter.ai",
+            "api.deepseek.com",
         ),
         installs="npm i -g @mimo-ai/cli",
         # The one place mimocode differs from opencode in a way that matters here: what it is
@@ -2093,14 +2102,22 @@ PROFILES = (
         ),
         mounts=".agents/skills",
         creds=("auth.json", "mcp-auth.json"),
+        # The ones no way below names: a Bedrock key that stands in for the profile, and the
+        # ones that would bypass the file outright. Every vendor's key it reads -- a hundred
+        # and eighty providers' worth, opencode's catalogue being its own -- is read whatever
+        # `MIMOCODE_MIMO_ONLY` might have said: that one is off unless set, which nothing
+        # here does, so a key in the environment is a provider it lists (0.1.15).
         ambient=(
-            "ANTHROPIC_API_KEY",
             "ANTHROPIC_BASE_URL",
+            "AWS_BEARER_TOKEN_BEDROCK",
             "MIMOCODE_AUTH_CONTENT",
-            "MIMOCODE_CONFIG_CONTENT",
             "MIMO_API_KEY",
-            "OPENAI_API_KEY",
         ),
+        # Where a gateway account's every request goes. A model of it is spelled
+        # `humanize/<id>` where mimocode is asked for it, being a provider of the
+        # configuration a gateway way sets -- which is the driver's to spell, so what this
+        # endpoint lists is what a turn may name.
+        endpoint="MIMO_GATEWAY_URL",
         ways=(
             Way(
                 name="login",
@@ -2111,6 +2128,177 @@ PROFILES = (
                 name="key",
                 about="a MiMo key, which its own models run on",
                 asks=(Asked(env="XIAOMI_API_KEY", about="the key", secret=True),),
+            ),
+            # The vendors' own keys, each under the name mimocode's catalogue reads it by:
+            # one in the environment is a provider it lists, with that vendor's models under
+            # it, and nothing else to say. Traced on 0.1.15 with `mimo models` under each.
+            # The rest of its catalogue is `login`'s, which lists every one of them, or
+            # `env`'s, for a variable nobody has written down here.
+            Way(
+                name="anthropic-key",
+                about="an Anthropic API key, from the console",
+                asks=(Asked(env="ANTHROPIC_API_KEY", about="the key", secret=True),),
+            ),
+            Way(
+                name="openai-key",
+                about="an OpenAI API key, from the platform",
+                asks=(Asked(env="OPENAI_API_KEY", about="the key", secret=True),),
+            ),
+            # Under the SDK's own name rather than `GEMINI_API_KEY`, which its catalogue
+            # lists Google's models under and nothing then sends: a turn under that one alone
+            # stops on `Google Generative AI API key is missing`.
+            Way(
+                name="gemini-key",
+                about="a Gemini API key, from Google AI Studio",
+                asks=(
+                    Asked(
+                        env="GOOGLE_GENERATIVE_AI_API_KEY", about="the key", secret=True
+                    ),
+                ),
+            ),
+            Way(
+                name="xai-key",
+                about="an xAI API key, from its console",
+                asks=(Asked(env="XAI_API_KEY", about="the key", secret=True),),
+            ),
+            Way(
+                name="openrouter-key",
+                about="an OpenRouter key, which every model it routes to runs on",
+                asks=(Asked(env="OPENROUTER_API_KEY", about="the key", secret=True),),
+            ),
+            Way(
+                name="deepseek-key",
+                about="a DeepSeek API key, from its platform",
+                asks=(Asked(env="DEEPSEEK_API_KEY", about="the key", secret=True),),
+            ),
+            # Somebody's endpoint, as a provider of mimocode's own configuration: the one
+            # `MIMOCODE_CONFIG_CONTENT` holds, which is merged over whatever the person at this
+            # machine has configured and written nowhere. It names the answers rather than
+            # holding them -- mimocode fills `{env:NAME}` in anywhere in that text, keys and
+            # adapter included -- so the key is in one variable rather than in a second copy,
+            # and the model under it is whichever one the driver says a turn is of. The
+            # adapter is what says the protocol, and mimocode ships one per vendor: the
+            # three ways differ in nothing else.
+            Way(
+                name="openai-gateway",
+                about="an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+                asks=(
+                    Asked(env="MIMO_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="MIMO_GATEWAY_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="MIMO_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                    Asked(
+                        env="MIMO_GATEWAY_API",
+                        about=(
+                            "which of its APIs, as mimocode's adapter for it: "
+                            "@ai-sdk/openai-compatible for Chat Completions or "
+                            "@ai-sdk/openai for Responses"
+                        ),
+                        fixed="@ai-sdk/openai-compatible",
+                    ),
+                ),
+                sets=(
+                    (
+                        "MIMOCODE_CONFIG_CONTENT",
+                        (
+                            '{"provider":{"humanize":{"npm":"{env:MIMO_GATEWAY_API}",'
+                            '"options":{"baseURL":"{env:MIMO_GATEWAY_URL}",'
+                            '"apiKey":"{env:MIMO_GATEWAY_KEY}"},'
+                            '"models":{"{env:MIMO_GATEWAY_MODEL}":{}}}}}'
+                        ),
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                    "another vendor"
+                ),
+                asks=(
+                    Asked(env="MIMO_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="MIMO_GATEWAY_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="MIMO_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                ),
+                sets=(
+                    ("MIMO_GATEWAY_API", "@ai-sdk/anthropic"),
+                    (
+                        "MIMOCODE_CONFIG_CONTENT",
+                        (
+                            '{"provider":{"humanize":{"npm":"{env:MIMO_GATEWAY_API}",'
+                            '"options":{"baseURL":"{env:MIMO_GATEWAY_URL}",'
+                            '"apiKey":"{env:MIMO_GATEWAY_KEY}"},'
+                            '"models":{"{env:MIMO_GATEWAY_MODEL}":{}}}}}'
+                        ),
+                    ),
+                ),
+            ),
+            Way(
+                name="gemini-gateway",
+                about="an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
+                asks=(
+                    Asked(env="MIMO_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="MIMO_GATEWAY_KEY", about="the key it takes", secret=True
+                    ),
+                    Asked(
+                        env="MIMO_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                ),
+                sets=(
+                    ("MIMO_GATEWAY_API", "@ai-sdk/google"),
+                    (
+                        "MIMOCODE_CONFIG_CONTENT",
+                        (
+                            '{"provider":{"humanize":{"npm":"{env:MIMO_GATEWAY_API}",'
+                            '"options":{"baseURL":"{env:MIMO_GATEWAY_URL}",'
+                            '"apiKey":"{env:MIMO_GATEWAY_KEY}"},'
+                            '"models":{"{env:MIMO_GATEWAY_MODEL}":{}}}}}'
+                        ),
+                    ),
+                ),
+            ),
+            # The clouds, each a provider its catalogue lists once the variable it is
+            # switched on by is set, and signed into by the cloud's own credential chain
+            # rather than by anything asked here: Vertex by application default credentials,
+            # Bedrock by the AWS profile. Azure is its key and the resource it belongs to.
+            Way(
+                name="vertex",
+                about="Gemini and Anthropic's models on a Google Cloud project of yours",
+                asks=(
+                    Asked(env="GOOGLE_CLOUD_PROJECT", about="the project id"),
+                    Asked(
+                        env="GOOGLE_VERTEX_LOCATION",
+                        about="the region",
+                        fixed="us-central1",
+                    ),
+                ),
+            ),
+            Way(
+                name="bedrock",
+                about="the models on Amazon Bedrock, on an AWS account of yours",
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            Way(
+                name="azure",
+                about="the models on an Azure OpenAI resource of yours",
+                asks=(
+                    Asked(env="AZURE_RESOURCE_NAME", about="the resource's name"),
+                    Asked(env="AZURE_API_KEY", about="its key", secret=True),
+                ),
             ),
         ),
     ),

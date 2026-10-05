@@ -161,6 +161,18 @@ order, then `env` for every backend but `dsh`.
 | | `gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format {MCODE_GATEWAY_FORMAT} --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦, `MCODE_GATEWAY_FORMAT` ◦ (`openai-completions`; `anthropic-messages`, `openai-completions` or `openai-responses`) | |
 | `mimo` | `login` | `mimo auth login` | — | |
 | | `key` | — | `XIAOMI_API_KEY` • | |
+| | `anthropic-key` | — | `ANTHROPIC_API_KEY` • | |
+| | `openai-key` | — | `OPENAI_API_KEY` • | |
+| | `gemini-key` | — | `GOOGLE_GENERATIVE_AI_API_KEY` • | |
+| | `xai-key` | — | `XAI_API_KEY` • | |
+| | `openrouter-key` | — | `OPENROUTER_API_KEY` • | |
+| | `deepseek-key` | — | `DEEPSEEK_API_KEY` • | |
+| | `openai-gateway` | — | `MIMO_GATEWAY_URL`, `MIMO_GATEWAY_KEY` •, `MIMO_GATEWAY_MODEL`, `MIMO_GATEWAY_API` (`@ai-sdk/openai-compatible` for Chat Completions; `@ai-sdk/openai` for Responses) | `MIMOCODE_CONFIG_CONTENT` ([below](#gateways)) |
+| | `anthropic-gateway` | — | `MIMO_GATEWAY_URL`, `MIMO_GATEWAY_KEY` •, `MIMO_GATEWAY_MODEL` | `MIMO_GATEWAY_API=@ai-sdk/anthropic`, `MIMOCODE_CONFIG_CONTENT` |
+| | `gemini-gateway` | — | `MIMO_GATEWAY_URL`, `MIMO_GATEWAY_KEY` •, `MIMO_GATEWAY_MODEL` | `MIMO_GATEWAY_API=@ai-sdk/google`, `MIMOCODE_CONFIG_CONTENT` |
+| | `vertex` | — | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_VERTEX_LOCATION` (`us-central1`); signed in by application default credentials | |
+| | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | |
+| | `azure` | — | `AZURE_RESOURCE_NAME`, `AZURE_API_KEY` • | |
 | `opencode` | `login` | `opencode auth login` | — | |
 | | `wellknown` | `opencode auth login {OPENCODE_WELLKNOWN}` | `OPENCODE_WELLKNOWN` ◦ (URL answering at `/.well-known/opencode`) | |
 | | `zen` | — | `OPENCODE_API_KEY` • | |
@@ -170,6 +182,8 @@ order, then `env` for every backend but `dsh`.
 | every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
 
 - A model on an `mcode` `gateway` account is named `custom_provider:gateway/<id>`.
+- A model on a `mimo` gateway account is named by the endpoint's own id, or as `humanize/<id>`;
+  either way a turn asks `mimo` for `humanize/<id>`.
 - `mcode`'s `config.yaml` is a credential file, so a provider of it holds settings of its own.
 - `cursor-agent`'s `cli-config.json` is a credential file and also its settings.
 
@@ -377,7 +391,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_DEFAULT_MODEL`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
 | `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_OAUTH_HOST`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
 | `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
-| `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
+| `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AZURE_API_KEY`, `AZURE_RESOURCE_NAME`, `DEEPSEEK_API_KEY`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_VERTEX_LOCATION`, `GROK_CODE_XAI_API_KEY`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `MIMO_GATEWAY_API`, `MIMO_GATEWAY_KEY`, `MIMO_GATEWAY_MODEL`, `MIMO_GATEWAY_URL`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY` |
 | `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
 | `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `KIMI_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `TOGETHER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
 | `qwen` | `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
@@ -398,12 +412,32 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
 | `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
+| `mimo` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` | `MIMO_GATEWAY_URL` |
 | `qwen` | `key` | `OPENAI_BASE_URL` |
 | `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
 
 A backend with an endpoint variable has its catalogue read from the endpoint when the account
-sets it ([model catalogues](#models-json)). `pi`, `opencode` and `mimo` have none: their models are
+sets it ([model catalogues](#models-json)). `pi` and `opencode` have none: their models are
 named `provider/id`, which an endpoint's ids do not carry.
+
+A `mimo` gateway account sets `MIMOCODE_CONFIG_CONTENT` to one provider, `humanize`, whose
+adapter, URL, key and model are `{env:…}` references `mimo` fills in itself:
+
+```json
+{"provider":{"humanize":{"npm":"{env:MIMO_GATEWAY_API}","options":{"baseURL":"{env:MIMO_GATEWAY_URL}","apiKey":"{env:MIMO_GATEWAY_KEY}"},"models":{"{env:MIMO_GATEWAY_MODEL}":{}}}}}
+```
+
+A turn under it sets `MIMO_GATEWAY_MODEL` to the turn's model, without a leading `humanize/`,
+and asks for `--model humanize/<id>`, so every id the endpoint lists can be run.
+`MIMO_GATEWAY_URL` is the API base the adapter appends to: `…/v1` for OpenAI and Anthropic,
+`…/v1beta` for Gemini.
+Under a gateway account every model is the gateway's, `xiaomi/…` included. The catalogue is
+read from `<MIMO_GATEWAY_URL>/models` as for any endpoint; a Gemini endpoint that does not answer
+there in OpenAI's shape falls back to `mimo models`, which lists the account's own
+`humanize/<MIMO_GATEWAY_MODEL>`.
+
+A `mimo` `vertex`, `bedrock` or `azure` account adds no host under a cut network: their hosts
+are per region or resource.
 
 Codex reads a gateway from configuration, not variables. A turn under a codex `gateway`
 account appends, and no `config.toml` is written:
@@ -456,7 +490,8 @@ A credential is the vendor's, so an account made for one backend can often run a
 - A login account holds files, not variables, so it copies nowhere.
 - `copies` of an account `cli` cannot run raises `ValueError: claude/work cannot be used with codex`.
 - Example: a `claude` `key` account (`ANTHROPIC_API_KEY`) serves `pi`, `opencode` and `mimo`;
-  each copy is recorded with way `env`.
+  the `pi` and `opencode` copies are recorded with way `env`, the `mimo` one with
+  `anthropic-key`.
 
 The TUI's account form offers an `also for <cli>` row per backend in `serves()`.
 

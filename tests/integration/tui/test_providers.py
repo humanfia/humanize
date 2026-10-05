@@ -1135,11 +1135,12 @@ async def test_an_account_that_travels_nowhere_is_not_asked_about() -> None:
         assert not [one for one in rows(app) if one.startswith("also:")]
 
         await _chooses(app, driver, "cli", "dsh")
-        # DeepSeek's key is read by pi and opencode, so those are asked about -- off, since
-        # neither is installed here -- and left off.
+        # DeepSeek's key is read by pi, opencode and mimocode, so those are asked about --
+        # off, since none is installed here -- and left off.
         assert [one for one in rows(app) if one.startswith("also:")] == [
             "also:pi",
             "also:opencode",
+            "also:mimo",
         ]
         await _writes(app, driver, "name", *"only")
         await _writes(app, driver, "DEEPSEEK_API_KEY", *"sk-only")

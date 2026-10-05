@@ -116,7 +116,8 @@ variable, the model list is read from `GET <endpoint>/models`.
 | `grok` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `KIMI_MODEL_BASE_URL` |
 | `qwen` | `OPENAI_BASE_URL` |
-| `pi`, `opencode`, `mimo`, `cursor-agent`, `mcode`, `acp` | none |
+| `mimo` | `MIMO_GATEWAY_URL` |
+| `pi`, `opencode`, `cursor-agent`, `mcode`, `acp` | none |
 
 **Reachable hosts under `online` `NONE`.** The hosts the CLI's model and sign-in are at, plus
 the host (and port) of every variable in the turn's environment whose name ends in `_URL`,
@@ -143,7 +144,7 @@ A region or resource must be a DNS label.
 | `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `KIMI_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `TOGETHER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
 | `qwen` | `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
 | `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
-| `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
+| `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AZURE_API_KEY`, `AZURE_RESOURCE_NAME`, `DEEPSEEK_API_KEY`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_VERTEX_LOCATION`, `GROK_CODE_XAI_API_KEY`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `MIMO_GATEWAY_API`, `MIMO_GATEWAY_KEY`, `MIMO_GATEWAY_MODEL`, `MIMO_GATEWAY_URL`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY` |
 | `cursor-agent` | `CURSOR_API_BASE_URL`, `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY`, `CURSOR_API_URL`, `CURSOR_AUTH_TOKEN`, `CURSOR_LOCAL_AGENT_API_KEY` |
 | `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
 | `acp` | none |
@@ -172,6 +173,7 @@ is read from the turn's environment to know which files to watch.
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | every `claude` turn | `1` |
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`/`mimo` turns with a rung, web switch or fence to express | a JSON permission table |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` turns whose fence does not allow reading `~/.claude.json` | `1` |
+| `MIMO_GATEWAY_MODEL` | `mimo` turns under a gateway account | the turn's model, without a leading `humanize/` |
 | `QWEN_CODE_SYSTEM_SETTINGS_PATH` | every `qwen` turn | a per-session settings file |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` turns on this machine, unless already set | `$TMPDIR/humanize-<uid>/compiled/pi`, `…/compiled/qwen` |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT` | `kimi`, `pi`, `qwen`, `mimo` turns on this machine with an `on_pre_tool_use` hook hung | `--require <preload>` appended; the preload's report socket (the preload sets `HMZ_PRELOAD_IN` itself and removes all three from programs the CLI starts) |

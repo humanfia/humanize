@@ -195,7 +195,8 @@ and a negative cap (`a budget cannot be less than nothing`).
 | --- | --- | --- |
 | `agy`, `claude`, `codex`, `dsh`, `grok`, `qwen` | the id the CLI or its endpoint serves | `claude-opus-5`, `gpt-5.6-sol`, `deepseek-v4-flash` |
 | `kimi` | Kimi Code's `provider/id` | `kimi-code/k3` |
-| `pi`, `opencode`, `mimo` | `provider/id` | `openai-codex/gpt-5.5`, `opencode/big-pickle` |
+| `pi`, `opencode` | `provider/id` | `openai-codex/gpt-5.5`, `opencode/big-pickle` |
+| `mimo` | `provider/id`; under a gateway account, the id its endpoint serves (sent as `humanize/<id>`) | `xiaomi/mimo-v2.5`, `gpt-5.6-sol` |
 | `cursor-agent` | an id from the account's list, the rung and tier written into it | `composer-2.5-high-fast` |
 | `mcode` | `minimax/<id>`, or `custom_provider:<name>/<id>` for an added provider; `""` for its configured default | `minimax/MiniMax-M3` |
 | an ACP CLI | `as configured` | |
@@ -572,7 +573,7 @@ network](/reference/providers#hosts-reachable-under-a-cut-network)).
 | `grok` | `cli-chat-proxy.grok.com`, `auth.x.ai`, `api.x.ai` |
 | `kimi` | `api.kimi.com`, `auth.kimi.com`, `api.kimi.ai`, `auth.kimi.ai`, `api.moonshot.ai`, `api.moonshot.cn` |
 | `mcode` | `agent.minimax.io`, `agent.minimaxi.com`, `agent.minimax.cn`, `api.minimax.io`, `api.minimaxi.com`, `account.minimax.io`, `account.minimax.cn` (a cut network is refused anyway) |
-| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
 | `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`; plus the `options.baseURL` of the provider `opencode/opencode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
 | `pi` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`; plus the `baseUrl` of each provider pi's own `models.json` declares for the model |
 | `qwen` | `chat.qwen.ai`, `portal.qwen.ai`, `dashscope.aliyuncs.com`, `dashscope-intl.aliyuncs.com` |
