@@ -32,13 +32,13 @@ def test_an_account_written_from_here_is_one_the_store_reads_back() -> None:
     made = held.write(
         "claude",
         "mine",
-        way="gateway",
+        way="anthropic-gateway",
         env={"ANTHROPIC_BASE_URL": "https://example.invalid/anthropic"},
         args=("--flag", "value"),
     )
 
     assert providers.find("claude", "mine") == made
-    assert made.way == "gateway"
+    assert made.way == "anthropic-gateway"
     assert made.env["ANTHROPIC_BASE_URL"] == "https://example.invalid/anthropic"
     assert made.args == ("--flag", "value")
 
@@ -131,16 +131,16 @@ def test_the_ways_in_a_backend_offers_are_the_ones_it_is_asked_for() -> None:
 def test_a_way_in_is_found_by_name_and_a_name_it_does_not_offer_is_nothing() -> None:
     held = Hmz().accounts
 
-    way = held.way("claude", "gateway")
+    way = held.way("claude", "anthropic-gateway")
 
     assert way is not None
-    assert way.name == "gateway"
+    assert way.name == "anthropic-gateway"
     assert held.way("claude", "not-a-way") is None
 
 
 def test_what_a_way_in_still_has_to_be_told_is_what_was_not_answered() -> None:
     held = Hmz().accounts
-    way = held.way("claude", "gateway")
+    way = held.way("claude", "anthropic-gateway")
     assert way is not None
 
     assert held.asks(way, {}) == ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]
@@ -202,7 +202,7 @@ def test_the_other_backends_an_account_could_run_are_the_vendor_s_rather_than_th
 def test_an_account_that_cannot_travel_says_there_is_nowhere_for_it_to_go() -> None:
     """A gateway is reached under one backend's own variables and nothing else reads them."""
     held = Hmz().accounts
-    gateway = held.way("claude", "gateway")
+    gateway = held.way("claude", "anthropic-gateway")
     assert gateway is not None
     made = held.make(
         "claude",

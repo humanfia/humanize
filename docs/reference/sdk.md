@@ -317,7 +317,7 @@ a backend. An account `name` of `""` is the machine's own login (*as local*).
 | --- | --- | --- |
 | `all(cli: str = "")` | `list[Provider]` | Every account, or one backend's; by backend, then name. |
 | `find(cli: str, name: str)` | `Provider \| None` | |
-| `ways(cli: str)` | `tuple[Way, ...]` | How the backend can be signed into, in offer order (for `claude`: `login`, `token`, `key`, `gateway`, `bedrock`, `vertex`, `env`). |
+| `ways(cli: str)` | `tuple[Way, ...]` | How the backend can be signed into, in offer order (for `claude`: `login`, `console`, `token`, `key`, `wif`, `anthropic-gateway`, `bedrock-gateway`, `vertex-gateway`, `bedrock`, `bedrock-key`, `mantle`, `vertex`, `foundry`, `aws`, `google-cloud`, `env`). |
 | `way(cli: str, name: str)` | `Way \| None` | |
 | `asks(way: Way, given: Mapping[str, str])` | `list[str]` | Variables still unanswered. |
 | `make(cli, name, way: Way, answers=None)` | `Provider` | Writes an account from a way's answers; makes its directory. `ValueError`: bad backend or name. `OSError`. |

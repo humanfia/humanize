@@ -131,11 +131,20 @@ order, then `env` for every backend but `dsh`.
 | Backend | Way | Runs | Asks (secret •, not kept ◦, default in parentheses) | Sets |
 | --- | --- | --- | --- | --- |
 | `claude` | `login` | `claude auth login` | — | |
+| | `console` | `claude auth login --console` | — | |
 | | `token` | — | `CLAUDE_CODE_OAUTH_TOKEN` • | |
 | | `key` | — | `ANTHROPIC_API_KEY` • | |
-| | `gateway` | — | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` • | |
+| | `wif` | — | `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID`, `ANTHROPIC_IDENTITY_TOKEN_FILE` (a file path) | |
+| | `anthropic-gateway` | — | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` • | |
+| | `bedrock-gateway` | — | `ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` • | `CLAUDE_CODE_USE_BEDROCK=1`, `CLAUDE_CODE_SKIP_BEDROCK_AUTH=1` |
+| | `vertex-gateway` | — | `ANTHROPIC_VERTEX_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` •, `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION` (`us-east5`) | `CLAUDE_CODE_USE_VERTEX=1`, `CLAUDE_CODE_SKIP_VERTEX_AUTH=1` |
 | | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | `CLAUDE_CODE_USE_BEDROCK=1` |
+| | `bedrock-key` | — | `AWS_BEARER_TOKEN_BEDROCK` •, `AWS_REGION` (`us-east-1`) | `CLAUDE_CODE_USE_BEDROCK=1` |
+| | `mantle` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | `CLAUDE_CODE_USE_MANTLE=1` |
 | | `vertex` | — | `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION` (`us-east5`) | `CLAUDE_CODE_USE_VERTEX=1` |
+| | `foundry` | — | `ANTHROPIC_FOUNDRY_RESOURCE`, `ANTHROPIC_FOUNDRY_API_KEY` • | `CLAUDE_CODE_USE_FOUNDRY=1` |
+| | `aws` | — | `ANTHROPIC_AWS_WORKSPACE_ID`, `AWS_REGION` (`us-east-1`), `ANTHROPIC_AWS_API_KEY` • | `CLAUDE_CODE_USE_ANTHROPIC_AWS=1` |
+| | `google-cloud` | — | `ANTHROPIC_GOOGLE_CLOUD_PROJECT`, `ANTHROPIC_GOOGLE_CLOUD_LOCATION` (`global`), `ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID` | `CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD=1` |
 | `agy` | `login` | `agy` (interactive) | — | |
 | | `key` | — | `GEMINI_API_KEY` • | |
 | | `adc` | — | `GOOGLE_APPLICATION_CREDENTIALS` (a file path) | `AGY_ADC_AUTH=1` |
@@ -180,6 +189,10 @@ order, then `env` for every backend but `dsh`.
 | | `vertex-key` | — | `GOOGLE_API_KEY` • (Vertex AI express mode) | appends `--auth-type vertex-ai` |
 | every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
 
+- `claude`'s `aws` and `google-cloud` are Claude Platform on AWS and on Google Cloud
+  (Anthropic's API, billed through that cloud); `mantle` is Amazon Bedrock's Mantle endpoint,
+  whose model ids are `anthropic.claude-…`. `google-cloud` and `vertex` sign with Google
+  Application Default Credentials, `bedrock` and `mantle` with the AWS profile.
 - A model on an `mcode` `gateway` account is named `custom_provider:gateway/<id>`.
 - `mcode`'s `config.yaml` is a credential file, so a provider of it holds settings of its own.
 - `cursor-agent`'s `cli-config.json` is a credential file and also its settings.
@@ -384,7 +397,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | Backend | `hushes()` |
 | --- | --- |
 | `agy` | `AGY_ADC_AUTH`, `CLOUD_CODE_URL`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_GEMINI_BASE_URL` |
-| `claude` | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_CONFIG_DIR`, `ANTHROPIC_CUSTOM_HEADERS`, `ANTHROPIC_MODEL`, `ANTHROPIC_OAUTH_TOKEN`, `ANTHROPIC_VERTEX_PROJECT_ID`, `AWS_PROFILE`, `AWS_REGION`, `CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`, `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_FOUNDRY`, `CLAUDE_CODE_USE_GATEWAY`, `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` |
+| `claude` | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_AWS_API_KEY`, `ANTHROPIC_AWS_BASE_URL`, `ANTHROPIC_AWS_WORKSPACE_ID`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_BEDROCK_MANTLE_BASE_URL`, `ANTHROPIC_CONFIG_DIR`, `ANTHROPIC_CUSTOM_HEADERS`, `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_FOUNDRY_API_KEY`, `ANTHROPIC_FOUNDRY_AUTH_TOKEN`, `ANTHROPIC_FOUNDRY_BASE_URL`, `ANTHROPIC_FOUNDRY_RESOURCE`, `ANTHROPIC_GOOGLE_CLOUD_BASE_URL`, `ANTHROPIC_GOOGLE_CLOUD_LOCATION`, `ANTHROPIC_GOOGLE_CLOUD_PROJECT`, `ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID`, `ANTHROPIC_IDENTITY_TOKEN`, `ANTHROPIC_IDENTITY_TOKEN_FILE`, `ANTHROPIC_MODEL`, `ANTHROPIC_OAUTH_TOKEN`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_PROFILE`, `ANTHROPIC_SCOPE`, `ANTHROPIC_SERVICE_ACCOUNT_ID`, `ANTHROPIC_VERTEX_BASE_URL`, `ANTHROPIC_VERTEX_PROJECT_ID`, `ANTHROPIC_WORKSPACE_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`, `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`, `CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH`, `CLAUDE_CODE_SKIP_ANTHROPIC_GOOGLE_CLOUD_AUTH`, `CLAUDE_CODE_SKIP_BEDROCK_AUTH`, `CLAUDE_CODE_SKIP_FOUNDRY_AUTH`, `CLAUDE_CODE_SKIP_MANTLE_AUTH`, `CLAUDE_CODE_SKIP_VERTEX_AUTH`, `CLAUDE_CODE_USE_ANTHROPIC_AWS`, `CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_FOUNDRY`, `CLAUDE_CODE_USE_GATEWAY`, `CLAUDE_CODE_USE_MANTLE`, `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` |
 | `codex` | `CODEX_ACCESS_TOKEN`, `CODEX_API_KEY`, `CODEX_AUTHAPI_BASE_URL`, `CODEX_PROVIDER_KEY`, `CODEX_PROVIDER_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` |
 | `cursor-agent` | `CURSOR_API_BASE_URL`, `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY`, `CURSOR_API_URL`, `CURSOR_AUTH_TOKEN`, `CURSOR_LOCAL_AGENT_API_KEY` |
 | `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL`, `DSH_GATEWAY_API` |
@@ -405,7 +418,9 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 
 | Backend | Gateway way | Endpoint variable (`Profile.endpoint`) |
 | --- | --- | --- |
-| `claude` | `gateway` | `ANTHROPIC_BASE_URL` |
+| `claude` | `anthropic-gateway` | `ANTHROPIC_BASE_URL` |
+| | `bedrock-gateway` | none (its URL is `ANTHROPIC_BEDROCK_BASE_URL`) |
+| | `vertex-gateway` | none (its URL is `ANTHROPIC_VERTEX_BASE_URL`) |
 | `codex` | `gateway` | `CODEX_PROVIDER_URL` |
 | `cursor-agent` | `gateway` | none |
 | `dsh` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` | `DEEPSEEK_BASE_URL` |
@@ -472,15 +487,17 @@ it there, so a hushed variable opens no host:
 1. `Profile.hosts` (see [Agents › Network hosts](/reference/agents#network-hosts));
 2. the host (and `:port`, where one is written) of the endpoint variable and of every
    `ambient` variable ending `_URL`, `_BASE`, `_HOST`, `_ENDPOINT`, `_ORIGIN` or `_ISSUER`;
-3. for `claude` with `CLAUDE_CODE_USE_BEDROCK`, `…_VERTEX` or `…_FOUNDRY` set, the cloud's
-   hosts (below) and the host of `ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_VERTEX_BASE_URL` or
-   `ANTHROPIC_FOUNDRY_BASE_URL`.
+3. for `claude` with one of the switches below set, the cloud's hosts and the host of the
+   switch's base URL variable.
 
-| Switch | Hosts | Region variable (default) |
-| --- | --- | --- |
-| `CLAUDE_CODE_USE_BEDROCK` | `bedrock-runtime.{r}.amazonaws.com`, `bedrock.{r}.amazonaws.com`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) |
-| `CLAUDE_CODE_USE_VERTEX` | `{r}-aiplatform.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` | `CLOUD_ML_REGION` (`us-east5`) |
-| `CLAUDE_CODE_USE_FOUNDRY` | `{r}.services.ai.azure.com` | `ANTHROPIC_FOUNDRY_RESOURCE` (none) |
+| Switch | Hosts | Region variable (default) | Base URL variable |
+| --- | --- | --- | --- |
+| `CLAUDE_CODE_USE_BEDROCK` | `bedrock-runtime.{r}.amazonaws.com`, `bedrock.{r}.amazonaws.com`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) | `ANTHROPIC_BEDROCK_BASE_URL` |
+| `CLAUDE_CODE_USE_VERTEX` | `{r}-aiplatform.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` | `CLOUD_ML_REGION` (`us-east5`) | `ANTHROPIC_VERTEX_BASE_URL` |
+| `CLAUDE_CODE_USE_FOUNDRY` | `{r}.services.ai.azure.com` | `ANTHROPIC_FOUNDRY_RESOURCE` (none) | `ANTHROPIC_FOUNDRY_BASE_URL` |
+| `CLAUDE_CODE_USE_MANTLE` | `bedrock-mantle.{r}.api.aws`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) | `ANTHROPIC_BEDROCK_MANTLE_BASE_URL` |
+| `CLAUDE_CODE_USE_ANTHROPIC_AWS` | `aws-external-anthropic.{r}.api.aws`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) | `ANTHROPIC_AWS_BASE_URL` |
+| `CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD` | `claude.googleapis.com`, `oauth2.googleapis.com` | none | `ANTHROPIC_GOOGLE_CLOUD_BASE_URL` |
 
 A region value that is not one DNS label adds no cloud host. Example: a `claude` account with
 `ANTHROPIC_BASE_URL=https://gw.example:8443/v1` reaches `api.anthropic.com`,

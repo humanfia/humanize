@@ -48,7 +48,12 @@ const BACKENDS: Backend[] = [
     cli: 'claude',
     called: 'Claude Code',
     ways: [
-      { name: 'login', about: 'sign in to an Anthropic account', runs: 'claude auth login' },
+      { name: 'login', about: 'sign in to a Claude subscription', runs: 'claude auth login' },
+      {
+        name: 'console',
+        about: 'sign in to an Anthropic Console account, billed per token',
+        runs: 'claude auth login --console',
+      },
       {
         name: 'token',
         about: 'a long-lived token, as claude setup-token prints one',
@@ -60,9 +65,36 @@ const BACKENDS: Backend[] = [
         asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }],
       },
       {
-        name: 'gateway',
-        about: GATEWAY,
+        name: 'wif',
+        about: 'Workload Identity Federation: a token another identity provider issues, traded for Anthropic’s',
+        asks: [
+          { env: 'ANTHROPIC_FEDERATION_RULE_ID' },
+          { env: 'ANTHROPIC_ORGANIZATION_ID' },
+          { env: 'ANTHROPIC_SERVICE_ACCOUNT_ID' },
+          { env: 'ANTHROPIC_IDENTITY_TOKEN_FILE' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
         asks: [{ env: 'ANTHROPIC_BASE_URL' }, { env: 'ANTHROPIC_AUTH_TOKEN', secret: true }],
+      },
+      {
+        name: 'bedrock-gateway',
+        about: 'an endpoint speaking Amazon Bedrock’s API, which holds the AWS credentials itself',
+        asks: [{ env: 'ANTHROPIC_BEDROCK_BASE_URL' }, { env: 'ANTHROPIC_AUTH_TOKEN', secret: true }],
+        sets: ['CLAUDE_CODE_USE_BEDROCK=1', 'CLAUDE_CODE_SKIP_BEDROCK_AUTH=1'],
+      },
+      {
+        name: 'vertex-gateway',
+        about: 'an endpoint speaking Vertex AI’s API, which holds the Google Cloud credentials itself',
+        asks: [
+          { env: 'ANTHROPIC_VERTEX_BASE_URL' },
+          { env: 'ANTHROPIC_AUTH_TOKEN', secret: true },
+          { env: 'ANTHROPIC_VERTEX_PROJECT_ID' },
+          { env: 'CLOUD_ML_REGION', fixed: 'us-east5' },
+        ],
+        sets: ['CLAUDE_CODE_USE_VERTEX=1', 'CLAUDE_CODE_SKIP_VERTEX_AUTH=1'],
       },
       {
         name: 'bedrock',
@@ -71,10 +103,48 @@ const BACKENDS: Backend[] = [
         sets: ['CLAUDE_CODE_USE_BEDROCK=1'],
       },
       {
+        name: 'bedrock-key',
+        about: 'Anthropic’s models on Amazon Bedrock, by a Bedrock API key',
+        asks: [{ env: 'AWS_BEARER_TOKEN_BEDROCK', secret: true }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+        sets: ['CLAUDE_CODE_USE_BEDROCK=1'],
+      },
+      {
+        name: 'mantle',
+        about: 'Anthropic’s models on Amazon Bedrock’s Mantle endpoint, on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+        sets: ['CLAUDE_CODE_USE_MANTLE=1'],
+      },
+      {
         name: 'vertex',
         about: 'Anthropic’s models on a Google Cloud project of yours',
         asks: [{ env: 'ANTHROPIC_VERTEX_PROJECT_ID' }, { env: 'CLOUD_ML_REGION', fixed: 'us-east5' }],
         sets: ['CLAUDE_CODE_USE_VERTEX=1'],
+      },
+      {
+        name: 'foundry',
+        about: 'Anthropic’s models on a Microsoft Foundry resource of yours',
+        asks: [{ env: 'ANTHROPIC_FOUNDRY_RESOURCE' }, { env: 'ANTHROPIC_FOUNDRY_API_KEY', secret: true }],
+        sets: ['CLAUDE_CODE_USE_FOUNDRY=1'],
+      },
+      {
+        name: 'aws',
+        about: 'Claude Platform on AWS: Anthropic’s API, billed through AWS',
+        asks: [
+          { env: 'ANTHROPIC_AWS_WORKSPACE_ID' },
+          { env: 'AWS_REGION', fixed: 'us-east-1' },
+          { env: 'ANTHROPIC_AWS_API_KEY', secret: true },
+        ],
+        sets: ['CLAUDE_CODE_USE_ANTHROPIC_AWS=1'],
+      },
+      {
+        name: 'google-cloud',
+        about: 'Claude Platform on Google Cloud: Anthropic’s API, billed through Google Cloud',
+        asks: [
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_PROJECT' },
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_LOCATION', fixed: 'global' },
+          { env: 'ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID' },
+        ],
+        sets: ['CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD=1'],
       },
       ENV,
     ],

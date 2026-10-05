@@ -1015,9 +1015,10 @@ PROFILES = (
         name="claude",
         # The API, where a subscription's sign-in is refreshed -- `TOKEN_URL` in the binary's
         # own OAuth block is `platform.claude.com/v1/oauth/token` -- and the subscription's
-        # origin, which the same block names. Bedrock and Vertex are a cloud's hosts rather
-        # than Anthropic's, and :func:`reachable` names them from the region an account of
-        # either was made with.
+        # origin, which the same block names. Bedrock, Mantle, Vertex, Foundry and the Claude
+        # Platform on AWS and on Google Cloud are a cloud's hosts rather than Anthropic's, and
+        # :func:`reachable` names them from the region or resource an account of one was made
+        # with.
         hosts=("api.anthropic.com", "platform.claude.com", "claude.ai"),
         installs="npm i -g @anthropic-ai/claude-code",
         # `WebSearch` and `WebFetch` are tools like any other to Claude, and
@@ -1088,32 +1089,76 @@ PROFILES = (
             "~/.claude.json",
             "config/anthropic",
         ),
-        # Everything else Claude Code would read an account out of: the two the ways already
-        # name are there too, through `accounts()`. `ANTHROPIC_CONFIG_DIR` is an account for
-        # the reason the others are -- it moves the shared configuration directory whole, and
-        # a turn that read one this table had never heard of would be the wrong account.
+        # Everything else Claude Code would read an account out of: what the ways already name
+        # is there too, through `accounts()`. `ANTHROPIC_CONFIG_DIR` is an account for the
+        # reason the others are -- it moves the shared configuration directory whole, and a
+        # turn that read one this table had never heard of would be the wrong account.
+        #
+        # The rest are what 2.1.288's docs and binary say an account is beside the answers its
+        # ways ask for. Every `CLAUDE_CODE_USE_*` switch, because :func:`reachable` follows a
+        # cloud only by a switch written here, and a switch left in somebody's shell moves
+        # every turn onto that cloud. Every base URL a cloud's requests can be moved to, which
+        # is a gateway like any other to the fence. The `SKIP_*_AUTH` beside each, which is
+        # what a gateway in front of that cloud is told to sign nothing with. Foundry's bearer
+        # token, which outranks its key. And an Anthropic profile -- `ANTHROPIC_PROFILE`, or
+        # the federation variables the `wif` way does not ask for -- which the binary trades
+        # for a token of its own, and which outranks a subscription signed in to.
         ambient=(
+            "ANTHROPIC_AWS_BASE_URL",
+            "ANTHROPIC_BEDROCK_MANTLE_BASE_URL",
             "ANTHROPIC_CONFIG_DIR",
             "ANTHROPIC_CUSTOM_HEADERS",
+            "ANTHROPIC_FOUNDRY_AUTH_TOKEN",
+            "ANTHROPIC_FOUNDRY_BASE_URL",
+            "ANTHROPIC_GOOGLE_CLOUD_BASE_URL",
+            "ANTHROPIC_IDENTITY_TOKEN",
             "ANTHROPIC_MODEL",
+            "ANTHROPIC_PROFILE",
+            "ANTHROPIC_SCOPE",
+            "ANTHROPIC_VERTEX_BASE_URL",
+            "ANTHROPIC_WORKSPACE_ID",
             "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
             "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
             "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR",
+            "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH",
+            "CLAUDE_CODE_SKIP_ANTHROPIC_GOOGLE_CLOUD_AUTH",
+            "CLAUDE_CODE_SKIP_BEDROCK_AUTH",
+            "CLAUDE_CODE_SKIP_FOUNDRY_AUTH",
+            "CLAUDE_CODE_SKIP_MANTLE_AUTH",
+            "CLAUDE_CODE_SKIP_VERTEX_AUTH",
+            "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+            "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
+            "CLAUDE_CODE_USE_BEDROCK",
             "CLAUDE_CODE_USE_FOUNDRY",
             "CLAUDE_CODE_USE_GATEWAY",
+            "CLAUDE_CODE_USE_MANTLE",
             "CLAUDE_CODE_USE_VERTEX",
-            "CLAUDE_CODE_USE_BEDROCK",
         ),
-        # Where a turn actually goes when it is not going to Anthropic: the gateway way sets
-        # it, and Claude Code sends every request of that turn there under the id it was
-        # given. Both protocols list what is behind it the same way, so what it serves is
-        # what a turn may name.
+        # Where a turn actually goes when it is not going to Anthropic: the
+        # `anthropic-gateway` way sets it, and Claude Code sends every request of that turn
+        # there under the id it was given. Both protocols list what is behind it the same way,
+        # so what it serves is what a turn may name. The cloud gateways have base URLs of
+        # their own, and none of them answers `/v1/models` in a shape this reads.
         endpoint="ANTHROPIC_BASE_URL",
+        # Sign-ins first, then a credential of Anthropic's own, then an endpoint of somebody
+        # else's, then a cloud's -- each set up the way Claude Code's own docs set it up, and
+        # each checked against what 2.1.288 reads: `strings` of the binary names every
+        # variable here.
         ways=(
             Way(
                 name="login",
-                about="sign in to an Anthropic account, as `claude auth login` does",
+                about="sign in to a Claude subscription, as `claude auth login` does",
                 argv=("claude", "auth", "login"),
+            ),
+            # The same sign-in, onto the other kind of Anthropic account: the Console's, billed
+            # per token. What it leaves behind is either an Anthropic profile under
+            # `config/anthropic` or a key Claude Code minted for itself -- it asks which -- and
+            # both are among the places `creds` keeps.
+            Way(
+                name="console",
+                about="sign in to an Anthropic Console account, billed per token, as "
+                "`claude auth login --console` does",
+                argv=("claude", "auth", "login", "--console"),
             ),
             Way(
                 name="token",
@@ -1137,9 +1182,41 @@ PROFILES = (
                     ),
                 ),
             ),
+            # Workload Identity Federation: no secret of Anthropic's at all, but a token some
+            # other identity provider writes to a file and keeps fresh, which Claude Code
+            # trades at `api.anthropic.com` for one of Anthropic's. The binary takes this path
+            # once the rule and the organization are both set; the service account is who the
+            # exchange asks to act as, and the file is re-read on every exchange, which is why
+            # it is a path rather than the token. `ANTHROPIC_WORKSPACE_ID` is only for a rule
+            # that spans several workspaces, and is an `env` answer for the account that has
+            # one of those.
             Way(
-                name="gateway",
-                about=_GATEWAY,
+                name="wif",
+                about="Workload Identity Federation: a token another identity provider "
+                "issues, traded for Anthropic's",
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_FEDERATION_RULE_ID",
+                        about="the federation rule, as `fdrl_...`",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_ORGANIZATION_ID",
+                        about="the Anthropic organization's id",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_SERVICE_ACCOUNT_ID",
+                        about="the service account to act as, as `svac_...`",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_IDENTITY_TOKEN_FILE",
+                        about="the file the identity provider writes its token to",
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about="an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                "another vendor",
                 asks=(
                     Asked(
                         env="ANTHROPIC_BASE_URL",
@@ -1149,15 +1226,94 @@ PROFILES = (
                     # the key, and it is the one an endpoint of somebody else's takes.
                     Asked(
                         env="ANTHROPIC_AUTH_TOKEN",
-                        about="the token it takes",
+                        about="the key it takes",
                         secret=True,
                     ),
+                ),
+            ),
+            # A gateway in front of Bedrock, speaking Bedrock's own InvokeModel rather than
+            # Anthropic's protocol: the requests are Bedrock's, at `/model/<id>/invoke...`, and
+            # the gateway is what holds AWS's credentials -- which is what skipping the signing
+            # says. Its own key goes as a bearer, and only while no Bedrock API key is set: one
+            # would be sent in its place, which is why that is among what a turn is hushed of.
+            Way(
+                name="bedrock-gateway",
+                about="an endpoint speaking Amazon Bedrock's API, which holds the AWS "
+                "credentials itself",
+                sets=(
+                    ("CLAUDE_CODE_USE_BEDROCK", "1"),
+                    ("CLAUDE_CODE_SKIP_BEDROCK_AUTH", "1"),
+                ),
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_BEDROCK_BASE_URL",
+                        about="where it is, as a URL",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_AUTH_TOKEN",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                ),
+            ),
+            # The same in front of Vertex, whose paths name a project and a region -- so those
+            # are asked as Vertex itself would ask them, and reach the gateway in the path of
+            # every request.
+            Way(
+                name="vertex-gateway",
+                about="an endpoint speaking Vertex AI's API, which holds the Google Cloud "
+                "credentials itself",
+                sets=(
+                    ("CLAUDE_CODE_USE_VERTEX", "1"),
+                    ("CLAUDE_CODE_SKIP_VERTEX_AUTH", "1"),
+                ),
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_VERTEX_BASE_URL",
+                        about="where it is, as a URL",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_AUTH_TOKEN",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(env="ANTHROPIC_VERTEX_PROJECT_ID", about="the project id"),
+                    Asked(env="CLOUD_ML_REGION", about="the region", fixed="us-east5"),
                 ),
             ),
             Way(
                 name="bedrock",
                 about="Anthropic's models on an AWS account of yours",
                 sets=(("CLAUDE_CODE_USE_BEDROCK", "1"),),
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            # Bedrock's own API keys, which are a bearer rather than a signature and so need
+            # no AWS profile at all.
+            Way(
+                name="bedrock-key",
+                about="Anthropic's models on Amazon Bedrock, by a Bedrock API key",
+                sets=(("CLAUDE_CODE_USE_BEDROCK", "1"),),
+                asks=(
+                    Asked(
+                        env="AWS_BEARER_TOKEN_BEDROCK",
+                        about="the Bedrock API key",
+                        secret=True,
+                    ),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            # Bedrock's other endpoint, `bedrock-mantle.<region>.api.aws`, which serves
+            # Anthropic's own Messages API rather than InvokeModel and has a lineup of its own:
+            # its ids are `anthropic.claude-...`, with no version after them. The credentials
+            # are the AWS ones Bedrock takes.
+            Way(
+                name="mantle",
+                about="Anthropic's models on Amazon Bedrock's Mantle endpoint, on an AWS "
+                "account of yours",
+                sets=(("CLAUDE_CODE_USE_MANTLE", "1"),),
                 asks=(
                     Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
                     Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
@@ -1170,6 +1326,68 @@ PROFILES = (
                 asks=(
                     Asked(env="ANTHROPIC_VERTEX_PROJECT_ID", about="the project id"),
                     Asked(env="CLOUD_ML_REGION", about="the region", fixed="us-east5"),
+                ),
+            ),
+            # Microsoft Foundry, by the resource's key. A resource rather than a URL: Claude
+            # Code builds `<resource>.services.ai.azure.com` itself and refuses a host here.
+            # With no key it falls back to Azure's own credential chain, which is an `env`
+            # account.
+            Way(
+                name="foundry",
+                about="Anthropic's models on a Microsoft Foundry resource of yours",
+                sets=(("CLAUDE_CODE_USE_FOUNDRY", "1"),),
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_FOUNDRY_RESOURCE", about="the resource's name"
+                    ),
+                    Asked(
+                        env="ANTHROPIC_FOUNDRY_API_KEY",
+                        about="the resource's API key",
+                        secret=True,
+                    ),
+                ),
+            ),
+            # Claude Platform on AWS: Anthropic's own API, billed through AWS Marketplace, at
+            # `aws-external-anthropic.<region>.api.aws`. Every request names the workspace; the
+            # workspace's key outranks any AWS credentials, and an account that signs with
+            # those instead is `ANTHROPIC_AWS_WORKSPACE_ID` and `AWS_PROFILE` written as `env`.
+            Way(
+                name="aws",
+                about="Claude Platform on AWS: Anthropic's API, billed through AWS",
+                sets=(("CLAUDE_CODE_USE_ANTHROPIC_AWS", "1"),),
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_AWS_WORKSPACE_ID",
+                        about="the workspace, as `wrkspc_...`",
+                    ),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                    Asked(
+                        env="ANTHROPIC_AWS_API_KEY",
+                        about="the workspace's API key",
+                        secret=True,
+                    ),
+                ),
+            ),
+            # Claude Platform on Google Cloud, the same arrangement at `claude.googleapis.com`,
+            # signed with Google's Application Default Credentials the way Vertex is. Not in
+            # Claude Code's docs as of 2.1.288: the variables are the ones its bundled SDK
+            # reads, and `global` is the location that SDK takes when it is told none.
+            Way(
+                name="google-cloud",
+                about="Claude Platform on Google Cloud: Anthropic's API, billed through "
+                "Google Cloud",
+                sets=(("CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD", "1"),),
+                asks=(
+                    Asked(env="ANTHROPIC_GOOGLE_CLOUD_PROJECT", about="the project id"),
+                    Asked(
+                        env="ANTHROPIC_GOOGLE_CLOUD_LOCATION",
+                        about="the location",
+                        fixed="global",
+                    ),
+                    Asked(
+                        env="ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID",
+                        about="the workspace, as `wrkspc_...`",
+                    ),
                 ),
             ),
         ),
@@ -3062,9 +3280,10 @@ _LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
 #: The clouds a backend can be switched onto, by the variable that switches it: the
 #: variables its hosts are spelled out of, with what each is taken to be where the account
 #: says nothing; the hosts the cloud's model API and its credentials are at; and the
-#: variables that move that API somewhere else instead. Claude's Bedrock, Vertex and Foundry
-#: ways, the accounts whose model API is a cloud's rather than Anthropic's, and whose host is
-#: made of a region or a resource rather than written anywhere.
+#: variables that move that API somewhere else instead. Claude's Bedrock, Mantle, Vertex and
+#: Foundry ways and its Claude Platform on AWS and on Google Cloud: the accounts whose model
+#: API is at a cloud's host rather than Anthropic's, a host made of a region or a resource
+#: rather than written anywhere -- or, for Google Cloud's, the one host it has.
 _CLOUDS: dict[str, tuple[dict[str, str], tuple[str, ...], tuple[str, ...]]] = {
     "CLAUDE_CODE_USE_BEDROCK": (
         {"AWS_REGION": "us-east-1"},
@@ -3088,6 +3307,24 @@ _CLOUDS: dict[str, tuple[dict[str, str], tuple[str, ...], tuple[str, ...]]] = {
         {"ANTHROPIC_FOUNDRY_RESOURCE": ""},
         ("{ANTHROPIC_FOUNDRY_RESOURCE}.services.ai.azure.com",),
         ("ANTHROPIC_FOUNDRY_BASE_URL",),
+    ),
+    "CLAUDE_CODE_USE_MANTLE": (
+        {"AWS_REGION": "us-east-1"},
+        ("bedrock-mantle.{AWS_REGION}.api.aws", "sts.{AWS_REGION}.amazonaws.com"),
+        ("ANTHROPIC_BEDROCK_MANTLE_BASE_URL",),
+    ),
+    "CLAUDE_CODE_USE_ANTHROPIC_AWS": (
+        {"AWS_REGION": "us-east-1"},
+        (
+            "aws-external-anthropic.{AWS_REGION}.api.aws",
+            "sts.{AWS_REGION}.amazonaws.com",
+        ),
+        ("ANTHROPIC_AWS_BASE_URL",),
+    ),
+    "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD": (
+        {},
+        ("claude.googleapis.com", "oauth2.googleapis.com"),
+        ("ANTHROPIC_GOOGLE_CLOUD_BASE_URL",),
     ),
 }
 
