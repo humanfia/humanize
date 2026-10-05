@@ -4,6 +4,7 @@ pageClass: hmz-ref
 
 <script setup>
 import '../.vitepress/theme/components/ref-cli/ref.css'
+import RefAtlas from '../.vitepress/theme/components/ref-index/RefAtlas.vue'
 </script>
 
 # Reference
@@ -12,6 +13,8 @@ The complete technical specification of humanize as built: every command, option
 key, screen, setting, protocol message, file, environment variable, Python symbol, default,
 limit and error. Each page states behaviour; tasks and explanations are in the
 [User Guide](/user/), [Weaver Guide](/weaver/) and [Features](/features/).
+
+<RefAtlas />
 
 ## Pages {#pages}
 

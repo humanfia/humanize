@@ -1,3 +1,7 @@
+<script setup>
+import FakeRun from '../.vitepress/theme/components/weaver-testing/FakeRun.vue'
+</script>
+
 # Testing a flow
 
 In this guide you write pytest tests for your flows that run in milliseconds, need no coding
@@ -19,6 +23,8 @@ small budget, before you rely on it.
 :::
 
 ## How it works
+
+<FakeRun />
 
 The **fake kit**, `hmz.sdk.fakes`, runs your flow exactly as `hmz exec` runs it: the same
 lookup by name, the same checks of what each role declares, the same budget, the same hooks.

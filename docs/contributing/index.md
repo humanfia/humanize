@@ -1,3 +1,7 @@
+<script setup>
+import ChangePath from '../.vitepress/theme/components/contributing-index/ChangePath.vue'
+</script>
+
 # Contributing
 
 Pull requests are welcome. This page gets a checkout of humanize ready to change: installed,
@@ -10,6 +14,8 @@ How a pull request is proposed and reviewed is in
 decides, and how to become a reviewer or maintainer, in
 [GOVERNANCE.md](https://github.com/humanfia/humanize/blob/main/GOVERNANCE.md). Everyone taking
 part follows the [Code of Conduct](https://github.com/humanfia/.github/blob/main/CODE_OF_CONDUCT.md).
+
+<ChangePath />
 
 ::: tip First time here?
 [Your first patch](/contributing/tutorials/first-patch) takes one small change from clone to
