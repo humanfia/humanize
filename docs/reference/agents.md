@@ -223,7 +223,7 @@ hushed ones.
 | `claude` | `claude -p --input-format stream-json --output-format stream-json --verbose`, sent a `control_request` `list_models` | the model's `supportedEffortLevels` |
 | `codex` | `codex debug models` (models marked for listing) | per model |
 | `kimi` | `kimi provider list --json` | per model; swarm |
-| `litellm` | nothing: litellm's own `model_cost`, chat models of the providers it has a way in for, as `provider/id` | the ladder where litellm says the model reasons; none otherwise |
+| `litellm` | nothing: the catalogue litellm ships (`model_prices_and_context_window_backup.json`, read without importing it), chat models of the providers it has a way in for, as `provider/id` | the ladder where litellm says the model reasons; none otherwise |
 | `agy` | `agy models` | the ladder |
 | `grok` | `grok models` | the ladder |
 | `cursor-agent` | `cursor-agent --list-models` | the rungs its listed variants carry (`gpt-5.2` at those `gpt-5.2-low` … are listed for); none for a model with no variants |

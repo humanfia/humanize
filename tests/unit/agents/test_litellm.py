@@ -417,9 +417,9 @@ def test_it_offers_no_env_way_and_is_never_the_implicit_choice(tmp_path: Path) -
 
 
 def test_its_catalogue_is_litellm_s_own_chat_models(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import importlib
+    import importlib.util
     from types import SimpleNamespace
 
     from hmz.coganchor import models
@@ -438,16 +438,20 @@ def test_its_catalogue_is_litellm_s_own_chat_models(
         "text-embedding-3": {"litellm_provider": "openai", "mode": "embedding"},
         "somebody/else": {"litellm_provider": "nobody", "mode": "chat"},
     }
-    real = importlib.import_module
+    # Read as the file litellm ships beside its package, which nothing imports to read.
+    package = tmp_path / "litellm"
+    package.mkdir()
+    (package / "model_prices_and_context_window_backup.json").write_text(
+        json.dumps(listed)
+    )
+    real = importlib.util.find_spec
 
-    def faked(name: str, package: str | None = None) -> object:
-        return (
-            SimpleNamespace(model_cost=listed)
-            if name == "litellm"
-            else real(name, package)
-        )
+    def faked(name: str, package_name: str | None = None) -> object:
+        if name == "litellm":
+            return SimpleNamespace(origin=str(package / "__init__.py"))
+        return real(name, package_name)
 
-    monkeypatch.setattr(importlib, "import_module", faked)
+    monkeypatch.setattr(importlib.util, "find_spec", faked)
     profile = backends.named("litellm")
     assert profile is not None
     found = models._READING["litellm"](profile, lambda *_: "")

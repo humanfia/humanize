@@ -729,12 +729,18 @@ _LITELLM_PROVIDERS = frozenset(
 )
 
 
+#: The catalogue of models and prices litellm ships, beside its own package.
+_LITELLM_CATALOGUE = "model_prices_and_context_window_backup.json"
+
+
 def _litellm(profile: Profile, _run: Callable[..., str]) -> list[Model]:
     """The chat models litellm knows how to call, as a turn names them: `provider/id`.
 
     Read off the catalogue litellm itself ships rather than asked of anybody: it is a library,
-    not a CLI, and what it can call is what it knows the price and the shape of. A gateway
-    account is answered by its endpoint instead and never reaches this.
+    not a CLI, and what it can call is what it knows the price and the shape of. Read as the
+    file it ships, without importing litellm, which is seconds of an interface opening spent
+    loading a library nothing is about to call. A gateway account is answered by its endpoint
+    instead and never reaches this.
 
     Args:
       profile: litellm's own.
@@ -747,15 +753,23 @@ def _litellm(profile: Profile, _run: Callable[..., str]) -> list[Model]:
     Raises:
       ValueError: If litellm is not installed here.
     """
-    import importlib
+    import importlib.util
+    from pathlib import Path
 
+    found_at = importlib.util.find_spec("litellm")
+    if found_at is None or found_at.origin is None:
+        raise ValueError(f"litellm is not installed here: {profile.installs}")
+    shipped = Path(found_at.origin).parent / _LITELLM_CATALOGUE
     try:
-        module = importlib.import_module("litellm")
-    except ModuleNotFoundError as why:
-        raise ValueError(f"litellm is not installed here: {profile.installs}") from why
-    listed = cast("dict[str, dict[str, Any]]", vars(module).get("model_cost") or {})
+        read: object = json.loads(shipped.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as why:
+        raise ValueError(f"litellm's own catalogue could not be read: {why}") from why
+    listed = cast("dict[str, Any]", read) if isinstance(read, dict) else {}
     found: list[Model] = []
-    for name, said in listed.items():
+    for name, raw in listed.items():
+        if not isinstance(raw, dict):
+            continue
+        said = cast("dict[str, Any]", raw)
         listed_as = str(said.get("litellm_provider") or "")
         # By family rather than exactly: litellm files Vertex's models under
         # `vertex_ai-language-models` and the like, and Bedrock's newer ones under

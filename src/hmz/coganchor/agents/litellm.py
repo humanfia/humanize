@@ -27,6 +27,7 @@ from __future__ import annotations
 import contextlib
 import importlib
 import json
+import os
 import sys
 import time
 import uuid
@@ -41,7 +42,6 @@ from .event import Event, Failed, Saying, Unrecoverable, Usage, say
 from .watchdog import Watchdog
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Iterable, Iterator, Mapping
     from pathlib import Path
 
@@ -444,8 +444,15 @@ class LiteLLMSession(SessionBase):
             kept.writelines(json.dumps(row) + "\n" for row in rows)
 
 
+#: What tells litellm to read the catalogue of models and prices it ships rather than fetch a
+#: newer one as it is imported: a fetch every import is seconds of a turn, or of a catalogue
+#: being asked for, spent reaching GitHub, and a machine with no route there waits it out.
+LOCAL_MAP = "LITELLM_LOCAL_MODEL_COST_MAP"
+
+
 def _litellm() -> _LiteLLM:
     """Loads litellm only when a turn needs it."""
+    os.environ.setdefault(LOCAL_MAP, "True")
     try:
         module = importlib.import_module("litellm")
     except ModuleNotFoundError as why:
