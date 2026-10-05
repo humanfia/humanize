@@ -1,3 +1,7 @@
+<script setup>
+import SkillTrip from '../.vitepress/theme/components/user-skills/SkillTrip.vue'
+</script>
+
 # Skills
 
 A **skill** is a folder of instructions a coding agent loads when a task calls for it, written
@@ -38,6 +42,8 @@ reviewer carries `review-notes`, which says how to read a change and write the r
 is handed next. For as long as a session of that role is open, the skill is copied into your
 workspace, where the CLI reads a project's own skills, and it goes again when the last such
 session ends.
+
+<SkillTrip />
 
 ## Example: watch a flow's skill arrive and leave
 
