@@ -24,8 +24,13 @@ flow opening a fresh session a round holds a few open however many rounds it run
 of a view -- wherever its last reference goes, or on whichever thread a collection finds it
 -- has the session closed on the run's loop, once, in a task the call's cleanup waits for. A
 hook arriving for a session whose view is gone, as it closes, is handed a stand-in: a view of
-it that is over, which nothing can take a turn in. A fork holds the session it was forked from
-until its first turn, which is where a harness cuts it.
+it that is over, which nothing can take a turn in.
+
+A session is a conversation and nothing of where it works: each turn says where, and its
+driver's session is opened only as its first turn goes, there -- which is when the engine
+starts holding it -- and moved before each turn after it to wherever that one works. A fork
+holds the session it was forked from until its first turn, which is where a harness cuts it,
+and is refused then if that session has taken a turn since.
 """
 
 from __future__ import annotations
@@ -115,7 +120,14 @@ if TYPE_CHECKING:
     )
 
     from .engine import Call
-    from .spi import AgentDriver, EnvDriver, OutworlderDriver, SessionHandle, Skill
+    from .spi import (
+        AgentDriver,
+        EnvDriver,
+        OutworlderDriver,
+        Placement,
+        SessionHandle,
+        Skill,
+    )
 
 __all__ = [
     "CALLING",
@@ -191,7 +203,7 @@ class _Naming(_Sink):
         super().add(cost=cost, output_tokens=output_tokens, duration=duration)
         with self._lock:
             session = self._session
-            if session is None or session._handle.id is None:
+            if session is None or session._handle is None or session._handle.id is None:
                 return
             self._session = None
         run = self._node.run
@@ -347,42 +359,83 @@ class AgentView:
         view._line = self._lined()
         return view
 
-    async def spawn(self, *, env: Env) -> SessionView:
-        return await self._opened(env, None)
+    async def spawn(self) -> SessionView:
+        self._node.check()
+        self._lined()
+        return SessionView(self)
 
-    async def fork(self, session: Session, *, env: Env) -> SessionView:
+    async def fork(self, session: Session) -> SessionView:
         forked = self._own(session)
+        self._node.check()
         if forked._closed:
             raise SessionError(f"{self._role}: the session to fork is over")
-        return await self._opened(env, forked)
+        if forked._handle is None:
+            raise SessionError(
+                f"{self._role}: the session to fork has taken no turn to carry on from"
+            )
+        view = SessionView(self)
+        # A harness cuts a fork as the fork's first turn goes, from the session it was
+        # forked from, which is kept open until then however soon the flow lets go of it.
+        view._parent = forked
+        view._forked_at = forked._turns
+        return view
 
-    async def _opened(self, env: Env, fork_of: SessionView | None) -> SessionView:
+    def _placement(self, env: Env | None) -> Placement:
+        """Where a turn given `env` works."""
+        if env is None:
+            # The run's own workspace, which no role of the flow names.
+            return dataclasses.replace(self._node.run.workspace().placement(), env="")
         if type(env) is not EnvView:
             raise TypeError(f"{env!r} is not an environment this run handed out")
+        # Named for the role it fills, so that whoever watches the run can say which of the
+        # flow's environments a session works in and not only which machine.
+        return dataclasses.replace(env._driver.placement(), env=env._role)
+
+    async def _placed(
+        self, session: SessionView, placement: Placement
+    ) -> SessionHandle:
+        """The driver's session for a turn about to work at `placement`.
+
+        Opened there for a session's first turn, and moved there for every turn after it.
+
+        Raises:
+          SessionError: If the session is a fork of one that has taken a turn since.
+        """
         node = self._node
+        run = node.run
+        handle = session._handle
+        if handle is not None:
+            if await handle.move(placement):
+                session._unnamed = run.spawned(node, self._role, handle, self._driver)
+            return handle
+        parent = session._parent
+        if parent is not None:
+            if parent._closed:
+                raise SessionError(
+                    f"{self._role}: the session it was forked from is over"
+                )
+            if parent._turns != session._forked_at:
+                raise SessionError(
+                    f"{self._role}: the session it was forked from has taken a turn "
+                    "since; fork it again to branch from where it is now"
+                )
         node.check()
         line = self._lined()
-        run = node.run
         if run.dropped:
             run.drain()
         handle = await self._driver.open(
-            # Named for the role it fills, so that whoever watches the run can say which of
-            # the flow's environments a session works in and not only which machine.
-            dataclasses.replace(env._driver.placement(), env=env._role),
+            placement,
             permission=self._grant.permission,
             skills=self._brought(),
             hooks=line.hooks,
-            fork_of=None if fork_of is None else fork_of._handle,
+            fork_of=None if parent is None else parent._handle,
         )
-        session = SessionView(self, env, handle)
-        # A harness cuts a fork as the fork's first turn goes, from the session it was
-        # forked from, which is kept open until then however soon the flow lets go of it.
-        session._parent = fork_of
-        opened = Opened(session, self, env, handle)
+        session._handle = handle
+        opened = Opened(session, self, handle)
         line.sessions[id(handle)] = opened
         node.hold(opened)
         session._unnamed = run.spawned(node, self._role, handle, self._driver)
-        return session
+        return handle
 
     @overload
     async def run(
@@ -390,6 +443,7 @@ class AgentView:
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         budget: Budget | None = None,
     ) -> str: ...
 
@@ -399,6 +453,7 @@ class AgentView:
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         output_schema: type[TOutput],
         budget: Budget | None = None,
     ) -> TOutput: ...
@@ -408,10 +463,12 @@ class AgentView:
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         output_schema: type[pydantic.BaseModel] | None = None,
         budget: Budget | None = None,
     ) -> str | pydantic.BaseModel:
         taken = self._own(session)
+        placement = self._placement(env)
         command = prompt.lstrip()
         if command.startswith("/"):
             capabilities = self._grant.capabilities
@@ -429,8 +486,13 @@ class AgentView:
             raise SessionError(f"{self._role}: a turn of this session is under way")
         if taken._closed:
             raise SessionError(f"{self._role}: the session is over")
-        handle = taken._handle
         taken._busy = True
+        try:
+            handle = await self._placed(taken, placement)
+        except BaseException:
+            taken._busy = False
+            raise
+        taken._turns += 1
         node.turning(1)
         cut = None if hard is None else _Cut(node.run.loop, handle, hard)
         try:
@@ -486,7 +548,10 @@ class AgentView:
         self._node.check()
         if taken._closed:
             raise SessionError(f"{self._role}: the session is over")
-        await taken._handle.steer(prompt, queued=queued)
+        handle = taken._handle
+        if handle is None:
+            raise SessionError(f"{self._role}: no turn is in flight to steer")
+        await handle.steer(prompt, queued=queued)
 
     def _brought(self) -> tuple[Skill, ...]:
         """The skills this agent's sessions are given: what its grant names, as found."""
@@ -646,51 +711,52 @@ class SessionView:
         "_agent",
         "_busy",
         "_closed",
-        "_env",
         "_error",
+        "_forked_at",
         "_handle",
         "_line",
         "_parent",
+        "_turns",
         "_unnamed",
     )
 
     def __init__(
         self,
         agent: AgentView | OutworlderView,
-        env: EnvView,
-        handle: SessionHandle,
+        handle: SessionHandle | None = None,
     ) -> None:
-        """A view of a handle one agent view opened in one environment view."""
+        """A view of a session of one agent view, opened by its driver once `handle` is."""
         self._agent = agent
-        self._env = env
         self._handle = handle
         self._line = agent._line if type(agent) is AgentView else None
         self._busy = False
         self._closed = False
         self._error: Exception | None = None
         self._parent: SessionView | None = None
+        #: How many turns it has been asked for, and how many the session it was forked from
+        #: had been when it was forked -- which is where its first turn cuts it.
+        self._turns = 0
+        self._forked_at = 0
         #: Whether the run's journal or recorder is still waiting on its CLI to name it.
         self._unnamed = False
 
     def __repr__(self) -> str:
-        return f"<session of {self._agent.role} in {self._env.workdir}>"
+        return f"<session of {self._agent.role}>"
 
     @property
     def agent(self) -> AgentView | OutworlderView:
         return self._agent
 
     @property
-    def env(self) -> EnvView:
-        return self._env
-
-    @property
     def usage(self) -> Usage:
-        return self._handle.usage
+        handle = self._handle
+        return _NOTHING if handle is None else handle.usage
 
     @property
     def id(self) -> str | None:
         """The CLI's own id for the conversation, or None before it has said one."""
-        return self._handle.id
+        handle = self._handle
+        return None if handle is None else handle.id
 
     def _named(self) -> None:
         """Its CLI has named it: written down and told, against the call that opened it.
@@ -703,8 +769,11 @@ class SessionView:
         self._unnamed = False
         opener: AgentView = self._agent  # pyright: ignore[reportAssignmentType]
         node = opener._node
+        handle = self._handle
+        if handle is None:
+            return
         try:
-            node.run.named(node, opener._role, self._handle, opener._driver)
+            node.run.named(node, opener._role, handle, opener._driver)
         except Exception:
             log.exception("writing down the session of %s failed", opener._role)
 
@@ -712,7 +781,8 @@ class SessionView:
         """A hook of this session raised: the turn under way stops, and raises it."""
         if self._error is None:
             self._error = error
-        self._handle.interrupt()
+        if self._handle is not None:
+            self._handle.interrupt()
 
 
 class Opened(weakref.ref["SessionView"]):
@@ -727,37 +797,33 @@ class Opened(weakref.ref["SessionView"]):
 
     Attributes:
       agent: The agent view that opened it, whose call it belongs to.
-      env: The environment view it was opened in.
       handle: The driver's session.
       closed: Whether its closing has started.
       task: The close the view going started, while it is under way.
     """
 
-    __slots__ = ("agent", "closed", "env", "handle", "task")
+    __slots__ = ("agent", "closed", "handle", "task")
 
     def __new__(
         cls,
         view: SessionView,
         agent: AgentView,
-        env: EnvView,
         handle: SessionHandle,
     ) -> Self:
         """A record of a session, watching its view go."""
-        del agent, env, handle
+        del agent, handle
         return super().__new__(cls, view, _dropped)
 
     def __init__(
         self,
         view: SessionView,
         agent: AgentView,
-        env: EnvView,
         handle: SessionHandle,
     ) -> None:
         """A record of a session, watching its view go."""
         # Not `weakref.ref.__init__`, which only checks the arguments `__new__` took.
         del view
         self.agent = agent
-        self.env = env
         self.handle = handle
         self.closed = False
         self.task: asyncio.Task[None] | None = None
@@ -767,7 +833,7 @@ class Opened(weakref.ref["SessionView"]):
 
     def standin(self) -> SessionView:
         """The session as a hook arriving after its view went is handed it: one that is over."""
-        view = SessionView(self.agent, self.env, self.handle)
+        view = SessionView(self.agent, self.handle)
         view._closed = True
         return view
 
@@ -1160,6 +1226,10 @@ class _Person:
         del prompt, queued
         raise UnsupportedOperation("an outworlder is not steered")
 
+    async def move(self, placement: Placement) -> bool:
+        del placement
+        return False
+
     def interrupt(self) -> None:
         return
 
@@ -1243,15 +1313,13 @@ class OutworlderView:
             raise CapabilityNotGranted(f"{self._role}: an outworlder has no skills")
         return self
 
-    async def spawn(self, *, env: Env) -> SessionView:
-        if type(env) is not EnvView:
-            raise TypeError(f"{env!r} is not an environment this run handed out")
+    async def spawn(self) -> SessionView:
         if self._node is not None:
             self._node.check()
-        return SessionView(self, env, _Person(self._source))
+        return SessionView(self, _Person(self._source))
 
-    async def fork(self, session: Session, *, env: Env) -> SessionView:
-        del session, env
+    async def fork(self, session: Session) -> SessionView:
+        del session
         raise UnsupportedOperation("an outworlder's session cannot be forked")
 
     @overload
@@ -1260,6 +1328,7 @@ class OutworlderView:
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         budget: Budget | None = None,
     ) -> str: ...
 
@@ -1269,6 +1338,7 @@ class OutworlderView:
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         output_schema: type[TOutput],
         budget: Budget | None = None,
     ) -> TOutput: ...
@@ -1278,9 +1348,12 @@ class OutworlderView:
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         output_schema: type[pydantic.BaseModel] | None = None,
         budget: Budget | None = None,
     ) -> str | pydantic.BaseModel:
+        if env is not None and type(env) is not EnvView:
+            raise TypeError(f"{env!r} is not an environment this run handed out")
         source = self._source
         if (
             type(session) is not SessionView

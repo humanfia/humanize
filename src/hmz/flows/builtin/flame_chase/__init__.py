@@ -51,9 +51,9 @@ async def flame_chase(
     failed = 0
     while True:
         chaser = chasers[at]
-        session = await chaser.spawn(env=envs["workspace"])
+        session = await chaser.spawn()
         try:
-            await chaser.run(task, session=session)
+            await chaser.run(task, session=session, env=envs["workspace"])
         except HarnessError:
             failed += 1
             if failed >= FAILED:

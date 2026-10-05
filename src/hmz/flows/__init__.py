@@ -25,9 +25,9 @@ in and the params it takes, and is handed exactly those::
     @flow(agents=Agents, envs=Envs, params=Params)
     async def ralph(task, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext):
         coder, workspace = agents["coder"], envs["workspace"]
-        session = await coder.spawn(env=workspace)
+        session = await coder.spawn()
         for _ in range(params.rounds):
-            await coder.run(task, session=session)
+            await coder.run(task, session=session, env=workspace)
 
 What is here is types: the protocols a flow's agents, environments, sessions and context
 answer to (:mod:`~hmz.flows.agents`, :mod:`~hmz.flows.envs`, :mod:`~hmz.flows.defining`),

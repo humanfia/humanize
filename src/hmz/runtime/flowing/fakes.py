@@ -25,7 +25,9 @@ granted what it declared -- with the drivers underneath swapped for these::
   driver's does. It forks where its harness does, as a real one does: not a session that
   has taken no turn, not onto another machine, not into another workdir on a harness that
   forks only in place, and not -- refused at the fork's first turn, where a CLI cuts it --
-  from a session that has taken a turn since the fork was opened.
+  from a session that has taken a turn since the fork was opened. A session's turns move
+  where a real one's do: anywhere on the machine it is on for a harness that forks
+  elsewhere, and only to where it already works for every other.
 - :class:`FakeEnvDriver` is a dictionary of files under a workdir, with worktrees,
   temporary copies, scratch directories and snapshots as copies of it, and `exec` answered by a
   function or a table, with a few commands -- `true`, `false`, `echo`, `cat`, `ls`, `sleep`
@@ -249,7 +251,8 @@ class FakeSession:
 
     Attributes:
       driver: The driver that opened it.
-      placement: Where it was opened.
+      placement: Where its last turn worked, or where it was opened before any has.
+      placements: Every place it was opened at or moved to, in order.
       permission: What it runs under.
       skills: What it was given.
       forked_from: The session it carries on from, or None.
@@ -277,6 +280,7 @@ class FakeSession:
     ) -> None:
         self.driver = driver
         self.placement = placement
+        self.placements = [placement]
         self.permission = permission
         self.skills = skills
         self.hooks = hooks
@@ -431,6 +435,19 @@ class FakeSession:
 
     async def _fire(self, kind: HookKind, **fields: Any) -> HookResult:
         return await self.hooks.fire(kind, self, **fields)
+
+    async def move(self, placement: Placement) -> bool:
+        if self.closed:
+            raise SessionError(f"{self._id} is closed")
+        if placement == self.placement:
+            return False
+        moved = self.driver.carried(self.placement, placement, "move")
+        self.placement = placement
+        self.placements.append(placement)
+        if moved:
+            # Carried on as a fork of itself, which a real CLI knows by another id.
+            self._id = f"fake-{next(self._numbers)}"
+        return moved
 
     async def steer(self, prompt: str, *, queued: bool) -> None:
         if not self._turning:
@@ -629,28 +646,38 @@ class FakeAgentDriver:
                 raise SessionError(f"{fork_of!r} has taken no turn to carry on from")
             if not self.forks:
                 raise UnsupportedOperation(f"{self.harness} cannot fork a session")
-            was = fork_of.placement
-            if (was.backend, was.provider, was.machine) != (
-                placement.backend,
-                placement.provider,
-                placement.machine,
-            ):
-                raise UnsupportedOperation(
-                    f"{self.harness} cannot fork a session onto another machine"
-                )
-            if (
-                was.workdir != placement.workdir
-                and self.harness not in _FORKS_ELSEWHERE
-            ):
-                raise UnsupportedOperation(
-                    f"{self.harness} cannot fork a session into another workdir"
-                )
+            self.carried(fork_of.placement, placement, "fork")
             forked = fork_of
         session = FakeSession(self, placement, permission, skills, hooks, forked)
         self.sessions.append(session)
         self.live += 1
         self.peak = max(self.peak, self.live)
         return session
+
+    def carried(self, was: Placement, placement: Placement, doing: str) -> bool:
+        """Whether a conversation at `was` carried to `placement` is one of another id.
+
+        Refused as a real driver refuses it: onto another machine on any harness, and into
+        another workdir on any but Claude Code, Codex and Kimi Code.
+
+        Raises:
+          UnsupportedOperation: If the harness cannot carry it there.
+        """
+        if (was.backend, was.provider, was.machine) != (
+            placement.backend,
+            placement.provider,
+            placement.machine,
+        ):
+            raise UnsupportedOperation(
+                f"{self.harness} cannot {doing} a session onto another machine"
+            )
+        if was.workdir == placement.workdir:
+            return False
+        if self.harness not in _FORKS_ELSEWHERE or not self.forks:
+            raise UnsupportedOperation(
+                f"{self.harness} cannot {doing} a session into another workdir"
+            )
+        return True
 
     async def close(self) -> None:
         self.closed += 1

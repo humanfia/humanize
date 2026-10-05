@@ -44,13 +44,13 @@ async def stateful_ralph(
     state = ctx.state
     assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
     agent = agents["agent"]
-    session = await agent.spawn(env=envs["workspace"])
+    session = await agent.spawn()
     stalled = 0
     while True:
         state["rounds"] = rounds = (state["rounds"] if "rounds" in state else 0) + 1
         print(f"round {rounds}")
         try:
-            answered = await agent.run(task, session=session)
+            answered = await agent.run(task, session=session, env=envs["workspace"])
         except HarnessError as error:
             print(f"round {rounds} failed: {error}")
             answered = ""

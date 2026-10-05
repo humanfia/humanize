@@ -44,7 +44,11 @@ the CLI stops spending -- and raises the :class:`~hmz.flows.errors.BudgetExceede
 A fork is the CLI's own: Claude Code, Codex and Kimi Code fork into another workdir,
 every other harness that forks does so only into the workdir it is in, and cursor-agent,
 MiniMax Code, Antigravity and dsh do not fork. A fork is cut where its first turn is taken, so
-it is refused then if the session it came from has taken a turn since.
+it is refused then if the session it came from has taken a turn since. A session whose next
+turn works in another workdir moves there the same way: it carries on as a fork of itself,
+cut by that turn from a coganchor agent of its own there, on the harnesses that fork
+elsewhere, and is refused on every other -- as is one whose turn works on another machine,
+on any harness.
 
 :func:`open_outworlder` is the driver for whoever is outside the run.
 """
@@ -369,16 +373,15 @@ class HarnessDriver:
         """
         if self._closed:
             raise SessionError("the agent's driver is closed")
-        parent = self._parent(fork_of, placement)
-        cwd = self._where(placement)
-        hung = frozenset(kind for kind in _STARTING if kind in hooks)
-        config = self._configured(permission, placement, hung)
-        machine = await self._harnessed(placement, config, hung=hung)
-        if machine is None:
-            self._check_installed()
-        config = dataclasses.replace(config, machine=machine)
-        agent, session = await asyncio.to_thread(
-            self._made, config, skills, parent, cwd
+        parent = None
+        if fork_of is not None:
+            if not isinstance(fork_of, HarnessSession) or fork_of.driver is not self:
+                raise SessionError(
+                    "a session is forked only by the agent it is a session of"
+                )
+            parent = self.cut_from(fork_of, placement, doing="fork")
+        agent, session = await self.build(
+            placement, permission=permission, skills=skills, hooks=hooks, parent=parent
         )
         handle = HarnessSession(
             self,
@@ -387,6 +390,7 @@ class HarnessDriver:
             hooks=hooks,
             placement=placement,
             permission=permission,
+            skills=skills,
             bridge=HookBridge.here(timeout=HOOK_TIMEOUT),
         )
         if self._closed:
@@ -395,6 +399,40 @@ class HarnessDriver:
             raise SessionError("the agent's driver is closed")
         self._sessions.add(handle)
         return handle
+
+    async def build(
+        self,
+        placement: Placement,
+        *,
+        permission: Permission,
+        skills: tuple[Skill, ...],
+        hooks: HookTable,
+        parent: HarnessSession | None,
+    ) -> tuple[AgentBase, SessionBase]:
+        """A session's own coganchor agent at `placement`, and its conversation there.
+
+        Args:
+          placement: Where it works.
+          permission: What it may touch.
+          skills: What skills it is given.
+          hooks: What is hung on the agent now.
+          parent: The session whose conversation it carries on, checked by :meth:`cut_from`,
+            or None for a fresh one.
+
+        Returns:
+          The agent, and the conversation: a fork of `parent`'s, cut by its first turn.
+
+        Raises:
+          See :meth:`open`.
+        """
+        cwd = self._where(placement)
+        hung = frozenset(kind for kind in _STARTING if kind in hooks)
+        config = self._configured(permission, placement, hung)
+        machine = await self._harnessed(placement, config, hung=hung)
+        if machine is None:
+            self._check_installed()
+        config = dataclasses.replace(config, machine=machine)
+        return await asyncio.to_thread(self._made, config, skills, parent, cwd)
 
     async def placeable(
         self, placements: Iterable[Placement], permission: Permission
@@ -450,40 +488,41 @@ class HarnessDriver:
         except ValueError as refused:
             raise HarnessUnrecoverable(f"{self._spec}: {refused}") from refused
 
-    def _parent(
-        self, fork_of: SessionHandle | None, placement: Placement
-    ) -> HarnessSession | None:
-        """The session a fork is cut from, checked against where the fork is to work.
+    def cut_from(
+        self, session: HarnessSession, placement: Placement, *, doing: str
+    ) -> HarnessSession:
+        """A session of this driver, checked as one to carry on from at `placement`.
+
+        Args:
+          session: The session whose conversation is carried on.
+          placement: Where it is carried on.
+          doing: What carrying it is, in words: "fork", or "move".
 
         Raises:
-          SessionError: If it is not an open session of this driver that has taken a turn.
-          UnsupportedOperation: If the harness cannot fork there.
+          SessionError: If it is closed, or has taken no turn to carry on from.
+          UnsupportedOperation: If the harness cannot carry it there.
         """
-        if fork_of is None:
-            return None
-        if not isinstance(fork_of, HarnessSession) or fork_of.driver is not self:
+        if session.closed:
+            raise SessionError(f"the session to {doing} is closed")
+        if session.id is None:
             raise SessionError(
-                "a session is forked only by the agent it is a session of"
+                f"the session to {doing} has taken no turn to carry on from"
             )
-        if fork_of.closed:
-            raise SessionError("the session to fork is closed")
-        if fork_of.id is None:
-            raise SessionError("the session to fork has taken no turn to carry on from")
         if self._profile is None or not self._profile.forks:
-            raise UnsupportedOperation(f"{self.harness} cannot fork a session")
-        was = fork_of.placement
+            raise UnsupportedOperation(f"{self.harness} cannot {doing} a session")
+        was = session.placement
         if was.machine != placement.machine:
             raise UnsupportedOperation(
-                f"{self.harness} cannot fork a session onto another machine"
+                f"{self.harness} cannot {doing} a session onto another machine"
             )
         if (
             was.workdir != placement.workdir
-            and not type(fork_of.coganchor).forks_elsewhere
+            and not type(session.coganchor).forks_elsewhere
         ):
             raise UnsupportedOperation(
-                f"{self.harness} cannot fork a session into another workdir"
+                f"{self.harness} cannot {doing} a session into another workdir"
             )
-        return fork_of
+        return session
 
     @staticmethod
     def _where(placement: Placement) -> str | None:
@@ -938,6 +977,7 @@ class HarnessSession:
         "_hung",
         "_interrupted",
         "_last",
+        "_left",
         "_limits",
         "_lock",
         "_loop",
@@ -951,6 +991,7 @@ class HarnessSession:
         "_seen",
         "_session",
         "_sink",
+        "_skills",
         "_started",
         "_steer_cut",
         "_steers",
@@ -971,6 +1012,7 @@ class HarnessSession:
         hooks: HookTable,
         placement: Placement,
         permission: Permission,
+        skills: tuple[Skill, ...],
         bridge: HookBridge,
     ) -> None:
         """Initializes a session that has taken no turn.
@@ -982,15 +1024,20 @@ class HarnessSession:
           hooks: What is hung on the flow agent it belongs to.
           placement: Where it works.
           permission: What it may touch.
+          skills: What skills it is given.
           bridge: What carries moments from the CLI's threads to the engine's loop.
         """
         self._driver = driver
         self._loop = asyncio.get_running_loop()
         self._agent = agent
         self._session = session
+        #: The agents and conversations it has moved on from, kept until it closes: a
+        #: conversation moved is a fork, cut from the one before by the turn after.
+        self._left: list[tuple[AgentBase, SessionBase]] = []
         self._hooks = hooks
         self._placement = placement
         self._permission = permission
+        self._skills = skills
         self._bridge = bridge
         # A question waits on a person, for as long as the loop runs.
         self._asking = HookBridge(self._loop, timeout=None)
@@ -1050,7 +1097,7 @@ class HarnessSession:
 
     @property
     def placement(self) -> Placement:
-        """Where it works."""
+        """Where its last turn worked, or where it was opened before any has."""
         return self._placement
 
     @property
@@ -1512,6 +1559,50 @@ class HarnessSession:
             )
         return DurationExceeded("the turn ran past its deadline")
 
+    # ------------------------------------------------------------------------- moving
+
+    async def move(self, placement: Placement) -> bool:
+        """Has the next turn work at `placement`; see the SPI's `SessionHandle.move`.
+
+        On the same machine, in the same workdir, nothing moves. Anywhere else the
+        conversation carries on as a fork of itself, from an agent of its own built there,
+        refused where a fork there would be: the agent and conversation it leaves are kept
+        until it closes, the fork being cut from them by the next turn. One that has taken
+        no turn the CLI named has nothing to carry, and starts afresh there.
+        """
+        self._check_open()
+        was = self._placement
+        if was.machine == placement.machine and was.workdir == placement.workdir:
+            self._placement = placement
+            return False
+        driver = self._driver
+        parent = (
+            None if self.id is None else driver.cut_from(self, placement, doing="move")
+        )
+        agent, session = await driver.build(
+            placement,
+            permission=self._permission,
+            skills=self._skills,
+            hooks=self._hooks,
+            parent=parent,
+        )
+        if self._closed:
+            await asyncio.to_thread(_stopped, agent, session)
+            raise SessionError("the session is closed")
+        self._left.append((self._agent, self._session))
+        if self._pre is not None:
+            self._pre.off()
+            self._pre = None
+        self._agent, self._session = agent, session
+        self._placement = placement
+        # The conversation's own meter, which starts at nothing.
+        with self._lock:
+            self._seen = {}
+            self._rose = {}
+        self._hung = frozenset(kind for kind in _STARTING if kind in self._hooks)
+        self._listen()
+        return True
+
     # ------------------------------------------------------------ steering and stopping
 
     async def steer(self, prompt: str, *, queued: bool) -> None:
@@ -1608,11 +1699,19 @@ class HarnessSession:
         await asyncio.to_thread(self._shut)
 
     def _shut(self) -> None:
-        """Lets go of the conversation and of the CLI serving it, on a thread."""
-        with contextlib.suppress(Exception):
-            self._session.close()
-        with contextlib.suppress(Exception):
-            self._agent.stop()
+        """Lets go of the conversations and of the CLIs serving them, on a thread."""
+        _stopped(self._agent, self._session)
+        for agent, session in self._left:
+            _stopped(agent, session)
+        self._left = []
+
+
+def _stopped(agent: AgentBase, session: SessionBase) -> None:
+    """Lets go of one conversation and of the CLI serving it, whatever either raises."""
+    with contextlib.suppress(Exception):
+        session.close()
+    with contextlib.suppress(Exception):
+        agent.stop()
 
 
 def _default(kind: HookKind) -> HookResult:

@@ -101,23 +101,26 @@ async def rlar(
     assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
     actor, reviewer = agents["actor"], agents["reviewer"]
     workspace = envs["workspace"]
-    working = await actor.spawn(env=workspace)
+    working = await actor.spawn()
     notes: str = state["notes"] if "notes" in state else ""
     prompt = PICKED_UP.format(task=task, notes=notes) if notes else task
     failed = 0
     while True:
         try:
-            worked = await actor.run(prompt, session=working)
+            worked = await actor.run(prompt, session=working, env=workspace)
         except HarnessError:
             failed += 1
             if failed >= FAILED:
                 raise
             worked = ""
         if worked:
-            reading = await reviewer.spawn(env=workspace)
+            reading = await reviewer.spawn()
             try:
                 review = await reviewer.run(
-                    REVIEW_PROMPT + task, session=reading, output_schema=Review
+                    REVIEW_PROMPT + task,
+                    session=reading,
+                    env=workspace,
+                    output_schema=Review,
                 )
             except HarnessError:
                 failed += 1

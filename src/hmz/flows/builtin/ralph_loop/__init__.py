@@ -48,9 +48,9 @@ async def ralph_loop(
     while True:
         state["rounds"] = rounds = (state["rounds"] if "rounds" in state else 0) + 1
         print(f"round {rounds}")
-        session = await agent.spawn(env=envs["workspace"])
+        session = await agent.spawn()
         try:
-            answered = await agent.run(task, session=session)
+            answered = await agent.run(task, session=session, env=envs["workspace"])
         except HarnessError as error:
             print(f"round {rounds} failed: {error}")
             answered = ""

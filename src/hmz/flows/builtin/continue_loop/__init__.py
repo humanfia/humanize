@@ -46,13 +46,13 @@ async def continue_loop(
     state = ctx.state
     assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
     agent = agents["agent"]
-    session = await agent.spawn(env=envs["workspace"])
+    session = await agent.spawn()
     prompt = task
     failed = 0
     while True:
         state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
         try:
-            answered = await agent.run(prompt, session=session)
+            answered = await agent.run(prompt, session=session, env=envs["workspace"])
         except HarnessError:
             failed += 1
             if failed >= FAILED:

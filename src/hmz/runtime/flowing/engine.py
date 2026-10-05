@@ -1400,8 +1400,8 @@ class Run:
         self.derived: dict[int, EnvDriver] = {}
         self.specs: dict[tuple[AgentDriver, Grant], str] = {}
 
-    def here(self, role: EnvRole, node: Call, flow: FlowImpl) -> EnvView:
-        """The run's own workspace, for a `LocalEnv` role nobody passed."""
+    def workspace(self) -> EnvDriver:
+        """The run's own workspace, where a turn given no environment works."""
         driver = self.here_driver
         if driver is None:
             driver = self.local
@@ -1413,6 +1413,11 @@ class Run:
             self.here_driver = driver
             self.here_grant = Grant.of(frozenset(driver.capabilities))
             self.here_chain = f"{driver.backend}@{driver.provider}{driver.workdir}"
+        return driver
+
+    def here(self, role: EnvRole, node: Call, flow: FlowImpl) -> EnvView:
+        """The run's own workspace, for a `LocalEnv` role nobody passed."""
+        driver = self.workspace()
         grant = self.here_grant
         assert grant is not None  # noqa: S101 -- set with the driver
         if not role.capabilities <= grant.capabilities:

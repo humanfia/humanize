@@ -163,17 +163,17 @@ HARNESS_CAPABILITIES: Mapping[HarnessKind, frozenset[type]] = MappingProxyType(
 
 @dataclass(frozen=True, slots=True)
 class Placement:
-    """Where an agent's session works, which is the one thing an env tells an agent driver.
+    """Where an agent's turn works, which is the one thing an env tells an agent driver.
 
     Attributes:
       backend: Which kind of machine.
       provider: Which one of that kind: the ssh host, or "" for this machine.
-      workdir: The directory on it the session works in; `~/...` is under the home of
+      workdir: The directory on it the turn works in; `~/...` is under the home of
         whoever ssh logs in as.
       machine: How coganchor reaches that machine for an agent whose turns land there, or
         None for this machine.
-      env: The environment role of the flow the session was opened in, or "" where nothing
-        said -- which is what tells two places on one machine apart to whoever watches.
+      env: The environment role of the flow the turn was given, or "" for the run's own
+        workspace -- which is what tells two places on one machine apart to whoever watches.
     """
 
     backend: EnvBackendKind
@@ -541,6 +541,25 @@ class SessionHandle(Protocol):
           SessionError: If the session is closed, or was interrupted mid-turn.
           HarnessError: The leaf for why the CLI could not take the turn.
           asyncio.CancelledError: If the awaiting task was cancelled. The CLI has stopped.
+        """
+        ...
+
+    async def move(self, placement: Placement) -> bool:
+        """Has the next turn work somewhere else, the conversation going with it.
+
+        Called between two turns, before each turn but the first, with where that turn is to
+        work -- which is most often where the last one did.
+
+        Args:
+          placement: Where the next turn works.
+
+        Returns:
+          Whether the conversation is now one the CLI knows by another id, which it says
+          as the next turn goes: False where it stays as it was.
+
+        Raises:
+          UnsupportedOperation: If the harness cannot carry the conversation there.
+          SessionError: If the session is closed.
         """
         ...
 

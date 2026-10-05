@@ -40,5 +40,5 @@ async def goal(
 ) -> None:
     """The task set once as the agent's own goal."""
     worker = agents["worker"]
-    session = await worker.spawn(env=envs["workspace"])
-    await worker.run(f"/goal {task}", session=session)
+    session = await worker.spawn()
+    await worker.run(f"/goal {task}", session=session, env=envs["workspace"])

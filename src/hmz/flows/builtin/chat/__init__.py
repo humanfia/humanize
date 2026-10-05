@@ -86,8 +86,8 @@ async def chat(
     assistant, human = agents["assistant"], agents["human"]
     here = envs["workspace"]
     # One session, so the turns are a conversation rather than a series of first turns.
-    conversation = await assistant.spawn(env=here)
-    person = await human.spawn(env=here)
+    conversation = await assistant.spawn()
+    person = await human.spawn()
     with contextlib.suppress(CapabilityNotGranted):
         # A harness that stops to ask its user a question has it put to the person here;
         # one that cannot ask has no such hook to hang, and there is nothing to put.
@@ -96,7 +96,7 @@ async def chat(
     opening = True
     while said:
         try:
-            answered = await assistant.run(said, session=conversation)
+            answered = await assistant.run(said, session=conversation, env=here)
         except HarnessError as failed:
             if opening:
                 raise

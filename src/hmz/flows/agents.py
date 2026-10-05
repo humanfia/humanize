@@ -276,21 +276,18 @@ class Usage(pydantic.BaseModel):
 
 
 class Session(Protocol):
-    """One conversation of one agent, held in one environment.
+    """One conversation of one agent: its history, and nothing of where it works.
 
-    A flow does not close one: it is closed when the flow call that opened it ends, or as
-    soon as nothing holds it any more, whichever comes first. Keep it in a variable for as
-    long as there are turns to take in it, and let go of it when there are not.
+    Where a turn works is the turn's to say -- `env` on :meth:`Agent.run` -- so one session
+    may take its turns in different environments. A flow does not close one: it is closed
+    when the flow call that opened it ends, or as soon as nothing holds it any more,
+    whichever comes first. Keep it in a variable for as long as there are turns to take in
+    it, and let go of it when there are not.
     """
 
     @property
     def agent(self) -> Agent:
         """The agent whose conversation this is."""
-        ...
-
-    @property
-    def env(self) -> Env:
-        """The environment it works in."""
         ...
 
     @property
@@ -302,13 +299,18 @@ class Session(Protocol):
 class Agent(Protocol):
     """A coding agent, as a flow is handed one.
 
-    `run` takes one turn in a session and answers with what the agent said, or, given an
-    `output_schema`, with an instance of it::
+    `run` takes one turn in a session, in an environment, and answers with what the agent
+    said, or, given an `output_schema`, with an instance of it::
 
-        text = await agent.run("fix the build", session=session)
+        session = await agent.spawn()
+        text = await agent.run("fix the build", session=session, env=repo)
         verdict = await agent.run("review it", session=session, output_schema=Verdict)
 
-    A `budget` there limits that one turn, on top of the flow's own. A prompt starting
+    `env` is where that one turn works -- commands run in its workdir, on its machine -- and
+    None is the run's own workspace. A session's turns may each work somewhere else: the
+    conversation goes with it, where its harness can carry it there, and
+    :class:`~hmz.flows.errors.UnsupportedOperation` is raised where it cannot. A `budget`
+    there limits that one turn, on top of the flow's own. A prompt starting
     `/goal` or `/loop` hands the turn to the harness's own goal or loop command, which the
     role must be declared with :class:`GoalCommandAgentMixin` or
     :class:`LoopCommandAgentMixin` to use. It raises
@@ -376,24 +378,20 @@ class Agent(Protocol):
         """
         ...
 
-    async def fork(
-        self,
-        session: Session,
-        *,
-        env: Env,
-    ) -> Session:
+    async def fork(self, session: Session) -> Session:
         """A new session that carries on from where one of this agent's sessions is.
+
+        The fork is cut as its first turn goes, in the environment that turn works in.
 
         Args:
           session: The conversation to branch. It carries on unchanged.
-          env: Where the new one works.
 
         Returns:
           The new session.
 
         Raises:
-          UnsupportedOperation: If the harness cannot fork a session, or not into `env`.
-          SessionError: If `session` is not one of this agent's, or is over.
+          SessionError: If `session` is not one of this agent's, is over, or has taken no
+            turn to carry on from.
         """
         ...
 
@@ -437,6 +435,7 @@ class Agent(Protocol):
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         budget: Budget | None = None,
     ) -> str: ...
 
@@ -446,25 +445,19 @@ class Agent(Protocol):
         prompt: str,
         *,
         session: Session,
+        env: Env | None = None,
         output_schema: type[TOutput],
         budget: Budget | None = None,
     ) -> TOutput: ...
 
-    async def spawn(
-        self,
-        *,
-        env: Env,
-    ) -> Session:
-        """Opens a new session of this agent.
+    async def spawn(self) -> Session:
+        """Opens a new session of this agent, which works wherever its turns are taken.
 
-        Args:
-          env: Where it works: commands run in its workdir, on its machine.
+        Its CLI is started as its first turn goes, which is where a harness that cannot be
+        started there raises :class:`~hmz.flows.errors.HarnessError`.
 
         Returns:
           The session, with no turns taken yet.
-
-        Raises:
-          HarnessError: If the harness cannot be started there.
         """
         ...
 
