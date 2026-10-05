@@ -224,6 +224,87 @@ const BACKENDS: Backend[] = [
         about: 'an OpenCode Zen key, which its own models run on',
         asks: [{ env: 'OPENCODE_API_KEY', secret: true }],
       },
+      {
+        name: 'anthropic-key',
+        about: 'an Anthropic API key, from the console',
+        asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-key',
+        about: 'an OpenAI API key, from the platform',
+        asks: [{ env: 'OPENAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-key',
+        about: 'a Gemini API key, from AI Studio',
+        asks: [{ env: 'GOOGLE_GENERATIVE_AI_API_KEY', secret: true }],
+      },
+      {
+        name: 'xai-key',
+        about: 'an xAI API key, from its console',
+        asks: [{ env: 'XAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'openrouter-key',
+        about: 'an OpenRouter key, for every model it routes to',
+        asks: [{ env: 'OPENROUTER_API_KEY', secret: true }],
+      },
+      {
+        name: 'deepseek-key',
+        about: 'a DeepSeek API key, from its platform',
+        asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }],
+      },
+      {
+        name: 'mistral-key',
+        about: 'a Mistral API key, from its console',
+        asks: [{ env: 'MISTRAL_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENCODE_GATEWAY_URL' },
+          { env: 'OPENCODE_GATEWAY_KEY', secret: true },
+          { env: 'OPENCODE_GATEWAY_MODEL' },
+          { env: 'OPENCODE_GATEWAY_NPM', fixed: '@ai-sdk/openai-compatible' },
+        ],
+        sets: ['OPENCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENCODE_GATEWAY_URL' },
+          { env: 'OPENCODE_GATEWAY_KEY', secret: true },
+          { env: 'OPENCODE_GATEWAY_MODEL' },
+        ],
+        sets: ['OPENCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API -- a proxy, a router, another vendor',
+        asks: [
+          { env: 'OPENCODE_GATEWAY_URL' },
+          { env: 'OPENCODE_GATEWAY_KEY', secret: true },
+          { env: 'OPENCODE_GATEWAY_MODEL' },
+        ],
+        sets: ['OPENCODE_CONFIG_CONTENT'],
+      },
+      {
+        name: 'bedrock',
+        about: 'the models on an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'vertex',
+        about: 'the models on a Google Cloud project of yours',
+        asks: [{ env: 'GOOGLE_CLOUD_PROJECT' }, { env: 'GOOGLE_CLOUD_LOCATION', fixed: 'global' }],
+      },
+      {
+        name: 'azure',
+        about: 'the models deployed on an Azure OpenAI resource of yours',
+        asks: [{ env: 'AZURE_RESOURCE_NAME' }, { env: 'AZURE_API_KEY', secret: true }],
+      },
       ENV,
     ],
   },

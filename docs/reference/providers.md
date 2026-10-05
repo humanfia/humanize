@@ -164,6 +164,19 @@ order, then `env` for every backend but `dsh`.
 | `opencode` | `login` | `opencode auth login` | — | |
 | | `wellknown` | `opencode auth login {OPENCODE_WELLKNOWN}` | `OPENCODE_WELLKNOWN` ◦ (URL answering at `/.well-known/opencode`) | |
 | | `zen` | — | `OPENCODE_API_KEY` • | |
+| | `anthropic-key` | — | `ANTHROPIC_API_KEY` • | |
+| | `openai-key` | — | `OPENAI_API_KEY` • | |
+| | `gemini-key` | — | `GOOGLE_GENERATIVE_AI_API_KEY` • | |
+| | `xai-key` | — | `XAI_API_KEY` • | |
+| | `openrouter-key` | — | `OPENROUTER_API_KEY` • | |
+| | `deepseek-key` | — | `DEEPSEEK_API_KEY` • | |
+| | `mistral-key` | — | `MISTRAL_API_KEY` • | |
+| | `openai-gateway` | — | `OPENCODE_GATEWAY_URL`, `OPENCODE_GATEWAY_KEY` •, `OPENCODE_GATEWAY_MODEL`, `OPENCODE_GATEWAY_NPM` (`@ai-sdk/openai-compatible` for Chat Completions; `@ai-sdk/openai` for Responses) | `OPENCODE_CONFIG_CONTENT` ([below](#gateways)) |
+| | `anthropic-gateway` | — | `OPENCODE_GATEWAY_URL`, `OPENCODE_GATEWAY_KEY` •, `OPENCODE_GATEWAY_MODEL` | `OPENCODE_CONFIG_CONTENT` ([below](#gateways)) |
+| | `gemini-gateway` | — | `OPENCODE_GATEWAY_URL`, `OPENCODE_GATEWAY_KEY` •, `OPENCODE_GATEWAY_MODEL` | `OPENCODE_CONFIG_CONTENT` ([below](#gateways)) |
+| | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | |
+| | `vertex` | — | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`global`); application default credentials | |
+| | `azure` | — | `AZURE_RESOURCE_NAME`, `AZURE_API_KEY` • | |
 | `pi` | `login` | `pi` (interactive: `/login`, then `/exit`) | — | |
 | `qwen` | `login` | `qwen` (interactive: `/auth`, then `/quit`) | — | |
 | | `key` | — | `OPENAI_API_KEY` •, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) | appends `--auth-type openai` |
@@ -378,7 +391,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_OAUTH_HOST`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
 | `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
 | `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
-| `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
+| `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AZURE_API_KEY`, `AZURE_RESOURCE_NAME`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_VERTEX_LOCATION`, `GOOGLE_VERTEX_PROJECT`, `GROK_CODE_XAI_API_KEY`, `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_GATEWAY_KEY`, `OPENCODE_GATEWAY_MODEL`, `OPENCODE_GATEWAY_NPM`, `OPENCODE_GATEWAY_URL`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY`, `XAI_API_KEY` |
 | `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `KIMI_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `TOGETHER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
 | `qwen` | `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
 | an ACP CLI | none |
@@ -398,12 +411,30 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
 | `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
+| `opencode` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` | `OPENCODE_GATEWAY_URL` |
 | `qwen` | `key` | `OPENAI_BASE_URL` |
 | `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
 
 A backend with an endpoint variable has its catalogue read from the endpoint when the account
-sets it ([model catalogues](#models-json)). `pi`, `opencode` and `mimo` have none: their models are
-named `provider/id`, which an endpoint's ids do not carry.
+sets it ([model catalogues](#models-json)). `pi` and `mimo` have none: their models are named
+`provider/id`, which an endpoint's ids do not carry.
+
+An `opencode` gateway account is a provider called `gateway` in opencode's config, set as
+`OPENCODE_CONFIG_CONTENT` (merged over the config files; it replaces an exported
+`OPENCODE_CONFIG_CONTENT`). opencode fills each `{env:VAR}` from the account:
+
+```json
+{"provider": {"gateway": {
+  "npm": "{env:OPENCODE_GATEWAY_NPM}",
+  "options": {"baseURL": "{env:OPENCODE_GATEWAY_URL}", "apiKey": "{env:OPENCODE_GATEWAY_KEY}"},
+  "models": {"{env:OPENCODE_GATEWAY_MODEL}": {}}
+}}}
+```
+
+`npm` is `@ai-sdk/anthropic` for `anthropic-gateway` and `@ai-sdk/google` for
+`gemini-gateway`. The URL includes the API version (`…/v1`, Gemini's `…/v1beta`). A turn's model
+is named bare, as the endpoint lists it, or as `gateway/<id>`; the driver runs
+`--model gateway/<id>` and sets `OPENCODE_GATEWAY_MODEL=<id>` for that turn.
 
 Codex reads a gateway from configuration, not variables. A turn under a codex `gateway`
 account appends, and no `config.toml` is written:

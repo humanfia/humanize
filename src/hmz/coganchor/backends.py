@@ -1958,11 +1958,21 @@ PROFILES = (
         name="opencode",
         # Zen, and the two subscriptions it signs in to itself: ChatGPT's and Copilot's. The
         # model catalogue it fetches falls back to a snapshot it ships, so it is not needed.
+        # And the APIs of the vendors whose keys it is signed in with below, each where that
+        # vendor's SDK -- or, for OpenRouter and DeepSeek, its catalogue -- sends a turn. The
+        # clouds are not among them: their hosts are made of a region or a resource.
         hosts=(
             "opencode.ai",
             "chatgpt.com",
             "auth.openai.com",
             "api.githubcopilot.com",
+            "api.anthropic.com",
+            "api.openai.com",
+            "generativelanguage.googleapis.com",
+            "api.x.ai",
+            "openrouter.ai",
+            "api.deepseek.com",
+            "api.mistral.ai",
         ),
         installs="npm i -g opencode-ai",
         # Two reaching-out tools it names -- the one that fetches a page and the one that
@@ -2013,18 +2023,28 @@ PROFILES = (
         creds=("auth.json", "mcp-auth.json"),
         # The one that would bypass the file outright, and the vendors' own names it reads a
         # key under. Its catalogue knows a hundred and eighty of those; these are the ones a
-        # machine is likely to be carrying already.
+        # machine is likely to be carrying already. And the clouds' names that outrank the
+        # ones their ways below ask for: a Bedrock token is taken over a profile, and Vertex's
+        # own project and region over Google Cloud's -- either left exported would be the
+        # turn running on somebody else's cloud account.
         ambient=(
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_BASE_URL",
+            "AWS_BEARER_TOKEN_BEDROCK",
             "DEEPSEEK_API_KEY",
             "GEMINI_API_KEY",
             "GITHUB_TOKEN",
+            "GOOGLE_VERTEX_LOCATION",
+            "GOOGLE_VERTEX_PROJECT",
             "OPENAI_API_KEY",
             "OPENCODE_AUTH_CONTENT",
             "OPENCODE_CONFIG_CONTENT",
             "OPENROUTER_API_KEY",
         ),
+        # The gateway ways' one URL. What is behind it is one provider of opencode's config,
+        # whose ids a turn names bare and the driver spells `gateway/<id>` -- so what that
+        # endpoint lists is what a turn of the account may name.
+        endpoint="OPENCODE_GATEWAY_URL",
         ways=(
             Way(
                 name="login",
@@ -2047,6 +2067,183 @@ PROFILES = (
                 name="zen",
                 about="an OpenCode Zen key, which its own models run on",
                 asks=(Asked(env="OPENCODE_API_KEY", about="the key", secret=True),),
+            ),
+            # A vendor's own key, under the name its catalogue (models.dev) says that vendor's
+            # provider reads. Where it lists several, the one the vendor's SDK reads itself:
+            # opencode hands the SDK no key of its own for a provider it knows by more than
+            # one name, so Gemini's is `GOOGLE_GENERATIVE_AI_API_KEY` and not the shorter two.
+            Way(
+                name="anthropic-key",
+                about="an Anthropic API key, from the console",
+                asks=(Asked(env="ANTHROPIC_API_KEY", about="the key", secret=True),),
+            ),
+            Way(
+                name="openai-key",
+                about="an OpenAI API key, from the platform",
+                asks=(Asked(env="OPENAI_API_KEY", about="the key", secret=True),),
+            ),
+            Way(
+                name="gemini-key",
+                about="a Gemini API key, from AI Studio",
+                asks=(
+                    Asked(
+                        env="GOOGLE_GENERATIVE_AI_API_KEY",
+                        about="the key",
+                        secret=True,
+                    ),
+                ),
+            ),
+            Way(
+                name="xai-key",
+                about="an xAI API key, from its console",
+                asks=(Asked(env="XAI_API_KEY", about="the key", secret=True),),
+            ),
+            Way(
+                name="openrouter-key",
+                about="an OpenRouter key, for every model it routes to",
+                asks=(Asked(env="OPENROUTER_API_KEY", about="the key", secret=True),),
+            ),
+            Way(
+                name="deepseek-key",
+                about="a DeepSeek API key, from its platform",
+                asks=(Asked(env="DEEPSEEK_API_KEY", about="the key", secret=True),),
+            ),
+            Way(
+                name="mistral-key",
+                about="a Mistral API key, from its console",
+                asks=(Asked(env="MISTRAL_API_KEY", about="the key", secret=True),),
+            ),
+            # Somebody's endpoint, as a provider of opencode's own config: one called
+            # `gateway`, handed in `OPENCODE_CONFIG_CONTENT`, which is merged over whatever
+            # config files there are rather than in place of them. That config goes through
+            # the same `{env:VAR}` substitution a file does -- on its text, before it is
+            # parsed, so in a key and in `npm` as well as in a value -- which is what lets one
+            # string written down here carry whatever each account was answered with. The
+            # model is a key of its `models` because opencode refuses a turn at any id its
+            # config does not list: the one asked for here is what `opencode models` offers,
+            # and the driver says whichever the turn names in its place. The SDK package is
+            # the protocol, and every one of these is one opencode bundles rather than
+            # installs at the turn.
+            Way(
+                name="openai-gateway",
+                about="an endpoint speaking OpenAI's API -- a proxy, a router, another vendor",
+                sets=(
+                    (
+                        "OPENCODE_CONFIG_CONTENT",
+                        (
+                            '{"provider":{"gateway":{"npm":"{env:OPENCODE_GATEWAY_NPM}",'
+                            '"options":{"baseURL":"{env:OPENCODE_GATEWAY_URL}",'
+                            '"apiKey":"{env:OPENCODE_GATEWAY_KEY}"},'
+                            '"models":{"{env:OPENCODE_GATEWAY_MODEL}":{}}}}}'
+                        ),
+                    ),
+                ),
+                asks=(
+                    Asked(env="OPENCODE_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="OPENCODE_GATEWAY_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(
+                        env="OPENCODE_GATEWAY_MODEL",
+                        about="the model to run, as it names it",
+                    ),
+                    # Which of OpenAI's two APIs, by the package opencode speaks each in.
+                    Asked(
+                        env="OPENCODE_GATEWAY_NPM",
+                        about="`@ai-sdk/openai-compatible` for Chat Completions, "
+                        "`@ai-sdk/openai` for Responses",
+                        fixed="@ai-sdk/openai-compatible",
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about="an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                "another vendor",
+                sets=(
+                    (
+                        "OPENCODE_CONFIG_CONTENT",
+                        (
+                            '{"provider":{"gateway":{"npm":"@ai-sdk/anthropic",'
+                            '"options":{"baseURL":"{env:OPENCODE_GATEWAY_URL}",'
+                            '"apiKey":"{env:OPENCODE_GATEWAY_KEY}"},'
+                            '"models":{"{env:OPENCODE_GATEWAY_MODEL}":{}}}}}'
+                        ),
+                    ),
+                ),
+                asks=(
+                    Asked(env="OPENCODE_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="OPENCODE_GATEWAY_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(
+                        env="OPENCODE_GATEWAY_MODEL",
+                        about="the model to run, as it names it",
+                    ),
+                ),
+            ),
+            Way(
+                name="gemini-gateway",
+                about="an endpoint speaking Gemini's API -- a proxy, a router, another vendor",
+                sets=(
+                    (
+                        "OPENCODE_CONFIG_CONTENT",
+                        (
+                            '{"provider":{"gateway":{"npm":"@ai-sdk/google",'
+                            '"options":{"baseURL":"{env:OPENCODE_GATEWAY_URL}",'
+                            '"apiKey":"{env:OPENCODE_GATEWAY_KEY}"},'
+                            '"models":{"{env:OPENCODE_GATEWAY_MODEL}":{}}}}}'
+                        ),
+                    ),
+                ),
+                asks=(
+                    Asked(env="OPENCODE_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="OPENCODE_GATEWAY_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(
+                        env="OPENCODE_GATEWAY_MODEL",
+                        about="the model to run, as it names it",
+                    ),
+                ),
+            ),
+            # The clouds, each switched on by its loader finding an account of its own in the
+            # environment and signed in to as the cloud's own tools are: a profile's
+            # credentials on AWS, the application default ones on Google Cloud. Vertex's
+            # project and region under the names both of its providers read -- Gemini's and
+            # Anthropic's models on Vertex -- and Azure's resource as the host of its
+            # deployments, which a turn names as models.
+            Way(
+                name="bedrock",
+                about="the models on an AWS account of yours",
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            Way(
+                name="vertex",
+                about="the models on a Google Cloud project of yours",
+                asks=(
+                    Asked(env="GOOGLE_CLOUD_PROJECT", about="the project id"),
+                    Asked(
+                        env="GOOGLE_CLOUD_LOCATION", about="the region", fixed="global"
+                    ),
+                ),
+            ),
+            Way(
+                name="azure",
+                about="the models deployed on an Azure OpenAI resource of yours",
+                asks=(
+                    Asked(env="AZURE_RESOURCE_NAME", about="the resource's name"),
+                    Asked(env="AZURE_API_KEY", about="its key", secret=True),
+                ),
             ),
         ),
     ),
