@@ -252,6 +252,22 @@
   color: var(--vp-c-text-1);
 }
 
+/* Where humanize is going, set apart from what it does today: a rule down its side, the
+   figures in the constructivist red. */
+.vp-doc .hmz-vision {
+  margin: 24px 0;
+  padding: 4px 0 4px 16px;
+  border-left: 3px solid var(--hmz-red);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--vp-c-text-2);
+}
+
+.vp-doc .hmz-vision b {
+  color: var(--vp-c-text-1);
+  font-weight: 700;
+}
+
 /* The shell every diagram on the site is drawn in. Two dozen components set it as their root
    class and then style their own insides, so the border, the radius and the fill live here
    once rather than two dozen times. */

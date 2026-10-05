@@ -5,7 +5,7 @@ pageClass: hmz-feature
 # Remote execution
 
 Reference for anchoring: how a turn whose work lands on another machine is run, where each
-part of it runs, what crosses between machines, and what is refused. The layer is
+part of it runs, what crosses between machines, and what is refused. The layer is CogAnchor,
 `hmz.coganchor.anchor` and its command line is `hmz internal anchor`. Where an agent's turns
 land is set per agent by [`machine=`](/reference/machines) and per flow session by its
 [environment](/reference/machines#where-a-flow-s-agents-work); where the harness runs is set per

@@ -9,7 +9,8 @@ there (the files an agent edits, the builds and tests it runs) happens on that m
 this when the build, the data or the GPUs are on a host you reach over ssh, and your coding
 agent and its sign-in are on the machine in front of you. This page takes you from
 `ssh build-box` working to a flow building on it, and shows each of the places the agent's
-CLI itself can run.
+CLI itself can run. The part of humanize that does this is called **CogAnchor**
+(`hmz.coganchor`).
 
 <div class="re-split">
   <div class="re-side">

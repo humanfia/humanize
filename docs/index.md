@@ -6,6 +6,7 @@ layout: home
 import { withBase } from 'vitepress'
 import HmzRun from './.vitepress/theme/components/home/HmzRun.vue'
 import HmzTabs from './.vitepress/theme/components/home/HmzTabs.vue'
+import WhyFlows from './.vitepress/theme/components/home/WhyFlows.vue'
 
 const WAYS = [
   { id: 'prompt', name: 'At the prompt', hint: 'hmz' },
@@ -14,6 +15,42 @@ const WAYS = [
 </script>
 
 <HmzHero />
+
+## Why flows
+
+A coding agent works in a **session**: one conversation, turn after turn. Give it a goal and it
+keeps going until it says it is done. On a small task that is enough. On a big one, a session
+grows long, the agent loses its way, and nobody checks its word. A longer session does not fix
+that. What fixes it is a plan for the sessions: which agent is asked what, in which
+conversation, who checks the work, and when to stop. That plan is a **flow**.
+
+No one flow suits every task, because tasks are different kinds of problem:
+
+- **Building a project is constraint satisfaction.** Every requested feature has to be there,
+  the tests have to pass and the lints have to be clean. Nobody cares which program does it, so
+  the first program that meets every check is enough. A loop that works and then has a fresh
+  agent review the work until nothing is left to fix finds one. That is RLCR, the loop of
+  [Humanize 1](https://humanfia.ai/flows/humanize1), and [`rlar`](https://humanfia.ai/flows/rlar)
+  ships with humanize.
+- **A fast kernel is optimization.** Every candidate already runs, so passing is not the
+  question. The question is how fast the best one is. In our kernel runs, Codex tended to
+  fine-tune, climbing to the nearest optimum and staying there, while Claude Code tended to
+  rewrite in large steps, sometimes landing slower than it started.
+  [Flame-chase](https://humanfia.ai/flows/flame-chase) alternates two fresh agents on one
+  repository: a rewrite moves the work off one optimum, and fine-tuning climbs the next.
+- **Theorem proving, hyper-parameter tuning and the rest** are other kinds of problem again,
+  each with flows of its own, such as the
+  [recursive Lean prover](https://humanfia.ai/flows/recursive-lean-prover).
+
+<WhyFlows />
+
+Flow-level ablations on benchmarks say the same: the flow that wins on one kind of task loses
+on another. humanize lets you pick a flow for the task, configure one, or weave your own in
+Python. What the ablations found is on [Flow Science](https://humanfia.ai/), on humanfia.ai.
+
+<p class="hmz-vision">Where this is going: one flow framework that puts <b>a 100T model</b>,
+<b>1K tokens per second</b>, <b>1M agents</b>, <b>1M environments</b> and <b>1M minutes</b> on
+one big problem. A direction, not a measurement.</p>
 
 ## How it fits together
 
@@ -102,6 +139,9 @@ its one role, `agent`, set a budget, and press its **Save** button: that
 saves the setup and starts the run. This directory remembers the setup: next time, the same line starts the run
 straight away.
 
+Or start from the menu: type `/flow`, pick `ralph_loop`, set it up, press **Save**, and then
+type the task at `❯`.
+
 <kbd>ctrl+c</kbd> twice stops the flow, `/` lists every command, and `/exit` leaves.
 
 <HmzCast name="tui" alt="hmz opens, / lists its commands, /flow lists the flows installed here and → opens one's roles; esc steps back out through its first screen" />
@@ -183,7 +223,8 @@ git diff before
 **Next.** The [User Guide](/user/) covers the interface, accounts and reading a run back, and
 its tutorials each take a real piece of work start to finish: [Beat a
 benchmark](/user/tutorials/take-home), [Port a project](/user/tutorials/port-a-project) and
-[Build a coding agent](/user/tutorials/build-an-agent). [Flows](https://humanfia.ai/flows/), on
+[Build a coding agent](/user/tutorials/build-an-agent). To run a flow with nobody at the
+keyboard, on every push or every night, see [humanize in CI](/user/ci). [Flows](https://humanfia.ai/flows/), on
 humanfia.ai, lists what else there is to run.
 
 ## Weave a flow

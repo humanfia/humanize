@@ -4,7 +4,8 @@ What a run leaves on disk and how it is read back: the **epic** (the run's own r
 sessions its CLIs logged, the optional **profile** of the programs it ran, the **trace** that
 gathers all of it onto one timeline (a Chrome JSON trace, opened in
 [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://tracing`), and the **bundle** a run is
-exported as. Guides: [Exporting a run](/user/export), [Tracing](/user/tracing).
+exported as. Exomyth, humanize's visualizer, is the part that builds the trace
+(`hmz.runtime.tracing`). Guides: [Exporting a run](/user/export), [Tracing](/user/tracing).
 
 ## Model
 
