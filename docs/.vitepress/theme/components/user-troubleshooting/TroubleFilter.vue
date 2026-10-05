@@ -341,6 +341,8 @@ watch(query, () => {
         ×
       </button>
     </label>
+    <!-- One live region that stays in place, so each change of the count is announced. -->
+    <span class="sr" aria-live="polite">{{ !query ? '' : shown ? `${shown} of ${total} entries match.` : 'Nothing here matches.' }}</span>
     <p class="status">
       <template v-if="!query">
         <span class="try">Try</span>
@@ -349,12 +351,10 @@ watch(query, () => {
         </button>
       </template>
       <template v-else-if="shown">
-        <span class="sr" aria-live="polite">{{ shown }} of {{ total }} entries match.</span>
         <span aria-hidden="true"><span class="num">{{ rolled }}</span> of {{ total }} entries match.</span>
         <kbd>esc</kbd> shows them all again.
       </template>
       <template v-else>
-        <span class="sr" aria-live="polite">Nothing here matches.</span>
         <span aria-hidden="true">Nothing here matches.</span> Try a shorter piece of the message, or see
         <a href="#still-stuck">Still stuck</a>.
       </template>
