@@ -279,7 +279,8 @@ function refuse(): Timeline {
   const count = { n: 0 }
   t.set(all('.refused .status'), { autoAlpha: 0 }, 0)
   shake(t, all('.refused'), 0, 8)
-  rise(t, all('.refused .dim'), 0.05, { y: 6, stagger: 0.06, duration: 0.4 })
+  const usage = all('.refused .dim')
+  if (usage.length) rise(t, usage, 0.05, { y: 6, stagger: 0.06, duration: 0.4 })
   t.call(() => {
     typed.value = 0
   }, [], 0)

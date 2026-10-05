@@ -2,7 +2,13 @@
 // Narrows Troubleshooting to the entries a message matches. The entries are the page's own
 // `###` sections, read once the page is mounted, so every message is written once -- in the
 // markdown -- and this holds no copy of any of them.
+//
+// The narrowing moves: an entry that stops matching folds shut, one that starts unfolds, the
+// rest glide up or down into their new places, the words that matched are swept with a
+// highlight, and the count rolls to its new figure. Under reduced motion each is instant.
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+
+import { motion } from '../../motion/gsap'
 
 interface Group {
   nodes: HTMLElement[]
@@ -56,6 +62,152 @@ const ready = ref(false)
 
 let groups: Group[] = []
 
+/* ----------------------------------------------------------------------------------------------
+   The motion: folding nodes shut and open, sweeping the matched words, rolling the count.
+   ---------------------------------------------------------------------------------------------- */
+
+let reduced = true
+// Whether each node of the page is meant to show, whatever its tween has got to.
+const showing = new WeakMap<HTMLElement, boolean>()
+const BOX = 'height,marginTop,marginBottom,paddingTop,paddingBottom,opacity,visibility,overflow,boxSizing,y'
+const SHUT = { height: 0, marginTop: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0, autoAlpha: 0 }
+
+// The count as it shows while it rolls.
+const rolled = ref(0)
+const roll = { n: 0 }
+
+function boxOf(node: HTMLElement) {
+  const css = getComputedStyle(node)
+  return {
+    height: node.offsetHeight,
+    marginTop: css.marginTop,
+    marginBottom: css.marginBottom,
+    paddingTop: css.paddingTop,
+    paddingBottom: css.paddingBottom,
+    autoAlpha: Number(css.opacity),
+  }
+}
+
+/** Show or hide one node of the page: folded shut, or unfolded from wherever it has got to. */
+function fold(node: HTMLElement, on: boolean, delay = 0): void {
+  if ((showing.get(node) ?? true) === on) return
+  showing.set(node, on)
+  if (reduced) {
+    node.style.display = on ? '' : 'none'
+    return
+  }
+  const g = motion()
+  g.killTweensOf(node)
+  if (!on) {
+    g.set(node, { boxSizing: 'border-box', overflow: 'hidden', height: node.offsetHeight })
+    g.to(node, {
+      ...SHUT,
+      duration: 0.38,
+      ease: 'cine',
+      onComplete: () => {
+        g.set(node, { clearProps: BOX })
+        node.style.display = 'none'
+      },
+    })
+    return
+  }
+  const gone = node.style.display === 'none'
+  const from = gone ? SHUT : boxOf(node)
+  g.set(node, { clearProps: BOX })
+  node.style.display = ''
+  const to = boxOf(node)
+  g.fromTo(
+    node,
+    { ...from, boxSizing: 'border-box', overflow: 'hidden', y: gone ? 10 : 0 },
+    { ...to, autoAlpha: 1, y: 0, duration: 0.5, delay, ease: 'cine.out', onComplete: () => g.set(node, { clearProps: BOX }) },
+  )
+}
+
+// The matched words, wrapped where they stand; unwrapped before the next match.
+const HIT = 'hmz-hit'
+let marks: HTMLElement[] = []
+let marking = 0
+const MARKS = 240
+
+function unmark(): void {
+  for (const mark of marks) {
+    const parent = mark.parentNode
+    if (!parent) continue
+    parent.replaceChild(document.createTextNode(mark.textContent ?? ''), mark)
+    parent.normalize()
+  }
+  marks = []
+}
+
+/** How much of `token` the words asked for match: all of it, its start, or none. */
+function hitOf(token: string, asked: string[]): number {
+  const word = token.toLowerCase()
+  if (word.length < 2 || STOP.has(word)) return 0
+  if (asked.includes(word)) return token.length
+  const last = asked[asked.length - 1]
+  return word.startsWith(last) ? last.length : 0
+}
+
+function mark(asked: string[]): void {
+  unmark()
+  if (!asked.length) return
+  const found: HTMLElement[] = []
+  for (const group of groups) {
+    for (const entry of group.entries) {
+      if (showing.get(entry.nodes[0]) === false) continue
+      for (const node of entry.nodes) {
+        if (node.tagName === 'PRE' || node.querySelector('pre')) continue
+        const walk = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+          acceptNode: (text) =>
+            text.parentElement?.closest('.header-anchor, pre, mark') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+        })
+        const texts: Text[] = []
+        while (walk.nextNode()) texts.push(walk.currentNode as Text)
+        for (const text of texts) {
+          let rest: Text = text
+          let offset = 0
+          for (const one of Array.from(text.data.matchAll(/[A-Za-z0-9_]+/g))) {
+            if (found.length >= MARKS) break
+            const length = hitOf(one[0], asked)
+            if (!length) continue
+            const hit = rest.splitText(one.index! - offset)
+            rest = hit.splitText(length)
+            offset = one.index! + length
+            const wrap = document.createElement('mark')
+            wrap.className = HIT
+            hit.parentNode!.replaceChild(wrap, hit)
+            wrap.appendChild(hit)
+            found.push(wrap)
+          }
+        }
+      }
+    }
+  }
+  marks = found
+  if (reduced || !found.length) return
+  motion().fromTo(
+    found,
+    { backgroundSize: '0% 100%' },
+    { backgroundSize: '100% 100%', duration: 0.55, ease: 'cine.out', stagger: Math.min(0.03, 0.6 / found.length) },
+  )
+}
+
+function rollTo(count: number): void {
+  if (reduced) {
+    rolled.value = count
+    return
+  }
+  motion().to(roll, {
+    n: count,
+    duration: 0.5,
+    ease: 'cine.out',
+    overwrite: true,
+    onUpdate: () => {
+      rolled.value = Math.round(roll.n)
+    },
+  })
+}
+
 function read(): void {
   const first = root.value?.closest('.vp-doc')?.querySelector('h2')
   const content = first?.parentElement
@@ -91,6 +243,8 @@ function read(): void {
   }
   total.value = groups.reduce((sum, one) => sum + one.entries.length, 0)
   shown.value = total.value
+  rolled.value = total.value
+  roll.n = total.value
 }
 
 function matches(entry: Entry, asked: string[]): boolean {
@@ -121,15 +275,29 @@ function apply(): void {
         any = true
         count += 1
       }
-      for (const node of entry.nodes) node.style.display = on ? '' : 'none'
+      for (const node of entry.nodes) fold(node, on, on ? Math.min(count, 8) * 0.03 : 0)
     }
-    for (const node of group.nodes) node.style.display = any ? '' : 'none'
+    for (const node of group.nodes) fold(node, any)
   }
   shown.value = count
+  rollTo(count)
+  // The sweep waits for a pause in the typing, rather than restarting at every key.
+  window.clearTimeout(marking)
+  if (reduced) mark(asked)
+  else {
+    unmark()
+    marking = window.setTimeout(() => mark(asked), 220)
+  }
 }
 
 function restore(): void {
+  window.clearTimeout(marking)
+  unmark()
   for (const group of groups) {
+    for (const node of [...group.nodes, ...group.entries.flatMap((one) => one.nodes)]) {
+      motion().killTweensOf(node)
+      motion().set(node, { clearProps: BOX })
+    }
     for (const node of group.nodes) node.style.display = ''
     for (const entry of group.entries) for (const node of entry.nodes) node.style.display = ''
   }
@@ -141,6 +309,7 @@ function tryOne(example: string): void {
 
 onMounted(async () => {
   await nextTick()
+  reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   read()
   ready.value = total.value > 0
   if (query.value) apply()
@@ -172,7 +341,7 @@ watch(query, () => {
         ×
       </button>
     </label>
-    <p class="status" aria-live="polite">
+    <p class="status">
       <template v-if="!query">
         <span class="try">Try</span>
         <button v-for="one in EXAMPLES" :key="one" type="button" class="example" @click="tryOne(one)">
@@ -180,10 +349,13 @@ watch(query, () => {
         </button>
       </template>
       <template v-else-if="shown">
-        {{ shown }} of {{ total }} entries match. <kbd>esc</kbd> shows them all again.
+        <span class="sr" aria-live="polite">{{ shown }} of {{ total }} entries match.</span>
+        <span aria-hidden="true"><span class="num">{{ rolled }}</span> of {{ total }} entries match.</span>
+        <kbd>esc</kbd> shows them all again.
       </template>
       <template v-else>
-        Nothing here matches. Try a shorter piece of the message, or see
+        <span class="sr" aria-live="polite">Nothing here matches.</span>
+        <span aria-hidden="true">Nothing here matches.</span> Try a shorter piece of the message, or see
         <a href="#still-stuck">Still stuck</a>.
       </template>
     </p>
@@ -300,10 +472,47 @@ textarea::placeholder {
   color: var(--vp-c-text-3);
 }
 
+.num {
+  display: inline-block;
+  min-width: 1.4em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--vp-c-brand-1);
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .field,
   .example {
     transition: none;
   }
+}
+</style>
+
+<style>
+/* A matched word on the page, outside this component: swept on from its left edge. */
+.vp-doc mark.hmz-hit {
+  padding: 0 1px;
+  margin: 0 -1px;
+  border-radius: 3px;
+  color: inherit;
+  background-color: transparent;
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--hmz-warm) 38%, transparent),
+    color-mix(in srgb, var(--hmz-warm) 38%, transparent)
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 </style>
