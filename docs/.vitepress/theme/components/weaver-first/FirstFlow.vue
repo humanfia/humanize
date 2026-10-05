@@ -75,7 +75,8 @@ const WIDE: Layout = {
   code: { x: 14, y: 40, w: 286 },
   x0: 318,
   x1: 626,
-  slotY: 52,
+  // Low enough that the stage's "simulated" badge, in the top right corner, covers nothing.
+  slotY: 64,
   ribbonY: 228,
   wsY: 282,
   answerY: 246,
@@ -112,7 +113,7 @@ const L = computed(() => (narrow.value ? NARROW : WIDE))
 
 const lineY = (i: number) => L.value.code.y + 34 + i * LINE
 const codeOut = (i: number) => ({ x: L.value.code.x + L.value.code.w - 8, y: lineY(i) - 4 })
-const rowY = (i: number) => L.value.slotY + 12 + i * ROW
+const rowY = (i: number) => L.value.slotY + 12 + i * (narrow.value ? ROW : ROW - 5)
 const fillX = computed(() => L.value.x0 + DECL_W + 34)
 /** The two turns along the ribbon. */
 const T1 = computed(() => ({ x: L.value.x0 + 8, w: 128 }))
