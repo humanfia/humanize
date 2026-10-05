@@ -186,7 +186,84 @@ const BACKENDS: Backend[] = [
   {
     cli: 'pi',
     called: 'pi',
-    ways: [{ name: 'login', about: 'pi’s own /login, in a session opened for it', runs: 'pi' }, ENV],
+    ways: [
+      { name: 'login', about: 'pi’s own /login, in a session opened for it', runs: 'pi' },
+      {
+        name: 'anthropic-key',
+        about: 'an Anthropic API key, from the console',
+        asks: [{ env: 'ANTHROPIC_API_KEY', secret: true }],
+      },
+      {
+        name: 'anthropic-token',
+        about: 'a long-lived Anthropic token, as claude setup-token prints one',
+        asks: [{ env: 'ANTHROPIC_OAUTH_TOKEN', secret: true }],
+      },
+      {
+        name: 'openai-key',
+        about: 'an OpenAI API key, from the platform',
+        asks: [{ env: 'OPENAI_API_KEY', secret: true }],
+      },
+      {
+        name: 'gemini-key',
+        about: 'a Gemini API key, from Google AI Studio',
+        asks: [{ env: 'GEMINI_API_KEY', secret: true }],
+      },
+      { name: 'xai-key', about: 'an xAI API key, from the console', asks: [{ env: 'XAI_API_KEY', secret: true }] },
+      { name: 'openrouter-key', about: 'an OpenRouter API key', asks: [{ env: 'OPENROUTER_API_KEY', secret: true }] },
+      {
+        name: 'deepseek-key',
+        about: 'a DeepSeek API key, from the platform',
+        asks: [{ env: 'DEEPSEEK_API_KEY', secret: true }],
+      },
+      { name: 'groq-key', about: 'a Groq API key, from the console', asks: [{ env: 'GROQ_API_KEY', secret: true }] },
+      {
+        name: 'mistral-key',
+        about: 'a Mistral API key, from La Plateforme',
+        asks: [{ env: 'MISTRAL_API_KEY', secret: true }],
+      },
+      {
+        name: 'openai-gateway',
+        about: 'an endpoint speaking OpenAI’s API: a proxy, a router, another vendor',
+        asks: [
+          { env: 'PI_GATEWAY_URL' },
+          { env: 'PI_GATEWAY_KEY', secret: true },
+          { env: 'PI_GATEWAY_MODEL' },
+          { env: 'PI_GATEWAY_API', fixed: 'openai-completions' },
+        ],
+      },
+      {
+        name: 'anthropic-gateway',
+        about: 'an endpoint speaking Anthropic’s Messages API: a proxy, a router, another vendor',
+        asks: [{ env: 'PI_GATEWAY_URL' }, { env: 'PI_GATEWAY_KEY', secret: true }, { env: 'PI_GATEWAY_MODEL' }],
+        sets: ['PI_GATEWAY_API=anthropic-messages'],
+      },
+      {
+        name: 'gemini-gateway',
+        about: 'an endpoint speaking Gemini’s API: a proxy, a router, another vendor',
+        asks: [{ env: 'PI_GATEWAY_URL' }, { env: 'PI_GATEWAY_KEY', secret: true }, { env: 'PI_GATEWAY_MODEL' }],
+        sets: ['PI_GATEWAY_API=google-generative-ai'],
+      },
+      {
+        name: 'bedrock',
+        about: 'models on Amazon Bedrock, under an AWS account of yours',
+        asks: [{ env: 'AWS_PROFILE' }, { env: 'AWS_REGION', fixed: 'us-east-1' }],
+      },
+      {
+        name: 'vertex',
+        about: 'models on Vertex AI, under a Google Cloud project of yours',
+        asks: [{ env: 'GOOGLE_CLOUD_PROJECT' }, { env: 'GOOGLE_CLOUD_LOCATION', fixed: 'us-central1' }],
+      },
+      {
+        name: 'azure',
+        about: 'OpenAI’s models on an Azure OpenAI resource of yours',
+        asks: [{ env: 'AZURE_OPENAI_BASE_URL' }, { env: 'AZURE_OPENAI_API_KEY', secret: true }],
+      },
+      ENV,
+    ],
+    note:
+      'A gateway way is written into pi’s own models.json as a provider named humanize-<hash>, ' +
+      'its key as $PI_GATEWAY_KEY rather than as itself, and every turn is run with --provider ' +
+      'naming it.',
   },
   {
     cli: 'qwen',

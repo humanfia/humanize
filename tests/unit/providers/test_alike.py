@@ -68,6 +68,7 @@ def test_copying_one_writes_it_down_under_the_names_that_backend_reads(
     copied = providers.copies(one, "pi")
 
     assert copied.cli == "pi"
+    assert copied.way == "anthropic-token"
     assert copied.name == "sub"  # the same name: it is the same account
     assert dict(copied.env) == {"ANTHROPIC_OAUTH_TOKEN": "t"}
     held = providers.find("pi", "sub")
@@ -82,9 +83,7 @@ def test_a_copy_says_it_was_made_by_the_way_that_asks_for_exactly_it() -> None:
     assert (
         providers.copies(one, "qwen").way == providers.ENV.name
     )  # qwen's key asks two
-    assert (
-        providers.copies(one, "pi").way == providers.ENV.name
-    )  # pi's only way is a login
+    assert providers.copies(one, "pi").way == "openai-key"  # pi's asks for exactly it
 
 
 def test_copying_over_one_already_there_is_how_a_key_is_rotated_everywhere() -> None:

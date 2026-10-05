@@ -64,6 +64,7 @@ M/
 ├── pinned/<blake2b-8(url)>/<sha>/      checkouts of git+ refs and of releases installed
 ├── skills/<owner>-<repo>-<sha256[:12]>/  skill repositories a never-installed flow names by URL
 ├── .<backend>.<name>.lock              held while a run allocates from a runtime
+├── .pi.models.lock                     held while a turn adds a gateway to pi's models.json
 ├── compiled/{pi,qwen}/                 Node compile caches
 ├── docker-ssh/<sha256[:16]>/ssh        ssh shim for docker over ssh
 └── patched/<cli>-<pid>-<rand>/         patched CLI copies (unused in production)

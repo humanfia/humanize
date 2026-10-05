@@ -10,6 +10,7 @@ and asking what the session has spent are all commands there, and none of them i
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import threading
@@ -19,6 +20,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz import machine
+from hmz.coganchor import atomic
 
 from .base import AgentBase, StreamSessionBase
 from .config import AgentConfig
@@ -27,7 +29,8 @@ from .hooks import arriving
 from .preload import preloaded
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Generator, Iterator, Mapping
+    from pathlib import Path
 
     from pydantic import BaseModel
 
@@ -127,6 +130,122 @@ _CHANGING = ("bash", "edit", "write", "powershell")
 #: pi's own `No result provided` for it -- which some models read as the prompt before still
 #: being theirs to answer, and answer that instead of their own.
 _ABORTING = 5.0
+
+#: The lock every turn takes to add a gateway to pi's `models.json`, under humanize's
+#: directory for this machine. The file is the user's own and read whole by every pi that
+#: starts, so it is changed by reading it, adding one provider, and moving the result into
+#: place -- and two turns doing that at once would each write back what the other had not
+#: added yet, one of them starting a pi that has never heard of its provider. Not beside the
+#: file: that directory is pi's, and a lock left in it is clutter nobody there asked for.
+_DECLARING = ".pi.models.lock"
+
+
+def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
+    """The provider of pi's own a gateway account comes to, and what pi calls it.
+
+    Read out of the variables the three gateway ways keep, which pi never reads itself: pi has
+    no variable for where a vendor is, only providers declared in `models.json`, each with the
+    protocol it speaks and a model to start from. The key is written as a reference to its
+    variable rather than as itself, which pi resolves out of the environment a turn runs
+    under, so the secret never lands in a file that is the user's own.
+
+    The name is made of what is declared, so that two accounts on two gateways are two
+    providers and one account's every turn is the one -- written once, and then left as it
+    is. Not the account's name: that is humanize's, and nothing the way was answered with.
+
+    Args:
+      said: The variables the account sets.
+
+    Returns:
+      The provider's name and what declares it, or None for an account on no gateway.
+    """
+    url = said.get("PI_GATEWAY_URL", "").strip()
+    if not url:
+        return None
+    model = said.get("PI_GATEWAY_MODEL", "").strip()
+    declared: dict[str, Any] = {
+        "baseUrl": url,
+        "api": said.get("PI_GATEWAY_API", "").strip() or "openai-completions",
+        "apiKey": "$PI_GATEWAY_KEY",
+        "models": [{"id": model}] if model else [],
+    }
+    spelled = json.dumps(declared, sort_keys=True).encode()
+    return f"humanize-{hashlib.sha256(spelled).hexdigest()[:12]}", declared
+
+
+def _declare(home: Path, named: str, declared: dict[str, Any]) -> None:
+    """Adds one provider to the `models.json` under pi's home, and nothing else to it.
+
+    Everything the file already holds is kept: it is where whoever uses pi here declares their
+    own endpoints, and what is added is one more provider beside them. A file already holding
+    this provider as it is declared is not written at all, which is every turn but an
+    account's first.
+
+    Args:
+      home: pi's home, as the turn will find it.
+      named: What the provider is called.
+      declared: What it is.
+
+    Raises:
+      ValueError: If the file is there but is not JSON this can read -- pi takes comments in
+        it, which a rewrite would lose -- or holds something other than providers by name.
+        Refused rather than written over: it is somebody's own configuration.
+      OSError: If it cannot be read, or written.
+    """
+    # Through a link to wherever it is kept -- a dotfiles checkout, say -- rather than over
+    # the link: a file moved into place at the link's own name would cut it.
+    at = (home / "models.json").resolve()
+    with _locked():
+        try:
+            said: object = json.loads(at.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            said = {}
+        except ValueError as unread:
+            msg = (
+                f"{at} is not JSON humanize can read (pi takes comments, which a rewrite "
+                f"would lose), so the gateway {declared['baseUrl']} cannot be added to it: "
+                f"add {json.dumps({named: declared})} under its providers by hand"
+            )
+            raise ValueError(msg) from unread
+        held = cast("dict[str, Any]", said) if isinstance(said, dict) else None
+        providers = held.setdefault("providers", {}) if held is not None else None
+        if held is None or not isinstance(providers, dict):
+            msg = f"{at} holds no providers by name to add the gateway to"
+            raise ValueError(msg)
+        if cast("dict[str, Any]", providers).get(named) == declared:
+            return
+        cast("dict[str, Any]", providers)[named] = declared
+        at.parent.mkdir(parents=True, exist_ok=True)
+        atomic.writes(
+            at,
+            json.dumps(held, indent=2) + "\n",
+            mode=None if at.exists() else 0o600,
+        )
+
+
+@contextlib.contextmanager
+def _locked() -> Generator[None]:
+    """Holds the lock `models.json` is changed under, for as long as the block runs.
+
+    Where it cannot be had the block runs anyway -- a machine directory this cannot make, a
+    filesystem with no `flock` -- which is a write that might meet another rather than a turn
+    that never starts.
+    """
+    import fcntl
+
+    try:
+        fd = os.open(
+            machine() / _DECLARING, os.O_CREAT | os.O_RDONLY | os.O_CLOEXEC, 0o600
+        )
+    except OSError:
+        yield
+        return
+    try:
+        with contextlib.suppress(OSError):
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)  # which lets go of the lock too
 
 
 def _host(url: str) -> str:
@@ -347,6 +466,31 @@ class PiSession(StreamSessionBase):
             "--session-id",
             pinned,
         ]
+        if (gateway := _gateway(self._agent.environment())) is not None:
+            # An account on a gateway is one provider of pi's own, declared in its
+            # `models.json` as the turn starts, and the turn is held to it: pi given
+            # `--provider` takes the model as an id of that provider's -- the gateway's own
+            # spelling, bare, or with the provider in front -- and one the file does not list
+            # as a custom id of the same provider, so whatever the gateway serves is a model
+            # this account can name. Only for a turn on this machine: an anchored one's pi
+            # reads the home of the machine it runs on, which nothing here writes -- so it is
+            # refused here, saying why, rather than started to refuse a provider it has never
+            # heard of in words that would send somebody looking at the wrong machine.
+            named, declared = gateway
+            if self._agent.anchor is not None:
+                msg = (
+                    f"pi: the {self._agent.config.provider} account is a gateway, which pi "
+                    "reads only from models.json on the machine it runs on, and this turn "
+                    "runs on another one: declare the gateway in that machine's own "
+                    "models.json, or run this agent here"
+                )
+                raise ValueError(msg)
+            from hmz.coganchor import backends
+
+            profile = backends.named(self._agent.backend)
+            if profile is not None:
+                _declare(profile.directory(self._environ()), named, declared)
+            argv += ["--provider", named]
         if self._id is None and self._forked_from is not None:
             # `--fork` opens this session on top of the one it names, so the turns of that
             # conversation are here and what follows them is not written into it. The id

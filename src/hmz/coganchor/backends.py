@@ -1745,15 +1745,22 @@ PROFILES = (
     ),
     Profile(
         name="pi",
-        # Its one way is a sign-in, and the providers it signs in to are these: Anthropic,
-        # ChatGPT, GitHub Copilot (whose token is traded for at `api.github.com`), xAI, Kimi
-        # and OpenRouter -- each one's API and where it is refreshed. Signing in itself, at
-        # `github.com` and the like, is done before a turn rather than during one.
+        # The providers its sign-in reaches are these: Anthropic, ChatGPT, GitHub Copilot
+        # (whose token is traded for at `api.github.com`), xAI, Kimi and OpenRouter -- each
+        # one's API and where it is refreshed. Signing in itself, at `github.com` and the
+        # like, is done before a turn rather than during one. Then the APIs of the vendors a
+        # way below takes a key of, which are not all of them the same hosts a sign-in
+        # reaches: an OpenAI key goes to `api.openai.com` where a ChatGPT sign-in goes to
+        # `chatgpt.com`. A gateway's host is whatever the account says, and `endpoint` below
+        # is what lets it through; an Azure resource's is its `AZURE_OPENAI_BASE_URL`, which
+        # is let through for the same reason. Bedrock's and Vertex's are spelled out of a
+        # region, which no list written here could hold.
         hosts=(
             "api.anthropic.com",
             "platform.claude.com",
             "chatgpt.com",
             "auth.openai.com",
+            "api.openai.com",
             "api.github.com",
             "api.individual.githubcopilot.com",
             "api.x.ai",
@@ -1761,6 +1768,10 @@ PROFILES = (
             "api.kimi.com",
             "auth.kimi.com",
             "openrouter.ai",
+            "generativelanguage.googleapis.com",
+            "api.deepseek.com",
+            "api.groq.com",
+            "api.mistral.ai",
         ),
         installs="npm i -g @earendil-works/pi-coding-agent",
         # A Node script under a `node` shebang, bundle and all, so `NODE_OPTIONS` is read
@@ -1805,7 +1816,12 @@ PROFILES = (
         # this list is a turn that was meant to run as one account and quietly ran as another
         # -- which is not a thing anybody notices until the bill arrives. The cloud ones are
         # in for the same reason: on Bedrock and on Azure the region, the profile, the
-        # resource and the deployment map are half the credential.
+        # resource and the deployment map are half the credential, and on Vertex the project
+        # and the location are -- pi takes the gcloud sign-in on this machine as a Vertex
+        # account only once both are set. So are the four the gateway ways below are made of,
+        # which pi itself never reads: they are what the driver writes a provider of pi's
+        # `models.json` out of, and one left over from somebody's shell is a turn sent to
+        # whatever gateway that shell was last pointed at.
         creds=("auth.json", "auth.json.lock"),
         ambient=(
             "AI_GATEWAY_API_KEY",
@@ -1828,21 +1844,35 @@ PROFILES = (
             "CLOUDFLARE_ACCOUNT_ID",
             "CLOUDFLARE_API_KEY",
             "CLOUDFLARE_GATEWAY_ID",
+            "COPILOT_GITHUB_TOKEN",
             "DEEPSEEK_API_KEY",
             "FIREWORKS_API_KEY",
+            "GCLOUD_PROJECT",
             "GEMINI_API_KEY",
+            "GOOGLE_CLOUD_API_KEY",
+            "GOOGLE_CLOUD_LOCATION",
+            "GOOGLE_CLOUD_PROJECT",
             "GROQ_API_KEY",
+            "HF_TOKEN",
             "KIMI_API_KEY",
+            "META_API_KEY",
             "MINIMAX_API_KEY",
+            "MINIMAX_CN_API_KEY",
             "MISTRAL_API_KEY",
             "MOONSHOT_API_KEY",
             "NVIDIA_API_KEY",
             "OPENAI_API_KEY",
             "OPENCODE_API_KEY",
             "OPENROUTER_API_KEY",
+            "PI_GATEWAY_API",
+            "PI_GATEWAY_KEY",
+            "PI_GATEWAY_MODEL",
+            "PI_GATEWAY_URL",
             "QWEN_TOKEN_PLAN_API_KEY",
             "QWEN_TOKEN_PLAN_CN_API_KEY",
+            "RADIUS_API_KEY",
             "TOGETHER_API_KEY",
+            "TYPESAFE_API_KEY",
             "XAI_API_KEY",
             "XIAOMI_API_KEY",
             "XIAOMI_TOKEN_PLAN_AMS_API_KEY",
@@ -1851,6 +1881,12 @@ PROFILES = (
             "ZAI_API_KEY",
             "ZAI_CODING_CN_API_KEY",
         ),
+        # The one URL all three gateway ways ask for. An account on a vendor's own key spells
+        # its models `provider/id` out of pi's own catalogue and names no endpoint, which is
+        # what `endpoint` is to be for such a backend; an account on a gateway runs every turn
+        # against the one provider the driver declares for it, under whatever id the turn
+        # names -- so what that gateway serves is what a turn of it may name, bare.
+        endpoint="PI_GATEWAY_URL",
         ways=(
             Way(
                 name="login",
@@ -1860,8 +1896,172 @@ PROFILES = (
                 # that looks like a second way in is not one: `pi auth` prints a key or a
                 # bearer token and checks whether a provider is ready, and every one of its
                 # three subcommands reads what is already there rather than putting anything
-                # there -- so this stays the only road in.
+                # there -- so `/login` stays the only road into its own store, and every way
+                # after this one is variables instead.
                 argv=("pi",),
+            ),
+            # A vendor's key apiece, under the vendor's own name for it, which is the whole of
+            # what pi needs: it reads each of them out of the environment, and a turn names the
+            # model as `provider/id` -- `anthropic/claude-sonnet-4-5`, `openai/gpt-5` -- so the
+            # account is told nothing on its command line. The vendors here are the ones
+            # somebody choosing between ways would look for; the other thirty-odd pi reads a
+            # key of are each one variable, and the `env` way every backend has sets any of
+            # them, under the name `ambient` above already hushes.
+            Way(
+                name="anthropic-key",
+                about="an Anthropic API key, from the console",
+                asks=(
+                    Asked(env="ANTHROPIC_API_KEY", about="the API key", secret=True),
+                ),
+            ),
+            Way(
+                name="anthropic-token",
+                about="a long-lived Anthropic token, as `claude setup-token` prints one",
+                # What pi calls a subscription's token when it is handed one rather than
+                # signing in for it, and the same token Claude Code calls its own
+                # `CLAUDE_CODE_OAUTH_TOKEN` -- which is why an account made either way is one
+                # the other backend can be run as.
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_OAUTH_TOKEN",
+                        about="the token `claude setup-token` printed",
+                        secret=True,
+                    ),
+                ),
+            ),
+            Way(
+                name="openai-key",
+                about="an OpenAI API key, from the platform",
+                asks=(Asked(env="OPENAI_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="gemini-key",
+                about="a Gemini API key, from Google AI Studio",
+                asks=(Asked(env="GEMINI_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="xai-key",
+                about="an xAI API key, from the console",
+                asks=(Asked(env="XAI_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="openrouter-key",
+                about="an OpenRouter API key",
+                asks=(
+                    Asked(env="OPENROUTER_API_KEY", about="the API key", secret=True),
+                ),
+            ),
+            Way(
+                name="deepseek-key",
+                about="a DeepSeek API key, from the platform",
+                asks=(Asked(env="DEEPSEEK_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="groq-key",
+                about="a Groq API key, from the console",
+                asks=(Asked(env="GROQ_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="mistral-key",
+                about="a Mistral API key, from La Plateforme",
+                asks=(Asked(env="MISTRAL_API_KEY", about="the API key", secret=True),),
+            ),
+            # pi has no variable for where a vendor is: an endpoint of somebody else's is a
+            # provider of its own, declared in `models.json` under its home with the
+            # protocol it speaks and at least one model, and chosen with `--provider`. So
+            # these are answers kept as variables pi never reads, and the driver writes the
+            # provider out of them as a turn starts -- the key as `$PI_GATEWAY_KEY` rather
+            # than as itself, which pi reads back out of the environment, so that no secret
+            # is written into a file that is the user's own. One way per vendor protocol,
+            # each answering for every protocol of that vendor's pi speaks: OpenAI's two are
+            # a question, the others' one is set.
+            Way(
+                name="openai-gateway",
+                about=(
+                    "an endpoint speaking OpenAI's API -- a proxy, a router, another vendor"
+                ),
+                asks=(
+                    Asked(env="PI_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(env="PI_GATEWAY_KEY", about="the key it takes", secret=True),
+                    Asked(
+                        env="PI_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                    Asked(
+                        env="PI_GATEWAY_API",
+                        about=(
+                            "the protocol it speaks: openai-completions or "
+                            "openai-responses"
+                        ),
+                        fixed="openai-completions",
+                    ),
+                ),
+            ),
+            Way(
+                name="anthropic-gateway",
+                about=(
+                    "an endpoint speaking Anthropic's Messages API -- a proxy, a router, "
+                    "another vendor"
+                ),
+                asks=(
+                    Asked(env="PI_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(env="PI_GATEWAY_KEY", about="the key it takes", secret=True),
+                    Asked(
+                        env="PI_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                ),
+                sets=(("PI_GATEWAY_API", "anthropic-messages"),),
+            ),
+            Way(
+                name="gemini-gateway",
+                about=(
+                    "an endpoint speaking Gemini's API -- a proxy, a router, another vendor"
+                ),
+                asks=(
+                    Asked(env="PI_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(env="PI_GATEWAY_KEY", about="the key it takes", secret=True),
+                    Asked(
+                        env="PI_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
+                    ),
+                ),
+                sets=(("PI_GATEWAY_API", "google-generative-ai"),),
+            ),
+            # The clouds, each the variables pi's own provider for it reads: a turn names
+            # `amazon-bedrock/...`, `google-vertex/...` or `azure-openai-responses/...`. The
+            # cloud's own sign-in -- the AWS profile, gcloud's application default
+            # credentials -- is wherever that cloud's tools keep it, outside pi's home.
+            Way(
+                name="bedrock",
+                about="models on Amazon Bedrock, under an AWS account of yours",
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            Way(
+                name="vertex",
+                about="models on Vertex AI, under a Google Cloud project of yours",
+                asks=(
+                    Asked(env="GOOGLE_CLOUD_PROJECT", about="the project id"),
+                    Asked(
+                        env="GOOGLE_CLOUD_LOCATION",
+                        about="the location",
+                        fixed="us-central1",
+                    ),
+                ),
+            ),
+            Way(
+                name="azure",
+                about="OpenAI's models on an Azure OpenAI resource of yours",
+                asks=(
+                    Asked(
+                        env="AZURE_OPENAI_BASE_URL",
+                        about="the resource, as a URL: https://<resource>.openai.azure.com",
+                    ),
+                    Asked(env="AZURE_OPENAI_API_KEY", about="the API key", secret=True),
+                ),
             ),
         ),
     ),

@@ -165,11 +165,29 @@ order, then `env` for every backend but `dsh`.
 | | `wellknown` | `opencode auth login {OPENCODE_WELLKNOWN}` | `OPENCODE_WELLKNOWN` ◦ (URL answering at `/.well-known/opencode`) | |
 | | `zen` | — | `OPENCODE_API_KEY` • | |
 | `pi` | `login` | `pi` (interactive: `/login`, then `/exit`) | — | |
+| | `anthropic-key` | — | `ANTHROPIC_API_KEY` • | |
+| | `anthropic-token` | — | `ANTHROPIC_OAUTH_TOKEN` • | |
+| | `openai-key` | — | `OPENAI_API_KEY` • | |
+| | `gemini-key` | — | `GEMINI_API_KEY` • | |
+| | `xai-key` | — | `XAI_API_KEY` • | |
+| | `openrouter-key` | — | `OPENROUTER_API_KEY` • | |
+| | `deepseek-key` | — | `DEEPSEEK_API_KEY` • | |
+| | `groq-key` | — | `GROQ_API_KEY` • | |
+| | `mistral-key` | — | `MISTRAL_API_KEY` • | |
+| | `openai-gateway` | — | `PI_GATEWAY_URL`, `PI_GATEWAY_KEY` •, `PI_GATEWAY_MODEL`, `PI_GATEWAY_API` (`openai-completions`; `openai-completions` or `openai-responses`) | a `models.json` provider ([below](#gateways)) |
+| | `anthropic-gateway` | — | `PI_GATEWAY_URL`, `PI_GATEWAY_KEY` •, `PI_GATEWAY_MODEL` | `PI_GATEWAY_API=anthropic-messages` |
+| | `gemini-gateway` | — | `PI_GATEWAY_URL`, `PI_GATEWAY_KEY` •, `PI_GATEWAY_MODEL` | `PI_GATEWAY_API=google-generative-ai` |
+| | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | |
+| | `vertex` | — | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`us-central1`) | |
+| | `azure` | — | `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_API_KEY` • | |
 | `qwen` | `login` | `qwen` (interactive: `/auth`, then `/quit`) | — | |
 | | `key` | — | `OPENAI_API_KEY` •, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) | appends `--auth-type openai` |
 | every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
 
 - A model on an `mcode` `gateway` account is named `custom_provider:gateway/<id>`.
+- A model on a `pi` key or cloud account is named `provider/id` (`anthropic/…`, `openai/…`,
+  `google/…`, `amazon-bedrock/…`, `google-vertex/…`, `azure-openai-responses/…`); on a `pi`
+  gateway account it is the gateway's own id.
 - `mcode`'s `config.yaml` is a credential file, so a provider of it holds settings of its own.
 - `cursor-agent`'s `cli-config.json` is a credential file and also its settings.
 
@@ -379,7 +397,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
 | `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
 | `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
-| `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `KIMI_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `TOGETHER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
+| `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `COPILOT_GITHUB_TOKEN`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GCLOUD_PROJECT`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_API_KEY`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_PROJECT`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `HF_TOKEN`, `KIMI_API_KEY`, `META_API_KEY`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `PI_GATEWAY_API`, `PI_GATEWAY_KEY`, `PI_GATEWAY_MODEL`, `PI_GATEWAY_URL`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `RADIUS_API_KEY`, `TOGETHER_API_KEY`, `TYPESAFE_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
 | `qwen` | `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
 | an ACP CLI | none |
 
@@ -398,12 +416,14 @@ A gateway account points the CLI at an endpoint speaking that CLI's protocol.
 | `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
 | `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
+| `pi` | `openai-gateway`, `anthropic-gateway`, `gemini-gateway` | `PI_GATEWAY_URL` |
 | `qwen` | `key` | `OPENAI_BASE_URL` |
 | `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
 
 A backend with an endpoint variable has its catalogue read from the endpoint when the account
-sets it ([model catalogues](#models-json)). `pi`, `opencode` and `mimo` have none: their models are
-named `provider/id`, which an endpoint's ids do not carry.
+sets it ([model catalogues](#models-json)). `opencode` and `mimo` have none: their models are
+named `provider/id`, which an endpoint's ids do not carry. `pi` names its models that way too
+except on a gateway account, whose every turn is held to the one provider below.
 
 Codex reads a gateway from configuration, not variables. A turn under a codex `gateway`
 account appends, and no `config.toml` is written:
@@ -415,6 +435,37 @@ account appends, and no `config.toml` is written:
 -c model_providers.humanize.env_key=CODEX_PROVIDER_KEY
 -c model_providers.humanize.wire_api=responses
 ```
+
+pi reads a gateway only from `models.json` in its home (`$PI_CODING_AGENT_DIR`, else
+`~/.pi/agent`). Before each turn under a `pi` gateway account on this machine, the driver adds
+one provider there and appends `--provider <name>` to the turn:
+
+```json
+{
+  "providers": {
+    "humanize-<sha256(declaration)[:12]>": {
+      "baseUrl": "<PI_GATEWAY_URL>",
+      "api": "<PI_GATEWAY_API>",
+      "apiKey": "$PI_GATEWAY_KEY",
+      "models": [{ "id": "<PI_GATEWAY_MODEL>" }]
+    }
+  }
+}
+```
+
+- The key is `$PI_GATEWAY_KEY`, which pi resolves from the turn's environment; the secret is
+  written neither to the file nor to the command line.
+- Everything else in the file is kept, and a file already holding the provider as declared is
+  not written. A new file is `0600`; an existing one keeps its mode. Writers on one machine
+  serialise on `flock` of `.pi.models.lock` in the [machine directory](/reference/files).
+- A file that is not plain JSON (pi also takes comments) or has no `providers` object is never
+  rewritten: the turn raises `ValueError` naming the entry to add by hand.
+- With `--provider`, pi takes any model id, bare or `<name>/`-prefixed, as an id of that
+  provider, listed or not.
+- A symlinked `models.json` is written through the link.
+- Entries are never removed: changing an account's URL, model or protocol adds another.
+- A gateway turn of an anchored agent raises `ValueError` before it starts: its pi reads
+  the target's `models.json`, which is not written.
 
 ### Hosts reachable under a cut network
 
