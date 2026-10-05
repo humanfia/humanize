@@ -731,6 +731,27 @@ async def test_a_session_is_not_carried_where_its_harness_cannot_carry_it() -> N
     assert session.prompts == ["one", "three"]
 
 
+async def test_a_litellm_turn_is_given_no_environment() -> None:
+    """A model with no tools and no filesystem works nowhere, so `env` is refused for it."""
+
+    @flow(agents=Plain, envs=Bare, params=Nothing)
+    async def asking(
+        task: str, *, agents: Plain, envs: Bare, params: Nothing, ctx: FlowContext
+    ) -> list[str]:
+        agent = agents["agent"]
+        session = await agent.spawn()
+        with pytest.raises(UnsupportedOperation, match="env=None"):
+            await agent.run("one", session=session, env=envs["env"])
+        said = [await agent.run("two", session=session)]
+        said.append(await agent.run("three", session=await agent.fork(session)))
+        return said
+
+    driver = FakeAgentDriver(HarnessKind.LITELLM)
+    assert await run_fake(asking, agents={"agent": driver}) == ["ok", "ok"]
+    # The fork carries the conversation it was cut from.
+    assert [one.prompts for one in driver.sessions] == [["two"], ["two", "three"]]
+
+
 async def test_a_fork_cut_while_its_parent_takes_a_turn_is_refused() -> None:
     import asyncio
 
