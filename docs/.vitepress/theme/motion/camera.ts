@@ -9,9 +9,10 @@
 // its movement, for parallax; any number of other layers may be given a depth of their own; and
 // the stage's graph paper (`HmzStage`) is told where the camera is, and slides behind it all.
 //
-// On top of where the camera is sent there are two small motions of its own, both kept apart
-// from `cam` so `view` and a shot's target stay exact: `drift`, the slow float of a hand-held
-// camera, and `pulse`, a quick push in and back for a beat that lands.
+// On top of where the camera is sent there are two small motions of its own, kept apart from
+// `cam` so a shot's target stays exact: `drift`, the slow float of a hand-held camera, and
+// `pulse`, a quick push in and back for a beat that lands. `view` counts them, so light still
+// lands on its thing while the camera floats.
 //
 // Every camera tween writes the transform itself in its `onUpdate`, which GSAP also calls when
 // the timeline is seeked across it, so a chapter jump or the reduced-motion still frame shows
@@ -60,7 +61,7 @@ export function rig(
   const first: Shot = { ...home, ...o.start }
   const cam: Shot = { ...first }
   // The hand-held float and the push of a pulse: added when the transform is written, never
-  // to `cam`, so they never move a shot's target or what `view` says.
+  // to `cam`, so they never move a shot's target.
   const sway = { x: 0, y: 0, s: 1 }
   const screen = o.backdrop === false ? null : (o.world?.closest('.hmz-stage .screen') as HTMLElement | null)
 
@@ -86,7 +87,10 @@ export function rig(
   }
 
   /** A world point, where it is on the screen right now. */
-  const view = (p: Point): Point => ({ x: (p.x - cam.x) * cam.s + w / 2, y: (p.y - cam.y) * cam.s + h / 2 })
+  const view = (p: Point): Point => {
+    const s = cam.s * sway.s
+    return { x: (p.x - cam.x - sway.x) * s + w / 2, y: (p.y - cam.y - sway.y) * s + h / 2 }
+  }
 
   tl.fromTo(cam, { ...first }, { ...first, duration: 0.001, onUpdate: apply, immediateRender: true }, 0)
   tl.fromTo(sway, { x: 0, y: 0, s: 1 }, { x: 0, y: 0, s: 1, duration: 0.001, onUpdate: apply, immediateRender: true }, 0)

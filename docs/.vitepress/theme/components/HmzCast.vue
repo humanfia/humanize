@@ -46,8 +46,13 @@ function tick() {
 
 /** Make the player: showing its last frame, or -- made again on a switch of theme -- the
  *  moment `at` it had got to, and playing on from there if `go`. */
+let dark = false
+const isDark = () => document.documentElement.classList.contains('dark')
+
 async function load(at?: number, go = false) {
   const { create } = await import('asciinema-player')
+  // The player reads the theme's colours as it is made: note which theme that was.
+  dark = isDark()
   player = create(withBase(`/demo/${props.name}.cast`), screen.value!, {
     fit: 'width',
     controls: false,
@@ -67,6 +72,8 @@ async function load(at?: number, go = false) {
     progress.value = 1
     if (!still) setTimeout(() => visible && state.value === 'ended' && replay(), 2600)
   })
+  // The theme may have been switched while the player was on its way.
+  void retheme()
 }
 
 function powerOn() {
@@ -101,24 +108,24 @@ async function replay() {
 }
 
 // The theme changed: the player still has the old one's colours. Make it again where it was.
+// `load` notes the theme it made the player in. A switch that comes while the player is being
+// made again is caught when that is done, by going round once more.
 let theming: MutationObserver | undefined
-let dark = false
 let remaking = false
 async function retheme() {
-  const now = document.documentElement.classList.contains('dark')
-  if (now === dark) return
-  dark = now
   if (!player || remaking) return
   remaking = true
   try {
-    const was = state.value
-    // Not started, or over: the last frame, as it was made the first time.
-    const at = was === 'ended' || was === 'idle' ? undefined : player.getCurrentTime()
-    player.dispose()
-    player = undefined
-    screen.value!.replaceChildren()
-    await load(at, was === 'playing')
-    state.value = was === 'playing' ? 'playing' : was
+    while (player && isDark() !== dark) {
+      const was = state.value
+      // Not started, or over: the last frame, as it was made the first time.
+      const at = was === 'ended' || was === 'idle' ? undefined : player.getCurrentTime()
+      player.dispose()
+      player = undefined
+      screen.value!.replaceChildren()
+      await load(at, was === 'playing')
+      state.value = was
+    }
   } finally {
     remaking = false
   }
@@ -157,7 +164,6 @@ function lean(el: HTMLElement) {
 
 onMounted(() => {
   still = matchMedia('(prefers-reduced-motion: reduce)').matches
-  dark = document.documentElement.classList.contains('dark')
   theming = new MutationObserver(retheme)
   theming.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   const el = root.value!

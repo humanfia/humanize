@@ -18,6 +18,13 @@ type Timeline = gsap.core.Timeline
 type Targets = Element | Element[]
 
 const list = (t: Targets): Element[] => (Array.isArray(t) ? t : [t])
+
+/** Where each element already is, by its own x and y (an SVG `transform` attribute counts):
+ *  a move is made from there, not from the origin. Read when the move is cut. */
+function at0(els: Element[]) {
+  const gsap = motion()
+  return els.map((e) => ({ x: Number(gsap.getProperty(e, 'x')) || 0, y: Number(gsap.getProperty(e, 'y')) || 0 }))
+}
 const SVG = 'http://www.w3.org/2000/svg'
 
 /** Add a drawing to the scene for as long as the scene is built: gone again on a rebuild. */
@@ -133,16 +140,17 @@ export function transform(tl: Timeline, from: Element, to: Element, at: gsap.Pos
   const b = box(to)
   const sx = b.width / Math.max(a.width, 1e-3)
   const sy = b.height / Math.max(a.height, 1e-3)
+  const [f, t] = at0([from, to])
   tl.fromTo(
     from,
-    { x: 0, y: 0, scaleX: 1, scaleY: 1, autoAlpha: 1, transformOrigin: '0% 0%' },
-    { x: b.x - a.x, y: b.y - a.y, scaleX: sx || 1, scaleY: sy || 1, autoAlpha: 0, duration, ease },
+    { x: f.x, y: f.y, scaleX: 1, scaleY: 1, autoAlpha: 1, transformOrigin: '0% 0%' },
+    { x: f.x + b.x - a.x, y: f.y + b.y - a.y, scaleX: sx || 1, scaleY: sy || 1, autoAlpha: 0, duration, ease },
     at,
   )
   tl.fromTo(
     to,
-    { x: a.x - b.x, y: a.y - b.y, scaleX: 1 / (sx || 1), scaleY: 1 / (sy || 1), autoAlpha: 0, transformOrigin: '0% 0%' },
-    { x: 0, y: 0, scaleX: 1, scaleY: 1, autoAlpha: 1, duration, ease },
+    { x: t.x + a.x - b.x, y: t.y + a.y - b.y, scaleX: 1 / (sx || 1), scaleY: 1 / (sy || 1), autoAlpha: 0, transformOrigin: '0% 0%' },
+    { x: t.x, y: t.y, scaleX: 1, scaleY: 1, autoAlpha: 1, duration, ease },
     '<',
   )
 }
@@ -275,17 +283,21 @@ export function growFrom(tl: Timeline, el: Targets, at: gsap.Position, opts: { o
 
 /** Fade a thing in, moving the last of the way from `shift` (in its own units) as it comes. */
 export function fadeIn(tl: Timeline, el: Targets, at: gsap.Position, opts: { shift?: { x?: number; y?: number }; duration?: number; stagger?: number } = {}) {
+  const els = list(el)
+  const home = at0(els)
   tl.fromTo(
-    list(el),
-    { autoAlpha: 0, x: opts.shift?.x ?? 0, y: opts.shift?.y ?? 0 },
-    { autoAlpha: 1, x: 0, y: 0, duration: opts.duration ?? 0.7, ease: 'smooth.out', stagger: opts.stagger ?? 0.06 },
+    els,
+    { autoAlpha: 0, x: (i: number) => home[i].x + (opts.shift?.x ?? 0), y: (i: number) => home[i].y + (opts.shift?.y ?? 0) },
+    { autoAlpha: 1, x: (i: number) => home[i].x, y: (i: number) => home[i].y, duration: opts.duration ?? 0.7, ease: 'smooth.out', stagger: opts.stagger ?? 0.06 },
     at,
   )
 }
 
 /** Fade a thing out, moving off by `shift` as it goes. */
 export function fadeOut(tl: Timeline, el: Targets, at: gsap.Position, opts: { shift?: { x?: number; y?: number }; duration?: number; stagger?: number } = {}) {
-  tl.to(list(el), { autoAlpha: 0, x: opts.shift?.x ?? 0, y: opts.shift?.y ?? 0, duration: opts.duration ?? 0.6, ease: 'smooth', stagger: opts.stagger ?? 0.04 }, at)
+  const els = list(el)
+  const home = at0(els)
+  tl.to(els, { autoAlpha: 0, x: (i: number) => home[i].x + (opts.shift?.x ?? 0), y: (i: number) => home[i].y + (opts.shift?.y ?? 0), duration: opts.duration ?? 0.6, ease: 'smooth', stagger: opts.stagger ?? 0.04 }, at)
 }
 
 /** A damped shake about where it is, for "this one, here". manim's `Wiggle`. */

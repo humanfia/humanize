@@ -89,9 +89,15 @@ export function createFx(canvas: HTMLCanvasElement, width: number, height: numbe
 
   const dark = () => document.documentElement.classList.contains('dark')
 
+  // A canvas cannot read `var(--hmz-red)`: a colour given that way is looked up as it is used.
+  const paint = (color: string) => {
+    const name = /^var\((--[\w-]+)\)$/.exec(color.trim())?.[1]
+    return name ? getComputedStyle(canvas).getPropertyValue(name).trim() || color : color
+  }
+
   function add(m: Partial<Mote> & Pick<Mote, 'kind' | 'x' | 'y' | 'life' | 'size' | 'color'>) {
     if (motes.length > 600) motes.shift()
-    motes.push({ vx: 0, vy: 0, drag: 0, r0: 0, r1: 0, angle: 0, ...m, age: 0 })
+    motes.push({ vx: 0, vy: 0, drag: 0, r0: 0, r1: 0, angle: 0, ...m, color: paint(m.color), age: 0 })
   }
 
   // How far a thing that decelerates has got, `t` through its life: fast out, slow in.
