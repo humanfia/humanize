@@ -698,7 +698,10 @@ async def test_a_session_takes_each_turn_where_that_turn_is_given() -> None:
             await agent.run("three", session=session, env=None),
         ]
 
-    driver = FakeAgentDriver(reply=lambda prompt, **_: prompt)
+    def echo(prompt: str, **_: Any) -> str:
+        return prompt
+
+    driver = FakeAgentDriver(reply=echo)
     assert await run_fake(moving, agents={"agent": driver}) == ["one", "two", "three"]
     # One conversation, carried from the flow's environment into the run's own workspace.
     (session,) = driver.sessions
@@ -755,7 +758,9 @@ async def test_a_fork_cut_while_its_parent_takes_a_turn_is_refused() -> None:
             cut.set()
 
         with pytest.raises(SessionError, match="taken a turn since"):
-            await asyncio.gather(agent.run("three", session=forked, env=env), meanwhile())
+            await asyncio.gather(
+                agent.run("three", session=forked, env=env), meanwhile()
+            )
 
     driver = Slow()
     await run_fake(racing, agents={"agent": driver})
