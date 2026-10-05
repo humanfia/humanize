@@ -145,7 +145,7 @@ const scene = useScene({
     tl.set(at('.cut-line, .axis-line'), { drawSVG: '0%' }, 0)
     tl.set(at('.axis-word, .cut-flow'), { autoAlpha: 0 }, 0)
     if (!narrow.value) tl.set(at('.state-name'), { autoAlpha: 0 }, 0)
-    tl.set(at('.cut-line'), { autoAlpha: 1 }, 0)
+    tl.set(at('.cut-line'), { autoAlpha: 0.55 }, 0)
 
     // 0 · round after round, each one kept the moment it is written down.
     tl.addLabel('beat-0', 0)

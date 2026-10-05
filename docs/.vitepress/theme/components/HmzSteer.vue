@@ -390,7 +390,7 @@ const scene = useScene({
     // heads of the turns breathe. Laid over the whole timeline, so a seek lands on it too.
     const D = tl.duration()
     tl.fromTo(all('.caret'), { opacity: 1 }, { opacity: 0.25, duration: 0.5, ease: 'steps(1)', yoyo: true, repeat: Math.floor(D / 0.5) - 1 }, 0)
-    tl.fromTo(all('.head-glow'), { scale: 0.85, transformOrigin: '50% 50%' }, { scale: 1.3, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: Math.floor(D / 0.8) - 1 }, 0)
+    tl.fromTo(all('.head-glow'), { attr: { r: 9 } }, { attr: { r: 14 }, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: Math.floor(D / 0.8) - 1 }, 0)
   },
 })
 </script>
