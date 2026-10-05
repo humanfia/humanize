@@ -294,6 +294,9 @@ const scene = useScene({
     tl.addLabel('rest', T5 + 4)
     cam.shot({ ...l.whole, s: l.whole.s * 1.025 }, T5 + 3.9, 2.6, 'sine.inOut')
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T5 + 6.6)
+
+    // The empty cells of the matrix hum while they wait: a slow march of their dashes.
+    tl.fromTo(at('.hum'), { strokeDashoffset: 0 }, { strokeDashoffset: -40, duration: tl.duration(), ease: 'none' }, 0)
   },
 })
 
@@ -387,7 +390,7 @@ const STATUS = ['ci-ok (push tier)', 'ci-ok (pr tier)', 'ci-ok']
           <g v-for="(o, os) in OSES" :key="o">
             <text class="grid-os" :x="L.ci.x + 12" :y="gridY(os) + 15">{{ o }}</text>
             <g v-for="(p, py) in PYTHONS" :key="p">
-              <rect class="cell" :x="cellX(py)" :y="gridY(os)" :width="L.cellW" height="22" rx="4" />
+              <rect class="cell hum" :x="cellX(py)" :y="gridY(os)" :width="L.cellW" height="22" rx="4" />
               <g class="cell-lit" :class="`cell-lit-${os}-${py}`">
                 <rect :x="cellX(py)" :y="gridY(os)" :width="L.cellW" height="22" rx="4" />
                 <text :x="cellX(py) + L.cellW / 2" :y="gridY(os) + 15" text-anchor="middle">{{ cell(os, py) }}</text>
