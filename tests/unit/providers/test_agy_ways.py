@@ -121,7 +121,7 @@ def test_a_model_a_gateway_was_told_it_serves_is_offered_at_no_effort() -> None:
         "gemini-3-flash-preview\tGemini 3 Flash\n"
     )
 
-    found = models._agy(profile, lambda *_: said)  # pyright: ignore[reportPrivateUsage]
+    found = models._agy(profile, lambda *_: said)
 
     assert [(one.name, one.efforts) for one in found] == [
         ("gpt-x", ()),
@@ -142,5 +142,4 @@ def test_the_fence_lets_a_gateway_account_reach_its_gateway() -> None:
         },
     )
 
-    assert "gw.example.com" in hosts
-    assert "proxy.example.com:3128" in hosts
+    assert {"gw.example.com", "proxy.example.com:3128"} <= set(hosts)
