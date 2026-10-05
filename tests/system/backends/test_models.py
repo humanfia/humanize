@@ -122,7 +122,7 @@ def test_an_account_is_asked_under_its_own_credentials_and_without_anybody_elses
     # A gateway with nothing listening at it, so this is about the environment the CLI is
     # run under rather than about the endpoint being asked -- which nothing answers.
     at = "http://127.0.0.1:1"
-    providers.add("claude", "mine", "gateway", {"ANTHROPIC_BASE_URL": at})
+    providers.add("claude", "mine", "anthropic-gateway", {"ANTHROPIC_BASE_URL": at})
 
     models.ask("claude", "mine")
 
@@ -164,7 +164,9 @@ def test_an_endpoint_that_will_not_say_leaves_the_cli_to_answer(
     """
     stands_in(monkeypatch, tmp_path / "bin", "claude", CLAUDE)
     with endpoint(body, status=status) as (base, _):
-        providers.add("claude", "gateway", "gateway", {"ANTHROPIC_BASE_URL": base})
+        providers.add(
+            "claude", "gateway", "anthropic-gateway", {"ANTHROPIC_BASE_URL": base}
+        )
 
         found = models.ask("claude", "gateway")
 

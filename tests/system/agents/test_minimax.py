@@ -55,7 +55,7 @@ def test_a_gateway_account_takes_a_turn_and_the_next_carries_it_on(
 ) -> None:
     profile = backends.named("mcode")
     assert profile is not None
-    way = next(one for one in profile.ways if one.name == "gateway")
+    way = next(one for one in profile.ways if one.name == "openai-gateway")
     answers = {
         "MCODE_GATEWAY_URL": f"{llm.base}/v1",
         "MCODE_PROVIDER_API_KEY": llm.secret,
@@ -105,7 +105,7 @@ def test_a_fenced_turn_keeping_no_session_takes_its_lock_and_answers(
     monkeypatch.setenv(KEEPING, "off")
     profile = backends.named("mcode")
     assert profile is not None
-    way = next(one for one in profile.ways if one.name == "gateway")
+    way = next(one for one in profile.ways if one.name == "openai-gateway")
     answers = {
         "MCODE_GATEWAY_URL": f"{llm.base}/v1",
         "MCODE_PROVIDER_API_KEY": llm.secret,

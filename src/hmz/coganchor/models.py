@@ -755,7 +755,8 @@ def _agy(profile: Profile, run: Callable[..., str]) -> list[Model]:
       at three efforts. A model whose name carries none is offered at the whole ladder, that
       being the name the CLI takes `--effort` beside: its driver sends the flag exactly where
       the name has not already answered, and the CLI refuses it by name for a model that
-      turns out to take none.
+      turns out to take none. Except a model an enterprise gateway was told it serves, which
+      takes no effort at all and is offered at none.
     """
     found: list[Model] = []
     for line in run(["models"]).splitlines():
@@ -764,6 +765,13 @@ def _agy(profile: Profile, run: Callable[..., str]) -> list[Model]:
         if not columns or len(columns) < 2:  # noqa: PLR2004
             continue
         name = columns[0]
+        # A model of `AGY_LLM_GATEWAY_MODELS` -- which, set, is the whole of what agy lists --
+        # has no name for a person to read but its id, so it is listed as that id twice. agy
+        # refuses `--effort` for every one of them (1.2.16), and a model offered at a rung is
+        # one a picker gives the hardest of: every turn of the account would be refused.
+        if " ".join(columns[1:]) == name:
+            found.append(Model(name, (), profile.swarms))
+            continue
         # The end of the name rather than a word of it, unlike Cursor's: these ids are the
         # model and then the rung, `gemini-3.7-flash-high`, with nothing written after it.
         carried = next(
