@@ -6,7 +6,9 @@ checks and find your way around the code is the
 [contributing guide](https://docs.humanfia.ai/humanize/contributing/), whose source is
 [`docs/contributing/`](docs/contributing/).
 
-Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+Everyone taking part follows the
+[Code of Conduct](https://github.com/humanfia/.github/blob/main/CODE_OF_CONDUCT.md), which every
+humanfia repository shares.
 
 ## Ways to help
 
@@ -70,7 +72,8 @@ No sign-off or CLA is asked for. What you contribute is under the project's
 
 - GitHub asks the [code owners](.github/CODEOWNERS) of what you changed to review it.
 - A pull request merges once a maintainer approves it and CI passes. A maintainer merges it.
-  [GOVERNANCE.md](GOVERNANCE.md#conflicts-of-interest) covers a maintainer's own pull requests.
+  [Conflicts of interest](https://github.com/humanfia/.github/blob/main/GOVERNANCE.md#conflicts-of-interest),
+  in the organization's governance, covers a maintainer's own pull requests.
 - Expect a first answer within a week. If a week passes without one, comment on the pull
   request to ask.
 - Answer each comment, by a change or a reply. Push fixes as new commits rather than rewriting
@@ -90,5 +93,7 @@ author of what you send: read it, run it, and be ready to answer for every line.
   checks, where a test goes, what the code is held to.
 - [Architecture](https://docs.humanfia.ai/humanize/contributing/architecture): which layer a
   change belongs in.
-- [GOVERNANCE.md](GOVERNANCE.md): who decides, and how to become a reviewer or maintainer.
+- [GOVERNANCE.md](GOVERNANCE.md), and the organization's
+  [GOVERNANCE.md](https://github.com/humanfia/.github/blob/main/GOVERNANCE.md): who decides, and
+  how to become a reviewer or maintainer.
 - [SUPPORT.md](SUPPORT.md): where to ask.
