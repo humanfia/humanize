@@ -132,19 +132,19 @@ const NARROW: Layout = {
   written: { x: 240, y: 202 },
   read: { x: 110, y: 296 },
   short: { x: 175, y: 175 },
-  deny2: { x: 240, y: 216 },
+  deny2: { x: 240, y: 204 },
   online: { x: 12, y: 390, w: 336, h: 96 },
-  hosts: { web: { x: 96, y: 460 }, model: { x: 264, y: 460 }, webEnd: { x: 96, y: 449 }, modelEnd: { x: 264, y: 449 }, bend: [-0.45, -0.32] },
+  hosts: { web: { x: 96, y: 460 }, model: { x: 264, y: 460 }, webEnd: { x: 96, y: 449 }, modelEnd: { x: 264, y: 449 }, bend: [-0.5, 0.3] },
   grant: { x: 12, y: 500, w: 336, h: 136 },
   rowH: 24,
   rowTop: 48,
   shots: {
     open: { x: 180, y: 324, s: 1 },
-    write: { x: 180, y: 180, s: 1.2 },
-    wall: { x: 180, y: 270, s: 1.15 },
-    read: { x: 160, y: 230, s: 1.15 },
-    grant: { x: 180, y: 560, s: 1.2 },
-    strict: { x: 180, y: 196, s: 1.15 },
+    write: { x: 180, y: 200, s: 1.06 },
+    wall: { x: 180, y: 270, s: 1.06 },
+    read: { x: 180, y: 240, s: 1.06 },
+    grant: { x: 180, y: 520, s: 1.08 },
+    strict: { x: 180, y: 220, s: 1.06 },
     net: { x: 180, y: 330, s: 1 },
   },
 }
@@ -728,7 +728,7 @@ svg {
 }
 
 .host-bg {
-  fill: var(--hmz-stage-bg);
+  fill: var(--hmz-stage-card);
   stroke: var(--hmz-stage-line);
 }
 

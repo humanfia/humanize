@@ -1,3 +1,7 @@
+<script setup>
+import PickUp from '../.vitepress/theme/components/user-resuming/PickUp.vue'
+</script>
+
 # Picking a run up
 
 Carry a loop on from where its last run stopped, instead of starting it over. Use this after
@@ -42,6 +46,8 @@ number of the round it is on, and saves it every time it changes. A run that sto
 reason — <kbd>ctrl+c</kbd>, a spent budget, a crash, a machine switched off — leaves that
 record behind. Picking the run up starts the flow again **with that record**, so the loop
 carries on counting instead of starting from nothing.
+
+<PickUp />
 
 Three things are worth knowing before you rely on it:
 
@@ -273,10 +279,10 @@ async def nightly(
     while True:
         state["round"] = (state["round"] if "round" in state else 0) + 1
         session = await fixer.spawn()
-        prompt = f"{task}\n\nRound {state['round']}."
-        await fixer.run(prompt, session=session, env=envs["workspace"])
+        await fixer.run(f"{task}\n\nRound {state['round']}.", session=session)
 ```
 
+- A turn run with no `env`, as here, works in the workspace, the directory hmz ran in.
 - Store only what JSON can hold. Anything else raises `StateNotSerializable` where it is set.
 - Changing a value inside the state, such as appending to a list, is not saved. Set the key
   again: `state["seen"] = [*state["seen"], path]`.
