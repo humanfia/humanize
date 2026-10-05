@@ -1,3 +1,7 @@
+<script setup>
+import EnvDerive from '../.vitepress/theme/components/weaver-worktrees/EnvDerive.vue'
+</script>
+
 # Worktrees, copies and scratch
 
 In this guide you give a flow more places to work than the one directory it was handed. You
@@ -16,6 +20,8 @@ to keep notes out of the repository.
 :::
 
 ## How it works
+
+<EnvDerive />
 
 An **environment** is a working directory on a machine. A turn works in the environment it is
 given, `run(…, env=…)`, and a flow is handed its environments by role: `envs["workspace"]`.

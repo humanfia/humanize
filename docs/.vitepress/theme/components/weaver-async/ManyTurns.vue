@@ -282,7 +282,7 @@ const scene = useScene({
     cam.flare({ x: l.rule.right[1] - 8, y: l.rule.rows[0] }, ok, T5 + 4, 12, 60)
     cam.flare({ x: l.rule.right[1] - 8, y: l.rule.rows[1] }, ok, T5 + 4, 12, 60)
 
-    tl.addLabel('rest', T5 + 5.6)
+    tl.addLabel('rest', T5 + 6.4)
     cam.shot(l.shots.whole, T5 + 4.6, 1.6)
     tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T5 + 8.4)
 

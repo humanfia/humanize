@@ -1,3 +1,7 @@
+<script setup>
+import PersonTurn from '../.vitepress/theme/components/weaver-person/PersonTurn.vue'
+</script>
+
 # The person as an agent
 
 In this guide you make the person running a flow one of its agents. You build `talk`, a
@@ -16,6 +20,8 @@ into an agent's turn, while an agent of this kind takes turns of its own.
 :::
 
 ## How it works
+
+<PersonTurn />
 
 An **outworlder** is whoever is outside the run: the person at the prompt, or whatever stands in
 for them. A flow declares one as a role typed `Outworlder`, and drives it the way it drives a
