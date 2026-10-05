@@ -6,6 +6,11 @@
 // mode changes are replayed on the target first; programs the agent spawns, and their
 // connections, run on the target; the agent's own runtime, state directory, credentials and
 // connections (its model provider) stay here. The file names and test counts are invented.
+//
+// The paper under it is a plane whose origin is the anchor, drifting at a third of the
+// camera's pace. The command that crosses glides into the terminal's title, and the exit
+// status it ends with flies home whole onto the agent; a current runs across the anchor while
+// the scene plays.
 import { computed, ref, useId } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
@@ -14,6 +19,8 @@ import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
 import { rig, type Point, type Shot } from '../motion/camera'
+import ScenePlane from './scene/ScenePlane.vue'
+import { drawPlane, glide } from './scene/plane'
 
 const BEATS = [
   'The agent runs here, unchanged',
@@ -168,6 +175,8 @@ const scene = useScene({
     tl.set(at('.term-title'), { text: '' }, 0)
     tl.set(status, { text: 'idle' }, 0)
     tl.set(one('.world'), { autoAlpha: 1 }, 0)
+    tl.set(at('.anchor-flow'), { autoAlpha: 0 }, 0)
+    drawPlane(tl, q, 0.2, { duration: 2.4 })
 
     // 0 · the agent, alone, close; then the camera pulls back to show two machines.
     tl.addLabel('beat-0', 0)
@@ -178,6 +187,7 @@ const scene = useScene({
     tl.to(at('.machine-name'), { autoAlpha: 1, duration: 0.6, stagger: 0.25 }, 2.0)
     tl.to(one('.anchor-line'), { drawSVG: '100%', duration: 1.0, ease: 'cine' }, 2.1)
     tl.to(one('.anchor-word'), { autoAlpha: 1, duration: 0.5 }, 2.6)
+    tl.to(at('.anchor-flow'), { autoAlpha: 1, duration: 0.6 }, 3.1)
     tl.fromTo(at('.card'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.1 }, 2.3)
     tl.fromTo(at('.pill'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, stagger: 0.15 }, 2.7)
 
@@ -237,6 +247,9 @@ const scene = useScene({
     cam.flare({ x: l.term.x + 36, y: l.term.y + 14 }, c.cmd, T3 + 0.7, 14, 70)
     tl.set(one('.term-lit'), { autoAlpha: 0 }, 0)
     tl.to(one('.term-lit'), { autoAlpha: 1, duration: 0.4 }, T3 + 0.7)
+    // The command that crossed is the one the terminal runs: its name glides into the title.
+    const landed = l.paths.cmdOut.trim().split(/[ ,]+/).slice(-2).map(Number)
+    glide(tl, null, one('.term-head'), landed[0] - (l.term.x + 44), landed[1] - (l.term.y + 14), T3 + 0.65, { duration: 0.6 })
     type(tl, one('.term-title'), 'pytest -q', T3 + 0.8, 26)
     tl.fromTo(at('.out'), { autoAlpha: 0, x: -6 }, { autoAlpha: 1, x: 0, duration: 0.35, stagger: 0.35 }, T3 + 1.3)
     cam.beam({ x: l.pypi.x, y: narrow.value ? l.term.y + l.term.h : l.term.y }, l.pypi, c.there, T3 + 1.7, { duration: 0.6, bend: 0.15, burst: 16 })
@@ -245,6 +258,11 @@ const scene = useScene({
     tl.fromTo(one('.exit'), { autoAlpha: 0, scale: 1.6, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: 'back.out(2)' }, T3 + 2.9)
     cam.shot({ x: l.w / 2, y: l.h / 2, s: 1 }, T3 + 3.0, 1.4)
     cam.beam({ x: l.term.x, y: l.term.y + l.term.h - 16 }, { x: l.agent.x + l.agent.w, y: agentC.y }, c.cmd, T3 + 3.1, { duration: 1.0, bend: narrow.value ? 0.3 : -0.25, burst: 14 })
+    // And what it ended with goes home whole: the same words, onto the agent.
+    const home = { x: agentC.x, y: agentC.y + 12 }
+    const from = { x: l.term.x + l.term.w - 38, y: l.term.y + l.term.h - 18 }
+    glide(tl, null, one('.exit-home'), from.x - home.x, from.y - home.y, T3 + 3.1, { duration: 1 })
+    tl.to(one('.exit-home'), { autoAlpha: 0, duration: 0.2 }, T3 + 4.0)
     type(tl, status, 'exit 0', T3 + 4.0, 20)
 
     // 4 · what stays here: the agent's sign-in, its keys, its state, and its own connection to
@@ -288,9 +306,6 @@ const scene = useScene({
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
-        <pattern :id="`${id}-dots`" width="22" height="22" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1" class="grid-dot" />
-        </pattern>
         <radialGradient :id="`${id}-halo-here`">
           <stop offset="0" stop-color="var(--hmz-lane-1)" stop-opacity="0.5" />
           <stop offset="1" stop-color="var(--hmz-lane-1)" stop-opacity="0" />
@@ -305,7 +320,9 @@ const scene = useScene({
         </radialGradient>
       </defs>
 
-      <g class="far"><rect x="-400" y="-400" :width="L.w + 800" :height="L.h + 800" :fill="`url(#${id}-dots)`" /></g>
+      <g class="far">
+        <ScenePlane :key="`plane-${narrow}`" :w="L.w" :h="L.h" :ox="anchorMid.x" :oy="anchorMid.y" :step="44" :bleed="320" />
+      </g>
 
       <g class="world">
         <!-- The two machines. -->
@@ -320,6 +337,7 @@ const scene = useScene({
           <ellipse class="halo anchor-halo" :rx="narrow ? 170 : 44" :ry="narrow ? 40 : 150" :fill="`url(#${id}-halo-there)`" />
         </g>
         <line class="anchor-line" :x1="L.anchor.x1" :y1="L.anchor.y1" :x2="L.anchor.x2" :y2="L.anchor.y2" />
+        <line class="anchor-flow" :x1="L.anchor.x1" :y1="L.anchor.y1" :x2="L.anchor.x2" :y2="L.anchor.y2" />
         <g class="anchor-word" :transform="`translate(${L.word.x} ${L.word.y})${narrow ? '' : ' rotate(-90)'}`">
           <rect :x="-34" y="-9" width="68" height="18" rx="9" />
           <text y="4" text-anchor="middle">anchor</text>
@@ -385,7 +403,7 @@ const scene = useScene({
           <rect class="box" :x="L.term.x" :y="L.term.y" :width="L.term.w" :height="L.term.h" rx="10" />
           <rect class="box term-lit" :x="L.term.x" :y="L.term.y" :width="L.term.w" :height="L.term.h" rx="10" />
           <circle v-for="i in 3" :key="i" class="term-dot" :cx="L.term.x + 6 + i * 9" :cy="L.term.y + 14" r="2.6" />
-          <text class="term-title mono" :x="L.term.x + 44" :y="L.term.y + 18" />
+          <g class="term-head"><text class="term-title mono" :x="L.term.x + 44" :y="L.term.y + 18" /></g>
           <text class="out mono" :x="L.term.x + 12" :y="L.term.y + 42">collected 42 items</text>
           <text class="out mono dim" :x="L.term.x + 12" :y="L.term.y + 60">{{ '.'.repeat(Math.floor((L.term.w - 24) / 8.2)) }}</text>
           <text class="out mono ok" :x="L.term.x + 12" :y="L.term.y + 78">42 passed</text>
@@ -411,6 +429,13 @@ const scene = useScene({
           </g>
         </g>
 
+        <g :transform="`translate(${L.agent.x + L.agent.w / 2} ${L.agent.y + L.agent.h / 2 + 12})`">
+          <g class="exit-home">
+            <rect x="-30" y="-10" width="60" height="20" rx="10" />
+            <text y="4" text-anchor="middle">exit 0</text>
+          </g>
+        </g>
+
         <g :transform="`translate(${L.stamp.x} ${L.stamp.y})`">
           <g class="stamp">
             <rect :x="-L.stampW / 2" y="-15" :width="L.stampW" height="30" rx="15" />
@@ -430,10 +455,6 @@ svg {
 
 .mono {
   font-family: var(--vp-font-family-mono);
-}
-
-.grid-dot {
-  fill: var(--hmz-stage-line);
 }
 
 .halo {
@@ -482,6 +503,25 @@ svg {
   stroke: var(--hmz-accent);
   stroke-width: 2;
   stroke-dasharray: 4 5;
+}
+
+/* The current across the anchor, once it is up: running while the scene plays. */
+.anchor-flow {
+  stroke: var(--hmz-accent);
+  stroke-width: 3;
+  stroke-dasharray: 1 17;
+  stroke-linecap: round;
+  animation: syscalls-flow 1.8s linear infinite paused;
+}
+
+:global(.screen.running) .anchor-flow {
+  animation-play-state: running;
+}
+
+@keyframes syscalls-flow {
+  to {
+    stroke-dashoffset: -36;
+  }
 }
 
 .anchor-word rect {
@@ -618,12 +658,18 @@ svg {
   fill: var(--hmz-accent);
 }
 
-.exit rect {
+.exit rect,
+.exit-home rect {
   fill: color-mix(in srgb, var(--hmz-accent) 20%, var(--hmz-stage-card));
   stroke: var(--hmz-accent);
 }
 
+.exit-home {
+  visibility: hidden;
+}
+
 .exit text,
+.exit-home text,
 .chip text {
   font-family: var(--vp-font-family-mono);
   font-size: 11.5px;

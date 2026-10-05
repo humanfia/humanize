@@ -17,6 +17,8 @@ import { motion } from '../motion/gsap'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
+import ScenePlane from './scene/ScenePlane.vue'
+import { drawPlane } from './scene/plane'
 
 const BEATS = [
   'Each turn runs as an account',
@@ -171,6 +173,8 @@ const scene = useScene({
     tl.set(q('.kind'), { autoAlpha: 1 }, 0)
     tl.set(one('.strike'), { drawSVG: '0%' }, 0)
     tl.set(one('.timer-fill'), { drawSVG: '0%' }, 0)
+    tl.set(q('.b-times'), { autoAlpha: 0 }, 0)
+    drawPlane(tl, q, 0, { duration: 2.2 })
 
     // ---------------------------------------------------------------- 0 · runs as an account
     tl.addLabel('beat-0', 0)
@@ -224,9 +228,11 @@ const scene = useScene({
     count(tl, one('.timer-count'), 0, 30, T2 + 1.5, { duration: 1.6, ease: 'none', format: (n) => `${Math.round(n)}s` })
     // Try two: rate-limited again.
     tl.to(timer, { autoAlpha: 0, scale: 0.8, duration: 0.3 }, T2 + 3.2)
-    tl.set(one('.badge-try'), { text: '429 ×2' }, T2 + 3.3)
-    tl.set(one('.badge-try'), { text: '429' }, 0)
-    tl.fromTo(b429, { scale: 1.5 }, { scale: 1, duration: 0.35, ease: 'back.out(2)', immediateRender: false }, T2 + 3.3)
+    // The same answer twice: the badge widens, the code steps aside, and the count arrives.
+    tl.fromTo(one('.badge-pill'), { attr: { x: -24, width: 48 } }, { attr: { x: -31, width: 62 }, duration: 0.4, ease: 'cine' }, T2 + 3.3)
+    tl.fromTo(one('.b-code'), { x: 0 }, { x: -9, duration: 0.4, ease: 'cine' }, T2 + 3.3)
+    tl.fromTo(one('.b-times'), { autoAlpha: 0, x: 8 }, { autoAlpha: 1, x: 0, duration: 0.4, ease: 'cine' }, T2 + 3.35)
+    tl.fromTo(b429, { scale: 1.3 }, { scale: 1, duration: 0.35, ease: 'back.out(2)', immediateRender: false }, T2 + 3.3)
     tl.call(() => fx?.spark(badgeAt(0).x, badgeAt(0).y, palette.danger, 22, 110), [], T2 + 3.35)
     // And on to the next place, in a conversation of its own: what was said is left behind.
     const M1 = T2 + 3.9
@@ -321,6 +327,8 @@ const scene = useScene({
           </clipPath>
         </defs>
 
+        <ScenePlane :key="`plane-${narrow}`" :w="L.w" :h="L.h" :step="narrow ? 28 : 32" />
+
         <path v-for="(d, i) in links" :key="`l${i}`" class="link" :d="d" />
         <path v-for="(d, i) in links" :key="`k${i}`" class="link-lit" :class="`lane-${ACCOUNTS[i + 1].lane}`" :d="d" />
 
@@ -341,8 +349,9 @@ const scene = useScene({
             </g>
             <g :transform="`translate(${L.card.w - 26} 0)`">
               <g class="badge" :class="i === 2 ? 'ok' : 'bad'">
-                <rect x="-24" y="-10" width="48" height="20" rx="10" />
-                <text :class="{ 'badge-try': i === 0 }" y="4" text-anchor="middle">{{ ['429', '401', '✓'][i] }}</text>
+                <rect :class="{ 'badge-pill': i === 0 }" x="-24" y="-10" width="48" height="20" rx="10" />
+                <g class="b-code"><text y="4" text-anchor="middle">{{ ['429', '401', '✓'][i] }}</text></g>
+                <g v-if="i === 0" class="b-times"><text x="17" y="4" text-anchor="middle">×2</text></g>
               </g>
             </g>
           </g>
@@ -492,7 +501,7 @@ svg {
   font-family: var(--vp-font-family-mono);
   font-size: 11.5px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
 }
 
 .shell-bg {

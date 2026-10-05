@@ -15,6 +15,8 @@ import { motion } from '../motion/gsap'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
+import ScenePlane from './scene/ScenePlane.vue'
+import { drawPlane } from './scene/plane'
 
 const BEATS = [
   'An agent is four parts',
@@ -220,7 +222,23 @@ const scene = useScene({
     tl.set(bg, { autoAlpha: 0 }, 0)
     tl.set(under, { drawSVG: '0%' }, 0)
     tl.set(role, { autoAlpha: 0, y: -6 }, 0)
-    tl.set(q('.list, .ladder, .stray, .reel-card, .reel-acp, .stray-word, .refused'), { autoAlpha: 0 }, 0)
+    tl.set(q('.list, .ladder, .stray, .reel-card, .reel-acp, .stray-word, .refused, .ghost'), { autoAlpha: 0 }, 0)
+    drawPlane(tl, q, 0, { duration: 2.4 })
+
+    // A word that becomes a part: it lifts off where it is written -- the account's list, the
+    // ladder -- and flies to its place in the spelling, growing to the spelling's size, while
+    // the part it lands in takes it up. The copy is two groups, one moved and one scaled about
+    // the word's own baseline, so the one never drags the other.
+    function become(ghost: Element, from: { x: number; y: number }, to: { x: number; y: number }, size: number, at: number) {
+      const scale = ghost.querySelector('.ghost-scale')!
+      const k = l.fs / size
+      tl.set(ghost, { x: from.x, y: from.y }, 0)
+      tl.set(scale, { scale: 1, svgOrigin: '0 0' }, 0)
+      tl.to(ghost, { autoAlpha: 1, duration: 0.15 }, at)
+      tl.to(ghost, { x: to.x, y: to.y, duration: 0.8, ease: 'cine' }, at)
+      tl.to(scale, { scale: k, duration: 0.8, ease: 'cine' }, at)
+      tl.to(ghost, { autoAlpha: 0, duration: 0.25 }, at + 0.75)
+    }
     tl.set(one('.caret'), { autoAlpha: 1, x: line[0].x }, 0)
 
     tl.to(cam, { ...shot(1.12, W / 2, l.lineY), duration: 2.2, ease: 'none' }, 0)
@@ -265,6 +283,8 @@ const scene = useScene({
     tl.fromTo(one('.list-model'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 }, T1 + 1.4)
     const hitY = l.list.y + 34 + LIST_AT * (ROW_H + 6) + ROW_H / 2
     streak(tl, get, { x: l.list.x + l.list.w - 24, y: hitY }, centre(2), () => palette.lane[2], T1 + 1.8, { duration: 0.8, bend: -0.35, burst: 14 })
+    const slash = widths[2] / texts[2].length
+    become(one('.ghost-model'), { x: l.list.x + 22, y: l.list.y + 34 + LIST_AT * (ROW_H + 6) + 15 }, { x: spread[2].x + slash, y: spread[2].y }, 12, T1 + 1.75)
     tl.to(part[2], { scale: 1.1, duration: 0.2, ease: 'power2.out' }, T1 + 2.55)
     tl.to(part[2], { scale: 1, duration: 0.6, ease: 'elastic.out(1, 0.5)' }, T1 + 2.75)
 
@@ -316,6 +336,9 @@ const scene = useScene({
     const rungC = { x: lad.x + lad.w / 2, y: lad.y + picked.value * lad.step + lad.h / 2 }
     tl.call(() => fx?.spark(rungC.x, rungC.y, palette.lane[3], 22, 110), [], lock)
     streak(tl, get, { x: lad.x + lad.w / 2, y: rungC.y - 4 }, centre(3), () => palette.lane[3], lock + 0.35, { duration: 0.8, bend: 0.3, burst: 14 })
+    const rungWord = (q('.ghost-effort text')[0] as SVGTextElement).getComputedTextLength() || PICK.length * 7
+    const colon = widths[3] / texts[3].length
+    become(one('.ghost-effort'), { x: rungC.x - rungWord / 2, y: rungC.y + 4 }, { x: spread[3].x + colon, y: spread[3].y }, 11.5, lock + 0.3)
     tl.to(part[3], { scale: 1.12, duration: 0.2, ease: 'power2.out' }, lock + 1.1)
     tl.to(part[3], { scale: 1, duration: 0.6, ease: 'elastic.out(1, 0.5)' }, lock + 1.3)
 
@@ -414,6 +437,7 @@ onMounted(() => {
       </div>
       <div class="layer cam">
         <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
+          <ScenePlane :key="`plane-${narrow}`" :w="L.w" :h="L.h" :step="narrow ? 28 : 32" />
           <defs>
             <radialGradient id="hmz-backends-glow">
               <stop offset="0" stop-color="var(--hmz-accent-2)" stop-opacity="0.6" />
@@ -486,6 +510,9 @@ onMounted(() => {
             <rect :x="L.reel.x - 110" :y="L.reel.y - 36" width="220" height="54" rx="14" />
             <text class="reel-word" :x="L.reel.x" :y="L.reel.y" text-anchor="middle">any ACP CLI</text>
           </g>
+
+          <g class="ghost ghost-model"><g class="ghost-scale"><text class="ghost-word model">{{ B.model }}</text></g></g>
+          <g class="ghost ghost-effort"><g class="ghost-scale"><text class="ghost-word effort">{{ PICK }}</text></g></g>
 
           <g class="spell">
             <g v-for="(p, i) in parts" :key="i" class="part" :class="`lane-${i + 1}`">
@@ -671,7 +698,22 @@ svg {
 }
 
 .rung-lit .rung-word {
-  fill: #fff;
+  fill: var(--vp-c-bg);
+}
+
+.ghost-word {
+  font-family: var(--vp-font-family-mono);
+  font-weight: 650;
+}
+
+.ghost-word.model {
+  font-size: 12px;
+  fill: var(--hmz-lane-3);
+}
+
+.ghost-word.effort {
+  font-size: 11.5px;
+  fill: var(--hmz-lane-4);
 }
 
 .rung-word {

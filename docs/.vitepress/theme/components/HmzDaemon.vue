@@ -14,6 +14,8 @@ import { createFx, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
+import ScenePlane from './scene/ScenePlane.vue'
+import { drawPlane } from './scene/plane'
 
 const BEATS = [
   'The run is held apart',
@@ -203,6 +205,8 @@ const scene = useScene({
     FRONTS.forEach((_, i) => tl.fromTo(tube[i], { sx: i ? 0 : 1, sy: i ? 0.04 : 1 }, { sx: i ? 0 : 1, sy: i ? 0.04 : 1, duration: 0.01, onUpdate: applyTube(i) }, 0))
     tl.set(at('.feed'), { y: 0 }, 0)
     tl.set(at('.round'), { text: `round ${START}` }, 0)
+    tl.set(at('.stopper'), { autoAlpha: 0 }, 0)
+    drawPlane(tl, q, 0, { duration: 2.4 })
 
     // 0 · one terminal, one run, held apart from it. The camera is close on the pair.
     tl.addLabel('beat-0', 0)
@@ -227,6 +231,8 @@ const scene = useScene({
     for (let t = 0.9; t < STOP - 0.2; t += EVERY) {
       n += 1
       tl.set(at('.round'), { text: `round ${n}` }, t)
+      // The count turns over: the new number drops in from above.
+      tl.fromTo(at('.round-roll'), { y: -5, autoAlpha: 0.35 }, { y: 0, autoAlpha: 1, duration: 0.35, ease: 'cine.out', immediateRender: false }, t)
       tl.fromTo(at('.core-pulse'), { scale: 1, autoAlpha: 0.8, transformOrigin: '50% 50%' }, { scale: 1.9, autoAlpha: 0, duration: 1, ease: 'power2.out' }, t)
       FRONTS.forEach((_, i) => {
         if (live(i, t)) along(links[i], () => hue(i), t, { reverse: true, duration: 0.9, burst: 4 })
@@ -297,6 +303,19 @@ const scene = useScene({
     tl.addLabel('beat-5', T5)
     tl.fromTo(win(0, '.frame'), { strokeWidth: 1.3 }, { strokeWidth: 3, duration: 0.2, yoyo: true, repeat: 1 }, T5 + 0.2)
     along(links[0], () => palette.danger, T5 + 0.3, { duration: 0.7 })
+    // Who stopped it travels with the stop: alice's name goes in to the run, and out from it to
+    // every frontend, where it is the line each is told.
+    const stoppers = at('.stopper')
+    tl.set(stoppers[0], { autoAlpha: 1 }, T5 + 0.3)
+    tl.fromTo(stoppers[0], { x: port(0).x, y: port(0).y }, { motionPath: { path: links[0] }, duration: 0.7, ease: 'power1.inOut', immediateRender: false }, T5 + 0.3)
+    tl.to(stoppers[0], { autoAlpha: 0, duration: 0.2 }, STOP - 0.05)
+    FRONTS.forEach((_, i) => {
+      const ghost = stoppers[i + 1]
+      const t = STOP + 0.1 + i * 0.06
+      tl.set(ghost, { autoAlpha: 1 }, t)
+      tl.fromTo(ghost, { x: l.core.x, y: l.core.y }, { motionPath: { path: links[i], start: 1, end: 0 }, duration: 0.55, ease: 'cine', immediateRender: false }, t)
+      tl.to(ghost, { autoAlpha: 0, duration: 0.15 }, t + 0.5)
+    })
     tl.to(at('.core-stop'), { autoAlpha: 1, duration: 0.5 }, STOP)
     tl.to(at('.core-live'), { autoAlpha: 0, duration: 0.5 }, STOP)
     tl.fromTo(at('.wave'), { autoAlpha: 0.9, scale: 0.3, transformOrigin: '50% 50%' }, { autoAlpha: 0, scale: 1, duration: 1.4, ease: 'power2.out' }, STOP)
@@ -307,7 +326,7 @@ const scene = useScene({
     tl.to(at('.link, .claim'), { opacity: 0.25, duration: 0.8 }, STOP + 0.3)
     tl.to(at('.role, .owner'), { opacity: 0.4, duration: 0.8 }, STOP + 0.3)
     FRONTS.forEach((_, i) => {
-      const t = STOP + 0.35 + i * 0.12
+      const t = STOP + 0.55 + i * 0.06
       tl.to(win(i, '.body'), { autoAlpha: 0, duration: 0.2 }, t)
       tl.fromTo(win(i, '.stopped'), { autoAlpha: 0, x: -6 }, { autoAlpha: 1, x: 0, duration: 0.35 }, t + 0.1)
     })
@@ -343,6 +362,7 @@ const scene = useScene({
         </clipPath>
       </defs>
       <g class="world">
+        <ScenePlane :key="`plane-${narrow}`" :w="L.w" :h="L.h" :ox="L.core.x" :oy="L.core.y" :step="narrow ? 28 : 32" />
         <!-- the host, the run in it, and its roles -->
         <rect class="host-bg" :x="L.host.x" :y="L.host.y" :width="L.host.w" :height="L.host.h" rx="18" />
         <rect class="host-line" :x="L.host.x" :y="L.host.y" :width="L.host.w" :height="L.host.h" rx="18" />
@@ -360,7 +380,7 @@ const scene = useScene({
           <text class="t-core" y="5" text-anchor="middle">run</text>
           <circle class="wave" r="280" />
         </g>
-        <text class="t-round round" :x="L.round.x" :y="L.round.y" text-anchor="middle">round {{ START }}</text>
+        <g class="round-roll"><text class="t-round round" :x="L.round.x" :y="L.round.y" text-anchor="middle">round {{ START }}</text></g>
 
         <g v-for="(r, k) in ROLES" :key="r.name" :transform="`translate(${L.roles[k].x} ${L.roles[k].y})`">
           <g class="role">
@@ -407,6 +427,12 @@ const scene = useScene({
               <text class="stopped t-stopped" x="12" :y="L.winH - 16">stopped by alice@tui</text>
             </g>
           </g></g>
+        </g>
+
+        <!-- who stopped it, on its way -->
+        <g v-for="k in FRONTS.length + 1" :key="`s${k}`" class="stopper">
+          <rect x="-36" y="-10" width="72" height="20" rx="10" />
+          <text y="4" text-anchor="middle">alice@tui</text>
         </g>
       </g>
     </svg>
@@ -476,7 +502,7 @@ svg {
 .t-core {
   font-size: 14px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
 }
 
 .wave {
@@ -518,7 +544,24 @@ svg {
 .ask text {
   font-size: 13px;
   font-weight: 800;
-  fill: #fff;
+  fill: var(--vp-c-bg);
+}
+
+.stopper {
+  visibility: hidden;
+}
+
+.stopper rect {
+  fill: color-mix(in srgb, var(--hmz-lane-5) 18%, var(--hmz-stage-card));
+  stroke: var(--hmz-lane-5);
+  stroke-width: 1.4;
+}
+
+.stopper text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--hmz-stage-ink);
 }
 
 .win-bg {

@@ -7,6 +7,11 @@
 //
 // Two drawings of the same thing: side by side where there is room, and one above the other on
 // a phone, where the side-by-side one would shrink its words out of legibility.
+//
+// What crosses is what lands: the edit's words glide into the label it leaves on the file, the
+// command's into the line the terminal types, and the exit status that comes home settles on
+// the agent as the same words. Every wire is drawn on, then carries a current while the scene
+// plays.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
@@ -14,6 +19,8 @@ import { createFx, fly, streak, type, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
+import ScenePlane from './scene/ScenePlane.vue'
+import { drawPlane, glide } from './scene/plane'
 
 const BEATS = [
   'The agent runs here, unchanged',
@@ -48,6 +55,10 @@ interface Layout {
   toFiles: string
   toCommands: string
   toNetwork: string
+  /** Where the wires leave this machine: what comes home along them lands here. */
+  out: { x: number; y: number }
+  /** The agent's own wire to its model provider, which never crosses. */
+  toModel: string
 }
 
 const WIDE: Layout = {
@@ -68,6 +79,8 @@ const WIDE: Layout = {
   toFiles: 'M 218 162 C 300 162 320 101 422 101',
   toCommands: 'M 218 162 C 300 162 330 198 422 198',
   toNetwork: 'M 513 250 L 513 266',
+  out: { x: 218, y: 162 },
+  toModel: 'M 200 136 C 200 124 200 124 200 114',
 }
 
 const NARROW: Layout = {
@@ -88,6 +101,8 @@ const NARROW: Layout = {
   toFiles: 'M 180 244 C 180 290 101 300 101 344',
   toCommands: 'M 180 244 C 180 310 180 380 180 420',
   toNetwork: 'M 259 420 L 259 406',
+  out: { x: 180, y: 244 },
+  toModel: 'M 101 110 C 101 103 101 99 101 92',
 }
 
 const palette = usePalette()
@@ -113,15 +128,19 @@ const scene = useScene({
     const login = mid(l.login)
     const mine = mid(l.mine)
 
-    tl.set(q('.theirs, .wire, .hub, .done, .exit, .shield, .copy-tick'), { autoAlpha: 0 }, 0)
+    tl.set(q('.theirs, .wire, .hub, .shield, .copy-tick'), { autoAlpha: 0 }, 0)
     tl.set(q('.term-line'), { text: '' }, 0)
     tl.set(q('.lit'), { autoAlpha: 0 }, 0)
+    drawPlane(tl, q, 0, { duration: 2.2 })
 
     // 0 · close on this machine: the agent, talking to its model as it always does.
     tl.addLabel('beat-0', 0)
     tl.fromTo(world, { scale: narrow.value ? 1.35 : 1.7, transformOrigin: `${(mine.x / l.w) * 100}% ${(mine.y / l.h) * 100}%`, autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: 'none' }, 0)
     tl.fromTo(q('.mine-frame'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.4, ease: 'cine' }, 0)
     tl.fromTo(q('.mine .item'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.12 }, 0.3)
+    // Its own wire to its model: drawn here, and it stays here.
+    tl.fromTo(q('.model-wire'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.6, ease: 'cine' }, 0.9)
+    tl.fromTo(q('.model-flow'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 1.5)
     streak(tl, get, agent, model, () => palette.accent, 1.1, { duration: 0.5, bend: 0.3, burst: 8 })
     streak(tl, get, model, agent, () => palette.accent, 1.7, { duration: 0.5, bend: 0.3 })
 
@@ -134,10 +153,14 @@ const scene = useScene({
     tl.fromTo(q('.theirs .item'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.12 }, T1 + 0.7)
     tl.to(q('.wire, .hub'), { autoAlpha: 1, duration: 0.3 }, T1 + 1)
     tl.fromTo(q('.wire'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.9, ease: 'cine', stagger: 0.1 }, T1 + 1)
+    tl.fromTo(q('.wire-flow'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, T1 + 2)
     fly(tl, one('.p-edit'), one('.path-files') as SVGPathElement, T1 + 2, { duration: 1.1, fx: get, color: palette.lane[0] })
     tl.call(() => fx?.spark(mid(l.files).x, mid(l.files).y, palette.lane[0], 22, 110), [], T1 + 3.1)
     tl.fromTo(q('.files .lit'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 1.2 }, T1 + 3.1)
-    tl.to(q('.done'), { autoAlpha: 1, duration: 0.3 }, T1 + 3.1)
+    // The edit that crossed is the label it leaves: its words glide into place on the file.
+    const filesIn = { x: l.files.x, y: l.files.y + 29 }
+    const doneAt = { x: l.files.x + l.files.w - 12 - 30, y: l.files.y + 38 }
+    glide(tl, null, one('.done'), filesIn.x - doneAt.x, filesIn.y - doneAt.y, T1 + 3.05, { duration: 0.8 })
     tl.to(q('.copy-tick'), { autoAlpha: 1, duration: 0.3 }, T1 + 3.2)
     tl.fromTo(q('.copy .lit'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 1.2 }, T1 + 3.2)
 
@@ -145,11 +168,16 @@ const scene = useScene({
     const T2 = T1 + 3.8
     tl.addLabel('beat-2', T2)
     fly(tl, one('.p-run'), one('.path-commands') as SVGPathElement, T2, { duration: 1, fx: get, color: palette.lane[1] })
+    // The command that crossed is the line the terminal runs.
+    const cmdIn = { x: l.commands.x, y: l.commands.y + l.commands.h / 2 }
+    glide(tl, null, one('.line-1'), cmdIn.x - (l.commands.x + 12), cmdIn.y - (l.commands.y + 38), T2 + 0.95, { duration: 0.7 })
     type(tl, one('.term-1'), '$ pytest -q', T2 + 1, 26)
     tl.fromTo(q('.commands .lit'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 1 }, T2 + 1)
     type(tl, one('.term-2'), '12 passed in 3.1s', T2 + 1.8, 40)
     fly(tl, one('.p-back'), one('.path-commands') as SVGPathElement, T2 + 2.4, { duration: 1, fx: get, color: palette.lane[1], reverse: true })
-    tl.fromTo(q('.exit'), { autoAlpha: 0, scale: 0.5, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'back.out(2)' }, T2 + 3.4)
+    // What came home is what the agent is told: the same words, settling onto it.
+    const badge = { x: l.agent.x + l.agent.w - 34, y: l.agent.y }
+    glide(tl, null, one('.exit'), l.out.x - badge.x, l.out.y - badge.y, T2 + 3.3, { duration: 0.7 })
     tl.call(() => fx?.spark(agent.x, agent.y, palette.lane[1], 16, 90), [], T2 + 3.4)
 
     // 3 · what the command reaches for, the target reaches for.
@@ -165,7 +193,7 @@ const scene = useScene({
     // the model link, and the other machine fades back.
     const T4 = T3 + 2.4
     tl.addLabel('beat-4', T4)
-    tl.to(q('.theirs, .wire, .hub'), { autoAlpha: 0.3, duration: 0.8 }, T4)
+    tl.to(q('.theirs, .wire, .wire-flow, .hub'), { autoAlpha: 0.3, duration: 0.8 }, T4)
     tl.to(q('.shield'), { autoAlpha: 1, duration: 0.2 }, T4 + 0.2)
     tl.fromTo(q('.shield'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.2, ease: 'cine', stagger: 0.15 }, T4 + 0.2)
     tl.fromTo(q('.model .lit, .login .lit'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, yoyo: true, repeat: 3 }, T4 + 0.5)
@@ -191,8 +219,11 @@ const scene = useScene({
           <stop offset="1" stop-color="var(--hmz-accent)" />
         </linearGradient>
       </defs>
+      <ScenePlane :key="`plane-${narrow}`" :w="L.w" :h="L.h" :step="narrow ? 28 : 32" />
       <g class="world">
         <!-- this machine -->
+        <path class="model-wire" :d="L.toModel" />
+        <path class="flow model-flow" :d="L.toModel" />
         <g class="mine">
           <rect class="frame mine-frame" :x="L.mine.x" :y="L.mine.y" :width="L.mine.w" :height="L.mine.h" rx="14" />
           <text class="title" :x="L.mineTitle.x" :y="L.mineTitle.y">this machine</text>
@@ -240,6 +271,8 @@ const scene = useScene({
         <!-- between them -->
         <path class="wire path-files" :d="L.toFiles" />
         <path class="wire path-commands" :d="L.toCommands" />
+        <path class="flow wire-flow" :d="L.toFiles" />
+        <path class="flow wire-flow" :d="L.toCommands" />
         <g class="hub" :transform="`translate(${L.hub.x} ${L.hub.y})`">
           <rect x="-40" y="-11" width="80" height="22" rx="11" />
           <text y="4" text-anchor="middle">humanize</text>
@@ -254,13 +287,13 @@ const scene = useScene({
             <rect class="lit" :x="L.files.x" :y="L.files.y" :width="L.files.w" :height="L.files.h" rx="10" />
             <text class="label" :x="L.files.x + 12" :y="L.files.y + 18">files</text>
             <text class="mono" :x="L.files.x + 12" :y="L.files.y + 42">kernel.cu</text>
-            <text class="done" :x="L.files.x + L.files.w - 12" :y="L.files.y + 42" text-anchor="end">edited ✓</text>
+            <g class="done"><text :x="L.files.x + L.files.w - 12" :y="L.files.y + 42" text-anchor="end">edited ✓</text></g>
           </g>
           <g class="item commands">
             <rect class="box term" :x="L.commands.x" :y="L.commands.y" :width="L.commands.w" :height="L.commands.h" rx="10" />
             <rect class="lit" :x="L.commands.x" :y="L.commands.y" :width="L.commands.w" :height="L.commands.h" rx="10" />
             <text class="label" :x="L.commands.x + 12" :y="L.commands.y + 18">commands</text>
-            <text class="mono term-line term-1" :x="L.commands.x + 12" :y="L.commands.y + 42" />
+            <g class="line-1"><text class="mono term-line term-1" :x="L.commands.x + 12" :y="L.commands.y + 42" /></g>
             <text class="mono term-line term-2 ok" :x="L.commands.x + 12" :y="L.commands.y + 62" />
             <text class="mono term-line term-3" :x="L.commands.x + 12" :y="L.commands.y + 84" />
           </g>
@@ -435,13 +468,13 @@ svg {
 }
 
 .mono.ok,
-.done,
+.done text,
 .copy-tick {
   fill: var(--hmz-accent);
   font-weight: 600;
 }
 
-.done,
+.done text,
 .copy-tick {
   font-size: 11.5px;
 }
@@ -454,13 +487,42 @@ svg {
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
+}
+
+/* The agent's line to its model. */
+.model-wire {
+  fill: none;
+  stroke: var(--hmz-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* The current along a wire once it is drawn, running while the scene plays: a path of its
+   own, so it never fights the stroke that drew the wire on. */
+.flow {
+  fill: none;
+  stroke: var(--hmz-stage-card);
+  stroke-width: 1.4;
+  stroke-dasharray: 2 9;
+  stroke-linecap: round;
+  animation: anchor-flow 1.4s linear infinite paused;
+}
+
+:global(.screen.running) .flow {
+  animation-play-state: running;
+}
+
+@keyframes anchor-flow {
+  to {
+    stroke-dashoffset: -14;
+  }
 }
 
 .wire {
   fill: none;
   stroke: url(#anchor-wire);
-  stroke-width: 2;
+  stroke-width: 2.5;
   opacity: 0.8;
 }
 
@@ -493,7 +555,7 @@ svg {
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
   font-weight: 700;
-  fill: #fff;
+  fill: var(--vp-c-bg);
 }
 
 .globe circle,

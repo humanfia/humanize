@@ -4,6 +4,10 @@
 // one for one: add a row there and it is an item here, in the same place. The scene flies each
 // area in, in turn, then settles on the whole map and stays there, since it is something to
 // click, not to watch. It is on the features index too, so every id in it is its own.
+//
+// Each area's edge is drawn round it as it comes into focus, and at the end one line is drawn
+// through the five areas' letters in order, A to E, a point of light running along it: the map
+// read as one route, once, before it settles clean.
 import { computed, nextTick, onMounted, onUnmounted, ref, useId } from 'vue'
 import { withBase } from 'vitepress'
 
@@ -98,6 +102,8 @@ const AREAS: Area[] = [
 const BEATS = [...AREAS.map((area) => area.name), 'Open any one for its page']
 
 const uid = useId()
+// A link to a page of this site goes under its base; one to another site goes as it is.
+const href = (link: string) => (/^https?:/.test(link) ? link : withBase(link))
 const areaId = (code: string) => `${uid}-map-${code}`
 
 const palette = usePalette()
@@ -140,6 +146,29 @@ const scene = useScene({
     }
     const areas = q('.area')
     const areaBox = areas.map(box)
+    // Measured now, flat, before any of the moves below is set.
+    const codeBox = q('.code').map(box)
+    const flat = { w: view.offsetWidth, h: view.offsetHeight }
+    const spine = q('.spine')[0] as SVGSVGElement | undefined
+    spine?.setAttribute('viewBox', `0 0 ${flat.w} ${flat.h}`)
+    const stops = codeBox.map((b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 }))
+    // Through each letter in turn, bending a little between them, as a hand would draw it.
+    const route = stops
+      .map((p, i) => {
+        if (!i) return `M ${p.x} ${p.y}`
+        const a = stops[i - 1]
+        const bend = (i % 2 ? 1 : -1) * Math.min(40, Math.hypot(p.x - a.x, p.y - a.y) * 0.18)
+        const mx = (a.x + p.x) / 2 - ((p.y - a.y) / (Math.hypot(p.x - a.x, p.y - a.y) || 1)) * bend
+        const my = (a.y + p.y) / 2 + ((p.x - a.x) / (Math.hypot(p.x - a.x, p.y - a.y) || 1)) * bend
+        return `Q ${mx} ${my} ${p.x} ${p.y}`
+      })
+      .join(' ')
+    q('.spine-path').forEach((path) => path.setAttribute('d', route))
+    areas.forEach((area) => {
+      const edge = area.querySelector('.edge rect')
+      edge?.setAttribute('width', String(Math.max(0, (area as HTMLElement).offsetWidth - 2)))
+      edge?.setAttribute('height', String(Math.max(0, (area as HTMLElement).offsetHeight - 2)))
+    })
     const shot = (b: Box | null) => {
       if (!b || narrow.value) return { x: 0, y: 0, scale: 1 }
       // Never further out than the map's own size: an area as wide as the map is shown whole
@@ -156,6 +185,9 @@ const scene = useScene({
     tl.set(q('.area-name'), { opacity: 0, x: -12 }, 0)
     tl.set(areas, { opacity: 0.18, filter: 'blur(2px)' }, 0)
     tl.set(q('.shine'), { opacity: 0 }, 0)
+    tl.set(q('.edge rect'), { drawSVG: '0%' }, 0)
+    tl.set(q('.spine-path'), { drawSVG: '0%', autoAlpha: 1 }, 0)
+    tl.set(q('.spine-dot'), { autoAlpha: 0 }, 0)
 
     let t = 0
     areas.forEach((area, k) => {
@@ -167,6 +199,8 @@ const scene = useScene({
         if (j === k) tl.to(other, { opacity: 1, filter: 'blur(0px)', duration: 0.7, ease: 'power2.out' }, t + 0.2)
         else if (j < k) tl.to(other, { opacity: 0.4, filter: 'blur(1.5px)', duration: 0.7 }, t + 0.1)
       })
+      // Its edge drawn round it, from the corner its letter sits in.
+      tl.to(area.querySelector('.edge rect'), { drawSVG: '100%', duration: 1.1, ease: 'cine' }, t + 0.15)
       const code = area.querySelector('.code')!
       tl.to(code, { scale: 1, duration: 0.5, ease: 'back.out(3)' }, t + 0.35)
       tl.to(area.querySelector('.area-name'), { opacity: 1, x: 0, duration: 0.5 }, t + 0.45)
@@ -203,7 +237,19 @@ const scene = useScene({
     const shines = q('.shine')
     tl.to(shines, { opacity: 1, duration: 0.25, stagger: 0.025 }, t + 1.2)
     tl.to(shines, { opacity: 0, duration: 0.5, stagger: 0.025 }, t + 1.45)
-    tl.addLabel('rest', t + 1.45 + shines.length * 0.025 + 0.5)
+    // One line through the letters, A to E, and a point of light along it.
+    tl.to(q('.spine-path'), { drawSVG: '100%', duration: 1.6, ease: 'cine' }, t + 1)
+    const dot = q('.spine-dot')[0]
+    const path = q('.spine-path')[0]
+    if (dot && path && stops.length) {
+      tl.set(dot, { x: stops[0].x, y: stops[0].y }, 0)
+      tl.to(dot, { autoAlpha: 1, duration: 0.2 }, t + 1)
+      tl.to(dot, { motionPath: { path: path as SVGPathElement }, duration: 1.6, ease: 'cine' }, t + 1)
+      tl.to(dot, { autoAlpha: 0, duration: 0.4 }, t + 2.6)
+    }
+    // The route was a way of reading it, not a part of it: it goes, and the map is left clean.
+    tl.to(q('.spine-path'), { autoAlpha: 0, duration: 0.7 }, t + 2.6)
+    tl.addLabel('rest', Math.max(t + 1.45 + shines.length * 0.025 + 0.5, t + 3.3))
     // Leave no filter behind: a blur of nothing still costs the page a layer.
     tl.set(areas, { clearProps: 'filter' }, 'rest')
   },
@@ -250,6 +296,11 @@ const label = computed(
   <HmzStage :scene="scene" :beats="BEATS" :label="label" interactive :ratio="ratio" :mobile-ratio="mobileRatio">
     <div class="layer depth">
       <div ref="cam" class="cam">
+        <svg class="spine" aria-hidden="true">
+          <path class="spine-path glow" d="M 0 0" />
+          <path class="spine-path" d="M 0 0" />
+          <circle class="spine-dot" r="4" />
+        </svg>
         <section
           v-for="(area, a) in AREAS"
           :key="area.code"
@@ -258,12 +309,13 @@ const label = computed(
           :style="{ '--tone': `var(--hmz-lane-${a + 1})` }"
           :aria-labelledby="areaId(area.code)"
         >
+          <svg class="edge" aria-hidden="true"><rect x="1" y="1" width="0" height="0" rx="11.5" /></svg>
           <header>
             <span class="code" aria-hidden="true">{{ area.code }}</span>
             <strong :id="areaId(area.code)" class="area-name">{{ area.name }}</strong>
           </header>
           <div class="items">
-            <a v-for="item in area.items" :key="item.name" class="item" :href="withBase(item.link)">
+            <a v-for="item in area.items" :key="item.name" class="item" :href="href(item.link)">
               <span class="shine" aria-hidden="true" />
               {{ item.name }}
             </a>
@@ -320,12 +372,59 @@ const label = computed(
 }
 
 .area {
+  position: relative;
   padding: 10px 10px 12px;
   border: 1px solid color-mix(in srgb, var(--tone) 32%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--tone) 7%, transparent);
   /* Its own lens: the blur that softens an area flattens it, so the depth is set here. */
   perspective: 700px;
+}
+
+/* The edge the scene draws round an area as it comes into focus, over its own faint border. */
+.edge {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edge rect {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 1.5;
+  stroke-opacity: 0.75;
+}
+
+/* The route through the five letters, under the areas. */
+.spine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.spine-path {
+  fill: none;
+  stroke: var(--hmz-accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-opacity: 0.55;
+}
+
+.spine-path.glow {
+  stroke-width: 6;
+  stroke-opacity: calc(0.12 * var(--hmz-glow));
+}
+
+.spine-dot {
+  fill: var(--hmz-accent);
 }
 
 header {
