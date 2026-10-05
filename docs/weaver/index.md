@@ -1,11 +1,14 @@
 <script setup>
 import { withBase } from 'vitepress'
+import WeaverLoom from '../.vitepress/theme/components/weaver-index/WeaverLoom.vue'
 </script>
 
 # Weaver Guide
 
 A **weaver** writes flows: the Python that says which agents are driven, what each is asked, in
 what order, and when to stop. You have run a flow; this is where you write one.
+
+<WeaverLoom />
 
 ::: info Before you start
 - A flow run behind you. If you have not, start with the [User Guide](/user/).
