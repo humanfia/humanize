@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Which conversations know which turns once a session is forked. A simulation of the rules
-// `agent.fork(session, env=...)` keeps (src/hmz/runtime/flowing/harnesses.py and
+// `agent.fork(session)` keeps (src/hmz/runtime/flowing/harnesses.py and
 // src/hmz/coganchor/agents/base.py): a fork is cut at its own first turn and carries every
 // turn its parent had by then; that first turn raises SessionError if the parent has taken a
 // turn since the fork was asked for; and a session that has taken no turn has nothing to fork.
