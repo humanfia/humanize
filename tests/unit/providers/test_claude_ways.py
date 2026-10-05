@@ -59,7 +59,10 @@ def test_the_console_is_the_same_sign_in_told_which_account() -> None:
     [
         (
             "bedrock-gateway",
-            {"ANTHROPIC_BEDROCK_BASE_URL": "https://gw.invalid", "ANTHROPIC_AUTH_TOKEN": "t"},
+            {
+                "ANTHROPIC_BEDROCK_BASE_URL": "https://gw.invalid",
+                "ANTHROPIC_AUTH_TOKEN": "t",
+            },
             {
                 "ANTHROPIC_BEDROCK_BASE_URL": "https://gw.invalid",
                 "ANTHROPIC_AUTH_TOKEN": "t",
