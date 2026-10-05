@@ -1,3 +1,7 @@
+<script setup>
+import RemoteSplit from '../.vitepress/theme/components/user-remote/RemoteSplit.vue'
+</script>
+
 # Remote execution
 
 Point one of a flow's environments at another machine with `-e`, and the work the flow does
@@ -113,6 +117,8 @@ places tried in order.
 With no affinity, and on a host nobody saved, the CLI runs on the host where it is installed
 there and here otherwise. Work in the workspace always has its harness here. The places are
 worked through one by one [below](#where-the-agent-runs).
+
+<RemoteSplit />
 
 ## Example: build on a host, review here
 

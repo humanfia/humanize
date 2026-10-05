@@ -225,7 +225,7 @@ const scene = useScene({
     rise(tl, q('.aff'), T3 + 1.3, { y: 6, stagger: 0.25 })
     rise(tl, one('.mirror'), T3 + 2.0)
     cam.beam(P.dir, P.mirror, hue.work, T3 + 2.2, { duration: 1.0, bend: 0.25, burst: 12 })
-    pulse(tl, one('.mirror'), T3 + 3.2)
+    pulse(tl, one('.mirror'), T3 + 3.2, 1.04)
 
     // 4 · a command, sent through docker exec, run in the container.
     const T4 = T3 + 4.0
