@@ -99,7 +99,9 @@ def test_a_login_names_its_region_on_the_command_line_and_keeps_none(
     signs = way("kimi", "login")
 
     assert login.asked(signs, {}) == []
-    assert [providers.filled(one, {"KIMI_REGION": "mainland-cn"}) for one in signs.argv] == [
+    assert [
+        providers.filled(one, {"KIMI_REGION": "mainland-cn"}) for one in signs.argv
+    ] == [
         "kimi",
         "login",
         "--region",
