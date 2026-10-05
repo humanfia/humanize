@@ -251,7 +251,11 @@ def test_what_the_conversation_is_running_by_comes_across(
         one.mkdir(parents=True)
         (one / "SKILL.md").write_text(f"# {one.name}\n")
     agent.loads([Loaded(name=one.name, at=one) for one in brought])
-    session = agent.new()
+    # And a workspace of this test's own for it to mount them under. Left to the directory
+    # pytest runs in, that is the checkout every other worker is working in too, and a
+    # `.agents/skills/writing` coming and going there is a native skill installed under
+    # their feet: the agy and qwen sessions there restart their held process to read it.
+    session = agent.new(tmp_path)
     session.effort = "low"
     session.loads(["writing"])
     session("hello")
