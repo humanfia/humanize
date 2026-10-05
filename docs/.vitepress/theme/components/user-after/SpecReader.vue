@@ -196,7 +196,8 @@ function settle(): void {
     one.remove()
   }
   ghosts = []
-  if (root.value) motion().set(all('dt'), { autoAlpha: 1 })
+  const heads = all('dt')
+  if (heads.length) motion().set(heads, { autoAlpha: 1 })
   typed.value = null
 }
 
@@ -419,16 +420,12 @@ onBeforeUnmount(() => {
       <div v-for="(one, i) in reading.agents" :key="i" class="agent">
         <div class="spelled">
           <span class="part role"><span class="p">{{ one.role }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">role</span></span>
-          <span class="sep">=</span>
-          <span class="part cli"><span class="p">{{ one.cliAs }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">CLI</span></span>
+          <span class="seg"><span class="sep">=</span><span class="part cli"><span class="p">{{ one.cliAs }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">CLI</span></span></span>
           <template v-if="one.account">
-            <span class="sep">@</span>
-            <span class="part account"><span class="p">{{ one.account }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">account</span></span>
+            <span class="seg"><span class="sep">@</span><span class="part account"><span class="p">{{ one.account }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">account</span></span></span>
           </template>
-          <span class="sep">/</span>
-          <span class="part model"><span class="p">{{ one.model }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">model</span></span>
-          <span class="sep">:</span>
-          <span class="part effort"><span class="p">{{ one.effort || 'auto' }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">effort</span></span>
+          <span class="seg"><span class="sep">/</span><span class="part model"><span class="p">{{ one.model }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">model</span></span></span>
+          <span class="seg"><span class="sep">:</span><span class="part effort"><span class="p">{{ one.effort || 'auto' }}</span><svg class="brace" height="11" aria-hidden="true"><path /></svg><span class="name" aria-hidden="true">effort</span></span></span>
         </div>
         <dl>
           <div class="role">
@@ -597,6 +594,15 @@ onBeforeUnmount(() => {
 
 .sep {
   color: var(--vp-c-text-3);
+}
+
+/* A separator kept on the line of the part it leads into. */
+.seg {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* A part of the value, the brace under it, and the brace's name. */
