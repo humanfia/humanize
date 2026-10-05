@@ -54,8 +54,8 @@
   --hmz-glow: 0.55;
   /* Graph paper under a scene, the minor lines and every fifth; the light from above on the
      screen's top edge, and the shade its sunk edges fall into. */
-  --hmz-stage-grid: rgba(42, 110, 166, 0.07);
-  --hmz-stage-grid-major: rgba(42, 110, 166, 0.13);
+  --hmz-stage-grid: rgba(42, 110, 166, 0.05);
+  --hmz-stage-grid-major: rgba(42, 110, 166, 0.095);
   --hmz-stage-highlight: rgba(255, 255, 255, 0.95);
   --hmz-stage-depth: rgba(19, 35, 58, 0.09);
 
@@ -90,21 +90,24 @@
   --hmz-term-close: #ff5f57;
   --hmz-term-min: #febc2e;
   --hmz-term-max: #28c840;
+  /* Mid-tones rather than a light theme's usual deep ones: a recording sets these as
+     backgrounds under bright white as often as it writes in them, and bright white is ink
+     here, so each has to carry ink on it and read on paper. */
   --hmz-term-0: #1f2329;
-  --hmz-term-1: #c4322a;
-  --hmz-term-2: #1f8a46;
-  --hmz-term-3: #9a6a00;
-  --hmz-term-4: #1f63c2;
-  --hmz-term-5: #b02c8f;
-  --hmz-term-6: #0d7f8c;
+  --hmz-term-1: #d0453a;
+  --hmz-term-2: #2c9a55;
+  --hmz-term-3: #a8781a;
+  --hmz-term-4: #3b7fdb;
+  --hmz-term-5: #b24aa0;
+  --hmz-term-6: #13909d;
   --hmz-term-7: #4a5059;
-  --hmz-term-8: #6b7079;
-  --hmz-term-9: #d93a2f;
-  --hmz-term-10: #23994f;
-  --hmz-term-11: #a87300;
-  --hmz-term-12: #2a72d6;
-  --hmz-term-13: #c0399e;
-  --hmz-term-14: #0f8f9d;
+  --hmz-term-8: #8a8f98;
+  --hmz-term-9: #d9473d;
+  --hmz-term-10: #2fa45b;
+  --hmz-term-11: #b5841c;
+  --hmz-term-12: #3f86e0;
+  --hmz-term-13: #c055ad;
+  --hmz-term-14: #1499a6;
   /* Bright white is a terminal's loudest word; on paper the loudest word is ink. */
   --hmz-term-15: #16161a;
 }
