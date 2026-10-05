@@ -9,17 +9,18 @@
 import { computed, ref } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
-import { createFx, streak, type Fx } from '../motion/fx'
+import { createFx, streak, type as typeOut, type Fx } from '../motion/fx'
 import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
+import { blink, breathe, crawl } from './sway'
 
 const BEATS = [
   'Three ways in',
   'The same flows, the same accounts',
   'Every run lands in one history',
   'Start it in one, open it in another',
-  'A bad value is refused everywhere',
+  'One settings model refuses a bad value',
 ]
 
 type Door = 0 | 1 | 2
@@ -29,6 +30,14 @@ const DOORS = [
   { name: 'Python', lane: 3 },
 ]
 const NODES = ['flows', 'accounts', 'history']
+// Where a flow's name is looked up, nearest first.
+const LOOKUP = ['this project', 'yours', 'flowverses']
+const ACCOUNTS = [
+  { name: 'claude@work', lane: 1 },
+  { name: 'codex@home', lane: 2 },
+]
+// What each way in is given to start the same run.
+const LINES = ['', 'hmz exec -f goal …', 'Hmz().run("goal", …)']
 
 const WANTS: { said: string; doors: Door[] }[] = [
   { said: 'watch it and steer it', doors: [0] },
@@ -55,6 +64,8 @@ interface Layout {
   wins: Box[]
   core: Box
   nodes: Box[]
+  /** The settings model every way in hands a value to, and where its name is written. */
+  gate: { x1: number; y1: number; x2: number; y2: number; lx: number; ly: number }
   vertical: boolean
 }
 
@@ -72,6 +83,7 @@ const WIDE: Layout = {
     { x: 246, y: 222, w: 148, h: 96 },
     { x: 434, y: 222, w: 148, h: 96 },
   ],
+  gate: { x1: 30, y1: 163, x2: 610, y2: 163, lx: 320, ly: 163 },
   vertical: false,
 }
 
@@ -89,6 +101,7 @@ const NARROW: Layout = {
     { x: 216, y: 164, w: 122, h: 96 },
     { x: 216, y: 284, w: 122, h: 110 },
   ],
+  gate: { x1: 196, y1: 14, x2: 196, y2: 414, lx: 196, ly: 428 },
   vertical: true,
 }
 
@@ -126,7 +139,7 @@ const pills = computed(() => {
 })
 
 const label =
-  'Three ways in -- the terminal interface, the command line and Python -- over one workspace. All three read the same flows and the same accounts, and every run, whichever way it was started, lands in one history. A run started from the command line opens in the terminal interface. A bad value is refused the same way by all three, before any agent starts.'
+  'Three ways in -- the terminal interface, the command line (hmz exec -f goal) and Python (Hmz().run("goal", ...)) -- over one workspace. All three find a flow the same way, in this project first, then yours, then the flowverses, and use the same accounts, claude@work and codex@home. Every run, whichever way it was started, lands in one history. A run started from the command line opens in the terminal interface. A bad value from any of the three falls on one settings model and is refused there, before any agent starts.'
 
 const scene = useScene({
   still: 'rest',
@@ -157,25 +170,35 @@ const scene = useScene({
 
     tl.set(cam, { autoAlpha: 1, ...shot(1.35, c(l.wins[0]).x, c(l.wins[0]).y + 10) }, 0)
     tl.set(win, { autoAlpha: 0, y: 24, scale: 0.9, transformOrigin: '50% 50%' }, 0)
+    tl.set(q('.frame'), { drawSVG: '0%', fillOpacity: 0 }, 0)
     tl.set(q('.core-frame'), { drawSVG: '0%', autoAlpha: 0 }, 0)
     tl.set(q('.wire'), { drawSVG: '0%' }, 0)
-    tl.set(q('.core-name, .node, .ghost, .bad, .deny, .open-row, .live'), { autoAlpha: 0 }, 0)
+    tl.set(q('.core-name, .node, .ghost, .bad, .open-row, .live, .gate, .gate-name, .gate-flash, .seek, .found, .acct'), { autoAlpha: 0 }, 0)
+    tl.set(q('.typed'), { text: '' }, 0)
+    tl.set(q('.event'), { scaleX: 0, transformOrigin: '0% 50%' }, 0)
+    tl.set(one('.runs'), { text: '0 runs' }, 0)
     tl.set(pill, { autoAlpha: 0 }, 0)
-    tl.set(q('.cursor'), { autoAlpha: 1 }, 0)
 
     // ---------------------------------------------------------------- 0 · three ways in
     tl.addLabel('beat-0', 0)
     win.forEach((w, i) => {
-      tl.to(w, { autoAlpha: 1, y: 0, scale: 1, duration: 0.9, ease: 'cine.out' }, 0.2 + i * 0.55)
-      tl.fromTo(q(`.win-${i} .ink`), { scaleX: 0, transformOrigin: '0% 50%' }, { scaleX: 1, duration: 0.4, stagger: 0.06, ease: 'cine.out' }, 0.5 + i * 0.55)
+      const at = 0.2 + i * 0.55
+      tl.to(w, { autoAlpha: 1, y: 0, scale: 1, duration: 0.9, ease: 'cine.out' }, at)
+      // Each window is drawn on, its outline first, then filled.
+      tl.to(q(`.win-${i} .frame`), { drawSVG: '100%', duration: 0.9, ease: 'cine' }, at)
+      tl.to(q(`.win-${i} .frame`), { fillOpacity: 1, duration: 0.5, ease: 'none' }, at + 0.6)
+      tl.fromTo(q(`.win-${i} .ink`), { scaleX: 0, transformOrigin: '0% 50%' }, { scaleX: 1, duration: 0.4, stagger: 0.06, ease: 'cine.out' }, at + 0.3)
     })
+    // The command line and Python are each given the same run, word for word.
+    typeOut(tl, one('.win-1 .typed'), LINES[1], 1.1, 26)
+    tl.to(q('.win-1 .event'), { scaleX: 1, duration: 0.35, stagger: 0.12, ease: 'cine.out' }, 1.2 + LINES[1].length / 26)
+    typeOut(tl, one('.win-2 .typed'), LINES[2], 1.6, 26)
     // A dolly across the three, then back to see them all.
     tl.to(cam, { ...shot(1.35, c(l.wins[2]).x, c(l.wins[2]).y + 10), duration: 1.6, ease: 'cine' }, 0.3)
-    tl.to(cam, { ...shot(1, W / 2, H / 2), duration: 1.3, ease: 'cine' }, 2)
-    tl.to(q('.cursor'), { autoAlpha: 0, duration: 0.3, repeat: 7, yoyo: true, ease: 'steps(1)' }, 0.8)
+    tl.to(cam, { ...shot(1, W / 2, H / 2), duration: 1.3, ease: 'cine' }, 2.3)
 
     // ---------------------------------------------------------------- 1 · same flows, same accounts
-    const T1 = 3.4
+    const T1 = 3.8
     tl.addLabel('beat-1', T1)
     tl.to(q('.core-frame'), { drawSVG: '100%', autoAlpha: 1, duration: 1, ease: 'cine' }, T1)
     tl.to(one('.core-name'), { autoAlpha: 1, duration: 0.4 }, T1 + 0.4)
@@ -186,13 +209,23 @@ const scene = useScene({
         streak(tl, get, out(i), c(l.nodes[n]), lane(i), T1 + 1.3 + i * 0.12 + n * 0.25, { duration: 0.8, bend: (i - n) * 0.12 + 0.05, burst: 6 })
       })
     })
+    // A name is looked up nearest first: the marker steps down the three places, then comes back
+    // to the first, where this project's flow is found.
+    const seek = one('.seek')
+    const step = 17
+    tl.fromTo(seek, { autoAlpha: 0, y: 0 }, { autoAlpha: 1, duration: 0.2 }, T1 + 1.2)
+    tl.to(seek, { y: step, duration: 0.35, ease: 'back.out(2)' }, T1 + 1.6)
+    tl.to(seek, { y: 2 * step, duration: 0.35, ease: 'back.out(2)' }, T1 + 2)
+    tl.to(seek, { y: 0, duration: 0.5, ease: 'cine' }, T1 + 2.4)
+    tl.to(one('.found'), { autoAlpha: 1, duration: 0.3 }, T1 + 2.8)
+    tl.fromTo(q('.acct'), { x: -10, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.45, stagger: 0.18, ease: 'cine.out' }, T1 + 1.1)
     tl.fromTo(q('.node-0 .bg, .node-1 .bg'), { opacity: 1 }, { keyframes: { opacity: [1, 0.5, 1] }, duration: 0.5, ease: 'none', immediateRender: false }, T1 + 2.2)
     tl.call(() => {
       ;[0, 1].forEach((n) => fx?.spark(c(l.nodes[n]).x, c(l.nodes[n]).y, palette.accent, 18, 90))
     }, [], T1 + 2.2)
 
     // ---------------------------------------------------------------- 2 · one history
-    const T2 = T1 + 3
+    const T2 = T1 + 3.3
     tl.addLabel('beat-2', T2)
     const P = pills.value
     P.forEach((p, k) => {
@@ -206,6 +239,7 @@ const scene = useScene({
       )
       streak(tl, get, from, { x: p.x + p.w / 2, y: p.y + PILL.h / 2 }, lane(p.door), at, { duration: 0.8, bend: 0.15, burst: 8 })
       tl.fromTo(win[p.door], { scale: 1 }, { scale: 1.03, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.out', immediateRender: false }, at)
+      tl.set(one('.runs'), { text: `${k + 1} run${k ? 's' : ''}` }, at + 0.8)
     })
 
     // ---------------------------------------------------------------- 3 · open it elsewhere
@@ -230,26 +264,40 @@ const scene = useScene({
     tl.fromTo(q('.live'), { autoAlpha: 0, scaleX: 0, transformOrigin: (i: number) => (i % 2 ? '100% 50%' : '0% 50%') }, { autoAlpha: 1, scaleX: 1, duration: 0.35, stagger: 0.35, ease: 'cine.out' }, T3 + 2.1)
 
     // ---------------------------------------------------------------- 4 · refused everywhere
+    // Whichever way in a value comes from, it falls on the one settings model, and bounces.
     const T4 = T3 + 3.6
     tl.addLabel('beat-4', T4)
     tl.to(cam, { ...shot(1, W / 2, H / 2), duration: 1.2, ease: 'cine' }, T4)
-    const bad = q('.bad')
-    bad.forEach((b, i) => {
+    const g = l.gate
+    tl.fromTo(q('.gate'), { autoAlpha: 1, drawSVG: '50% 50%' }, { drawSVG: '0% 100%', duration: 0.8, ease: 'cine' }, T4 + 0.3)
+    tl.fromTo(one('.gate-name'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, T4 + 0.8)
+    q('.bad').forEach((b, i) => {
       const w = l.wins[i]
-      const hit = { x: c(w).x, y: c(w).y + 8 }
-      const start = l.vertical ? { x: -60, y: hit.y - 20 } : { x: hit.x, y: -30 }
-      const back = { x: hit.x + (i % 2 ? -10 : 10), y: hit.y - 10 }
-      const at = T4 + 0.9
-      tl.fromTo(b, { autoAlpha: 0, x: start.x, y: start.y, rotation: 0 }, { autoAlpha: 1, duration: 0.25 }, at)
+      const start = { x: c(w).x, y: c(w).y + 8 }
+      const hit = l.vertical ? { x: g.x1 - 42, y: start.y } : { x: start.x, y: g.y1 - 14 }
+      const back = l.vertical ? { x: hit.x - 26, y: hit.y - 8 } : { x: hit.x + (i % 2 ? -12 : 12), y: hit.y - 30 }
+      const touch = l.vertical ? { x: g.x1, y: hit.y } : { x: hit.x, y: g.y1 }
+      const at = T4 + 1.1 + i * 0.22
+      tl.fromTo(b, { autoAlpha: 0, x: start.x, y: start.y, rotation: 0 }, { autoAlpha: 1, duration: 0.2 }, at)
       tl.to(b, { x: hit.x, y: hit.y, duration: 0.5, ease: 'power3.in' }, at + 0.1)
-      tl.to(b, { x: back.x, y: back.y, rotation: i % 2 ? -9 : 9, duration: 0.55, ease: 'power3.out' }, at + 0.6)
-      tl.fromTo(q('.deny')[i], { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.08 }, at + 0.6)
-      tl.to(q('.deny')[i], { autoAlpha: 0, duration: 0.9 }, at + 0.75)
-      tl.call(() => fx?.spark(hit.x, hit.y, palette.danger, 24, 120), [], at + 0.6)
+      tl.to(b, { x: back.x, y: back.y, rotation: i % 2 ? -9 : 9, duration: 0.6, ease: 'power3.out' }, at + 0.6)
+      tl.call(() => fx?.spark(touch.x, touch.y, palette.danger, 24, 120), [], at + 0.6)
       tl.fromTo(q('.bad-x')[i], { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.25 }, at + 0.8)
     })
-    tl.addLabel('rest', T4 + 2.4)
-    tl.to(cam, { autoAlpha: 0, ...shot(0.95, W / 2, H / 2), duration: 0.8, ease: 'power2.in' }, T4 + 4)
+    tl.fromTo(q('.gate-flash'), { autoAlpha: 0 }, { keyframes: { autoAlpha: [0, 1, 0.25, 1, 0] }, duration: 1.2, ease: 'none' }, T4 + 1.7)
+    tl.addLabel('rest', T4 + 3)
+    const END = T4 + 4.4
+    tl.to(cam, { autoAlpha: 0, ...shot(0.95, W / 2, H / 2), duration: 0.8, ease: 'power2.in' }, END - 0.8)
+
+    // What keeps moving under all of it, on the same clock: the prompt's cursor, the dashes
+    // along the wires and round the workspace, and the marker on the flow that was found.
+    blink(tl, q('.cursor'), 0.6, END, 1)
+    // Drawn on, a line takes its dashes back before they crawl.
+    tl.set(q('.wire'), { strokeDasharray: '3 4' }, T1 + 1.05)
+    tl.set(q('.core-frame'), { strokeDasharray: '5 4' }, T1 + 1.05)
+    crawl(tl, q('.wire'), T1 + 1.1, END, { step: 7, period: 0.9 })
+    crawl(tl, q('.core-frame'), T1 + 1.1, END, { step: 9, period: 1.8 })
+    breathe(tl, one('.seek'), T1 + 3.2, END, { period: 1.2, opacity: 0.45 })
   },
 })
 </script>
@@ -287,15 +335,23 @@ const scene = useScene({
           <g v-for="(n, i) in L.nodes" :key="NODES[i]" class="node" :class="`node-${i}`">
             <rect class="bg" :x="n.x" :y="n.y" :width="n.w" :height="n.h" rx="12" />
             <text class="node-name" :x="n.x + 12" :y="n.y + 20">{{ NODES[i] }}</text>
+            <!-- where a flow's name is looked up, nearest first, and the marker that walks it -->
             <template v-if="i === 0">
-              <rect v-for="k in 3" :key="k" class="glyph" :x="n.x + 12" :y="n.y + 24 + k * 16" :width="n.w - 24 - k * 14" height="9" rx="4.5" />
+              <g v-for="(place, k) in LOOKUP" :key="place">
+                <text class="order" :x="n.x + 26" :y="n.y + 44 + k * 17">{{ k + 1 }}</text>
+                <text class="place" :x="n.x + 38" :y="n.y + 44 + k * 17">{{ place }}</text>
+              </g>
+              <rect class="found" :x="n.x + 20" :y="n.y + 31" :width="n.w - 30" height="18" rx="5" />
+              <path class="seek" :d="`M${n.x + 10} ${n.y + 34} l8 6 l-8 6 z`" />
             </template>
             <template v-else-if="i === 1">
-              <g v-for="k in 3" :key="k">
-                <circle class="glyph" :cx="n.x + 22 + (k - 1) * 30" :cy="n.y + 50" r="10" />
-                <rect class="glyph" :x="n.x + 12 + (k - 1) * 30" :y="n.y + 66" width="20" height="8" rx="4" />
+              <g v-for="(a, k) in ACCOUNTS" :key="a.name" class="acct">
+                <rect class="acct-bg" :x="n.x + 10" :y="n.y + 30 + k * 26" :width="n.w - 20" height="20" rx="10" />
+                <circle class="acct-dot" :class="`lane-${a.lane}`" :cx="n.x + 21" :cy="n.y + 40 + k * 26" r="5" />
+                <text class="acct-name" :x="n.x + 32" :y="n.y + 44 + k * 26">{{ a.name }}</text>
               </g>
             </template>
+            <text v-else class="runs" :x="n.x + n.w - 12" :y="n.y + 20" text-anchor="end">0 runs</text>
           </g>
           <rect
             v-for="(p, k) in pills"
@@ -313,7 +369,6 @@ const scene = useScene({
             <ellipse class="halo" :class="{ on: want !== null && lit(i) }" :cx="b.w / 2" :cy="b.h / 2" :rx="b.w * 0.8" :ry="b.h * 0.9" :fill="`url(#hmz-surfaces-halo-${DOORS[i].lane})`" />
             <g class="pickwrap" :class="{ dim: !lit(i) }">
               <g class="win" :class="[`win-${i}`, `lane-${DOORS[i].lane}`]">
-                <rect class="deny" x="-6" y="-6" :width="b.w + 12" :height="b.h + 12" rx="16" />
                 <rect class="frame" :width="b.w" :height="b.h" rx="10" />
                 <path class="bar" :d="`M0 24 L${b.w} 24`" />
                 <circle v-for="k in 3" :key="k" class="dot" :cx="4 + k * 8" cy="12" r="2.6" />
@@ -334,15 +389,16 @@ const scene = useScene({
                 <!-- the command line: one line, then its events -->
                 <template v-else-if="i === 1">
                   <text class="prompt" x="10" y="44">›</text>
-                  <rect class="ink accent" x="22" y="36" :width="b.w - 52" height="9" rx="4.5" />
-                  <rect class="cursor" :x="b.w - 26" y="35" width="6" height="11" />
-                  <rect v-for="k in 3" :key="k" class="ink faint" x="10" :y="50 + k * 13" :width="b.w - 20 - ((k * 37) % 50)" height="6" rx="3" />
+                  <text class="typed" x="22" y="43">{{ LINES[1] }}</text>
+                  <rect v-for="k in 3" :key="k" class="event" x="10" :y="44 + k * 13" :width="b.w - 20 - ((k * 37) % 50)" height="6" rx="3" />
+                  <rect class="cursor" x="10" :y="b.h - 18" width="6" height="11" />
                 </template>
                 <!-- Python: a program of yours -->
                 <template v-else>
-                  <g v-for="(ind, k) in [0, 14, 14, 28, 14]" :key="k">
-                    <rect class="ink accent" :x="10 + ind" :y="34 + k * 14" width="18" height="7" rx="3.5" />
-                    <rect class="ink" :x="32 + ind" :y="34 + k * 14" :width="[80, 64, 92, 50, 70][k]" height="7" rx="3.5" />
+                  <text class="typed" x="10" y="43">{{ LINES[2] }}</text>
+                  <g v-for="(ind, k) in [14, 14, 28, 14]" :key="k">
+                    <rect class="ink accent" :x="10 + ind" :y="52 + k * 13" width="18" height="7" rx="3.5" />
+                    <rect class="ink" :x="32 + ind" :y="52 + k * 13" :width="[64, 92, 50, 70][k]" height="7" rx="3.5" />
                   </g>
                 </template>
               </g>
@@ -350,6 +406,14 @@ const scene = useScene({
           </g>
 
           <rect class="ghost pill lane-4" :x="L.wins[0].x + 12" :y="L.wins[0].y + 44" :width="pills[3].w" :height="PILL.h" rx="5" />
+
+          <!-- the one settings model a value from any way in is checked against -->
+          <line class="gate-flash" :x1="L.gate.x1" :y1="L.gate.y1" :x2="L.gate.x2" :y2="L.gate.y2" />
+          <line class="gate" :x1="L.gate.x1" :y1="L.gate.y1" :x2="L.gate.x2" :y2="L.gate.y2" />
+          <g class="gate-name">
+            <rect :x="L.gate.lx - 64" :y="L.gate.ly - 10" width="128" height="20" rx="10" />
+            <text :x="L.gate.lx" :y="L.gate.ly + 4" text-anchor="middle">one settings model</text>
+          </g>
 
           <g v-for="i in 3" :key="`b${i}`" class="bad">
             <rect x="-40" y="-12" width="80" height="24" rx="8" />
@@ -506,10 +570,85 @@ svg {
   fill: var(--hmz-stage-ink);
 }
 
-.deny {
-  fill: color-mix(in srgb, var(--hmz-lane-5) 12%, transparent);
-  stroke: var(--hmz-lane-5);
-  stroke-width: 2.5;
+.typed {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--hmz-stage-ink);
+  white-space: pre;
+}
+
+.event {
+  fill: color-mix(in srgb, var(--hmz-lane-4) 30%, transparent);
+}
+
+.order {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--hmz-stage-dim);
+}
+
+.place {
+  font-size: 11.5px;
+  font-weight: 600;
+  fill: var(--hmz-stage-ink);
+}
+
+.found {
+  fill: color-mix(in srgb, var(--hmz-accent) 16%, transparent);
+  stroke: var(--hmz-accent);
+  stroke-width: 1.2;
+}
+
+.seek {
+  fill: var(--hmz-accent);
+}
+
+.acct-bg {
+  fill: color-mix(in srgb, var(--hmz-stage-dim) 10%, transparent);
+  stroke: var(--hmz-stage-line);
+}
+
+.acct-dot.lane-1 { fill: var(--hmz-lane-1); }
+.acct-dot.lane-2 { fill: var(--hmz-lane-2); }
+
+.acct-name {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--hmz-stage-ink);
+}
+
+.runs {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--hmz-accent);
+}
+
+.gate {
+  stroke: var(--hmz-stage-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.gate-flash {
+  stroke: color-mix(in srgb, var(--hmz-lane-5) 50%, transparent);
+  stroke-width: 9;
+  stroke-linecap: round;
+}
+
+.gate-name rect {
+  fill: var(--hmz-stage-card);
+  stroke: var(--hmz-stage-ink);
+  stroke-width: 1.2;
+}
+
+.gate-name text {
+  font-size: 11.5px;
+  font-weight: 700;
+  fill: var(--hmz-stage-ink);
 }
 
 .core-frame {
@@ -531,10 +670,6 @@ svg {
 .node .bg {
   fill: var(--hmz-stage-card);
   stroke: var(--hmz-stage-line);
-}
-
-.glyph {
-  fill: color-mix(in srgb, var(--hmz-accent) 45%, transparent);
 }
 
 .wire {
