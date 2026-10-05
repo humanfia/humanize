@@ -166,7 +166,7 @@ hmz exec -f onbox                                               ①
 
 Nothing said where the builder's CLI runs, and a host nobody saved has no affinity, so with
 no `claude` on `build-box` it ran here. At the prompt the transcript says so as the role's
-first turn starts:
+first turn there starts:
 
 ```text
 ❯ Make test_calc.py pass.
