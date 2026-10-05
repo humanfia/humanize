@@ -19,6 +19,7 @@ taken out of the environment with it.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -49,7 +50,7 @@ def test_a_way_is_found_under_the_name_the_backend_offers_it_by() -> None:
 
 
 def test_a_way_still_has_to_be_told_whatever_it_has_no_answer_for() -> None:
-    gateway = way("claude", "gateway")
+    gateway = way("claude", "anthropic-gateway")
 
     assert login.asked(gateway, {}) == ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]
     assert login.asked(gateway, {"ANTHROPIC_BASE_URL": "https://x.invalid"}) == [
@@ -74,14 +75,14 @@ def test_a_provider_is_what_its_way_in_was_answered_with(house: Path) -> None:
     provider = login.make(
         "claude",
         "mine",
-        way("claude", "gateway"),
+        way("claude", "anthropic-gateway"),
         {
             "ANTHROPIC_BASE_URL": "https://example.invalid/anthropic",
             "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
         },
     )
 
-    assert provider.way == "gateway"
+    assert provider.way == "anthropic-gateway"
     assert dict(provider.env) == {
         "ANTHROPIC_BASE_URL": "https://example.invalid/anthropic",
         "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
@@ -121,7 +122,7 @@ def test_an_answer_is_filled_into_what_the_backend_takes_on_its_command_line(
     provider = login.make(
         "codex",
         "mine",
-        way("codex", "gateway"),
+        way("codex", "openai-gateway"),
         {
             "CODEX_PROVIDER_URL": "https://example.invalid/v1",
             "CODEX_PROVIDER_KEY": "not-a-real-key",
@@ -133,6 +134,111 @@ def test_an_answer_is_filled_into_what_the_backend_takes_on_its_command_line(
     )
     assert "model_providers.humanize.wire_api=responses" in provider.args
     assert provider.env["CODEX_PROVIDER_KEY"] == "not-a-real-key"
+
+
+def test_an_azure_resource_is_a_provider_codex_speaks_azure_to(house: Path) -> None:
+    """Named `azure`, so codex sends it what Azure takes, at the version nobody was asked for."""
+    provider = login.make(
+        "codex",
+        "mine",
+        way("codex", "azure"),
+        {
+            "AZURE_OPENAI_BASE_URL": "https://res.openai.azure.com/openai",
+            "AZURE_OPENAI_API_KEY": "not-a-real-key",
+        },
+    )
+
+    assert provider.args == (
+        "-c",
+        "model_provider=humanize",
+        "-c",
+        "model_providers.humanize.name=azure",
+        "-c",
+        "model_providers.humanize.base_url=https://res.openai.azure.com/openai",
+        "-c",
+        "model_providers.humanize.env_key=AZURE_OPENAI_API_KEY",
+        "-c",
+        'model_providers.humanize.query_params.api-version="2025-04-01-preview"',
+        "-c",
+        "model_providers.humanize.wire_api=responses",
+    )
+    # The key reaches the turn as the variable codex was told to read, never as an argument.
+    assert provider.env["AZURE_OPENAI_API_KEY"] == "not-a-real-key"
+    assert not any("not-a-real-key" in one for one in provider.args)
+
+
+@pytest.mark.parametrize(
+    ("named", "answers", "args"),
+    [
+        (
+            "bedrock",
+            {"AWS_PROFILE": "work"},
+            (
+                "-c",
+                "model_provider=amazon-bedrock",
+                "-c",
+                "model_providers.amazon-bedrock.aws.profile=work",
+                "-c",
+                "model_providers.amazon-bedrock.aws.region=us-east-1",
+            ),
+        ),
+        (
+            "bedrock-key",
+            {"AWS_BEARER_TOKEN_BEDROCK": "not-a-real-key", "AWS_REGION": "eu-west-1"},
+            (
+                "-c",
+                "model_provider=amazon-bedrock",
+                "-c",
+                "model_providers.amazon-bedrock.aws.region=eu-west-1",
+            ),
+        ),
+        ("ollama", {}, ("-c", "model_provider=ollama")),
+        ("lmstudio", {}, ("-c", "model_provider=lmstudio")),
+    ],
+)
+def test_a_provider_codex_has_built_in_is_named_on_its_command_line(
+    house: Path, named: str, answers: dict[str, str], args: tuple[str, ...]
+) -> None:
+    """Bedrock and the local servers are codex's own providers: the account says which."""
+    provider = login.make("codex", "mine", way("codex", named), answers)
+
+    assert provider.args == args
+    assert not any("not-a-real-key" in one for one in provider.args)
+
+
+def test_a_local_server_is_where_it_usually_is_unless_somebody_says(
+    house: Path,
+) -> None:
+    """The one variable codex reads a local server's place from, at its own port."""
+    ollama = login.make("codex", "o", way("codex", "ollama"))
+    elsewhere = login.make(
+        "codex",
+        "l",
+        way("codex", "lmstudio"),
+        {"CODEX_OSS_BASE_URL": "http://box:9/v1"},
+    )
+
+    assert ollama.env == {"CODEX_OSS_BASE_URL": "http://localhost:11434/v1"}
+    assert elsewhere.env == {"CODEX_OSS_BASE_URL": "http://box:9/v1"}
+
+
+def test_a_workload_identity_is_its_two_variables(house: Path) -> None:
+    """Nothing to run: codex trades the token file for a workspace's tokens each start."""
+    provider = login.make(
+        "codex",
+        "ci",
+        way("codex", "workload"),
+        {
+            "OPENAI_FEDERATION_RULE_ID": "rule-1",
+            "OPENAI_IDENTITY_TOKEN_FILE": "/var/run/token",
+        },
+    )
+
+    assert dict(provider.env) == {
+        "OPENAI_FEDERATION_RULE_ID": "rule-1",
+        "OPENAI_IDENTITY_TOKEN_FILE": "/var/run/token",
+    }
+    assert provider.args == ()
 
 
 def test_variables_of_your_own_are_kept_whatever_they_are_called(house: Path) -> None:
@@ -177,3 +283,134 @@ def test_a_way_that_is_only_answers_has_nothing_to_sign_in(house: Path) -> None:
     )
 
     assert login.sign_in(provider, way("claude", "key")) == 0
+
+
+# ------------------------------------------- what a backend's own command is given
+
+
+def _signed(
+    monkeypatch: pytest.MonkeyPatch, cli: str, name: str, answers: dict[str, str]
+) -> tuple[providers.Provider, list[str]]:
+    """Makes and signs in an account, and returns it with the command its sign-in ran.
+
+    The command as the way filled it, before the supervisor that would point its paths
+    elsewhere is put in front of it -- and nothing is run, which is what keeps this here.
+    """
+    ran: list[list[str]] = []
+
+    def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        ran.append(argv)
+        return subprocess.CompletedProcess(argv, 0)
+
+    def command(_swaps: object, argv: list[str]) -> list[str]:
+        return list(argv)
+
+    monkeypatch.setattr(login.redirect, "command", command)
+    monkeypatch.setattr(login.subprocess, "run", run)
+    provider = login.make(cli, "mine", way(cli, name), answers)
+    assert login.sign_in(provider, way(cli, name), answers) == 0
+    (argv,) = ran
+    return provider, argv
+
+
+def test_a_gateway_is_offered_once_for_each_protocol_the_backend_speaks() -> None:
+    """Named for the vendor whose API the endpoint speaks, and the same name everywhere."""
+    names = [one.name for one in providers.ways("mcode")]
+    assert names == ["login", "key", "openai-gateway", "anthropic-gateway", "env"]
+    named = [one.name for one in providers.ways("cursor-agent")]
+    assert named == ["login", "key", "cursor-gateway", "env"]
+
+
+def test_an_openai_gateway_asks_which_of_its_apis_and_says_chat_unless_told(
+    house: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answers = {
+        "MCODE_GATEWAY_URL": "https://gw.example/v1",
+        "MCODE_PROVIDER_API_KEY": "not-a-real-key",
+        "MCODE_GATEWAY_MODEL": "m",
+    }
+    assert login.asked(way("mcode", "openai-gateway"), {}) == [
+        "MCODE_GATEWAY_URL",
+        "MCODE_PROVIDER_API_KEY",
+        "MCODE_GATEWAY_MODEL",
+    ]
+
+    provider, argv = _signed(monkeypatch, "mcode", "openai-gateway", answers)
+    assert argv[argv.index("--api-format") + 1] == "openai-completions"
+    assert argv[argv.index("--base-url") + 1] == "https://gw.example/v1"
+    assert argv[argv.index("--model") + 1] == "m"
+    # Under the one name a model of it is spelled with, and the key nowhere on the line.
+    assert argv[argv.index("--name") + 1] == "gateway"
+    assert "not-a-real-key" not in argv
+    assert dict(provider.env) == {
+        "MCODE_GATEWAY_URL": "https://gw.example/v1",
+        "MCODE_PROVIDER_API_KEY": "not-a-real-key",
+    }
+
+    _, argv = _signed(
+        monkeypatch,
+        "mcode",
+        "openai-gateway",
+        answers | {"MCODE_GATEWAY_FORMAT": "openai-responses"},
+    )
+    assert argv[argv.index("--api-format") + 1] == "openai-responses"
+
+
+def test_an_anthropic_gateway_is_added_speaking_messages_without_being_asked(
+    house: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answers = {
+        "MCODE_GATEWAY_URL": "https://gw.example",
+        "MCODE_PROVIDER_API_KEY": "not-a-real-key",
+        "MCODE_GATEWAY_MODEL": "m",
+    }
+    asks = {one.env for one in way("mcode", "anthropic-gateway").asks}
+    assert "MCODE_GATEWAY_FORMAT" not in asks
+
+    _, argv = _signed(monkeypatch, "mcode", "anthropic-gateway", answers)
+    assert argv[argv.index("--api-format") + 1] == "anthropic-messages"
+    assert argv[argv.index("--name") + 1] == "gateway"
+    assert "not-a-real-key" not in argv
+
+
+def test_a_minimax_sign_in_is_in_the_region_asked_and_global_unless_told(
+    house: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provider, argv = _signed(monkeypatch, "mcode", "login", {})
+    assert argv == ["mcode", "login", "--region", "global"]
+    # The sign-in remembers its own region, so the answer is the command line's alone.
+    assert dict(provider.env) == {}
+
+    _, argv = _signed(monkeypatch, "mcode", "login", {"MCODE_REGION": "cn"})
+    assert argv == ["mcode", "login", "--region", "cn"]
+
+
+def test_a_minimax_key_is_kept_with_the_region_its_turns_are_sent_to(
+    house: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provider, argv = _signed(
+        monkeypatch, "mcode", "key", {"MCODE_PROVIDER_API_KEY": "not-a-real-key"}
+    )
+    assert argv == ["mcode", "provider", "set-minimax-key"]
+    assert dict(provider.env) == {
+        "MCODE_PROVIDER_API_KEY": "not-a-real-key",
+        "MAVIS_REGION": "en",
+    }
+
+
+def test_a_cursor_gateway_is_its_endpoint_and_its_key(house: Path) -> None:
+    provider = login.make(
+        "cursor-agent",
+        "mine",
+        way("cursor-agent", "cursor-gateway"),
+        {
+            "CURSOR_API_ENDPOINT": "https://proxy.example",
+            "CURSOR_API_KEY": "not-a-real-key",
+        },
+    )
+
+    assert provider.way == "cursor-gateway"
+    assert dict(provider.env) == {
+        "CURSOR_API_ENDPOINT": "https://proxy.example",
+        "CURSOR_API_KEY": "not-a-real-key",
+    }

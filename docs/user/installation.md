@@ -137,7 +137,7 @@ kimi login                     # and the [kimi] extra, above
 
 ```sh [Qwen Code]
 npm i -g @qwen-code/qwen-code
-qwen                           # then /auth, and /quit once you are signed in
+qwen                           # then /auth for a plan or a key, and /quit once it is set
 ```
 
 ```sh [opencode]
@@ -254,8 +254,11 @@ Give it a key in any one of these ways:
   `DEEPSEEK_BASE_URL` points it at another endpoint.
 - The key saved by dsh's own CLI, if you also have it: `dsh web`, then **Settings → Models**.
 - An account on [the Accounts page of `/settings`](/user/settings#accounts): `key` for a
-  DeepSeek key, or `gateway` for a key that belongs to a proxy or another vendor, which also
-  asks for its URL.
+  DeepSeek key, or a gateway for a key that belongs to a proxy or another vendor, which also
+  asks for its URL: `openai-gateway` (OpenAI's Chat Completions or Responses API, URL ending
+  in `/v1`), `anthropic-gateway` (Anthropic's Messages API, URL without `/v1`) or
+  `gemini-gateway` (Gemini's API, URL ending in `/v1beta`). A gateway runs at the endpoint's
+  own effort, and an agent that may search there can fetch pages but not search.
 
 Until it has a key, humanize lists `dsh` but does not pick it for you. Its models are
 `deepseek-v4-flash` and `deepseek-v4-pro`, at the efforts `max`, `high`, `low` and `off`:

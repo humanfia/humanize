@@ -79,6 +79,15 @@ _PERMITTED = {
 #: because none was given -- which is the same turn either way.
 _UNNARROWED = (UNSAID, "auto", "bypass")
 
+#: What an account made by one of opencode's gateway ways is told apart by -- the URL every
+#: one of them asks for -- the provider those ways write into its config, and the variable
+#: that provider's one model is a key of `models` under. opencode refuses a turn at an id its
+#: config does not list, and the endpoint lists more than the one the account was made with,
+#: so a turn says which it runs at by setting that variable to it.
+_GATEWAYED = "OPENCODE_GATEWAY_URL"
+_GATEWAY = "gateway"
+_GATEWAY_MODEL = "OPENCODE_GATEWAY_MODEL"
+
 
 def _tabled(config: AgentConfig) -> bool:
     """Whether the variable this backend carries a rung in is written for this turn.
@@ -312,7 +321,7 @@ class OpencodeSession(CommandSessionBase):
             "--dir",
             self._workspace(),
             "--model",
-            config.model,
+            f"{_GATEWAY}/{bare}" if (bare := self._gatewayed()) else config.model,
             # The variant is this backend's rung, and an agent at none leaves it unsaid: a
             # provider with no variants takes the flag and ignores it, but one that has them
             # would read "" as a variant it does not serve.
@@ -349,6 +358,20 @@ class OpencodeSession(CommandSessionBase):
         """
         return ["--auto"]
 
+    def _gatewayed(self) -> str:
+        """The id a turn of a gateway account runs at, as that gateway names it.
+
+        Named bare, the way the gateway's own catalogue lists it, or as `opencode models`
+        lists it under the provider the account's config calls it -- one prefix, which comes
+        off rather than being doubled.
+
+        Returns:
+          The id, or "" for a turn of any other account, which names its model as it is.
+        """
+        if not self._agent.environment().get(_GATEWAYED):
+            return ""
+        return self._agent.config.model.removeprefix(f"{_GATEWAY}/")
+
     def _environment(self) -> dict[str, str]:
         """What the agent may do, which this backend takes as a variable rather than a flag.
 
@@ -364,10 +387,16 @@ class OpencodeSession(CommandSessionBase):
         A table with nothing in it is not written either, and nobody has to ask for that: a
         config that names no rung and states no web switch has nothing to put in one, and a
         variable set to that would be humanize answering a question nobody put to it.
+
+        And, for a gateway account, which of the gateway's models its config lists: the one
+        this turn names, in place of the one the account was made with.
         """
         config = self._agent.config
+        environment = dict(super()._environment())
+        if bare := self._gatewayed():
+            environment[_GATEWAY_MODEL] = bare
         if not _tabled(config):
-            return dict(super()._environment())
+            return environment
         # A word this table has no row for falls to the row that says nothing, as codex and
         # kimi do with theirs. Unreachable while the config validates what it carries, and
         # written this way for the day it is not: a fall-back to `bypass` would answer a rung
@@ -391,11 +420,8 @@ class OpencodeSession(CommandSessionBase):
         if (fence := self._agent.fenced()) is not None:
             allowed |= self._fenced(fence, rung)
         if not allowed:
-            return dict(super()._environment())
-        return {
-            **super()._environment(),
-            type(self).permits: json.dumps(allowed),
-        }
+            return environment
+        return {**environment, type(self).permits: json.dumps(allowed)}
 
     def _fenced(
         self, fence: Fence, rung: dict[str, str]
