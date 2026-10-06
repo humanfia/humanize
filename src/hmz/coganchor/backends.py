@@ -1903,13 +1903,14 @@ PROFILES = (
         home_var="DSH_HOME",
         home_dir=".dsh",
         # The Python SDK's bundled JSONL persistence groups sessions under one project
-        # directory. `DshAgentConfig.session_compression` keeps these logs uncompressed so
-        # the running tally can read complete rows as they land -- the plugin's own default
-        # is `zstd`, which answers only in whole frames, so an agent set to that is one this
-        # path reads nothing from until its session is over.
-        logs=("sessions/*/{ident}/session.jsonl",),
-        # The session root the SDK is handed, which is the only thing a turn of it writes
-        # under this home -- and the only backend here humanize tells where to keep them.
+        # directory, a file per format generation, `session.v<N>.jsonl`, of which a session
+        # this runtime opened has the one. `DshAgentConfig.session_compression` keeps these
+        # logs uncompressed so the running tally can read complete rows as they land -- the
+        # plugin's own default is `zstd`, which answers only in whole frames, so an agent set
+        # to that is one this path reads nothing from until its session is over.
+        logs=("sessions/*/{ident}/session.v*.jsonl",),
+        # The sessions under the home the SDK is handed -- the only backend here humanize
+        # tells where to keep them.
         sessions=("sessions",),
         told=True,
         efforts=_DSH,

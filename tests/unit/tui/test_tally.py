@@ -187,7 +187,7 @@ def test_a_codex_thread_is_counted_from_the_rollout_it_writes(home: Path) -> Non
 
 def test_a_dsh_session_is_counted_from_its_assistant_messages(home: Path) -> None:
     log = (
-        home / "dsh_home" / "sessions" / "--tmp-work--" / "session-d1" / "session.jsonl"
+        home / "dsh_home" / "sessions" / "--tmp-work--" / "session-d1" / "session.v3.jsonl"
     )
     _rows(
         log,
@@ -702,7 +702,7 @@ def test_a_resumed_codex_thread_counts_only_what_this_run_spent(home: Path) -> N
 def test_a_resumed_dsh_session_counts_only_what_this_run_spent(home: Path) -> None:
     """Dsh writes its time down in milliseconds."""
     log = (
-        home / "dsh_home" / "sessions" / "--tmp-work--" / "session-d1" / "session.jsonl"
+        home / "dsh_home" / "sessions" / "--tmp-work--" / "session-d1" / "session.v3.jsonl"
     )
     _rows(
         log,

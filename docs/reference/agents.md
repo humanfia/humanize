@@ -1189,7 +1189,7 @@ conversation.
 | `claude` | `$CLAUDE_CONFIG_DIR`, `~/.claude` | `projects/*/{ident}.jsonl`, `projects/*/{ident}/subagents/**/*.jsonl` | yes | yes |
 | `codex` | `$CODEX_HOME`, `~/.codex` | `sessions/**/rollout-*{ident}.jsonl` | yes | yes |
 | `cursor-agent` | `$CURSOR_CONFIG_DIR`, `~/.cursor` | none | no | — |
-| `dsh` | `$DSH_HOME`, `~/.dsh` | `sessions/*/{ident}/session.jsonl` | yes | yes |
+| `dsh` | `$DSH_HOME`, `~/.dsh` | `sessions/*/{ident}/session.v*.jsonl` | yes | yes |
 | `grok` | `$GROK_HOME`, `~/.grok` | `sessions/*/{ident}/updates.jsonl` | yes | yes |
 | `kimi` | `$KIMI_CODE_HOME`, `~/.kimi-code` | `server/events/{ident}.jsonl` | yes | yes |
 | `litellm` | `~/.cache/humanize/litellm` | `sessions/{ident}.jsonl`, written by humanize | yes | — |
@@ -1358,6 +1358,8 @@ effort goes in the handshake.
   web keeps `web_fetch` and loses its DeepSeek search.
 - Every runtime runs at `DSH_PERMISSION_MODE=danger-full-access` (`bypass`): the SDK answers no
   approval request, so the fence is what confines it.
+- Under a fence that cuts the network, a model endpoint on loopback is unreachable: the runtime
+  connects to loopback directly, never through the fence's proxy.
 - `Unrecoverable`: the length refusal, and a session id the runtime will not resume.
 - `DSH_HOME` is the kept directory, and sessions go under its `sessions` (`Profile.told`).
 - `interject` is unsupported: `session/prompt` queues and `steer` is not on the SDK surface.

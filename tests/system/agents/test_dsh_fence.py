@@ -4,8 +4,13 @@ dsh enforces none of a fence itself -- the bundle ships no confining shell execu
 Landlock launcher `dsh-sandbox-local` it does carry lets a command read all of `/` and write all
 of `/tmp` -- so the whole of it is `hmz internal fence` around the runtime the SDK launches. This
 drives that: the real bundled runtime, launched by the real SDK through the driver, inside the
-real wall, taking one turn whose model is a loopback server of this test's own that asks for
-one `bash` call after another and writes down what each came back with.
+real wall, taking one turn whose model is a server of this test's own that asks for one `bash`
+call after another and writes down what each came back with.
+
+That server listens on this machine's own address rather than on loopback, because the runtime
+connects to loopback directly and to nothing else through a proxy -- so a model on loopback is
+one a fenced runtime cannot reach at all, and one anywhere else is reached the way DeepSeek's
+own endpoint is, through the proxy the fence leaves open.
 
 A system test because the other side is the runtime and the kernel. It spends no tokens and
 talks to no model of anybody's, so it is not behind `--run-agents`.
@@ -15,6 +20,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import socket
 import threading
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -42,11 +48,30 @@ pytestmark = pytest.mark.skipif(
 class _Model(ThreadingHTTPServer):
     """Chat completions that ask for each of `commands` in turn, then say `done`."""
 
-    def __init__(self, commands: list[str]) -> None:
+    def __init__(self, commands: list[str], address: str) -> None:
         self.commands = commands
         self.results: list[str] = []
         self.tools: list[str] = []
-        super().__init__(("127.0.0.1", 0), _Asks)
+        self.url = ""
+        super().__init__((address, 0), _Asks)
+
+
+def _outward() -> str | None:
+    """This machine's address on the interface it would reach the internet through.
+
+    Read off a datagram socket pointed at a routable address, which picks the interface and
+    sends nothing.
+
+    Returns:
+      The address, or None for a machine with no route but loopback.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            probe.connect(("192.0.2.1", 9))
+        except OSError:
+            return None
+        address = str(probe.getsockname()[0])
+    return None if address.startswith("127.") else address
 
 
 class _Asks(BaseHTTPRequestHandler):
@@ -103,6 +128,9 @@ def model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[_Model]:
         "deepseek_harness_runtime",
         reason="the [dsh] extra is not installed in this Python environment",
     )
+    address = _outward()
+    if address is None:
+        pytest.skip("this machine has no address but loopback")
     probe = Path.home() / f"fence-probe-dsh-{uuid.uuid4().hex[:8]}"
     served = _Model(
         [
@@ -110,10 +138,12 @@ def model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[_Model]:
             "cat /etc/machine-id",
             "curl -sS -m 10 https://example.com",
             "echo ok > ./ok.txt && echo WROTE",
-        ]
+        ],
+        address,
     )
+    served.url = f"http://{address}:{served.server_port}"
     threading.Thread(target=served.serve_forever, daemon=True).start()
-    monkeypatch.setenv("DEEPSEEK_BASE_URL", f"http://127.0.0.1:{served.server_port}")
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", served.url)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "not-a-real-key")
     monkeypatch.setenv("DSH_HOME", str(tmp_path / "dsh-home"))
     try:
@@ -142,7 +172,7 @@ def test_a_fenced_dsh_turn_reaches_its_workdir_and_its_model_and_nothing_else(
         workdir=str(work),
         home=str(Path.home()),
         profile=backends.named("dsh"),
-        environ={"DEEPSEEK_BASE_URL": f"http://127.0.0.1:{model.server_port}"},
+        environ={"DEEPSEEK_BASE_URL": model.url},
     )
     agent = DshAgent(
         DshAgentConfig(
