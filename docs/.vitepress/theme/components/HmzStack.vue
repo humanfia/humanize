@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The layers of `src/hmz/`, and what code in each may import. It draws `ALLOWED` and
-// `HANDED_THROUGH` from `tests/integration/layering/test_layering.py`, copied below entry for
+// `HANDED_THROUGH` from `tests/integration/test_core_layering.py`, copied below entry for
 // entry: keep the two in step. `cli` is not in that table (it joins the rest and may import
 // any of them), so what it does import is drawn instead.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -359,7 +359,7 @@ const spec = (path: string) => `https://github.com/humanfia/humanize/blob/main/s
     <figcaption class="cap">
       <span>Pick a layer to see what its code may import.</span>
       <span class="src">
-        Drawn from the table in <code>tests/integration/layering/test_layering.py</code>
+        Drawn from the table in <code>tests/integration/test_core_layering.py</code>
       </span>
     </figcaption>
 

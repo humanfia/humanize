@@ -5,7 +5,7 @@
 // "Pages" on docs/reference/index.md.
 //
 // Then one request is followed through it, along edges the layering table allows
-// (tests/integration/layering/test_layering.py): `hmz exec` is the CLI, which may name any
+// (tests/integration/test_core_layering.py): `hmz exec` is the CLI, which may name any
 // layer; `hmz.runtime.runner` reads the line and runs the flow it names, granted what it
 // declared; the flow's turns reach the agent through `hmz.runtime.flowing`, whose drivers are
 // written against `hmz.coganchor`, which drives the CLI as an account (`claude/…` has no
