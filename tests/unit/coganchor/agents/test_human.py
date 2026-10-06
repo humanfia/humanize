@@ -81,7 +81,7 @@ def test_a_shape_is_put_a_field_at_a_time() -> None:
         "What should we do?\n\nWhat to call it",
         "kind",
         "urgent -- or `-` for no",
-        "tags (several, separated by commas) -- or `-` for []",
+        "tags (several, separated by commas) -- or `-` for nothing",
         "size (a number) -- or `-` for 1",
     ]
     assert [one.options for one in asked] == [

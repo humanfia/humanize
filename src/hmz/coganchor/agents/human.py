@@ -21,6 +21,7 @@ runs, so a flow that names one is handed one.
 
 from __future__ import annotations
 
+from collections.abc import Sized
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args, get_origin
 
 from .base import AgentBase, SessionBase
@@ -72,7 +73,9 @@ def _says(value: object) -> str:
     """
     if isinstance(value, bool):
         return _YES if value else _NO
-    return "nothing" if value in ("", None) else str(value)
+    if value is None or (isinstance(value, Sized) and not value):
+        return "nothing"
+    return str(value)
 
 
 def _listed(kind: object) -> bool:
