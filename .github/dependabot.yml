@@ -5,11 +5,9 @@
 version: 2
 
 updates:
-  # The workflows, and the action of this repository's own that they share.
+  # The workflows.
   - package-ecosystem: github-actions
-    directories:
-      - /
-      - /.github/actions/*
+    directory: /
     # No labels: this repository manages nothing by them.
     labels: []
     schedule:

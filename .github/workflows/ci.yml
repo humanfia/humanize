@@ -30,7 +30,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-uv
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          # Pull requests restore what `main` saved and write nothing.
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -41,7 +45,7 @@ jobs:
         env:
           # zizmor asks GitHub whether each pinned commit is the tag it says.
           GH_TOKEN: ${{ github.token }}
-        run: uv run --frozen pre-commit run --all-files --show-diff-on-failure
+        run: uv run --frozen --all-extras pre-commit run --all-files --show-diff-on-failure
 
   unit:
     name: unit (${{ matrix.os }}, ${{ matrix.package }})
@@ -57,12 +61,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-uv
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          # Pull requests restore what `main` saved and write nothing.
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       - name: pytest tests/unit/${{ matrix.package }}
         env:
           PACKAGE: ${{ matrix.package }}
-        run: uv run --frozen pytest "tests/unit/$PACKAGE" --durations=10
+        run: uv run --frozen --all-extras pytest "tests/unit/$PACKAGE" --durations=10
 
   integration:
     name: integration (${{ matrix.os }}, ${{ matrix.topic }})
@@ -78,7 +86,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-uv
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          # Pull requests restore what `main` saved and write nothing.
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       # Two workers a vCPU: these tests wait on subprocesses, sockets and pseudoterminals far
       # more than they compute, and `-n auto` alone counts physical cores.
@@ -87,7 +99,7 @@ jobs:
           TOPIC: ${{ matrix.topic }}
         run: |
           PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN))) \
-            uv run --frozen pytest tests/integration/test_"$TOPIC"_*.py --durations=25
+            uv run --frozen --all-extras pytest tests/integration/test_"$TOPIC"_*.py --durations=25
 
   ci-ok:
     if: always()
