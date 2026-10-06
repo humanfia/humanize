@@ -66,7 +66,7 @@ async def test_an_interface_attached_to_a_run_is_shown_it_so_far_and_steers_it(
     host: Host, running: Link, workspace: Path
 ) -> None:
     async with Humanize(link=linked(host)).run_test(size=SIZE) as pilot:
-        await shows(pilot, "❯ wait for it", "⏺ working", f"assistant · {RUNS}")
+        await shows(pilot, "❯ wait for it", "still on it", f"assistant · {RUNS}")
 
         await typed(pilot, "and this")
 
@@ -78,7 +78,7 @@ async def test_a_line_another_frontend_says_lands_in_the_turn_the_interface_show
     host: Host, running: Link
 ) -> None:
     async with Humanize(link=linked(host)).run_test(size=SIZE) as pilot:
-        await shows(pilot, "⏺ working")
+        await shows(pilot, "still on it")
 
         await asyncio.to_thread(running.say, "from elsewhere")
 
@@ -90,7 +90,7 @@ async def test_leaving_an_attached_interface_detached_leaves_the_run_going(
 ) -> None:
     app = Humanize(link=linked(host))
     async with app.run_test(size=SIZE) as pilot:
-        await shows(pilot, "⏺ working")
+        await shows(pilot, "still on it")
         await typed(pilot, "/exit")
         await on(pilot, Leaves)
         await shows(pilot, "Detached, it keeps running")
@@ -110,7 +110,7 @@ async def test_two_ctrl_c_in_an_attached_interface_stop_the_run_for_everybody(
     host: Host, running: Link
 ) -> None:
     async with Humanize(link=linked(host)).run_test(size=SIZE) as pilot:
-        await shows(pilot, "⏺ working")
+        await shows(pilot, "still on it")
 
         await pilot.press("ctrl+c", "ctrl+c")
 

@@ -39,7 +39,7 @@ async def working(pilot: Pilot[None]) -> None:
     """Starts chat on a turn the stand-in holds open until it is told something more."""
     await opened(pilot)
     await typed(pilot, "wait a moment")
-    await shows(pilot, "⏺ working")
+    await shows(pilot, "still on it")
 
 
 async def test_left_goes_up_to_the_monitor_of_the_run_and_right_comes_back(
@@ -103,10 +103,10 @@ async def test_shift_tab_and_tab_step_between_the_views_of_a_run(
 
         await pilot.press("tab")
         await shows(pilot, "reading outworlder human")
-        assert "⏺ working" not in screen(app)
+        assert "still on it" not in screen(app)
 
         await pilot.press("shift+tab")
-        await shows(pilot, "reading all agents", "⏺ working")
+        await shows(pilot, "reading all agents", "still on it")
 
 
 async def test_btw_asks_a_side_agent_and_leaves_the_run_alone(workspace: Path) -> None:

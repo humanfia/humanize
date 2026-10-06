@@ -80,7 +80,7 @@ async def test_a_line_typed_while_a_turn_runs_is_put_into_that_turn(
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "wait for more")
-        await shows(pilot, "⏺ working")
+        await shows(pilot, "still on it")
 
         await typed(pilot, "and this")
 
@@ -96,7 +96,7 @@ async def test_two_ctrl_c_cut_the_turn_off_and_end_the_run_as_stopped(
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "wait forever")
-        await shows(pilot, "⏺ working")
+        await shows(pilot, "still on it")
 
         await pilot.press("ctrl+c")
         await shows(pilot, "press ctrl+c again to stop the flow")
@@ -143,7 +143,7 @@ async def test_exit_while_a_run_is_going_asks_and_stopping_it_ends_both(
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "wait a while")
-        await shows(pilot, "⏺ working")
+        await shows(pilot, "still on it")
 
         await typed(pilot, "/exit")
         await on(pilot, Leaves)

@@ -6,7 +6,7 @@ it holds, the driver, a process -- with nothing real behind it:
 
 - asked what it runs (the `list_models` control request), it names :data:`MODEL`;
 - told something, it answers `heard <its last line>` at once;
-- told something starting with `wait`, it says `working` and holds the answer until it is
+- told something starting with `wait`, it says `still on it` and holds the answer until it is
   told something more, then answers with both -- which is what makes steering a turn and
   cutting one off observable;
 - a word put into a turn under way is acknowledged as Claude acknowledges one;
@@ -102,7 +102,7 @@ for line in sys.stdin:
     lines = [one.strip() for one in text.splitlines() if one.strip()]
     held.append(next((one for one in reversed(lines) if not one.startswith("<")), ""))
     if held[0].startswith("wait") and len(held) == 1:
-        say(type="assistant", message={"content": [{"type": "text", "text": "working"}]})
+        say(type="assistant", message={"content": [{"type": "text", "text": "still on it"}]})
         continue
     answer = "heard " + " then ".join(held)
     say(type="assistant", message={"content": [{"type": "text", "text": answer}]})
