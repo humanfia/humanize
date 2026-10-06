@@ -27,7 +27,3 @@
 # with the python modules ``pickle``, ``dbm.*``,
 # ``shelve``, ``marshal``, ``anydbm``, & ``bsddb``
 # (among others).
-
-# What each integration test took, written by `pytest --store-durations` for CI to split the
-# tier by. Generated, so a pull request that refreshes it shows it folded.
-.test_durations linguist-generated=true

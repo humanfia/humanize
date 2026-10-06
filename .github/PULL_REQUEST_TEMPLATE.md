@@ -1,6 +1,6 @@
 <!--
 The title is a Conventional Commit, `type(scope): what it does`, with `!` before the colon if
-it breaks something. The title workflow checks it.
+it breaks something: squashing writes it to `main`.
 CONTRIBUTING.md has the rest: https://github.com/humanfia/humanize/blob/main/CONTRIBUTING.md
 -->
 

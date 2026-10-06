@@ -1,6 +1,5 @@
-# The documentation site, built and checked, and deployed from `main`. A push to `main` that
-# changed it builds and deploys here; `ci.yml` calls this to build it everywhere else its full
-# tier runs, so a broken page holds up `ci-ok` like anything else. By hand, it builds.
+# The documentation site: built and checked on a pull request that changes it, and built and
+# deployed by a push to `main` that does.
 
 name: build-docs
 
@@ -10,26 +9,28 @@ on:
     paths:
       - .github/workflows/build-docs.yml
       - docs/**
-  workflow_call:
-  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/build-docs.yml
+      - docs/**
 
 permissions: {}
 
 # One at a time on `main`, so the site deployed last is the newest commit's, and a newer push
-# waiting replaces an older one waiting. Named for this file rather than for `github.workflow`,
-# which in a called workflow is the caller's: sharing its group would leave this run waiting
-# on the one that called it.
+# waiting replaces an older one waiting.
 concurrency:
-  group: build-docs-${{ github.event_name }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
-    name: build
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: docs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -48,23 +49,18 @@ jobs:
           cache-dependency-path: docs/pnpm-lock.yaml
 
       - name: Install
-        working-directory: docs
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        working-directory: docs
         run: pnpm build
 
       - name: Every #fragment resolves
-        working-directory: docs
         run: pnpm check:anchors
 
       - name: Install Chromium
-        working-directory: docs
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Every word can be read on a phone
-        working-directory: docs
         run: pnpm check:legible
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
@@ -72,10 +68,7 @@ jobs:
           path: docs/.vitepress/dist
 
   deploy:
-    name: deploy
-    # Called by `ci.yml`, the event is the one that started it: a pull request, the merge
-    # queue, a nightly run or one by hand only builds.
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10

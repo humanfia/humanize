@@ -124,9 +124,6 @@ dev = [
     "pyright>=1.1.411",
     "pytest>=8",
     "pytest-asyncio>=1.4.0",
-    "pytest-cov>=6",
-    # CI splits `tests/integration` into halves of equal time, by `.test_durations`.
-    "pytest-split>=0.11.0",
     "pytest-timeout>=2.3",
     "pytest-xdist>=3.8.0",
     # Exercises dsh's dotenv-compatible native configuration without making the SDK
@@ -140,41 +137,24 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
+# `tests/system` runs real agents for minutes a test, so a plain `pytest` leaves it out;
+# name a file under it to run one. AGENTS.md says when.
+testpaths = ["tests/unit", "tests/integration"]
 # The interface is an async application, and its tests drive it as one.
 asyncio_mode = "auto"
-# A marker nobody registered is a typo, and a typo in `-m` selects nothing.
-# `-ra` names what was skipped, so a test that quietly stops running says so.
-# `-n auto` because nothing here is CPU-bound: every test drives a subprocess, a socket or a
-# pseudoterminal and spends its time waiting on one, so a machine's cores sit idle while the
-# suite takes a quarter of an hour. Run across them it is a minute and a half, which is the
-# difference between a gate somebody runs before pushing and one they learn to skip. Each
-# test already has a home, a workspace and a temporary directory of its own -- `tmp_path` and
-# the autouse fixtures in `tests/conftest.py` -- so there is no shared state for the workers
-# to race on. `auto` rather than a number: CI's runners are not this machine. `auto` counts
-# physical cores, which on a runner is half its vCPUs, so CI runs `tests/integration` on two
-# workers a vCPU through `PYTEST_XDIST_AUTO_NUM_WORKERS`, which `auto` gives way to.
-#
-# It is on for the fast tier too, and that was measured rather than assumed, because bringing
-# workers up looks like pure overhead for a tier that would otherwise be over in seconds.
-# It is not: `tests/unit` is 966 tests and takes four to five seconds either way, and over ten
-# runs each on a 32-core machine the gap between `-n auto` and `-n0` was smaller than the
-# spread within either -- a wash rather than a win for one of them. So there is nothing here
-# to take back by turning xdist off for this tier; the workers start while they collect, which
-# is work the run does whether or not it forks to do it. And there would be nowhere to put it
-# if there were: the worker count is settled once for the session, so a per-path override
-# would be the whole suite's, and the whole suite is the run that wants the workers.
-addopts = ["--strict-markers", "--strict-config", "-ra", "-n", "auto"]
-# A ceiling on any one test that did not ask for its own. Everything here drives processes,
-# sockets and pseudoterminals, and every one of those has a way of waiting forever -- which
-# without this is a whole job sitting at the wall until CI kills it, saying nothing about
-# which test it was sitting in. A test that needs longer says so with `@pytest.mark.timeout`,
-# which wins over this.
+# Tests are imported by path, so two directories may hold files of the same name; the root
+# goes on the path for `tests.<...>` helper imports.
+pythonpath = ["."]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+    "-ra",
+    "-n",
+    "auto",
+]
+# A ceiling on any one test that did not ask for its own with `@pytest.mark.timeout`.
 timeout = 300
-
-[tool.coverage.run]
-# CI measures each tier on each runner and adds the counts up, and a file is the same file on
-# Linux and macOS only once it is named from the checkout rather than from where a runner put it.
-relative_files = true
 
 [tool.ruff]
 # The formatter wraps at 88; `pycodestyle` below lets prose the formatter cannot
@@ -182,7 +162,8 @@ relative_files = true
 line-length = 88
 # The Python in Markdown is left as written: a page lays its blocks out for the reader, and a
 # spec's signatures are the spec. Only `ruff format` with no paths would reach them.
-extend-exclude = ["*.md"]
+# And the sample project system tests set agents to work on, which is not this one's code.
+extend-exclude = ["*.md", "tests/system/sample"]
 
 [tool.ruff.lint]
 # Everything, less what this codebase has a reason to be without. A rule is off
@@ -292,7 +273,7 @@ ignore = [
 "src/hmz/flows/builtin/**" = ["T201", "ARG001", "SIM401"]
 "tests/**" = [
     "S101",    # an assert is what a test is
-    "SLF001",  # a test reaches for what it tests, private or not
+    "INP001",  # tests are imported by path (`--import-mode=importlib`), not as packages
     "PLR2004", # the literal a test compares against is the expectation
     "D1",      # the name of a test is what it documents
     "ARG",     # pytest passes a fixture by name, whether the body names it or not
@@ -310,6 +291,8 @@ convention = "google"
 
 [tool.pyright]
 include = ["src", "tests"]
+# The project the system tests set agents to work on, not this one's code.
+exclude = ["tests/system/sample"]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
 venvPath = "."
@@ -319,12 +302,11 @@ venv = ".venv"
 enableTypeIgnoreComments = false
 reportUnnecessaryTypeIgnoreComment = "error"
 
-# A test reaches for what it tests, private or not, which is the one thing it may
-# do that its subject's callers may not. The root goes back on the path because a
-# test names its fixtures from the top: `tests.coganchor.fixtures`.
+# A test uses what it tests the way any caller does: its public names alone. The root goes
+# back on the path because a test names its helpers from the top: `tests.system.real`.
 [[tool.pyright.executionEnvironments]]
 root = "tests"
 extraPaths = ["."]
-reportPrivateUsage = "none"
+reportPrivateUsage = "error"
 # An autouse fixture is used by being declared, and nothing names it anywhere.
 reportUnusedFunction = "none"

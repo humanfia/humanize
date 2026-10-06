@@ -1,7 +1,6 @@
 # The first gate: what a commit is held to. The file hygiene hooks, the formatter, the
 # linter, the type checker and the two that read the workflows -- everything that answers in
-# seconds. The tests are the second gate's: CI runs them by tier, and how many Pythons and
-# systems a change is tested on grows with how close it is to `main`
+# seconds. CI's `lint` job runs exactly this; its other jobs run the tests
 # (docs/contributing/ci.md).
 #
 # Install with `uv run pre-commit install`.
@@ -23,15 +22,13 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: end-of-file-fixer
-        # Written by `pytest --store-durations`, without a last newline, and committed as written.
-        exclude: ^\.test_durations$
       - id: mixed-line-ending
       - id: trailing-whitespace
 
   # What a workflow says, and what it lets a stranger's pull request do: actionlint reads the
   # expressions, the `needs` and the shell in each step, and zizmor the permissions, the pins
   # and the ways in for an injection. Dependabot moves both on, like the hooks above, and CI
-  # runs them in its `workflows` job.
+  # runs them in its `lint` job.
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:

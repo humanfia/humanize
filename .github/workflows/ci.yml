@@ -1,643 +1,107 @@
-# Every change is checked, and how much of it runs grows with how close the change is to
-# `main`: `plan` says which tier this run is, `changes` what the change touched. The tests wait
-# on the linter and the type checker, so a change that fails either never takes a runner for
-# its tests, and one that touched no Python takes none for them at all; past those two, the
-# tests' tiers run side by side. `ci-ok` at the end is the one check a branch rule needs.
-# docs/contributing/ci.md has the tiers, the graph, and what each job takes.
+# Lint, then the unit tests one job per package and the integration tests one job per topic,
+# on Linux and macOS. `ci-ok` is the one check a branch rule needs. `tests/system` runs real
+# agents and is never run here. docs/contributing/ci.md has the rest.
 
 name: ci
 
 on:
   push:
-    # The merge queue pushes a branch of its own for every group, and `merge_group` below is
-    # already the run for it.
-    branches: ["**", "!gh-readonly-queue/**"]
+    branches: [main]
   pull_request:
-  merge_group:
-  schedule:
-    # Nightly, for what changes under a commit that did not: a dependency's new release, a
-    # runner's new image.
-    - cron: "17 3 * * *"
-  workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
-  # A newer commit makes an older run on the same branch or pull request moot. Every commit to
-  # `main` keeps its own, since that is where a failure has to be pinned to one commit.
-  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Every commit to `main` keeps its run, so a failure there is pinned to one commit.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   FORCE_COLOR: "1"
-  # Coverage read through `sys.monitoring` rather than a trace function, which costs a measured
-  # run next to nothing: under the trace function Python 3.12's `tests/unit` took twice what
-  # 3.14's did, and one test in it fifty seconds rather than five.
-  COVERAGE_CORE: sysmon
 
 jobs:
-  plan:
-    name: plan
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      tier: ${{ steps.plan.outputs.tier }}
-      os: ${{ steps.plan.outputs.os }}
-      python: ${{ steps.plan.outputs.python }}
-      coverage: ${{ steps.plan.outputs.coverage }}
-    steps:
-      - name: Which tier this run is
-        id: plan
-        env:
-          EVENT: ${{ github.event_name }}
-          REF: ${{ github.ref }}
-          BASE: ${{ github.base_ref }}
-        run: |
-          os='["ubuntu-latest"]'
-          python='["3.12"]'
-          # The Python whose Linux jobs count coverage, in the full tier alone: one
-          # configuration rather than every one, so the number means the same from run to run.
-          # A line only macOS or a newer Python reaches goes uncounted, and is still tested
-          # there. 3.12, because `system` runs on it, so every tier is counted together.
-          coverage=""
-          if [[ "$EVENT" =~ ^(merge_group|schedule|workflow_dispatch)$ ]] ||
-            [[ "$EVENT" == push && "$REF" == refs/heads/main ]] ||
-            [[ "$EVENT" == pull_request && "$BASE" == main ]]; then
-            tier="full"
-            # Every Python the package claims, on both systems it runs on.
-            os='["ubuntu-latest", "macos-latest"]'
-            python='["3.12", "3.13", "3.14"]'
-            coverage="3.12"
-          elif [[ "$EVENT" == pull_request ]]; then
-            tier="pr"
-          else
-            tier="push"
-          fi
-          {
-            echo "tier=$tier"
-            echo "os=$os"
-            echo "python=$python"
-            echo "coverage=$coverage"
-          } >> "$GITHUB_OUTPUT"
-          echo "Tier: **$tier** ($EVENT on $REF${BASE:+ into $BASE})" >> "$GITHUB_STEP_SUMMARY"
-
-  changes:
-    name: changes
-    needs: plan
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      # A run with nothing to compare against -- nightly, or by hand -- checks everything.
-      python: ${{ steps.filter.outputs.python || 'true' }}
-      package: ${{ steps.filter.outputs.package || 'true' }}
-      docs: ${{ steps.filter.outputs.docs || 'true' }}
-      workflows: ${{ steps.filter.outputs.workflows || 'true' }}
-    steps:
-      # A pull request's files are listed by the API; everything else is compared with git.
-      - if: github.event_name != 'pull_request'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
-        id: filter
-        # A push's branch is fetched by name, and one merged and deleted before its run got
-        # here is not there to fetch. A comparison that cannot be made is a run with nothing
-        # to compare against, which checks everything, as the outputs above say.
-        continue-on-error: true
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          # The workflow and the action that set Python up are in each list they run, so a
-          # change to how something is checked is checked by it.
-          filters: |
-            python:
-              - src/**
-              - tests/**
-              - .test_durations
-              - pyproject.toml
-              - uv.lock
-              - .python-version
-              - .github/actions/setup-uv/**
-              - .github/workflows/ci.yml
-            package:
-              - src/**
-              - pyproject.toml
-              - uv.lock
-              - README.md
-              - LICENSE
-              - .github/actions/setup-uv/**
-              - .github/workflows/ci.yml
-            docs:
-              - docs/**
-              - .github/workflows/build-docs.yml
-              - .github/workflows/ci.yml
-            workflows:
-              - .github/**
-              - .pre-commit-config.yaml
-
+  # Every pre-commit hook: ruff, pyright, actionlint, zizmor and the file hygiene.
   lint:
-    name: lint
-    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # No extras: `uv run` below makes the environment the hooks need, which is the project
-      # and its dev group.
       - uses: ./.github/actions/setup-uv
-        with:
-          sync: none
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
-          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
 
-      # Every hook but the type checker, which is the next stage, and the two that read the
-      # workflows, which are `workflows` below.
       - name: pre-commit
         env:
-          SKIP: pyright,actionlint,zizmor
+          # zizmor asks GitHub whether each pinned commit is the tag it says.
+          GH_TOKEN: ${{ github.token }}
         run: uv run --frozen pre-commit run --all-files --show-diff-on-failure
 
-  workflows:
-    name: workflows
-    needs: [plan, changes]
-    if: needs.plan.outputs.tier != 'push' && needs.changes.outputs.workflows == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-uv
-        with:
-          sync: --only-dev
-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-workflows-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
-
-      - name: actionlint
-        run: uv run --frozen --no-sync pre-commit run actionlint --all-files
-
-      - name: zizmor
-        env:
-          # Online, which a commit hook is not: whether a pinned commit is really the tag it
-          # says, and whether an action is one with an advisory against it.
-          GH_TOKEN: ${{ github.token }}
-        run: uv run --frozen --no-sync pre-commit run zizmor --all-files
-
-  typecheck:
-    name: typecheck
-    needs: [plan, changes, lint, workflows]
-    if: >-
-      !cancelled()
-      && needs.lint.result == 'success'
-      && needs.workflows.result != 'failure'
-      && needs.plan.outputs.tier != 'push'
-      && needs.changes.outputs.python == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-uv
-
-      - name: pyright (strict)
-        run: uv run --frozen pyright
-
-  # The tiers of the tests start together once the type checker has passed, and none of them
-  # waits on another: each is a gate of its own, and a run that lined them up took the sum of
-  # them rather than the longest.
-  #
-  # `tests/integration` runs two workers a vCPU. Each of its workers waits on a subprocess, a
-  # socket or a pseudoterminal far more than it computes, and `-n auto` counts physical cores,
-  # which is half a runner's vCPUs: four workers took that tier 404s on a four-vCPU runner and
-  # eight took it 228s. `tests/unit` keeps `auto`: it computes rather than waits, and some of
-  # its tests time themselves, which a CPU shared two ways over makes them miss.
   unit:
-    name: unit (ubuntu-latest, ${{ matrix.python }})
-    needs: [plan, changes, lint, workflows, typecheck]
-    # A stage that this tier leaves out is skipped rather than failed, and is no reason to stop.
-    if: >-
-      !cancelled()
-      && needs.lint.result == 'success'
-      && needs.workflows.result != 'failure'
-      && needs.typecheck.result != 'failure'
-      && needs.changes.outputs.python == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ${{ fromJSON(needs.plan.outputs.python) }}
-    env:
-      COVERAGE_FILE: .coverage.unit
-      # Coverage is counted on the one Python `plan` names: pytest reads `PYTEST_ADDOPTS` as
-      # though it were on its command line.
-      PYTEST_ADDOPTS: >-
-        ${{ matrix.python == needs.plan.outputs.coverage && '--cov=hmz --cov-report=' || '' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-uv
-        with:
-          python-version: ${{ matrix.python }}
-
-      # `tests/test_tiers.py` beside each tier checks that tier's tree.
-      - name: pytest tests/unit
-        run: >
-          uv run --frozen pytest tests/unit tests/test_tiers.py --durations=10
-          --timeout-method=thread
-
-      - if: matrix.python == needs.plan.outputs.coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-unit
-          path: ${{ env.COVERAGE_FILE }}
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 7
-
-  integration:
-    name: integration (ubuntu-latest, ${{ matrix.python }}, ${{ matrix.shard }}/2)
-    needs: [plan, changes, lint, workflows, typecheck]
-    if: >-
-      !cancelled()
-      && needs.lint.result == 'success'
-      && needs.workflows.result != 'failure'
-      && needs.typecheck.result != 'failure'
-      && needs.changes.outputs.python == 'true'
-      && needs.plan.outputs.tier != 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ${{ fromJSON(needs.plan.outputs.python) }}
-        # Two halves that take the same time, by what `.test_durations` says each test took.
-        # A third would be quicker and is past what the full tier can run at once: GitHub's free
-        # plan runs twenty jobs at a time, and docs/contributing/ci.md counts them.
-        shard: [1, 2]
-    env:
-      COVERAGE_FILE: .coverage.integration-${{ matrix.shard }}
-      PYTEST_ADDOPTS: >-
-        ${{ matrix.python == needs.plan.outputs.coverage && '--cov=hmz --cov-report=' || '' }}
-      SHARD: ${{ matrix.shard }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-uv
-        with:
-          python-version: ${{ matrix.python }}
-
-      # The split is made after collection, so each half collects the whole tree, and
-      # `tests/test_tiers.py`, which reads that collection, checks all of it in whichever
-      # half it falls to.
-      - name: pytest tests/integration
-        run: >
-          PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN)))
-          uv run --frozen pytest tests/integration tests/test_tiers.py --durations=25
-          --timeout-method=thread
-          --splits 2 --group "$SHARD" --splitting-algorithm least_duration
-
-      - if: matrix.python == needs.plan.outputs.coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-integration-${{ matrix.shard }}
-          path: ${{ env.COVERAGE_FILE }}
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 7
-
-  # macOS takes both tiers in one job per Python, one after the other, where Linux gives each a
-  # job and splits `tests/integration` in two. GitHub's free plan runs five macOS jobs at a time:
-  # a job apiece would be six, and the sixth would wait for a runner. Three, each taking both,
-  # is what fits; it is also what the full tier waits on last.
-  macos:
-    name: unit + integration (macos-latest, ${{ matrix.python }})
-    needs: [plan, changes, lint, workflows, typecheck]
-    if: >-
-      !cancelled()
-      && needs.lint.result == 'success'
-      && needs.workflows.result != 'failure'
-      && needs.typecheck.result != 'failure'
-      && needs.changes.outputs.python == 'true'
-      && needs.plan.outputs.tier == 'full'
-    runs-on: macos-latest
-    timeout-minutes: 45
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ${{ fromJSON(needs.plan.outputs.python) }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-uv
-        with:
-          python-version: ${{ matrix.python }}
-
-      # Two runs of pytest rather than one over both trees, so that the unit tests that time
-      # themselves are not timed beside the integration tests' subprocesses, and each tier
-      # gets its own number of workers.
-      - name: pytest tests/unit
-        run: >
-          uv run --frozen pytest tests/unit tests/test_tiers.py --durations=10
-          --timeout-method=thread
-
-      # Whatever the unit tests said: what failed in either tier is worth knowing from one run.
-      - name: pytest tests/integration
-        if: ${{ !cancelled() }}
-        run: >
-          PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN)))
-          uv run --frozen pytest tests/integration tests/test_tiers.py --durations=25
-          --timeout-method=thread
-
-  system:
-    name: system (ubuntu-latest, 3.12)
-    needs: [plan, changes, lint, workflows, typecheck]
-    if: >-
-      !cancelled()
-      && needs.lint.result == 'success'
-      && needs.workflows.result != 'failure'
-      && needs.typecheck.result != 'failure'
-      && needs.changes.outputs.python == 'true'
-      && needs.plan.outputs.tier == 'full'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      contents: read
-    env:
-      COVERAGE_FILE: .coverage.system
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-uv
-
-      # What a developer's machine has and a runner does not until asked: the images the
-      # container tests start, a swarm this machine manages, and `ssh localhost` without a
-      # password. No coding agent is installed and nothing is signed in, so every test that
-      # would spend tokens skips, as it does without `--run-agents` anywhere.
-      - name: Docker images, a swarm, and ssh to this machine
-        run: |
-          docker pull --quiet python:3.12-slim
-          docker pull --quiet python:3.12
-          docker pull --quiet docker:dind
-          docker swarm init
-          ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519
-          cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
-          chmod 600 ~/.ssh/authorized_keys
-          ssh-keyscan -H localhost >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -o BatchMode=yes localhost true
-
-      # With the workers `-n auto` makes here, unlike `tests/integration`: its tests share one
-      # docker daemon and one sshd, and it is over well before the macOS jobs are, so more
-      # workers would buy the run nothing and the daemon more to contend for.
-      - name: pytest tests/system
-        run: >
-          uv run --frozen pytest tests/system tests/test_tiers.py --durations=25
-          --timeout-method=thread --cov=hmz --cov-report=
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-system
-          path: ${{ env.COVERAGE_FILE }}
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 7
-
-  coverage:
-    name: coverage
-    needs: [plan, unit, integration, system]
-    if: >-
-      !cancelled()
-      && needs.unit.result == 'success'
-      && needs.integration.result == 'success'
-      && needs.system.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      # The report reads the source each line was counted in.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-uv
-        with:
-          sync: --only-dev
-
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: coverage-*
-          path: coverage
-          merge-multiple: true
-
-      - name: Every tier on Linux and one Python, combined
-        env:
-          PYTHON: ${{ needs.plan.outputs.coverage }}
-        run: |
-          uv run --frozen --no-sync coverage combine coverage
-          uv run --frozen --no-sync coverage xml
-          uv run --frozen --no-sync coverage report --sort=cover
-          {
-            echo "## Coverage: $(uv run --frozen --no-sync coverage report --format=total)%"
-            echo
-            echo "Every tier, on Linux and Python $PYTHON, combined."
-            echo
-            echo "<details><summary>By file</summary>"
-            echo
-            uv run --frozen --no-sync coverage report --format=markdown --sort=cover
-            echo
-            echo "</details>"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage
-          path: |
-            .coverage
-            coverage.xml
-          include-hidden-files: true
-          if-no-files-found: error
-
-  build:
-    name: build
-    needs: [plan, changes, lint]
-    if: needs.plan.outputs.tier == 'full' && needs.changes.outputs.package == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-uv
-        with:
-          sync: none
-
-      - run: uv build
-
-      # What PyPI would refuse, or render badly from the README, refused here instead. The newest
-      # twine rather than a pinned one, since what it stands in for is what PyPI takes today.
-      - run: uvx twine check --strict dist/*
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: dist
-          path: dist/
-          if-no-files-found: error
-          retention-days: 7
-
-  smoke:
-    name: smoke (${{ matrix.os }}, ${{ matrix.python }})
-    needs: [plan, build]
+    name: unit (${{ matrix.os }}, ${{ matrix.package }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
-    permissions: {}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(needs.plan.outputs.os) }}
-        python: ${{ fromJSON(needs.plan.outputs.python) }}
+        os: [ubuntu-latest, macos-latest]
+        package: [cli, coganchor, daemon, flows, runtime, sdk, tui]
     steps:
-      # No checkout: what is checked is the wheel, and a source tree beside it could stand in
-      # for something the wheel left out.
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: dist
-          path: dist
+          persist-credentials: false
 
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          enable-cache: false
-          python-version: ${{ matrix.python }}
+      - uses: ./.github/actions/setup-uv
 
-      # The wheel alone, with none of its extras: the drivers that want one load it where a
-      # turn needs it, so neither is imported as `hmz` starts or as their classes are named.
-      - name: humanize starts with none of its extras
-        run: |
-          uv venv smoke
-          uv pip install --python smoke dist/*.whl
-          smoke/bin/python -c "
-          import hmz.cli, hmz.tui.app
-          from hmz.coganchor.agents import DshAgent, KimiCodeCLIAgent
-          print(DshAgent.__name__, KimiCodeCLIAgent.__name__)
-          "
-
-  docs:
-    name: docs
-    needs: [plan, changes]
-    # Not a push to `main`: `build-docs.yml` runs on that itself, one at a time, so that the
-    # site deployed last is the newest. Everywhere else the build is checked here, as a gate.
-    if: >-
-      needs.plan.outputs.tier == 'full'
-      && needs.changes.outputs.docs == 'true'
-      && github.event_name != 'push'
-    # The build is read-only. The other two are for the deploy a push to `main` makes, which a
-    # caller has to be able to hand that workflow even where it never runs.
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/build-docs.yml
-
-  dependency-review:
-    name: dependency-review
-    needs: plan
-    if: github.event_name == 'pull_request' && needs.plan.outputs.tier == 'full'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      # The review reads the repository's dependency graph, which is a setting -- Settings, then
-      # Code security -- and one this workflow cannot turn on. Where it is off there is nothing
-      # to review against, which is said rather than failed on every pull request; anything
-      # else that goes wrong asking still fails.
-      - name: Is the dependency graph on
-        id: graph
+      - name: pytest tests/unit/${{ matrix.package }}
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
+          PACKAGE: ${{ matrix.package }}
         run: |
-          if said=$(gh api "repos/$REPO/dependency-graph/sbom" --jq .sbom.name 2>&1); then
-            echo "on=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$said" == *"(HTTP 404)"* ]]; then
-            echo "::warning title=Dependency graph off::Nothing to review: turn the dependency graph on under Settings, Code security."
-            echo "on=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "$said" >&2
-            exit 1
-          fi
+          # TRANSITION: a package with no tests yet passes. Removed before this lands on main.
+          [ -d "tests/unit/$PACKAGE" ] || exit 0
+          uv run --frozen pytest "tests/unit/$PACKAGE" --durations=10
 
-      - if: steps.graph.outputs.on == 'true'
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+  integration:
+    name: integration (${{ matrix.os }}, ${{ matrix.topic }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        topic: [core, agents, tui, daemon, anchor]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-uv
+
+      # Two workers a vCPU: these tests wait on subprocesses, sockets and pseudoterminals far
+      # more than they compute, and `-n auto` alone counts physical cores.
+      - name: pytest tests/integration/test_${{ matrix.topic }}_*.py
+        env:
+          TOPIC: ${{ matrix.topic }}
+        run: |
+          shopt -s nullglob
+          files=(tests/integration/test_"$TOPIC"_*.py)
+          # TRANSITION: a topic with no tests yet passes. Removed before this lands on main.
+          [ "${#files[@]}" -gt 0 ] || exit 0
+          PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN))) \
+            uv run --frozen pytest "${files[@]}" --durations=25
 
   ci-ok:
-    # `ci-ok` is the full tier's alone. A branch with a pull request open is pushed to as well,
-    # and both runs report on the same commit: were the push run's `ci-ok` green, it could stand
-    # in for the pull request's. A pull request moved onto `main` after its run is in the same
-    # place, and has no `ci-ok` until it is pushed to again.
-    name: ${{ needs.plan.outputs.tier == 'full' && 'ci-ok' || format('ci-ok ({0} tier)', needs.plan.outputs.tier) }}
     if: always()
-    needs:
-      - plan
-      - changes
-      - lint
-      - workflows
-      - typecheck
-      - unit
-      - integration
-      - macos
-      - system
-      - coverage
-      - build
-      - smoke
-      - docs
-      - dependency-review
+    needs: [lint, unit, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions: {}
     steps:
-      # Green when everything that ran passed, and a job a tier leaves out is not a failure.
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
-          allowed-skips: >-
-            workflows, typecheck, unit, integration, macos, system, coverage, build, smoke,
-            docs, dependency-review
           jobs: ${{ toJSON(needs) }}

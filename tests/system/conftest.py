@@ -1,32 +1,58 @@
-"""Everything under here is a system test, and is one by being here.
+"""Real agents on real tasks: optional, slow (5-30 min a test) and paid for in tokens.
 
-A system test needs the real thing: a coding-agent CLI installed on this machine and driven `as
-local`, real ptrace and seccomp, real docker, real ssh, a real daemon fork, a real `node`. CI
-runs this tree once, on Linux, before a change reaches `main`, with docker, a swarm and `ssh
-localhost` set up for it and no coding agent installed. What a machine has not got is a skip
-that says so rather than a failure, there and anywhere else: a gate that goes red for what the
-machine is missing is a gate people learn to ignore.
+Never in CI and left out of a plain `uv run pytest`; run one by naming it, e.g.
+`uv run pytest tests/system/test_flows_ralph.py`. A test skips, saying why, where what it
+needs -- a CLI, its sign-in, docker, ssh -- is not on this machine.
 
-`agent` is a second gate inside this tree rather than a tier of its own: a system test that
-spends real tokens is skipped until somebody asks for it with `--run-agents`, while one that
-only needs a real `node` runs here as soon as a developer does. That option and the marker it
-keys on live in `tests/conftest.py`, because `pytest_addoption` is honoured only in a root
-conftest.
-
-The marker is put on from here rather than written on each file, so that moving a test into
-this directory is all there is to filing it: see `tests/tiers.py` for why a tier is a directory,
-and `tests/test_tiers.py` for the check that the two never disagree.
+The root conftest still keeps each test's humanize home, daemon and temp dir its own; the
+CLIs' own sign-ins are used in place, never copied.
 """
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from typing import TYPE_CHECKING
 
-from tests import tiers
+import pytest
+
+from tests.system.real import SAMPLE
 
 if TYPE_CHECKING:
-    import pytest
+    from pathlib import Path
+
+#: The sample project the tasks are set on, not itself a test.
+collect_ignore = ["sample"]
 
 
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    tiers.applied("system", items)
+@pytest.fixture(autouse=True)
+def _asks_its_cli(asking: None) -> None:
+    """A real run may ask its CLI what models it serves."""
+
+
+@pytest.fixture
+def workspace(tmp_path: Path) -> Path:
+    """A fresh git repository holding the sample project, committed once.
+
+    `tests/test_stats.py` in it fails until `median` and `mode` are written: a task's
+    outcome is checked by running `python -m pytest` there afterwards.
+    """
+    at = tmp_path / "stats"
+    shutil.copytree(SAMPLE, at)
+    for argv in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "add", "-A"],
+        [
+            "git",
+            "-c",
+            "user.name=hmz",
+            "-c",
+            "user.email=hmz@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "init",
+        ],
+    ):
+        subprocess.run(argv, cwd=at, check=True)
+    return at
