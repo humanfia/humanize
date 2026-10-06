@@ -40,6 +40,16 @@ def test_every_name_offered_is_the_one_its_module_holds(name: str) -> None:
     assert holders, f"{name} is offered and no module of the package holds it"
 
 
+@pytest.mark.parametrize("name", flowing.__all__)
+def test_every_name_offered_is_one_its_module_offers(name: str) -> None:
+    offering = [
+        one
+        for one in MODULES
+        if name in importlib.import_module(f"hmz.runtime.flowing.{one}").__all__
+    ]
+    assert offering, f"{name} is offered and no module of the package offers it"
+
+
 def test_each_name_is_offered_once() -> None:
     assert len(set(flowing.__all__)) == len(flowing.__all__)
 

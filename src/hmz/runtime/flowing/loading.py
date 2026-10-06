@@ -74,6 +74,7 @@ __all__ = [
     "FlowModule",
     "Ref",
     "Remote",
+    "forget",
     "load",
     "module_of",
     "parse",
