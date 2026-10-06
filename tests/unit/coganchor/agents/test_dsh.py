@@ -286,7 +286,10 @@ def test_the_runtime_is_started_where_the_session_works_with_its_key(
     assert started["provider"] == "deepseek-official"
     assert started["model"] == "deepseek-v4"
     assert started["cwd"] == str(tmp_path)
-    assert started["launch_args_override"] == ("node", "/dsh/runtime.js")
+    # `node` by name, or by the path a machine that keeps it off `PATH` has it at.
+    node, script = started["launch_args_override"]
+    assert Path(node).name == "node"
+    assert script == "/dsh/runtime.js"
     assert started["env"]["DEEPSEEK_API_KEY"] == "test-key"
     assert started["env"]["HMZ_DSH_EFFORT"] == "high"
 

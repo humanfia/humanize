@@ -338,9 +338,10 @@ def test_reachable_follows_a_switch_onto_a_cloud() -> None:
     found = backends.reachable(
         claude, {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": "eu-west-1"}
     )
-    assert "bedrock-runtime.eu-west-1.amazonaws.com" in found
+    # Membership of a tuple of hosts, which CodeQL reads as a URL substring check.
+    assert {"bedrock-runtime.eu-west-1.amazonaws.com"} <= set(found)
     defaulted = backends.reachable(claude, {"CLAUDE_CODE_USE_BEDROCK": "1"})
-    assert "bedrock-runtime.us-east-1.amazonaws.com" in defaulted
+    assert {"bedrock-runtime.us-east-1.amazonaws.com"} <= set(defaulted)
 
 
 def test_reachable_refuses_a_region_that_is_not_a_label() -> None:
