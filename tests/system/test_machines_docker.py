@@ -2,7 +2,7 @@
 
 The daemon is docker's default here, written down as a runtime of the test's own; the swarm is
 the one this machine manages, its task pinned to this node, where the workspace is. Each skips,
-saying why, without a daemon running, a swarm, or the image holding the CLIs built.
+saying why, off Linux, or without a daemon running that holds `python:3.12-slim`, or a swarm.
 """
 
 from __future__ import annotations
@@ -14,8 +14,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.runtime.flowing.environing_docker import PID
-from tests.system.doubles_machines import answers, built, contained, done, hmz, run
+from hmz.runtime.flowing.environing_docker import IMAGE, PID
+from tests.system.doubles_machines import (
+    answers,
+    contained,
+    done,
+    hmz,
+    run,
+    supervisable,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -31,10 +38,12 @@ def _docker(*argv: str) -> str:
 
 @pytest.fixture
 def daemon() -> None:
-    """A docker daemon holding the image, or a skip."""
+    """A docker daemon holding the image, an agent supervisable here, or a skip."""
+    supervisable()
     if why := answers("docker", "info"):
         pytest.skip(f"needs a docker daemon running: {why}")
-    built("docker")
+    if why := answers("docker", "image", "inspect", IMAGE):
+        pytest.skip(f"needs {IMAGE} pulled (`docker pull {IMAGE}`): {why}")
 
 
 @pytest.fixture

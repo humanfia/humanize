@@ -2,10 +2,14 @@
 
 Each test runs the same flow -- one agent, one environment -- with the environment on another
 machine: a docker container, a swarm task, an Apple container or a host reached over ssh. A
-container is started from :data:`IMAGE`, which holds the CLIs, so the turn runs natively there:
-humanize lends it this machine's sign-in for the turn and takes it back after. The flow then
-asks the machine what it is and, in a container, for any sign-in file left anywhere in it;
-whether the task was done is read back here, in the workspace the machine was given.
+container holds no CLI and no sign-in: the agent's CLI is supervised here, signed in as it is
+on this machine, and every command it runs lands in the container. The flow then asks the
+machine what it is and, in a container, for any sign-in file anywhere in it; whether the task
+was done is read back here, in the workspace the machine was given.
+
+Supervising a CLI takes ptrace and Landlock, which is Linux: :func:`supervisable` skips the
+container tests elsewhere. On a Mac humanize would run a CLI found in the container natively
+instead, which is signed in only under a humanize account, never with this machine's own.
 """
 
 from __future__ import annotations
@@ -13,36 +17,18 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.flows import HarnessRefused, HarnessThrottled, ModelUnavailable
+from hmz.runtime.flowing.environing_docker import IMAGE
 from hmz.sdk import Hmz
 from tests.system.doubles_flows import CHEAPEST, COST, MINUTES, TASK, harness
 
-#: The image a container is started from: Python, Node, and every CLI in `CHEAPEST`.
-#: Built from :data:`_RECIPE` the first time it is asked for, and kept; a new recipe is a new
-#: tag.
-IMAGE = "hmz-system-agents:1"
-
-#: Node from nodejs.org rather than Debian's, whose `npm` is four hundred packages.
-_NODE = "v22.20.0"
-_RECIPE = f"""\
-FROM python:3.12-slim
-ENV PATH=/opt/node/bin:$PATH
-RUN python -c "import platform, tarfile, urllib.request; \\
-arch = {{'aarch64': 'arm64', 'x86_64': 'x64'}}[platform.machine()]; \\
-at = 'https://nodejs.org/dist/{_NODE}/node-{_NODE}-linux-' + arch + '.tar.xz'; \\
-got = urllib.request.urlopen(at); \\
-tarfile.open(fileobj=got, mode='r|xz').extractall('/opt', filter='tar')" \\
- && mv /opt/node-{_NODE}-linux-* /opt/node \\
- && npm install -g @anthropic-ai/claude-code @openai/codex \\
- && npm cache clean --force \\
- && ln -s /opt/node/bin/node /opt/node/bin/claude /opt/node/bin/codex /usr/local/bin/
-"""
+if TYPE_CHECKING:
+    from pathlib import Path
 
 #: The files the CLIs keep a sign-in that refreshes itself in, wherever their home is put.
 SIGN_INS = ("auth.json", ".credentials.json")
@@ -197,31 +183,13 @@ def contained(seen: Seen) -> None:
     assert seen.sign_ins == (), f"a sign-in was left in the container: {seen.sign_ins}"
 
 
-def built(tool: str) -> None:
-    """Has :data:`IMAGE` built by `tool` -- `docker` or Apple's `container` -- or skips.
-
-    Built here, on a cold machine, inside the test's own timeout; build it beforehand to keep
-    that for the turn: `<tool> build -t hmz-system-agents:1` on :data:`_RECIPE`.
-
-    Args:
-      tool: The command that builds the image and runs its containers.
-    """
-    if not answers(tool, "image", "inspect", IMAGE):
-        return
-    with tempfile.TemporaryDirectory() as at:
-        Path(at, "Dockerfile").write_text(_RECIPE)
-        try:
-            made = subprocess.run(
-                [tool, "build", "-t", IMAGE, at],
-                capture_output=True,
-                text=True,
-                timeout=900,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            pytest.skip(f"building {IMAGE} took longer than 15 minutes")
-    if made.returncode:
-        pytest.skip(f"could not build {IMAGE}: {(made.stdout + made.stderr)[-600:]}")
+def supervisable() -> None:
+    """Skips where an agent cannot be supervised here with its commands landing elsewhere."""
+    if sys.platform != "linux":
+        pytest.skip(
+            "an agent working in a container is supervised on this machine, which takes "
+            f"Linux (ptrace and Landlock), not {sys.platform}"
+        )
 
 
 def answers(*argv: str) -> str:
