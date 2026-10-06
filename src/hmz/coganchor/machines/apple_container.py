@@ -106,16 +106,18 @@ class AppleContainerConfig(MachineConfig):
         """
         if self.name is not None and not _NAMED.fullmatch(self.name):
             raise ValueError(f"unsupported container name {self.name!r}")
+        # Read as whatever it was handed, so that `2.0` is two CPUs and `1.5` or `"2"` is
+        # refused here rather than by `container` as the run starts.
+        cpus = cast("object", self.cpus)
+        if cpus is not None and (
+            not isinstance(cpus, int | float) or int(cpus) != cpus
+        ):
+            raise ValueError(f"cpus must be a whole number, not {cpus!r}")
         for what, limit in (("cpus", self.cpus), ("memory", self.memory)):
             if limit is not None and limit <= 0:
                 raise ValueError(f"{what} must be more than nothing, not {limit!r}")
-        # Read as whatever it was handed, so that `2.0` is two CPUs and `1.5` is refused here
-        # rather than by `container` as the run starts.
-        cpus = cast("object", self.cpus)
-        if cpus is not None:
-            if not isinstance(cpus, int | float) or int(cpus) != cpus:
-                raise ValueError(f"cpus must be a whole number, not {cpus!r}")
-            object.__setattr__(self, "cpus", int(cpus))
+        if self.cpus is not None:
+            object.__setattr__(self, "cpus", int(self.cpus))
         if self.memory is not None:
             # Up to the whole MiB `container` sizes a virtual machine in: what it is handed
             # otherwise it rounds down, which is less than was asked for.

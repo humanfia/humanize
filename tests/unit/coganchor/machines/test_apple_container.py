@@ -64,6 +64,7 @@ def test_a_container_is_remote_isolated_managed_linux_and_supervised() -> None:
         {"name": "-x"},
         {"cpus": 0},
         {"cpus": 1.5},
+        {"cpus": "2"},
         {"memory": 0},
         {"env": {"": "1"}},
         {"labels": {"a=b": "1"}},
