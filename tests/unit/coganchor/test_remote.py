@@ -116,6 +116,13 @@ def test_a_target_speaking_another_version_is_refused() -> None:
     client.close()
 
 
+def test_a_client_never_started_closes_quietly() -> None:
+    peer = Peer(hello)
+    client = RemoteClient(peer)
+    client.close()
+    assert peer.shut
+
+
 HELPERS: list[tuple[Callable[[RemoteClient], object], Op, dict[str, Any]]] = [
     (lambda c: c.listdir("/w"), Op.LISTDIR, {"path": "/w"}),
     (

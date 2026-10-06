@@ -90,7 +90,8 @@ class RemoteClient:
                 return
             self._closed = True
         self._channel.close()
-        self._reader.join(timeout=2.0)
+        if self._reader.is_alive():
+            self._reader.join(timeout=2.0)
         self._fail_pending(ConnectionResetError(errno.EPIPE, "connection closed"))
 
     # ----------------------------------------------------------------- requests
