@@ -3985,12 +3985,13 @@ PROFILES = (
 _SPOKEN = "clis"
 
 
-#: What was read out of the settings last time, and the moment the file carried then. Held
-#: because this is asked far more often than it changes: every turn builds a watchdog, every
-#: keystroke of a sheet that lists backends asks again, and each ask was opening and parsing
-#: the file afresh. Re-read when the file under it has moved, which every write of it does.
+#: What was read out of the settings last time, the file it was read from and the moment that
+#: file carried then. Held because this is asked far more often than it changes: every turn
+#: builds a watchdog, every keystroke of a sheet that lists backends asks again, and each ask
+#: was opening and parsing the file afresh. Re-read when the file under it has moved, which
+#: every write of it does, or when it is another home's file.
 _added: dict[str, tuple[str, ...]] | None = None
-_added_at: tuple[int, int] | None = None
+_added_at: tuple[str, int, int] | None = None
 #: What each of those was declared to reach and to keep, read in the same pass.
 _declared: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
 
@@ -4018,7 +4019,8 @@ def speaking() -> dict[str, tuple[str, ...]]:
     at = settings.where()
     try:
         moved = at.stat()
-        stamp = (moved.st_mtime_ns, moved.st_size)
+        # The file as well as its moment: another home's file can carry the same one.
+        stamp = (str(at), moved.st_mtime_ns, moved.st_size)
     except OSError:
         # No file is an answer, and a cheap one: nothing has been added.
         _added, _added_at, _declared = {}, None, {}

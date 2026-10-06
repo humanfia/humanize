@@ -642,6 +642,22 @@ def test_speaking_sees_a_change_made_since_it_last_read() -> None:
     assert backends.speaking() == {"their-agent": ("their-agent", "--x")}
 
 
+def test_speaking_reads_another_homes_file_afresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    said = {"one": "clis:\n  aaa-agent: [aaa]\n", "two": "clis:\n  bbb-agent: [bbb]\n"}
+    for name, text in said.items():
+        at = tmp_path / name / "settings.yaml"
+        at.parent.mkdir()
+        at.write_text(text, encoding="utf-8")
+        # The same size and the same moment: only the path tells the two apart.
+        os.utime(at, ns=(1_000_000_000, 1_000_000_000))
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "one"))
+    assert backends.speaking() == {"aaa-agent": ("aaa",)}
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "two"))
+    assert backends.speaking() == {"bbb-agent": ("bbb",)}
+
+
 def test_a_model_is_a_name_and_its_efforts() -> None:
     assert Model("m", ("high",)) == Model("m", ("high",), swarms=False)
     assert Model("m", ()) != Model("m", (), swarms=True)
