@@ -162,7 +162,8 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
    the CLI's process mocked.
 10. **A stand-in for the integration tests**: a fake of the CLI, its flags read off the real
     CLI's `--help`, and `tests/integration/test_agents_<name>.py` driving it.
-11. **A system test**: `tests/system/test_harness_<name>.py`, the real CLI on a real task.
+11. **A system test**: its cheapest model in `CHEAPEST` in `tests/system/test_harness_task.py`,
+    which sets every installed CLI the same real task.
 
 ### 5. Say so
 
@@ -180,14 +181,14 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
 
 ```sh
 uv run pytest tests/unit/coganchor tests/unit/flows tests/unit/tui \
-    tests/integration/test_agents_minimax.py tests/integration/test_core_layering.py
+    tests/integration/test_agents_<name>.py tests/integration/test_core_layering.py
 ```
 
 `tests/integration/test_core_layering.py` is the one that fails when a step imported across a
 layer it may not. Then the real thing, which takes minutes and spends tokens:
 
 ```sh
-uv run pytest tests/system/test_harness_minimax.py
+uv run pytest -n0 tests/system/test_harness_task.py -k <name>
 ```
 
 ## Adding a command
