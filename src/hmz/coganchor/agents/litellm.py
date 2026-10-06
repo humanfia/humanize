@@ -218,6 +218,9 @@ class LiteLLMSession(SessionBase):
                         usage = spent
                     if self._cut:
                         break
+            # Its socket shut under it, the read can end as cleanly as a finished answer
+            # does: a turn the watchdog gave up on is not one that finished.
+            _unless_wedged(self, model)
             if usage.total:
                 self._spends(usage)
             said = list(saying.rest())
@@ -474,6 +477,12 @@ def _litellm() -> _LiteLLM:
             raise
         raise ModuleNotFoundError(_EXTRA) from why
     return cast("_LiteLLM", module)
+
+
+def _unless_wedged(session: LiteLLMSession, model: str) -> None:
+    """Raises for a turn the watchdog gave up on, however its read ended."""
+    if session._wedged:
+        raise OSError(f"litellm: {model} stopped answering")
 
 
 def _field(held: object, name: str) -> object:
