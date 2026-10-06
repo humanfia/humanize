@@ -30,6 +30,12 @@ def _asks_its_cli(asking: None) -> None:
     """A real run may ask its CLI what models it serves."""
 
 
+@pytest.fixture(autouse=True)
+def _priced(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fetches the price list, so a run's `budget.cost` can stop what it spends."""
+    monkeypatch.delenv("HUMANIZE_PRICES")
+
+
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
     """A fresh git repository holding the sample project, committed once.
