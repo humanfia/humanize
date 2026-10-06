@@ -62,10 +62,7 @@ jobs:
       - name: pytest tests/unit/${{ matrix.package }}
         env:
           PACKAGE: ${{ matrix.package }}
-        run: |
-          # TRANSITION: a package with no tests yet passes. Removed before this lands on main.
-          [ -d "tests/unit/$PACKAGE" ] || exit 0
-          uv run --frozen pytest "tests/unit/$PACKAGE" --durations=10
+        run: uv run --frozen pytest "tests/unit/$PACKAGE" --durations=10
 
   integration:
     name: integration (${{ matrix.os }}, ${{ matrix.topic }})
@@ -89,12 +86,8 @@ jobs:
         env:
           TOPIC: ${{ matrix.topic }}
         run: |
-          shopt -s nullglob
-          files=(tests/integration/test_"$TOPIC"_*.py)
-          # TRANSITION: a topic with no tests yet passes. Removed before this lands on main.
-          [ "${#files[@]}" -gt 0 ] || exit 0
           PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN))) \
-            uv run --frozen pytest "${files[@]}" --durations=25
+            uv run --frozen pytest tests/integration/test_"$TOPIC"_*.py --durations=25
 
   ci-ok:
     if: always()

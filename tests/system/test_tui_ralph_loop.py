@@ -40,12 +40,11 @@ RUN = 12 * 60.0
 
 @pytest.fixture
 def here(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """The sample project, as the directory `hmz` is opened in, with prices to cost it in.
+    """The sample project, as the directory `hmz` is opened in.
 
-    The prices are fetched, as they are anywhere else: the monitor says what a run cost, and
-    the budget's dollars hold it to that.
+    `tests/system/conftest.py` lets the prices be fetched: the monitor says what a run cost,
+    and the budget's dollars hold it to that.
     """
-    monkeypatch.delenv("HUMANIZE_PRICES")
     monkeypatch.chdir(workspace)
     return workspace
 

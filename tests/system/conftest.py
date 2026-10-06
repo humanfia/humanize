@@ -26,6 +26,11 @@ collect_ignore = ["sample"]
 
 
 @pytest.fixture(autouse=True)
+def _no_real_agents() -> None:
+    """Overrides the root's: the agents installed here are what these tests run."""
+
+
+@pytest.fixture(autouse=True)
 def _asks_its_cli(asking: None) -> None:
     """A real run may ask its CLI what models it serves."""
 

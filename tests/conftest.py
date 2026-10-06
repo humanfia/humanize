@@ -21,6 +21,7 @@ import os
 import shutil
 import signal
 import stat
+import sys
 import tempfile
 import unittest.mock
 from pathlib import Path
@@ -51,6 +52,24 @@ def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HUMANIZE_DAEMON", "off")
     monkeypatch.setenv("HUMANIZE_PRICES", "off")
     telemetry.again()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_agents(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hides every coding agent installed here, so a test that forgot its stand-in fails.
+
+    humanize looks for a CLI on `PATH` and in `~/.local/bin`; both are narrowed to the
+    system's own directories and this Python's. `tests/system` overrides this.
+    """
+    monkeypatch.setenv("HOME", tempfile.mkdtemp(prefix="home-", dir=_temporary))
+    searched = [
+        str(Path(sys.executable).parent),
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin",
+    ]
+    monkeypatch.setenv("PATH", os.pathsep.join(searched))
 
 
 @pytest.fixture(scope="session")
