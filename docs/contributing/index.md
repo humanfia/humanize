@@ -11,8 +11,8 @@ for a large change, open a feature request first.
 
 How a pull request is proposed and reviewed is in
 [CONTRIBUTING.md](https://github.com/humanfia/humanize/blob/main/CONTRIBUTING.md), and who
-decides, and how to become a reviewer or maintainer, in
-[GOVERNANCE.md](https://github.com/humanfia/humanize/blob/main/GOVERNANCE.md). Everyone taking
+decides, and how to become a reviewer or maintainer, in the organization's
+[GOVERNANCE.md](https://github.com/humanfia/.github/blob/main/GOVERNANCE.md). Everyone taking
 part follows the [Code of Conduct](https://github.com/humanfia/.github/blob/main/CODE_OF_CONDUCT.md).
 
 <ChangePath />

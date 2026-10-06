@@ -8,6 +8,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # publish.yml runs it on the release pull request, which its token cannot start otherwise.
+  workflow_dispatch:
 
 permissions:
   contents: read

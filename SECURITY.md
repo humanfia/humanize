@@ -20,7 +20,7 @@ there are releases, ships in the next one; it is not backported.
 
 Report it privately on GitHub, with
 [Report a vulnerability](https://github.com/humanfia/humanize/security/advisories/new) on the
-repository's Security tab. Only you and the [maintainers](GOVERNANCE.md#maintainers) see the
+repository's Security tab. Only you and the maintainers see the
 report and what is said about it.
 
 Say what you can of:

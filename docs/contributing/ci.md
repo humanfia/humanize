@@ -2,6 +2,8 @@
 
 In this guide you read what CI ran on your change, and fix what it failed. Every push to `main`
 and every pull request runs `.github/workflows/ci.yml`, and it runs the same jobs every time.
+The release pull request is the exception that proves it: `publish.yml` starts its run by hand,
+since a pull request a workflow opened starts none of its own.
 
 Wait for one check: **`ci-ok`**. It is green when every other job in the run passed, and it is
 the one check a branch rule needs.
@@ -80,7 +82,7 @@ Neither reports to `ci-ok`.
 | Workflow | Runs on | Does |
 | --- | --- | --- |
 | `build-docs.yml` | a pull request or a push to `main` that changed `docs/` | Builds the site, checks every `#fragment` resolves and every word is legible on a phone, and on `main` deploys it: [Working on these docs](/contributing/docs) |
-| `publish.yml` | a pushed `v*` tag, or a dry run by hand | Builds the wheel and sdist with GoReleaser onto a draft GitHub release, publishes them to PyPI, then publishes the release: [Releasing](/contributing/releasing) |
+| `publish.yml` | a push to `main`, or a dry run by hand | Keeps the release pull request open with release-please; once it merges, builds the wheel and sdist, publishes them to PyPI, then publishes the GitHub release: [Releasing](/contributing/releasing) |
 
 ## Next steps
 

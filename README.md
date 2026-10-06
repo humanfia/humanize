@@ -41,7 +41,7 @@ Agents run with approvals bypassed, so start in a scratch repository. The
 
 Pull requests are welcome:
 [CONTRIBUTING.md](https://github.com/humanfia/humanize/blob/main/CONTRIBUTING.md) says how to
-propose one. Ask a question, report a bug or request a feature through the
+propose one. Report a bug or request a feature through the
 [issue forms](https://github.com/humanfia/humanize/issues/new/choose), and report a
 vulnerability privately, as [SECURITY.md](https://github.com/humanfia/humanize/blob/main/SECURITY.md)
 says. Everyone taking part follows the

@@ -17,8 +17,8 @@ humanfia repository shares.
 | report a bug | open a [bug report](https://github.com/humanfia/humanize/issues/new?template=bug_report.yml) |
 | report a vulnerability | follow [SECURITY.md](SECURITY.md), never a public issue |
 | suggest a feature | open a [feature request](https://github.com/humanfia/humanize/issues/new?template=feature_request.yml) |
-| fix the docs | open a [docs issue](https://github.com/humanfia/humanize/issues/new?template=docs.yml), or a pull request straight away |
-| ask a question | see [SUPPORT.md](SUPPORT.md) |
+| fix the docs | a pull request straight away, or a [bug report](https://github.com/humanfia/humanize/issues/new?template=bug_report.yml) for a page that is wrong |
+| ask a question | read [the documentation](https://docs.humanfia.ai/humanize/) and [Troubleshooting](https://docs.humanfia.ai/humanize/user/troubleshooting) first; a question they leave unanswered is a gap in the docs, so open a bug report |
 | fix or build something | a pull request, as below |
 | share a flow you wrote | keep it in a repository of your own, and list it in [humanfia/flowverse](https://github.com/humanfia/flowverse) with a pull request there |
 
@@ -62,15 +62,14 @@ Commits follow the same form: see
 commit has that commit checked too, because squashing it writes the commit's message to `main`
 rather than the title.
 
-The release notes are grouped by it, so a `feat` or a `!` there is what puts the change under
-Features or Breaking changes.
+The changelog is written from it, so a `feat` or a `!` there is what puts the change under
+Features or Breaking changes, and what decides the next version.
 
 No sign-off or CLA is asked for. What you contribute is under the project's
 [Apache-2.0 license](LICENSE), as its section 5 says.
 
 ## Review
 
-- GitHub asks the [code owners](.github/CODEOWNERS) of what you changed to review it.
 - A pull request merges once a maintainer approves it and CI passes. A maintainer merges it.
   [Conflicts of interest](https://github.com/humanfia/.github/blob/main/GOVERNANCE.md#conflicts-of-interest),
   in the organization's governance, covers a maintainer's own pull requests.
@@ -93,7 +92,6 @@ author of what you send: read it, run it, and be ready to answer for every line.
   checks, where a test goes, what the code is held to.
 - [Architecture](https://docs.humanfia.ai/humanize/contributing/architecture): which layer a
   change belongs in.
-- [GOVERNANCE.md](GOVERNANCE.md), and the organization's
+- The organization's
   [GOVERNANCE.md](https://github.com/humanfia/.github/blob/main/GOVERNANCE.md): who decides, and
   how to become a reviewer or maintainer.
-- [SUPPORT.md](SUPPORT.md): where to ask.

@@ -1,6 +1,0 @@
-# Who GitHub asks to review a pull request, by the paths it touches. The last pattern that
-# matches a path wins, so a line for a reviewer's paths names the maintainers too, as in
-# `/src/hmz/tui/ @futrime @a-reviewer`. The organization's GOVERNANCE.md, in humanfia/.github,
-# says how to become a reviewer.
-
-* @futrime
