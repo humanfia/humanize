@@ -10,8 +10,10 @@ line, the same updates flattened onto `type`, ending on an `end` naming the sess
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
+import psutil
 import pytest
 
 from hmz.coganchor.agents import (
@@ -141,6 +143,10 @@ def test_a_session_whose_process_exited_is_loaded_by_the_next(grok: Standins) ->
     session = GrokBuildAgent(CONFIG).new()
 
     assert session("then-exit") == "then-exit"
+    # Exited, as a process gone between turns is: not still on its way out as the next starts.
+    (first,) = {one.pid for one in grok.calls()}
+    with contextlib.suppress(psutil.NoSuchProcess):
+        psutil.Process(first).wait(timeout=10)
     assert session("after") == "after"
 
     assert len({one.pid for one in grok.calls()}) == 2
