@@ -4901,12 +4901,15 @@ class Agent(Drafts[Runs]):
         if not self._cli:
             self._said = "choose a coding agent first; models belong to the CLI"
             return
-        chosen = await showing.push_screen_wait(
-            Catalogue(self._cli, self._provider, self._models(), self._model)
-        )
+        catalogue = Catalogue(self._cli, self._provider, self._models(), self._model)
+        chosen = await showing.push_screen_wait(catalogue)
         if chosen is None:
             return
         self._model, self._said = chosen, ""
+        if not self._provider:
+            # Checked again in there, perhaps: what the CLI runs is what it said last, not
+            # what it had said when this sheet was opened.
+            self._agents[self._cli] = catalogue.models
         self._catalogue, self._read_for = None, ("", "")
         efforts = self._efforts()
         if self._effort not in efforts:
@@ -5146,6 +5149,11 @@ class Catalogue(Picks):
         self._models = models
         self._asking = False
         self._said = ""
+
+    @property
+    def models(self) -> tuple[Model, ...]:
+        """What the CLI last said it runs: what it was opened on, or what checking again found."""
+        return self._models
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Every model that CLI named, and what efforts each of them takes."""
