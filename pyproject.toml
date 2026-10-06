@@ -27,7 +27,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "dateparser>=1.4.2",
+    "dateparser>=1.4.3",
     "psutil>=7.2.2",
     # A flow says what it can be configured with by declaring a model, and the menu that
     # asks is read off that model: the types, the bounds and the combinations a flow
@@ -45,7 +45,7 @@ dependencies = [
     # stack nobody sees is a bug nobody fixes. Off until somebody says otherwise, and an
     # ordinary dependency rather than an extra: an install that could be missing the half
     # that reports its own failures is an install whose failures are not reported.
-    "sentry-sdk>=2.68.1",
+    "sentry-sdk>=2.70.0",
     "textual>=8.2.8",
     # What an entry is added to Grok Build's `config.toml` with, for an account behind a
     # gateway: the file is the person at this machine's, and what they wrote in it -- their
@@ -72,20 +72,12 @@ dependencies = [
 # turns are taken on; and dsh reads a project's `.env` the way its own CLI does, which is
 # somebody else's solved problem.
 dsh = [
-    # Held below 0.1.2 because the next version published is a redesign of the exact surface
-    # this driver drives: `cordis`, `session_root` and `launch_args_override` are gone from
-    # `DeepSeekHarnessConfig` as of 0.1.2a3, replaced by `profile`, `patches`, `dsh_home` and
-    # `dsh_bin`, and effort stops being smuggled through the environment and becomes a field
-    # of its own. That class refuses a keyword it does not know, so the widening would not be
-    # a backend that behaves oddly, it would be one that cannot start a session at all. Widen
-    # this only together with the port in `coganchor/agents/dsh.py`, and with `DSH_SDK` in
-    # `coganchor/backends.py`, which is what humanize tells somebody to install by hand. The
-    # ceiling costs something and it is the cheaper half of the trade: the bundled runtime
-    # ships no sdist, and 0.1.1rc1 built wheels for Linux on x86-64 or arm64 and macOS on
-    # arm64 alone, so this is the platform set humanize's docs already promise. Later SDKs
-    # add Windows and macOS x86-64, but reach them through a driver that cannot open a
-    # session -- an install that fails outright beats one that fails every turn.
-    "deepseek-harness-sdk>=0.1.1rc1,<0.1.2",
+    # Held to the release the driver was read against, because the SDK is pre-release and
+    # its surface moves: 0.1.2a3 replaced a whole composition handed over as `cordis` with a
+    # profile and patches over it, and `coganchor/agents/dsh.py` drives the latter. Move this
+    # only together with that driver, and with `DSH_SDK` in `coganchor/backends.py`, which is
+    # what humanize tells somebody to install by hand.
+    "deepseek-harness-sdk>=0.1.5rc1,<0.1.6",
     "python-dotenv>=1.2.3",
 ]
 # Kimi Code's app server says what a session is doing over a websocket, which is how a turn
@@ -115,13 +107,13 @@ Issues = "https://github.com/humanfia/humanize/issues"
 hmz = "hmz.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.12.7,<0.13.0"]
+requires = ["uv_build>=0.12.19,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.2",
-    "pyright>=1.1.411",
+    "pyright>=1.1.414",
     "pytest>=8",
     "pytest-asyncio>=1.4.0",
     "pytest-timeout>=2.3",
@@ -129,7 +121,7 @@ dev = [
     # Exercises dsh's dotenv-compatible native configuration without making the SDK
     # itself part of every development environment.
     "python-dotenv>=1.2.3",
-    "ruff>=0.16.5",
+    "ruff>=0.16.9",
     # The suite drives a real websocket server at kimi's notification reader, and the type
     # checker reads that test like any other file. Here rather than in the `kimi` extra for
     # the same reason as the line above: what the tests need is not what an install needs.

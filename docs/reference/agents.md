@@ -80,7 +80,7 @@ All classes are importable from `hmz.coganchor.agents`.
 | `claude` | `npm i -g @anthropic-ai/claude-code` | 2.1.272 – 2.1.284 |
 | `codex` | `npm i -g @openai/codex` | 0.153.4 |
 | `cursor-agent` | `curl https://cursor.com/install -fsS \| bash` | not recorded |
-| `dsh` | `pip install 'deepseek-harness-sdk>=0.1.1rc1,<0.1.2' 'python-dotenv>=1.2.3'` (the `[dsh]` extra) | SDK `>=0.1.1rc1,<0.1.2` (`backends.DSH_SDK`) |
+| `dsh` | `pip install 'deepseek-harness-sdk>=0.1.5rc1,<0.1.6' 'python-dotenv>=1.2.3'` (the `[dsh]` extra) | SDK `>=0.1.5rc1,<0.1.6` (`backends.DSH_SDK`) |
 | `grok` | `npm i -g @xai-official/grok` | 1.0.24 |
 | `kimi` | `npm i -g @moonshot-ai/kimi-code` (plus the `[kimi]` extra) | 0.42.0 |
 | `litellm` | `pip install 'litellm>=1.104'` (the `[litellm]` extra) | `>=1.104` (`backends.LITELLM_SDK`) |
@@ -1189,7 +1189,7 @@ conversation.
 | `claude` | `$CLAUDE_CONFIG_DIR`, `~/.claude` | `projects/*/{ident}.jsonl`, `projects/*/{ident}/subagents/**/*.jsonl` | yes | yes |
 | `codex` | `$CODEX_HOME`, `~/.codex` | `sessions/**/rollout-*{ident}.jsonl` | yes | yes |
 | `cursor-agent` | `$CURSOR_CONFIG_DIR`, `~/.cursor` | none | no | — |
-| `dsh` | `$DSH_HOME`, `~/.dsh` | `sessions/*/{ident}/session.jsonl` | yes | yes |
+| `dsh` | `$DSH_HOME`, `~/.dsh` | `sessions/*/{ident}/session.v*.jsonl` | yes | yes |
 | `grok` | `$GROK_HOME`, `~/.grok` | `sessions/*/{ident}/updates.jsonl` | yes | yes |
 | `kimi` | `$KIMI_CODE_HOME`, `~/.kimi-code` | `server/events/{ident}.jsonl` | yes | yes |
 | `litellm` | `~/.cache/humanize/litellm` | `sessions/{ident}.jsonl`, written by humanize | yes | — |
@@ -1341,19 +1341,27 @@ cursor-agent --print --output-format stream-json --workspace <dir> --model <id>
 
 ### DeepSeek Harness {#deepseek-harness}
 
-`dsh`. Driven through `deepseek-harness-sdk` (`>=0.1.1rc1,<0.1.2`) in this process; no CLI.
-Models: `deepseek-v4-flash`, `deepseek-v4-pro`. Each session starts from the SDK's default
-composition (`runtime/cordis.yml`) with the effort written onto it.
+`dsh`. Driven through `deepseek-harness-sdk` (`>=0.1.5rc1,<0.1.6`) in this process; no CLI.
+Models: `deepseek-v4-flash`, `deepseek-v4-pro`. Each runtime starts under the SDK's own `sdk`
+profile with one patch of humanize's over it, holding only what the agent's settings change; the
+effort goes in the handshake.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `compaction` | `True` | mounts `dsh-token-meter` and `dsh-compaction-basic`, compacting at 0.8 of the context window |
+| `compaction` | `True` | keeps `dsh-compaction-basic` and `/compact`, compacting at 0.8 of the context window; `False` unmounts them |
 | `session_compression` | `"none"` | the session log's compression, `none` or `zstd` (the tally cannot read `zstd`) |
 
-- `goals` mounts the goal service, `create_goal` and the round driver; re-read every turn, so a
-  reconfigured agent gets a rebuilt runtime and keeps its conversation.
+- `goals` keeps the goal service, `create_goal`, `/goal` and the round driver; `False` unmounts
+  them. Re-read every turn, so a reconfigured agent gets a rebuilt runtime and keeps its
+  conversation.
+- `web_search`: `False` unmounts the web; unset keeps the profile's. Under a gateway account the
+  web keeps `web_fetch` and loses its DeepSeek search.
+- Every runtime runs at `DSH_PERMISSION_MODE=danger-full-access` (`bypass`): the SDK answers no
+  approval request, so the fence is what confines it.
+- Under a fence that cuts the network, a model endpoint on loopback is unreachable: the runtime
+  connects to loopback directly, never through the fence's proxy.
 - `Unrecoverable`: the length refusal, and a session id the runtime will not resume.
-- Sessions are placed by the driver (`Profile.told`) under the kept session directory.
+- `DSH_HOME` is the kept directory, and sessions go under its `sessions` (`Profile.told`).
 - `interject` is unsupported: `session/prompt` queues and `steer` is not on the SDK surface.
 - Without an account, the SDK's saved credentials or `DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`.
 

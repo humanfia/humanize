@@ -212,7 +212,7 @@ the several-flows-per-module rule are specified in
 | `claude` | `claude-code` | `ultracode` `max` `xhigh` `high` `medium` `low` | `npm i -g @anthropic-ai/claude-code` | |
 | `codex` | | `ultra` `max` `xhigh` `high` `medium` `low` | `npm i -g @openai/codex` | |
 | `cursor-agent` | `cursor-cli` | `max` `xhigh` `extra-high` `high` `medium` `low` `minimal` `none` | `curl https://cursor.com/install -fsS \| bash` | |
-| `dsh` | `deepseek-harness` | `max` `high` `low` `off` | `pip install 'deepseek-harness-sdk>=0.1.1rc1,<0.1.2' 'python-dotenv>=1.2.3'` | `hmz[dsh]` |
+| `dsh` | `deepseek-harness` | `max` `high` `low` `off` | `pip install 'deepseek-harness-sdk>=0.1.5rc1,<0.1.6' 'python-dotenv>=1.2.3'` | `hmz[dsh]` |
 | `grok` | `grok-build`, `grokbuild` | `xhigh` `high` `medium` `low` | `npm i -g @xai-official/grok` | |
 | `kimi` | `kimi-code` | `max` `high` `medium` `low` | `npm i -g @moonshot-ai/kimi-code` | `hmz[kimi]` |
 | `mcode` | `minimax`, `minimax-code` | `max` `xhigh` `high` `medium` `low` | `npm i -g @minimax-ai/code` | |

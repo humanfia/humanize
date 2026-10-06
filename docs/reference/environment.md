@@ -177,7 +177,8 @@ is read from the turn's environment to know which files to watch.
 | `QWEN_CODE_SYSTEM_SETTINGS_PATH` | every `qwen` turn | a per-session settings file |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` turns on this machine, unless already set | `$TMPDIR/humanize-<uid>/compiled/pi`, `…/compiled/qwen` |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT` | `kimi`, `pi`, `qwen`, `mimo` turns on this machine with an `on_pre_tool_use` hook hung | `--require <preload>` appended; the preload's report socket (the preload sets `HMZ_PRELOAD_IN` itself and removes all three from programs the CLI starts) |
-| `HMZ_DSH_EFFORT` | `dsh` turns | the effort |
+| `DSH_HOME` | `dsh` turns | the kept directory |
+| `DSH_PERMISSION_MODE` | `dsh` turns | `danger-full-access` |
 | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL` | `dsh` turns with no account | as resolved (see [Backend homes](#backend-homes)) |
 | `PKG_NATIVE_CACHE_PATH` | fenced `dsh` turns | the fence's scratch directory |
 | `TMPDIR`, `TMP`, `TEMP` | everything inside `hmz internal fence` | the fence's scratch directory |

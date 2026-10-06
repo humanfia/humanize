@@ -88,7 +88,7 @@ For each CLI with a reader, in this order — `claude`, `agy`, `codex`, `dsh`, `
 | `grok` | `~/.grok` | `sessions/<percent-encoded cwd>/*/updates.jsonl` | the decoded folder name | `grok:<id>` (short id 18 characters) | spawned sessions found by following the log |
 | `pi` | `~/.pi/agent` | `sessions/*/<started>_<id>.jsonl` | the `session` record's `cwd` | `pi:<id>` | none |
 | `qwen` | `~/.qwen` | `projects/<ws>/chats/*.jsonl` | the project folder, as `claude` | `qwen:<id>` | none |
-| `dsh` | `~/.dsh` | `sessions/*/*/session.jsonl` | the header's `cwd` | `dsh:<id>` | sessions with `parentSession` |
+| `dsh` | `~/.dsh` | `sessions/*/*/session*.jsonl` (highest generation) | the header's `cwd` | `dsh:<id>` | sessions with `parentSession` |
 | `opencode` | `~/.local/share/opencode` | SQLite `opencode.db`: tables `session`, `message`, `part` (read-only) | `session.directory` | `opencode:<id>` | child sessions |
 | `mimo` | `~/.local/share/mimocode` | SQLite `mimocode.db`, as opencode | `session.directory` | `mimo:<id>` | child sessions |
 | `mcode` | `~/.minimax` | `v2/sessions/<y>/<m>/<d>/<opened>-session_<base64url id>/messages.jsonl` | `workspaceDir` of `local_runtime_sessions.record_json` in SQLite `v2/sqlite/runtime-state.sqlite`; a session absent there belongs to no workspace | `mcode:<id>` | none separate: a sub-agent's work is in its parent's log |

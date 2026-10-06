@@ -48,7 +48,9 @@ def collect(
         One session per durable JSONL log, with descendants linked to their parent.
     """
     logs: dict[str, tuple[pathlib.Path, dict[str, Any]]] = {}
-    for path in sorted((home / "sessions").glob("*/*/session.jsonl")):
+    # One file per format generation, `session.jsonl` and then `session.v<N>.jsonl`, and the
+    # highest is the session: sorted, so it is the one left standing for its id.
+    for path in sorted((home / "sessions").glob("*/*/session*.jsonl")):
         header = _header(path)
         ident = header.get("id")
         cwd = header.get("cwd")
