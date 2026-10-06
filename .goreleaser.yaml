@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 #
 # What a pushed `vX.Y.Z` tag turns into: a wheel, an sdist and their checksums, on a draft
-# GitHub Release with generated notes. publish.yaml checks them, publishes them to PyPI, and
+# GitHub Release with generated notes. publish.yml checks them, publishes them to PyPI, and
 # only then publishes the release. See docs/contributing/releasing.md.
 version: 2
 

@@ -36,7 +36,7 @@ Tags are SemVer, and the release turns each into the PEP 440 version a Python pa
 Any other tag starting with `v`, such as `v1.2` or `v1.2.3-preview.1`, fails the run before
 anything is published. `uv` and `pip` skip a pre-release unless it is asked for by number.
 
-Pushing the tag starts the `publish.yaml` workflow, in three jobs:
+Pushing the tag starts the `publish.yml` workflow, in three jobs:
 
 1. **build** runs [GoReleaser](https://goreleaser.com) with `.goreleaser.yaml`. It writes
    the tag's version into `pyproject.toml` with `scripts/release_version.py`, builds a wheel and
@@ -94,7 +94,7 @@ git push origin v0.2.0
 The run takes a few minutes. Follow it with:
 
 ```sh
-gh run watch "$(gh run list --workflow publish.yaml --limit 1 --json databaseId --jq '.[0].databaseId')"
+gh run watch "$(gh run list --workflow publish.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
 ```
 
 Once its three jobs are green, the release is on
@@ -121,14 +121,14 @@ OK: hmz-0.2.0-py3-none-any.whl
 ```
 
 Do the same for `pypi:hmz-0.2.0.tar.gz`. PyPI shows the same on the release's **Download
-files** page: each file names `publish.yaml` on humanfia/humanize as its publisher.
+files** page: each file names `publish.yml` on humanfia/humanize as its publisher.
 
 ## Variations
 
 **A release candidate.** Tag `v0.2.0-rc.1`, then `v0.2.0-rc.2`, and `v0.2.0` once it holds.
 Both GitHub and PyPI mark it as a pre-release.
 
-**A dry run.** `gh workflow run publish.yaml --ref main` builds and checks the package as a
+**A dry run.** `gh workflow run publish.yml --ref main` builds and checks the package as a
 release would, but keeps `pyproject.toml`'s version, there being no tag to take one from, and
 publishes nothing. Use it after changing `README.md`, which is the
 page PyPI shows, or the metadata in `pyproject.toml`.
@@ -166,7 +166,7 @@ can no longer install it.
 | --- | --- | --- |
 | `'v…' is not a release tag` | the tag is not one of the forms above. Nothing was published | `git push origin :refs/tags/<tag>`, delete the tag locally, and push one that is |
 | a failed `twine check` | PyPI would not render `README.md`. Nothing was published | delete the draft release and the tag, fix it on `main`, and tag again |
-| `invalid-publisher` in `publish to PyPI` | PyPI's trusted publisher does not describe this workflow | on PyPI, the publisher must name owner `humanfia`, repository `humanize`, workflow `publish.yaml` and environment `pypi`; then `gh run rerun <run-id> --failed` |
+| `invalid-publisher` in `publish to PyPI` | PyPI's trusted publisher does not describe this workflow | on PyPI, the publisher must name owner `humanfia`, repository `humanize`, workflow `publish.yml` and environment `pypi`; then `gh run rerun <run-id> --failed` |
 | `File already exists` | PyPI has this version already | tag the next version: PyPI never takes a version's files twice |
 | a failed `publish the release` | PyPI has the release, and the GitHub release is still a draft | `gh run rerun <run-id> --failed` |
 
@@ -182,4 +182,4 @@ person to approve it on the run's page, and nothing but a release tag can reach 
 | --- | --- |
 | run a system test, or add one | [Where a test goes](/contributing/#where-a-test-goes) |
 | set up a checkout and run the checks | [Contributing](/contributing/) |
-| see every step the release runs | [`publish.yaml`](https://github.com/humanfia/humanize/blob/main/.github/workflows/publish.yaml) and [`.goreleaser.yaml`](https://github.com/humanfia/humanize/blob/main/.goreleaser.yaml) |
+| see every step the release runs | [`publish.yml`](https://github.com/humanfia/humanize/blob/main/.github/workflows/publish.yml) and [`.goreleaser.yaml`](https://github.com/humanfia/humanize/blob/main/.goreleaser.yaml) |

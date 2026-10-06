@@ -80,7 +80,7 @@ Neither reports to `ci-ok`.
 | Workflow | Runs on | Does |
 | --- | --- | --- |
 | `build-docs.yml` | a pull request or a push to `main` that changed `docs/` | Builds the site, checks every `#fragment` resolves and every word is legible on a phone, and on `main` deploys it: [Working on these docs](/contributing/docs) |
-| `publish.yaml` | a pushed `v*` tag, or a dry run by hand | Builds the wheel and sdist with GoReleaser onto a draft GitHub release, publishes them to PyPI, then publishes the release: [Releasing](/contributing/releasing) |
+| `publish.yml` | a pushed `v*` tag, or a dry run by hand | Builds the wheel and sdist with GoReleaser onto a draft GitHub release, publishes them to PyPI, then publishes the release: [Releasing](/contributing/releasing) |
 
 ## Next steps
 

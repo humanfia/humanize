@@ -54,8 +54,9 @@ RUNS = f"claude/{MODEL}:high"
 #: The terminal every pilot runs in.
 SIZE = (100, 40)
 
-#: How long anything here waits for the interface before failing the test.
-PATIENCE = 20.0
+#: How long anything here waits for the interface before failing the test. A ceiling only:
+#: on a loaded machine the stand-in CLI the interface first asks can take 20s to answer.
+PATIENCE = 60.0
 
 #: One run of text in a screenshot: where it starts, on which row, and what it says.
 _TEXT = re.compile(r'<text[^>]*? x="([\d.]+)" y="([\d.]+)"[^>]*>([^<]*)</text>')
