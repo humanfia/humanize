@@ -12,6 +12,7 @@ import json
 import shlex
 import subprocess
 import threading
+import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -83,6 +84,10 @@ for line in sys.stdin:
     if said == "unfinished":
         result("it could not finish", error=True)
         sys.exit(1)
+    if said == "refused":
+        print("claude: not today", file=sys.stderr, flush=True)
+        result("it would not", error=True)
+        continue
     if said == "ask":
         out({"type": "control_request", "request_id": "r1", "request": {
             "subtype": "can_use_tool", "tool_name": "Write",
@@ -197,6 +202,19 @@ def test_a_result_marked_as_an_error_is_a_failed_turn(claude: Standins) -> None:
     with pytest.raises(subprocess.CalledProcessError, match="it could not finish"):
         session("unfinished")
     assert session("unfinished", suppress=True) == ""
+
+
+def test_a_failure_from_a_claude_still_up_is_said_without_waiting_on_it(
+    claude: Standins,
+) -> None:
+    session = ClaudeCodeAgent(CONFIG).new()
+
+    began = time.monotonic()
+    with pytest.raises(Failed, match="it would not") as failed:
+        session("refused")
+
+    assert time.monotonic() - began < 4
+    assert "not today" in str(failed.value.stderr)
 
 
 def test_a_claude_that_exits_mid_turn_fails_it_with_what_it_said(

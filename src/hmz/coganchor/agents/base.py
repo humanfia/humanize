@@ -2945,12 +2945,14 @@ class StreamSessionBase(SessionBase):
                             # not. A turn that returned this as its text would be a Ralph
                             # loop feeding an error message forward as the turn's own work.
                             status = proc.poll() or 1
+                            # Ended before its complaints are waited on: a process still up
+                            # holds stderr open, and the reader would wait out the whole timeout.
+                            self._shut()
                             if self._draining is not None:
                                 # Waited on: what the agent said on its way out is the diagnostic,
                                 # and it may not have been read yet.
                                 self._draining.join(timeout=5)
                             complained = "".join(self._complaints)
-                            self._shut()
                             raise Failed(status, argv, event.text, complained)
                         if event.kind == "result":
                             said = event.text
