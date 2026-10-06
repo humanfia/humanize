@@ -6,6 +6,7 @@ by a socket of the test's own, and daemons and hosts that went away under their 
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import socket
@@ -51,10 +52,15 @@ def _bare() -> socket.socket:
 
 
 def _read(one: socket.socket) -> list[tuple[bytes, bytes]]:
-    """Every frame the daemon sent, until it closed the socket."""
+    """Every frame the daemon sent, until it closed the socket.
+
+    Linux says a socket closed with what this end sent still unread as a reset rather than an
+    end, once what was sent this way has been read.
+    """
     frames, read = Frames(), list[tuple[bytes, bytes]]()
-    while chunk := one.recv(1 << 16):
-        read.extend(frames.feed(chunk))
+    with contextlib.suppress(ConnectionResetError):
+        while chunk := one.recv(1 << 16):
+            read.extend(frames.feed(chunk))
     return read
 
 
