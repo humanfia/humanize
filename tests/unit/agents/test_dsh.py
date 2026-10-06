@@ -142,7 +142,9 @@ class _Patch(yaml.SafeLoader):
 
 _Patch.add_constructor(
     dsh._JS_TAG,
-    lambda loader, node: dsh._Js(loader.construct_scalar(cast("yaml.ScalarNode", node))),
+    lambda loader, node: dsh._Js(
+        loader.construct_scalar(cast("yaml.ScalarNode", node))
+    ),
 )
 
 
@@ -860,8 +862,8 @@ def test_a_gateway_account_is_composed_with_its_own_route(
 
     written = composed(DshAgent(configured(provider="gateway")))
 
+    # The profile's own pi-ai row, which it mounts with no routes, given this one.
     (adapter,) = (one for one in written if one["id"] == "llm-pi-ai")
-    assert adapter["name"] == "@deepseek-ai/dsh-llm-pi-ai"
     profile = adapter["config"]["providers"][route]
     assert list(adapter["config"]["providers"]) == [route]
     assert profile["apiKeyEnv"] == "DEEPSEEK_API_KEY"
@@ -892,7 +894,8 @@ def test_a_key_account_is_composed_with_deepseeks_own_adapter_alone() -> None:
     # Only this machine's dsh settings, which would move the endpoint the account's key goes
     # to: the profile's own adapter, and the whole of its web, search included, since a
     # DeepSeek key is what that provider takes.
-    assert written == [{"id": "settings", "disabled": True}]
+    assert disabled(written) == {"settings"}
+    assert not [one for one in written if one["id"] in ("llm-pi-ai", "web", "tool-web")]
     assert Harness.made[-1].config["provider"] == "deepseek-official"
     assert Harness.made[-1].config["reasoning_effort"] == "high"
 

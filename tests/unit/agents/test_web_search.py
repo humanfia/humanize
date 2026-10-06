@@ -256,23 +256,17 @@ def test_kimi_says_nothing_about_the_web_for_an_agent_nobody_was_asked_about() -
 def test_dsh_is_told_by_the_plugins_its_composition_carries() -> None:
     """It has no flag and no deny-list: what a turn may reach for is what is mounted.
 
-    Both directions, because the harness's own composition mounts no web at all -- so on is
-    mounted rather than assumed, the way Codex is asked for a search it does not do unasked.
+    The SDK's profile mounts the web, so off unmounts it, and on and unasked both leave the
+    profile's own -- the unasked agent where the bare SDK leaves one.
     """
     from hmz.coganchor.agents.dsh import _WEB, _composed
 
-    mounted = [plugin["name"] for plugin in _WEB]
     config = DshAgentConfig(model="m", effort="high", web_search=True)
 
-    searching = _composed(config)
-    assert all(name in searching for name in mounted)
-
     quiet = _composed(replace(config, web_search=False))
-    assert not any(name in quiet for name in mounted)
-    # And an agent nobody was asked about is left where the bare SDK leaves one.
-    assert not any(
-        name in _composed(replace(config, web_search=None)) for name in mounted
-    )
+    assert all(f"id: {row}\n  disabled: true" in quiet for row in _WEB)
+    for left in (config, replace(config, web_search=None)):
+        assert not any(row in _composed(left) for row in _WEB)
 
 
 def test_a_backend_with_no_way_of_being_told_refuses_it_off() -> None:

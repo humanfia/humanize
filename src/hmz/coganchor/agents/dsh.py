@@ -608,7 +608,9 @@ class DshSession(SessionBase):
         hushed = sorted(self._agent.hushed() - environment.keys())
         env = shutil.which("env") if hushed else None
         if hushed and env is None:
-            raise FileNotFoundError("env is required to isolate dsh provider credentials")
+            raise FileNotFoundError(
+                "env is required to isolate dsh provider credentials"
+            )
         written = self._cordis(composition, fence)
         harness: _Harness | None = None
         try:
@@ -628,7 +630,11 @@ class DshSession(SessionBase):
                 self.cwd,
             )
             if env is not None:
-                launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
+                launch = [
+                    env,
+                    *(part for name in hushed for part in ("-u", name)),
+                    *launch,
+                ]
             harness = harness_type(
                 # The adapter route the turn runs on, which names a route the composition
                 # registers rather than a place -- the server refuses the handshake for a
