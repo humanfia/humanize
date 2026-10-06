@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.coganchor.agents import DshAgent, DshAgentConfig, Failed
-from tests.integration.doubles_agents import Endpoint, kinds, serving
+from tests.integration.doubles_agents import Endpoint, harnessed, kinds, serving
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -35,11 +35,11 @@ def endpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Endpoi
 
 
 def _conversation(asked: dict[str, Any]) -> list[tuple[str, str]]:
-    """What one request carried of the conversation, leaving out the harness's own prompt."""
+    """What one request carried of the conversation, leaving out what the harness wrote."""
     return [
         (str(one["role"]), str(one.get("content") or ""))
         for one in asked["messages"]
-        if one["role"] != "system"
+        if one["role"] != "system" and not harnessed(one)
     ]
 
 

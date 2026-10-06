@@ -134,14 +134,24 @@ def kinds(events: list[Any]) -> list[str]:
     return [event.kind for event in events]
 
 
+#: How DeepSeek Harness opens the snapshot of its own runtime it puts after a user's prompt.
+RUNTIME_CONTEXT = "Current runtime context."
+
+
+def harnessed(message: dict[str, Any]) -> bool:
+    """Whether a user message is one a harness wrote itself, not one it was prompted with."""
+    return str(message.get("content") or "").startswith(RUNTIME_CONTEXT)
+
+
 @dataclass
 class Endpoint:
     """An OpenAI-compatible `/v1/chat/completions` on the loopback, and what it was asked.
 
-    What it answers is chosen by the last user message, so a test says the turn it wants by
-    what it asks: `unfinished` is refused with a 400, `hang` sends one piece and then nothing
-    until the endpoint is shut, and anything else streams back some thinking and the prompt
-    itself -- or `{"value": <prompt>}` where a shape was asked for -- with usage.
+    What it answers is chosen by the last user message a harness did not write itself, so a
+    test says the turn it wants by what it asks: `unfinished` is refused with a 400, `hang`
+    sends one piece and then nothing until the endpoint is shut, and anything else streams
+    back some thinking and the prompt itself -- or `{"value": <prompt>}` where a shape was
+    asked for -- with usage.
     """
 
     url: str
@@ -194,7 +204,7 @@ class _Answers(BaseHTTPRequestHandler):
             (
                 str(one.get("content") or "").partition("\n")[0]
                 for one in reversed(asked.get("messages") or [])
-                if one.get("role") == "user"
+                if one.get("role") == "user" and not harnessed(one)
             ),
             "",
         )

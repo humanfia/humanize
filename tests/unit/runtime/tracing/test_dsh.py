@@ -19,8 +19,13 @@ def header(ident: str, **extra: Any) -> dict[str, Any]:
     return {"type": "session", "id": ident, "cwd": WORKSPACE, "version": 1, **extra}
 
 
-def log(home: Path, ident: str, rows: list[dict[str, Any] | str]) -> Path:
-    return jsonl(home / "sessions" / "2026" / ident / "session.jsonl", rows)
+def log(
+    home: Path,
+    ident: str,
+    rows: list[dict[str, Any] | str],
+    name: str = "session.v3.jsonl",
+) -> Path:
+    return jsonl(home / "sessions" / "2026" / ident / name, rows)
 
 
 def test_reads_a_session(tmp_path: Path) -> None:
@@ -165,3 +170,11 @@ def test_skips_damaged_headers_and_other_workspaces(tmp_path: Path) -> None:
     assert [s.ident for s in dsh.collect(tmp_path, None, None, ALL)] == ["e", "f"]
     assert [s.ident for s in dsh.collect(tmp_path, Path(WORKSPACE), None, ALL)] == ["f"]
     assert dsh.collect(tmp_path / "none", None, None, ALL) == []
+
+
+def test_the_latest_format_generation_is_the_session(tmp_path: Path) -> None:
+    log(tmp_path, "s", [header("s"), ev(1, "turn/start", turn=1)], "session.jsonl")
+    log(tmp_path, "s", [header("s"), ev(2, "turn/start", turn=1)])
+    [session] = dsh.collect(tmp_path, None, None, ALL)
+    [turn] = [a for a in session.actions if a.category == "turn"]
+    assert turn.start == T0 + 2

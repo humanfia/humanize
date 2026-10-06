@@ -125,8 +125,11 @@ class _Client:
 class _Harness:
     def __init__(self, runtime: _Runtime, **made: Any) -> None:
         self.made = made
-        written = Path(made["cordis"]).read_text(encoding="utf-8")
-        self.cordis: list[dict[str, Any]] = yaml.safe_load(written.replace("!!js ", ""))
+        self.launch: tuple[str, ...] = made["_launch_args"]
+        written = Path(_option(self.launch, "--patch")).read_text(encoding="utf-8")
+        self.patch: list[dict[str, Any]] = (
+            yaml.safe_load(written.replace("!!js ", "")) or []
+        )
         self.client = _Client(runtime)
         self.started = self.closed = False
         runtime.harnesses.append(self)
@@ -136,6 +139,10 @@ class _Harness:
 
     def close(self) -> None:
         self.closed = True
+
+
+def _option(argv: tuple[str, ...], flag: str) -> str:
+    return argv[argv.index(flag) + 1]
 
 
 @dataclass
@@ -150,27 +157,10 @@ class _Runtime:
     )
 
 
-_BUNDLED: list[dict[str, Any]] = [
-    {"id": "llm-deepseek", "name": "@deepseek-ai/dsh-llm-deepseek"},
-    {
-        "id": "agent-core",
-        "name": "@deepseek-ai/dsh-agent-core",
-        "config": {"goals": {}},
-    },
-    {
-        "id": "sessions",
-        "name": "@deepseek-ai/dsh-sessions",
-        "config": {"compression": "zstd"},
-    },
-]
-
-
 @pytest.fixture
-def runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _Runtime:
+def runtime(monkeypatch: pytest.MonkeyPatch) -> _Runtime:
     """The SDK and its bundled runtime, as modules that start nothing."""
     held = _Runtime()
-    bundled = tmp_path / "cordis.yml"
-    bundled.write_text(yaml.safe_dump(_BUNDLED))
 
     def make(**made: Any) -> _Harness:
         return _Harness(held, **made)
@@ -183,7 +173,6 @@ def runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _Runtime:
     )
     bundle = types.ModuleType("deepseek_harness_runtime")
     vars(bundle)["resolve_bundled_launch_args"] = lambda: ("node", "/dsh/runtime.js")
-    vars(bundle)["bundled_default_config_path"] = lambda: bundled
     monkeypatch.setitem(sys.modules, "deepseek_harness", harness)
     monkeypatch.setitem(sys.modules, "deepseek_harness.errors", errors)
     monkeypatch.setitem(sys.modules, "deepseek_harness_runtime", bundle)
@@ -229,8 +218,9 @@ def _turn(session: DshSession, prompt: str = "do it") -> list[Event]:
     return list(session.stream(prompt))
 
 
-def _ids(cordis: list[dict[str, Any]]) -> list[str]:
-    return [one["id"] for one in cordis]
+def _disabled(patch: list[dict[str, Any]]) -> set[str]:
+    """The rows of the SDK's profile a patch switches off."""
+    return {str(one["id"]) for one in patch if one.get("disabled") is True}
 
 
 def test_dsh_is_driven_by_its_own_classes(
@@ -285,13 +275,17 @@ def test_the_runtime_is_started_where_the_session_works_with_its_key(
     assert harness.started
     assert started["provider"] == "deepseek-official"
     assert started["model"] == "deepseek-v4"
+    assert started["reasoning_effort"] == "high"
     assert started["cwd"] == str(tmp_path)
+    # The bundled runtime under the SDK's own profile, with humanize's patch over it.
+    assert harness.launch[-5:-1] == ("/dsh/runtime.js", "--profile", "sdk", "--patch")
+    node = harness.launch[-6]
     # `node` by name, or by the path a machine that keeps it off `PATH` has it at.
-    node, script = started["launch_args_override"]
     assert Path(node).name == "node"
-    assert script == "/dsh/runtime.js"
-    assert started["env"]["DEEPSEEK_API_KEY"] == "test-key"
-    assert started["env"]["HMZ_DSH_EFFORT"] == "high"
+    env = started["env"]
+    assert env["DEEPSEEK_API_KEY"] == "test-key"
+    assert env["DSH_PERMISSION_MODE"] == "danger-full-access"
+    assert Path(env["DSH_HOME"]).is_absolute()
 
 
 def test_a_session_keeps_its_runtime_across_turns_and_resumes_its_conversation(
@@ -320,7 +314,20 @@ def test_a_new_effort_starts_a_new_runtime(
 
     old, new = runtime.harnesses
     assert old.closed
-    assert new.made["env"]["HMZ_DSH_EFFORT"] == "high"
+    assert [old.made["reasoning_effort"], new.made["reasoning_effort"]] == [
+        "low",
+        "high",
+    ]
+    first, second = (asked for asked, _ in runtime.prompts)
+    assert first == second
+
+
+def test_an_agent_at_no_effort_leaves_the_adapter_at_its_own_default(
+    made: Callable[..., DshAgent], runtime: _Runtime, tmp_path: Path
+) -> None:
+    _turn(made().new(tmp_path))
+
+    assert runtime.harnesses[0].made["reasoning_effort"] is None
 
 
 def test_closing_the_session_closes_its_runtime(
@@ -336,58 +343,66 @@ def test_closing_the_session_closes_its_runtime(
 
 
 @pytest.mark.parametrize(
-    ("said", "present", "absent"),
+    ("said", "off"),
     [
-        ({}, {"token-meter", "compaction-basic"}, {"web", "llm-pi-ai"}),
-        ({"compaction": False}, set[str](), {"token-meter", "compaction-basic"}),
+        ({}, set[str]()),
+        ({"compaction": False}, {"compaction-basic", "command-compact"}),
         (
-            {"web_search": True},
-            {"web", "web-search", "web-fetch", "tool-web"},
-            set[str](),
+            {"goals": False},
+            {"goal", "goal-round-driver", "command-goal", "tool-goal"},
         ),
+        (
+            {"web_search": False},
+            {"web", "web-search-deepseek", "web-fetch-http", "tool-web"},
+        ),
+        ({"web_search": True}, set[str]()),
     ],
 )
-def test_the_composition_mounts_what_the_config_asks_for(
+def test_the_patch_switches_off_what_the_config_turns_down(
     made: Callable[..., DshAgent],
     runtime: _Runtime,
     tmp_path: Path,
     said: dict[str, Any],
-    present: set[str],
-    absent: set[str],
+    off: set[str],
 ) -> None:
     agent = made(**said)
 
     _turn(agent.new(tmp_path))
 
-    ids = set(_ids(runtime.harnesses[0].cordis))
-    assert present <= ids
-    assert not absent & ids
+    assert _disabled(runtime.harnesses[0].patch) == off
 
 
 @pytest.mark.parametrize(
-    ("said", "goals", "compression"),
+    ("compression", "patch"),
     [
-        ({}, True, "none"),
-        ({"goals": False}, False, "none"),
-        ({"session_compression": "zstd"}, True, None),
+        (
+            "none",
+            [
+                {
+                    "id": "session-persistence-jsonl",
+                    "config": {
+                        "root": "dshHomePath('sessions')",
+                        "compression": "none",
+                    },
+                }
+            ],
+        ),
+        ("zstd", []),
     ],
 )
-def test_the_composition_carries_goals_and_compression_as_configured(
+def test_only_a_compression_other_than_the_sdks_own_is_patched_in(
     made: Callable[..., DshAgent],
     runtime: _Runtime,
     tmp_path: Path,
-    said: dict[str, Any],
-    goals: bool,
-    compression: str | None,
+    compression: str,
+    patch: list[dict[str, Any]],
 ) -> None:
-    agent = made(**said)
+    """An agent at every one of the SDK's own settings is told nothing over its profile."""
+    agent = made(session_compression=compression)
 
     _turn(agent.new(tmp_path))
 
-    cordis = {one["id"]: one.get("config", {}) for one in runtime.harnesses[0].cordis}
-    assert ("goals" in cordis["agent-core"]) == goals
-    assert cordis["sessions"].get("compression") == compression
-    assert cordis["llm-deepseek"]["reasoningEffort"] == "process.env.HMZ_DSH_EFFORT"
+    assert runtime.harnesses[0].patch == patch
 
 
 @pytest.mark.parametrize(
