@@ -36,7 +36,7 @@ body:
       description: |
         What `hmz --version` prints, and when you installed or last upgraded it: nothing is
         released yet, so every install is of `main` from git, which keeps one version number.
-      placeholder: hmz 0.1.0
+      placeholder: hmz 0.0.0
     validations:
       required: true
   - type: dropdown

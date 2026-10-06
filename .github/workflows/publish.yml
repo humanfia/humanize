@@ -1,7 +1,5 @@
-# Releases, through release-please: every push to `main` keeps one release pull request open,
-# which bumps `version` in pyproject.toml and uv.lock and writes CHANGELOG.md from the
-# Conventional Commits since the last release. Merging it tags the release and publishes it.
-# docs/contributing/releasing.md is how a maintainer gets there.
+# Publishes a release: a push to `main` that merged a release pull request, which release.yml
+# opens, tags it and publishes it. docs/contributing/releasing.md is how a maintainer gets there.
 #
 # PyPI trusts this file by its name and the `pypi` environment, through trusted publishing:
 # no token is stored anywhere, so renaming this file or the environment stops releases until
@@ -23,39 +21,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release-please:
-    # A fork's `main`, or a dry run, has no release pull request.
+  check:
+    name: find the release
     if: github.repository == 'humanfia/humanize' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
-      contents: write # the release pull request's branch, the tag and the draft release
-      pull-requests: write # the release pull request
-      issues: write # the `autorelease:` labels it finds its pull requests by
-      actions: write # to run ci.yml on the release pull request
+      pull-requests: read # which pull request this commit merged
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      tag: ${{ steps.found.outputs.tag }}
     steps:
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
-        id: release
-
-      # A push made with this workflow's token starts no workflow, so the release pull request
-      # would never get the `ci-ok` the branch rule needs. A dispatch is the one event that token
-      # may start, and it reports `ci-ok` on the same commit.
-      - name: Run CI on the release pull request
-        if: steps.release.outputs.pr
+      # A release is the merge of this repository's own `release/v*` branch, and its tag is
+      # what the branch is called after `release/`.
+      - name: Find the release pull request this commit merged
+        id: found
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
-        run: gh workflow run ci.yml --ref "$BRANCH" --repo "$GITHUB_REPOSITORY"
+        run: |
+          branch="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" | jq -r \
+            --arg repo "$GITHUB_REPOSITORY" \
+            '[.[] | select(.merged_at != null and .base.ref == "main" and .head.repo.full_name == $repo)][0].head.ref // ""')"
+          if [[ "$branch" == release/v* ]]; then
+            echo "tag=${branch#release/}" >> "$GITHUB_OUTPUT"
+          fi
 
   build:
-    needs: release-please
-    # On a release, or a dry run by hand. `!cancelled()` because a dry run skips release-please.
+    needs: check
+    # On a release, or a dry run by hand. `!cancelled()` because a dry run skips `check`.
     if: >-
       !cancelled() && (github.event_name == 'workflow_dispatch'
-      || needs.release-please.outputs.release_created == 'true')
+      || needs.check.outputs.tag != '')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -69,6 +64,18 @@ jobs:
         with:
           # Nothing restored from a cache another run wrote goes into what is published.
           enable-cache: false
+
+      - name: The version is the tag's
+        if: needs.check.outputs.tag != ''
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          expected="$(sed -E 's/^v//; s/-alpha\./a/; s/-beta\./b/; s/-rc\./rc/' <<<"$TAG")"
+          actual="$(uv version --short)"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::pyproject.toml says $actual, and $TAG is $expected"
+            exit 1
+          fi
 
       - name: Build the wheel and the sdist
         run: uv build --no-sources
@@ -84,8 +91,8 @@ jobs:
 
   publish:
     name: publish to PyPI
-    needs: [release-please, build]
-    if: needs.release-please.outputs.release_created == 'true'
+    needs: [check, build]
+    if: needs.check.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -106,21 +113,34 @@ jobs:
   release:
     name: publish the release
     # After PyPI, so the release never offers files PyPI refused.
-    needs: [release-please, publish]
+    needs: [check, publish]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write # to attach the files and take the release out of draft
+      contents: write # the tag and the release
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The notes are every commit since the previous release's tag.
+          fetch-depth: 0
+          persist-credentials: false
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: dist
           path: dist/
 
-      - name: Publish
+      - name: Tag and publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TAG: ${{ needs.check.outputs.tag }}
         run: |
-          gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
-          gh release edit "$TAG" --draft=false --repo "$GITHUB_REPOSITORY"
+          previous="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          git log --no-merges --format='- %s (%h)' ${previous:+"$previous..HEAD"} \
+            | grep -v '^- chore(release): ' > "$RUNNER_TEMP/notes.md" || true
+          prerelease=()
+          if [[ "$TAG" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md" "${prerelease[@]}" --repo "$GITHUB_REPOSITORY"

@@ -62,8 +62,8 @@ Commits follow the same form: see
 commit has that commit checked too, because squashing it writes the commit's message to `main`
 rather than the title.
 
-The changelog is written from it, so a `feat` or a `!` there is what puts the change under
-Features or Breaking changes, and what decides the next version.
+The release notes are these titles, one a line, so the title is what somebody upgrading
+reads about your change.
 
 No sign-off or CLA is asked for. What you contribute is under the project's
 [Apache-2.0 license](LICENSE), as its section 5 says.

@@ -77,12 +77,13 @@ A job's name says what it ran: `unit (macos-latest, tui)` is `tests/unit/tui` on
 
 ## Other workflows
 
-Neither reports to `ci-ok`.
+None of them reports to `ci-ok`.
 
 | Workflow | Runs on | Does |
 | --- | --- | --- |
 | `build-docs.yml` | a pull request or a push to `main` that changed `docs/` | Builds the site, checks every `#fragment` resolves and every word is legible on a phone, and on `main` deploys it: [Working on these docs](/contributing/docs) |
-| `publish.yml` | a push to `main`, or a dry run by hand | Keeps the release pull request open with release-please; once it merges, builds the wheel and sdist, publishes them to PyPI, then publishes the GitHub release: [Releasing](/contributing/releasing) |
+| `release.yml` | a maintainer, by hand, with a version | Opens the pull request that sets that version: [Releasing](/contributing/releasing) |
+| `publish.yml` | a push to `main`, or a dry run by hand | Once a release pull request merges, builds the wheel and sdist, publishes them to PyPI, then tags it and publishes the GitHub release: [Releasing](/contributing/releasing) |
 
 ## Next steps
 

@@ -183,7 +183,7 @@ hmz --version
 ```
 
 ```console
-hmz 0.1.0
+hmz 0.0.0
 ```
 
 Then open the interface in any directory:
