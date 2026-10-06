@@ -38,7 +38,7 @@ Say so on an issue before you start on it, so that two people do not do the same
 1. Branch from `main`, on a fork unless you have push access. Name the branch
    `<type>/<short-slug>`, such as `fix/say-what-to-do`.
 2. Make the change, with its tests in the
-   [tier they belong to](https://docs.humanfia.ai/humanize/contributing/#where-a-test-goes), and
+   [directory they belong in](https://docs.humanfia.ai/humanize/contributing/#where-a-test-goes), and
    with the docs that describe it, in the same pull request.
 3. Run [the checks](https://docs.humanfia.ai/humanize/contributing/#the-checks) until they pass.
 4. Open the pull request against `main`, and fill in the template.
@@ -62,8 +62,8 @@ Commits follow the same form: see
 commit has that commit checked too, because squashing it writes the commit's message to `main`
 rather than the title.
 
-The `title` workflow checks the title. The release notes are grouped by it, so a `feat` or a
-`!` there is what puts the change under Features or Breaking changes.
+The release notes are grouped by it, so a `feat` or a `!` there is what puts the change under
+Features or Breaking changes.
 
 No sign-off or CLA is asked for. What you contribute is under the project's
 [Apache-2.0 license](LICENSE), as its section 5 says.

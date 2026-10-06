@@ -40,14 +40,10 @@ uv run pre-commit install  # ②
 2. **`pre-commit install`** checks each commit before it is made, with the hooks CI runs.
 
 Run tools through `uv run`, not `uvx`, so you get the versions `uv.lock` pins. To check the
-setup, run the fast tier:
+setup, run one package's unit tests:
 
 ```sh
-uv run pytest tests/unit
-```
-
-```text
-2405 passed in 15.51s
+uv run pytest tests/unit/flows
 ```
 
 ## The checks
@@ -56,51 +52,52 @@ uv run pytest tests/unit
 
 ```sh [Before you push]
 uv run pre-commit run --all-files   # format, lint, types: seconds
-uv run pytest                       # every tier: minutes
+uv run pytest                       # unit and integration: minutes
 ```
 
 ```sh [While you write]
-uv run pytest tests/unit            # the fast loop
+uv run pytest tests/unit/<package>  # the fast loop
 ```
 
-```sh [When the system tier covers it]
-uv run pytest tests/system --run-agents   # real tokens
+```sh [When a system test covers it]
+uv run pytest tests/system/test_flows_ralph.py   # real agents, real tokens
 ```
 
 :::
 
-Both commands under **Before you push** must pass. `uv run pytest` runs every tier. A system
-test this machine cannot serve skips and says why in the summary, and the ones that drive a
-real coding agent CLI wait for `--run-agents`.
-
-Run the system tier by hand when your change is one it covers. Its directories name the parts
-it drives for real: `agents/`, `coganchor/`, `machines/`, `providers/` and the rest. CI runs it
-too, on Linux with docker and no coding agent CLI, so the tests that drive the CLIs signed in
-on your machine, and spend real tokens, are yours alone to run. Before a release, or after a
-change that could reach more than one CLI, run
-[the regression matrix](/contributing/regression-matrix): every feature through every CLI.
+Both commands under **Before you push** must pass, and they are what CI runs. `uv run pytest`
+runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 
 | | Your machine | CI |
 | --- | --- | --- |
-| the pre-commit hooks | ✓ | ✓ every push; `pyright` and the workflow linters from a pull request on |
-| `tests/unit/` | ✓ | ✓ every push |
-| `tests/integration/` | ✓ | ✓ every pull request |
-| `tests/system/` | ✓ with `--run-agents` for the real CLIs | ✓ on the way to `main`: Linux, no CLIs |
+| the pre-commit hooks | ✓ | ✓ `lint`, every push and pull request |
+| `tests/unit/` | ✓ | ✓ a job per package, on Linux and macOS |
+| `tests/integration/` | ✓ | ✓ a job per topic, on Linux and macOS |
+| `tests/system/` | ✓ by hand, a file at a time, when your change needs it | never |
 
-On the way to `main`, the tests run on Linux and macOS, on Python 3.12, 3.13 and 3.14.
-[CI](/contributing/ci) has which job runs when, and how to read a run.
+[CI](/contributing/ci) has every job, and how to read a run.
 
 ## Where a test goes
 
-File a test by what is on the other side of it. Its directory is its tier: no marker to write.
+A test goes in exactly one of three directories, by how much of humanize it puts together. Its
+directory is what decides when it runs: no marker to write.
 
-| | The test talks to |
-| --- | --- |
-| `tests/unit/` <Badge type="tip" text="CI" /> | `hmz`, and nothing else |
-| `tests/integration/` <Badge type="tip" text="CI" /> | Anything this repository wrote: a stand-in CLI, a fake app server, a loopback socket, the mock LLM service |
-| `tests/system/` <Badge type="tip" text="CI" /> <Badge type="warning" text="you" /> | The real thing: an installed coding agent CLI, ptrace, docker, ssh, a real `node` |
+| | Holds | Rules |
+| --- | --- | --- |
+| `tests/unit/<package>/` <Badge type="tip" text="CI" /> | One package of `src/hmz/` alone, in the directory named for it: `cli`, `coganchor`, `daemon`, `flows`, `runtime`, `sdk` or `tui` | Only the package's public names, never a `_private` name or module. Every other `hmz` package mocked. No subprocess, socket or network. A job of its own must finish in 3 minutes |
+| `tests/integration/test_<topic>_*.py` <Badge type="tip" text="CI" /> | Packages wired together against fakes this repository wrote: a stand-in CLI, a fake app server, a loopback socket, the mock LLM service | Flat, no subdirectories. The topic is one of `core`, `agents`, `tui`, `daemon` and `anchor`, a job each, which must finish in 10 minutes |
+| `tests/system/` <Badge type="warning" text="you" /> | Real agents on real tasks: an installed coding agent CLI, signed in, working on `tests/system/sample/`, with docker or ssh where the test needs them | 5 to 30 minutes and real tokens a test. Never in CI |
 
-`tests/test_tiers.py` fails the run if a test's marker and its directory disagree.
+`ruff`'s `SLF001` and `pyright`'s `reportPrivateUsage` fail a test that reaches a private name.
+Mock another package where the test imports it, so the test holds this package to what it
+promises rather than to what the others happen to do.
+
+**Run a system test only when your change touches the path it covers**, such as a backend's
+driver, a built-in flow or a machine, and before a release. Never all of them on every change:
+they take hours together and spend real money. Name the file, as under **When a system test
+covers it** above; each is named `test_<area>_<what>.py`, for `flows`, `harness`, `machines`
+or `tui`. A test skips, saying why, where what it needs is not on this machine: a CLI, its sign-in,
+docker, ssh.
 
 ::: danger Never copy a sign-in into a test's home
 Codex's ChatGPT login and Claude Code's subscription login renew themselves, and a renewal
@@ -109,15 +106,6 @@ cancels the token the other copies hold: a container or temporary home signed in
 one runs the CLI as local, or mounts the CLI's own home where it is (`--volume=DIR:DIR`). The
 run fails if any file under pytest's temporary directories holds one of those refresh tokens
 (`_copies_no_sign_in` in `tests/conftest.py`).
-:::
-
-::: details Splitting a test file across two tiers
-Helpers and a subsystem's fixtures stay where they are: `tests/stubs.py`,
-`tests/agents/standins.py`, `tests/tui/fixtures.py` and the rest. A test that moves into a
-tier takes the fixtures it needs back by name, in a `conftest.py` beside it. Re-export the
-autouse ones too: nobody asks for those by name, so a missing one fails green. What two halves
-of a split file share goes in a helper module that never moves. `tests/tiers.py` has the
-whole of it.
 :::
 
 ## What the code is held to
@@ -150,5 +138,4 @@ tests go in one commit.
 | add or change a page of these docs | [Add a page to these docs](/contributing/tutorials/a-page-of-docs) |
 | find where a change goes, or add a backend or a command | [Architecture](/contributing/architecture) |
 | read what CI ran on a change, and why | [CI](/contributing/ci) |
-| run every feature through every CLI | [The regression matrix](/contributing/regression-matrix) |
 | hold a page to the rules | [Working on these docs](/contributing/docs) |

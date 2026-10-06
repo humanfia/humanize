@@ -121,6 +121,8 @@ const MOVED: Record<string, string> = {
   // One page here once held both cleanup flows; each has its own now, and the first is where
   // it went.
   'flows/agent-cleanup': `${HUMANFIA_FLOWS}ralph-loop-agent-cleanup`,
+  // The regression matrix is gone; the system tests, run a file at a time, took its place.
+  'contributing/regression-matrix': 'contributing/#where-a-test-goes',
   ...MOVED_AGAIN,
 }
 
@@ -395,7 +397,6 @@ export default defineConfig({
           items: [
             { text: 'Architecture', link: '/contributing/architecture' },
             { text: 'CI', link: '/contributing/ci' },
-            { text: 'The regression matrix', link: '/contributing/regression-matrix' },
             { text: 'Working on these docs', link: '/contributing/docs' },
           ],
         },

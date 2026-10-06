@@ -20,7 +20,7 @@ pnpm install
 pnpm dev           # http://localhost:5173/humanize/
 ```
 
-Before you push, run what CI runs:
+Before you push, run what `build-docs.yml` runs on a pull request that changes `docs/`:
 
 ```sh
 pnpm build           # fails on a dead internal link
@@ -204,7 +204,7 @@ Add a Vue component only where a control settles a real question, not as decorat
 - **Honest.** A simulated run says it is simulated, and the demos under `/demo/` are the real
   terminal. A drawing says what it is drawn from and matches it: the layer diagram on
   [Architecture](/contributing/architecture) copies the table in
-  `tests/integration/layering/test_layering.py`.
+  `tests/integration/test_core_layering.py`.
 - **A feature scene plays on the motion toolkit.** Every scene on a Features page is one GSAP
   timeline built with `useScene` from `docs/.vitepress/theme/motion/`, and drawn inside
   `HmzStage`. The toolkit starts a scene when it is scrolled into view, pauses it off screen,
@@ -310,7 +310,8 @@ has the rest.
 - **Docstrings** are Google style, and `ruff` checks them.
 
 The site deploys to [docs.humanfia.ai/humanize](https://docs.humanfia.ai/humanize/) from
-`main`, through `.github/workflows/build-docs.yml`.
+`main`, through `.github/workflows/build-docs.yml`, which runs apart from `ci.yml`: a change
+to `docs/` alone runs no Python tests, and `ci-ok` does not wait for the site.
 
 ## Next steps
 

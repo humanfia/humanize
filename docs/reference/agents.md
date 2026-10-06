@@ -1583,7 +1583,7 @@ returns the copy's path, or `None`.
 
 - Never the installed binary: the copy lives in a directory of humanize's own for one session.
 - Fingerprinted against `Profile.bundles` (a path glob, a regular expression one module must
-  match, an optional SHA-256); `tests/system/agents/test_patching.py` checks them.
+  match, an optional SHA-256); the system tests check them against the installed CLIs.
 - Any mismatch or failure returns `None`, is logged, and the shallower route is used.
 - Every rewrite is the same length as what it replaces; the module's precompiled bytecode is
   cleared.

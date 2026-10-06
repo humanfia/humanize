@@ -41,18 +41,16 @@ git switch -c fix/say-what-to-do
 
 ## Step 3: test it while you write
 
+Run the unit tests of the package you changed, here `coganchor`:
+
 ```sh
-uv run pytest tests/unit
+uv run pytest tests/unit/coganchor
 ```
 
-```text
-2405 passed in 15.51s
-```
-
-Seconds, and the loop worth having. If your change needs a new test, file it by what is on
-the other side of it: `tests/unit/` when it calls `hmz` and nothing else,
-`tests/integration/` when it talks to something this repository wrote, `tests/system/` when it
-needs the real thing. [Where a test goes](/contributing/#where-a-test-goes) has the table.
+Seconds, and the loop worth having. If your change needs a new test, it most likely goes in
+`tests/unit/<package>/`: it calls the package's public names and mocks every other `hmz`
+package. A test that wires packages together against a fake goes in `tests/integration/`.
+[Where a test goes](/contributing/#where-a-test-goes) has the rules.
 
 ## Step 4: run the checks
 
@@ -95,30 +93,14 @@ Found 1 error (1 fixed, 0 remaining).
 - **`pyright` checks the whole project**, so an error can show up in a file you did not touch
   but that imports one you did.
 
-Then the tests, all three tiers:
+Then the tests, unit and integration, as CI runs them:
 
 ```sh
 uv run pytest
 ```
 
-Minutes. The summary names every test that skipped and why. Tests that need something your
-machine lacks, like docker or a real `node`, skip. So do the ones that drive a real coding
-agent CLI, until you ask for them:
-
-```text
-SKIPPED [1] tests/system/agents/test_steering.py:31: needs --run-agents (drives real agents, costs tokens)
-```
-
-Your first patch rarely needs them. When a change touches what the system tier drives for
-real, a backend's driver or the anchor say, run it by hand:
-
-```sh
-uv run pytest tests/system --run-agents
-```
-
-::: warning This spends real tokens
-It drives the coding agent CLIs installed on your machine, signed in as you.
-:::
+Minutes. It leaves `tests/system` out: those tests drive real coding agent CLIs on real tasks
+for 5 to 30 minutes each, and spend real tokens. Your first patch does not need them.
 
 ## Step 5: commit it
 
@@ -145,23 +127,21 @@ gh pr create --fill
 Without push access, run `gh repo fork --remote` first and push to your fork. `gh pr create`
 opens the pull request across it either way.
 
-CI then runs everything a change to `main` is held to, for what your change touched, and
-`title.yml` reads the pull request itself:
+CI then runs `ci.yml`, the same jobs for every pull request:
 
 | | |
 | --- | --- |
-| `lint`, `workflows`, `typecheck` | The same hooks over every file: `actionlint` and `zizmor` in `workflows`, `pyright` in `typecheck` |
-| `unit`, `integration`, `system` | Each tier of the tests, on Linux and Python 3.12 to 3.14; `tests/system` on Linux 3.12 alone |
-| `unit + integration` | The first two tiers on macOS, a job per Python |
-| `build`, `smoke` | `uv build`, and the wheel started with no extras installed |
-| `docs` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` and `pnpm check:legible` |
-| `ci-ok` | Green when every job that ran passed |
-| `title` | From `title.yml`: the title is a Conventional Commit, which `--fill` took from your commit |
+| `lint` | Every pre-commit hook over every file, as in Step 4 |
+| `unit (<os>, <package>)` | `tests/unit/<package>`, a job per package, on Linux and macOS |
+| `integration (<os>, <topic>)` | `tests/integration/test_<topic>_*.py`, a job per topic, on Linux and macOS |
+| `ci-ok` | Green when every job above passed |
+
+A change to `docs/` also runs `build-docs` from `build-docs.yml`.
 
 ## Check it worked
 
-`gh pr checks` shows every job on your pull request, and waits with `--watch`. The ones to
-wait for are `ci-ok` and `title`; [CI](/contributing/ci) has what each job checks:
+`gh pr checks` shows every job on your pull request, and waits with `--watch`. The one to wait
+for is `ci-ok`; [CI](/contributing/ci) has what each job checks:
 
 ```sh
 gh pr checks --watch
@@ -179,5 +159,5 @@ here:
   docs](/contributing/tutorials/a-page-of-docs) is the other half of it.
 - For a change bigger than a screen, [Architecture](/contributing/architecture) shows where it
   goes.
-- For a change that reaches more than one CLI, run [the regression
-  matrix](/contributing/regression-matrix).
+- For a change to how a coding agent CLI is driven, run the system test that covers it: see
+  [Where a test goes](/contributing/#where-a-test-goes).

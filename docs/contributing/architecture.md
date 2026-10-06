@@ -46,7 +46,7 @@ what it holds, in the words `hmz` and these docs use.
 
 ## The rules the test checks
 
-`tests/integration/layering/test_layering.py` holds the table the diagram draws. The run fails
+`tests/integration/test_core_layering.py` holds the table the diagram draws. The run fails
 when:
 
 - **A module imports what its layer may not.** Relative imports count the same as absolute
@@ -77,7 +77,7 @@ A CLI that speaks the Agent Client Protocol can be added from the interface, on 
 page of `/settings`.
 :::
 
-**You need:** the CLI installed and signed in, so the system tier can drive it; its `--help`
+**You need:** the CLI installed and signed in, so a system test can drive it; its `--help`
 and a turn or two of its own logs, since several steps copy what it really writes; and which
 kind of driver it needs, which `specs/coganchor/agents.md` says.
 
@@ -144,26 +144,25 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
        """MiniMax Code, with everything it can do."""
    ```
 
-   `tests/unit/flows/test_harness_table.py` and `tests/unit/flows/test_harness_mapping.py`
-   each want a row for it, and `tests/flows/contracts.py` holds its driver to what the engine
-   expects. A change here also checks the flows
-   [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still work.
+   Give it a row in the `tests/unit/flows/` tests of `HARNESS_AGENTS`. A change here also
+   checks the flows [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still
+   work.
 
 ### 3. Read it back, in `runtime/tracing/` and `tui/`
 
 7. **A trace reader** in `runtime/tracing/readers/<name>.py`, and its row in
    `runtime/tracing/collector.py`.
 8. **The live tally**: what its log calls each kind of token, as a row of `_KINDS` in
-   `tui/tally.py`, and a branch in `_spent` there, so the tally moves during a turn. The same
-   kinds are listed per backend in `tests/unit/backends/test_catalogue.py`.
+   `tui/tally.py`, and a branch in `_spent` there, so the tally moves during a turn. Cover its
+   kinds in the `tests/unit/tui/` tests of the tally.
 
 ### 4. Test it
 
-9. **A stand-in for the integration tier**: its flag table in `tests/agents/standins.py`, read
-   off the real CLI's `--help`, then `tests/integration/agents/test_<name>.py`.
-10. **The system tier**: `tests/system/agents/test_<name>.py`, driving the real CLI.
-11. **The regression matrix**: its places in `tests/matrix/places.py`. See [The regression
-    matrix](/contributing/regression-matrix#add-a-cli).
+9. **Unit tests** of the driver in `tests/unit/coganchor/`, through its public names, with
+   the CLI's process mocked.
+10. **A stand-in for the integration tests**: a fake of the CLI, its flags read off the real
+    CLI's `--help`, and `tests/integration/test_agents_<name>.py` driving it.
+11. **A system test**: `tests/system/test_harness_<name>.py`, the real CLI on a real task.
 
 ### 5. Say so
 
@@ -180,21 +179,15 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
 ### Check it worked
 
 ```sh
-uv run pytest tests/unit/flows/test_harness_table.py tests/unit/flows/test_harness_mapping.py \
-    tests/unit/backends/test_catalogue.py tests/integration/agents/test_minimax.py \
-    tests/integration/layering
+uv run pytest tests/unit/coganchor tests/unit/flows tests/unit/tui \
+    tests/integration/test_agents_minimax.py tests/integration/test_core_layering.py
 ```
 
-```text
-213 passed in 3.46s
-```
-
-`tests/integration/layering` is the one that fails when a step imported across a layer it may
-not. Then the real thing, which spends tokens:
+`tests/integration/test_core_layering.py` is the one that fails when a step imported across a
+layer it may not. Then the real thing, which takes minutes and spends tokens:
 
 ```sh
-uv run pytest tests/system/agents/test_minimax.py --run-agents
-uv run pytest tests/system/matrix --run-agents -m matrix -k mcode
+uv run pytest tests/system/test_harness_minimax.py
 ```
 
 ## Adding a command
@@ -206,9 +199,10 @@ uv run pytest tests/system/matrix --run-agents -m matrix -k mcode
 3. **Its output through `cli/output.py`** where the command has a `--json`, so a stray `print`
    never lands in the stream a program reads.
 4. **A terse help.** Every flag's help, command summary, description and epilog is thirty words
-   or fewer; the detail goes in [CLI reference](/reference/cli). `tests/unit/cli/test_help.py`
-   reaches every parser through `main` and fails on anything longer. A subcommand a command
-   routes by hand, as `hmz internal anchor` routes `serve`, needs a line in its `ROUTES`.
+   or fewer; the detail goes in [CLI reference](/reference/cli). A unit test in
+   `tests/unit/cli/` reaches every parser through `main` and fails on anything longer. A
+   subcommand a command routes by hand, as `hmz internal anchor` routes `serve`, needs a line
+   in its `ROUTES`.
 
 Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and with
 `uv run hmz <command> --help`.
@@ -242,7 +236,6 @@ not edit a SPEC unless you were asked to. Propose a SPEC change separately.
 
 ## Next steps
 
-- [The regression matrix](/contributing/regression-matrix), after a change that reaches more
-  than one CLI
+- [Where a test goes](/contributing/#where-a-test-goes), for which tests a change needs
 - [Working on these docs](/contributing/docs), for the pages a change updates
 - [Reference › Agents](/reference/agents), for what each backend does, as users read it
