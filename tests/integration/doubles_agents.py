@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import socketserver
 import sys
 import threading
 from dataclasses import dataclass, field
@@ -235,9 +236,23 @@ class _Answers(BaseHTTPRequestHandler):
         self.close_connection = True
 
 
+class _Loopback(ThreadingHTTPServer):
+    """A server that does not ask DNS what the loopback is called.
+
+    `HTTPServer.server_bind` looks its own address up with `getfqdn`, which on a CI runner
+    can be a reverse lookup that takes seconds -- a test's whole time budget, gone before it
+    has asked anything.
+    """
+
+    def server_bind(self) -> None:
+        socketserver.TCPServer.server_bind(self)
+        host, self.server_port = self.server_address[:2]
+        self.server_name = str(host)
+
+
 def serving() -> Iterator[Endpoint]:
     """Serves an `Endpoint` on a port of its own until the generator is closed."""
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _Answers)
+    server = _Loopback(("127.0.0.1", 0), _Answers)
     server.daemon_threads = True
     endpoint = Endpoint(f"http://127.0.0.1:{server.server_address[1]}/v1")
     server.RequestHandlerClass = type("_Serving", (_Answers,), {"endpoint": endpoint})

@@ -100,7 +100,9 @@ def test_a_refused_request_is_a_failed_turn_leaving_nothing_open(
     assert agent.opened == []
 
 
-@pytest.mark.timeout(6)
+# Far short of the 600s a turn would wait without the cut, and long enough for litellm's
+# first import on a cold CI runner, which alone can take several seconds.
+@pytest.mark.timeout(30)
 def test_an_endpoint_gone_silent_is_given_up_on_by_the_watchdog(
     endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
 ) -> None:
