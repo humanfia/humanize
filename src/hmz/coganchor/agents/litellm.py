@@ -218,9 +218,10 @@ class LiteLLMSession(SessionBase):
                         usage = spent
                     if self._cut:
                         break
-            # Its socket shut under it, the read can end as cleanly as a finished answer
-            # does: a turn the watchdog gave up on is not one that finished.
-            _unless_wedged(self, model)
+                # Its socket shut under it, the read can end as cleanly as a finished answer
+                # does: a turn the watchdog gave up on is not one that finished, and is
+                # raised here for the watchdog to say what it failed with.
+                _unless_wedged(self, model)
             if usage.total:
                 self._spends(usage)
             said = list(saying.rest())
