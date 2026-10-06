@@ -355,6 +355,14 @@ def test_noise_and_stderr_are_not_events(spawner: Spawner, tmp_path: Path) -> No
     assert kinds[-1] == "result"
 
 
+@pytest.mark.timeout(10)
+def test_json_that_is_not_an_event_does_not_hang_the_turn(
+    spawner: Spawner, tmp_path: Path
+) -> None:
+    spawner.answering(["[1, 2]", '"a string"', *_turn()])
+    assert _cursor().new(tmp_path)("go") == "done"
+
+
 @pytest.mark.parametrize(
     ("lines", "code", "match"),
     [

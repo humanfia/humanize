@@ -396,9 +396,12 @@ class CursorSession(CommandSessionBase):
         if error:
             return
         try:
-            said: dict[str, Any] = json.loads(line)
+            loaded: object = json.loads(line)
         except json.JSONDecodeError:
             return  # not ours: it prints the odd plain line among the JSON
+        if not isinstance(loaded, dict):
+            return  # JSON, but not an event: nothing to read a kind off
+        said = cast("dict[str, Any]", loaded)
         kind = str(said.get("type") or "")
         if kind == "system" and said.get("session_id"):
             # Noted, not taken: this is the first line out, said before anything can go
