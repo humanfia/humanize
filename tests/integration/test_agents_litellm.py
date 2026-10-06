@@ -101,11 +101,6 @@ def test_a_refused_request_is_a_failed_turn_leaving_nothing_open(
 
 
 @pytest.mark.timeout(6)
-@pytest.mark.xfail(
-    strict=True,
-    reason="the watchdog's cut closes litellm's stream wrapper, which does not close the "
-    "socket a read is blocked on, so a silent endpoint holds the turn for the full 600s",
-)
 def test_an_endpoint_gone_silent_is_given_up_on_by_the_watchdog(
     endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
 ) -> None:

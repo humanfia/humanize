@@ -28,6 +28,7 @@ import contextlib
 import importlib
 import json
 import os
+import socket
 import sys
 import time
 import uuid
@@ -285,9 +286,22 @@ class LiteLLMSession(SessionBase):
         return {**asked, "content": asked["content"] + _IN_SHAPE.format(schema=shape)}
 
     def _cuts(self) -> None:
-        """Closes the answer being streamed, which is what stops the turn now."""
+        """Closes the answer being streamed, which is what stops the turn now.
+
+        The socket under it is shut first: closing the stream from this thread does not wake
+        the turn's own, which is blocked reading that socket, and an endpoint gone silent
+        would hold it there for as long as the request's timeout.
+        """
         live = self._live
-        for holder in (live, _field(live, "completion_stream")):
+        stream = _field(live, "completion_stream")
+        held = _field(_field(stream, "response"), "extensions")
+        wire = _mapping(held).get("network_stream")
+        info = getattr(wire, "get_extra_info", None)
+        sock = info("socket") if callable(info) else None
+        if isinstance(sock, socket.socket):
+            with contextlib.suppress(OSError):
+                sock.shutdown(socket.SHUT_RDWR)
+        for holder in (live, stream):
             close = getattr(holder, "close", None)
             if callable(close):
                 with contextlib.suppress(Exception):
