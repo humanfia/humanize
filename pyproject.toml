@@ -45,7 +45,7 @@ dependencies = [
     # stack nobody sees is a bug nobody fixes. Off until somebody says otherwise, and an
     # ordinary dependency rather than an extra: an install that could be missing the half
     # that reports its own failures is an install whose failures are not reported.
-    "sentry-sdk>=2.70.0",
+    "sentry-sdk>=2.71.0",
     "textual>=8.2.8",
     # What an entry is added to Grok Build's `config.toml` with, for an account behind a
     # gateway: the file is the person at this machine's, and what they wrote in it -- their
@@ -107,7 +107,7 @@ Issues = "https://github.com/humanfia/humanize/issues"
 hmz = "hmz.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.12.19,<0.13.0"]
+requires = ["uv_build>=0.12.20,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
