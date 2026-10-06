@@ -8,10 +8,12 @@ usage, `turn/completed` and the thread falling idle. What a turn does is chosen 
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 from typing import TYPE_CHECKING, Any
 
+import psutil
 import pytest
 
 from hmz.coganchor.agents import (
@@ -201,17 +203,16 @@ def test_two_sessions_of_one_agent_share_its_server(codex: Standins) -> None:
     assert len({one.pid for one in codex.calls()}) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a CodexAgent goes on handing a session the app server that opened it after that "
-    "server has exited, so the retry for the dropped connection fails on the same dead pipe",
-)
 def test_a_thread_whose_server_went_down_is_resumed_on_the_next(
     codex: Standins,
 ) -> None:
     session = CodexAgent(CONFIG).new()
 
     assert session("then-exit") == "then-exit"
+    # Exited, as a server gone between turns is: not still on its way out as the next starts.
+    (first,) = {one.pid for one in codex.calls()}
+    with contextlib.suppress(psutil.NoSuchProcess):
+        psutil.Process(first).wait(timeout=10)
     assert session("after") == "after"
 
     assert len({one.pid for one in codex.calls()}) == 2

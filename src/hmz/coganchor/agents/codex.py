@@ -1300,12 +1300,13 @@ class _AppServer:
                 return
 
             # Provider wrappers and Codex share this dedicated group. Taking down the group
-            # prevents a stopped flow from leaving either wrapper or server behind.
-            with contextlib.suppress(ProcessLookupError):
+            # prevents a stopped flow from leaving either wrapper or server behind. A group
+            # already gone is refused on macOS as EPERM rather than ESRCH.
+            with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.killpg(self._proc.pid, signal.SIGTERM)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 self._proc.wait(timeout=_STOP_SECONDS)
-            with contextlib.suppress(ProcessLookupError):
+            with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.killpg(self._proc.pid, signal.SIGKILL)
             self._proc.wait()
 
@@ -2259,7 +2260,11 @@ class CodexAgent(AgentBase):
         kept: list[_AppServer] = []
         going: list[_AppServer] = []
         for one in self._servers:
-            if one.knows == knows:
+            if one._gone or one._proc.poll() is not None:
+                # Exited under us: its threads are on disk, and picked up on the next server
+                # rather than written to a pipe nobody reads.
+                going.append(one)
+            elif one.knows == knows:
                 kept.append(one)
             elif one.knows[2:] != knows[2:]:
                 (going if one.retire() else self._retiring).append(one)
