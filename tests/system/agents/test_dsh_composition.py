@@ -75,14 +75,22 @@ def _boots(
         # would have to be answered, which this test does not take.
         env={
             "DEEPSEEK_API_KEY": "not-a-real-key",
+            "DEEPSEEK_BASE_URL": "http://127.0.0.1:9",
             "DSH_PERMISSION_MODE": "danger-full-access",
             **(env or {}),
         },
-        request_timeout_seconds=120.0,
+        request_timeout_seconds=60.0,
         initialize_timeout_seconds=120.0,
     )
     try:
         started.start()
+        # And a prompt, which is what says the plugin tree loaded: the handshake is answered
+        # before every entry has activated, while a tree with one left pending takes the
+        # runtime down and is never answered. Accepted is all that is asked -- the model it
+        # would go on to call is nowhere, so nothing is spent.
+        assert started.client.session_prompt(
+            "session-boots", [{"type": "text", "text": "hi"}]
+        )
     finally:
         started.close()
 

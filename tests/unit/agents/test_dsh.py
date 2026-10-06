@@ -1022,7 +1022,6 @@ def test_an_agent_at_no_rung_leaves_the_adapter_at_its_own_default() -> None:
 def test_compaction_off_unmounts_the_compactor_and_what_it_reads() -> None:
     """On is the SDK's own, so only off is said."""
     assert disabled(composed(DshAgent(configured(compaction=False)))) == {
-        "token-meter",
         "compaction-basic",
         "command-compact",
     }

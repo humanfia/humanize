@@ -70,8 +70,10 @@ _SESSIONS = "session-persistence-jsonl"
 _GOALS = ("goal", "goal-round-driver", "command-goal", "tool-goal")
 
 #: The rows of `dsh-base` that keep one conversation inside the model's context window: the
-#: automatic compactor, the token meter it reads, and the `/compact` command over them.
-_COMPACTION = ("token-meter", "compaction-basic", "command-compact")
+#: automatic compactor and the `/compact` command over it. Not the token meter it reads, which
+#: the tool-result pruner reads too: unmounted, the pruner waits for it forever and the plugin
+#: tree never finishes loading.
+_COMPACTION = ("compaction-basic", "command-compact")
 
 #: The rows of `dsh-base` one turn reaches the web through, and the whole of how this backend
 #: is told whether it may: what an agent may reach for is what its composition mounts.
@@ -217,12 +219,11 @@ class DshAgentConfig(AgentConfig):
     profile with nothing of humanize's over it but what an account or a flow says.
 
     Attributes:
-      compaction: Whether the runtime's own automatic compaction is mounted -- the
-        `dsh-token-meter` and `dsh-compaction-basic` pair and `/compact`, at that plugin's own
-        default threshold of 0.8 of the context window. On is the SDK's default; off unmounts
-        all three, and a conversation driven for long enough under it reaches a turn the
-        model refuses for length, which a loop that keeps talking to the same conversation
-        never gets past.
+      compaction: Whether the runtime's own automatic compaction is mounted --
+        `dsh-compaction-basic` and `/compact`, at that plugin's own default threshold of 0.8
+        of the context window. On is the SDK's default; off unmounts both, and a
+        conversation driven for long enough under it reaches a turn the model refuses for
+        length, which a loop that keeps talking to the same conversation never gets past.
       session_compression: How the durable JSONL session log is written, as one of
         :data:`_COMPRESSIONS`. `none`, though the plugin's own default is `zstd`, because
         humanize reads that log itself -- what a turn spent comes off complete rows as they

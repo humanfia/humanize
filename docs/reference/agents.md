@@ -1348,7 +1348,7 @@ effort goes in the handshake.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `compaction` | `True` | keeps `dsh-token-meter`, `dsh-compaction-basic` and `/compact`, compacting at 0.8 of the context window; `False` unmounts them |
+| `compaction` | `True` | keeps `dsh-compaction-basic` and `/compact`, compacting at 0.8 of the context window; `False` unmounts them |
 | `session_compression` | `"none"` | the session log's compression, `none` or `zstd` (the tally cannot read `zstd`) |
 
 - `goals` keeps the goal service, `create_goal`, `/goal` and the round driver; `False` unmounts
