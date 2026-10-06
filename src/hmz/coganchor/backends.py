@@ -949,13 +949,14 @@ _PI = ("max", "xhigh", "high", "medium", "low", "minimal", "off")
 _DSH = ("max", "high", "low", "off")
 
 #: The SDK dsh is driven through, written the way somebody installing it by hand has to write
-#: it. The ceiling is the point of the line: 0.1.2a3 redesigned the configuration the driver
-#: is written against, so an install told to fetch the newest resolves one that cannot open a
-#: session at all. Said in one place because it is said in three -- the line offered when the
-#: backend is missing, the one the interface prints, and the one the driver raises -- and
-#: three hand-copies of a version range are three chances to leave one of them at the old
-#: bound. It MUST be kept in step with `pyproject.toml`, which is the copy that binds.
-DSH_SDK = "deepseek-harness-sdk>=0.1.1rc1,<0.1.2"
+#: it. Both bounds are the point of the line: the floor is the profile-and-patch surface the
+#: driver is written against, which 0.1.2a3 introduced in place of the one before it, and the
+#: ceiling is the release it was read against, since the SDK is pre-release and has moved
+#: that surface before. Said in one place because it is said in three -- the line offered
+#: when the backend is missing, the one the interface prints, and the one the driver raises
+#: -- and three hand-copies of a version range are three chances to leave one of them at the
+#: old bound. It MUST be kept in step with `pyproject.toml`, which is the copy that binds.
+DSH_SDK = "deepseek-harness-sdk>=0.1.5rc1,<0.1.6"
 
 #: What Grok Build calls its reasoning levels, hardest first, which is what it says when it
 #: is given one it has not got: `unknown effort level; use one of: xhigh, high, medium, low`.
@@ -1874,13 +1875,11 @@ PROFILES = (
         # Its telemetry is sent only when feedback is, so nothing needs it.
         hosts=("api.deepseek.com",),
         # By composition, which is this backend's only way of saying anything: there is no
-        # command line to put a flag on, and what an agent may reach for is what its
-        # `cordis.yml` mounts. `dsh-web` and the two providers under it are what the
-        # `web_search` and `web_fetch` tools of `dsh-tool-web` run on, and an agent told not
-        # to search is one whose composition carries none of the four -- a tool that is not
-        # in the process rather than one asked not to be reached for. Said in both directions
-        # for the reason Codex's is: the bundled composition mounts no web at all, so on has
-        # to be mounted or it would mean two things.
+        # command line to put a flag on, and what an agent may reach for is what its profile
+        # mounts. `dsh-web` and the two providers under it are what the `web_search` and
+        # `web_fetch` tools of `dsh-tool-web` run on; the SDK's profile mounts all four, and
+        # an agent told not to search is one whose patch unmounts them -- a tool that is not
+        # in the process rather than one asked not to be reached for.
         searches=True,
         # Shorter than the rest, and for a reason of its own: this is the one backend driven
         # through an SDK rather than a command line, and the three minutes the driver gives
@@ -1914,10 +1913,10 @@ PROFILES = (
         sessions=("sessions",),
         told=True,
         efforts=_DSH,
-        # None, and not for want of looking: the `dsh` command line reads `.dsh/skills` and
-        # `.agents/skills`, but that is its web profile's own harness. What humanize drives is
-        # the Python SDK, which carries no skills at all -- so a list here would be of skills
-        # nothing in this session would ever load.
+        # None yet. The SDK's `sdk` profile mounts `dsh-skill-filesystem` since 0.1.2, but
+        # humanize hands every runtime a home of the run's own, so which of a user's skills a
+        # session would load -- and how one is chosen -- is still to be put to the runtime; a
+        # list here before then would be of skills nothing is known to load.
         # `DEEPSEEK_SEARCH_BASE_URL` beside the other two because the search provider mounted
         # for an agent that may search reads it, and reads it *instead of* `DEEPSEEK_BASE_URL`:
         # search speaks the Anthropic-compatible Messages API and chat completions do not, so

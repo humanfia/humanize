@@ -136,6 +136,38 @@ def completed(turn: int = 1) -> tuple[str, dict[str, Any]]:
     return "turn/end", {"turn": turn, "reason": {"kind": "completed"}}
 
 
+class _Patch(yaml.SafeLoader):
+    """Reads a patch back with its `!!js` values as the text they were written as."""
+
+
+_Patch.add_constructor(
+    dsh._JS_TAG,
+    lambda loader, node: dsh._Js(loader.construct_scalar(cast("yaml.ScalarNode", node))),
+)
+
+
+def launched(harness: Harness) -> tuple[str, ...]:
+    """The command line one runtime was started with."""
+    return cast("tuple[str, ...]", harness.config["_launch_args"])
+
+
+def patch_path(harness: Harness) -> Path:
+    """Where the patch one runtime was started from was written."""
+    launch = launched(harness)
+    return Path(launch[launch.index("--patch") + 1])
+
+
+def patched(harness: Harness) -> list[dict[str, Any]]:
+    """The patch one live runtime was started from."""
+    loaded = yaml.load(patch_path(harness).read_text(), Loader=_Patch)  # noqa: S506
+    return cast("list[dict[str, Any]]", loaded)
+
+
+def disabled(rows: list[dict[str, Any]]) -> set[str]:
+    """The rows of the profile a patch switches off."""
+    return {str(one["id"]) for one in rows if one.get("disabled") is True}
+
+
 @pytest.fixture(autouse=True)
 def sdk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     Harness.made.clear()
@@ -469,13 +501,7 @@ def test_effort_changes_restart_the_runtime_but_resume_the_session() -> None:
 
     assert len(Harness.made) == 2
     assert Harness.made[0].closed
-    assert [
-        cast("dict[str, str]", one.config["env"])["HMZ_DSH_EFFORT"]
-        for one in Harness.made
-    ] == [
-        "high",
-        "max",
-    ]
+    assert [one.config["reasoning_effort"] for one in Harness.made] == ["high", "max"]
     assert Harness.made[1].client.prompts == [(session_id, "second")]
 
 
@@ -586,11 +612,9 @@ def test_native_dsh_credentials_do_not_require_an_ambient_key(
 
     assert DshAgent(configured()).new(tmp_path)("hello") == "done"
 
-    assert Harness.made[0].config["env"] == {
-        "DEEPSEEK_API_KEY": "saved-by-dsh",
-        "DEEPSEEK_BASE_URL": "https://deepseek.example/v1",
-        "HMZ_DSH_EFFORT": "high",
-    }
+    environment = cast("dict[str, str]", Harness.made[0].config["env"])
+    assert environment["DEEPSEEK_API_KEY"] == "saved-by-dsh"
+    assert environment["DEEPSEEK_BASE_URL"] == "https://deepseek.example/v1"
 
 
 def test_inherited_key_wins_while_dsh_settings_base_url_wins(
@@ -746,12 +770,11 @@ def test_provider_environment_reaches_the_sdk_runtime(
     DshAgent(configured(provider="mine")).new(tmp_path)("work")
 
     made = Harness.made[0].config
-    assert made["env"] == {
-        "DEEPSEEK_API_KEY": "provider-key",
-        "HMZ_DSH_EFFORT": "high",
-    }
+    environment = cast("dict[str, str]", made["env"])
+    assert environment["DEEPSEEK_API_KEY"] == "provider-key"
+    assert "DEEPSEEK_BASE_URL" not in environment
     assert made["cwd"] == str(tmp_path)
-    launch = cast("tuple[str, ...]", made["launch_args_override"])
+    launch = launched(Harness.made[0])
     assert launch[0].endswith("/env")
     # Both endpoints, because both are places this account's one key would be sent: the
     # adapter's and the search provider's, which the harness gives two variables because
@@ -765,6 +788,10 @@ def test_provider_environment_reaches_the_sdk_runtime(
         "-u",
         "DSH_GATEWAY_API",
         "/opt/dsh-runtime",
+        "--profile",
+        "sdk",
+        "--patch",
+        str(patch_path(Harness.made[0])),
     )
     assert made["request_timeout_seconds"] == 180.0
 
@@ -814,12 +841,14 @@ def test_a_gateway_account_points_the_runtime_at_its_own_endpoint(
     assert environment["DEEPSEEK_API_KEY"] == "gateway-key"
     assert "DEEPSEEK_SEARCH_BASE_URL" not in environment
     # Nothing of this machine's is left for the runtime to read past the account.
-    launch = cast("tuple[str, ...]", made["launch_args_override"])
+    launch = launched(Harness.made[0])
     assert "DEEPSEEK_BASE_URL" not in launch
     assert "DEEPSEEK_API_KEY" not in launch
     # The pi-ai route the composition declared for it, rather than DeepSeek's own adapter:
-    # the server refuses a name nothing registered at the handshake.
+    # the server refuses a name nothing registered at the handshake. And no effort, which a
+    # model pi-ai is handed by name takes none of.
     assert made["provider"] == route
+    assert made["reasoning_effort"] is None
 
 
 @pytest.mark.parametrize(("way", "route", "api"), _GATEWAYS)
@@ -844,12 +873,13 @@ def test_a_gateway_account_is_composed_with_its_own_route(
     else:
         assert isinstance(profile["api"], dsh._Js)
         assert str(profile["api"]) == api
-    # The web less its search, which is DeepSeek's and nobody else's.
-    ids = [one["id"] for one in written]
-    assert "web-search" not in ids
+    # The web less its search, which is DeepSeek's and nobody else's; and none of this
+    # machine's dsh settings, which would move the endpoint the account's key goes to.
+    assert disabled(written) == {"web-search-deepseek", "settings"}
     (tool,) = (one for one in written if one["id"] == "tool-web")
     assert tool["config"] == {"search": False}
-    assert {"web", "web-fetch"} <= set(ids)
+    (seam,) = (one for one in written if one["id"] == "web")
+    assert seam["config"] == {"fetchProvider": "http"}
 
 
 def test_a_key_account_is_composed_with_deepseeks_own_adapter_alone() -> None:
@@ -859,11 +889,12 @@ def test_a_key_account_is_composed_with_deepseeks_own_adapter_alone() -> None:
 
     written = composed(DshAgent(configured(provider="mine")))
 
-    ids = [one["id"] for one in written]
-    assert "llm-pi-ai" not in ids
-    # The whole of the web, search included: a DeepSeek key is what that provider takes.
-    assert {"web", "web-search", "web-fetch", "tool-web"} <= set(ids)
+    # Only this machine's dsh settings, which would move the endpoint the account's key goes
+    # to: the profile's own adapter, and the whole of its web, search included, since a
+    # DeepSeek key is what that provider takes.
+    assert written == [{"id": "settings", "disabled": True}]
     assert Harness.made[-1].config["provider"] == "deepseek-official"
+    assert Harness.made[-1].config["reasoning_effort"] == "high"
 
 
 def failing(said: str) -> tuple[str, dict[str, Any]]:
@@ -951,100 +982,47 @@ def test_a_flow_that_catches_its_own_turns_does_not_catch_this_one() -> None:
 
 
 def composed(agent: DshAgent) -> list[dict[str, Any]]:
-    """The composition one agent's runtime was actually started from.
+    """The patch one agent's runtime was actually started from.
 
-    Off the file the driver wrote and pointed the SDK at, rather than off anything shipped
-    here: there is no pinned composition any more, so what is asserted has to be what the
-    runtime was handed. The `!!js` values are the runtime's to evaluate, so they come back
-    as the text they were written as rather than as anything resolved.
+    Off the file the driver wrote and handed the runtime, rather than off anything here. The
+    `!!js` values are the runtime's to evaluate, so they come back as the text they were
+    written as rather than as anything resolved.
     """
     Harness.next_scripts.append([assistant("ok"), completed()])
-    # Held rather than a one-shot turn: the composition stands exactly as long as the
-    # runtime reading it, so a session dropped on the way out takes the file with it.
+    # Held rather than a one-shot turn: the patch stands exactly as long as the runtime
+    # reading it, so a session dropped on the way out takes the file with it.
     session = agent.new()
     session("work")
-    harness = Harness.made[-1]
-    written = Path(str(harness.config["cordis"])).read_text()
-    loaded = yaml.load(written, Loader=dsh._CordisLoader)  # noqa: S506
-    return cast("list[dict[str, Any]]", loaded)
+    return patched(Harness.made[-1])
 
 
-def test_the_composition_is_the_sdks_own_default_plus_only_the_effort() -> None:
-    """An agent that asks for nothing gets the harness's composition, not humanize's.
+def test_an_agent_at_the_sdks_own_settings_is_told_nothing_over_its_profile() -> None:
+    """An agent that asks for nothing gets the harness's composition, not humanize's."""
+    agent = DshAgent(configured(session_compression="zstd", web_search=None))
 
-    The one thing humanize must add is the effort, because the runtime takes a reasoning
-    level as plugin config and nothing else on the SDK's surface carries one. Everything
-    else this backend used to pin is either the SDK's own default already or is now a
-    setting -- so with every setting at the harness's own value, what is left over against
-    the bundled file is exactly that one key.
-    """
-    default = dsh._sdk_composition()
-    agent = DshAgent(
-        configured(
-            goals=False,
-            compaction=False,
-            session_compression="zstd",
-            web_search=None,
-        )
-    )
-
-    written = composed(agent)
-
-    assert [one["id"] for one in written] == [one["id"] for one in default]
-    for mounted, expected in zip(written, default, strict=True):
-        if mounted["id"] == "llm-deepseek":
-            # The effort, and nothing else: the adapter is otherwise mounted exactly as the
-            # SDK mounts it, with no config of its own in the bundled file.
-            assert mounted["config"] == {
-                "reasoningEffort": "process.env.HMZ_DSH_EFFORT"
-            }
-            continue
-        assert mounted == expected, mounted["id"]
+    assert composed(agent) == []
+    made = Harness.made[-1].config
+    # The profile the SDK itself would have started, and the effort beside it rather than
+    # in it: the handshake carries a reasoning level now.
+    assert launched(Harness.made[-1])[1:3] == ("--profile", "sdk")
+    assert made["reasoning_effort"] == "high"
 
 
-def test_the_effort_reaches_the_adapter_as_the_variable_the_runtime_reads() -> None:
-    """The one deviation with no setting in front of it, so it is pinned on both halves."""
-    agent = DshAgent(configured())
+def test_an_agent_at_no_rung_leaves_the_adapter_at_its_own_default() -> None:
+    Harness.next_scripts.append([assistant("ok"), completed()])
 
-    written = composed(agent)
+    DshAgent(replace(configured(), effort="")).new()("work")
 
-    (adapter,) = (one for one in written if one["id"] == "llm-deepseek")
-    effort = adapter["config"]["reasoningEffort"]
-    assert isinstance(
-        effort, dsh._Js
-    )  # written back under `!!js`, not as a plain string
-    assert str(effort) == f"process.env.{dsh._EFFORT_ENV}"
-    # And the variable that expression reads is set on the runtime that reads it.
-    told = cast("dict[str, str]", Harness.made[-1].config["env"])
-    assert told["HMZ_DSH_EFFORT"] == "high"
+    assert Harness.made[-1].config["reasoning_effort"] is None
 
 
-def test_the_runtime_composition_compacts_before_the_model_refuses_the_turn() -> None:
-    """A session that runs long enough must compact rather than overflow.
-
-    Without this the first turn past the context window is where a loop driving one
-    conversation stops for good: the next turn is the same conversation and the same
-    refusal, and nothing in the composition ever makes it shorter. The SDK's own default
-    composition mounts neither plugin, so this is humanize's to add and is on by default.
-    """
-    written = composed(DshAgent(configured()))
-
-    mounted = {str(one["name"]) for one in written}
-    assert "@deepseek-ai/dsh-token-meter" in mounted
-    assert "@deepseek-ai/dsh-compaction-basic" in mounted
-    # At the plugin's own defaults -- `thresholdRatio` 0.8 and `auto` true are what
-    # `dsh-compaction-basic` applies when nothing says, so nothing here says it.
-    (compaction,) = (one for one in written if one["id"] == "compaction-basic")
-    assert "config" not in compaction
-
-
-def test_compaction_off_leaves_the_harnesss_own_composition() -> None:
-    """Off is the SDK's default rather than a third thing humanize invented."""
-    written = composed(DshAgent(configured(compaction=False)))
-
-    mounted = {str(one["name"]) for one in written}
-    assert "@deepseek-ai/dsh-token-meter" not in mounted
-    assert "@deepseek-ai/dsh-compaction-basic" not in mounted
+def test_compaction_off_unmounts_the_compactor_and_what_it_reads() -> None:
+    """On is the SDK's own, so only off is said."""
+    assert disabled(composed(DshAgent(configured(compaction=False)))) == {
+        "token-meter",
+        "compaction-basic",
+        "command-compact",
+    }
 
 
 @pytest.mark.parametrize(("asked", "written"), [("none", "none"), ("zstd", None)])
@@ -1053,17 +1031,21 @@ def test_the_session_log_is_uncompressed_unless_the_sdks_default_is_asked_for(
 ) -> None:
     """Uncompressed by default so the running tally can read rows as they land.
 
-    `zstd` is the plugin's own default, so asking for it is asking for the composition the
-    SDK would have written -- and the key comes out of the file entirely rather than being
-    restated, which is what keeps "set nothing, get the harness's default" true.
+    `zstd` is the plugin's own default, so asking for it is asking for the profile the SDK
+    would have run -- and the row is left out of the patch entirely rather than restated.
     """
     composition = composed(DshAgent(configured(session_compression=asked)))
 
-    (sessions,) = (one for one in composition if one["id"] == "sessions")
-    assert sessions["config"].get("compression") == written
-    # The root the SDK's own default gives it either way, which is what `session_root`
-    # fills in and what the running tally reads the trajectory back from.
-    assert sessions["config"]["root"] == "process.env.DSH_SESSION_ROOT ?? './.sessions'"
+    rows = [one for one in composition if one["id"] == "session-persistence-jsonl"]
+    if written is None:
+        assert rows == []
+        return
+    (sessions,) = rows
+    assert sessions["config"]["compression"] == written
+    # The root restated as the profile writes it, since a patch replaces a row's config
+    # whole: under the home the runtime is handed, where the running tally reads it back.
+    assert isinstance(sessions["config"]["root"], dsh._Js)
+    assert sessions["config"]["root"] == "dshHomePath('sessions')"
 
 
 def test_an_unknown_session_compression_is_refused_where_it_is_written() -> None:
@@ -1074,62 +1056,64 @@ def test_an_unknown_session_compression_is_refused_where_it_is_written() -> None
 def test_an_agent_told_to_have_no_goals_composes_none() -> None:
     """`goals` is the config's, and on this backend it is what mounts the goal service.
 
-    The spine mounts the goal domain, the `create_goal` tool and the round driver only for a
-    `goals` that is present and not false, so an agent told to have none is one whose
-    composition never carries them -- rather than one that carries them and is asked not to
-    reach for them.
+    An agent told to have none is one whose composition never carries them -- rather than
+    one that carries them and is asked not to reach for them.
     """
-    with_goals = composed(DshAgent(configured()))
-    (core,) = (one for one in with_goals if one["id"] == "agent-core")
-    assert core["config"]["goals"] == {}
+    assert not disabled(composed(DshAgent(configured())))
+    assert disabled(composed(DshAgent(configured(goals=False)))) == {
+        "goal",
+        "goal-round-driver",
+        "command-goal",
+        "tool-goal",
+    }
 
-    without = composed(DshAgent(configured(goals=False)))
-    (core,) = (one for one in without if one["id"] == "agent-core")
-    assert "goals" not in core["config"]
+
+@pytest.mark.parametrize("web_search", [True, None])
+def test_the_web_is_the_profiles_unless_the_agent_is_told_not_to_search(
+    web_search: bool | None,
+) -> None:
+    assert not disabled(composed(DshAgent(configured(web_search=web_search))))
 
 
-def test_the_runtime_composition_is_the_bypass_rung_the_agent_promises() -> None:
-    """`_serves` refuses every rung but bypass, and this is why that is honest.
+def test_an_agent_told_not_to_search_is_composed_without_the_web() -> None:
+    assert disabled(composed(DshAgent(configured(web_search=False)))) == {
+        "web",
+        "web-search-deepseek",
+        "web-fetch-http",
+        "tool-web",
+    }
 
-    Not that humanize chose to run unconfined: the SDK's own default composition mounts the
-    same unconfined `dsh-bash-local` and `dsh-fs-local` and none of `dsh-sandbox-*`,
-    `dsh-user-approval` or `dsh-permission-presets`, so bypass is what a bare SDK session
-    already runs at. What settles it is that the runtime bundles no confining bash executor
-    at all, so no composition of what ships could enforce a tighter rung honestly.
+
+def test_the_runtime_is_started_at_the_bypass_rung_the_agent_promises() -> None:
+    """`_serves` refuses every rung but bypass, and this is the runtime being told it.
+
+    The profile's own preset is `workspace-write` behind an approval nobody here can give, so
+    the driver starts every runtime at `danger-full-access`, whatever this machine's shell
+    says.
     """
-    written = composed(DshAgent(configured()))
-    mounted = {str(one["name"]) for one in written}
+    Harness.next_scripts.append([assistant("ok"), completed()])
 
-    assert "@deepseek-ai/dsh-bash-local" in mounted
-    assert "@deepseek-ai/dsh-fs-local" in mounted
-    # Off the mounted names rather than the file's text, because the confined executors are
-    # spelled `dsh-bash-sandbox` and `dsh-fs-sandbox`: a `dsh-sandbox` match would let either
-    # of them be mounted beside the local pair and still call the composition unconfined.
-    assert not [
-        name
-        for name in mounted
-        if any(word in name for word in ("sandbox", "approval", "permission"))
-    ]
-    # And the same absences in the harness's own default, which is where they come from.
-    assert not [
-        str(one["name"])
-        for one in dsh._sdk_composition()
-        if any(
-            word in str(one["name"]) for word in ("sandbox", "approval", "permission")
-        )
-    ]
+    with pytest.MonkeyPatch.context() as patched_env:
+        patched_env.setenv("DSH_PERMISSION_MODE", "read-only")
+        DshAgent(configured()).new()("work")
+
+    environment = cast("dict[str, str]", Harness.made[-1].config["env"])
+    assert environment["DSH_PERMISSION_MODE"] == "danger-full-access"
 
 
-def mounted(harness: Harness) -> set[str]:
-    """The plugin names one live runtime was composed with."""
-    written = cast(
-        "list[dict[str, Any]]",
-        yaml.load(
-            Path(str(harness.config["cordis"])).read_text(),
-            Loader=dsh._CordisLoader,  # noqa: S506
-        ),
-    )
-    return {str(one["name"]) for one in written}
+def test_the_runtime_keeps_its_home_where_the_agent_keeps_its_sessions(
+    tmp_path: Path,
+) -> None:
+    """The SDK never assumes a home, so the agent's own is handed over.
+
+    For an agent no run drives, that is the dsh home -- which `$DSH_HOME` moves.
+    """
+    Harness.next_scripts.append([assistant("ok"), completed()])
+
+    DshAgent(configured()).new()("work")
+
+    environment = cast("dict[str, str]", Harness.made[-1].config["env"])
+    assert Path(environment["DSH_HOME"]) == tmp_path / "dsh-home"
 
 
 def test_a_setting_changed_mid_session_rebuilds_the_runtime_and_keeps_the_talk() -> (
@@ -1150,8 +1134,8 @@ def test_a_setting_changed_mid_session_rebuilds_the_runtime_and_keeps_the_talk()
     session("first")
     session_id = session.id
 
-    # Read before the restart: the first runtime's composition goes when that runtime does.
-    was = mounted(Harness.made[0])
+    # Read before the restart: the first runtime's patch goes when that runtime does.
+    was = disabled(patched(Harness.made[0]))
 
     agent.reconfigure(replace(agent.config, compaction=True))
     session("second")
@@ -1159,8 +1143,8 @@ def test_a_setting_changed_mid_session_rebuilds_the_runtime_and_keeps_the_talk()
     assert len(Harness.made) == 2
     assert Harness.made[0].closed
     assert Harness.made[1].client.prompts == [(session_id, "second")]
-    assert "@deepseek-ai/dsh-compaction-basic" not in was
-    assert "@deepseek-ai/dsh-compaction-basic" in mounted(Harness.made[1])
+    assert "compaction-basic" in was
+    assert "compaction-basic" not in disabled(patched(Harness.made[1]))
 
 
 def test_goals_switched_off_mid_session_stops_composing_them() -> None:
@@ -1176,15 +1160,7 @@ def test_goals_switched_off_mid_session_stops_composing_them() -> None:
     session("second")
 
     assert len(Harness.made) == 2
-    written = cast(
-        "list[dict[str, Any]]",
-        yaml.load(
-            Path(str(Harness.made[1].config["cordis"])).read_text(),
-            Loader=dsh._CordisLoader,  # noqa: S506
-        ),
-    )
-    (core,) = (one for one in written if one["id"] == "agent-core")
-    assert "goals" not in core.get("config", {})
+    assert "tool-goal" in disabled(patched(Harness.made[1]))
 
 
 def test_a_runtime_that_never_came_up_takes_its_composition_with_it() -> None:
@@ -1193,13 +1169,13 @@ def test_a_runtime_that_never_came_up_takes_its_composition_with_it() -> None:
 
     class Refusing(Harness):
         def start(self) -> None:
-            written.append(Path(str(self.config["cordis"])))
+            written.append(patch_path(self))
             raise RuntimeError("runtime did not come up")
 
     Harness.next_scripts.append([assistant("ok"), completed()])
     session = DshAgent(configured()).new()
-    with pytest.MonkeyPatch.context() as patched:
-        patched.setattr(dsh, "_harness_type", lambda: Refusing)
+    with pytest.MonkeyPatch.context() as patched_sdk:
+        patched_sdk.setattr(dsh, "_harness_type", lambda: Refusing)
         with pytest.raises(Exception, match="runtime did not come up"):
             session("work")
 
@@ -1208,7 +1184,7 @@ def test_a_runtime_that_never_came_up_takes_its_composition_with_it() -> None:
 
 
 def test_the_composition_is_written_per_runtime_and_taken_away_with_it() -> None:
-    """It is this agent's settings applied to the SDK's default, so it cannot be shipped.
+    """It is this agent's settings, so it cannot be shipped.
 
     Two agents of one flow may ask for different compositions, so each runtime is started
     from a file of its own -- and that file goes when the runtime reading it does.
@@ -1216,7 +1192,7 @@ def test_the_composition_is_written_per_runtime_and_taken_away_with_it() -> None
     Harness.next_scripts.append([assistant("ok"), completed()])
     session = DshAgent(configured()).new()
     session("work")
-    written = Path(str(Harness.made[-1].config["cordis"]))
+    written = patch_path(Harness.made[-1])
     assert written.is_file()
 
     session._shut()
@@ -1251,10 +1227,10 @@ def test_a_runtime_put_down_while_the_next_turn_starts_leaves_that_turn_its_own(
 
     (new,) = [one for one in Harness.made if one is not old]
     assert said == ["two"]
-    assert Path(str(new.config["cordis"])).is_file()
+    assert patch_path(new).is_file()
     assert not new.closed
     assert session._harness is new
-    assert not Path(str(old.config["cordis"])).exists()
+    assert not patch_path(old).exists()
 
 
 def test_a_turn_already_running_cannot_be_talked_to() -> None:
@@ -1269,28 +1245,6 @@ def test_a_turn_already_running_cannot_be_talked_to() -> None:
 
     with pytest.raises(NotImplementedError, match="cannot be talked to mid-turn"):
         session.interject("actually, use pathlib")
-
-
-def test_the_runtime_composition_uses_only_plugins_bundled_with_the_sdk() -> None:
-    """Every plugin mounted is one the runtime executable actually carries.
-
-    The composition is the SDK's own plus the compaction pair and the web four, which are the
-    only parts humanize names for itself -- so this is the check that those six names are real.
-    """
-    written = composed(DshAgent(configured()))
-    mounted = {str(one["name"]) for one in written}
-
-    assert "@deepseek-ai/dsh-settings-file" not in mounted
-    assert "@deepseek-ai/dsh-credentials-local" not in mounted
-    default = {str(one["name"]) for one in dsh._sdk_composition()}
-    assert mounted - default == {
-        "@deepseek-ai/dsh-token-meter",
-        "@deepseek-ai/dsh-compaction-basic",
-        "@deepseek-ai/dsh-web",
-        "@deepseek-ai/dsh-web-search-deepseek",
-        "@deepseek-ai/dsh-web-fetch-http",
-        "@deepseek-ai/dsh-tool-web",
-    }
 
 
 def test_a_missing_sdk_says_which_extra_carries_it(
@@ -1311,12 +1265,12 @@ def test_a_missing_sdk_says_which_extra_carries_it(
         DshAgent(configured())("work")
 
 
-def test_every_install_humanize_offers_excludes_the_redesigned_sdk() -> None:
+def test_every_install_humanize_offers_is_the_sdk_the_driver_drives() -> None:
     """The install lines humanize prints must not fetch an SDK the driver cannot drive.
 
-    0.1.2a3 replaced `cordis`, `session_root` and `launch_args_override` with a different
-    surface and refuses a keyword it does not know, so an unbounded `pip install` resolves a
-    session that cannot be opened. The ceiling in `pyproject.toml` cannot reach somebody
+    0.1.2a3 replaced `cordis`, `session_root` and `launch_args_override` with profiles and
+    patches, which is the surface this driver drives, and a release after the one it was
+    read against may move it again. The ceiling in `pyproject.toml` cannot reach somebody
     installing by hand; these three lines are what reaches them, and they are one constant so
     that they cannot drift apart from it.
     """
@@ -1327,9 +1281,9 @@ def test_every_install_humanize_offers_excludes_the_redesigned_sdk() -> None:
     from hmz.tui import pick
 
     offered = Requirement(backends.DSH_SDK)
-    assert offered.specifier.contains(Version("0.1.1rc1"), prereleases=True)
-    for redesigned in ("0.1.2a3", "0.1.2rc1", "0.1.5rc1"):
-        assert not offered.specifier.contains(Version(redesigned), prereleases=True)
+    assert offered.specifier.contains(Version("0.1.5rc1"), prereleases=True)
+    for other in ("0.1.1rc1", "0.1.2rc1", "0.1.6a1"):
+        assert not offered.specifier.contains(Version(other), prereleases=True)
 
     profile = backends.named("dsh")
     assert profile is not None
@@ -1413,15 +1367,21 @@ def test_a_fenced_runtime_is_spawned_inside_the_wrapper_with_its_files_in_reach(
     agent.new(tmp_path / "work")("work")
 
     (made,) = Harness.made
-    launch = cast("tuple[str, ...]", made.config["launch_args_override"])
+    launch = launched(made)
     assert list(launch[:5]) == [sys.executable, "-Pm", "hmz", "internal", "fence"]
-    assert launch[launch.index("--") + 1 :] == ("/opt/dsh-runtime",)
+    assert launch[launch.index("--") + 1 :] == (
+        "/opt/dsh-runtime",
+        "--profile",
+        "sdk",
+        "--patch",
+        str(patch_path(made)),
+    )
     policy = Fence.loads(launch[5].removeprefix("--policy="))
     assert not policy.online
     assert "api.deepseek.com" in policy.hosts
     # The fence's `tmp`, which the wrapper grants whatever the scopes are.
     assert policy.tmp == str(tmp_path / "scratch")
-    assert Path(str(made.config["cordis"])).is_relative_to(policy.tmp)
+    assert patch_path(made).is_relative_to(policy.tmp)
     env = cast("dict[str, str]", made.config["env"])
     assert env["PKG_NATIVE_CACHE_PATH"] == policy.tmp
 
@@ -1432,7 +1392,13 @@ def test_an_unfenced_runtime_is_launched_as_the_sdk_would_launch_it() -> None:
     DshAgent(configured()).new()("work")
 
     (made,) = Harness.made
-    assert made.config["launch_args_override"] == ("/opt/dsh-runtime",)
+    assert launched(made) == (
+        "/opt/dsh-runtime",
+        "--profile",
+        "sdk",
+        "--patch",
+        str(patch_path(made)),
+    )
     assert "PKG_NATIVE_CACHE_PATH" not in cast("dict[str, str]", made.config["env"])
 
 
@@ -1452,7 +1418,7 @@ def test_a_read_only_workdir_is_the_fences_to_hold_at_the_one_rung_dsh_takes(
 
     agent.new(tmp_path / "work")("work")
 
-    launch = cast("tuple[str, ...]", Harness.made[0].config["launch_args_override"])
+    launch = launched(Harness.made[0])
     policy = Fence.loads(launch[5].removeprefix("--policy="))
     assert policy.allows(tmp_path / "work" / "a.py")
     assert not policy.allows(tmp_path / "work" / "a.py", write=True)

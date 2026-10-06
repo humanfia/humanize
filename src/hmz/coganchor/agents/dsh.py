@@ -39,8 +39,23 @@ if TYPE_CHECKING:
 
 __all__ = ["DshAgent", "DshAgentConfig", "DshSession", "native_ready"]
 
-_EFFORT_ENV = "HMZ_DSH_EFFORT"
 _REQUEST_SECONDS = 180.0
+
+#: The profile the runtime is started under: the SDK's own, which is `dsh-base` -- the
+#: harness's whole default composition -- with the JSON-RPC server put in front of it. What
+#: humanize has to say over it is said in one patch file of its own (:func:`_composed`),
+#: handed to the runtime after the profile's own layers, so that an agent which asks for
+#: nothing is started from exactly the composition a bare SDK session is.
+_PROFILE = "sdk"
+_PATCH = "humanize.patch.yml"
+
+#: The permission preset `dsh-base` reads for its sandbox policy and its approval policy,
+#: and the one preset this driver can start a runtime at (see :attr:`DshAgent.rungs`).
+_PERMISSION_ENV = "DSH_PERMISSION_MODE"
+_UNCONFINED = "danger-full-access"
+
+#: Where the runtime keeps its profiles and sessions, which the SDK never assumes.
+_HOME_ENV = "DSH_HOME"
 
 #: How the JSONL session log is written, as `dsh-session-persistence-jsonl` spells it, and
 #: which of the two that plugin writes when nothing says. `zstd` is the SDK's own default;
@@ -48,53 +63,30 @@ _REQUEST_SECONDS = 180.0
 #: is what :attr:`DshAgentConfig.session_compression` is for.
 _COMPRESSIONS = ("none", "zstd")
 _SDK_COMPRESSION = "zstd"
+_SESSIONS = "session-persistence-jsonl"
 
-#: The two plugins that keep one conversation inside the model's context window, mounted as
-#: a pair because `dsh-compaction-basic` injects `tokenMeter` and will not load without it.
-#: Neither is in the SDK's own default composition.
-_COMPACTION = (
-    {"id": "token-meter", "name": "@deepseek-ai/dsh-token-meter"},
-    {"id": "compaction-basic", "name": "@deepseek-ai/dsh-compaction-basic"},
-)
+#: The rows of `dsh-base` that are the goal service: the domain, the same-session round
+#: driver, the `/goal` command and the `create_goal` tool. All four or none.
+_GOALS = ("goal", "goal-round-driver", "command-goal", "tool-goal")
 
-#: The four plugins one turn reaches the web through, and the whole of how this backend is
-#: told whether it may. dsh has no flag and no deny-list: what an agent may reach for is what
-#: its composition mounts, so the web is said by mounting these or by leaving them out.
+#: The rows of `dsh-base` that keep one conversation inside the model's context window: the
+#: automatic compactor, the token meter it reads, and the `/compact` command over them.
+_COMPACTION = ("token-meter", "compaction-basic", "command-compact")
+
+#: The rows of `dsh-base` one turn reaches the web through, and the whole of how this backend
+#: is told whether it may: what an agent may reach for is what its composition mounts.
 #:
-#: Four rather than one because the harness splits a capability from its providers and both
-#: from the model-facing tool. `dsh-web` is the seam itself -- the `web` service a provider
-#: registers into and the tool calls. `dsh-web-search-deepseek` is the search provider, chosen
-#: over `dsh-web-search-exa` and `dsh-web-search-perplexity` because it is the one that takes
-#: no second credential: it reuses `DEEPSEEK_API_KEY` through the same credential seam the
-#: adapter does. `dsh-web-fetch-http` is the fetch provider. `dsh-tool-web` is what puts
-#: `web_search` and `web_fetch` in front of the model, and it injects `web`, so it is pending
-#: forever without the seam -- put to the runtime rather than assumed: mounted alone against
-#: `deepseek-harness-sdk` 0.1.1rc1 it fails the boot with `@deepseek-ai/dsh-tool-web: pending
-#: (waiting for service: web)`, and the four together come up.
-#:
-#: One provider of each kind and no more: the seam refuses an ambiguous choice at call time
-#: with `multiple usable web providers are registered ...; configure one explicitly`, so a
-#: second search provider mounted beside this one would be a `web_search` that fails on every
-#: call rather than a wider one.
-#:
-#: The endpoint is the search provider's own -- `DEEPSEEK_SEARCH_BASE_URL` rather than
-#: `DEEPSEEK_BASE_URL`, because search speaks the Anthropic-compatible Messages API and chat
-#: completions do not, so one variable cannot serve both. Unset, it is DeepSeek's own
-#: `https://api.deepseek.com/anthropic/v1`, which is where a DeepSeek key belongs -- and why
-#: `backends.py` lists the variable among this backend's ambient ones, so that one left in a
-#: shell profile cannot send an account's key somewhere the account never named. Nor is it
-#: mounted for a gateway account at all (:data:`_GATEWAYS`): it asks a DeepSeek model for a
-#: DeepSeek server tool, which somebody else's endpoint has neither of.
-_WEB = (
-    {"id": "web", "name": "@deepseek-ai/dsh-web"},
-    {"id": "web-search", "name": "@deepseek-ai/dsh-web-search-deepseek"},
-    {"id": "web-fetch", "name": "@deepseek-ai/dsh-web-fetch-http"},
-    {"id": "tool-web", "name": "@deepseek-ai/dsh-tool-web"},
-)
+#: `web` is the seam a provider registers into and the tool calls; `web-search-deepseek` is
+#: the search provider, which reuses `DEEPSEEK_API_KEY` against DeepSeek's own
+#: Anthropic-shaped endpoint (`DEEPSEEK_SEARCH_BASE_URL`, which is why `backends.py` lists it
+#: among this backend's ambient variables); `web-fetch-http` is the fetch provider; and
+#: `tool-web` is what puts `web_search` and `web_fetch` in front of the model.
+_WEB = ("web", "web-search-deepseek", "web-fetch-http", "tool-web")
+_SEARCH = "web-search-deepseek"
 
 #: The YAML tag the runtime's composition uses for a value it evaluates as JavaScript. It is
-#: the runtime's to evaluate and has no meaning here, so it is carried through the read and
-#: the write untouched rather than resolved.
+#: the runtime's to evaluate and has no meaning here, so it is written under that tag rather
+#: than resolved.
 _JS_TAG = "tag:yaml.org,2002:js"
 _API_KEY_ENV = "DEEPSEEK_API_KEY"
 
@@ -220,21 +212,17 @@ class _ObjectLoader(Protocol):
 class DshAgentConfig(AgentConfig):
     """The model and effort every DeepSeek Harness session runs at, and what it composes.
 
-    The two settings here are the two places humanize's runtime composition departs from the
-    one the SDK applies to a launch that passes it no config of its own. Each defaults to
-    what this backend has always done rather than to the SDK's default, because each is
-    something humanize itself reads back afterwards: an install that changes neither gets the
-    behaviour it had, and one that sets both to the SDK's values gets the SDK's own
-    composition plus the effort, which is the only thing left that humanize must say.
+    The two settings here are two of the places humanize's runtime composition may depart
+    from the SDK's own `sdk` profile. An install that sets both to the SDK's values gets that
+    profile with nothing of humanize's over it but what an account or a flow says.
 
     Attributes:
       compaction: Whether the runtime's own automatic compaction is mounted -- the
-        `dsh-token-meter` and `dsh-compaction-basic` pair, at that plugin's own default
-        threshold of 0.8 of the context window. Off is the SDK's default composition, which
-        has neither; a conversation driven for long enough under it reaches a turn the model
-        refuses for length, and a loop that keeps talking to the same conversation never gets
-        past that refusal. On, because a flow that drives one conversation is what this
-        backend is usually asked for.
+        `dsh-token-meter` and `dsh-compaction-basic` pair and `/compact`, at that plugin's own
+        default threshold of 0.8 of the context window. On is the SDK's default; off unmounts
+        all three, and a conversation driven for long enough under it reaches a turn the
+        model refuses for length, which a loop that keeps talking to the same conversation
+        never gets past.
       session_compression: How the durable JSONL session log is written, as one of
         :data:`_COMPRESSIONS`. `none`, though the plugin's own default is `zstd`, because
         humanize reads that log itself -- what a turn spent comes off complete rows as they
@@ -268,55 +256,25 @@ class DshAgent(AgentBase):
     pursues: ClassVar[bool] = True
 
     #: `bypass` and nothing below it, which is what
-    #: :meth:`~hmz.coganchor.agents.base.AgentBase._serves` refuses a config for. The runtime
-    #: bundles no confining bash executor, so a narrower rung here would be a rung that reads
-    #: as enforced and enforces nothing -- and this is where a flow, or whoever is choosing a
-    #: backend for one, can be told that before the agent exists. Refused where the config
-    #: arrives rather than where the first turn runs, because what an agent may do is the
-    #: flow's: a flow declaring a reviewer that may not write is refused this backend before
-    #: the run starts, rather than an hour into one by a turn that could never have run.
+    #: :meth:`~hmz.coganchor.agents.base.AgentBase._serves` refuses a config for. Refused where
+    #: the config arrives rather than where the first turn runs, because what an agent may do
+    #: is the flow's: a flow declaring a reviewer that may not write is refused this backend
+    #: before the run starts, rather than an hour into one by a turn that could never have run.
     #:
-    #: Not humanize's composition making a choice. The SDK's own default composition -- the
-    #: `runtime/cordis.yml` it injects as `$DSH_CORDIS_CONFIG` for a launch that passes none
-    #: -- mounts `dsh-bash-local` and `dsh-fs-local`, the unconfined executors, and none of
-    #: `dsh-sandbox-*`, `dsh-user-approval` or `dsh-permission-presets`. So bypass is what a
-    #: bare SDK session already runs at, and humanize composing the same pair is agreeing with
-    #: the harness rather than loosening it.
+    #: The `sdk` profile does carry a confining shell now -- `dsh-base` mounts
+    #: `dsh-bash-sandbox` under `dsh-sandbox-policy` and `dsh-permission-presets`, at
+    #: `workspace-write` -- but every one of its presets below `danger-full-access` asks
+    #: `dsh-user-approval` before it lets a command past the sandbox, and nobody here can
+    #: answer: the SDK's JSON-RPC surface is `initialize`, `session/prompt` and `shutdown`,
+    #: and an approval nobody answers fails closed. So a runtime is started at
+    #: `danger-full-access` (:data:`_UNCONFINED`), where the policy is `never` and the sandbox
+    #: confines nothing, and that is `bypass` -- the rung this backend has always taken. A
+    #: narrower one is a matter of putting `read-only` and `workspace-write` to the runtime on
+    #: every platform it ships for, not of composing them here.
     #:
     #: Which is also why the silence above the ladder is taken, as the base class takes it
-    #: everywhere. The silence asks for nothing to be said about what the agent may do, and
-    #: what a bare SDK session does without being told is the unconfined pair above -- so the
-    #: silence and `bypass` name one agent here, and only one of them is humanize claiming to
-    #: have chosen it.
-    #:
-    #: What settles it is the bundle rather than the default: read against the runtime shipped
-    #: with `deepseek-harness-sdk` 0.1.1rc1, the executable carries `dsh-fs-sandbox`,
-    #: `dsh-sandbox-local` and `dsh-sandbox-policy`, but no confining *shell* executor at all.
-    #: `dsh-bash-sandbox` is named in the workspace's dependency lists and in
-    #: `dsh-fs-sandbox`'s own documentation, and is not among the packages built into
-    #: `dsh-jsonrpc-agent-pkg-*`; the only bundled `ctx.shell` is `dsh-bash-local`, whose
-    #: `sandboxMode` is undefined. A rung composed from what does ship would fence
-    #: `write_file` and leave `bash` able to write anywhere -- a rung that lies, which is
-    #: worse than one refused.
-    #:
-    #: Put to the runtime rather than reasoned about, because the whole refusal turns on it: a
-    #: composition naming `dsh-bash-sandbox` is refused at plugin load with `Cannot find
-    #: package '@deepseek-ai/dsh-bash-sandbox'`, while the same composition with only the
-    #: filesystem half swapped loads happily -- which is exactly the rung that would lie, and
-    #: exactly why it is not offered.
-    #:
-    #: Two smaller confirmations of the same fact. `dsh-permission-presets` refuses to load
-    #: over an unconfined executor and says so in those words ("the mounted bash executor does
-    #: not confine (no sandboxMode)"), so mounting it is not unwise but fatal. And `auto` has
-    #: nobody to ask even if it were composable: `ctx.approval` would have to be answered over
-    #: the SDK's JSON-RPC request channel, which this driver does not serve, and the runtime
-    #: fails an unanswered approval closed as `unavailable`.
-    #:
-    #: Left uncertain deliberately: were `dsh-bash-sandbox` bundled, `read-only` and
-    #: `workspace-write` would both be reachable through `dsh-sandbox-policy`'s `mode`, and
-    #: this tuple should widen to all but `auto` -- but only on a host where
-    #: `dsh-sandbox-local` finds a runner, since it fails closed with `SANDBOX_UNAVAILABLE`
-    #: where there is neither bwrap nor a Landlock-enforcing kernel.
+    #: everywhere: the silence asks for nothing to be said about what the agent may do, and
+    #: this driver says the one thing it can.
     #:
     #: None of which leaves a flow's permission unenforced, because a flow's permission is not
     #: held by the rung. It is held by the fence (:attr:`AgentConfig.fence`), and dsh enforces
@@ -324,11 +282,7 @@ class DshAgent(AgentBase):
     #: and the whole fence is put around the runtime the SDK launches -- the runtime's own
     #: file and web tools and every shell it starts alike. So a flow at `local=read` runs here
     #: at `bypass` inside a fence whose workdir is readable and not writable, which is a
-    #: read-only agent in fact rather than in name; a narrower rung would add nothing to it.
-    #: Nor is `dsh-sandbox-local` a way to enforce part of the fence natively were it
-    #: composable: its Landlock profile grants reading the whole of `/` and writing the whole
-    #: of `/tmp`, it says nothing of the network, and it confines only the commands a
-    #: confining executor hands it, never the runtime's own process.
+    #: read-only agent in fact rather than in name.
     rungs: ClassVar[tuple[str, ...]] = ("bypass",)
 
     #: What it counts. Its reasoning is already inside the output on the dsh contract, so
@@ -610,7 +564,6 @@ class DshSession(SessionBase):
         # anchored one, which works in a mirror the anchor makes once it is running and
         # starts it in: the anchor is started wherever there is a directory to start it in.
         started = where if self._agent.anchor is None else _nearest(where)
-        launch = self._agent.spawned(list(_runtime_args()), self.cwd)
         # An account is the whole of what a turn under it runs on: its key, and the endpoint
         # to send that key to where the account was made by a gateway way. The layers an
         # installed dsh reads -- its `settings.yaml`, its credential store, the project's
@@ -622,12 +575,10 @@ class DshSession(SessionBase):
             environment = _native_dsh_environment(Path(where))
         else:
             environment = dict(self._agent.environment())
-        # The rung, where there is one. The composition reads this variable straight into
-        # the adapter's `reasoningEffort`, so an agent at no rung leaves it unset and the
-        # adapter keeps its own default -- an empty string there is a level it has no word
-        # for, and the SDK would carry it all the way to the request.
-        if effort:
-            environment[_EFFORT_ENV] = effort
+        # The one preset this driver can start a runtime at (see `DshAgent.rungs`), said
+        # rather than left to the profile, whose own default is `workspace-write` behind an
+        # approval nobody here could give.
+        environment[_PERMISSION_ENV] = _UNCONFINED
         # And, for an agent held to a fence, where the runtime unpacks its native modules.
         # The runtime is a Node program packed into one executable, which cannot load a
         # native module out of itself: it copies each -- `node-pty`, which the shell executor
@@ -641,6 +592,13 @@ class DshSession(SessionBase):
             environment[_NATIVE_CACHE_ENV] = fence.tmp
         kept = self._agent.kept()
         assert kept is not None  # noqa: S101 -- dsh's home is always known
+        # The dsh home the runtime keeps its profile and its sessions under, which the SDK
+        # requires said and never takes to be `~/.dsh` on its own: this agent's, laid out as
+        # the dsh home is -- the run's own directory, and the dsh home -- which `$DSH_HOME`
+        # moves -- for an agent no run drives and where this process was told to keep none.
+        # The profile keeps its sessions in `sessions` under it, where the running tally
+        # reads them back from.
+        environment[_HOME_ENV] = str(kept)
         # And what this machine left lying about that the account did not answer for, taken
         # away on the way in. Less what is being set above: `hushed()` already leaves out
         # what the account named, and a variable this driver is about to hand the runtime is
@@ -648,48 +606,56 @@ class DshSession(SessionBase):
         # with, so unsetting and setting the same one is setting nothing. Read here rather
         # than before the environment for exactly that reason.
         hushed = sorted(self._agent.hushed() - environment.keys())
-        if hushed:
-            env = shutil.which("env")
-            if env is None:
-                raise FileNotFoundError(
-                    "env is required to isolate dsh provider credentials"
-                )
-            launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
+        env = shutil.which("env") if hushed else None
+        if hushed and env is None:
+            raise FileNotFoundError("env is required to isolate dsh provider credentials")
         written = self._cordis(composition, fence)
-        cordis = str(Path(written.name) / "cordis.yml")
         harness: _Harness | None = None
         try:
+            # The bundled runtime under the SDK's own profile with humanize's patch over it,
+            # wrapped in whatever `spawned` puts in front of it and in `env -u` where
+            # credentials have to be dropped. Resolved here rather than by the SDK, which
+            # resolves a launch only as the bare runtime -- so the profile, the patch and the
+            # home it would have added are added here too.
+            launch = self._agent.spawned(
+                [
+                    *_runtime_args(),
+                    "--profile",
+                    _PROFILE,
+                    "--patch",
+                    str(Path(written.name) / _PATCH),
+                ],
+                self.cwd,
+            )
+            if env is not None:
+                launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
             harness = harness_type(
                 # The adapter route the turn runs on, which names a route the composition
-                # registers rather than a place -- the server refuses the handshake with `no
-                # adapter registered for provider` for a name nothing registered. The SDK's
-                # own default for DeepSeek's key, which `@deepseek-ai/dsh-llm-deepseek` owns;
-                # the pi-ai route `_composed` declared for a gateway's. Where either sends
-                # its requests is carried in the environment below rather than here.
+                # registers rather than a place -- the server refuses the handshake for a
+                # name nothing registered. The SDK's own default for DeepSeek's key, which
+                # `@deepseek-ai/dsh-llm-deepseek` owns; the pi-ai route `_composed` declared
+                # for a gateway's. Where either sends its requests is carried in the
+                # environment rather than here.
                 provider=_GATEWAYS.get(way or "", (_DEEPSEEK, None))[0],
                 model=self._agent.config.model,
+                # The rung, where there is one and the route takes one. An agent at no rung
+                # leaves the adapter at its own default, and so does a gateway's: a model
+                # pi-ai is handed by name is one it says takes no reasoning level at all, and
+                # the handshake refuses a level the route has no word for.
+                reasoning_effort=(effort or None) if way not in _GATEWAYS else None,
                 cwd=where,
                 runtime_cwd=started,
-                # Not the SDK's default, which leaves `$DSH_SESSION_ROOT` unset and lets the
-                # composition fall back to `./.sessions` in the workspace -- a repository the
-                # agent is working in would collect the logs of every run against it. Where this
-                # agent keeps its sessions instead, laid out as the dsh home is: the run's own
-                # directory for them, and the dsh home -- which `$DSH_HOME` moves -- for an
-                # agent no run drives and where this process was told to keep none.
-                session_root=str(kept / "sessions"),
-                cordis=cordis,
                 env=environment,
-                # Which is also why `cordis` above is never left out: the SDK injects its own
-                # default config only for a launch it resolved the arguments of itself, and this
-                # one is resolved here -- the bundled runtime wrapped in whatever `spawned` puts
-                # in front of it, and in `env -u` where credentials have to be dropped.
-                launch_args_override=tuple(launch),
+                _launch_args=tuple(launch),
                 # humanize's, not the SDK's: `request_timeout_seconds` defaults to None there,
                 # which is every JSON-RPC request waiting for as long as it takes. It bounds the
                 # acknowledgement rather than the turn -- `session/prompt` answers with the
                 # message id as soon as the prompt is in the inbox -- so what it catches is a
                 # runtime that came up and never answered. The turn itself is the watchdog's.
+                # The handshake gets the same, over the SDK's thirty seconds: a runtime starting
+                # in a fresh home lays its profile out first.
                 request_timeout_seconds=_REQUEST_SECONDS,
+                initialize_timeout_seconds=_REQUEST_SECONDS,
             )
             harness.start()
         except Exception:
@@ -716,12 +682,10 @@ class DshSession(SessionBase):
     def _cordis(
         composition: str, fence: Fence | None = None
     ) -> tempfile.TemporaryDirectory[str]:
-        """Writes one composition out, as `cordis.yml` in a directory of its own.
+        """Writes one patch out, as :data:`_PATCH` in a directory of its own.
 
-        Written per runtime rather than shipped, because it is the SDK's own default
-        composition with this agent's settings applied to it: two agents of one flow may ask
-        for different ones, and neither is a file in this repository to drift from the
-        harness.
+        Written per runtime rather than shipped, because it is this agent's settings: two
+        agents of one flow may ask for different ones.
 
         Written into the fence's own scratch directory where the agent is held to one, rather
         than the system's: the runtime reads this file from inside the fence, which grants
@@ -731,7 +695,7 @@ class DshSession(SessionBase):
         default `system=read`.
 
         Args:
-          composition: The YAML to write, as `_composed` built it.
+          composition: The patch to write, as `_composed` built it.
           fence: What the agent is held to, as :meth:`AgentBase.fenced` widens it, or None
             for an agent held to nothing.
 
@@ -741,7 +705,7 @@ class DshSession(SessionBase):
         written = tempfile.TemporaryDirectory(
             prefix="hmz-dsh-", dir=fence.tmp if fence is not None else None
         )
-        (Path(written.name) / "cordis.yml").write_text(composition, encoding="utf-8")
+        (Path(written.name) / _PATCH).write_text(composition, encoding="utf-8")
         return written
 
     def _shut(self) -> None:
@@ -803,7 +767,7 @@ def _nearest(path: str) -> str:
 def _dsh_home() -> Path:
     """Where dsh keeps durable sessions for SDK turns."""
     return (
-        Path(os.environ.get("DSH_HOME") or Path.home() / ".dsh").expanduser().absolute()
+        Path(os.environ.get(_HOME_ENV) or Path.home() / ".dsh").expanduser().absolute()
     )
 
 
@@ -846,27 +810,22 @@ _UniqueSafeLoader.add_constructor(
 
 
 class _Js(str):
-    """One `!!js` value of the runtime's composition, carried through unevaluated.
+    """One `!!js` value of a patch, which the runtime evaluates and nothing here does.
 
-    The runtime evaluates these as JavaScript against its own process environment, which is
-    how the SDK's default composition says "`$DSH_SESSION_ROOT`, or `./.sessions`". Nothing
-    here can or should evaluate one, so it is read as the text it was written as and written
-    back under the same tag.
+    The runtime evaluates these as JavaScript as it boots, against its own process
+    environment -- which is how a patch says "the gateway's URL, as this runtime was handed
+    it" without the URL being written into a file.
     """
 
     __slots__ = ()
 
 
-class _CordisLoader(yaml.SafeLoader):
-    """A safe loader that reads the runtime's composition without evaluating it."""
-
-
 class _CordisDumper(yaml.SafeDumper):
-    """A safe dumper that writes `!!js` values back as the runtime wrote them."""
+    """A safe dumper that writes `!!js` values under the tag the runtime evaluates."""
 
 
 def _represent_js(dumper: yaml.SafeDumper, value: _Js) -> yaml.ScalarNode:
-    """Writes one `!!js` value back under the tag it was read from.
+    """Writes one `!!js` value under its tag.
 
     The node is built rather than asked for: `represent_scalar` would also register the
     result for aliasing, which a string subclass is never eligible for anyway, and its stub
@@ -883,78 +842,17 @@ def _represent_js(dumper: yaml.SafeDumper, value: _Js) -> yaml.ScalarNode:
     return yaml.ScalarNode(_JS_TAG, str(value))
 
 
-_CordisLoader.add_constructor(
-    _JS_TAG,
-    lambda loader, node: _Js(loader.construct_scalar(cast("yaml.ScalarNode", node))),
-)
 _CordisDumper.add_representer(_Js, _represent_js)
 
 
-def _sdk_composition() -> list[dict[str, Any]]:
-    """The composition the SDK itself applies when it is passed none.
-
-    Read off the installed runtime rather than copied into this repository, so that what an
-    install with no options set hands the runtime is the harness's own default by
-    construction instead of by a pinned file somebody has to keep in step with it.
-
-    Returns:
-      The bundled `runtime/cordis.yml`, one mapping per mounted plugin.
-
-    Raises:
-      ModuleNotFoundError: If the bundled runtime is not installed.
-    """
-    try:
-        module = importlib.import_module("deepseek_harness_runtime")
-    except ModuleNotFoundError as why:
-        if why.name != "deepseek_harness_runtime":
-            raise
-        raise ModuleNotFoundError(_EXTRA) from why
-    default = cast("Callable[[], Path]", vars(module)["bundled_default_config_path"])()
-    loaded = yaml.load(default.read_text(encoding="utf-8"), Loader=_CordisLoader)  # noqa: S506
-    return cast("list[dict[str, Any]]", loaded)
-
-
-def _plugin(composed: list[dict[str, Any]], plugin_id: str) -> dict[str, Any]:
-    """The config mapping of one mounted plugin, added if the default left it empty.
-
-    Args:
-      composed: The composition being built.
-      plugin_id: The `id` the SDK's default composition gives that plugin.
-
-    Returns:
-      Its `config` mapping, to be written into in place.
-
-    Raises:
-      KeyError: If the SDK's default composition no longer mounts it, which is a version
-        this driver has not been read against rather than something to paper over.
-    """
-    for entry in composed:
-        if entry.get("id") == plugin_id:
-            return cast("dict[str, Any]", entry.setdefault("config", {}))
-    raise KeyError(
-        f"the bundled dsh composition no longer mounts {plugin_id!r}; "
-        "this driver has been read against 0.1.1rc1"
-    )
-
-
 def _composed(config: DshAgentConfig, way: str | None = None) -> str:
-    """The composition one agent's runtime is started with, as YAML.
+    """What one agent's runtime is told over the SDK's own profile, as a patch.
 
-    The SDK's own default, plus only what humanize has to say over it. What it has to say
-    unconditionally is the effort: the runtime takes a reasoning level as plugin config and
-    nothing else on the SDK's surface carries one, so it is smuggled in as a `!!js` read of
-    an environment variable this driver sets per runtime. That is the one deviation with no
-    option in front of it: `backends.py` declares the ladder an agent may be set to, and the
-    read is harmless for an agent set to none of it -- the variable is then never set, and an
-    unset variable is the adapter left at its own reasoning level.
-
-    And, for an account made by a gateway way, the route its turns run on: pi-ai's adapter
-    with one route of :data:`_GATEWAYS` declared, reading the account's URL and key the way
-    the stock adapter does. Its one model is the agent's own, written in because a route
-    nobody's catalogue describes serves exactly the models it lists. The effort does not
-    reach it: a model listed by hand is one pi-ai says takes no reasoning level at all, and
-    the level each protocol would want spelled is the endpoint's to say rather than this
-    driver's to guess -- so a gateway's turn runs at its endpoint's own default.
+    Only what humanize has to say: a row of `dsh-base` addressed by its id, either switched
+    off or given the whole of a `config` of its own -- a patch replaces a row's config rather
+    than merging into it, so each one here restates every key it keeps. An agent whose
+    settings are all the SDK's own is told nothing, and runs on exactly the profile a bare
+    SDK session does.
 
     Args:
       config: The agent's settings, whose `goals`, `compaction`, `session_compression`,
@@ -962,38 +860,42 @@ def _composed(config: DshAgentConfig, way: str | None = None) -> str:
       way: The way the account a turn runs under was made by, or None for no account.
 
     Returns:
-      The composition to write out and point `$DSH_CORDIS_CONFIG` at.
+      The patch to write out and hand the runtime with `--patch`, as YAML.
     """
-    composed = _sdk_composition()
-    # Read rather than evaluated here: the runtime resolves it, and an unset variable leaves
-    # `reasoningEffort` undefined, which is the adapter sending no reasoning level at all.
-    _plugin(composed, "llm-deepseek")["reasoningEffort"] = _Js(
-        f"process.env.{_EFFORT_ENV}"
-    )
-    # The goal service, the `create_goal` tool and the same-session round driver, which the
-    # spine mounts only for a `goals` that is present and not false -- so an agent told to
-    # have none is one whose composition does not carry them, rather than one that carries
-    # them and is asked not to reach. `pursues` is this backend having the feature at all;
-    # this is the agent in front of us being allowed it.
-    # Written and removed rather than only written, so that neither setting is expressed as
-    # an absence this driver assumes the meaning of. The pin admits any 0.1.x, and a release
-    # that started mounting `goals` or spelling `compression` in the bundled file would
-    # otherwise hand an agent that asked for neither exactly what it asked against.
-    core = _plugin(composed, "agent-core")
-    if config.goals:
-        core["goals"] = {}
-    else:
-        core.pop("goals", None)
-    sessions = _plugin(composed, "sessions")
+    rows: list[dict[str, Any]] = []
+
+    def off(*ids: str) -> None:
+        rows.extend({"id": one, "disabled": True} for one in ids)
+
+    # The goal service, which an agent told to have none is composed without -- rather than
+    # composed with and asked not to reach for. `pursues` is this backend having the feature
+    # at all; this is the agent in front of us being allowed it.
+    if not config.goals:
+        off(*_GOALS)
+    if not config.compaction:
+        off(*_COMPACTION)
     if config.session_compression != _SDK_COMPRESSION:
-        sessions["compression"] = config.session_compression
-    else:
-        sessions.pop("compression", None)
-    if config.compaction:
-        # Appended rather than placed: cordis pends each plugin on the services it injects,
-        # so where in the file a plugin is written makes no difference to what it gets.
-        composed.extend(dict(plugin) for plugin in _COMPACTION)
-    # The account's gateway, where it was made by one.
+        rows.append(
+            {
+                "id": _SESSIONS,
+                # The root restated as `dsh-base` writes it, under the home the runtime is
+                # handed, since this row's config is replaced whole.
+                "config": {
+                    "root": _Js("dshHomePath('sessions')"),
+                    "compression": config.session_compression,
+                },
+            }
+        )
+    # Under an account, without the dsh home's own `settings.yaml`, whose `llm-deepseek` and
+    # `llm-pi-ai` sections override the adapters' config as the runtime boots: a `baseURL`
+    # saved by the dsh Models page would otherwise send the account's key wherever this
+    # machine is pointed. The account is the whole of what a turn under it runs on.
+    if way is not None:
+        off("settings")
+    # The account's gateway, where it was made by one: one route of pi-ai's adapter, which
+    # `dsh-base` mounts with none, reading the account's URL and key the way the stock adapter
+    # does. Its one model is the agent's own, written in because a route nobody's catalogue
+    # describes serves exactly the models it lists.
     gateway = _GATEWAYS.get(way or "")
     if gateway is not None:
         route, api = gateway
@@ -1004,41 +906,25 @@ def _composed(config: DshAgentConfig, way: str | None = None) -> str:
         }
         if api is not None:
             profile["api"] = _Js(api)
-        composed.append(
-            {
-                "id": "llm-pi-ai",
-                "name": "@deepseek-ai/dsh-llm-pi-ai",
-                "config": {"providers": {route: profile}},
-            }
-        )
-    # The web, where the agent is to have it. Said by mounting rather than by asking, which
-    # is the only way this backend can be told at all -- and so it has to be said in the `on`
-    # direction as well: the bundled composition mounts none of :data:`_WEB`, so a dsh turn
-    # searches nothing until it is composed to -- unlike a bare Codex, which searches from its
-    # own cache until `-c web_search="disabled"` tells it not to. An agent nobody was asked
-    # about is left where the bare SDK leaves one, which is with no web at all. `is True`
-    # rather than a truth test for that last reason: `False` and nobody-said both leave these
-    # out, but they are two answers and not one, and a test that could not tell them apart
-    # would mount the web for a turn nobody had asked about the moment the other two branches
-    # grew.
+        rows.append({"id": "llm-pi-ai", "config": {"providers": {route: profile}}})
+    # The web, which `dsh-base` mounts: off is said by unmounting all four, and an agent
+    # nobody was asked about keeps what the SDK gives it. `is False` rather than a truth
+    # test, because nobody-said and off are two answers rather than one.
     #
-    # And under a gateway, the web less its search: `dsh-web-search-deepseek` is the only
-    # search provider that takes no second credential, and it asks a DeepSeek model for a
-    # DeepSeek server tool over DeepSeek's Anthropic-shaped endpoint -- none of which is at
-    # the other end of somebody else's. Left out, `web_search` would be a tool the model is
-    # shown and every call of fails for want of a provider, so `dsh-tool-web` is told not to
-    # offer it -- which the 0.1.1rc1 runtime was seen to honour, offering `web_fetch` alone.
-    # What the agent keeps is that, which is plain HTTP from this machine.
-    if config.web_search is True:
-        composed.extend(
-            {**plugin, "config": {"search": False}}
-            if gateway is not None and plugin["id"] == "tool-web"
-            else dict(plugin)
-            for plugin in _WEB
-            if gateway is None or plugin["id"] != "web-search"
-        )
+    # And under a gateway, the web less its search: `dsh-web-search-deepseek` asks a DeepSeek
+    # model for a DeepSeek server tool over DeepSeek's Anthropic-shaped endpoint, none of
+    # which is at the other end of somebody else's. Left in, `web_search` would be a tool the
+    # model is shown and every call of fails, so the seam is told to fetch alone and
+    # `dsh-tool-web` not to offer search. What the agent keeps is `web_fetch`, which is plain
+    # HTTP from this machine.
+    if config.web_search is False:
+        off(*_WEB)
+    elif gateway is not None:
+        off(_SEARCH)
+        rows.append({"id": "web", "config": {"fetchProvider": "http"}})
+        rows.append({"id": "tool-web", "config": {"search": False}})
     return yaml.dump(
-        composed, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
+        rows, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
     )
 
 
