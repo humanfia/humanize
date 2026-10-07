@@ -34,9 +34,9 @@ body:
     attributes:
       label: Version
       description: |
-        What `hmz --version` prints, and when you installed or last upgraded it: nothing is
-        released yet, so every install is of `main` from git, which keeps one version number.
-      placeholder: hmz 0.0.0
+        What `hmz --version` prints. `0.0.0` is an install from git rather than PyPI: say which
+        commit.
+      placeholder: hmz 0.1.0b1
     validations:
       required: true
   - type: dropdown

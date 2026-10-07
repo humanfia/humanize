@@ -7,11 +7,10 @@ PyPI has it, with an attestation saying where it was built. It is for the mainta
 Cut a release when `main` holds something people installing `hmz` should have. A release is
 never replaced: one that turns out broken is yanked, and the next one fixes it.
 
-::: warning No release yet
-humanize has not been released, so every install is of `main` from GitHub, which calls itself
-`0.0.0`. The first release also turns each `git+https://github.com/humanfia/humanize.git` in
-`README.md` and the docs into plain `hmz`, and `SECURITY.md` and the bug report template back
-to supporting, and asking for, a release.
+::: warning Pre-releases only, so far
+humanize has been released as pre-releases alone, so `README.md` and the docs install
+`'hmz>=0.1.0b1'`, which lets an installer take one. The first release, `v0.1.0`, also turns
+each of those into plain `hmz`.
 :::
 
 ::: info Before you start

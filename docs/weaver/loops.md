@@ -276,7 +276,7 @@ async def test_it_gives_up_after_six_fresh_rounds() -> None:
 ```
 
 ```sh
-uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
+uvx --with 'hmz>=0.1.0b1' \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto
 ```
 

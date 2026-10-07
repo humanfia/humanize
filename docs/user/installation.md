@@ -20,7 +20,7 @@ a few minutes, most of it the CLI's own sign-in.
 With Claude Code, the whole thing is:
 
 ```sh
-uv tool install git+https://github.com/humanfia/humanize.git
+uv tool install 'hmz>=0.1.0b1'
 npm i -g @anthropic-ai/claude-code && claude auth login
 hmz --version
 ```
@@ -50,22 +50,23 @@ is copied: your login stays where the CLI keeps it. To run a CLI as another acco
 ::: code-group
 
 ```sh [uv tool]
-uv tool install git+https://github.com/humanfia/humanize.git
+uv tool install 'hmz>=0.1.0b1'
 ```
 
 ```sh [pipx]
-pipx install git+https://github.com/humanfia/humanize.git
+pipx install 'hmz>=0.1.0b1'
 ```
 
 ```sh [pip]
-pip install git+https://github.com/humanfia/humanize.git
+pip install 'hmz>=0.1.0b1'
 ```
 
 :::
 
-Each one gives you the `hmz` command, built from the latest `main` on GitHub: humanize has no
-release yet. `uv tool` and `pipx` put it in an environment of its own, on your `PATH` from
-every directory. `pip` installs into whichever environment is active, so `hmz` is there only
+Each one gives you the `hmz` command, from [PyPI](https://pypi.org/project/hmz/).
+humanize has only pre-releases so far, and an installer skips a pre-release unless it is asked
+for one: `>=0.1.0b1` is what asks, and takes the newest. `uv tool` and `pipx` put it in an
+environment of its own, on your `PATH` from every directory. `pip` installs into whichever environment is active, so `hmz` is there only
 while that environment is.
 
 ### Three backends need an extra {#the-two-backends-that-are-extras}
@@ -83,15 +84,15 @@ humanize's own environment:
 ::: code-group
 
 ```sh [uv tool]
-uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+uv tool install 'hmz[all]>=0.1.0b1'
 ```
 
 ```sh [pipx]
-pipx install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+pipx install 'hmz[all]>=0.1.0b1'
 ```
 
 ```sh [pip]
-pip install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+pip install 'hmz[all]>=0.1.0b1'
 ```
 
 :::
@@ -183,7 +184,7 @@ hmz --version
 ```
 
 ```console
-hmz 0.0.0
+hmz 0.1.0b1
 ```
 
 Then open the interface in any directory:
@@ -336,22 +337,21 @@ uv tool upgrade hmz
 ```
 
 ```sh [pipx]
-pipx reinstall hmz
+pipx install --force 'hmz>=0.1.0b1'
 ```
 
 ```sh [pip]
-pip install --force-reinstall git+https://github.com/humanfia/humanize.git
+pip install --upgrade 'hmz>=0.1.0b1'
 ```
 
 :::
 
-`uv tool upgrade` and `pipx reinstall` move humanize to the latest `main`, with the extras it
-was installed with. `pipx upgrade` and `pip install --upgrade` do not: `main` keeps one version
-number from commit to commit, and they leave a version they already have alone, so `pip` needs
-`--force-reinstall`. Name an extra
-again: `pip install --force-reinstall 'hmz[all] @ git+https://github.com/humanfia/humanize.git'`.
+Each moves humanize to the newest release, pre-releases included. `uv tool upgrade` keeps the
+extras and the `>=0.1.0b1` it was installed with; `pipx` and `pip` install again, so name an
+extra again: `pip install --upgrade 'hmz[all]>=0.1.0b1'`.
 
-What changed is in the [commits on `main`](https://github.com/humanfia/humanize/commits/main).
+What changed is in each release's notes, on
+[GitHub Releases](https://github.com/humanfia/humanize/releases).
 
 ## Uninstall
 

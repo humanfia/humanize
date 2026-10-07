@@ -10,14 +10,16 @@ Needs Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), and a coding agent
 signed in to, such as Claude Code or Codex.
 
 ```sh
-uv tool install git+https://github.com/humanfia/humanize.git
+uv tool install 'hmz>=0.1.0b1'
 ```
+
+humanize has only pre-releases so far: `>=0.1.0b1` lets uv take the newest one.
 
 Three backends need a package of their own: `[dsh]` for DeepSeek Harness, `[kimi]` for Kimi
 Code, `[litellm]` for a model called directly, `[all]` for all three.
 
 ```sh
-uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+uv tool install 'hmz[all]>=0.1.0b1'
 ```
 
 ## Usage
