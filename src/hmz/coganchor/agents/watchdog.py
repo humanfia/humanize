@@ -294,8 +294,6 @@ class Watchdog:
 
     def __enter__(self) -> Self:
         """Starts ticking, unless the window says there is to be no watchdog at all."""
-        import sys as _s
-        print(f"DBG {time.monotonic():.2f} watchdog enter silence={self._silence}", file=_s.stderr, flush=True)
         if self._silence <= 0:
             return self
         self._busy = self._burnt()
@@ -413,10 +411,7 @@ class Watchdog:
                 # The turn ended between the wait and here. Anything done now would be done
                 # to the next turn's process, which is the one thing worse than doing nothing.
                 return
-            import sys as _s
-            print(f"DBG {time.monotonic():.2f} rung {self._at.name} holds={self._holds}", file=_s.stderr, flush=True)
             self._at = self._stepped()
-            print(f"DBG {time.monotonic():.2f} now {self._at.name}", file=_s.stderr, flush=True)
             if self._at is _Rung.SPENT:
                 return
 

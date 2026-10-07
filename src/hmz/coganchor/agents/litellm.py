@@ -28,8 +28,10 @@ import contextlib
 import importlib
 import json
 import os
+import queue
 import socket
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -83,6 +85,10 @@ _CLOUDS: dict[str, tuple[tuple[str, str], ...]] = {
         ("AZURE_API_VERSION", "api_version"),
     ),
 }
+
+#: What ends the chunks a turn waits on: put there by the reader once the answer is over, and
+#: by a cut to end the turn sooner.
+_OVER = object()
 
 #: What litellm says when the conversation no longer fits the model, which another try at the
 #: same length meets again.
@@ -156,6 +162,8 @@ class LiteLLMSession(SessionBase):
         self._attempt_id: str | None = None
         #: The answer being streamed now, so that a cut can close it from another thread.
         self._live: object | None = None
+        #: What the turn now running waits on for the answer's chunks, so that a cut can end it.
+        self._chunks: queue.SimpleQueue[object] | None = None
 
     @property
     def named(self) -> str | None:
@@ -200,18 +208,7 @@ class LiteLLMSession(SessionBase):
             # Under a clock, as every read a turn blocks on is: an endpoint that has stopped
             # sending without closing is put down by the watchdog through `_lets_go`.
             with Watchdog(self) as watch:
-                answer = module.completion(**call)
-                self._live = answer
-                import sys as _s, time as _tm
-                print(f"DBG {_tm.monotonic():.2f} opened cut={self._cut!r} wedged={self._wedged}", file=_s.stderr, flush=True)
-                # A cut that came while the answer was being opened found nothing to close,
-                # and on a slow machine the watchdog's whole ladder can be climbed by then:
-                # this is the only place left that will ever close it. Looked at after
-                # `_live` is set, as the cut sets its flag before looking at `_live`, so one
-                # of the two always sees the other.
-                if self._cut or self._wedged:
-                    self._cuts()
-                for chunk in answer:
+                for chunk in self._answered(module, call):
                     watch.saw()
                     for choice in _listed(_field(chunk, "choices")):
                         delta = _field(choice, "delta")
@@ -227,9 +224,9 @@ class LiteLLMSession(SessionBase):
                         usage = spent
                     if self._cut:
                         break
-                # Its socket shut under it, the read can end as cleanly as a finished answer
-                # does: a turn the watchdog gave up on is not one that finished, and is
-                # raised here for the watchdog to say what it failed with.
+                # Cut, the chunks end as cleanly as a finished answer's do: a turn the
+                # watchdog gave up on is not one that finished, and is raised here for the
+                # watchdog to say what it failed with.
                 _unless_wedged(self, model)
             if usage.total:
                 self._spends(usage)
@@ -271,6 +268,7 @@ class LiteLLMSession(SessionBase):
         finally:
             self._attempt_id = None
             self._live = None
+            self._chunks = None
 
     @staticmethod
     def _held_to(
@@ -298,34 +296,61 @@ class LiteLLMSession(SessionBase):
         shape = json.dumps(schema.model_json_schema(), indent=2)
         return {**asked, "content": asked["content"] + _IN_SHAPE.format(schema=shape)}
 
-    def _cuts(self) -> None:
-        """Closes the answer being streamed, which is what stops the turn now.
+    def _answered(self, module: _LiteLLM, call: dict[str, object]) -> Iterator[object]:
+        """The answer's chunks, read on a thread of their own so that a cut ends the turn.
 
-        The socket under it is shut first: closing the stream from this thread does not wake
-        the turn's own, which is blocked reading that socket, and an endpoint gone silent
-        would hold it there for as long as the request's timeout.
+        A read blocked on a socket is not one another thread can be sure of freeing: on macOS
+        a socket shut and closed under it can leave it waiting all the same, for the whole of
+        the request's timeout. So the turn waits on a queue, which a cut puts an end on, and
+        the reader left behind on a socket nobody will answer is a daemon that goes with it.
         """
-        live = self._live
-        stream = _field(live, "completion_stream")
-        import sys as _s, threading as _t, time as _tm
-        _resp = _field(stream, "response")
-        print(f"DBG {_tm.monotonic():.2f} _cuts thread={_t.current_thread().name} live={type(live).__name__} stream={type(stream).__name__} resp={type(_resp).__name__} ext={type(_field(_resp, 'extensions')).__name__} keys={list(_mapping(_field(_resp, 'extensions')))}", file=_s.stderr, flush=True)
-        held = _field(_field(stream, "response"), "extensions")
-        wire = _mapping(held).get("network_stream")
-        info = getattr(wire, "get_extra_info", None)
-        sock = info("socket") if callable(info) else None
-        print(f"DBG wire={type(wire).__name__} sock={sock!r}", file=_s.stderr, flush=True)
-        if isinstance(sock, socket.socket):
-            try:
-                sock.shutdown(socket.SHUT_RDWR)
-                print("DBG shut", file=_s.stderr, flush=True)
-            except OSError as e:
-                print(f"DBG shutdown failed {e!r}", file=_s.stderr, flush=True)
-        for holder in (live, stream):
-            close = getattr(holder, "close", None)
-            if callable(close):
-                with contextlib.suppress(Exception):
-                    close()
+        chunks: queue.SimpleQueue[object] = queue.SimpleQueue()
+        self._chunks = chunks
+        # Looked at after the queue is published, as a cut sets its flag before looking for
+        # the queue, so one of the two always sees the other.
+        if self._cut or self._wedged:
+            return
+        threading.Thread(
+            target=self._reads,
+            args=(module, call, chunks),
+            name="hmz-litellm",
+            daemon=True,
+        ).start()
+        while (chunk := chunks.get()) is not _OVER:
+            if isinstance(chunk, Exception):
+                raise chunk
+            yield chunk
+
+    def _reads(
+        self,
+        module: _LiteLLM,
+        call: dict[str, object],
+        chunks: queue.SimpleQueue[object],
+    ) -> None:
+        """Sends the completion and puts its chunks, or what it failed with, on the queue."""
+        try:
+            answer = module.completion(**call)
+            if self._chunks is not chunks or self._cut or self._wedged:
+                _closed(answer)  # cut, or over, before it was even opened
+                return
+            self._live = answer
+            for chunk in answer:
+                chunks.put(chunk)
+        except Exception as why:  # noqa: BLE001 -- raised again on the turn's own thread
+            chunks.put(why)
+        finally:
+            chunks.put(_OVER)
+
+    def _cuts(self) -> None:
+        """Ends the turn's wait for the answer, and closes the answer being streamed.
+
+        The socket under it is shut as well, to free its reader rather than the turn: an
+        endpoint gone silent would otherwise hold that thread for the request's timeout.
+        """
+        chunks = self._chunks
+        if chunks is not None:
+            chunks.put(_OVER)
+        _closed(self._live)
 
     def _lets_go(self) -> None:
         """The same, for a watchdog: the answer being streamed is the whole transport."""
@@ -500,6 +525,27 @@ def _unless_wedged(session: LiteLLMSession, model: str) -> None:
     """Raises for a turn the watchdog gave up on, however its read ended."""
     if session._wedged:
         raise OSError(f"litellm: {model} stopped answering")
+
+
+def _closed(live: object) -> None:
+    """Closes a streamed answer, the socket under it shut first.
+
+    Closing the stream does not wake a thread blocked reading that socket; shutting it is
+    what usually does.
+    """
+    stream = _field(live, "completion_stream")
+    held = _field(_field(stream, "response"), "extensions")
+    wire = _mapping(held).get("network_stream")
+    info = getattr(wire, "get_extra_info", None)
+    sock = info("socket") if callable(info) else None
+    if isinstance(sock, socket.socket):
+        with contextlib.suppress(OSError):
+            sock.shutdown(socket.SHUT_RDWR)
+    for holder in (live, stream):
+        close = getattr(holder, "close", None)
+        if callable(close):
+            with contextlib.suppress(Exception):
+                close()
 
 
 def _field(held: object, name: str) -> object:
