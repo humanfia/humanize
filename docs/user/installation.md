@@ -269,7 +269,7 @@ hmz exec -f chat -a assistant=dsh/deepseek-v4-flash:high "say hello"
 ```
 
 `chat` and the six loops [FlowBench scores](https://humanfia.ai/flows/) ship with
-humanize. A flow from a flowverse, such as `parallel_flame_chase`, runs once you install it
+humanize. A flow from a flowverse, such as `flame_chasoid:parallel_git_pr`, runs once you install it
 from `/flow`; `hmz exec` installs nothing.
 
 A `dsh` agent works with full access whatever its flow declares. See

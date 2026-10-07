@@ -187,7 +187,7 @@ over: set the flow up again under its new one.
 
 **Verify.** The line is refused for nothing, or for what the flow itself needs.
 
-### `parallel_flame_chase: not installed -- install it from /flow (flowverse official)`
+### `flame_chasoid:parallel_git_pr: not installed -- install it from /flow (flowverse official)`
 
 **Symptom.** `hmz exec` refuses a flow by name that a flowverse lists.
 
@@ -199,19 +199,19 @@ names, and install the flow. From a script, or on a machine that never opens `hm
 CI runner:
 
 ```sh
-python -c 'from hmz.sdk import Hmz; v = Hmz().verses; v.fetch("official"); v.install("parallel_flame_chase")'
+python -c 'from hmz.sdk import Hmz; v = Hmz().verses; v.fetch("official"); v.install("flame_chasoid")'
 ```
 
 Or name a release by its repository, which runs it without installing anything:
 
 ```sh
--f 'git+https://github.com/humanfia/parallel-flame-chase-flow@v0.1.0#parallel_flame_chase'
+-f 'git+https://github.com/humanfia/flame-chasoid-flows@v0.1.0#flame_chasoid:parallel_git_pr'
 ```
 
 **Verify.** `/flow` lists the flow, with its version at the end of its row, and the line gets
 past the check.
 
-### `parallel_flame_chase: the official flowverse has not been fetched yet -- fetch it from /flow`
+### `flame_chasoid:parallel_git_pr: the official flowverse has not been fetched yet -- fetch it from /flow`
 
 **Symptom.** `hmz exec` refuses a flow by name, on a machine that has not fetched the official
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one

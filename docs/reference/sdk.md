@@ -301,9 +301,9 @@ from hmz.sdk import Hmz
 
 verses = Hmz().verses
 verses.fetch("official")
-for release in verses.index("official").versions("parallel_flame_chase"):
+for release in verses.index("official").versions("flame_chasoid"):
     print(release.version, release.commit[:12])
-verses.install("parallel_flame_chase")
+verses.install("flame_chasoid")
 for update in verses.updates():
     print(update.installed.called, update.installed.version, "->", update.version)
 ```

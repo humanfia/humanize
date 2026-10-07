@@ -210,7 +210,7 @@ export const SCENES: Record<string, Scene> = {
   },
 
   ralph_loop_agent_cleanup: {
-    of: 'agent_cleanup:ralph_loop',
+    of: 'flame_chasoid:agent_cleanup_ralph_loop',
     beat: 146,
     envs: [{ id: 'repo', name: 'your repository — its history rewritten every epoch' }],
     roles: [
@@ -248,7 +248,7 @@ export const SCENES: Record<string, Scene> = {
   },
 
   flame_chase_agent_cleanup: {
-    of: 'agent_cleanup:flame_chase',
+    of: 'flame_chasoid:agent_cleanup_flame_chase',
     beat: 146,
     envs: [{ id: 'repo', name: 'your repository — its history rewritten every epoch' }],
     roles: [
@@ -505,7 +505,7 @@ export const SCENES: Record<string, Scene> = {
   },
 
   parallel_flame_chase: {
-    of: 'parallel_flame_chase',
+    of: 'flame_chasoid:parallel',
     depth: 'lanes',
     envs: [
       { id: 'plan', name: 'a planning snapshot' },
@@ -563,7 +563,7 @@ export const SCENES: Record<string, Scene> = {
   },
 
   parallel_flame_chase_git_pr: {
-    of: 'parallel_flame_chase:git_pr',
+    of: 'flame_chasoid:parallel_git_pr',
     depth: 'lanes',
     beat: 150,
     envs: [

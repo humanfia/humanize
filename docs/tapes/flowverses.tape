@@ -45,8 +45,7 @@ Sleep 1600ms
 
 # Into one flow: its releases, newest first. Enter installs the one under the cursor -- here
 # the older, to show that what is installed is a version rather than whatever is newest.
-Down
-Sleep 400ms
+# `aot` is the first flow listed, so the cursor is on it already.
 Enter
 Wait+Screen /Releases of aot/
 Sleep 1200ms

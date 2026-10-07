@@ -76,7 +76,7 @@ const BANDS: Band[] = [
         label: 'installed from a flowverse',
         chips: [
           { text: 'humanize1', href: `${FLOWS}humanize1`, tag: 'official' },
-          { text: 'parallel_flame_chase', href: `${FLOWS}parallel-flame-chase`, tag: 'official' },
+          { text: 'flame_chasoid:parallel', href: `${FLOWS}parallel-flame-chase`, tag: 'official' },
           { text: 'aot', href: `${FLOWS}aot`, tag: 'official' },
           { text: 'your own', href: '/weaver/flowverses', apart: true },
         ],

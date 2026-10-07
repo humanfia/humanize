@@ -210,7 +210,7 @@ def offers(one: Flowverse) -> list[Offer]:
       One per flow, by directory, alphabetically: `@<flowverse>/<flow>`, except for humanize's
       own, which are called as its index lists them, `aot` and `alice/kernel`. Which of the two
       places `official` is kept in a flow of humanize's is in makes no difference to what it is
-      called: the package's `chat` and an installed `parallel_flame_chase` are both humanize's,
+      called: the package's `chat` and an installed `flame_chasoid` are both humanize's,
       so both are said the same way and a flow that moves between the two goes on answering to
       the name it had. Yours are named the same way as anybody else's -- `@local/scheduler`,
       `@user/scheduler` -- so that a flow of yours sharing a name with one of humanize's is
