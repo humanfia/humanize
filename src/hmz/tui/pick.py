@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import importlib.metadata
 import os
 import re
 import shlex
@@ -3733,10 +3734,9 @@ def _drives(backend: str) -> type[AgentBase] | None:
         return None
 
 
-#: What each backend behind an extra is missing when it is missing, and the requirement that
-#: ends that. The requirement rather than the extra: `hmz[dsh]` asks an index for humanize
-#: itself, which is not where the humanize running this came from, whereas one package into
-#: the environment already open is a line that works wherever it was installed from.
+#: What each backend behind an extra is missing when it is missing, and the packages of that
+#: extra: the line for a humanize installed from a repository or a checkout, which an index
+#: has no `hmz[...]` of.
 _EXTRAS = {
     "dsh": (
         "DeepSeek Harness is not installed",
@@ -3763,6 +3763,11 @@ def _installing(backend: str) -> str:
     if (extra := _EXTRAS.get(backend)) is None:
         return f"install {backend}, then reopen humanize"
     missing, requirement = extra
+    # A humanize from an index has no `direct_url.json` (PEP 610), and that index has its
+    # extra, pinned to the version running so that nothing else of humanize is installed.
+    hmz = importlib.metadata.distribution("hmz")
+    if hmz.read_text("direct_url.json") is None:
+        requirement = shlex.quote(f"hmz[{backend}]=={hmz.version}")
     executable = str(Path(sys.executable).absolute())
     command = f"uv pip install --python {shlex.quote(executable)} {requirement}"
     return f"{missing}; run: {command}; then reopen hmz"

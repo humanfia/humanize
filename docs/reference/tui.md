@@ -900,7 +900,7 @@ Permission, skills and required capabilities are the flow's, not rows.
 | Title | `Select a coding agent` |
 | About | `The CLI for this agent. Accounts and models belong to the CLI, so choosing another resets them.` |
 | Rows | Alphabetical: `<cli>[ ✔]  <n> model(s)` or `no models reported yet`. Only CLIs installed here whose harness is the one the role names (if any) and that support every capability the role requires. |
-| Installable rows | `dsh` or `kimi` whose program is present but whose Python extra is missing, with the install line: `DeepSeek Harness is not installed; run: uv pip install --python <python> '<sdk>' 'python-dotenv>=1.2.3'; then reopen hmz` / `Kimi Code is installed, but the websockets package is not; run: uv pip install --python <python> 'websockets>=15,<18'; then reopen hmz`. |
+| Installable rows | `dsh` or `kimi` whose program is present but whose Python extra is missing, with the install line: `DeepSeek Harness is not installed; run: uv pip install --python <python> 'hmz[dsh]==<version>'; then reopen hmz` / `Kimi Code is installed, but the websockets package is not; run: uv pip install --python <python> 'hmz[kimi]==<version>'; then reopen hmz`, `<version>` being the humanize running. For a humanize installed from a repository or a checkout rather than PyPI, the extra's packages instead: `'<sdk>' 'python-dotenv>=1.2.3'` / `'websockets>=15,<18'`. |
 | Buttons | **Search…** |
 | Keys | `enter choose   / search   tab actions   esc back` |
 | Empty | `<role> needs <harness>, <Capabilities>, and no coding agent installed here has that` / `no coding agent installed here can run this agent` |
