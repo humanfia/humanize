@@ -202,6 +202,8 @@ class LiteLLMSession(SessionBase):
             with Watchdog(self) as watch:
                 answer = module.completion(**call)
                 self._live = answer
+                import sys as _s, time as _tm
+                print(f"DBG {_tm.monotonic():.2f} opened cut={self._cut!r} wedged={self._wedged}", file=_s.stderr, flush=True)
                 # A cut that came while the answer was being opened found nothing to close,
                 # and on a slow machine the watchdog's whole ladder can be climbed by then:
                 # this is the only place left that will ever close it. Looked at after
@@ -305,13 +307,20 @@ class LiteLLMSession(SessionBase):
         """
         live = self._live
         stream = _field(live, "completion_stream")
+        import sys as _s, threading as _t, time as _tm
+        _resp = _field(stream, "response")
+        print(f"DBG {_tm.monotonic():.2f} _cuts thread={_t.current_thread().name} live={type(live).__name__} stream={type(stream).__name__} resp={type(_resp).__name__} ext={type(_field(_resp, 'extensions')).__name__} keys={list(_mapping(_field(_resp, 'extensions')))}", file=_s.stderr, flush=True)
         held = _field(_field(stream, "response"), "extensions")
         wire = _mapping(held).get("network_stream")
         info = getattr(wire, "get_extra_info", None)
         sock = info("socket") if callable(info) else None
+        print(f"DBG wire={type(wire).__name__} sock={sock!r}", file=_s.stderr, flush=True)
         if isinstance(sock, socket.socket):
-            with contextlib.suppress(OSError):
+            try:
                 sock.shutdown(socket.SHUT_RDWR)
+                print("DBG shut", file=_s.stderr, flush=True)
+            except OSError as e:
+                print(f"DBG shutdown failed {e!r}", file=_s.stderr, flush=True)
         for holder in (live, stream):
             close = getattr(holder, "close", None)
             if callable(close):
