@@ -1,8 +1,8 @@
-# Releases, through release-please: every push to `main`, or to a `release/*` maintenance
-# branch, keeps one release pull request open against it, which bumps `version` in
-# pyproject.toml and uv.lock and writes CHANGELOG.md from the Conventional Commits since the
-# last release. Merging it tags the release and publishes it. Nobody tags, writes a changelog or
-# runs a workflow by hand. docs/contributing/releasing.md has the rest.
+# Publishes a release to PyPI: a maintainer publishes a GitHub release, and this builds the tag
+# it names, with that version, and uploads it. docs/contributing/releasing.md has the rest.
+#
+# The version lives in the tag alone: pyproject.toml says 0.0.0, and the build is given the
+# tag's. Nothing is attached to the GitHub release, which is immutable once published.
 #
 # PyPI trusts this file by its name and the `pypi` environment, through trusted publishing:
 # no token is stored anywhere, so renaming this file or the environment stops releases until
@@ -11,48 +11,19 @@
 name: publish
 
 on:
-  push:
-    branches: [main, "release/**"]
+  release:
+    types: [published]
 
 permissions: {}
 
-# One run at a time a branch, and never one cancelled half-way through an upload.
+# Never one cancelled half-way through an upload.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
-  release-please:
-    # A fork has no release pull request.
-    if: github.repository == 'humanfia/humanize'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write # the release pull request's branch, the tag and the draft release
-      pull-requests: write # the release pull request
-      issues: write # the `autorelease:` labels it finds its pull requests by
-      actions: write # to run ci.yml on the release pull request
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    steps:
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
-        id: release
-        with:
-          target-branch: ${{ github.ref_name }}
-
-      # A pull request this workflow's token opens or updates starts no `ci-ok` of its own, and
-      # the branch rule needs one. A dispatch is the one event that token may start.
-      - name: Run CI on the release pull request
-        if: steps.release.outputs.pr
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
-        run: gh workflow run ci.yml --ref "$BRANCH" --repo "$GITHUB_REPOSITORY"
-
   build:
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: github.repository == 'humanfia/humanize'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -60,6 +31,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Every tag, to compare this one with.
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -67,8 +40,47 @@ jobs:
           # Nothing restored from a cache another run wrote goes into what is published.
           enable-cache: false
 
+      # `X.Y.0` and its pre-releases come from `main`, and `X.Y.Z` from `release/X.Y`; each
+      # comes after every release of its line, so alpha, beta and rc only move forward.
+      # SemVer for the tag, and PEP 440 for the package: v0.2.0-rc.1 is 0.2.0rc1 on PyPI.
+      - name: Check the tag
+        id: version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          TARGET: ${{ github.event.release.target_commitish }}
+        run: |
+          git tag -l 'v*' | uv run --no-project --with packaging==26.3 python -c '
+          import os, re, sys
+          from packaging.version import Version
+
+          def pep440(tag):
+              return Version(re.sub(r"-(alpha|beta|rc)\.", lambda m: {"alpha": "a", "beta": "b", "rc": "rc"}[m[1]], tag[1:]))
+
+          tag, target = os.environ["TAG"], os.environ["TARGET"]
+          m = re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(alpha|beta|rc)\.(0|[1-9]\d*))?", tag)
+          if not m:
+              sys.exit(f"::error::{tag} is not vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N")
+          line = f"v{m[1]}.{m[2]}."
+          others = [t for t in sys.stdin.read().split() if t != tag and re.fullmatch(r"v\d+\.\d+\.\d+(-(alpha|beta|rc)\.\d+)?", t)]
+          if m[3] == "0":
+              branch, before = "main", others
+          else:
+              branch, before = f"release/{m[1]}.{m[2]}", [t for t in others if t.startswith(line)]
+              if f"{line}0" not in before:
+                  sys.exit(f"::error::{tag} patches {line}0, which is not released")
+          if target != branch:
+              sys.exit(f"::error::{tag} is released from {branch}, and this release targets {target}")
+          if before and pep440(tag) <= max(map(pep440, before)):
+              sys.exit(f"::error::{tag} does not come after {max(before, key=pep440)}")
+          print(f"pep440={pep440(tag)}", file=open(os.environ["GITHUB_OUTPUT"], "a"))
+          '
+
       - name: Build the wheel and the sdist
-        run: uv build --no-sources
+        env:
+          VERSION: ${{ steps.version.outputs.pep440 }}
+        run: |
+          uv version --frozen "$VERSION"
+          uv build --no-sources
 
       - name: PyPI will render the description
         run: uvx twine@7.0.0 check --strict dist/*
@@ -98,28 +110,3 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           attestations: true
-
-  release:
-    name: publish the release
-    # After PyPI, so the release never offers files PyPI refused.
-    needs: [release-please, publish]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write # to attach the files and take the release out of draft
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: dist
-          path: dist/
-
-      # A patch to an older version, from a `release/*` branch, is never the latest release, and
-      # neither is a pre-release, `v0.2.0-alpha.1`, which release-please marks as one.
-      - name: Publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
-          LATEST: ${{ github.ref_name == 'main' && !contains(needs.release-please.outputs.tag_name, '-') }}
-        run: |
-          gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
-          gh release edit "$TAG" --draft=false --latest="$LATEST" --repo "$GITHUB_REPOSITORY"

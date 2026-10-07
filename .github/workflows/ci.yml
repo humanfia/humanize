@@ -1,5 +1,5 @@
-# The pull request's title, lint, then the unit tests one job per package and the integration
-# tests one job per topic, on Linux and macOS. `ci-ok` is the one check a branch rule needs.
+# The pull request's title, lint, the package, then the unit tests one job per package and the
+# integration tests one job per topic, on Linux and macOS. `ci-ok` is the one check a branch rule needs.
 # `tests/system` runs real agents and is never run here. docs/contributing/ci.md has the rest.
 
 name: ci
@@ -10,8 +10,6 @@ on:
   pull_request:
     # `edited` too, so a title fixed after the pull request opened is checked again.
     types: [opened, synchronize, reopened, edited]
-  # publish.yml runs it on the release pull request, which its token cannot start otherwise.
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,9 +23,8 @@ env:
   FORCE_COLOR: "1"
 
 jobs:
-  # Squashing writes the title to the branch as the commit's, and release-please reads those
-  # commits for the next version and the changelog. A dispatch has no pull request: publish.yml
-  # dispatches only for the release pull request, whose title release-please writes.
+  # Squashing writes the title to the branch as the commit's, and a release's notes are those
+  # titles. A push has no pull request, and skips it.
   title:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -64,6 +61,25 @@ jobs:
           # zizmor asks GitHub whether each pinned commit is the tag it says.
           GH_TOKEN: ${{ github.token }}
         run: uv run --frozen --all-extras pre-commit run --all-files --show-diff-on-failure
+
+  # What a release would build, so any commit on `main` or a `release/*` branch can be released.
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+
+      - name: Build the wheel and the sdist
+        run: uv build --no-sources
+
+      - name: PyPI will render the description
+        run: uvx twine@7.0.0 check --strict dist/*
 
   unit:
     name: unit (${{ matrix.os }}, ${{ matrix.package }})
@@ -121,7 +137,7 @@ jobs:
 
   ci-ok:
     if: always()
-    needs: [title, lint, unit, integration]
+    needs: [title, lint, package, unit, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
