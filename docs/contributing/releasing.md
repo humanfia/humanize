@@ -165,16 +165,19 @@ version cannot be published again either, and anyone who pinned it can no longer
 
 ## Pitfalls
 
-Releases are immutable once published, and a tag is never used twice, so a release whose run
-fails before PyPI is left with nothing on PyPI: delete it on GitHub, and publish the next
-version.
+A release whose run fails before PyPI has nothing on PyPI, so it can be taken back: delete it
+and its tag, then publish again.
+
+```sh
+gh release delete v0.2.0 --cleanup-tag --yes
+```
 
 | The run fails with | Because | Do |
 | --- | --- | --- |
-| `… is not vX.Y.Z or vX.Y.Z-(alpha\|beta\|rc).N` | the tag. Nothing was built | delete the release, and publish one with a tag that is |
-| `… is released from …, and this release targets …` | the target branch is not the tag's | delete the release, and publish the next version from the right branch |
-| `… does not come after …` or `… which is not released` | the version is behind its line, or its line has no `.0` yet | delete the release, and publish a version that comes next |
-| a failed `twine check` | PyPI would not render `README.md`. Nothing was published | delete the release, fix it on `main`, and publish the next version |
+| `… is not vX.Y.Z or vX.Y.Z-(alpha\|beta\|rc).N` | the tag. Nothing was built | delete the release and its tag, and publish one with a tag that is |
+| `… is released from …, and this release targets …` | the target branch is not the tag's | delete the release and its tag, and publish it again from the right branch |
+| `… does not come after …` or `… which is not released` | the version is behind its line, or its line has no `.0` yet | delete the release and its tag, and publish a version that comes next |
+| a failed `twine check` | PyPI would not render `README.md`. Nothing was published | delete the release and its tag, fix it on `main`, and publish again |
 | `invalid-publisher` in `publish to PyPI` | PyPI's trusted publisher does not describe this workflow | on PyPI, the publisher must name owner `humanfia`, repository `humanize`, workflow `publish.yml` and environment `pypi`; then `gh run rerun <run-id> --failed` |
 | `File already exists` | PyPI has this version already | publish the next version: PyPI never takes a version's files twice |
 

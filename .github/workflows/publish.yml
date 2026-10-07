@@ -2,7 +2,7 @@
 # it names, with that version, and uploads it. docs/contributing/releasing.md has the rest.
 #
 # The version lives in the tag alone: pyproject.toml says 0.0.0, and the build is given the
-# tag's. Nothing is attached to the GitHub release, which is immutable once published.
+# tag's. Nothing is attached to the GitHub release: PyPI is where it is installed from.
 #
 # PyPI trusts this file by its name and the `pypi` environment, through trusted publishing:
 # no token is stored anywhere, so renaming this file or the environment stops releases until
