@@ -105,8 +105,9 @@ def test_a_refused_request_is_a_failed_turn_leaving_nothing_open(
 # Far short of the 600s a turn would wait without the cut, and long enough for litellm's
 # first import on a cold CI runner, which alone can take several seconds.
 @pytest.mark.timeout(30)
+@pytest.mark.parametrize("n", range(40))
 def test_an_endpoint_gone_silent_is_given_up_on_by_the_watchdog(
-    endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
+    endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch, n: int
 ) -> None:
     monkeypatch.setenv("HUMANIZE_WATCHDOG", "1")
 
@@ -115,8 +116,9 @@ def test_an_endpoint_gone_silent_is_given_up_on_by_the_watchdog(
 
 
 @pytest.mark.timeout(30)
+@pytest.mark.parametrize("n", range(40))
 def test_a_read_no_cut_can_free_is_given_up_on_all_the_same(
-    endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
+    endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch, n: int
 ) -> None:
     # A read that closing the answer does not wake, as a socket shut under it on macOS
     # sometimes does not: the turn must end without waiting on it.
