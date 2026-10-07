@@ -1,30 +1,33 @@
 # CI
 
 In this guide you read what CI ran on your change, and fix what it failed. Every push to `main`
-and every pull request runs `.github/workflows/ci.yml`, and it runs the same jobs every time.
-The release pull request is the exception that proves it: `publish.yml` starts its run by hand,
-since a pull request a workflow opened starts none of its own.
+and every pull request runs `.github/workflows/ci.yml`, again whenever the pull request's title
+is edited, and it runs the same jobs every time. The release pull request is the exception
+that proves it: `publish.yml` starts its run itself, since a pull request a workflow opened
+starts none of its own.
 
 Wait for one check: **`ci-ok`**. It is green when every other job in the run passed, and it is
 the one check a branch rule needs.
 
 ## How it works
 
-`lint` and the tests start together. The tests are two matrices, each a job per part and per
-system, so no job waits on another and each stays short:
+`title`, `lint` and the tests start together. The tests are two matrices, each a job per part
+and per system, so no job waits on another and each stays short:
 
 ```text
-lint ──────────────────────────────────────────┐
+title ─────────────────────────────────────────┐
+lint ──────────────────────────────────────────┤
 unit         7 packages × Linux, macOS ────────┼─▶ ci-ok
 integration  5 topics   × Linux, macOS ────────┘
 ```
 
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
+| `title` | The pull request's title is a [Conventional Commit](/contributing/#commits): squashing writes it to `main`, and releases are made from it. Skipped on the release pull request's run, whose title release-please writes | |
 | `lint` | Every pre-commit hook: `ruff`, `pyright` strict, `actionlint` and `zizmor` over `.github/`, and the file hygiene | `uv run pre-commit run --all-files` |
 | `unit (<os>, <package>)` | `tests/unit/<package>`, for each of `cli`, `coganchor`, `daemon`, `flows`, `runtime`, `sdk` and `tui` | `uv run pytest tests/unit/<package>` |
 | `integration (<os>, <topic>)` | `tests/integration/test_<topic>_*.py`, for each of `core`, `agents`, `tui`, `daemon` and `anchor` | `uv run pytest tests/integration/test_<topic>_*.py` |
-| `ci-ok` | Every job above passed | |
+| `ci-ok` | Every job above passed, or `title` was skipped | |
 
 Every job runs on Python 3.12, from the environment `uv.lock` pins with every extra; the tests
 run on Linux and macOS. `tests/system` is never run here: it drives real agents for minutes a
@@ -67,6 +70,8 @@ A job's name says what it ran: `unit (macos-latest, tui)` is `tests/unit/tui` on
 
 ## Fix what failed
 
+- **`title`** says what is wrong with the title. Edit the pull request's title, and the run
+  starts again.
 - **`lint`** prints the diff each hook wants. Run `uv run pre-commit run --all-files`, commit
   what it changed, and push.
 - **A `unit` or `integration` job.** Run the same command from the table above. Only that
@@ -77,13 +82,12 @@ A job's name says what it ran: `unit (macos-latest, tui)` is `tests/unit/tui` on
 
 ## Other workflows
 
-None of them reports to `ci-ok`.
+Neither reports to `ci-ok`.
 
 | Workflow | Runs on | Does |
 | --- | --- | --- |
 | `build-docs.yml` | a pull request or a push to `main` that changed `docs/` | Builds the site, checks every `#fragment` resolves and every word is legible on a phone, and on `main` deploys it: [Working on these docs](/contributing/docs) |
-| `release.yml` | a maintainer, by hand, with a version | Opens the pull request that sets that version: [Releasing](/contributing/releasing) |
-| `publish.yml` | a push to `main`, or a dry run by hand | Once a release pull request merges, builds the wheel and sdist, publishes them to PyPI, then tags it and publishes the GitHub release: [Releasing](/contributing/releasing) |
+| `publish.yml` | a push to `main` or a `release/*` branch | Keeps the release pull request open with release-please; once it merges, builds the wheel and sdist, publishes them to PyPI, then publishes the GitHub release: [Releasing](/contributing/releasing) |
 
 ## Next steps
 

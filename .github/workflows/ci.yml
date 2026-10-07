@@ -1,6 +1,6 @@
-# Lint, then the unit tests one job per package and the integration tests one job per topic,
-# on Linux and macOS. `ci-ok` is the one check a branch rule needs. `tests/system` runs real
-# agents and is never run here. docs/contributing/ci.md has the rest.
+# The pull request's title, lint, then the unit tests one job per package and the integration
+# tests one job per topic, on Linux and macOS. `ci-ok` is the one check a branch rule needs.
+# `tests/system` runs real agents and is never run here. docs/contributing/ci.md has the rest.
 
 name: ci
 
@@ -8,6 +8,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `edited` too, so a title fixed after the pull request opened is checked again.
+    types: [opened, synchronize, reopened, edited]
   # publish.yml runs it on the release pull request, which its token cannot start otherwise.
   workflow_dispatch:
 
@@ -23,6 +25,20 @@ env:
   FORCE_COLOR: "1"
 
 jobs:
+  # Squashing writes the title to the branch as the commit's, and release-please reads those
+  # commits for the next version and the changelog. A dispatch has no pull request: publish.yml
+  # dispatches only for the release pull request, whose title release-please writes.
+  title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   # Every pre-commit hook: ruff, pyright, actionlint, zizmor and the file hygiene.
   lint:
     runs-on: ubuntu-latest
@@ -105,10 +121,11 @@ jobs:
 
   ci-ok:
     if: always()
-    needs: [lint, unit, integration]
+    needs: [title, lint, unit, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
+          allowed-skips: title
           jobs: ${{ toJSON(needs) }}

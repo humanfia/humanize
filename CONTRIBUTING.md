@@ -57,13 +57,13 @@ something. For example, `fix(tui): keep the cursor on the row it was on`.
 - **Scope:** the package or the docs section it changes, such as `agents`, `tui`, `flows` or
   `contributing`. Optional.
 
+CI checks the title, and fails `ci-ok` until it is one; edit the title and it checks again.
 Commits follow the same form: see
-[Commits](https://docs.humanfia.ai/humanize/contributing/#commits). A pull request of one
-commit has that commit checked too, because squashing it writes the commit's message to `main`
-rather than the title.
+[Commits](https://docs.humanfia.ai/humanize/contributing/#commits).
 
-The release notes are these titles, one a line, so the title is what somebody upgrading
-reads about your change.
+A pull request is squashed into one commit on `main` titled with it, and the changelog is
+written from those titles, so a `feat` or a `!` there is what puts the change under Features
+or Breaking changes, and what decides the next version.
 
 No sign-off or CLA is asked for. What you contribute is under the project's
 [Apache-2.0 license](LICENSE), as its section 5 says.
