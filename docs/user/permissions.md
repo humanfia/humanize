@@ -79,8 +79,8 @@ Most roles run at that default. These are the ones that do not:
 | Flow | Role | Grant |
 | --- | --- | --- |
 | [`aot`](https://humanfia.ai/flows/aot) | `critic` | `local=READ`, `online=NONE`: it reads the draft and never writes |
-| [`parallel_flame_chase`](https://humanfia.ai/flows/parallel-flame-chase) | every agent | `ALL` in every scope, `online` included |
-| [`parallel_flame_chase:git_pr`](https://humanfia.ai/flows/parallel-flame-chase-git-pr) | the lane agents | the default, with `user=ALL` |
+| [`flame_chasoid:parallel`](https://humanfia.ai/flows/parallel-flame-chase) | every agent | `ALL` in every scope, `online` included |
+| [`flame_chasoid:parallel_git_pr`](https://humanfia.ai/flows/parallel-flame-chase-git-pr) | the lane agents | the default, with `user=ALL` |
 | [`recursive_lean_prover`](https://humanfia.ai/flows/recursive-lean-prover) | `worker`, `reviewer` | `local=ALL`, `user=ALL`, `system=READ`, `online=ALL` |
 
 A flow's own page says what its roles are granted.

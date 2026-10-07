@@ -1412,7 +1412,7 @@ nothing answers to raises `FlowNotFound` (`<ref>: no flow is called '<name>'`; a
 
 | Listed as | Is |
 | --- | --- |
-| `chat`, `parallel_flame_chase` | built in, or installed from `official`'s `flows/<flow>/` |
+| `chat`, `flame_chasoid` | built in, or installed from `official`'s `flows/<flow>/` |
 | `alice/kernel` | installed from `official`'s `flows/alice/kernel/` |
 | `@theirs/review` | installed from flowverse `theirs` |
 | `@theirs/alice/kernel` | installed from flowverse `theirs`'s `flows/alice/kernel/` |
@@ -1505,13 +1505,13 @@ on [`/flow`'s Flowverses page](/reference/tui#where-flows-come-from) and with
 ### Manifests {#manifests}
 
 ```yaml
-name: parallel_flame_chase
+name: recursive_lean_prover
 version: 0.1.0
-description: Report-driven lanes of alternating agents planned by a coordinator.
-repo: humanfia/parallel-flame-chase-flow
+description: Recursively plan, prove, compare, review and catalogue Lean theorems.
+repo: humanfia/recursive-lean-prover-flow
 ref: v0.1.0
 commit: <40 hex>
-subdir: parallel_flame_chase
+subdir: recursive_lean_prover
 license: Apache-2.0
 dependencies:
   humanize1: ">=0.1.0,<0.2.0"
@@ -1623,10 +1623,10 @@ Read [Security](/user/security) before running any.
 | [`humanize1:gen-idea`](https://humanfia.ai/flows/humanize1) | `drafter` | | |
 | [`humanize1:gen-plan`](https://humanfia.ai/flows/humanize1) | `planner`, `analyst` | | |
 | [`humanize1:rlcr`](https://humanfia.ai/flows/humanize1) | `builder`, `reviewer`, `human` | `builder`: `PermissionRequestHookAgentMixin` | ✓ |
-| [`parallel_flame_chase`](https://humanfia.ai/flows/parallel-flame-chase) | `coordinator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`parallel_flame_chase:git_pr`](https://humanfia.ai/flows/parallel-flame-chase-git-pr) | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`agent_cleanup:ralph_loop`](https://humanfia.ai/flows/ralph-loop-agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
-| [`agent_cleanup:flame_chase`](https://humanfia.ai/flows/flame-chase-agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
+| [`flame_chasoid:parallel`](https://humanfia.ai/flows/parallel-flame-chase) | `coordinator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
+| [`flame_chasoid:parallel_git_pr`](https://humanfia.ai/flows/parallel-flame-chase-git-pr) | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
+| [`flame_chasoid:agent_cleanup_ralph_loop`](https://humanfia.ai/flows/ralph-loop-agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
+| [`flame_chasoid:agent_cleanup_flame_chase`](https://humanfia.ai/flows/flame-chase-agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
 | [`recursive_lean_prover`](https://humanfia.ai/flows/recursive-lean-prover) | `worker`, `reviewer` | `worker`: `PermissionRequestHookAgentMixin` | ✓ |
 | [`aot`](https://humanfia.ai/flows/aot) | `writer`, `critic`, `human` | | |
 

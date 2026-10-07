@@ -215,12 +215,12 @@ Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/
 `ralph_loop` ships with humanize, as do `chat` and the other loops
 [FlowBench scores](https://humanfia.ai/flows/), so `-f ralph_loop` runs on a fresh runner
 as it is. A flow you [install](/weaver/flowverses) from a flowverse is not there: a fresh runner
-has fetched no flowverse and installed nothing, so `-f parallel_flame_chase` is refused with
+has fetched no flowverse and installed nothing, so `-f flame_chasoid:parallel_git_pr` is refused with
 `the official flowverse has not been fetched yet`. Name that release by its repository
 instead, which fetches it for the run and installs nothing:
 
 ```sh
--f 'git+https://github.com/humanfia/parallel-flame-chase-flow@v0.1.0#parallel_flame_chase'
+-f 'git+https://github.com/humanfia/flame-chasoid-flows@v0.1.0#flame_chasoid:parallel_git_pr'
 ```
 
 The `@v0.1.0` is a tag; a commit pins the flow so that nothing upstream can change what runs at

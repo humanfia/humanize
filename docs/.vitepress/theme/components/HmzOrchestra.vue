@@ -60,7 +60,7 @@ const PLAYS: Play[] = [
     after: (lane) => [1 - lane],
   },
   {
-    name: 'parallel_flame_chase',
+    name: 'flame_chasoid:parallel',
     shape: 'a coordinator plans, then three lanes run at once',
     lanes: [
       { role: 'coordinator', agent: 'claude/claude-opus-5:max', tone: 6 },

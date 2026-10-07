@@ -584,16 +584,12 @@ def _settings() -> None:
 #: What humanize's own flowverse lists, as its index says it, each at a commit nobody cut.
 #: `aot` has two releases, so that its page has one to choose; the rest have one apiece.
 RELEASES = {
-    "agent_cleanup": "A Ralph loop or a flame chase whose workspace an agent cleans up as "
-    "it goes.",
     "aot": "Writes a flow from a description, then loads, smoke-runs and reviews it before "
     "landing it.",
-    "fixed_interrupt_flame_chase": "Two fresh sessions alternate at accepted-experiment "
-    "boundaries.",
+    "flame_chasoid": "The flame chase and its variants (agent cleanup, fixed interrupt, "
+    "parallel lanes) as subflows of one flow.",
     "humanize1": "RLCR from humanize 1 as three flows (gen-idea, gen-plan, rlcr), each set up "
     "before it starts.",
-    "parallel_flame_chase": "Report-driven lanes of alternating agents planned by a "
-    "coordinator, plus a git_pr variant.",
     "recursive_lean_prover": "Recursively plans, proves, compares, reviews and catalogues "
     "Lean theorems.",
 }

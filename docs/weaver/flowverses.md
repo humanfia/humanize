@@ -331,10 +331,10 @@ installs `review` the same way, under whatever name they chose for it.
 **Variants are subflows of one module.** Two takes on one flow go in one directory as two
 `@flow`s, released together, not in two repositories or two manifests. The one named after the
 directory is `review`, and each other is `review:<name>`, such as `review:quick`.
-`parallel_flame_chase` and `parallel_flame_chase:git_pr` are one release of
-[humanfia/parallel-flame-chase-flow](https://github.com/humanfia/parallel-flame-chase-flow);
-`agent_cleanup:ralph_loop` and `agent_cleanup:flame_chase` are one of
-[humanfia/agent-cleanup-flow](https://github.com/humanfia/agent-cleanup-flow).
+`flame_chasoid` has no flow named after it, only its variants: `flame_chasoid:parallel`,
+`flame_chasoid:parallel_git_pr`, `flame_chasoid:fixed_interrupt` and the two
+`flame_chasoid:agent_cleanup_*` flows are one release of
+[humanfia/flame-chasoid-flows](https://github.com/humanfia/flame-chasoid-flows).
 
 **Keep a flow's own code in its own directory.** Besides installed packages, a flow can import
 only what sits beside its `__init__.py`, and that directory is all that is installed, so a
