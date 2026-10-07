@@ -133,6 +133,16 @@ git commit --allow-empty -m "chore: release 1.0.0" -m "Release-As: 1.0.0"
 
 It goes to `main` in a pull request, like any commit.
 
+**An alpha or a beta.** Two changes to `release-please-config.json`, in a pull request: put
+`"prerelease": true`, `"versioning": "prerelease"` and `"prerelease-type": "alpha"` in the
+package's settings, and land a commit whose message ends with the footer
+`Release-As: 0.2.0-alpha.1`. From then on each release pull request is the next alpha,
+`0.2.0-alpha.2` and on. For betas, change `prerelease-type` to `beta` with
+`Release-As: 0.2.0-beta.1`; for the release itself, take the three settings out with
+`Release-As: 0.2.0`. A pre-release is tagged `v0.2.0-alpha.1`, published to PyPI as
+`0.2.0a1`, and marked a pre-release on GitHub, never the latest. `uv` and `pip` install it
+only when asked for by number, or with `--prerelease allow` and `--pre`.
+
 **A patch to an older version.** Only when a fix has to reach users of an older version that
 `main` has moved on from, say `1.2.0` once `main` is at `2.x`, cut a maintenance branch from
 that version's tag, named after it:

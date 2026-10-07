@@ -113,12 +113,13 @@ jobs:
           name: dist
           path: dist/
 
-      # A patch to an older version, from a `release/*` branch, is never the latest release.
+      # A patch to an older version, from a `release/*` branch, is never the latest release, and
+      # neither is a pre-release, `v0.2.0-alpha.1`, which release-please marks as one.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
-          LATEST: ${{ github.ref_name == 'main' }}
+          LATEST: ${{ github.ref_name == 'main' && !contains(needs.release-please.outputs.tag_name, '-') }}
         run: |
           gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
           gh release edit "$TAG" --draft=false --latest="$LATEST" --repo "$GITHUB_REPOSITORY"
