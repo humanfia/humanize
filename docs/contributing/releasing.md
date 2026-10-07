@@ -1,7 +1,8 @@
 # Releasing
 
-In this guide you cut a release of humanize: you publish a release on GitHub, and check that
-PyPI has it, with an attestation saying where it was built. It is for the maintainers of
+In this guide you cut a release of humanize: you run the release workflow with the version,
+merge the pull request it opens, and check that PyPI has the release, with an attestation
+saying where it was built. It is for the maintainers of
 [humanfia/humanize](https://github.com/humanfia/humanize).
 
 Cut a release when `main` holds something people installing `hmz` should have. A release is
@@ -14,46 +15,56 @@ each of those into plain `hmz`.
 :::
 
 ::: info Before you start
-- Maintain or admin access to humanfia/humanize: only those may create a `v*` tag.
+- Write access to humanfia/humanize, and [`gh`](https://cli.github.com/) signed in to it.
 - A checkout set up as in [Contributing](/contributing/), for the system tests.
 - Optionally, coding agent CLIs signed in on your machine, for the system tests.
 :::
 
 ## How it works
 
-**`main` is the one long-lived branch, and always releasable.** Every change reaches it as a
+**`main` is where changes land, and never what is released.** Every change reaches it as a
 pull request, squashed into one commit titled with the pull request's title, once `ci-ok` is
-green. `ci-ok` holds the title to Conventional Commits and builds the package, so any commit
-on `main` can be released as it is.
+green. `ci-ok` holds the title to Conventional Commits and builds the package.
 
-**A release is a GitHub release a maintainer publishes.** Publishing it creates its tag, and
-runs `publish.yml`, which:
+**Every release comes from a `release/X.Y` branch**, pre-releases included: `0.2.0-alpha.1`,
+`0.2.0-rc.1`, `0.2.0` and `0.2.1` all come from `release/0.2`. The branch is held to the same
+rules as `main`. Three workflows do it:
 
-1. checks the tag, as below, before anything is built;
-2. builds a wheel and an sdist with `uv build`, giving them the tag's version, and runs
-   `twine check --strict`, which fails if PyPI could not render `README.md`;
-3. publishes both to [PyPI](https://pypi.org/project/hmz/).
+1. **`release.yml`**, run by hand on `main` with the version, checks it, finds `release/X.Y`,
+   and has [release-please](https://github.com/googleapis/release-please) open the release
+   pull request against it. For a new `X.Y` it first cuts `release/X.Y` from `main`. The pull
+   request bumps `version` in `pyproject.toml` and `uv.lock`, and adds the release's section
+   to `CHANGELOG.md`, written from the pull request titles since the last release of that line,
+   or, for a new line, since the line before it was cut.
+2. **`ci.yml`** runs on the release pull request, started by `release.yml`: a pull request a
+   workflow opened starts no checks of its own, and `ci-ok` is needed to merge it.
+3. **`publish.yml`**, on a push to a `release/*` branch that merged its release pull request,
+   tags the merge commit `vX.Y.Z`, builds a wheel and an sdist, runs `twine check --strict`
+   (which fails if PyPI could not render `README.md`), publishes both to
+   [PyPI](https://pypi.org/project/hmz/), and only then publishes the GitHub release with
+   them attached, so the release never offers files PyPI refused.
 
-The version lives in the tag alone. `pyproject.toml` says `0.0.0`, and nothing is committed to
-release. The release's notes are GitHub's: the title of every pull request merged since the
-previous release.
+`main` itself never says a released version: its `pyproject.toml` says `0.0.0`.
 
-Tags are SemVer, and the package says each in PEP 440. Each tag is released from one branch,
-and comes after every earlier release of its line, so a line goes alpha, beta, rc, release:
+The version is checked before anything is opened:
 
-| Tag | Target | On PyPI |
+| You name | It comes from | It must |
 | --- | --- | --- |
-| `v0.2.0` | `main` | `0.2.0` |
-| `v0.2.0-alpha.1`, `-beta.1`, `-rc.1` | `main` | `0.2.0a1`, `0.2.0b1`, `0.2.0rc1` |
-| `v0.1.1`, and its pre-releases | `release/0.1`, once `v0.1.0` is released | `0.1.1` |
+| `X.Y.0`, or its `-alpha.N`, `-beta.N`, `-rc.N` | `release/X.Y`, cut from `main` if it does not exist | come after every release of `X.Y`; a new `X.Y` must come after every line there is |
+| `X.Y.Z` with `Z` above 0, or its pre-releases | `release/X.Y`, which must exist | come after every release of `X.Y`, with `X.Y.0` released |
+
+So a line goes alpha, beta, rc, release, then patches, and never back. On PyPI each version
+is in PEP 440: `0.2.0-beta.1` is `0.2.0b1`. An alpha, beta or rc is a pre-release on GitHub,
+and the latest release is the newest that is not one, so a patch to an older line never takes
+it.
 
 Which version to name, since the last release:
 
-| `main` has | Bump |
+| The line has | Bump |
 | --- | --- |
 | a breaking change: a `!` in a pull request's title | minor while the version is `0.x`, major after |
 | a feature | minor |
-| only fixes | patch |
+| only fixes | patch, from the existing `release/X.Y` |
 
 Nobody holds a PyPI token: PyPI lets `publish.yml`, run in the repository's `pypi`
 environment, publish `hmz`, which is called trusted publishing. Every file it publishes carries
@@ -74,23 +85,21 @@ uv run pytest tests/system/test_flows_ralph.py
 Release only when none of them fails: fix it on `main` first. A test that skips names what
 this machine lacks. [Where a test goes](/contributing/#where-a-test-goes) has the rest.
 
-## Step 2: Publish the release
-
-On GitHub, **Releases → Draft a new release**:
-
-1. **Tag:** type the new one, such as `v0.2.0`, and create it on publish.
-2. **Target:** `main`, or `release/X.Y` for a patch.
-3. **Generate release notes**, and read them: they are what the release says.
-4. For an alpha, beta or rc, tick **Set as a pre-release**.
-5. **Publish release**.
-
-Or the same from a terminal:
+## Step 2: Open the release
 
 ```sh
-gh release create v0.2.0 --target main --generate-notes
+gh workflow run release.yml -f version=0.2.0-beta.1
 ```
 
-Add `--prerelease` for an alpha, beta or rc.
+Or **Actions → release → Run workflow** on GitHub, from `main`. A minute later the pull request
+`chore(release/0.2): release 0.2.0-beta.1` is open against `release/0.2`. Read its
+`CHANGELOG.md`: it is what the release will say.
+
+Running it again with the same version brings the pull request up to date with its branch.
+
+## Step 3: Merge it
+
+Approve the pull request and merge it once `ci-ok` is green.
 
 ### Check it worked
 
@@ -100,50 +109,47 @@ The run takes a few minutes. Follow it with:
 gh run watch "$(gh run list --workflow publish.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
 ```
 
-Once both jobs are green, install it from PyPI:
+Once its four jobs are green, the release is on
+[GitHub Releases](https://github.com/humanfia/humanize/releases). Then install it from PyPI:
 
 ```sh
-uvx hmz@0.2.0 --version
+uvx hmz@0.2.0b1 --version
 ```
 
 ```text
-hmz 0.2.0
+hmz 0.2.0b1
 ```
 
 Then check that each file's attestation names this repository:
 
 ```sh
 uvx pypi-attestations verify pypi --repository https://github.com/humanfia/humanize \
-  pypi:hmz-0.2.0-py3-none-any.whl
+  pypi:hmz-0.2.0b1-py3-none-any.whl
 ```
 
 ```text
-OK: hmz-0.2.0-py3-none-any.whl
+OK: hmz-0.2.0b1-py3-none-any.whl
 ```
 
-Do the same for `pypi:hmz-0.2.0.tar.gz`. PyPI shows the same on the release's **Download
+Do the same for `pypi:hmz-0.2.0b1.tar.gz`. PyPI shows the same on the release's **Download
 files** page: each file names `publish.yml` on humanfia/humanize as its publisher.
 
 ## Variations
 
-**A patch to an older version.** Only when a fix has to reach users of a version `main` has
-moved on from, say `0.1` once `main` is at `0.2`, cut its maintenance branch from the last tag
-of that line:
+**A change for a line already cut.** A fix that has to reach `0.2`, or a feature for a `0.2`
+still in beta, merges to `main` first, then comes over in a pull request against
+`release/0.2`:
 
 ```sh
-git push origin v0.1.0:refs/heads/release/0.1
-```
-
-Bring each fix over in a pull request against `release/0.1`, after it has merged to `main`:
-
-```sh
-git switch -c fix/backport-the-bug origin/release/0.1
+git switch -c fix/backport-the-bug origin/release/0.2
 git cherry-pick <the commit on main>
-gh pr create --base release/0.1 --title "fix: …"
+gh pr create --base release/0.2 --title "fix: …"
 ```
 
-Then publish `v0.1.1` targeting `release/0.1`, and untick **Set as the latest release**. The
-branch is held to the same rules as `main`; once nobody needs it, delete it.
+Then open the next version of that line, `0.2.1` or `0.2.0-beta.2`, as in Step 2.
+
+**Changing your mind.** Close the release pull request and delete its branch: nothing was
+released. A `release/X.Y` cut for it stays, and the next version of that line comes from it.
 
 **A check of the package before a release.** CI's `package` job builds every pull request. The
 same on your machine, into `dist/`, which git ignores:
@@ -158,32 +164,27 @@ uvx --from dist/hmz-*.whl hmz --version
 When a release is broken, yank it on PyPI: **Manage project**, the version, **Options**,
 **Yank**, with a reason that names the version to use instead. A yanked version stays
 installable for anyone who asks for it by number, and nothing else picks it. Then say so at
-the top of the GitHub release's notes, fix it on `main`, and release the next patch.
+the top of the GitHub release's notes, fix it, and release the next patch.
 
-Do not delete a release from PyPI. PyPI never takes the same file name twice, so a deleted
-version cannot be published again either, and anyone who pinned it can no longer install it.
+Do not delete a release from PyPI, and do not move its tag. PyPI never takes the same file
+name twice, so a deleted version cannot be published again either, and anyone who pinned it
+can no longer install it.
 
 ## Pitfalls
 
-A release whose run fails before PyPI has nothing on PyPI, so it can be taken back: delete it
-and its tag, then publish again.
-
-```sh
-gh release delete v0.2.0 --cleanup-tag --yes
-```
-
 | The run fails with | Because | Do |
 | --- | --- | --- |
-| `… is not vX.Y.Z or vX.Y.Z-(alpha\|beta\|rc).N` | the tag. Nothing was built | delete the release and its tag, and publish one with a tag that is |
-| `… is released from …, and this release targets …` | the target branch is not the tag's | delete the release and its tag, and publish it again from the right branch |
-| `… does not come after …` or `… which is not released` | the version is behind its line, or its line has no `.0` yet | delete the release and its tag, and publish a version that comes next |
-| a failed `twine check` | PyPI would not render `README.md`. Nothing was published | delete the release and its tag, fix it on `main`, and publish again |
+| `… is not X.Y.Z or X.Y.Z-(alpha\|beta\|rc).N`, `… is released already`, `… does not come after …`, `… which is not released`, `… has nowhere to come from` or `… would start a line before …` in `release` | the version named. Nothing was opened | run it again with one that is |
+| `GitHub Actions is not permitted to create or approve pull requests` in `release` | the repository's setting | an admin allows it in **Settings → Actions → General**, then run it again |
+| the release pull request waits for `ci-ok` forever | GitHub held a `ci` run for `github-actions[bot]`, a first-time contributor until its first pull request merges | **Approve workflows to run** on the pull request |
+| a failed `twine check` | PyPI would not render `README.md`. Nothing was published, but the tag and a draft release exist | `gh release delete vX.Y.Z --yes`, keeping the tag; fix it on `main`, bring it to the line, and open the next version |
 | `invalid-publisher` in `publish to PyPI` | PyPI's trusted publisher does not describe this workflow | on PyPI, the publisher must name owner `humanfia`, repository `humanize`, workflow `publish.yml` and environment `pypi`; then `gh run rerun <run-id> --failed` |
-| `File already exists` | PyPI has this version already | publish the next version: PyPI never takes a version's files twice |
+| `File already exists` | PyPI has this version already | open the next version: PyPI never takes a version's files twice |
+| a failed `publish the release` | PyPI has the release, and the GitHub release is still a draft | `gh run rerun <run-id> --failed` |
 
 ::: details For admins: guarding the `pypi` environment
 In **Settings → Environments → pypi**, add yourself and another maintainer as required
-reviewers, and limit deployments to tags matching `v*`. Each upload then waits for a second
+reviewers, and limit deployments to `release/*` branches. Each upload then waits for a second
 person to approve it on the run's page.
 :::
 
@@ -193,4 +194,4 @@ person to approve it on the run's page.
 | --- | --- |
 | run a system test, or add one | [Where a test goes](/contributing/#where-a-test-goes) |
 | set up a checkout and run the checks | [Contributing](/contributing/) |
-| see every step the release runs | [`publish.yml`](https://github.com/humanfia/humanize/blob/main/.github/workflows/publish.yml) |
+| see every step the release runs | [`release.yml`](https://github.com/humanfia/humanize/blob/main/.github/workflows/release.yml), [`publish.yml`](https://github.com/humanfia/humanize/blob/main/.github/workflows/publish.yml) and [`release-please-config.json`](https://github.com/humanfia/humanize/blob/main/release-please-config.json) |
