@@ -184,7 +184,7 @@ def _ended(proc: subprocess.Popen[str]) -> None:
     swept(proc.pid)
 
 
-def _reaped(proc: subprocess.Popen[str]) -> None:
+def _reaped(proc: subprocess.Popen[str], swept: Callable[[int], None]) -> None:
     """Ends a process and takes its exit status, so that neither is left behind.
 
     Killed and then waited on, rather than killed: a process nobody waits on stays in the
@@ -194,9 +194,10 @@ def _reaped(proc: subprocess.Popen[str]) -> None:
 
     Args:
       proc: The process to end, which may already have ended.
+      swept: What takes away the credential copies it was answering reads from. Handed in
+        rather than imported here, since this runs as a finalizer: a collection can run it
+        in the middle of an import, which would find the module it wants half made.
     """
-    from hmz.coganchor.providers.redirect import swept
-
     with contextlib.suppress(OSError):
         proc.kill()
     with contextlib.suppress(OSError):
@@ -3184,7 +3185,9 @@ class StreamSessionBase(SessionBase):
         # The one before it is let go, or a long flow keeps every process it ever started.
         if self._reaper is not None:
             self._reaper.detach()
-        self._reaper = weakref.finalize(self, _reaped, started)
+        from hmz.coganchor.providers.redirect import swept
+
+        self._reaper = weakref.finalize(self, _reaped, started, swept)
         return started
 
     def _restarted(self) -> None:

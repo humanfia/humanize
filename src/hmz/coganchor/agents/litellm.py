@@ -202,6 +202,13 @@ class LiteLLMSession(SessionBase):
             with Watchdog(self) as watch:
                 answer = module.completion(**call)
                 self._live = answer
+                # A cut that came while the answer was being opened found nothing to close,
+                # and on a slow machine the watchdog's whole ladder can be climbed by then:
+                # this is the only place left that will ever close it. Looked at after
+                # `_live` is set, as the cut sets its flag before looking at `_live`, so one
+                # of the two always sees the other.
+                if self._cut or self._wedged:
+                    self._cuts()
                 for chunk in answer:
                     watch.saw()
                     for choice in _listed(_field(chunk, "choices")):

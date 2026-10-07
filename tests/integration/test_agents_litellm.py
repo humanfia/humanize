@@ -8,8 +8,10 @@ again with the new prompt on the end.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
+import litellm
 import pytest
 from pydantic import BaseModel
 
@@ -107,6 +109,43 @@ def test_an_endpoint_gone_silent_is_given_up_on_by_the_watchdog(
     endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HUMANIZE_WATCHDOG", "1")
+
+    with pytest.raises(Failed):
+        LiteLLMAgent(CONFIG).new()("hang")
+
+
+class _Opened:
+    """An answer whose opening took longer than the watchdog's whole ladder.
+
+    Its first chunk is read while it is opened, as litellm may do, and then the opening
+    stalls past every rung: by the time the turn holds the answer there is nothing left that
+    will cut it, and nothing more is coming off the wire to wake its read.
+    """
+
+    def __init__(self, answer: litellm.CustomStreamWrapper, ladder: float) -> None:
+        # What the turn closes to cut the answer, so it is the one thing carried over.
+        self.completion_stream: object = vars(answer)["completion_stream"]
+        self._answer = answer
+        next(answer)
+        time.sleep(ladder)
+
+    def __iter__(self) -> Iterator[object]:
+        return self._answer
+
+
+@pytest.mark.timeout(30)
+def test_an_endpoint_gone_silent_while_its_answer_opened_is_given_up_on(
+    endpoint: Endpoint, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HUMANIZE_WATCHDOG", "1")
+    completion = litellm.completion
+
+    def opened(**asked: object) -> _Opened:
+        answer = completion(**asked)
+        assert isinstance(answer, litellm.CustomStreamWrapper)
+        return _Opened(answer, 6)
+
+    monkeypatch.setattr(litellm, "completion", opened)
 
     with pytest.raises(Failed):
         LiteLLMAgent(CONFIG).new()("hang")

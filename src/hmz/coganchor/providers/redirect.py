@@ -42,6 +42,10 @@ from typing import TYPE_CHECKING
 # to machines this package's accounts never reach, so the rule lives with it and is named here.
 from hmz.coganchor.policy import answered, head
 
+# At the top rather than in `swept`, which finalizers call: a collection can run one in the
+# middle of importing `_staging`, and an import there would find that module half made.
+from ._staging import swept as _sweep
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
@@ -341,9 +345,7 @@ def swept(pid: int) -> None:
     Args:
       pid: The process the turn ran in, after it has been waited on.
     """
-    from ._staging import swept as sweep
-
-    sweep(pid)
+    _sweep(pid)
 
 
 def failed(status: int) -> int:
