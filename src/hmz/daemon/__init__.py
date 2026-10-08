@@ -15,10 +15,10 @@ once, each a :class:`Link` of its own saying JSON: an interface, or a program wr
 the SDK. Letting go of one is not stopping the run: the flow goes on taking its turns, and the
 next frontend to arrive is told it from the top.
 
-What the runs *are* is the runtime's, and it is reached from here: :class:`Hmz` and
-:class:`Host` are handed through from :mod:`hmz.runtime` under this name, and :func:`linked`
-makes the same :class:`Link` over runs held in the process that asked, so that a frontend is
-written once whichever way it reaches them.
+What the runs *are* is the runtime's, and it is reached from here: :class:`Hmz`, :class:`Host`
+and the :class:`Refused` a link raises are handed through from :mod:`hmz.runtime` under this
+name, and :func:`linked` makes the same :class:`Link` over runs held in the process that
+asked, so that a frontend is written once whichever way it reaches them.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from hmz.runtime import Hmz, Host
+    from hmz.runtime import Hmz, Host, Refused
 
 __all__ = [
     "Daemon",
@@ -47,6 +47,7 @@ __all__ = [
     "Host",
     "Link",
     "Older",
+    "Refused",
     "attach",
     "daemons",
     "host",
@@ -101,7 +102,7 @@ def __getattr__(name: str) -> object:
     Raises:
       AttributeError: If nothing here is called that, as for any other module.
     """
-    if name not in ("Hmz", "Host"):
+    if name not in ("Hmz", "Host", "Refused"):
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     import hmz.runtime
 

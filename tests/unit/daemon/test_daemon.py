@@ -31,6 +31,7 @@ def test_all_names_what_the_package_offers() -> None:
         "Host",
         "Link",
         "Older",
+        "Refused",
         "attach",
         "daemons",
         "host",
@@ -43,7 +44,7 @@ def test_all_names_what_the_package_offers() -> None:
     assert linked is hmz.daemon.link.linked
 
 
-@pytest.mark.parametrize("name", ["Hmz", "Host"])
+@pytest.mark.parametrize("name", ["Hmz", "Host", "Refused"])
 def test_the_runtime_is_handed_through_as_itself(name: str) -> None:
     assert getattr(daemon, name) is getattr(hmz.runtime, name)
 
