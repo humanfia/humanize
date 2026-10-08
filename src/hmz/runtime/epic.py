@@ -291,6 +291,9 @@ class Ran(NamedTuple):
       picked_up: The epic this run was picked up from, by name, or "".
       profile: Whether the run was asked to profile the programs its agents started as well
         as trace them; False for a run written before a run could be asked.
+      spent: What the run spent as its budget counted it, as JSON -- `cost` in dollars,
+        `output_tokens` and `seconds` -- written as it ended, or None for a run still going
+        or one killed before it could say.
     """
 
     at: Path
@@ -311,6 +314,7 @@ class Ran(NamedTuple):
     budget: dict[str, Any] | None = None
     picked_up: str = ""
     profile: bool = False
+    spent: dict[str, Any] | None = None
 
     @property
     def name(self) -> str:
@@ -1123,6 +1127,7 @@ def read(epic: Path) -> Ran | None:
     if began is None:
         return None
     ended = next((one for one in reversed(events) if one.get("event") == "ended"), None)
+    usage = next((one for one in reversed(events) if one.get("event") == "usage"), None)
     agents: list[Drove] = []
     for one in began.get("agents") or ():
         if not isinstance(one, dict):
@@ -1169,6 +1174,15 @@ def read(epic: Path) -> Ran | None:
         budget=cast("dict[str, Any]", budget) if isinstance(budget, dict) else None,
         picked_up=str(began.get("picked_up") or ""),
         profile=bool(began.get("profile")),
+        spent=(
+            {
+                key: usage[key]
+                for key in ("cost", "output_tokens", "seconds")
+                if key in usage
+            }
+            if usage
+            else None
+        ),
     )
 
 
