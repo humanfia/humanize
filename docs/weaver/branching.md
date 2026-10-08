@@ -240,7 +240,7 @@ async def test_a_cli_that_cannot_fork_starts_afresh() -> None:
 | CLI, as `-a` names it | Forks | Into another directory |
 | --- | --- | --- |
 | `claude`, `codex`, `kimi` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
-| `grok`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="tip" text="yes" /> | <Badge type="warning" text="same directory only" /> |
+| `grok`, `mimo`, `omp`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="tip" text="yes" /> | <Badge type="warning" text="same directory only" /> |
 | `agy`, `cursor-agent`, `dsh`, `mcode` | <Badge type="danger" text="no" /> | <Badge type="danger" text="no" /> |
 
 No CLI forks onto another machine.

@@ -636,20 +636,36 @@ class PiSession(StreamSessionBase):
         self._at = self.effort
 
     def _read(self, line: str) -> Iterator[Event]:
-        """Reads one event pi wrote, as the things it says the agent did.
+        """Reads one line pi wrote, as the things it says the agent did.
 
         Args:
           line: The line, as written.
 
         Yields:
-          What it said, which is nothing for a line saying nothing worth showing: a fragment
-          of a message still being written, a tool's result coming back, or an answer to a
-          command nobody is waiting on.
+          What :meth:`_event` makes of the event on it, and nothing for a line that is not one.
         """
         try:
             said: dict[str, Any] = json.loads(line)
         except json.JSONDecodeError:
             return  # not ours: pi prints the odd plain line among the JSON
+        yield from self._event(said)
+
+    def _event(self, said: dict[str, Any]) -> Iterator[Event]:
+        """Reads one event pi wrote, once the line it came on has been parsed.
+
+        Apart from :meth:`_read` so that a fork speaking its own dialect of this protocol can
+        read the events it spells differently and hand every other one here with each line
+        parsed once: omp's `message_update` still carries the whole message so far, and a
+        second parse of it would be a second copy of every answer, fragment by fragment.
+
+        Args:
+          said: The event, as read.
+
+        Yields:
+          What it said, which is nothing for an event saying nothing worth showing: a fragment
+          of a message still being written, a tool's result coming back, or an answer to a
+          command nobody is waiting on.
+        """
         match said.get("type"):
             case "response" if said.get("command") == "abort":
                 self._aborted.set()
@@ -927,11 +943,7 @@ class PiAgent(AgentBase):
         if profile is None:
             return fence
         try:
-            said = json.loads(
-                (profile.directory(self._environ()) / "models.json").read_text(
-                    encoding="utf-8"
-                )
-            )
+            said = self._declared(profile.directory(self._environ()))
             declared = cast("dict[str, dict[str, Any]]", said["providers"])
             named, _, rest = self.config.model.partition("/")
             if not rest:
@@ -952,6 +964,24 @@ class PiAgent(AgentBase):
             return fence
         hosts = [host for url in urls if (host := _host(url))]
         return fence.granting(hosts=hosts) if hosts else fence
+
+    def _declared(self, home: Path) -> Any:
+        """What this machine's pi declares of its own providers, read out of `models.json`.
+
+        Apart from :meth:`fenced` because it is the one part of it a fork keeping its
+        providers in a file of another name or format answers differently.
+
+        Args:
+          home: pi's home, as a turn will find it.
+
+        Returns:
+          The file, as read.
+
+        Raises:
+          OSError: If it cannot be read.
+          ValueError: If it is not JSON.
+        """
+        return json.loads((home / "models.json").read_text(encoding="utf-8"))
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> PiSession:
         """Opens a new pi session, in the directory it is given or in this one."""

@@ -182,7 +182,7 @@ built-in CLI but one:
 
 | CLI | In a trace |
 | --- | --- |
-| Claude Code, Codex, Antigravity, DeepSeek Harness, Grok Build, Kimi Code, MiniMax Code, pi, Qwen Code, opencode, mimocode | <Badge type="tip" text="yes" /> |
+| Claude Code, Codex, Antigravity, DeepSeek Harness, Grok Build, Kimi Code, MiniMax Code, pi, Oh My Pi, Qwen Code, opencode, mimocode | <Badge type="tip" text="yes" /> |
 | Cursor Agent | <Badge type="warning" text="no" /> Watch it live on [the monitor](/user/monitor) instead. |
 
 ## Variations

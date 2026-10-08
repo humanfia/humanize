@@ -132,7 +132,7 @@ const WIDE: Layout = {
   ],
   askRows: [
     ['cursor-agent', 'dsh', 'kimi'],
-    ['mimo', 'opencode', 'pi'],
+    ['mimo', 'omp', 'opencode', 'pi'],
     ['an ACP CLI'],
   ],
   holdSaid: '{"done": false, "notes": …}',
@@ -158,7 +158,7 @@ const NARROW: Layout = {
   hold: { x: 14, y: 262, w: 162 },
   ask: { x: 184, y: 262, w: 162 },
   holdRows: [['claude', 'codex'], ['agy', 'grok'], ['mcode', 'qwen']],
-  askRows: [['cursor-agent', 'pi'], ['dsh', 'kimi', 'mimo'], ['opencode', 'ACP']],
+  askRows: [['cursor-agent', 'omp'], ['dsh', 'kimi', 'mimo'], ['opencode', 'pi', 'ACP']],
   holdSaid: '{"done": false, …}',
   askSaid: '…{"done": false…}',
   askHead: 'prompted, read back',
@@ -355,7 +355,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="9 / 14"
-    label="A turn asked for a shape, from the flow's side. The flow runs reviewer.run with output_schema=Review. The pydantic model is the question: its fields, done a bool and notes a str, which are required, and each field's description reach the agent as a JSON Schema sent with the prompt. Two roads: claude, codex, agy, grok, mcode and qwen enforce the schema themselves; cursor-agent, dsh, kimi, mimo, opencode, pi and an ACP CLI are prompted with it, and the answer is read back out of what they say. Either way the answer is validated into a Review instance, here done=False with notes, or the turn raises OutputSchemaError, a HarnessError. The flow branches on review.done: not done, so the notes go back to the actor and a new round starts; the next review is done, and the flow returns True."
+    label="A turn asked for a shape, from the flow's side. The flow runs reviewer.run with output_schema=Review. The pydantic model is the question: its fields, done a bool and notes a str, which are required, and each field's description reach the agent as a JSON Schema sent with the prompt. Two roads: claude, codex, agy, grok, mcode and qwen enforce the schema themselves; cursor-agent, dsh, kimi, mimo, omp, opencode, pi and an ACP CLI are prompted with it, and the answer is read back out of what they say. Either way the answer is validated into a Review instance, here done=False with notes, or the turn raises OutputSchemaError, a HarnessError. The flow branches on review.done: not done, so the notes go back to the actor and a new round starts; the next review is done, and the flow returns True."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="world">

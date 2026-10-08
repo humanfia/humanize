@@ -23,7 +23,7 @@ The agent stops, the question comes up in yellow, and whatever you type next is 
 
 ## Before you start
 
-- A coding agent CLI that can stop to ask: Claude Code, Codex, Kimi Code or pi. See
+- A coding agent CLI that can stop to ask: Claude Code, Codex, Kimi Code, pi or Oh My Pi. See
   [Which agents ask](#which-agents-ask).
 - A flow that passes its agents' questions on to you. `chat`, the flow `hmz` opens on, passes
   every one on.
@@ -187,9 +187,9 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 An agent asks only if its CLI can, and only if the flow passes its questions on to you. `chat`
 passes every one on.
 
-| `claude` | `codex` | `kimi` | `pi` | every other |
-| --- | --- | --- | --- | --- |
-| <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="info" text="never stops to ask" /> |
+| `claude` | `codex` | `kimi` | `pi` | `omp` | every other |
+| --- | --- | --- | --- | --- | --- |
+| <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="info" text="never stops to ask" /> |
 
 A flow may also answer an agent's question itself, without asking you. When it does neither,
 the agent is told nobody answered, and carries on.

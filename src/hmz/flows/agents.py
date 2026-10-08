@@ -83,6 +83,7 @@ __all__ = [
     "LoopCommandAgentMixin",
     "MiMoCodeAgent",
     "MiniMaxCodeAgent",
+    "OhMyPiAgent",
     "OpenCodeAgent",
     "Outworlder",
     "Permission",
@@ -111,6 +112,7 @@ class HarnessKind(StrEnum):
     KIMI = "kimi"
     GROK = "grok"
     PI = "pi"
+    OMP = "omp"
     AGY = "agy"
     DSH = "dsh"
     #: A model called directly, one chat completion a turn over the session's history: no
@@ -667,6 +669,10 @@ class PiAgent(Agent, SteeringAgentMixin, AskUserHookAgentMixin, Protocol):
     """pi, with everything it can do."""
 
 
+class OhMyPiAgent(Agent, SteeringAgentMixin, AskUserHookAgentMixin, Protocol):
+    """Oh My Pi, with everything it can do."""
+
+
 class AntigravityAgent(Agent, Protocol):
     """Antigravity, with everything it can do."""
 
@@ -694,6 +700,7 @@ HARNESS_AGENTS: Mapping[HarnessKind, type] = MappingProxyType(
         HarnessKind.KIMI: KimiCodeAgent,
         HarnessKind.GROK: GrokBuildAgent,
         HarnessKind.PI: PiAgent,
+        HarnessKind.OMP: OhMyPiAgent,
         HarnessKind.AGY: AntigravityAgent,
         HarnessKind.DSH: DeepSeekHarnessAgent,
         HarnessKind.LITELLM: LiteLLMAgent,

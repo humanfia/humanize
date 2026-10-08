@@ -25,6 +25,10 @@ on this machine `input + output + cacheRead + cacheWrite` is exactly `totalToken
 so the cached read sits beside what was read rather than inside it -- the opposite of
 Grok Build, and the difference between a bill and one several times it.
 `reasoning` never exceeds `output`, so the thinking is part of what was written.
+
+omp writes the same log under its own home, and :mod:`.omp` reads it with this. The
+records it adds -- a `title` at the head, `custom` ones between -- carry no message and
+are passed over, and its `model_change` names the model as `provider/id` in one field.
 """
 
 from __future__ import annotations
@@ -55,6 +59,8 @@ def collect(
     workspace: pathlib.Path | None,
     sessions: tuple[str, ...] | None,
     window: tuple[float, float],
+    *,
+    backend: str = "pi",
 ) -> list[Session]:
     """Collects the Pi sessions asked for.
 
@@ -64,6 +70,7 @@ def collect(
             or None to search every workspace.
         sessions: Session ids to keep, or None to keep every session.
         window: Inclusive epoch second bounds used to cut off records.
+        backend: Whose logs these are -- pi's, or omp's, which are pi's under its own home.
 
     Returns:
         One session per log. Pi spawns no sub-agents, so each stands alone.
@@ -72,7 +79,7 @@ def collect(
     for path in sorted((home / "sessions").glob("*/*.jsonl")):
         # The id is the file's own, past the moment it opened: `<started>_<id>`.
         ident = path.stem.partition("_")[2] or path.stem
-        if not wanted(sessions, f"pi:{ident}"):
+        if not wanted(sessions, f"{backend}:{ident}"):
             continue
         actions, info = _parse(path, window)
         # Stated by the log rather than decoded out of the directory it sits in,
@@ -85,8 +92,8 @@ def collect(
             continue
         collected.append(
             Session(
-                key=f"pi:{ident}",
-                backend="pi",
+                key=f"{backend}:{ident}",
+                backend=backend,
                 ident=ident,
                 label="main",
                 title=title_of(ident[:8], actions),
@@ -117,8 +124,11 @@ def _parse(
                     info[field] = record[field]
             continue
         if kind == "model_change":
-            info.setdefault("provider", record.get("provider"))
-            info.setdefault("model", record.get("modelId"))
+            # pi names the two apart; omp names them as one, as a turn's `--model` does, and
+            # an id may have a slash of its own in it where the provider is a router.
+            provider, _, model = str(record.get("model") or "").partition("/")
+            info.setdefault("provider", record.get("provider") or provider or None)
+            info.setdefault("model", record.get("modelId") or model or None)
             continue
         if kind == "thinking_level_change":
             info.setdefault("effort", record.get("thinkingLevel"))

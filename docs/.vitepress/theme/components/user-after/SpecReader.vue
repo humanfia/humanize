@@ -5,7 +5,7 @@
 // A simulation, and it has to say what the code says. The reading is
 // `hmz.runtime.flowing.specs.parse_agents` over `hmz.coganchor.backends.read`, the ladders
 // are each profile's `efforts` in `hmz.coganchor.backends`, and every refusal below is the
-// line `hmz exec` prints for it. It knows the twelve CLIs humanize ships and no CLI added at
+// line `hmz exec` prints for it. It knows the thirteen CLIs humanize ships and no CLI added at
 // the accounts page of /settings, and it cannot know which roles a flow declares.
 //
 // The reading is played as a labelled transform: the spelled-out value comes apart, a brace
@@ -32,6 +32,7 @@ const CLIS: Cli[] = [
   { name: 'grok', title: 'Grok Build', aliases: ['grok', 'grok-build', 'grokbuild'], efforts: ['xhigh', 'high', 'medium', 'low'] },
   { name: 'kimi', title: 'Kimi Code', aliases: ['kimi', 'kimi-code'], efforts: ['max', 'high', 'medium', 'low'], swarms: true },
   { name: 'pi', title: 'pi', aliases: ['pi'], efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off'] },
+  { name: 'omp', title: 'Oh My Pi', aliases: ['omp', 'oh-my-pi'], efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off'] },
   { name: 'qwen', title: 'Qwen Code', aliases: ['qwen', 'qwen-code'], efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'none'] },
   { name: 'opencode', title: 'opencode', aliases: ['opencode'], efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
   { name: 'mimo', title: 'mimocode', aliases: ['mimo', 'mimocode', 'mimo-code'], efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },

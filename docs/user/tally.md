@@ -171,7 +171,7 @@ often new tokens reach it depends on the CLI:
 | Backend | Tokens arrive |
 | --- | --- |
 | `claude`, `codex`, `dsh`, `kimi`, `mcode` | <Badge type="tip" text="during the turn" /> as each request to the model comes back |
-| `agy`, `cursor-agent`, `grok`, `mimo`, `opencode`, `pi`, `qwen`, added CLIs | <Badge type="info" text="when the turn ends" /> all at once |
+| `agy`, `cursor-agent`, `grok`, `mimo`, `omp`, `opencode`, `pi`, `qwen`, added CLIs | <Badge type="info" text="when the turn ends" /> all at once |
 
 What an agent of Claude Code's own (its `Agent` tool) spends is the exception: Claude says it
 only when the turn ends, so it arrives then, and a budget that is not graceful cannot stop a
@@ -184,7 +184,7 @@ run that has stopped working reads as slowing down.
 
 | Backend | Kinds |
 | --- | --- |
-| `claude`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mcode`, `pi`, `qwen` | `input`, `output`, `cache_read`, `cache_write` |
+| `claude`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mcode`, `omp`, `pi`, `qwen` | `input`, `output`, `cache_read`, `cache_write` |
 | `mimo`, `opencode` | those four, and `reasoning` |
 | `agy` | `input`, `output`, `cache_read`, `reasoning` |
 | `codex` | `input`, `output`, and `cache_read` when it runs on this machine |

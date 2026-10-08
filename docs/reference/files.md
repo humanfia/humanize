@@ -164,7 +164,7 @@ in, redirected from where it would write them at home:
 | `opencode`, `mimo` | `home/auth.json`, `home/mcp-auth.json` |
 | `cursor-agent` | `home/cli-config.json`, `config/cursor/auth.json`, `user/.cursor/auth.json` |
 | `mcode` | `home/config.yaml`, `home/auth` |
-| `dsh`, `qwen` | none |
+| `dsh`, `omp`, `qwen` | none |
 
 Removing an account deletes its directory.
 

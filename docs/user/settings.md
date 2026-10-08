@@ -416,13 +416,16 @@ the ways, <kbd>↓</kbd> <kbd>↓</kbd> <kbd>enter</kbd> to pick `key`, type the
    <b>also for pi</b>                                                      <span class="g">● on ▾</span> <span class="n">4</span>
      <span class="m">installed here</span>
    ────────────────────────────────────────────────────────────────────────
+   <b>also for omp</b>                                                     <span class="g">● on ▾</span>
+     <span class="m">installed here</span>
+   ────────────────────────────────────────────────────────────────────────
    <b>also for opencode</b>                                                <span class="g">● on ▾</span>
      <span class="m">installed here</span>
    ────────────────────────────────────────────────────────────────────────
    <b>also for mimo</b>                                                    <span class="g">● on ▾</span>
      <span class="m">installed here</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
-   <span class="m">adds claude/key, for pi, opencode, mimo too</span>
+   <span class="m">adds claude/key, for pi, omp, opencode, mimo too</span>
 
                                                                      <span class="sel"> Done </span> <span class="n">5</span>
 
@@ -449,7 +452,7 @@ key                       key · ANTHROPIC_API_KEY
 as local                  the account signed in on this machine
 ```
 
-The line under the list says `key is also saved for pi, opencode, mimo`, and then how many
+The line under the list says `key is also saved for pi, omp, opencode, mimo`, and then how many
 models the account's CLI named for it, or why it named none. <kbd>esc</kbd> <kbd>esc</kbd>
 goes back to the prompt.
 
@@ -541,8 +544,9 @@ yourself. humanize keeps no credentials for it, so its menu offers nothing and s
 ### One account, several CLIs
 
 An API key belongs to the vendor, not to the CLI. An Anthropic key works in Claude Code, pi,
-opencode and mimocode alike. So when the account you are making is one other CLIs could
-run as, the form has a row for each of them, `also for pi`, `also for opencode` and so on:
+Oh My Pi, opencode and mimocode alike. So when the account you are making is one other CLIs
+could run as, the form has a row for each of them, `also for pi`, `also for opencode` and so
+on:
 
 ![the add-an-account form for a Claude API key: also for pi and also for opencode, each off
 because it is not installed here yet](/demo/alike.png)
@@ -596,7 +600,7 @@ shared = accounts.make("claude", "shared", accounts.way("claude", "key"), {
     "ANTHROPIC_API_KEY": key,
 })
 
-accounts.serves(shared)                     # ('pi', 'opencode', 'mimo')
+accounts.serves(shared)                     # ('pi', 'omp', 'qwen', 'opencode', 'mimo', 'litellm')
 accounts.copies(shared, "pi")               # pi/shared, holding the same key
 ```
 

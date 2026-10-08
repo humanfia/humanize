@@ -217,6 +217,7 @@ the several-flows-per-module rule are specified in
 | `kimi` | `kimi-code` | `max` `high` `medium` `low` | `npm i -g @moonshot-ai/kimi-code` | `hmz[kimi]` |
 | `mcode` | `minimax`, `minimax-code` | `max` `xhigh` `high` `medium` `low` | `npm i -g @minimax-ai/code` | |
 | `mimo` | `mimocode`, `mimo-code` | `xhigh` `high` `medium` `low` `minimal` | `npm i -g @mimo-ai/cli` | |
+| `omp` | `oh-my-pi` | `max` `xhigh` `high` `medium` `low` `minimal` `off` | `curl -fsSL https://omp.sh/install \| sh` | |
 | `opencode` | | `xhigh` `high` `medium` `low` `minimal` | `npm i -g opencode-ai` | |
 | `pi` | | `max` `xhigh` `high` `medium` `low` `minimal` `off` | `npm i -g @earendil-works/pi-coding-agent` | |
 | `qwen` | `qwen-code` | `max` `xhigh` `high` `medium` `low` `none` | `npm i -g @qwen-code/qwen-code` | |

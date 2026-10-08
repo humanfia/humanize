@@ -39,6 +39,7 @@ CHEAPEST: dict[HarnessKind, str] = {
     HarnessKind.KIMI: "kimi-code/k3",
     HarnessKind.GROK: "grok-4.7:low",
     HarnessKind.PI: "openai-codex/gpt-5.4-mini",
+    HarnessKind.OMP: "deepseek/deepseek-v4-flash:low",
     HarnessKind.AGY: "gemini-3.8-flash-low:low",
     HarnessKind.DSH: "deepseek-v4-flash:off",
 }

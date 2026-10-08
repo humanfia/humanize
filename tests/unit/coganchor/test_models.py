@@ -358,6 +358,31 @@ def test_ask_pi_reads_its_table(backend: Callable[..., Ran]) -> None:
     ]
 
 
+def test_ask_omp_reads_the_efforts_each_model_says_it_takes(
+    backend: Callable[..., Ran],
+) -> None:
+    ran = backend(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "selector": "deepseek/deepseek-v4-flash",
+                        "reasoning": True,
+                        "thinking": ["low", "high", "max"],
+                    },
+                    {"selector": "groq/llama-x", "reasoning": False, "thinking": None},
+                    {"id": "unnamed", "reasoning": True, "thinking": ["low"]},
+                ]
+            }
+        )
+    )
+    assert [(one.name, one.efforts) for one in models.ask("omp")] == [
+        ("deepseek/deepseek-v4-flash", ("max", "high", "low", "off")),
+        ("groq/llama-x", ()),
+    ]
+    assert ran.argv[1:] == ["models", "--json"]
+
+
 def test_ask_agy_reads_the_effort_off_the_name(backend: Callable[..., Ran]) -> None:
     profile = backends.named("agy")
     assert profile is not None

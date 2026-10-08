@@ -2737,6 +2737,236 @@ PROFILES = (
         ),
     ),
     Profile(
+        name="omp",
+        # pi's hosts, being pi's providers: omp signs in to the same ones and takes the same
+        # vendors' keys, and a provider of its own declared in `models.yml` is let through by
+        # its driver, as pi's `models.json` is by pi's.
+        hosts=(
+            "api.anthropic.com",
+            "platform.claude.com",
+            "chatgpt.com",
+            "auth.openai.com",
+            "api.openai.com",
+            "api.github.com",
+            "api.individual.githubcopilot.com",
+            "api.x.ai",
+            "auth.x.ai",
+            "api.kimi.com",
+            "auth.kimi.com",
+            "openrouter.ai",
+            "generativelanguage.googleapis.com",
+            "api.deepseek.com",
+            "api.groq.com",
+            "api.mistral.ai",
+        ),
+        installs="curl -fsSL https://omp.sh/install | sh",
+        # No preload: what that line installs is one executable Bun compiled with its runtime
+        # inside, which reads no `NODE_OPTIONS`, and one installed through Bun runs on Bun.
+        aliases=("omp", "oh-my-pi"),
+        # `--fork`, which takes a saved session by id and opens a new one carrying it.
+        forks=True,
+        home_var="PI_CODING_AGENT_DIR",
+        home_dir=".omp/agent",
+        # pi's layout: `sessions/<workspace>/<started>_<id>.jsonl`, and beside each the
+        # directory of what its tools left, named the same. `--resume` finds a session by
+        # reading these, wherever it was opened, so they are the whole of what one needs.
+        logs=("sessions/*/*{ident}.jsonl",),
+        sessions=("sessions",),
+        # pi's ladder, and `off` again among the rungs it takes and does not list: `omp models`
+        # names a model's efforts, and every one that thinks can be asked not to.
+        efforts=_PI,
+        beyond=("off",),
+        # Its own under its home and the shared one under yours, and both of a project's own,
+        # which -- unlike pi's -- are read in RPC mode with no trust to be granted first. A
+        # flow's skills go in the shared spelling of the two.
+        skills=("skills/*/SKILL.md",),
+        shared=(".agents/skills/*/SKILL.md",),
+        works=(".omp/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
+        mounts=".agents/skills",
+        # No `creds`, and so no `login` way below: omp keeps its sign-ins in `agent.db`, the
+        # SQLite database it keeps its settings and its usage in too, which no copy answering
+        # reads could stand in for. An agent given no provider runs as whatever this machine's
+        # omp is signed in to; one given a provider runs on that provider's key. Every
+        # variable omp reads a key or a cloud's account out of is hushed for the second, so
+        # that a key left in a shell is not the account a turn quietly runs as -- these are
+        # the ones its provider table and `--help` name.
+        ambient=(
+            "ABLITERATION_API_KEY",
+            "AIAND_API_KEY",
+            "AIMLAPI_API_KEY",
+            "AI_GATEWAY_API_KEY",
+            "ALIBABA_CODING_PLAN_API_KEY",
+            "ALIBABA_TOKEN_PLAN_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_FOUNDRY_API_KEY",
+            "ANTHROPIC_OAUTH_TOKEN",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_BEARER_TOKEN_BEDROCK",
+            "AWS_PROFILE",
+            "AWS_REGION",
+            "AWS_SECRET_ACCESS_KEY",
+            "AZURE_OPENAI_API_KEY",
+            "BAILIAN_TOKEN_PLAN_API_KEY",
+            "BASETEN_API_KEY",
+            "BIGMODEL_API_KEY",
+            "CEREBRAS_API_KEY",
+            "CHARM_HYPER_API_KEY",
+            "CLAUDE_CODE_USE_FOUNDRY",
+            "CLINE_API_KEY",
+            "CLOUDFLARE_AI_GATEWAY_API_KEY",
+            "COMMAND_CODE_API_KEY",
+            "COPILOT_GITHUB_TOKEN",
+            "COREWEAVE_API_KEY",
+            "COREWEAVE_PROJECT",
+            "CURSOR_ACCESS_TOKEN",
+            "DEEPINFRA_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "DEVIN_API_KEY",
+            "FIREPASS_API_KEY",
+            "FIREWORKS_API_KEY",
+            "FOUNDRY_BASE_URL",
+            "FUGU_API_KEY",
+            "GEMINI_API_KEY",
+            "GITLAB_TOKEN",
+            "GMI_API_KEY",
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            "GOOGLE_CLOUD_API_KEY",
+            "GOOGLE_CLOUD_LOCATION",
+            "GOOGLE_CLOUD_PROJECT",
+            "GROQ_API_KEY",
+            "HF_TOKEN",
+            "HUGGINGFACE_HUB_TOKEN",
+            "HYPER_API_KEY",
+            "KILO_API_KEY",
+            "KIMI_API_KEY",
+            "LITELLM_API_KEY",
+            "LLAMA_CPP_API_KEY",
+            "LM_STUDIO_API_KEY",
+            "META_API_KEY",
+            "MINIMAX_API_KEY",
+            "MINIMAX_CODE_API_KEY",
+            "MINIMAX_CODE_CN_API_KEY",
+            "MISTRAL_API_KEY",
+            "MODEL_API_KEY",
+            "MOONSHOT_API_KEY",
+            "NANO_GPT_API_KEY",
+            "NOVITA_API_KEY",
+            "NVIDIA_API_KEY",
+            "OLLAMA_API_KEY",
+            "OLLAMA_CLOUD_API_KEY",
+            "OMP_AUTH_BROKER_TOKEN",
+            "OMP_AUTH_BROKER_URL",
+            "OPENAI_API_KEY",
+            "OPENAI_CODEX_OAUTH_TOKEN",
+            "OPENCODE_API_KEY",
+            "OPENROUTER_API_KEY",
+            "QIANFAN_API_KEY",
+            "QWEN_OAUTH_TOKEN",
+            "QWEN_PORTAL_API_KEY",
+            "SAKANA_API_KEY",
+            "SILICONFLOW_API_KEY",
+            "SILICONFLOW_CN_API_KEY",
+            "SYNTHETIC_API_KEY",
+            "TOGETHER_API_KEY",
+            "UMANS_AI_CODING_PLAN_API_KEY",
+            "VENICE_API_KEY",
+            "VERCEL_AI_GATEWAY_API_KEY",
+            "VLLM_API_KEY",
+            "WAFER_SERVERLESS_API_KEY",
+            "WANDB_API_KEY",
+            "XAI_API_KEY",
+            "XAI_OAUTH_TOKEN",
+            "XIAOMI_API_KEY",
+            "XIAOMI_TOKEN_PLAN_AMS_API_KEY",
+            "XIAOMI_TOKEN_PLAN_CN_API_KEY",
+            "XIAOMI_TOKEN_PLAN_SGP_API_KEY",
+            "YOLO_AUTO_API_KEY",
+            "ZAI_API_KEY",
+            "ZENMUX_API_KEY",
+            "ZHIPU_API_KEY",
+        ),
+        # A vendor's key apiece under the vendor's own name, which omp reads out of the
+        # environment as pi does, and a turn names the model `provider/id`. The rest of what it
+        # reads a key of is the `env` way every backend has.
+        ways=(
+            Way(
+                name="anthropic-key",
+                about="an Anthropic API key, from the console",
+                asks=(
+                    Asked(env="ANTHROPIC_API_KEY", about="the API key", secret=True),
+                ),
+            ),
+            Way(
+                name="anthropic-token",
+                about="a long-lived Anthropic token, as `claude setup-token` prints one",
+                asks=(
+                    Asked(
+                        env="ANTHROPIC_OAUTH_TOKEN",
+                        about="the token `claude setup-token` printed",
+                        secret=True,
+                    ),
+                ),
+            ),
+            Way(
+                name="openai-key",
+                about="an OpenAI API key, from the platform",
+                asks=(Asked(env="OPENAI_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="gemini-key",
+                about="a Gemini API key, from Google AI Studio",
+                asks=(Asked(env="GEMINI_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="xai-key",
+                about="an xAI API key, from the console",
+                asks=(Asked(env="XAI_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="openrouter-key",
+                about="an OpenRouter API key",
+                asks=(
+                    Asked(env="OPENROUTER_API_KEY", about="the API key", secret=True),
+                ),
+            ),
+            Way(
+                name="deepseek-key",
+                about="a DeepSeek API key, from the platform",
+                asks=(Asked(env="DEEPSEEK_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="groq-key",
+                about="a Groq API key, from the console",
+                asks=(Asked(env="GROQ_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="mistral-key",
+                about="a Mistral API key, from La Plateforme",
+                asks=(Asked(env="MISTRAL_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="bedrock",
+                about="models on Amazon Bedrock, under an AWS account of yours",
+                asks=(
+                    Asked(env="AWS_PROFILE", about="the AWS profile to run as"),
+                    Asked(env="AWS_REGION", about="the region", fixed="us-east-1"),
+                ),
+            ),
+            Way(
+                name="vertex",
+                about="models on Vertex AI, under a Google Cloud project of yours",
+                asks=(
+                    Asked(env="GOOGLE_CLOUD_PROJECT", about="the project id"),
+                    Asked(
+                        env="GOOGLE_CLOUD_LOCATION",
+                        about="the location",
+                        fixed="us-central1",
+                    ),
+                ),
+            ),
+        ),
+    ),
+    Profile(
         name="qwen",
         # Where a turn goes when no variable says where: the DashScope API in either region,
         # and the Coding Plan's and Token Plan's own hosts in either, which is where the

@@ -343,7 +343,7 @@ found none.
 **Fix.** Check what it can find:
 
 ```sh
-command -v agy claude codex cursor-agent grok kimi mcode mimo opencode pi qwen
+command -v agy claude codex cursor-agent grok kimi mcode mimo omp opencode pi qwen
 ```
 
 Install one from [Installation](/user/installation), then open `hmz` again. If one is

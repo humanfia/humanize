@@ -14,7 +14,7 @@ import { withBase } from 'vitepress'
 
 | Your line goes | Backends |
 | --- | --- |
-| into this turn | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="pi" /> |
+| into this turn | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="omp" /> <Badge type="tip" text="pi" /> |
 | into the next turn | <Badge type="warning" text="every other backend" /> |
 
 <div class="hmz-facts">

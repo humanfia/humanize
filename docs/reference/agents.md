@@ -46,6 +46,7 @@ views the flow runtime makes over it (`hmz.runtime.flowing.harnesses.HarnessDriv
 | `litellm` | `litellm` | a model, called directly ([litellm](#litellm)) | one chat completion per turn from this process, over the session's history; no CLI, no tools |
 | `mcode` | `mcode`, `minimax`, `minimax-code` | MiniMax Code | one `mcode exec` per turn |
 | `mimo` | `mimo`, `mimocode`, `mimo-code` | mimocode | one `mimo run` per turn |
+| `omp` | `omp`, `oh-my-pi` | Oh My Pi | one `omp --mode rpc` held open per session |
 | `opencode` | `opencode` | opencode | one `opencode run` per turn |
 | `pi` | `pi` | pi | one `pi --mode rpc` held open per session |
 | `qwen` | `qwen`, `qwen-code` | Qwen Code | one process held open (stream-json); a command per shaped turn |
@@ -64,6 +65,7 @@ views the flow runtime makes over it (`hmz.runtime.flowing.harnesses.HarnessDriv
 | `litellm` | `LiteLLMAgent` | `LiteLLMAgentConfig` | `LiteLLMSession` | `SessionBase` |
 | `mcode` | `MiniMaxCodeAgent` | `MiniMaxCodeAgentConfig` | `MiniMaxCodeSession` | `CommandSessionBase` |
 | `mimo` | `MimoCodeAgent` | `MimoCodeAgentConfig` | `MimoCodeSession` | `CommandSessionBase` |
+| `omp` | `OhMyPiAgent` | `OhMyPiAgentConfig` | `OhMyPiSession` | `StreamSessionBase` |
 | `opencode` | `OpencodeAgent` | `OpencodeAgentConfig` | `OpencodeSession` | `CommandSessionBase` |
 | `pi` | `PiAgent` | `PiAgentConfig` | `PiSession` | `StreamSessionBase` |
 | `qwen` | `QwenCodeAgent` | `QwenCodeAgentConfig` | `QwenCodeSession` | `StreamSessionBase` |
@@ -86,6 +88,7 @@ All classes are importable from `hmz.coganchor.agents`.
 | `litellm` | `pip install 'litellm>=1.104'` (the `[litellm]` extra) | `>=1.104` (`backends.LITELLM_SDK`) |
 | `mcode` | `npm i -g @minimax-ai/code` | 0.5.9 |
 | `mimo` | `npm i -g @mimo-ai/cli` | not recorded |
+| `omp` | `curl -fsSL https://omp.sh/install \| sh` | 18.2.8 |
 | `opencode` | `npm i -g opencode-ai` | not recorded |
 | `pi` | `npm i -g @earendil-works/pi-coding-agent` | 0.84.0 – 0.85.1 |
 | `qwen` | `npm i -g @qwen-code/qwen-code` | not recorded |
@@ -199,7 +202,7 @@ and a negative cap (`a budget cannot be less than nothing`).
 | `agy`, `claude`, `codex`, `dsh`, `grok`, `qwen` | the id the CLI or its endpoint serves | `claude-opus-5`, `gpt-5.6-sol`, `deepseek-v4-flash` |
 | `kimi` | Kimi Code's `provider/id` | `kimi-code/k3` |
 | `litellm` | a litellm model string, `provider/id`; under a gateway account a bare id, sent as `openai/<id>` or `anthropic/<id>` | `openai/gpt-5`, `anthropic/claude-sonnet-4-5` |
-| `pi`, `opencode` | `provider/id` | `openai-codex/gpt-5.5`, `opencode/big-pickle` |
+| `pi`, `omp`, `opencode` | `provider/id` | `openai-codex/gpt-5.5`, `deepseek/deepseek-v4-flash`, `opencode/big-pickle` |
 | `mimo` | `provider/id`; under a gateway account, the id its endpoint serves (sent as `humanize/<id>`) | `xiaomi/mimo-v2.5`, `gpt-5.6-sol` |
 | `cursor-agent` | an id from the account's list, the rung and tier written into it | `composer-2.5-high-fast` |
 | `mcode` | `minimax/<id>`, or `custom_provider:<name>/<id>` for an added provider; `""` for its configured default | `minimax/MiniMax-M3` |
@@ -228,6 +231,7 @@ hushed ones.
 | `grok` | `grok models` | the ladder |
 | `cursor-agent` | `cursor-agent --list-models` | the rungs its listed variants carry (`gpt-5.2` at those `gpt-5.2-low` … are listed for); none for a model with no variants |
 | `pi` | `pi --list-models` | the ladder |
+| `omp` | `omp models --json` | for a model that reasons, the rungs omp lists for it, plus `off`, or the ladder where it lists none; none for a model that does not reason |
 | `opencode`, `mimo` | `<cli> models` (lines with a `/`) | the ladder |
 | `mcode` | `mcode provider list --json`, then MiniMax's own four (`minimax/MiniMax-M3`, `minimax/MiniMax-M3.1-Flash-Preview`, `minimax/MiniMax-M2.7`, `minimax/MiniMax-M2.7-highspeed`) | only `MiniMax-M3.1-Flash-Preview` takes rungs |
 | `dsh` | nothing: `deepseek-v4-flash`, `deepseek-v4-pro` | the ladder |
@@ -277,6 +281,7 @@ CLI. An ACP CLI's ladder is the single word `as configured` and any effort is ac
 | `litellm` | `high`, `medium`, `low`, `minimal`, `none` | `reasoning_effort` on the call; litellm leaves it off for a model with none |
 | `mcode` | `max`, `xhigh`, `high`, `medium`, `low` | `--effort`, only where there is a rung; a rung the account's catalogue does not list for the model is `Unserved` |
 | `mimo`, `opencode` | `xhigh`, `high`, `medium`, `low`, `minimal` | `--variant` |
+| `omp` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` | `--thinking`, only where there is a rung. `off` is also in `beyond`, so it stays on a model's ladder however its catalogue narrows it |
 | `pi` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` | `--thinking`; pi clamps a rung the model lacks to the nearest it has |
 | `qwen` | `max`, `xhigh`, `high`, `medium`, `low`, `none` | a settings file named by `QWEN_CODE_SYSTEM_SETTINGS_PATH`, one per effort |
 
@@ -291,7 +296,7 @@ checked as a configured one is.
 | --- | --- |
 | `codex`, `kimi`, `opencode`, `mimo`, `cursor-agent`, `mcode`, `litellm` | sent with the next turn |
 | `claude`, `dsh`, `agy`, `grok`, `qwen` | the process or runtime is restarted and resumes the same conversation |
-| `pi` | a command to the held process, between turns |
+| `pi`, `omp` | a command to the held process, between turns |
 
 <small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.efforts`, `Profile.beyond`, `Profile.takes`, `AUTO`, `SWARM`).</small>
 
@@ -333,6 +338,7 @@ refused: `Unserved`):
 | `litellm` | nothing sent | — | — | — |
 | `mcode` | refused | `full` | `smart` | `full` |
 | `mimo`, `opencode` | `edit`, `bash` denied | web tools denied | nothing denied | — |
+| `omp` | `always-ask`, every approval answered no | `yolo` | — | — |
 | `pi` | four tools withheld | nothing withheld | — | — |
 | `qwen` | five tools withheld | `web_fetch` withheld | nothing withheld | — |
 | an ACP CLI | refused | refused | refused | every request granted |
@@ -349,6 +355,7 @@ How it is sent:
 | `kimi` | the session's permission mode on the daemon, and plan mode at `read-only` |
 | `mcode` | `--permission full`, `--permission smart` |
 | `mimo`, `opencode` | the `MIMOCODE_PERMISSION` / `OPENCODE_PERMISSION` table, plus `--dangerously-skip-permissions` / `--auto` |
+| `omp` | `--approval-mode always-ask` at `read-only`; `--approval-mode yolo` at `workspace-write`, `auto` and `bypass` |
 | `pi` | `--exclude-tools bash,edit,write,powershell` at `read-only` |
 | `qwen` | `--approval-mode yolo`, plus `--exclude-tools edit,monitor,notebook_edit,run_shell_command,write_file` at `read-only` or `--exclude-tools web_fetch` at `workspace-write` |
 
@@ -390,6 +397,10 @@ Per-backend rules:
 - **mimo**, **opencode**: the rung goes in a permission table (`OPENCODE_PERMISSION` /
   `MIMOCODE_PERMISSION`); any rung also adds `--auto` (opencode) or
   `--dangerously-skip-permissions` (mimo), unless `unattended` says otherwise.
+- **omp**: no sandbox. At `read-only` omp asks before every tool it does not class as a read,
+  and the driver answers each such approval no without asking anyone. `workspace-write`, `auto`
+  and `bypass` are one agent. With no rung no flag is sent and omp's own configuration decides;
+  an approval it then asks for reaches the person as a [question](#questions).
 - **pi**: no permission gate and no sandbox; `workspace-write`, `auto` and `bypass` are one
   agent.
 - **qwen**: always `--approval-mode yolo`; its asking modes would leave a held-open session
@@ -452,7 +463,7 @@ Under a flow the rung is derived from the role's `Permission` by
 | `opencode` | `webfetch: deny`, `websearch: deny` in the permission table |
 | `mimo` | the same, and `codesearch: deny` |
 | `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; at `read-only`, `hmz-read-only-web` when on |
-| `cursor-agent`, `mcode`, `pi`, an ACP CLI | cannot be told: `False` is refused |
+| `cursor-agent`, `mcode`, `omp`, `pi`, an ACP CLI | cannot be told: `False` is refused |
 
 Under a flow, `online` of `ALL` (the default) is `True` and `NONE` is `False`, on a backend that
 can be told; elsewhere `None`. A command the agent runs reaches the network regardless of this
@@ -539,6 +550,7 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | `grok` | its sandbox profiles write `/tmp` and `/var/tmp`, block only commands' network, and fail without user namespaces on 1.0.24 |
 | `kimi` | 0.42 has no sandbox; the daemon is fenced once, when it starts |
 | `mimo`, `opencode` | neither confines its shell; the permission table additionally denies `edit` outside writable paths, `read`/`external_directory` outside readable ones (only where `system` is `NONE`), and web tools where `online` is `NONE` |
+| `omp` | no sandbox; no `--offline` under `online` `NONE` |
 | `pi` | no gate and no sandbox; `--offline` under `online` `NONE` |
 | `qwen` | `--sandbox` is a container or Seatbelt; its rules hold its own tools only; generated settings live under one `hmz-qwen-*` temporary directory granted read-only |
 | an ACP CLI | nothing is known of it; declared `hosts` and `state` under `clis` in `settings.yaml` are granted |
@@ -585,6 +597,7 @@ network](/reference/providers#hosts-reachable-under-a-cut-network)).
 | `kimi` | `api.kimi.com`, `auth.kimi.com`, `api.kimi.ai`, `auth.kimi.ai`, `api.moonshot.ai`, `api.moonshot.cn` |
 | `mcode` | `agent.minimax.io`, `agent.minimaxi.com`, `agent.minimax.cn`, `api.minimax.io`, `api.minimaxi.com`, `account.minimax.io`, `account.minimax.cn` (a cut network is refused anyway) |
 | `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `omp` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider omp's own `models.yml` (or `models.yaml`) declares for the model |
 | `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`, `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`, `api.mistral.ai`; plus the `options.baseURL` of the provider `opencode/opencode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
 | `pi` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider pi's own `models.json` declares for the model |
 | `qwen` | `dashscope.aliyuncs.com`, `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com`, `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com`, `token-plan.ap-southeast-1.maas.aliyuncs.com`, `generativelanguage.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` |
@@ -602,8 +615,9 @@ session(prompt)                     # opens the conversation, then resumes it
 
 - Both calls return the answer, stripped (or the schema model, with `schema=`).
 - `session.id` raises `RuntimeError: session has not run a turn yet` until a turn has landed;
-  `session.named` is `None` instead. On `claude`, `codex`, `dsh`, `kimi` and `pi` it is set as
-  soon as the backend names the session, during the first turn; elsewhere when that turn lands.
+  `session.named` is `None` instead. On `claude`, `codex`, `dsh`, `kimi`, `omp` and `pi` it is
+  set as soon as the backend names the session, during the first turn; elsewhere when that turn
+  lands.
 - A session runs one turn at a time; concurrent callers of one session are serialised.
 - An agent holds its sessions weakly; dropping a session closes it.
 - `session.close()` ends whatever holds the conversation open.
@@ -664,6 +678,7 @@ history; its first turn performs the fork.
 | `grok` | `grok -p --resume <parent> --fork-session` | no |
 | `opencode`, `mimo` | `run --session <parent> --fork` | no |
 | `pi` | `--fork <parent>` | no |
+| `omp` | `--fork <parent>` | no |
 | `qwen` | `--resume <parent> --fork-session` | no |
 | an ACP CLI | `session/fork`, where the agent serves it | no |
 | `litellm` | the conversation's file copied under the child's id by its first turn | yes |
@@ -757,12 +772,12 @@ are in front of the model. `session.steers` says whether the backend can.
 | `claude` | a user message written on the held stream | accepted while the process is up; `RuntimeError: no turn is running to be talked to` before the first turn |
 | `codex` | `turn/steer` | `RuntimeError` |
 | `kimi` | queued on the daemon, then steered in | `RuntimeError` |
-| `pi` | an RPC `steer` command | accepted while the process is up |
+| `pi`, `omp` | an RPC `steer` command | accepted while the process is up |
 | every other | none: `NotImplementedError: <Session> cannot be talked to mid-turn` | |
 
-An anchored session's process ends with each turn, so an anchored `claude` or `pi` hears words
-only during a turn. Under a flow, `SteeringAgentMixin.steer(prompt, session=…, queued=True)`;
-`queued=False` interrupts the turn and continues from the prompt.
+An anchored session's process ends with each turn, so an anchored `claude`, `pi` or `omp`
+hears words only during a turn. Under a flow, `SteeringAgentMixin.steer(prompt, session=…,
+queued=True)`; `queued=False` interrupts the turn and continues from the prompt.
 
 ## Goals {#goals}
 
@@ -844,7 +859,7 @@ propagates.
 | `claude`, `codex` | yes | yes | yes |
 | `cursor-agent`, `mcode` | yes | — | yes |
 | `grok`, `kimi` | yes | yes | — |
-| `agy`, `dsh`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | yes | — | — |
+| `agy`, `dsh`, `mimo`, `omp`, `opencode`, `pi`, `qwen`, an ACP CLI | yes | — | — |
 | `HumanAgent` | — | — | — |
 
 The six common moments are `SESSION_START`, `USER_PROMPT_SUBMIT`, `PRE_TOOL_USE`,
@@ -931,7 +946,7 @@ An agent may stop mid-turn to ask its user; `Question(text, options=(), asker=""
 
 A watcher sees each question as an `asks` event. Under a flow, questions go to the role's
 `on_ask_user` hook where the role declares `AskUserHookAgentMixin` (served by `claude`,
-`codex`, `kimi`, `pi`); otherwise the backend is told nobody answered.
+`codex`, `kimi`, `omp`, `pi`); otherwise the backend is told nobody answered.
 
 ## Stopping and budgets {#stopping}
 
@@ -969,7 +984,7 @@ resumes by id.
 | How the backend holds a turn | `interrupt` reaches | `cut` reaches |
 | --- | --- | --- |
 | a command per turn: `cursor-agent`, `mcode`, `opencode`, `mimo`, and the command turns of `agy`, `grok`, `qwen` | the command and its children | the same |
-| a held process: `claude`, `pi`, the ordinary turns of `agy`, `grok`, `qwen` | that process; `pi` is first sent `abort` and given 5 s | the same |
+| a held process: `claude`, `pi`, `omp`, the ordinary turns of `agy`, `grok`, `qwen` | that process; `pi` and `omp` are first sent `abort` and given 5 s | the same |
 | a shared transport: `codex` (app server), `dsh` (SDK runtime) | nothing is taken down; the turn stops at the transport's next message | the transport and every turn on it |
 | `kimi` (daemon) | the prompt is aborted (`POST …/prompts/<id>:abort`) | that, then the daemon's whole process tree |
 | an ACP CLI | `session/cancel` | the same |
@@ -1007,7 +1022,7 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
 | `codex` | input, output (cached reads inside input) | on `thread/tokenUsage/updated` |
 | `dsh` | input, output, cache_read, cache_write | on each finalised assistant message |
 | `litellm` | input, output, cache_read, cache_write (cached reads taken out of input) | on the usage of the turn's one request |
-| `pi` | input, output, cache_read, cache_write | on each finalised assistant message |
+| `pi`, `omp` | input, output, cache_read, cache_write | on each finalised assistant message |
 | `opencode`, `mimo` | all five | on each step |
 | `kimi` | input, output, cache_read, cache_write | on each `turn.step.completed` notification |
 | `cursor-agent`, `mcode` | input, output, cache_read, cache_write | once, on the closing `result` |
@@ -1050,7 +1065,7 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 | --- | --- | --- |
 | `claude` | `.claude/skills/` | `.claude/skills` |
 | `cursor-agent` | `.cursor/skills/` | `.cursor/skills` |
-| `agy`, `codex`, `grok`, `kimi`, `mcode`, `mimo`, `opencode`, `qwen` | `.agents/skills/` | `.agents/skills` and each CLI's own (`.codex/skills`, `.grok/skills`, `.kimi-code/skills`, `.minimax/skills`, `.mimocode/skill[s]`, `.opencode/skill[s]`, `.qwen/skills`, and on some `.claude/skills`, `.cursor/skills`) |
+| `agy`, `codex`, `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `qwen` | `.agents/skills/` | `.agents/skills` and each CLI's own (`.codex/skills`, `.grok/skills`, `.kimi-code/skills`, `.minimax/skills`, `.mimocode/skill[s]`, `.omp/skills`, `.opencode/skill[s]`, `.qwen/skills`, and on some `.claude/skills`, `.cursor/skills`) |
 | `dsh`, `pi` | none | none |
 
 - `pi` reads workspace skills only for a trusted project; pass paths with
@@ -1195,6 +1210,7 @@ conversation.
 | `litellm` | `~/.cache/humanize/litellm` | `sessions/{ident}.jsonl`, written by humanize | yes | — |
 | `mcode` | `$MINIMAX_DATA_DIR`, `~/.minimax` | `v2/sessions/*/*/*/*-session_{ident}/messages.jsonl`, `{ident}` URL-safe base64 without padding (`Profile.encodes`) | yes | no |
 | `mimo` | `$XDG_DATA_HOME/mimocode`, `~/.local/share/mimocode` | SQLite `mimocode.db` | yes | yes |
+| `omp` | `$PI_CODING_AGENT_DIR`, `~/.omp/agent` | `sessions/*/*{ident}.jsonl` | yes | no |
 | `opencode` | `$XDG_DATA_HOME/opencode`, `~/.local/share/opencode` | SQLite `opencode.db` | yes | yes |
 | `pi` | `$PI_CODING_AGENT_DIR`, `~/.pi/agent` | `sessions/*/*{ident}.jsonl` | yes | no |
 | `qwen` | `$QWEN_HOME`, `~/.qwen` | `projects/*/chats/{ident}.jsonl` | yes | no |
@@ -1458,6 +1474,36 @@ No fields of its own.
   machine that cannot supervise a turn the path is not answered, and only a fence that
   writes the home lets `mcode` start.
 - `config.yaml` and `auth/` are credential files, so an account holds its own settings.
+
+### Oh My Pi {#oh-my-pi}
+
+`omp`. One `omp --mode rpc` per session, spoken to in [pi](#pi)'s RPC protocol:
+
+```text
+omp --mode rpc --model <provider/id> [--thinking <rung>]
+  [--resume <id> | --fork <parent>] [--approval-mode always-ask|yolo]
+```
+
+`OhMyPiAgentConfig` adds no fields; those `PiAgentConfig` adds are not offered.
+
+- omp takes no session id up front. Ahead of the first prompt of a session with no id, the
+  driver sends `get_state`; the `sessionId` it answers is `session.named`, and the session's id
+  once the turn lands. Later processes start with `--resume <id>`; a fork's first process
+  starts with `--fork <parent>` and learns its id the same way.
+- A turn ends on the `agent_end` that is terminal (neither `isTerminal` nor `yielded` is
+  `false`); omp sends no `agent_settled`. A prompt omp answers itself, a slash command of its own
+  (`agentInvoked: false`), also ends the turn.
+- At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
+  `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
+- No `NODE_COMPILE_CACHE` and no `NODE_OPTIONS` preload: omp is one Bun-compiled executable,
+  so `PRE_TOOL_USE` is read off the turn only.
+- The fence also lets through the `baseUrl` of the model's provider in `models.yml` (else
+  `models.yaml`) in omp's home, and of that provider's models; for a model named without a
+  provider, of every provider declared there. Nothing is sent to omp under `online` `NONE`.
+- omp reads a project's `.omp/skills` and `.agents/skills` with no trust to grant, so a flow's
+  skills are mounted at `.agents/skills`.
+- No credential files: omp keeps its sign-ins in `agent.db`, beside its settings, which an
+  account does not copy. An agent with no account runs as this machine's omp sign-in.
 
 ### opencode and mimocode {#what-opencode-and-mimocode-add-to-a-bare-run}
 
