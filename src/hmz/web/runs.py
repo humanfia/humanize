@@ -36,6 +36,9 @@ RUNNING = "running"
 #: The most rows one page of the list holds.
 _PAGE = 200
 
+#: How many runs' traces are kept read, for a page that reads one again.
+_TRACES = 4
+
 #: How far apart a run's start may be from the start of the epic it wrote, in seconds, for the
 #: two to be one run: the run says when it started, and the epic is opened as it does.
 _SAME = 120.0
@@ -113,8 +116,13 @@ class Runs:
                 ran.at, output=Path(scratch) / "trace.json"
             )
         said = sessions_of(document)
-        with self._lock:
-            self._traced[ran.at] = (stamp, said)
+        # Kept only for a run that has ended, whose logs are done being written, and only the
+        # last few: what a page reads it holds itself.
+        if ran.ended:
+            with self._lock:
+                self._traced[ran.at] = (stamp, said)
+                while len(self._traced) > _TRACES:
+                    del self._traced[next(iter(self._traced))]
         return said
 
     def bundled(self, ran: Ran) -> Download:

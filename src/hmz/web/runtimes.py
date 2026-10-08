@@ -77,6 +77,8 @@ def _write(asked: Asked) -> dict[str, Any]:
     backend, name = asked.text("backend"), asked.text("name")
     fields = asked.named("fields")
     replacing = asked.body.get("replace") is True
+    if taken := sorted({"backend", "name"} & set(fields)):
+        raise Refusal(f"Say {', '.join(taken)} beside fields, not among them.")
     try:
         made = hmz.runtimes.new(backend, name, **fields)
         if replacing:

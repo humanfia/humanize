@@ -91,7 +91,10 @@ def _way(way: Way) -> dict[str, Any]:
 def _make(asked: Asked) -> dict[str, Any]:
     hmz = asked.site.hmz
     cli, name, named = asked.text("cli"), asked.text("name"), asked.text("way")
-    way = hmz.accounts.way(cli, named)
+    try:
+        way = hmz.accounts.way(cli, named)
+    except ValueError as why:
+        raise Refusal(str(why)) from why
     if way is None:
         raise Refusal(f"{cli} has no way in called {named}.")
     if way.argv:
@@ -105,9 +108,9 @@ def _make(asked: Asked) -> dict[str, Any]:
     said = {key: value for key, value in answers.items() if value}
     if missing := hmz.accounts.asks(way, said):
         raise Refusal(f"{named} still needs {', '.join(missing)}.")
-    if hmz.accounts.find(cli, name) is not None:
-        raise Refusal(f"{cli} has an account called {name} already.", 409)
     try:
+        if hmz.accounts.find(cli, name) is not None:
+            raise Refusal(f"{cli} has an account called {name} already.", 409)
         hmz.accounts.make(cli, name, way, said)
     except (ValueError, OSError) as why:
         raise Refusal(str(why)) from why
@@ -128,7 +131,11 @@ def _remove(asked: Asked) -> dict[str, Any]:
 def _models(asked: Asked) -> dict[str, Any]:
     hmz = asked.site.hmz
     cli, name = asked.text("cli"), asked.text("name", required=False)
-    if hmz.accounts.find(cli, name) is None:
+    try:
+        found = hmz.accounts.find(cli, name)
+    except ValueError as why:
+        raise Refusal(str(why)) from why
+    if found is None:
         raise Refusal(f"{cli} has no account called {name or 'of this machine'}.", 404)
     hmz.accounts.ask(cli, name)
     return listed(hmz)
@@ -137,10 +144,10 @@ def _models(asked: Asked) -> dict[str, Any]:
 def _copy(asked: Asked) -> dict[str, Any]:
     hmz = asked.site.hmz
     cli, name, into = asked.text("cli"), asked.text("name"), asked.text("into")
-    one = hmz.accounts.find(cli, name)
-    if one is None:
-        raise Refusal(f"{cli} has no account called {name}.", 404)
     try:
+        one = hmz.accounts.find(cli, name)
+        if one is None:
+            raise Refusal(f"{cli} has no account called {name}.", 404)
         hmz.accounts.copies(one, into)
     except (ValueError, OSError) as why:
         raise Refusal(str(why)) from why

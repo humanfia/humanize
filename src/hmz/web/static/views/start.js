@@ -42,16 +42,23 @@ export function mount(root, { query }) {
     })
     .catch((error) => fill(form, problem(error)))
 
+  /** Which flow was chosen last: one read after another was chosen draws nothing. */
+  let choosing = ''
+
   async function choose(name, run) {
     if (!name) return
+    choosing = name
     stays({ flow: name, resume })
     fill(form, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
+    let read
     try {
-      picked = await get(`/api/flow?name=${encodeURIComponent(name)}`)
+      read = await get(`/api/flow?name=${encodeURIComponent(name)}`)
     } catch (error) {
-      fill(form, problem(error))
+      if (choosing === name) fill(form, problem(error))
       return
     }
+    if (choosing !== name) return
+    picked = read
     fill(about, picked.description || '')
     drawForm(picked, run)
   }

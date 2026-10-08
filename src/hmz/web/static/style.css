@@ -67,6 +67,11 @@
   box-sizing: border-box;
 }
 
+/* Hidden means hidden, whatever display a class gives the element. */
+[hidden] {
+  display: none !important;
+}
+
 html {
   background: var(--paper);
 }

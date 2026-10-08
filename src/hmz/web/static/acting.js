@@ -2,53 +2,47 @@
 // and holds the roles a person fills -- each one request to the runs, refused with their reason.
 // And what it asks beside the run, which never reaches the run at all.
 
-import { post } from './api.js'
+import { get, post } from './api.js'
 import { acting, confirming, fill, h, problem } from './dom.js'
 import { ask } from './held.js'
 import { line } from './transcript.js'
 
-/** The questions the run is waiting on a person for, each answerable here. */
-export function questions(pending, me, clients) {
-  return pending.map((one) => {
-    const named = Object.fromEntries((clients || []).map((client) => [client.client, client.name || client.client]))
-    const theirs = one.owner && one.owner !== me
-    const holder = h('div', { class: 'question', 'data-hmz': 'question' }, h('div', { class: 'kicker' }, `${one.role || 'the flow'} asks`), h('div', { class: 'body' }, one.text))
-    if (theirs) {
-      holder.append(h('p', { class: 'dim' }, `Waiting for ${named[one.owner] || one.owner} to answer: that frontend holds ${one.role}.`))
-      return holder
-    }
-    const options = (one.options || []).map((option, index) =>
-      acting(option, () => ask('answer', { question: one.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
-    )
-    const typed = h('input', { type: 'text', placeholder: 'Or say an answer', 'aria-label': 'Answer' })
-    const form = h('form', { class: 'row' }, typed, h('button', { class: 'btn small primary', type: 'submit' }, 'Answer'))
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault()
-      if (!typed.value.trim()) return
-      form.querySelector('.error')?.remove()
-      try {
-        await ask('answer', { question: one.question, text: typed.value })
-        typed.value = ''
-      } catch (error) {
-        form.append(problem(error))
-      }
-    })
-    if (options.length) holder.append(h('div', { class: 'row' }, options))
-    holder.append(form)
+/** One question the run is waiting on a person for, answerable here unless another holds it. */
+export function question(one, me, clients) {
+  const named = Object.fromEntries((clients || []).map((client) => [client.client, client.name || client.client]))
+  const holder = h('div', { class: 'question', 'data-hmz': 'question' }, h('div', { class: 'kicker' }, `${one.role || 'the flow'} asks`), h('div', { class: 'body' }, one.text))
+  if (one.owner && one.owner !== me) {
+    holder.append(h('p', { class: 'dim' }, `Waiting for ${named[one.owner] || one.owner} to answer: that frontend holds ${one.role}.`))
     return holder
+  }
+  const options = (one.options || []).map((option, index) =>
+    acting(option, () => ask('answer', { question: one.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
+  )
+  const typed = h('input', { type: 'text', placeholder: 'Or say an answer', 'aria-label': 'Answer' })
+  const form = h('form', { class: 'row' }, typed, h('button', { class: 'btn small primary', type: 'submit' }, 'Answer'))
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (!typed.value.trim()) return
+    form.querySelector('.error')?.remove()
+    try {
+      await ask('answer', { question: one.question, text: typed.value })
+      typed.value = ''
+    } catch (error) {
+      form.append(problem(error))
+    }
   })
+  if (options.length) holder.append(h('div', { class: 'row' }, options))
+  holder.append(form)
+  return holder
 }
 
-/** Says a line to the run: into one session's turn, to a role, or to the next turn to start. */
-export function saying(roles, sessions, working, outworlders) {
-  const to = h(
-    'select',
-    { 'aria-label': 'Say it to' },
-    h('option', { value: '' }, 'the next turn'),
-    roles.map((role) => h('option', { value: role }, role)),
-    sessions.map((key) => h('option', { value: key }, `${key}${working.includes(key) ? ' (working)' : ''}`)),
-    outworlders.map((role) => h('option', { value: `outworlder:${role}` }, `${role} (a person)`)),
-  )
+/**
+ * Says a line to the run: into one session's turn, to a role, or to the next turn to start.
+ * Made once for a page, as `asides` is, and told who there is to say it to as that changes,
+ * so that a line being typed outlives every drawing of the page around it.
+ */
+export function saying() {
+  const to = h('select', { 'aria-label': 'Say it to' })
   const text = h('textarea', { rows: '2', placeholder: 'Say something to the run', 'aria-label': 'What to say' })
   const send = h('button', { class: 'btn primary', type: 'submit' }, 'Say it')
   const form = h('form', { class: 'form', 'data-hmz': 'say' }, text, h('div', { class: 'row' }, h('span', { class: 'kicker' }, 'to'), to, send))
@@ -69,7 +63,21 @@ export function saying(roles, sessions, working, outworlders) {
   text.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) form.requestSubmit()
   })
-  return form
+  return {
+    node: form,
+    /** Offers the roles, sessions and people there are to say a line to, keeping the one picked. */
+    offers(roles, sessions, working, outworlders) {
+      const picked = to.value
+      fill(
+        to,
+        h('option', { value: '' }, 'the next turn'),
+        roles.map((role) => h('option', { value: role }, role)),
+        sessions.map((key) => h('option', { value: key }, `${key}${working.includes(key) ? ' (working)' : ''}`)),
+        outworlders.map((role) => h('option', { value: `outworlder:${role}` }, `${role} (a person)`)),
+      )
+      if ([...to.options].some((option) => option.value === picked)) to.value = picked
+    },
+  }
 }
 
 /** The run's board: a handful of named lines the run and you both write and neither waits on. */
@@ -151,8 +159,9 @@ export function outworlders(roles, { claims, away, me, clients }) {
  * Side questions about the run, asked beside it rather than of it, as `/btw` asks them in the
  * terminal interface: of the btw agent, which may ask any one conversation in turn, or of one
  * conversation's read-only side copy. Every question after the first goes on in the same side
- * conversation until they are closed. Made once for a page, and moved from one drawing of it
- * to the next, so that what was asked and what is being typed outlive a redraw.
+ * conversation until they are closed. The server holds them, and what was said in them, so a
+ * page opened again reads them back; made once for a page and moved from one drawing of it to
+ * the next, so that what is being typed outlives a redraw.
  */
 export function asides() {
   const to = h('select', { 'aria-label': 'Ask it of' }, h('option', { value: '' }, 'the btw agent'))
@@ -161,17 +170,27 @@ export function asides() {
   const leave = h('button', { class: 'btn quiet small', type: 'button', hidden: true }, 'Close them')
   const log = h('div', { class: 'transcript', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
   const form = h('form', { class: 'form', 'data-hmz': 'btw' }, log, text, h('div', { class: 'row' }, h('span', { class: 'kicker' }, 'of'), to, send, leave))
+  const asked = (question, of) => log.append(line('you', question, { who: `btw · ${of || 'btw agent'}` }))
+  const answered = (said) => {
+    for (const one of said.asked) log.append(line('begins', `asked ${one.to}: ${one.question}`))
+    log.append(line('btw', said.answer))
+  }
+  get('/api/btw').then(({ open, said }) => {
+    for (const one of said) {
+      asked(one.question, one.to)
+      answered(one)
+    }
+    leave.hidden = !open.length
+  }, () => {})
   form.addEventListener('submit', async (event) => {
     event.preventDefault()
     const question = text.value.trim()
     if (!question || send.disabled) return
     send.disabled = true
     send.textContent = 'Asking…'
-    log.append(line('you', question, { who: `btw · ${to.value || 'btw agent'}` }))
+    asked(question, to.value)
     try {
-      const answered = await post('/api/btw', { question, to: to.value })
-      for (const one of answered.asked) log.append(line('begins', `asked ${one.to}: ${one.question}`))
-      log.append(line('btw', answered.answer))
+      answered(await post('/api/btw', { question, to: to.value }))
       text.value = ''
       leave.hidden = false
     } catch (error) {

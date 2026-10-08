@@ -39,17 +39,18 @@ def _write(asked: Asked) -> dict[str, Any]:
     said = asked.body
     if extra := sorted(set(said) - {"btw", "details", "reports"}):
         raise Refusal(f"Settings here take no {', '.join(extra)}.")
+    # All of it read before any of it is written: a request refused changes nothing.
+    if "btw" in said and not isinstance(said["btw"], str):
+        raise Refusal("btw is an agent as -a spells one, or nothing.")
+    if "details" in said and not isinstance(said["details"], bool):
+        raise Refusal("details is true or false.")
+    if "reports" in said and not isinstance(said["reports"], bool):
+        raise Refusal("reports is true or false.")
     if "btw" in said:
-        if not isinstance(said["btw"], str):
-            raise Refusal("btw is an agent as -a spells one, or nothing.")
         hmz.settings.btw = said["btw"]
     if "details" in said:
-        if not isinstance(said["details"], bool):
-            raise Refusal("details is true or false.")
         hmz.settings.detailing(on=said["details"])
     if "reports" in said:
-        if not isinstance(said["reports"], bool):
-            raise Refusal("reports is true or false.")
         hmz.settings.answers(enable_sentry=said["reports"])
     return general(hmz)
 

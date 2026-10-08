@@ -181,8 +181,12 @@ answered only where it was meant to be:
   and reading the runs through your browser.
 - **Only the browser it was opened in.** The key in the address becomes a cookie that scripts
   cannot read and other sites cannot send. A browser without it is told it is not let in.
-- **Only its own page.** Every change is JSON from the page's own address. A form on another
-  site cannot post to it.
+- **Only its own page.** Every change is JSON from the page's own address, and every question
+  about the runs comes from it: a page elsewhere -- even one served from another port of this
+  machine -- reaches nothing, and a form on another site cannot post to it.
+- **The key on no command line.** The browser `hmz web` opens is opened on a page only you can
+  read, which sends it on to the address: another account on a shared machine cannot read the
+  key off the browser's command line.
 - **No secret on the page.** Accounts are shown by the names of what they set, never by a
   value.
 
@@ -192,8 +196,8 @@ The key changes every time `hmz web` starts, so an address from an earlier one l
 
 - **A port of your own.** `hmz web --port 8765` listens on that port. `0`, the default, picks
   any free one.
-- **No browser.** `hmz web --no-open` only prints the address, for a machine without a desktop
-  or a browser of your choosing.
+- **No browser.** `hmz web --no-open` only prints the address, for a browser of your choosing.
+  On a machine without a desktop -- one reached over ssh -- it opens none anyway.
 - **Runs that end with it.** With `HUMANIZE_DAEMON=off`, `hmz web` holds the runs in its own
   process, and stopping it stops them, as [`hmz` does](/user/leaving#when-it-cant-be-left-running).
 

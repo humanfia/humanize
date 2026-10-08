@@ -131,7 +131,14 @@ def test_a_side_question_is_asked_beside_the_run_and_never_of_it(
                 "/api/btw", {"question": "and you", "to": "assistant/1"}
             )
             assert of_one.json()["answer"].startswith("did: ")
+            kept = browser.get("/api/btw").json()
+            assert kept["open"] == ["", "assistant/1"]
+            assert [(one["to"], one["question"]) for one in kept["said"]] == [
+                ("", "what is it doing"),
+                ("assistant/1", "and you"),
+            ]
             assert browser.post("/api/btw/leave").status == 200
+            assert browser.get("/api/btw").json() == {"open": [], "said": []}
 
             # Nothing asked beside the run reached it: its one session said only its own.
             browser.post("/api/held/stop")

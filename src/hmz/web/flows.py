@@ -103,10 +103,15 @@ def _flows(asked: Asked) -> dict[str, Any]:
 
 
 def _flow(asked: Asked) -> dict[str, Any]:
+    hmz = asked.site.hmz
     name = asked.query.get("name", "")
     if not name:
         raise Refusal("Say which flow, as name.")
-    return declared(asked.site.hmz, name)
+    # Setting a flow up loads it, which runs it: only a flow already on offer here, never a
+    # path or a repository a page names.
+    if name not in {one.name for one in hmz.flows.all()}:
+        raise Refusal(f"{name} is not a flow on offer here.", 404)
+    return declared(hmz, name)
 
 
 def _backends(asked: Asked) -> dict[str, Any]:

@@ -35,7 +35,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   alone: no dependency and no build step beyond what `hmz` already installs.
 - MUST let a browser in only by the key the printed address carries, made afresh each time it
   is served, and MUST then hold it by a cookie that is `HttpOnly` and `SameSite=Strict` and
-  carries that key. Everything under `/api/` MUST be refused to a browser not let in.
+  carries that key. Everything under `/api/` MUST be refused to a browser not let in, and to a
+  request its browser says another page made -- a page served from another port of this
+  machine included, to which the cookie is no barrier.
+- MUST NOT put the key on any command line: a browser it opens MUST be opened on a page only
+  this account can read, which sends it on to the address, and only where there is a desktop
+  to open one on.
 - MUST refuse any request whose `Host` does not name this machine -- `127.0.0.1`, `localhost`,
   `[::1]`, on any port -- before anything else is read, so that a page elsewhere that points
   its own name at the loopback reaches nothing; a port forwarded from another machine MUST
@@ -47,6 +52,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   lets it load and run nothing else, and MUST NOT be framed.
 - MUST hand a page nothing secret: an account MUST be its CLI, its name, its way in and the
   names of what it sets, never a value.
+- MUST set up only a flow on offer here, never one a request names by path or by repository:
+  setting a flow up loads it, which runs its code.
 
 ### One frontend of the runs
 
@@ -63,8 +70,10 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   server-sent events a page resumes from the last one it heard; a page that heard another
   link's records MUST be told to start over.
 - MUST ask a side question as `/btw` does, through `runtime/watching`'s `Btw`, of the btw agent
-  or of one conversation's side copy, MUST close what it opened when the run it was about is
-  replaced, and MUST NOT let a side question reach the run.
+  or of one conversation's side copy, MUST keep which are open and what was said in them for a
+  page opened again, MUST close what it opened when the run it was about is replaced, and MUST
+  NOT let a side question reach the run.
+- MUST bound what it keeps of the runs' records, and what a page keeps, by count and by size.
 - MUST read the runs written down, the flows on offer, what was spent and what humanize
   remembers through `runtime`'s one object, as the terminal interface reads them.
 
@@ -77,7 +86,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   said as the terminal interface's transcript says it, its agents and who handed to whom, what
   it has spent against its budget, the questions it waits on a person for, the people it has
   and who holds each, its board and the flows it is in; and MUST offer, while it goes, every
-  thing a person may do to it.
+  thing a person may do to it, never drawing over what somebody is typing while what it is
+  about stands.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.

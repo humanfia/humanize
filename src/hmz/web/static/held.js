@@ -4,8 +4,16 @@
 
 import { post } from './api.js'
 
-/** The most records kept, as the server keeps. */
+/** The most records kept, and about how many bytes of them, as the server keeps. */
 const KEPT = 20000
+const WEIGHED = 32 * 1024 * 1024
+
+/** What a record weighs besides what it says, as the server weighs one. */
+const FRAME = 256
+
+/** What each record kept weighs, in the order kept, and all of them together. */
+let weights = []
+let weight = 0
 
 const state = {
   connected: false,
@@ -20,6 +28,12 @@ const state = {
 const listeners = new Set()
 let source = null
 let pending = 0
+/** The id of the last record heard, which a stream opened again picks up after. */
+let lastId = ''
+let resting = 0
+
+/** How long a tab nobody looks at keeps its stream, in milliseconds. */
+const RESTS = 30000
 
 /**
  * Follows the runs: told the state now and again whenever it changes, until stopped.
@@ -40,47 +54,78 @@ export function ask(what, body = {}) {
 }
 
 function connect() {
-  source = new EventSource('/api/held/stream')
-  source.addEventListener('hello', (event) => {
+  const mine = new EventSource(lastId && state.epoch ? `/api/held/stream?last=${encodeURIComponent(lastId)}` : '/api/held/stream')
+  source = mine
+  // A stream let go of, or replaced, says nothing more to the page.
+  const on = (name, handle) => mine.addEventListener(name, (event) => source === mine && handle(event))
+  on('hello', (event) => {
     const said = JSON.parse(event.data)
     if (said.epoch !== state.epoch) {
       // Another link's records: everything is told again, from the top.
       Object.assign(state, { epoch: said.epoch, standing: {}, records: [], figures: null })
+      weights = []
+      weight = 0
+      lastId = ''
     }
     Object.assign(state, { me: said.me, connected: true, gone: '' })
     tell()
   })
-  source.addEventListener('record', (event) => {
-    state.records.push(JSON.parse(event.data))
-    if (state.records.length > KEPT) state.records.splice(0, state.records.length - KEPT)
+  on('record', (event) => {
+    lastId = event.lastEventId || lastId
+    const record = JSON.parse(event.data)
+    const weighs = String(record.text ?? '').length + FRAME
+    state.records.push(record)
+    weights.push(weighs)
+    weight += weighs
+    let dropped = 0
+    while (state.records.length - dropped > KEPT || (weight > WEIGHED && state.records.length - dropped > 1)) weight -= weights[dropped++]
+    if (dropped) {
+      state.records.splice(0, dropped)
+      weights.splice(0, dropped)
+    }
     tell()
   })
-  source.addEventListener('standing', (event) => {
+  on('standing', (event) => {
     const said = JSON.parse(event.data)
     state.standing = { ...state.standing, [said.type]: said }
     tell()
   })
-  source.addEventListener('figures', (event) => {
+  on('figures', (event) => {
     state.figures = JSON.parse(event.data)
     tell()
   })
-  source.addEventListener('gone', (event) => {
+  on('gone', (event) => {
     state.gone = JSON.parse(event.data).why || 'The runs let this page go.'
     state.connected = false
     tell()
   })
-  source.addEventListener('again', () => {
-    source.close()
+  on('again', () => {
+    mine.close()
     source = null
     state.epoch = ''
-    setTimeout(connect, 500)
+    lastId = ''
+    setTimeout(() => !source && connect(), 500)
   })
-  source.addEventListener('error', () => {
+  on('error', () => {
     // The browser reaches for the stream again by itself, from the last record it heard.
     state.connected = false
     tell()
   })
 }
+
+// A browser holds only so many connections to one server: a tab nobody looks at lets its
+// stream go after a while, and picks it up from the last record it heard once looked at again.
+document.addEventListener('visibilitychange', () => {
+  clearTimeout(resting)
+  if (document.hidden) {
+    resting = setTimeout(() => {
+      if (!source) return
+      source.close()
+      source = null
+      state.connected = false
+    }, RESTS)
+  } else if (!source && listeners.size) connect()
+})
 
 /** Tells every listener, once a frame however many things changed in it. */
 function tell() {

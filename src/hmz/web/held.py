@@ -14,8 +14,10 @@ import bisect
 import contextlib
 import functools
 import secrets
+import sys
 import threading
 import time
+import traceback
 from types import NoneType
 from typing import TYPE_CHECKING, Any
 
@@ -52,6 +54,19 @@ STANDING = frozenset(
 #: How many records are kept for a page arriving late: a run's whole story while it is a
 #: story of thousands of lines, and its last stretch past that.
 _KEPT = 20_000
+
+#: About how much of them, in bytes: the same ceiling a host keeps its own records under, so
+#: that a run of long tool outputs is held to it as well as a run of many short lines.
+_WEIGHED = 32 << 20
+
+#: What a record weighs besides what it says, in bytes: its keys and its numbers.
+_FRAME = 256
+
+#: How many side questions and their answers are kept, for a page arriving late to read.
+_SAID = 200
+
+#: How long a stream opened as this interface attaches waits to be told who it is.
+_WELCOMED = 2.0
 
 #: How often what a run has done is worked out again while it runs: as often as a clock on
 #: the page is worth moving.
@@ -105,6 +120,8 @@ class Held:
         self._epoch = ""
         self._seqs: list[int] = []
         self._records: list[dict[str, Any]] = []
+        self._weights: list[int] = []
+        self._weight = 0
         self._standing: dict[str, dict[str, Any]] = {}
         self._versions: dict[str, int] = {}
         self._version = 0
@@ -113,10 +130,11 @@ class Held:
         self._following = Following()
         self._me = ""
         self._gone = ""
-        #: Btw mode, by the conversation it asks -- "" for the btw agent -- and what the btw
-        #: agent asked on the way to its last answer.
+        #: Btw mode, by the conversation it asks -- "" for the btw agent -- what the btw agent
+        #: asked on the way to its last answer, and every question answered while it is on.
         self._asides: dict[str, Btw] = {}
         self._hops: dict[str, list[dict[str, str]]] = {}
+        self._said: list[dict[str, Any]] = []
         self._link = self._attached(linking())
         threading.Thread(target=self._figuring, daemon=True, name="hmz-web").start()
 
@@ -239,10 +257,11 @@ class Held:
                 raise Refusal(
                     "btw is still answering the last question asked of it.", 409
                 )
+            snapshot = self._snapshot(workspace)
+            # Taken before the lock is let go, so that a second question finds it busy.
             mode.busy = True
             hops = self._hops[target]
             hops.clear()
-            snapshot = self._snapshot(workspace)
         try:
             answer = mode.ask(question, snapshot)
         except Left as why:
@@ -255,7 +274,21 @@ class Held:
             raise Refusal(f"The runs could not be asked: {why}", 503) from why
         if not answer:
             raise Refusal("The agent returned no answer.", 502)
-        return {"answer": answer, "asked": list(hops)}
+        said = {
+            "to": target,
+            "question": question,
+            "answer": answer,
+            "asked": list(hops),
+        }
+        with self._changed:
+            if self._asides.get(target) is mode:
+                self._said = [*self._said, said][-_SAID:]
+        return said
+
+    def asides(self) -> dict[str, Any]:
+        """Btw mode as it stands: the conversations side ones are open on, and what was said."""
+        with self._changed:
+            return {"open": sorted(self._asides), "said": list(self._said)}
 
     def unbtw(self, target: str | None = None) -> None:
         """Leaves btw mode, closing the side conversations it opened.
@@ -263,13 +296,26 @@ class Held:
         Args:
           target: The one conversation asked, or None for every one.
         """
+        if target is None:
+            self._leaves()
+            return
         with self._changed:
-            if target is None:
-                left, self._asides = list(self._asides.values()), {}
-            else:
-                left = [one] if (one := self._asides.pop(target, None)) else []
-        for one in left:
+            one = self._asides.pop(target, None)
+            self._said = [said for said in self._said if said["to"] != target]
+        if one is not None:
             one.close()
+
+    def _leaves(self, *, unasking: bool = True) -> None:
+        """Leaves btw mode altogether, closing every side conversation and what was said in it.
+
+        Args:
+          unasking: Whether to ask the runs to close them, which nothing need do of the side
+            conversations of a link that has gone: they went with it.
+        """
+        with self._changed:
+            left, self._asides, self._said = list(self._asides.values()), {}, []
+        for one in left:
+            one.close(unasking=unasking)
 
     def figures(self) -> dict[str, Any] | None:
         """What the run in front of this interface has done and cost, as last worked out."""
@@ -291,10 +337,10 @@ class Held:
         with self._changed:
             self._closed = True
             self._changed.notify_all()
-            left, self._asides = list(self._asides.values()), {}
+            following = self._following
         # Nothing to ask on the way out: every side conversation this opened goes with it.
-        for one in left:
-            one.close(unasking=False)
+        self._leaves(unasking=False)
+        following.close()
         self._link.close()
 
     def _attached(self, link: Link) -> Link:
@@ -304,15 +350,17 @@ class Held:
         with self._changed:
             self._epoch = secrets.token_hex(4)
             self._seqs, self._records = [], []
+            self._weights, self._weight = [], 0
             self._standing, self._versions = {}, {}
-            self._figures, self._following = None, Following()
+            followed, self._following = self._following, Following()
+            self._figures = None
             self._me = self._gone = ""
             self._version += 1
-            left, self._asides = list(self._asides.values()), {}
             self._changed.notify_all()
-        # The side conversations went with the link they were opened on.
-        for one in left:
-            one.close(unasking=False)
+        # What the last link was following is followed no more, and the side conversations
+        # went with the link they were opened on.
+        followed.close()
+        self._leaves(unasking=False)
         link.heard(self._told)
         return link
 
@@ -352,10 +400,12 @@ class Held:
         kind = str(message.get("type") or "")
         with self._changed:
             if "seq" in message:
+                weight = len(str(message.get("text") or "")) + _FRAME
                 self._seqs.append(int(message["seq"]))
                 self._records.append(message)
-                if len(self._records) > _KEPT:
-                    del self._seqs[:-_KEPT], self._records[:-_KEPT]
+                self._weights.append(weight)
+                self._weight += weight
+                self._trims()
             elif kind in STANDING:
                 self._version += 1
                 self._standing[kind], self._versions[kind] = message, self._version
@@ -370,6 +420,17 @@ class Held:
         if kind == "gone":
             threading.Thread(target=self._again, daemon=True, name="hmz-web").start()
 
+    def _trims(self) -> None:
+        """Lets the oldest records go, past as many or as much as are kept. Under the lock."""
+        dropped = 0
+        while len(self._records) - dropped > _KEPT or (
+            self._weight > _WEIGHED and len(self._records) - dropped > 1
+        ):
+            self._weight -= self._weights[dropped]
+            dropped += 1
+        if dropped:
+            del self._seqs[:dropped], self._records[:dropped], self._weights[:dropped]
+
     def _follows(self, kind: str, message: dict[str, Any]) -> None:
         """Works out what one message means for the run's figures."""
         following = self._following
@@ -377,10 +438,9 @@ class Held:
             following.started(message)
             # A side conversation is about the run it was opened on, and that run has gone:
             # closed on a thread of its own, since closing one asks the runs.
-            with self._changed:
-                left, self._asides = list(self._asides.values()), {}
-            for one in left:
-                threading.Thread(target=one.close, daemon=True, name="hmz-web").start()
+            threading.Thread(target=self._leaves, daemon=True, name="hmz-web").start()
+        elif kind == "printed":
+            following.printed(str(message.get("text") or ""))
         elif kind == "opened":
             following.opened(message)
         elif kind == "event":
@@ -417,12 +477,21 @@ class Held:
 
     def _figuring(self) -> None:
         """Works out what the run has done, for as long as this interface is open."""
+        failed = ""
         while True:
             with self._changed:
                 if self._closed:
                     return
                 following = self._following
-            figures = _figures(following) if following.run else None
+            try:
+                figures = _figures(following) if following.run else None
+            except Exception as why:  # noqa: BLE001 -- drawn as last worked out, and said once
+                if str(why) != failed:
+                    failed = str(why)
+                    traceback.print_exc(file=sys.stderr)
+                time.sleep(_FIGURING)
+                continue
+            failed = ""
             with self._changed:
                 if figures != self._figures and following is self._following:
                     self._figures, self._figured = figures, self._figured + 1
@@ -434,6 +503,9 @@ class Held:
     ) -> Iterator[tuple[str, str, Any] | None]:
         """Everything a page has not heard, then everything as it comes."""
         with self._changed:
+            # Who this interface is, the runs say first of all; a page told nobody would read
+            # every question this interface holds as another's.
+            self._changed.wait_for(lambda: bool(self._me) or self._closed, _WELCOMED)
             epoch = self._epoch
             heard, _, seq = last.partition(":")
             after = int(seq) if heard == epoch and seq.isdigit() else 0
@@ -613,6 +685,10 @@ def _source(
     return opened_as(written(said) if said is not None else "", roles, sessions)
 
 
+def _asides(asked: Asked) -> dict[str, Any]:
+    return asked.site.held.asides()
+
+
 def _unbtw(asked: Asked) -> dict[str, Any]:
     target = asked.body.get("to")
     if target is not None and not isinstance(target, str):
@@ -626,6 +702,7 @@ ROUTES = routes(
     ("GET", "/api/held", _held),
     ("GET", "/api/held/stream", _streams),
     ("POST", "/api/held/{do}", _acts),
+    ("GET", "/api/btw", _asides),
     ("POST", "/api/btw", _btw),
     ("POST", "/api/btw/leave", _unbtw),
 )

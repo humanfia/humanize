@@ -181,7 +181,7 @@ function said(answer) {
     answer.nodes.length ? `${answer.nodes.length} node${answer.nodes.length === 1 ? '' : 's'}` : '',
     answer.version,
   ].filter(Boolean)
-  return h('div', {}, h('span', { class: 'ok' }, '✓ '), has.join(' · ') || 'answered', answer.short.length ? h('div', { class: 'bad' }, `short of: ${answer.short.join(', ')}`) : null)
+  return h('div', {}, h('span', { class: 'ok' }, '✔ '), has.join(' · ') || 'answered', answer.short.length ? h('div', { class: 'bad' }, `short of: ${answer.short.join(', ')}`) : null)
 }
 
 /** One field of a runtime: the input it is written in, and what reads it back as JSON holds it. */

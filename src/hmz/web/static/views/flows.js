@@ -50,9 +50,11 @@ export function mount(root, { query }) {
     try {
       flow = await get(`/api/flow?name=${encodeURIComponent(name)}`)
     } catch (error) {
-      fill(shown, problem(error))
+      if (chosen === name) fill(shown, problem(error))
       return
     }
+    // Another flow was chosen while this one was read: what it says is no longer asked for.
+    if (chosen !== name) return
     const params = Object.entries(flow.params.properties || {})
     fill(
       shown,

@@ -13,11 +13,14 @@ import { h, lasting, when } from './dom.js'
  * @param {boolean} drawn.live Whether it is going, which draws where now is.
  * @param {string} drawn.picked The lane being read, if any.
  * @param {(key: string) => void} drawn.pick What picking a lane or a turn does.
+ * @returns {HTMLElement & {place: (from: number, to: number) => void}} The lanes, which `place`
+ *   lays out again between two moments -- as a run goes, its end moves on every second, and
+ *   nothing is drawn again for it, so a turn being clicked is the turn clicked.
  */
 export function lanes({ rows, from, to, live, picked, pick }) {
-  const span = Math.max(1, to - from)
-  const at = (moment) => `${Math.min(100, Math.max(0, ((moment - from) / span) * 100))}%`
   const grid = h('div', { class: 'lanes', role: 'group', 'aria-label': 'Each session, and the turns it took over time', 'data-hmz': 'lanes' })
+  const placed = []
+  const nows = []
   for (const row of rows) {
     const name = h(
       'button',
@@ -28,23 +31,37 @@ export function lanes({ rows, from, to, live, picked, pick }) {
     name.addEventListener('click', () => pick(row.key))
     const track = h('div', { class: 'track', style: { '--lane': row.color } })
     row.turns.forEach((turn, index) => {
-      const end = turn.end ?? to
-      const took = Math.max(0, end - turn.start)
-      const said = `${row.label}, turn ${index + 1}: ${when(turn.start)}, ${turn.end === null ? 'still going' : lasting(took)}`
-      const capsule = h('button', {
-        class: ['turn', turn.end === null && 'open'],
-        type: 'button',
-        title: said,
-        'aria-label': said,
-        style: { left: at(turn.start), width: `max(8px, ${(took / span) * 100}%)` },
-      })
+      const capsule = h('button', { class: ['turn', turn.end === null && 'open'], type: 'button' })
       capsule.addEventListener('click', () => pick(row.key))
+      placed.push({ capsule, turn, said: `${row.label}, turn ${index + 1}` })
       track.append(capsule)
     })
-    if (live) track.append(h('span', { class: 'now', style: { left: at(to) }, 'aria-hidden': 'true' }))
+    if (live) {
+      const now = h('span', { class: 'now', 'aria-hidden': 'true' })
+      nows.push(now)
+      track.append(now)
+    }
     grid.append(name, track)
   }
-  grid.append(h('div', { class: 'axis', 'aria-hidden': 'true' }, h('span', {}, '0s'), h('span', {}, lasting(span / 2)), h('span', {}, lasting(span))))
+  const middle = h('span')
+  const end = h('span')
+  grid.append(h('div', { class: 'axis', 'aria-hidden': 'true' }, h('span', {}, '0s'), middle, end))
+  grid.place = (from, to) => {
+    const span = Math.max(1, to - from)
+    const at = (moment) => `${Math.min(100, Math.max(0, ((moment - from) / span) * 100))}%`
+    for (const { capsule, turn, said } of placed) {
+      const took = Math.max(0, (turn.end ?? to) - turn.start)
+      const told = `${said}: ${when(turn.start)}, ${turn.end === null ? 'still going' : lasting(took)}`
+      capsule.style.left = at(turn.start)
+      capsule.style.width = `max(8px, ${(took / span) * 100}%)`
+      capsule.title = told
+      capsule.setAttribute('aria-label', told)
+    }
+    for (const now of nows) now.style.left = at(to)
+    middle.textContent = lasting(span / 2)
+    end.textContent = lasting(span)
+  }
+  grid.place(from, to)
   return grid
 }
 

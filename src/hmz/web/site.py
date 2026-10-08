@@ -4,16 +4,18 @@ It listens on this machine's loopback alone and answers only a browser that came
 address `hmz web` printed: that address carries a key, which the browser is handed back as a
 cookie, and every question about the runs must carry it. A loopback port is open to every
 account on a machine, where the socket the runs are held behind is not; the key is what keeps
-the runs this account's. A page from anywhere else cannot write either, since a write must say
-it comes from this server's own page, and a name that is not this machine's is refused outright
-whatever port it arrived through -- which is what lets the port be forwarded.
+the runs this account's. A page from anywhere else cannot ask anything either: the browser says
+where a request came from, and only this server's own page, or an address typed or opened, is
+answered -- a page served from another port of this machine is the same site to a cookie, and
+not to this. A write must also say it comes from this server's own page, and a name that is not
+this machine's is refused outright whatever port it arrived through -- which is what lets the
+port be forwarded.
 """
 
 from __future__ import annotations
 
 import contextlib
 import hashlib
-import http.cookies
 import json
 import re
 import secrets
@@ -120,6 +122,9 @@ class _Handler(BaseHTTPRequestHandler):
     """One connection from a browser."""
 
     protocol_version = "HTTP/1.1"
+    #: How long a connection may say nothing before it is let go, so that one left open is not
+    #: a thread held for good. A stream writes more often than this.
+    timeout = 60
     #: What every answer says about itself, whatever it is.
     _HEADERS: ClassVar[dict[str, str]] = {
         "X-Content-Type-Options": "nosniff",
@@ -146,6 +151,9 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             self._routes(method, url.path, dict(urllib.parse.parse_qsl(url.query)))
         except Refusal as why:
+            # What a refused write sent may not have been read: it is no next request.
+            if method == "POST":
+                self.close_connection = True
             self._json({"error": str(why)}, why.status)
         except (BrokenPipeError, ConnectionResetError):
             self.close_connection = True
@@ -174,10 +182,30 @@ class _Handler(BaseHTTPRequestHandler):
         return name.lower() in _HERE
 
     def _signed_in(self) -> bool:
-        """Whether the browser carries the key the address handed it."""
-        jar = http.cookies.SimpleCookie(self.headers.get("Cookie", ""))
-        held = jar.get(self.site.cookie)
-        return held is not None and self.site.lets_in(held.value)
+        """Whether the browser carries the key the address handed it.
+
+        Read off the header by name rather than through `http.cookies`, which refuses a whole
+        header for one cookie of another site's it cannot parse: cookies are shared by every
+        port of a host.
+        """
+        for one in self.headers.get("Cookie", "").split(";"):
+            name, _, value = one.strip().partition("=")
+            if name == self.site.cookie and self.site.lets_in(value):
+                return True
+        return False
+
+    def _asked_here(self) -> bool:
+        """Whether a request came from this server's own page, or from an address opened.
+
+        A browser says where a request came from: `same-origin` from this server's page,
+        `none` from an address typed or opened. One saying nothing is not a browser of today,
+        and is let in by the key alone.
+        """
+        fetched = self.headers.get("Sec-Fetch-Site")
+        origin = self.headers.get("Origin")
+        return (fetched is None or fetched in ("same-origin", "none")) and (
+            origin is None or origin == f"http://{self.headers.get('Host', '')}"
+        )
 
     def _signs_in(self, key: str) -> None:
         """Hands a browser that came in with the key a cookie carrying it, and the page."""
@@ -198,6 +226,8 @@ class _Handler(BaseHTTPRequestHandler):
             raise Refusal(
                 "Open the address hmz web printed to let this browser in.", 401
             )
+        if not self._asked_here():
+            raise Refusal("Use this server's own page to make this request.", 403)
         body: dict[str, Any] = {}
         if method == "POST":
             body = self._body()
@@ -238,11 +268,13 @@ class _Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError as why:
             raise Refusal("Say how long what is sent is.", 411) from why
+        if length < 0:
+            raise Refusal("Say how long what is sent is.", 411)
         if length > _LARGEST:
             raise Refusal("That is more than a request here may send.", 413)
         try:
             said = json.loads(self.rfile.read(length) or b"{}")
-        except ValueError as why:
+        except (ValueError, RecursionError) as why:
             raise Refusal("Send JSON.", 400) from why
         if not isinstance(said, dict):
             raise Refusal("Send a JSON object.", 400)

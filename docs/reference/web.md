@@ -29,8 +29,12 @@ hmz web [--port <port>] [--no-open]
 | `--port <port>` | `0` | The port to listen on, on `127.0.0.1`. `0` picks any free one. |
 | `--no-open` | off | Print the address and open no browser. |
 
-Once listening it prints one line to stdout, flushed, then opens that address with Python's
-`webbrowser` unless `--no-open` was given, and serves until `SIGINT`:
+Once listening it prints one line to stdout, flushed, and serves until `SIGINT`. Unless
+`--no-open` was given, or there is no desktop to open a browser on (Linux with neither
+`DISPLAY` nor `WAYLAND_DISPLAY`), it also opens a browser, through Python's `webbrowser`, on a
+page that only this account can read -- `web-<port>.html` in this machine's own directory,
+removed when it stops -- which sends the browser on to the address: the key is never on a
+browser's command line, which every account on the machine can read.
 
 ```text
 hmz web: http://127.0.0.1:<port>/?key=<key>
@@ -74,9 +78,9 @@ this order.
 | --- | --- | --- |
 | `403` | `Host` is not `127.0.0.1`, `localhost` or `[::1]`, on any port | `Open the address hmz web printed, on the machine it runs on.` |
 | `401` | `/api/…` without the key's cookie | `Open the address hmz web printed to let this browser in.` |
-| `403` | `POST` whose `Origin` is not `http://<Host>` | `Use this server's own page to make this request.` |
+| `403` | `/api/…` that the browser says came from another page -- `Sec-Fetch-Site` other than `same-origin` or `none` -- or whose `Origin` is not `http://<Host>`; a `POST` without an `Origin` too | `Use this server's own page to make this request.` |
 | `415` | `POST` whose `Content-Type` is not `application/json` | `Send JSON.` |
-| `411` | `POST` whose `Content-Length` is not a number | `Say how long what is sent is.` |
+| `411` | `POST` whose `Content-Length` is not a number, or is below `0` | `Say how long what is sent is.` |
 | `413` | `POST` body over **1 MiB** | `That is more than a request here may send.` |
 | `400` | Body not a JSON object | `Send JSON.` or `Send a JSON object.` |
 | `404` / `405` | No route of that path / none for that method | `There is nothing here by that name.` |
@@ -88,7 +92,10 @@ this order.
 
 A `Host` naming another machine is refused before anything else is read: a web page elsewhere
 that points a name of its own at `127.0.0.1` reaches nothing. A port forwarded from another
-machine still names the loopback, so it is let in.
+machine still names the loopback, so it is let in. A page served from another port of this
+machine is the same site to a cookie, so its browser sends the cookie along; it is refused all
+the same, by what the browser says of where the request came from. A connection that says
+nothing for **60 s** is closed.
 
 ## The page {#page}
 
@@ -136,7 +143,8 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 | `POST /api/held/claim` | `role`; `take` (bool) | The host's answer |
 | `POST /api/held/release` | `role` | The host's answer |
 | `POST /api/held/board` | `key`; `value` (`""` removes the line) | The host's answer |
-| `POST /api/btw` | `question`; `to` (`""` the btw agent, or `<role>/<n>`) | `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
+| `GET /api/btw` | | `open` (the conversations a side one is open on, `""` the btw agent's) and `said` (each question answered since, oldest first, as `POST` answers it; the last **200**) |
+| `POST /api/btw` | `question`; `to` (`""` the btw agent, or `<role>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
 | `POST /api/btw/leave` | `to`, or nothing for every side conversation | `{"ok": true}` |
 
 Each `POST /api/held/<do>` is the [request](/reference/daemon#requests) of that name, sent down
@@ -150,7 +158,7 @@ asks one, through the same side conversations: a second question to one still an
 | --- | --- | --- |
 | `GET /api/runs` | `status`, `flow`, `q` (in its task, flow or name), `offset` (`0`), `limit` (`50`, at most `200`) | `runs` (rows, newest first), `total`, `offset`, `limit`, `counts` (`{how: n}` over every run), `flows` |
 | `GET /api/runs/<name>` | | The row, and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile`, `picks_up` (whether it can be picked up), `calls` (the tree of flows it called) |
-| `GET /api/runs/<name>/trace` | | `sessions`: each with its `key`, `agent` and `actions` (`category`, `name`, `at`, `start`, `seconds`, `args`), read out of the run's logs as [tracing](/reference/tracing) reads them; kept until the run's journal changes |
+| `GET /api/runs/<name>/trace` | | `sessions`: each with its `key`, `agent` and `actions` (`category`, `name`, `at`, `start`, `seconds`, `args`), read out of the run's logs as [tracing](/reference/tracing) reads them; the last **4** of runs that have ended kept, until the run's journal changes |
 | `GET /api/runs/<name>/bundle` | | The run's [export](/reference/tracing), as a download |
 | `GET /api/usage` | `days` (`30`; 1 to 365) | `days` (per UTC day, oldest first), `flows` (costliest first), `ended` (`{how: n}`), `whole`: each with `runs`, `cost`, `output_tokens`, `seconds`, and `money`, `tokens`, `worked` as the terminal interface says them |
 
@@ -165,7 +173,7 @@ going) and `spent`: what its budget counted as it ended, or `null`. A run of no 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
 | `GET /api/flows` | | `flows` (`[{whose, name, about}]`), `flow` (the one this workspace opens on), `running` (the flows going, `[{ref, name, depth, since, task}]`) |
-| `GET /api/flow` | `name` | What it declares: `ref`, `description`, `resumable`, `resumes`, `agents` (`name`, `required`, `auto`, `harness`, `permission`, `skills`), `envs`, `params` (its JSON schema), and `remembered` (what this workspace last set it up with). `404` for one that will not load. |
+| `GET /api/flow` | `name` | What it declares: `ref`, `description`, `resumable`, `resumes`, `agents` (`name`, `required`, `auto`, `harness`, `permission`, `skills`), `envs`, `params` (its JSON schema), and `remembered` (what this workspace last set it up with). `404` for a name that is not one of `GET /api/flows`' -- a path or a repository is never loaded -- and for one that will not load. |
 | `GET /api/backends` | | `installed` and `installable`: `{cli: [{name, efforts}]}` |
 
 ### Settings {#api-settings}
@@ -206,7 +214,7 @@ named, its data one JSON object:
 | `gone` | | `why`: the runs let this link go. The stream ends. |
 | `again` | | `{}`: the link changed, or the server is stopping. Start over. |
 
-A stream starts with every record kept (the latest **20,000**) after the one named by
+A stream starts with every record kept (the latest **20,000**, and about **32 MiB** of them) after the one named by
 `Last-Event-ID`, or `?last=`, where that names this link's epoch, and from the first kept
 otherwise; then how everything stands; then each as it comes. A comment, `: quiet`, is sent
 after **15 s** of nothing.

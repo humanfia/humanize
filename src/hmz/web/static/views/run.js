@@ -3,7 +3,7 @@
 // ask of it. `#/live` is whichever run is going; `#/runs/<name>` is one epic, live where it is
 // the one going.
 
-import { asides, board, outworlders, questions, saying } from '../acting.js'
+import { asides, board, outworlders, question, saying } from '../acting.js'
 import { get, poll } from '../api.js'
 import { ago, badge, confirming, copier, empty, fill, h, lane, lasting, problem, secondsOf, when } from '../dom.js'
 import { ask, current, follow } from '../held.js'
@@ -26,9 +26,24 @@ export function mount(root, { parts }) {
     h('div', { class: 'grid wide' }, h('div', {}, regions.lanes, regions.transcript), regions.side),
   )
 
+  // The side column of a run going, a part apiece, each drawn again only when what it shows
+  // has changed: a part somebody types into is never drawn over while what it is about stands.
+  const side = {
+    waiting: h('div'),
+    agents: h('div'),
+    say: h('div'),
+    btw: h('div'),
+    people: h('div'),
+    board: h('div'),
+    calls: h('div'),
+  }
+  const say = saying()
+  const btw = asides()
+  /** The card of each question waiting, kept while it waits as it was asked of whom it was. */
+  const cards = new Map()
+
   let detail = null
   let detailError = null
-  const btw = asides()
   let held = null
   let picked = ''
   let traced = null
@@ -71,6 +86,10 @@ export function mount(root, { parts }) {
       return
     }
     for (const one of ['tiles', 'lanes', 'transcript', 'side']) regions[one].hidden = false
+    if (regions.side.firstChild !== side.waiting) {
+      fill(regions.side, Object.values(side))
+      for (const part of Object.keys(side)) drawn[`side-${part}`] = undefined
+    }
     const offset = started ? started.at - started.began : null
     const state = run && run.run === number ? run.state : 'idle'
     const ended = records.findLast((one) => one.type === 'ended')
@@ -78,7 +97,7 @@ export function mount(root, { parts }) {
     region('head', [number, state, Boolean(ended), ended && ended.how, detail && detail.name, started && started.task], () => drawLiveHead(started, state, ended, going))
     drawLiveTiles(started, ended, going)
     drawLiveLanes(records, started, offset, going)
-    drawLiveTranscript(records, number)
+    drawLiveTranscript(records, number, held.epoch)
     drawLiveSide(started, records, going)
   }
 
@@ -125,6 +144,8 @@ export function mount(root, { parts }) {
     })
   }
 
+  let laid = null
+
   function drawLiveLanes(records, started, offset, going) {
     const sessions = turnsOf(records, offset)
     const roles = rolesOf(started, sessions)
@@ -132,40 +153,48 @@ export function mount(root, { parts }) {
     const from = started && started.at ? started.at : Math.min(now, ...sessions.flatMap((one) => one.turns.map((turn) => turn.start)))
     const last = records.findLast((one) => one.at)
     const to = going ? now : Math.max(from + 1, last ? last.at : now, ...sessions.flatMap((one) => one.turns.map((turn) => turn.end || 0)))
-    region('lanes', [sessions, picked, going ? Math.floor(now) : 0], () => {
+    region('lanes', [sessions, picked, going], () => {
       const rows = sessions.map((one) => ({
         key: one.key,
         label: `${one.key}${one.model ? ` · ${one.model}` : ''}`,
         color: lane(roles.indexOf(one.role)),
         turns: one.turns,
       }))
+      laid = rows.length ? lanes({ rows, from, to, live: going, picked, pick }) : null
       fill(
         regions.lanes,
         h('header', {}, h('h2', {}, 'Turns'), h('span', { class: 'kicker' }, `${rows.length} session${rows.length === 1 ? '' : 's'}`)),
-        rows.length ? lanes({ rows, from, to, live: going, picked, pick }) : h('p', { class: 'dim' }, 'No session has opened yet.'),
+        laid || h('p', { class: 'dim' }, 'No session has opened yet.'),
       )
     })
+    if (laid) laid.place(from, to)
   }
 
   let saying_ = null
   let saidUpTo = -1
   let saidRun = 0
   let saidKey = null
+  let saidEpoch = ''
   let box = null
+  let cut = null
 
-  function drawLiveTranscript(records, number) {
+  function drawLiveTranscript(records, number, epoch) {
     const keys = [...new Set(records.filter((one) => one.type === 'opened' && !one.person).map((one) => one.key))]
     region('transcript-tabs', [keys, picked], () => {
       box = h('div', { class: 'transcript', 'data-hmz': 'transcript', role: 'log', 'aria-live': 'off' })
-      fill(regions.transcript, h('header', {}, h('h2', {}, 'Transcript')), tabs(['', ...keys], picked), box)
+      cut = h('p', { class: 'dim', hidden: true }, `Only its last ${LINES} lines are drawn here; the run's epic keeps every one.`)
+      fill(regions.transcript, h('header', {}, h('h2', {}, 'Transcript')), tabs(['', ...keys], picked), cut, box)
       saidKey = null
     })
-    if (saidKey !== picked || saidRun !== number) {
+    // Another link's records start their numbers over: what was said is said again from the top.
+    if (saidKey !== picked || saidRun !== number || saidEpoch !== epoch) {
       saying_ = sayer(picked)
       saidUpTo = -1
       saidKey = picked
       saidRun = number
+      saidEpoch = epoch
       fill(box)
+      cut.hidden = true
     }
     const stuck = box.scrollHeight - box.scrollTop - box.clientHeight < 40
     let added = false
@@ -176,6 +205,10 @@ export function mount(root, { parts }) {
         box.append(line)
         added = true
       }
+    }
+    while (box.childElementCount > LINES) {
+      box.firstElementChild.remove()
+      cut.hidden = false
     }
     if (added && stuck) box.scrollTop = box.scrollHeight
     if (!box.childElementCount) box.append(h('p', { class: 'dim' }, 'Nothing has been said yet.'))
@@ -192,22 +225,48 @@ export function mount(root, { parts }) {
     const people = started ? started.outworlders || [] : []
     const items = standing.board ? standing.board.items : null
     const calls = (standing.calls && standing.calls.calls) || []
+    const clients = standing.clients && standing.clients.clients
     const offset = started && started.at ? started.at - started.began : null
-    region('side', [going, figures && figures.agents, figures && figures.sessions, figures && figures.handovers, figures && figures.latest, pending, sessions, working, roles, people, standing.claims, standing.away, items, calls, held.me], () => {
-      const order = rolesOf(started, turnsOf(records, null))
-      btw.sessions([...new Set(records.filter((one) => one.type === 'opened' && !one.person).map((one) => one.key))])
-      // What a page asks of a run is asked of the one going: once it ends, there is only what it did.
-      fill(
-        regions.side,
-        going && pending.length ? panel('Waiting for you', questions(pending, held.me, standing.clients && standing.clients.clients)) : null,
-        panel('Agents', agentsOf(figures, order)),
-        going ? panel('Say a line', saying(roles, sessions, working, people)) : null,
-        panel('Ask beside it', h('p', { class: 'dim' }, 'A side question goes to a side conversation, never to the run.'), btw.node),
-        going && people.length ? panel('People', outworlders(people, { claims: (standing.claims && standing.claims.claims) || {}, away: standing.away, me: held.me, clients: standing.clients && standing.clients.clients })) : null,
-        going && items ? panel('Board', board(items)) : null,
-        calls.length ? panel('Flows going', h('ul', { class: 'tree' }, calls.map((call) => h('li', { style: { marginLeft: `${call.depth * 14}px` } }, h('b', {}, call.name), ' ', h('span', { class: 'dim' }, offset === null ? '' : lasting(Date.now() / 1000 - (call.since + offset))))))) : null,
-      )
+    const opened = [...new Set(records.filter((one) => one.type === 'opened' && !one.person).map((one) => one.key))]
+    // What a page asks of a run is asked of the one going: once it ends, there is only what it did.
+    region('side-waiting', [going, pending, held.me, clients], () => {
+      const shown = going ? pending : []
+      const kept = new Set()
+      const drawnCards = shown.map((one) => {
+        const key = JSON.stringify([one.question, one.owner || '', held.me, one.text, one.options])
+        if (!cards.has(key)) cards.set(key, question(one, held.me, clients))
+        kept.add(key)
+        return cards.get(key)
+      })
+      for (const key of [...cards.keys()]) if (!kept.has(key)) cards.delete(key)
+      fill(side.waiting, drawnCards.length ? panel('Waiting for you', drawnCards) : null)
     })
+    region('side-agents', [figures && figures.agents, figures && figures.sessions, figures && figures.handovers, figures && figures.latest], () =>
+      fill(side.agents, panel('Agents', agentsOf(figures, rolesOf(started, turnsOf(records, null))))),
+    )
+    region('side-say', [going, roles, sessions, working, people], () => {
+      say.offers(roles, sessions, working, people)
+      fill(side.say, going ? panel('Say a line', say.node) : null)
+    })
+    region('side-btw', [opened], () => {
+      btw.sessions(opened)
+      fill(side.btw, panel('Ask beside it', h('p', { class: 'dim' }, 'A side question goes to a side conversation, never to the run.'), btw.node))
+    })
+    region('side-people', [going, people, standing.claims, standing.away, held.me, clients], () =>
+      fill(
+        side.people,
+        going && people.length ? panel('People', outworlders(people, { claims: (standing.claims && standing.claims.claims) || {}, away: standing.away, me: held.me, clients })) : null,
+      ),
+    )
+    region('side-board', [going, items], () => fill(side.board, going && items ? panel('Board', board(items)) : null))
+    region('side-calls', [calls, offset, Math.floor(Date.now() / 1000)], () =>
+      fill(
+        side.calls,
+        calls.length
+          ? panel('Flows going', h('ul', { class: 'tree' }, calls.map((call) => h('li', { style: { marginLeft: `${call.depth * 14}px` } }, h('b', {}, call.name), ' ', h('span', { class: 'dim' }, offset === null ? '' : lasting(Date.now() / 1000 - (call.since + offset)))))))
+          : null,
+      ),
+    )
   }
 
   function agentsOf(figures, order) {
@@ -278,7 +337,7 @@ export function mount(root, { parts }) {
     })
     region('lanes', [Boolean(traced), tracing, picked], drawWrittenLanes)
     region('transcript', [Boolean(traced), tracing, picked], drawWrittenTranscript)
-    region('side', [detail.agents, detail.calls, detail.sessions, detail.envs, detail.params, detail.budget], () =>
+    region('written-side', [detail.agents, detail.calls, detail.sessions, detail.envs, detail.params, detail.budget], () =>
       fill(
         regions.side,
         panel('Set up', facts(detail)),
@@ -397,10 +456,7 @@ export function mount(root, { parts }) {
   })
   // The clocks a run going is drawn with move on their own between records.
   const ticking = setInterval(() => {
-    if (live() && held) {
-      drawn.lanes = undefined
-      draw()
-    }
+    if (live() && held) draw()
   }, 1000)
   return () => {
     stopPolling()
@@ -408,6 +464,9 @@ export function mount(root, { parts }) {
     clearInterval(ticking)
   }
 }
+
+/** The most lines of a run going drawn at once: past it, the oldest go. */
+const LINES = 3000
 
 function rolesOf(started, sessions) {
   const roles = started ? [...(started.roles || Object.keys(started.agents || {}))] : []

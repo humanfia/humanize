@@ -298,6 +298,12 @@ class Following:
             ),
         )
 
+    def close(self) -> None:
+        """Stops following every run, reading no log of any of them again."""
+        followed, self._followed = list(self._followed.values()), {}
+        for _, tally in followed:
+            tally.stops()
+
     def ended(self, record: Mapping[str, Any]) -> None:
         """Takes a run that has ended: its tally is read a last time, and its clocks stop.
 
