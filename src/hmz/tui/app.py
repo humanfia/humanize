@@ -62,8 +62,7 @@ from hmz.coganchor.prices import money, refresh
 from hmz.daemon import Hmz
 from hmz.runtime import telemetry
 from hmz.runtime.kept import read_back
-
-from .btw import (
+from hmz.runtime.watching.btw import (
     HOPS,
     AgentProgress,
     FlowSnapshot,
@@ -75,12 +74,14 @@ from .btw import (
     format_snapshot,
     format_turn,
 )
+from hmz.runtime.watching.following import Following
+from hmz.runtime.watching.monitor import short, thousands
+
 from .complete import VIEWS, Command, hinted, offered
 from .discover import installable, installed
 from .flows import INSTALLED, VERSES, Flows, Lists
 from .history import History
 from .keyboard import reads_long_reports
-from .monitor import Monitor, short, thousands
 from .monitoring import (
     BoardSeen,
     Drawn,
@@ -114,7 +115,6 @@ from .pick import EVERY as _EVERY
 from .selecting import Choices, Transcript
 from .settings import MOVED, Adjusts, page_of
 from .settings import PAGES as _PAGES
-from .tally import Seen, Tally
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -124,6 +124,8 @@ if TYPE_CHECKING:
     from hmz.daemon import Host, Link
     from hmz.flows import Budget
     from hmz.runtime.epic import Ran
+    from hmz.runtime.watching.monitor import Monitor
+    from hmz.runtime.watching.tally import Seen, Tally
 
 # Once, and before any terminal is read: an input method commits what was composed as one key
 # report, and Textual types out any longer than 32 characters as though it were keys.
@@ -985,9 +987,6 @@ class Humanize(App[None]):
         #: And the last one that went, kept once it is over: its sessions are still drawn on
         #: the monitor, and what their environments are is what that run was given.
         self._seen_last: _RunSeen | None = None
-        #: Which run is the one in front of us, as the runs number them: a record of a run
-        #: that has since been replaced is one about a run nobody is watching.
-        self._generation = 0
         #: The runs somebody told to stop, which have said so already and are not `done`.
         self._halted: set[int] = set()
         #: Whether this interface has asked for a run to start and not yet heard it has, or
@@ -996,21 +995,13 @@ class Humanize(App[None]):
         #: The questions this interface has answered and not yet heard were taken, which
         #: a line typed next does not answer again.
         self._answering: set[str] = set()
-        #: The run going now, or the last, as the records it tells: each session it opened by
-        #: the key it is read under, in the order it opened them, each named for its role.
-        #: Kept once the run is over, since its transcripts are still on the screen and
-        #: still worth reading back.
-        self._seen: dict[str, Seen] = {}
         #: Where each of those sessions works, as the run said as it opened it: the
         #: environment role it fills, the kind of machine, which one, and where on it.
         self._placed: dict[str, dict[str, Any]] = {}
-        #: What the flow has done so far, which is what the right-hand column shows, and who
-        #: reads the agents' own logs into it while it runs.
-        self._monitor = Monitor()
-        self._tally = Tally([], self._monitor)
-        #: The same pair for each run still going, by run: a run told to stop unwinds in its
-        #: own time, and the next may have started by the time it has.
-        self._followed: dict[int, tuple[Monitor, Tally]] = {}
+        #: The runs as their records tell them: which is in front of us, what it has done so
+        #: far and cost -- the right-hand column -- and the sessions it opened, kept once it is
+        #: over since its transcripts are still on the screen and worth reading back.
+        self._following = Following()
         #: The flow calls going, as last told: the flow started and whatever it called.
         self._called: list[dict[str, Any]] = []
         #: The task of the run in front of us and a bounded plain record of what its agent
@@ -1144,6 +1135,29 @@ class Humanize(App[None]):
         #: from, compared at every redraw so that both change the moment what they are drawn
         #: from does, rather than at the next keystroke.
         self._standing: tuple[object, ...] = ()
+
+    @property
+    def _generation(self) -> int:
+        """Which run is the one in front of us, as the runs number them, or 0 before any.
+
+        A record of a run that has since been replaced is one about a run nobody is watching.
+        """
+        return self._following.run
+
+    @property
+    def _monitor(self) -> Monitor:
+        """What the run in front of us has done so far: what the right-hand column shows."""
+        return self._following.monitor
+
+    @property
+    def _tally(self) -> Tally:
+        """Who reads that run's agents' own logs into the monitor while it runs."""
+        return self._following.tally
+
+    @property
+    def _seen(self) -> dict[str, Seen]:
+        """That run's sessions, by the key each is read under, in the order they opened."""
+        return self._following.seen
 
     @property
     def _named_by(self) -> tuple[str, ...]:
@@ -4283,7 +4297,7 @@ class Humanize(App[None]):
         Args:
           record: The run, as it started.
         """
-        self._generation = int(record["run"])
+        self._following.started(record)
         # A side conversation is about the run it was opened on, and that run has gone.
         if self._btw is not None:
             self._leave_btw("a new flow started")
@@ -4297,7 +4311,7 @@ class Humanize(App[None]):
             self._now_reading(_EVERY, stepped=False)
         # The conversations of the run before this one went with it, and so do their numbers
         # and their transcripts: this run's first conversation is its role's first again.
-        self._seen, self._working, self._placed = {}, set(), {}
+        self._working, self._placed = set(), {}
         # And where their harnesses went, which this run settles for itself.
         self._harnessed = {}
         for gone in [key for key in self._kept if "/" in key]:
@@ -4307,12 +4321,6 @@ class Humanize(App[None]):
         # this run is doing, and it went down here as it was typed where it was typed here.
         if by := self._by(record):
             self._said_by_you(str(record.get("task") or ""), by=by)
-        self._monitor = Monitor(began=record["began"])
-        # What the run costs is read from the logs the agents keep, which they write as they
-        # go: a backend only says what a turn cost once the turn is over, and a turn is long.
-        self._tally = Tally([], self._monitor)
-        self._followed[self._generation] = (self._monitor, self._tally)
-        self._tally.watch()
 
     def _stopped(self, record: dict[str, Any]) -> None:
         """Says a run is on its way out, and who asked for it to be.
@@ -4339,11 +4347,7 @@ class Humanize(App[None]):
             self.show(f"hmz: {why}", "red")
         elif record["how"] == "budget":
             self.show(f"hmz: stopped -- {why}", "yellow")
-        followed = self._followed.pop(record["run"], None)
-        if followed is not None:
-            monitor, tally = followed
-            tally.stops()  # read once more, for what the last turn wrote on its way out
-            monitor.stops()  # the clock the rate is over is the run's, and it is over
+        self._following.ended(record)
         # Only this run's own, and only one nobody stopped: a run stopped by hand has said
         # so already, and one still unwinding behind the next is no run anybody is watching.
         if record["run"] == self._generation and record["run"] not in self._halted:
@@ -4363,18 +4367,9 @@ class Humanize(App[None]):
         Args:
           record: The session, as it opened.
         """
-        if record["person"]:
+        if self._following.opened(record) is None:
             return
-        seen = Seen(
-            record["agent"],
-            record["cli"],
-            record["model"],
-            frozenset(record["counts"]),
-            kept=record.get("kept", ""),
-            since=float(record.get("wall") or 0.0),
-        )
         if record["run"] == self._generation:
-            self._seen[record["key"]] = seen
             if placed := record.get("env"):
                 # With where its harness went, which is the environment's page to say.
                 self._placed[record["key"]] = {
@@ -4382,16 +4377,6 @@ class Humanize(App[None]):
                     "harness": str(record.get("harness") or ""),
                 }
             self._harnessed_at(str(record.get("role") or ""), record.get("harness"))
-        followed = self._followed.get(record["run"])
-        if followed is None:
-            return
-        monitor, tally = followed
-        # What its backend counts, said before its first turn: a kind nothing was spent on
-        # this turn is missing from that turn's reckoning exactly as a kind the CLI never
-        # counts is, and what is drawn of a run driving two backends has to tell the two
-        # apart to say which of its figures are whole.
-        monitor.reporting(seen.id, seen.counts)
-        tally.add(seen)
 
     def _harnessed_at(self, role: str, where: object) -> None:
         """Says where a role's harness went, the first time it goes somewhere this run.
@@ -4474,44 +4459,11 @@ class Humanize(App[None]):
         agent, kind, text = record["agent"], record["kind"], record["text"]
         now: float = record["mono"]
         # First, whatever else happens: showing a line raises once the interface has gone, and
-        # what a watcher raises is swallowed, so accounting after it would be lost.
-        # The kinds go with the tokens where a turn spent them all on one model, which is the
-        # ordinary turn: `spent` is that whole turn's cost by kind. A turn that named two --
-        # an agent that reached for a cheaper model for a sub-turn -- says what each of them
-        # cost and says the kinds of the pair together, and nothing in it says which of the
-        # two a cached read was made against. So they are divided by what each model took,
-        # rather than dropped: a turn whose kinds are dropped is a turn counted as tokens of
-        # no kind at all, which is a turn missing from every per-kind figure and priced at
-        # nothing. Where the CLI's own log is read as well, the exact split is in it, and the
-        # fullest reckoning is the one the money and the kinds are both read off.
-        tokens: dict[str, int] = record["tokens"]
-        spent: dict[str, float] = record["spent"]
-        whole = sum(tokens.values())
-        # And the node the monitor draws that conversation as, which is the key of the
-        # conversation it stands for -- only while the run it is of is the one in front of
-        # us. A run stopped and still unwinding behind the next numbers its conversations
-        # from one as that one does, so what it says goes on its agent's transcript instead.
+        # what a watcher raises is swallowed, so accounting after it would be lost. What comes
+        # back is the node the monitor draws that conversation as -- only while the run it is
+        # of is the one in front of us.
+        numbered = self._following.heard(record)
         ours = record["run"] == self._generation
-        numbered: str | None = (record["session"] or None) if ours else None
-        for model, count in tokens.items():
-            if not spent:
-                broken = None
-            elif len(tokens) == 1:
-                broken = dict(spent)  # the whole turn, on the one model it named
-            elif whole > 0:
-                broken = {kind: one * count / whole for kind, one in spent.items()}
-            else:
-                # Two models and nothing on either. There is nothing to divide by and
-                # nothing to divide, and a turn whose accounting raised would lose the
-                # line it was about: what a watcher raises is swallowed.
-                broken = None
-            self._monitor.spend(
-                agent, count, model=model, now=now, kinds=broken, session=numbered
-            )
-        # Anything at all the agent did, token or not: a tool, a word, an answer. A turn
-        # spends most of its minutes between the counts it reports, and a figure worked out
-        # only when one arrives stands still through all of them.
-        self._monitor.stirring()
         self._remember_btw(record)
         if kind == "result":
             # Kept to tell a flow saying an agent's answer back to the person -- a
@@ -4519,10 +4471,6 @@ class Humanize(App[None]):
             self._last_answer = text
         elif kind == "asks":
             self._last_asked = text
-        seen = self._seen.get(record["session"]) if numbered is not None else None
-        if seen is not None and record["ident"] not in ("", *seen.idents):
-            # What the backend calls it, which is the name its log is kept under.
-            seen.idents = seen.idents | {record["ident"]}
         # The conversation's own transcript, which is its agent's too and every agent's.
         whose: str = record["key"] if ours else agent
         if kind == "took":
@@ -4530,7 +4478,6 @@ class Humanize(App[None]):
             # say as the word being said, with who said it.
             return
         if kind == "begins":
-            self._monitor.begins(agent, record["model"], now=now, session=numbered)
             self._began[agent] = now
             if numbered is not None:
                 # Which is what makes it a conversation a typed line may go into: one written
@@ -4549,7 +4496,6 @@ class Humanize(App[None]):
                 packs=False,
             )
         elif kind == "ends":
-            self._monitor.ends(agent, now=now, session=numbered)
             if numbered is not None:
                 self._working.discard(numbered)
             took = now - self._began.pop(agent, now)
@@ -4561,18 +4507,9 @@ class Humanize(App[None]):
                 packs=False,
             )
         elif kind in ("subagent", "subagent-ends"):
-            # An agent this one started of its own. Counted whether or not the details are
-            # being shown, since the monitor draws the fleet under the agent that started it
-            # and a fleet nobody counted would be an agent working with nothing under it.
+            # An agent this one started of its own, drawn where the details are shown: the
+            # fleet under it was counted already, whatever is shown.
             named, _, about = text.partition(" ")
-            if kind == "subagent":
-                self._monitor.started(
-                    agent, record["whose"], about or named, session=numbered
-                )
-            else:
-                self._monitor.finished(
-                    agent, record["whose"], about or named, session=numbered
-                )
             if self._details:
                 self._on_screen(
                     self._part,

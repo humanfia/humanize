@@ -79,11 +79,11 @@ from hmz.flows import Budget
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
+from hmz.runtime.watching.monitor import thousands
 
 from .complete import paths
 from .discover import installed, ready_to_open
 from .dropdown import Dropdown, Value, anchor
-from .monitor import thousands
 from .selecting import Choices
 
 if TYPE_CHECKING:

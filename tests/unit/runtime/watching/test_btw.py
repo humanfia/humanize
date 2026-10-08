@@ -1,4 +1,4 @@
-"""`hmz.tui.btw`: the bounded prompts side questions are asked with, and `@ask` lines."""
+"""`hmz.runtime.watching.btw`: the prompts side questions are asked with, and `@ask` lines."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.tui import btw
-from hmz.tui.btw import (
+from hmz.runtime.watching import btw
+from hmz.runtime.watching.btw import (
     HOPS,
     AgentProgress,
     FlowSnapshot,

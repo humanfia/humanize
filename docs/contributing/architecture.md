@@ -148,13 +148,13 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
    checks the flows [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still
    work.
 
-### 3. Read it back, in `runtime/tracing/` and `tui/`
+### 3. Read it back, in `runtime/tracing/` and `runtime/watching/`
 
 7. **A trace reader** in `runtime/tracing/readers/<name>.py`, and its row in
    `runtime/tracing/collector.py`.
 8. **The live tally**: what its log calls each kind of token, as a row of `_KINDS` in
-   `tui/tally.py`, and a branch in `_spent` there, so the tally moves during a turn. Cover its
-   kinds in the `tests/unit/tui/` tests of the tally.
+   `runtime/watching/tally.py`, and a branch in `_spent` there, so the tally moves during a
+   turn. Cover its kinds in the `tests/unit/runtime/watching/` tests of the tally.
 
 ### 4. Test it
 
@@ -180,7 +180,7 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
 ### Check it worked
 
 ```sh
-uv run pytest tests/unit/coganchor tests/unit/flows tests/unit/tui \
+uv run pytest tests/unit/coganchor tests/unit/flows tests/unit/runtime/watching \
     tests/integration/test_agents_<name>.py tests/integration/test_core_layering.py
 ```
 

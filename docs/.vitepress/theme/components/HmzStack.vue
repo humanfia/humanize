@@ -30,6 +30,7 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.runtime.telemetry': ['hmz.runtime.settings'],
   'hmz.runtime.epic': ['hmz.coganchor', 'hmz.runtime.tracing'],
   'hmz.runtime.tracing': ['hmz.coganchor'],
+  'hmz.runtime.watching': ['hmz.coganchor'],
   'hmz.runtime.exporting': ['hmz.coganchor', 'hmz.runtime.epic', 'hmz.runtime.tracing'],
   'hmz.runtime.runner': [
     'hmz.coganchor',
@@ -67,6 +68,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.exporting',
     'hmz.runtime.kept',
     'hmz.runtime.telemetry',
+    'hmz.runtime.watching',
     'hmz.daemon',
   ],
   'hmz.sdk': ['hmz.daemon', 'hmz.runtime'],
@@ -178,6 +180,12 @@ const LAYERS: Layer[] = [
     ref: '/reference/tracing',
   },
   {
+    id: 'watching',
+    dotted: 'hmz.runtime.watching',
+    here: 'A run read as it happens: who is working, what it has cost, and the view a side question is asked with. Every frontend draws the same figures from it.',
+    spec: 'runtime/SPEC.md',
+  },
+  {
     id: 'coganchor',
     dotted: 'hmz.coganchor',
     here: 'Driving a coding agent CLI: backends, drivers, accounts, models, fallbacks, prices, machines, and the anchor.',
@@ -217,7 +225,7 @@ const BANDS: { label: string; ids: string[] }[] = [
   { label: 'holding a run', ids: ['daemon'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
-  { label: 'what a run leaves', ids: ['exporting', 'epic', 'tracing'] },
+  { label: 'what a run leaves', ids: ['exporting', 'epic', 'tracing', 'watching'] },
   { label: 'driving agents', ids: ['coganchor', 'serve'] },
   { label: 'remembered', ids: ['telemetry', 'settings', 'kept'] },
 ]

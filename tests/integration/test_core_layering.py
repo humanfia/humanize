@@ -50,6 +50,8 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.runtime.telemetry": {"hmz.runtime.settings"},
     "hmz.runtime.epic": {"hmz.coganchor", "hmz.runtime.tracing"},
     "hmz.runtime.tracing": {"hmz.coganchor"},
+    # A run read as it happens, which every frontend draws: the same figures in each of them.
+    "hmz.runtime.watching": {"hmz.coganchor"},
     "hmz.runtime.exporting": {
         "hmz.coganchor",
         "hmz.runtime.epic",
@@ -93,6 +95,7 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.exporting",
         "hmz.runtime.kept",
         "hmz.runtime.telemetry",
+        "hmz.runtime.watching",
         "hmz.daemon",
     },
     "hmz.sdk": {"hmz.daemon", "hmz.runtime"},

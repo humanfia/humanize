@@ -10,7 +10,7 @@ from textual.content import Content
 
 import hmz.runtime.flowing
 from hmz.coganchor.agents import ANYONE, FLOW
-from hmz.tui.monitor import Shape, Under
+from hmz.runtime.watching.monitor import Shape, Under
 from hmz.tui.monitoring import (
     OUTWORLDER,
     BoardSeen,
