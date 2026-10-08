@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import pytest
 
 from hmz.coganchor import fence as fencing
+from hmz.coganchor.darwin.seatbelt import SANDBOX_EXEC
 from hmz.coganchor.fence import Fence, wrap
 from hmz.coganchor.fence.wrap import CACHES, PROXIES, environ, run
+from hmz.coganchor.providers import redirect
 
 TMP = "/tmp/hmz-fence-scratch"
 
@@ -82,6 +85,57 @@ def test_run_refuses_a_host_that_cannot_fence(
     with pytest.raises(RuntimeError, match="cannot fence"):
         run(Fence(online=online), ["true"])
     assert asked == [not online]
+
+
+@pytest.mark.parametrize(
+    "cache", ["available", None, OSError("no cache"), ValueError("unknown")]
+)
+def test_a_mac_run_keeps_only_its_security_cache_writable_when_available(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, cache: str | Exception | None
+) -> None:
+    cache_dir = str(tmp_path.resolve() / "system-cache")
+    scratch = str(tmp_path.resolve() / "scratch")
+    commands: list[list[str]] = []
+    asked: list[int] = []
+
+    def confstr(name: int) -> str | None:
+        asked.append(name)
+        if isinstance(cache, Exception):
+            raise cache
+        return cache_dir if cache else None
+
+    def spawn(path: str, argv: list[str], env: dict[str, str]) -> int:
+        assert path == SANDBOX_EXEC
+        assert env["TMPDIR"] == scratch
+        commands.append(argv)
+        return 123
+
+    def enforceable(*, net: bool) -> bool:
+        assert not net
+        return True
+
+    def waited(pid: int, options: int) -> tuple[int, int]:
+        assert (pid, options) == (-1, 0)
+        return 123, 7 << 8
+
+    def swept(pid: int) -> None:
+        assert pid == 123
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(fencing, "enforceable", enforceable)
+    monkeypatch.setattr(os, "confstr", confstr, raising=False)
+    monkeypatch.setattr(os, "posix_spawn", spawn, raising=False)
+    monkeypatch.setattr(os, "waitpid", waited, raising=False)
+    monkeypatch.setattr(redirect, "swept", swept)
+
+    assert run(Fence(read=("/r",), write=("/w",), tmp=scratch), ["prog", "arg"]) == 7
+    assert asked == [65538]
+    (command,) = commands
+    assert command[-2:] == ["prog", "arg"]
+    writes = {one.partition("=")[2] for one in command if one.startswith("-DW")}
+    assert writes == {"/w", scratch} | (
+        {str(Path(cache_dir, "mds"))} if cache == "available" else set()
+    )
 
 
 def test_main_runs_the_policy_it_was_given(

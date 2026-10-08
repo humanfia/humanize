@@ -524,7 +524,9 @@ The minimum granted whatever the scopes is `LINUX_SYSTEM` and `LINUX_DEVICES` on
 `DARWIN_SYSTEM` (`/usr`, `/bin`, `/sbin`, `/System`, `/private/var/select`,
 `/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and
 `DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
-pseudo-terminals `/dev/ttys*` writable.
+pseudo-terminals `/dev/ttys*` writable. Seatbelt also lets the current user's `mds`
+directory under `DARWIN_USER_CACHE_DIR` be written: the Security framework locks its module
+database there to initialize TLS, and a CLI refused it fails before its model starts.
 
 No built-in CLI enforces any part natively: every driver's `natively` returns the whole fence,
 for the reasons below. `litellm` returns none of it: a turn is one request from this process
@@ -1276,6 +1278,8 @@ codex app-server [--strict-config] [--disable goals] [--enable|--disable <featur
 
 Threads are `thread/start`, `thread/resume` and `thread/fork`; turns are `turn/start` (model,
 effort, rung, approval, service tier, `outputSchema`); steering is `turn/steer`.
+A turn ends on `turn/completed`, whose status and error say whether it failed; the thread may
+fall `idle` first, which ends nothing.
 
 | Field | Default | Meaning |
 | --- | --- | --- |

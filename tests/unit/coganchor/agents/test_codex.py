@@ -409,7 +409,18 @@ def test_a_turn_says_what_the_agent_did_and_what_it_cost(
 @pytest.mark.parametrize(
     "ending",
     [
-        [{"method": "error", "params": {"error": {"message": "the model refused"}}}],
+        [
+            {"method": "error", "params": {"error": {"message": "the model refused"}}},
+            {
+                "method": "turn/completed",
+                "params": {
+                    "turn": {
+                        "status": "failed",
+                        "error": {"message": "the model refused"},
+                    }
+                },
+            },
+        ],
         [
             {
                 "method": "turn/completed",
@@ -449,6 +460,73 @@ def test_a_turn_the_server_says_failed_fails(
         session("hi")
     with pytest.raises(RuntimeError):
         _ = session.id
+
+
+@pytest.mark.parametrize("status", ["completed", "failed"])
+def test_an_idle_thread_does_not_hide_its_turn_s_completion_error(
+    spawner: Spawner, server: _Server, tmp_path: Path, status: str
+) -> None:
+    def fails(proc: Process, thread: str, turn: str) -> None:
+        proc.say(
+            {
+                "method": "turn/started",
+                "params": {"threadId": thread, "turn": {"id": turn}},
+            },
+            {
+                "method": "thread/status/changed",
+                "params": {"threadId": thread, "status": {"type": "idle"}},
+            },
+            {
+                "method": "turn/completed",
+                "params": {
+                    "threadId": thread,
+                    "turn": {
+                        "id": turn,
+                        "status": status,
+                        "error": {"message": "workspace routing discovery failed"},
+                    },
+                },
+            },
+        )
+
+    server.turns = [fails]
+    with pytest.raises(Failed, match="workspace routing discovery failed"):
+        _agent().new(tmp_path)("hi")
+
+
+def test_a_reconnecting_turn_waits_for_its_successful_completion_after_idle(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    def recovers(proc: Process, thread: str, turn: str) -> None:
+        proc.say(
+            {
+                "method": "turn/started",
+                "params": {"threadId": thread, "turn": {"id": turn}},
+            },
+            {
+                "method": "error",
+                "params": {
+                    "threadId": thread,
+                    "error": {"message": "reconnecting"},
+                    "willRetry": True,
+                },
+            },
+            {
+                "method": "thread/status/changed",
+                "params": {"threadId": thread, "status": {"type": "idle"}},
+            },
+            _item("completed", thread, turn, **_message("recovered")),
+            {
+                "method": "turn/completed",
+                "params": {
+                    "threadId": thread,
+                    "turn": {"id": turn, "status": "completed", "error": None},
+                },
+            },
+        )
+
+    server.turns = [recovers]
+    assert _agent().new(tmp_path)("hi") == "recovered"
 
 
 def test_a_refused_call_is_a_failed_turn(
