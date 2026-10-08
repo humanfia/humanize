@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 
 import hmz.coganchor.backends
+import hmz.daemon
 import hmz.runtime.flowing
 from hmz.coganchor.backends import Model
 from hmz.flows import HarnessKind
 from hmz.runtime.kept import Runs
 from hmz.tui import pick
 from tests.unit.tui import doubles_u14 as doubles
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 class _Shell:
@@ -45,13 +41,10 @@ def ready(monkeypatch: pytest.MonkeyPatch) -> set[str]:
     """Which backends open without further setup here: every one, until a test says not."""
     opens = {"claude", "codex", "mine"}
 
-    def ready_to_open(backend: str, where: Path) -> bool:
-        return backend in opens
-
     def written(effort: str) -> str:
         return effort or "auto"
 
-    monkeypatch.setattr(pick, "ready_to_open", ready_to_open)
+    monkeypatch.setattr(hmz.daemon, "Hmz", doubles.Hmz(opens=opens))
     monkeypatch.setattr(hmz.coganchor.backends, "written", written)
     return opens
 
@@ -122,21 +115,15 @@ def test_opens_on_nothing_where_nothing_will_do(ready: set[str]) -> None:
     assert pick.opens_on({}) == []
 
 
-def test_opens_on_asks_whether_a_backend_opens_where_this_is(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+def test_opens_on_asks_whether_a_backend_opens_without_further_setup(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    asked: list[Path] = []
-
-    def opens(backend: str, where: Path) -> bool:
-        asked.append(where)
-        return True
-
-    monkeypatch.setattr(pick, "ready_to_open", opens)
-    monkeypatch.chdir(tmp_path)
+    held = doubles.Hmz(opens={"claude"})
+    monkeypatch.setattr(hmz.daemon, "Hmz", held)
 
     pick.opens_on({"claude": (Model("opus", ("high",)),)})
 
-    assert asked == [tmp_path]
+    assert held.asked == ["claude"]
 
 
 def test_settled_keeps_what_was_remembered_in_the_flows_order() -> None:

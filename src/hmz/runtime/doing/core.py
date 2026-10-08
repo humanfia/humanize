@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     import os
     from collections.abc import Iterable, Mapping
 
-    from hmz.coganchor.backends import Profile
+    from hmz.coganchor.backends import Model, Profile
     from hmz.flows import Budget, FlowParams
     from hmz.runtime.doing.accounts import Accounts
     from hmz.runtime.doing.epics import Epics
@@ -140,6 +140,43 @@ class Hmz:
         from hmz.coganchor import backends
 
         return backends.profiles()
+
+    def installed(self) -> dict[str, tuple[Model, ...]]:
+        """The backends on this machine, and what each last said it runs.
+
+        Returns:
+          One entry per backend whose program -- and whatever its extra brings -- is here, as
+          the models it last said it runs. Empty for one never asked, which is a catalogue to
+          fill rather than a backend that runs nothing.
+        """
+        from hmz.runtime.doing import installed
+
+        return installed.installed(self.accounts)
+
+    def installable(self) -> dict[str, tuple[Model, ...]]:
+        """The optional backends whose program is here and whose extra is not.
+
+        Returns:
+          Each, as the models it will offer once its extra is added: what is offered with
+          the line that adds it rather than hidden.
+        """
+        from hmz.runtime.doing import installed
+
+        return installed.installable(self.accounts)
+
+    def ready_to_open(self, backend: str) -> bool:
+        """Whether an installed backend may be chosen here without somebody choosing it.
+
+        Args:
+          backend: The backend being considered as the agent to fall back on.
+
+        Returns:
+          Whether it may be: never litellm, and DeepSeek Harness only once its local account
+          in this workspace is configured.
+        """
+        from hmz.runtime.doing import installed
+
+        return installed.ready_to_open(backend, self.workspace)
 
     def reports(self) -> bool:
         """Starts reporting humanize's own failures, where that has been answered yes.

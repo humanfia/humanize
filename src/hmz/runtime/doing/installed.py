@@ -1,4 +1,4 @@
-"""Which agents are installed here, and what each one runs.
+"""Which agents are installed here, and what each one runs: what `Hmz.installed` answers.
 
 Installed backends are found here, and optional backends somebody can add are named separately
 so the picker can teach them how. An effort a model does not take is not offered against it.
@@ -18,12 +18,12 @@ import importlib.util
 from typing import TYPE_CHECKING
 
 from hmz.coganchor.backends import named, profiles, program, speaking
-from hmz.daemon import Hmz
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from hmz.coganchor.backends import Model
+    from hmz.runtime.doing.accounts import Accounts
 
 __all__ = ["installable", "installed", "ready_to_open"]
 
@@ -39,18 +39,20 @@ _EXTRAS = {
 }
 
 
-def installed() -> dict[str, tuple[Model, ...]]:
+def installed(accounts: Accounts) -> dict[str, tuple[Model, ...]]:
     """The backends on this machine, and what each last said it runs.
 
     Costs a look for each backend's program and one file read, so it can be asked for at a
     prompt.
+
+    Args:
+      accounts: The accounts of the workspace asking, which keep what each backend runs.
 
     Returns:
       One entry per backend that is on this machine, as the models it last said it runs for
       the account nobody chose. Empty for one that has never been asked, which is a catalogue
       to fill rather than a backend with nothing in it.
     """
-    accounts = Hmz().accounts
     return {
         profile.name: accounts.models(profile.name)
         for profile in profiles()
@@ -58,12 +60,15 @@ def installed() -> dict[str, tuple[Model, ...]]:
     }
 
 
-def installable() -> dict[str, tuple[Model, ...]]:
+def installable(accounts: Accounts) -> dict[str, tuple[Model, ...]]:
     """Optional backends that can be added to this humanize installation.
 
     These are kept apart from :func:`installed`: they belong in the agent picker so that
     somebody can discover and install them, but they must not make an unopened prompt look
     ready to run or be asked for models in the background.
+
+    Args:
+      accounts: The accounts of the workspace asking, which keep what each backend runs.
 
     Returns:
       One entry per supported optional backend whose extra is missing from this Python
@@ -71,7 +76,6 @@ def installable() -> dict[str, tuple[Model, ...]]:
       not here either is not one of them: what it is missing is the program, and a line that
       names a package alone would be an answer to the smaller half.
     """
-    accounts = Hmz().accounts
     return {
         backend: accounts.models(backend)
         for backend in _EXTRAS

@@ -39,7 +39,11 @@ def opened(monkeypatch: pytest.MonkeyPatch) -> _Opened:
     def declared_of(flow: str) -> None:
         held.declared.append(flow)
 
-    monkeypatch.setattr(app, "Hmz", lambda: mock.MagicMock(settings=settings))
+    # Nothing installed here, and nothing to add.
+    hmz = mock.MagicMock(settings=settings)
+    hmz.installed.return_value = {}
+    hmz.installable.return_value = {}
+    monkeypatch.setattr(app, "Hmz", lambda: hmz)
     monkeypatch.setattr(app, "declared_of", declared_of)
 
     def nothing(*_: object) -> None:
@@ -47,7 +51,6 @@ def opened(monkeypatch: pytest.MonkeyPatch) -> _Opened:
 
     monkeypatch.setattr(app, "params_of", nothing)
     monkeypatch.setattr(app, "budget_of", nothing)
-    monkeypatch.setattr(app, "installed", dict)
     monkeypatch.delenv("TEXTUAL_THEME", raising=False)
     return held
 

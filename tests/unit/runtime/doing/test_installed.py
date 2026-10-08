@@ -1,4 +1,4 @@
-"""`hmz.tui.discover`: which agents are installed, which can be added, and what each runs."""
+"""`hmz.runtime.doing.installed`: which agents are installed, which can be added."""
 
 from __future__ import annotations
 
@@ -6,14 +6,16 @@ import importlib.util
 import sys
 import types
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.tui import discover
+from hmz.runtime.doing import installed as discover
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from hmz.runtime.doing.accounts import Accounts
 
 
 @dataclass
@@ -33,7 +35,7 @@ class _Accounts:
 
 @dataclass
 class _World:
-    """What the machine has, as `hmz.coganchor` and `hmz.daemon` would say it."""
+    """What the machine has, as `hmz.coganchor` and the accounts would say it."""
 
     profiles: list[str] = field(default_factory=list[str])
     programs: set[str] = field(default_factory=set[str])
@@ -42,6 +44,11 @@ class _World:
     )
     modules: set[str] = field(default_factory=set[str])
     accounts: _Accounts = field(default_factory=_Accounts)
+
+    @property
+    def catalogue(self) -> Accounts:
+        """The accounts, as what is installed is asked of them: for what each backend runs."""
+        return cast("Accounts", self.accounts)
 
 
 @pytest.fixture
@@ -67,9 +74,6 @@ def world(monkeypatch: pytest.MonkeyPatch) -> _World:
     monkeypatch.setattr(discover, "named", named)
     monkeypatch.setattr(discover, "program", program)
     monkeypatch.setattr(discover, "speaking", lambda: held.speaking)
-    monkeypatch.setattr(
-        discover, "Hmz", lambda: types.SimpleNamespace(accounts=held.accounts)
-    )
     monkeypatch.setattr(importlib.util, "find_spec", find_spec)
     return held
 
@@ -77,7 +81,7 @@ def world(monkeypatch: pytest.MonkeyPatch) -> _World:
 def test_nothing_installed_is_nothing_found(world: _World) -> None:
     world.profiles = ["claude", "codex"]
 
-    assert discover.installed() == {}
+    assert discover.installed(world.catalogue) == {}
 
 
 def test_a_backend_whose_program_is_here_is_installed_with_its_models(
@@ -87,14 +91,14 @@ def test_a_backend_whose_program_is_here_is_installed_with_its_models(
     world.programs = {"claude"}
     world.accounts.known = {"claude": ("opus", "sonnet")}
 
-    assert discover.installed() == {"claude": ("opus", "sonnet")}
+    assert discover.installed(world.catalogue) == {"claude": ("opus", "sonnet")}
 
 
 def test_a_backend_never_asked_is_installed_with_nothing_in_it(world: _World) -> None:
     world.profiles = ["codex"]
     world.programs = {"codex"}
 
-    assert discover.installed() == {"codex": ()}
+    assert discover.installed(world.catalogue) == {"codex": ()}
 
 
 def test_a_cli_somebody_added_is_found_by_the_command_they_gave(world: _World) -> None:
@@ -102,7 +106,7 @@ def test_a_cli_somebody_added_is_found_by_the_command_they_gave(world: _World) -
     world.speaking = {"mine": ("my-agent", "--serve")}
     world.programs = {"my-agent"}
 
-    assert "mine" in discover.installed()
+    assert "mine" in discover.installed(world.catalogue)
 
 
 def test_a_cli_added_with_no_command_is_not_installed(world: _World) -> None:
@@ -110,7 +114,7 @@ def test_a_cli_added_with_no_command_is_not_installed(world: _World) -> None:
     world.speaking = {"mine": ()}
     world.programs = {"mine"}
 
-    assert discover.installed() == {}
+    assert discover.installed(world.catalogue) == {}
 
 
 @pytest.mark.parametrize(
@@ -131,34 +135,38 @@ def test_a_backend_with_an_extra_needs_the_whole_of_it(
     world.programs = {backend}
     world.modules = modules
 
-    assert (backend in discover.installed()) is found
+    assert (backend in discover.installed(world.catalogue)) is found
 
 
 def test_dsh_and_litellm_need_no_program(world: _World) -> None:
     world.profiles = ["dsh", "litellm"]
     world.modules = {"deepseek_harness", "dotenv", "litellm"}
 
-    assert set(discover.installed()) == {"dsh", "litellm"}
+    assert set(discover.installed(world.catalogue)) == {"dsh", "litellm"}
 
 
 def test_an_optional_backend_missing_its_extra_is_installable(world: _World) -> None:
     world.programs = {"kimi"}
     world.accounts.known = {"kimi": ("k2",), "dsh": ("v3",)}
 
-    assert discover.installable() == {"dsh": ("v3",), "kimi": ("k2",), "litellm": ()}
+    assert discover.installable(world.catalogue) == {
+        "dsh": ("v3",),
+        "kimi": ("k2",),
+        "litellm": (),
+    }
 
 
 def test_an_optional_backend_without_its_program_is_not_installable(
     world: _World,
 ) -> None:
-    assert "kimi" not in discover.installable()
+    assert "kimi" not in discover.installable(world.catalogue)
 
 
 def test_an_optional_backend_with_its_extra_is_not_installable(world: _World) -> None:
     world.programs = {"kimi"}
     world.modules = {"websockets", "litellm", "deepseek_harness", "dotenv"}
 
-    assert discover.installable() == {}
+    assert discover.installable(world.catalogue) == {}
 
 
 @pytest.mark.parametrize(("backend", "ready"), [("claude", True), ("litellm", False)])

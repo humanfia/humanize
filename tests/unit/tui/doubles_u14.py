@@ -88,9 +88,16 @@ class Hmz:
     flows: Flows = field(default_factory=Flows)
     epics: Epics = field(default_factory=Epics)
     accounts: Any = None
+    #: The backends that open here without further setup, and each one asked about.
+    opens: set[str] = field(default_factory=set[str])
+    asked: list[str] = field(default_factory=list[str])
 
     def __call__(self) -> Hmz:
         return self
+
+    def ready_to_open(self, backend: str) -> bool:
+        self.asked.append(backend)
+        return backend in self.opens
 
 
 @dataclass

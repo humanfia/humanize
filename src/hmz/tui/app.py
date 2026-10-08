@@ -78,7 +78,6 @@ from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, thousands
 
 from .complete import VIEWS, Command, hinted, offered
-from .discover import installable, installed
 from .flows import INSTALLED, VERSES, Flows, Lists
 from .history import History
 from .keyboard import reads_long_reports
@@ -1069,7 +1068,7 @@ class Humanize(App[None]):
             else self.settings.agents(self._flow_named)
         )
         self._models: dict[str, Runs] = (
-            settled(remembered, self._declared.agents, installed())
+            settled(remembered, self._declared.agents, Hmz().installed())
             if self._declared is not None
             else remembered
         )
@@ -1282,7 +1281,7 @@ class Humanize(App[None]):
         import asyncio
 
         accounts = self.hmz.accounts
-        for backend in installed():
+        for backend in Hmz().installed():
             if not accounts.stale(backend):
                 continue
             try:
@@ -1295,7 +1294,9 @@ class Humanize(App[None]):
             # Which may be the first model there is to open on, for an interface that opened
             # with nothing installed to talk to.
             if self._declared is not None:
-                self._models = settled(self._models, self._declared.agents, installed())
+                self._models = settled(
+                    self._models, self._declared.agents, Hmz().installed()
+                )
             self._draw()
 
     @work
@@ -3449,8 +3450,8 @@ class Humanize(App[None]):
         # Opened whether or not there is a backend to run one on: which flow to run is worth
         # reading either way, and the sheet an agent is set up on says for itself that there
         # is nothing installed to set it up as.
-        agents = installed()
-        unavailable = installable()
+        agents = Hmz().installed()
+        unavailable = Hmz().installable()
         agents.update(unavailable)
         # What is in hand is what is in hand for the flow the interface is set up on. A menu
         # opened straight into another flow is handed none, and reads what that one was last
@@ -3718,8 +3719,8 @@ class Humanize(App[None]):
                 "red",
             )
             return
-        agents = installed()
-        unavailable = installable()
+        agents = Hmz().installed()
+        unavailable = Hmz().installable()
         agents.update(unavailable)
         self.push_screen(
             Adjusts(agents, page=opens, unavailable=frozenset(unavailable))
@@ -4845,14 +4846,14 @@ def _machine() -> dict[str, object]:
     return {
         "python": platform.python_version(),
         "system": platform.system(),
-        "clis": sorted(installed()),
+        "clis": sorted(Hmz().installed()),
         "accounts": [
             {"cli": one.cli, "name": one.name or "as local", "way": one.way or "-"}
             for one in held.accounts.all()
         ],
         "skills": {
             cli: [one.name for one in skills(cli)]
-            for cli in sorted(installed())
+            for cli in sorted(Hmz().installed())
             if skills(cli)
         },
         "flowverses": [
