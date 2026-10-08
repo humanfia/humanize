@@ -1125,9 +1125,6 @@ class _AppServer:
                 }
             )
             said = ""
-            # A thread falls idle the moment it is opened, and that idle is still in the
-            # stream when a turn starts reading. A turn has not ended until it has begun.
-            begun = False
             failed: str | None = None
             before = Counter(self._counted.get(thread) or Counter())
             costing = Usage()
@@ -1144,7 +1141,6 @@ class _AppServer:
                     named_turn: dict[str, Any] = told.get("turn") or {}
                     if turn := told.get("turnId") or named_turn.get("id"):
                         running.turn = str(turn)
-                        begun = True
                     match message.get("method"):
                         case "item/started" | "item/completed":
                             for event in self._shown(
@@ -1165,19 +1161,17 @@ class _AppServer:
                             failed = json.dumps(told.get("error"))
                         case "turn/completed":
                             turn_said = cast("dict[str, Any]", told.get("turn") or {})
-                            if turn_said.get("status") not in (None, "completed"):
-                                # A failed or interrupted turn is complete even when the
-                                # server does not follow it with a separate idle notification.
+                            if turn_said.get("error") is not None or turn_said.get(
+                                "status"
+                            ) not in (None, "completed"):
                                 failed = json.dumps(
                                     turn_said.get("error") or turn_said.get("status")
                                 )
-                                break
-                            # Codex reports a reconnect attempt as an error notification even
-                            # when a later sampling request completes this same turn.
-                            failed = None
-                        case "thread/status/changed" if (
-                            begun and told["status"]["type"] == "idle"
-                        ):
+                            else:
+                                # A reconnect error can precede a successful completion.
+                                failed = None
+                            # The thread may fall idle before this arrives. Only completion
+                            # says whether its turn succeeded, so idle cannot close a reader.
                             break
                         case _:  # the rest of the stream is not this turn's to show
                             pass
