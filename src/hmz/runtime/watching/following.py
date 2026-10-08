@@ -4,20 +4,34 @@ A host tells every frontend the same records -- a run starting, a session openin
 turn says and what it cost, a run ending -- and what a frontend draws of a run is worked out
 from them: who is working and who handed to whom, and what each model has cost. Worked out here
 once, for every frontend alike, rather than in each of them: two frontends drawing one run must
-draw the same figures.
+draw the same figures -- and a side question asked from either must be told the same run.
 """
 
 from __future__ import annotations
 
+import threading
+import time
+from collections import deque
 from typing import TYPE_CHECKING, Any
 
+from .btw import AgentProgress, FlowSnapshot, Observation, compact
 from .monitor import Monitor
 from .tally import Seen, Tally
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Collection, Mapping
 
 __all__ = ["Following"]
+
+#: How many of what a run did a side question is shown, the newest kept.
+_OBSERVED = 80
+
+#: What a run does that a side question is told of: what it can see happen, and not the
+#: thinking behind it -- a side question needs where the run has got to, not a second copy
+#: of an agent's private reasoning.
+_OBSERVABLE = frozenset(
+    {"begins", "ends", "failed", "asks", "notice", "tool", "text", "result"}
+)
 
 
 class Following:
@@ -41,6 +55,10 @@ class Following:
         # Every run being followed, by number. A run stopped and still unwinding behind the
         # next is counted until it ends, which is when its last turn's tokens are in.
         self._followed: dict[int, tuple[Monitor, Tally]] = {}
+        # What the run in front has done, as a side question is told it: written on the
+        # thread records arrive on and read on the one a side question is asked on.
+        self._observed: deque[Observation] = deque(maxlen=_OBSERVED)
+        self._observing = threading.Lock()
 
     def started(self, record: Mapping[str, Any]) -> None:
         """Takes a run that has just started as the one in front of the frontend.
@@ -59,6 +77,8 @@ class Following:
         self.tally = Tally([], self.monitor)
         self._followed[self.run] = (self.monitor, self.tally)
         self.tally.watch()
+        with self._observing:
+            self._observed.clear()
 
     def opened(self, record: Mapping[str, Any]) -> Seen | None:
         """Takes one session a run has just opened as one of the run's own.
@@ -166,7 +186,117 @@ class Following:
                 self.monitor.finished(
                     agent, record["whose"], about or named, session=numbered
                 )
+        if ours and kind in _OBSERVABLE:
+            said = (
+                text.split("\n\n", 1)[0]
+                if kind == "begins"
+                else "turn ended"
+                if kind == "ends"
+                else text
+            )
+            self._observe(agent, kind, said)
         return numbered
+
+    def printed(self, text: str) -> None:
+        """Takes something the flow printed as what the run did, for a side question.
+
+        Flow-owned progress -- a round counter, say -- is where a run has got to whether or
+        not a frontend shows it.
+
+        Args:
+          text: What was printed.
+        """
+        if text.strip():
+            self._observe("", "flow", text)
+
+    def _observe(self, agent: str, kind: str, text: str) -> None:
+        with self._observing:
+            self._observed.append(
+                Observation(
+                    agent=agent, kind=kind, text=compact(text), at=time.monotonic()
+                )
+            )
+
+    def snapshot(
+        self,
+        *,
+        flow: str,
+        task: str,
+        workspace: str,
+        going: bool,
+        working: Collection[str],
+        waiting: int,
+        waiting_for_input: bool,
+    ) -> FlowSnapshot:
+        """The run in front of the frontend, frozen, as a side question is told it.
+
+        Args:
+          flow: What is running, flow inside flow, as the frontend names it.
+          task: What the run was started on.
+          workspace: Where it runs.
+          going: Whether it is going still.
+          working: The conversations with a turn open, `<role>/<n>` apiece.
+          waiting: How many messages are waiting for a turn to take them.
+          waiting_for_input: Whether the run is waiting on a person.
+
+        Returns:
+          The snapshot.
+        """
+        shape = self.monitor.shape()
+        moment = time.monotonic()
+        ended = self.monitor.until
+        # One per role, however many sessions it opened: a role is what is watched, and each
+        # of its sessions is an agent of its own named for it.
+        driven = {seen.id: seen for seen in list(self.seen.values()) if seen.id}
+        with self._observing:
+            observations = tuple(self._observed)
+        return FlowSnapshot(
+            flow=flow,
+            task=task,
+            workspace=workspace,
+            elapsed=(ended if ended is not None else moment) - self.monitor.began,
+            finished=not going,
+            agents=tuple(
+                AgentProgress(
+                    agent=who,
+                    model=seen.model,
+                    turns=shape.turns.get(who, 0),
+                    working=who in shape.working,
+                    role=who,
+                )
+                for who, seen in driven.items()
+            ),
+            handovers=tuple(
+                sorted(
+                    (sender, receiver, count)
+                    for (sender, receiver), count in shape.handovers.items()
+                    if count > 0
+                )
+            ),
+            observations=observations,
+            waiting=waiting,
+            spent=tuple(
+                (entry.model, entry.tokens, entry.rate, entry.dollars)
+                for entry in self.monitor.spending(now=ended or moment)
+            ),
+            # Beside the spending rather than inside it: the kinds are the run's rather than
+            # any one model's, a bill being made of them whichever model bought them, and
+            # each says whether the figure is the whole of what went on that kind.
+            kinds=tuple(
+                (one.kind, one.tokens, one.whole)
+                for one in self.monitor.reckoning(now=ended or moment)
+            ),
+            waiting_for_input=waiting_for_input,
+            # What the btw agent may ask by key: each conversation, and whether it is going.
+            sessions=tuple(
+                (
+                    key,
+                    ("working" if key in working else "idle" if going else "ended")
+                    + f", model={seen.model or '(default)'}",
+                )
+                for key, seen in list(self.seen.items())
+            ),
+        )
 
     def ended(self, record: Mapping[str, Any]) -> None:
         """Takes a run that has ended: its tally is read a last time, and its clocks stop.

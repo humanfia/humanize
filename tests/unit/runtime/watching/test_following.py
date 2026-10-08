@@ -82,3 +82,43 @@ def test_a_run_unwinding_behind_the_next_is_its_agents_alone(
     assert following.monitor.shape().turns == {"builder": 1}
     assert following.monitor.shape(sessions=True).turns == {}
     following.ended({"run": 2})
+
+
+def test_a_side_question_is_told_what_the_run_in_front_did_and_not_its_thinking(
+    following: Following,
+) -> None:
+    following.heard(
+        _event(kind="begins", text="build it\n\nwith the rest of the prompt")
+    )
+    following.heard(_event(kind="reasoning", text="private"))
+    following.heard(_event(run=0, kind="text", text="another run's"))
+    following.printed("round 2 of 5")
+    following.heard(_event(kind="ends"))
+
+    snapshot = following.snapshot(
+        flow="ralph",
+        task="build it",
+        workspace="/w",
+        going=True,
+        working=["builder/1"],
+        waiting=0,
+        waiting_for_input=False,
+    )
+
+    said = [(one.agent, one.kind, one.text) for one in snapshot.observations]
+    assert said == [
+        ("builder", "begins", "build it"),
+        ("", "flow", "round 2 of 5"),
+        ("builder", "ends", "turn ended"),
+    ]
+    following.started({"run": 2, "began": 0.0})
+    assert not following.snapshot(
+        flow="",
+        task="",
+        workspace="",
+        going=True,
+        working=(),
+        waiting=0,
+        waiting_for_input=False,
+    ).observations
+    following.ended({"run": 2})

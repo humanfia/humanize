@@ -38,7 +38,7 @@ import sys
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
@@ -58,24 +58,13 @@ from textual.theme import Theme
 from textual.widgets import OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
-from hmz.coganchor.prices import money, refresh
+from hmz.coganchor.prices import refresh
 from hmz.daemon import Hmz
 from hmz.runtime import telemetry
 from hmz.runtime.kept import read_back
-from hmz.runtime.watching.btw import (
-    HOPS,
-    AgentProgress,
-    FlowSnapshot,
-    Observation,
-    asked,
-    compact,
-    format_answers,
-    format_forked,
-    format_snapshot,
-    format_turn,
-)
+from hmz.runtime.watching.btw import Btw, FlowSnapshot, Left, compact, opened_as
 from hmz.runtime.watching.following import Following
-from hmz.runtime.watching.monitor import short, thousands
+from hmz.runtime.watching.monitor import short, tallied
 
 from .complete import VIEWS, Command, hinted, offered
 from .flows import INSTALLED, VERSES, Flows, Lists
@@ -249,30 +238,6 @@ _PATIENCE = 10.0
 #: What a line left waiting when a run went is said to have been stopped by, as the host says
 #: why it let go of it.
 _FIRST = {"stopped": "the flow stopped", "ended": "the flow ended"}
-
-#: How much live activity a side question may carry into its isolated context: a bound on
-#: optional observation, since a day-long flow must not grow the interface without limit.
-_BTW_EVENTS = 80
-
-
-@dataclass
-class _Btw:
-    """Btw mode: who a typed line goes to, and the side conversations opened so far.
-
-    Attributes:
-      target: The session asked, as `<role>/<n>`, or "" for the btw agent.
-      sides: Each side conversation opened, as the host numbers it, by the session it is
-        about -- "" for the btw agent's own.
-      busy: Whether a question is being answered.
-    """
-
-    target: str
-    sides: dict[str, str] = field(default_factory=dict[str, str])
-    busy: bool = False
-
-
-class _BtwLeft(Exception):  # noqa: N818 -- a way out rather than a failure
-    """Btw mode was left while a side conversation was being opened."""
 
 
 def _where() -> str:
@@ -1003,16 +968,14 @@ class Humanize(App[None]):
         self._following = Following()
         #: The flow calls going, as last told: the flow started and whatever it called.
         self._called: list[dict[str, Any]] = []
-        #: The task of the run in front of us and a bounded plain record of what its agent
-        #: streams have said. `/btw` reads these once, as a snapshot; it never reaches into a
-        #: flow's conversations for context, because doing that would make the side question a
-        #: turn of the flow. The same lock holds the side sessions, since their threads add and
-        #: remove them while the interface thread may close them on the way out.
+        #: The task of the run in front of us, which `/btw` reads once, as part of a snapshot:
+        #: it never reaches into a flow's conversations for context, because doing that would
+        #: make the side question a turn of the flow. The same lock holds btw mode, since its
+        #: thread reads it while the interface thread may leave it.
         self._flow_task = ""
-        self._btw_events: deque[Observation] = deque(maxlen=_BTW_EVENTS)
         self._btw_lock = threading.Lock()
         #: Btw mode, while it is on: who it talks to and the side conversations it opened.
-        self._btw: _Btw | None = None
+        self._btw: Btw | None = None
         #: Whether what a turn did on its way to an answer -- the tools it used, the thinking
         #: it did aloud, whatever it printed on its way past -- is shown, which the details
         #: switch on the first page of `/settings` turns, and which is read from what is
@@ -1459,18 +1422,9 @@ class Humanize(App[None]):
         Args:
           text: What was printed.
         """
-        if text.strip():
-            # Flow-owned progress (for example, a Ralph round counter) is useful to `/btw`
-            # even when details keep it out of the visible transcript.
-            with self._btw_lock:
-                self._btw_events.append(
-                    Observation(
-                        agent="",
-                        kind="flow",
-                        text=compact(text),
-                        at=time.monotonic(),
-                    )
-                )
+        # Flow-owned progress (for example, a Ralph round counter) is useful to `/btw` even
+        # when details keep it out of the visible transcript.
+        self._following.printed(text)
         if text.strip() and self._details:
             for line in escape(text.rstrip("\n")).splitlines():
                 self.show(f"[dim]  {_CAME_BACK}  {line}[/]")
@@ -2051,20 +2005,6 @@ class Humanize(App[None]):
             return
         # First, since the keys drawn below are read off whether anything is offered.
         self._reconsiders()
-        spending = self._monitor.spending()
-        spent = sum(spend.tokens for spend in spending)
-        rate = sum(spend.rate for spend in spending)
-        # What went on each kind of token, which is the reading anybody has a use for: an
-        # input token, an output token and a cached read are three different things bought at
-        # three different prices, and one number over the lot of them answers no question.
-        # Marked where a figure is short of what an agent of this run spends without counting.
-        counted = self._monitor.reckoning()
-        # What the run has cost in money, and whether that is the whole of it: a model
-        # nobody prices adds tokens to the count and nothing to the bill, so the figure is
-        # marked as a floor rather than quietly reported as the total.
-        billed = [spend.dollars for spend in spending if spend.dollars is not None]
-        bill = sum(billed) if billed else None
-        floor = "+" if billed and len(billed) < len(spending) else ""
         # Left, first match wins, as opencode's status line resolves it: what is running if
         # anything is, else where this is. Right, the usage. The two ends are pushed apart.
         working = self._monitor.now_working()
@@ -2130,21 +2070,8 @@ class Humanize(App[None]):
             "no agent installed" if self._named_by else "no agent available"
         ]
         lines.extend(self._outworlder_lines())
-        if spent:
-            costing = f"{money(bill)}{floor}{_DOT}" if bill is not None else ""
-            # Two lines rather than one: five kinds, a bill and a rate on one row come to a
-            # row wider than the terminal, and what sits above the editor is read at a glance.
-            lines.append(
-                _DOT.join(
-                    f"{one.kind} {thousands(one.tokens)}{'' if one.whole else '+'}"
-                    for one in counted
-                )
-                or f"{thousands(spent)} tokens"
-            )
-            # Output alone, and said so: the input of a turn is the conversation so far, sent
-            # again at every request and mostly served out of a cache, so a rate counting it
-            # says how long the transcript has got rather than how fast the model is writing.
-            lines.append(f"{costing}{rate:.0f} out/s")
+        # What the run has cost, as every frontend draws it.
+        lines.extend(tallied(self._monitor) or ())
         # Beside it, and cut to what it leaves: the two are one block, and a pinned line
         # the width of the screen would push what the run is running as off the side of it.
         waiting = self._waiting_lines(max(len(line) for line in lines) + 2)
@@ -2950,13 +2877,23 @@ class Humanize(App[None]):
             return "/btw requires a coding agent"
         return ""
 
-    def _enter_btw(self) -> _Btw | None:
+    def _enter_btw(self) -> Btw | None:
         """Starts btw mode against whatever is on the screen, saying so."""
         if why := self.refused_btw():
             self.show(f"hmz: {why}", "red")
             return None
         target = self._btw_target()
-        mode = _Btw(target)
+        mode = Btw(
+            target,
+            aside=self._link.aside,
+            unaside=lambda side: self._asks("unaside", quiet=True, side=side),
+            sessions=self._btw_sessions,
+            source=self._btw_source,
+            asking=lambda key, asking: self._on_screen(
+                self.show,
+                f"[dim]btw · asking {escape(key)}: {escape(compact(asking, 120))}[/dim]",
+            ),
+        )
         with self._btw_lock:
             self._btw = mode
         self.show(
@@ -2987,16 +2924,12 @@ class Humanize(App[None]):
         """Closes the side conversations without touching any flow session."""
         with self._btw_lock:
             mode, self._btw = self._btw, None
-            held = list(mode.sides.values()) if mode is not None else []
-            if mode is not None:
-                mode.sides.clear()
         # Asked of the runs, which hold them; and nothing to ask on the way out, since this
         # interface going is every side conversation it opened going with it.
-        if not self._quitting:
-            for side in held:
-                self._asks("unaside", quiet=True, side=side)
+        if mode is not None:
+            mode.close(unasking=not self._quitting)
 
-    def _btw_ask(self, mode: _Btw, question: str) -> None:
+    def _btw_ask(self, mode: Btw, question: str) -> None:
         """Puts one more question to btw mode's side conversation, on a thread of its own.
 
         Args:
@@ -3026,234 +2959,40 @@ class Humanize(App[None]):
 
     def _btw_snapshot(self) -> FlowSnapshot:
         """Copies the current run into a prompt-sized, immutable observation."""
-        shape = self._monitor.shape()
-        # One per role, however many sessions it opened: a role is what is watched, and each
-        # of its sessions is an agent of its own named for it.
-        driven = {seen.id: seen for seen in list(self._seen.values()) if seen.id}
-        agents = tuple(
-            AgentProgress(
-                agent=who,
-                model=seen.model,
-                turns=shape.turns.get(who, 0),
-                working=who in shape.working,
-                role=who,
-            )
-            for who, seen in driven.items()
-        )
-        handovers = tuple(
-            sorted(
-                (sender, receiver, count)
-                for (sender, receiver), count in shape.handovers.items()
-                if count > 0
-            )
-        )
-        with self._btw_lock:
-            observations = tuple(self._btw_events)
-        waiting = len(self._queued) + len(self._given)
-        moment = time.monotonic()
-        ended = self._monitor.until
-        elapsed = (ended if ended is not None else moment) - self._monitor.began
-        spent = tuple(
-            (entry.model, entry.tokens, entry.rate, entry.dollars)
-            for entry in self._monitor.spending(now=ended or moment)
-        )
-        # Beside it rather than inside it: the kinds are the run's rather than any one
-        # model's, a bill being made of them whichever model bought them, and each says
-        # whether the figure is the whole of what went on that kind or a floor under it.
-        counted = tuple(
-            (one.kind, one.tokens, one.whole)
-            for one in self._monitor.reckoning(now=ended or moment)
-        )
-        # What the btw agent may ask by key: each conversation, and whether it is going.
-        sessions = tuple(
-            (
-                key,
-                (
-                    "working"
-                    if key in self._working
-                    else "idle"
-                    if self._run
-                    else "ended"
-                )
-                + f", model={seen.model or '(default)'}",
-            )
-            for key, seen in list(self._seen.items())
-        )
-        return FlowSnapshot(
+        return self._following.snapshot(
             flow=self._flowing(),
             task=self._flow_task,
             workspace=_where(),
-            elapsed=elapsed,
-            finished=self._run is None,
-            agents=agents,
-            handovers=handovers,
-            observations=observations,
-            waiting=waiting,
-            spent=spent,
-            kinds=counted,
+            going=self._run is not None,
+            working=self._working,
+            waiting=len(self._queued) + len(self._given),
             waiting_for_input=bool(self._waits_on()),
-            sessions=sessions,
         )
 
     def _btw_source(self) -> dict[str, str] | None:
-        """What the btw agent is opened as: the one `/settings` names, or the flow's first.
-
-        Returns:
-          What to open a side conversation with -- `runs`, an agent as `-a` spells one, or
-          `key`, one of the run's conversations to copy the agent of -- or None where there
-          is nothing set up to open one as.
-        """
+        """What the btw agent is opened as: the one `/settings` names, or the flow's first."""
         from hmz.runtime.kept import written
 
         said = read_back(self.settings.btw) if self.settings.btw else None
-        if said is not None:
-            return {"runs": written(said)}
-        # The first the flow declares, as it is running where it has run.
-        ran = self._btw_sessions()
-        for role in self._named_by:
-            if held := [key for key in self._of(role) if key in ran]:
-                return {"key": held[0]}
-            if (runs := self._runs_of(role)).spec:
-                return {"runs": written(runs)}
-        return {"key": ran[0]} if ran else None
-
-    def _btw_kept(self, mode: _Btw, key: str, side: str) -> str:
-        """Holds a side conversation on btw mode, or closes it for a mode that has gone.
-
-        Args:
-          mode: The btw mode it was opened for.
-          key: The session it is about, or "" for the btw agent's own.
-          side: The side conversation, as the runs number it.
-
-        Returns:
-          The side conversation, held.
-
-        Raises:
-          _BtwLeft: If btw mode was left while it was being opened.
-        """
-        with self._btw_lock:
-            if self._btw is mode:
-                mode.sides[key] = side
-                return side
-        self._asks("unaside", quiet=True, side=side)
-        raise _BtwLeft
-
-    def _aside(self, side: str, prompt: str) -> str:
-        """One turn of a side conversation: what it answered to a prompt.
-
-        Args:
-          side: The side conversation, as the runs number it.
-          prompt: What to say to it.
-
-        Returns:
-          Its answer.
-        """
-        return str(self._link.aside(side=side, prompt=prompt).get("answer") or "")
-
-    def _btw_turn(
-        self, mode: _Btw, key: str, question: str, snapshot: FlowSnapshot
-    ) -> str:
-        """One turn of one session's side conversation, opening it the first time.
-
-        A fork of the session where its CLI forks, carrying its history, and a copy of its
-        agent seeded from the snapshot where it cannot, or where the fork will not open --
-        which of the two the runs opened is what they say back.
-
-        Args:
-          mode: The btw mode it is asked in.
-          key: The session, as `<role>/<n>`.
-          question: What was asked.
-          snapshot: The flow, frozen when the question was.
-
-        Returns:
-          What the side conversation answered.
-        """
-        side = mode.sides.get(key)
-        if side is not None:
-            return self._aside(side, format_turn(question))
-        if key not in self._btw_sessions():
-            return f"(session {key} not found)"
-        opened = self._link.aside(key=key, fork=True)
-        side = self._btw_kept(mode, key, str(opened["side"]))
-        if opened.get("forked"):
-            try:
-                if answer := self._aside(side, format_forked(key, question)):
-                    return answer
-            except Exception:  # noqa: BLE001, S110 -- the copy below is what is left to try
-                pass
-            # A fork that opened and would not answer: a copy of its agent is asked instead.
-            with self._btw_lock:
-                if mode.sides.get(key) == side:
-                    del mode.sides[key]
-            self._asks("unaside", quiet=True, side=side)
-            side = self._btw_kept(mode, key, str(self._link.aside(key=key)["side"]))
-        role = key.rpartition("/")[0]
-        about = replace(
-            snapshot,
-            observations=tuple(
-                one for one in snapshot.observations if one.agent in (role, "")
-            ),
-            sessions=(),
+        return opened_as(
+            written(said) if said is not None else "",
+            {
+                role: written(runs) if (runs := self._runs_of(role)).spec else ""
+                for role in self._named_by
+            },
+            self._btw_sessions(),
         )
-        return self._aside(side, format_snapshot(about, question, about=key))
 
-    def _btw_agent_turn(self, mode: _Btw, question: str, snapshot: FlowSnapshot) -> str:
-        """One turn of the btw agent, carrying out whatever it asks of the sessions.
-
-        Args:
-          mode: The btw mode it is asked in.
-          question: What was asked.
-          snapshot: The flow, frozen when the question was.
-
-        Returns:
-          Its answer to the person, with no `@ask` left in it.
-        """
-        side = mode.sides.get("")
-        if side is None:
-            source = self._btw_source()
-            if source is None:
-                return ""
-            side = self._btw_kept(mode, "", str(self._link.aside(**source)["side"]))
-            prompt = format_snapshot(snapshot, question)
-        else:
-            prompt = format_turn(question)
-        hops = 0
-        while True:
-            asks, answer = asked(self._aside(side, prompt))
-            if not asks or hops >= HOPS:
-                return answer
-            answers: list[tuple[str, str]] = []
-            for key, asking in asks[: HOPS - hops]:
-                hops += 1
-                self._on_screen(
-                    self.show,
-                    f"[dim]btw · asking {escape(key)}: "
-                    f"{escape(compact(asking, 120))}[/dim]",
-                )
-                try:
-                    said = self._btw_turn(mode, key, asking, snapshot)
-                except _BtwLeft:
-                    raise
-                except Exception as why:  # noqa: BLE001 -- told back rather than raised
-                    said = f"(could not ask: {why})"
-                answers.append((key, said or "(no answer)"))
-            prompt = format_answers(answers, more=hops < HOPS)
-
-    def _run_btw(self, mode: _Btw, question: str, snapshot: FlowSnapshot) -> None:
+    def _run_btw(self, mode: Btw, question: str, snapshot: FlowSnapshot) -> None:
         """Runs one side turn and posts only its final display event."""
         answer = failure = ""
         try:
-            if mode.target:
-                answer = self._btw_turn(mode, mode.target, question, snapshot)
-            else:
-                answer = self._btw_agent_turn(mode, question, snapshot)
+            answer = mode.ask(question, snapshot)
             failure = "" if answer else "the agent returned no answer"
-        except _BtwLeft:
+        except Left:
             pass
         except Exception as why:  # noqa: BLE001 -- a backend may fail independently
             failure = str(why) or type(why).__name__
-        finally:
-            mode.busy = False
         with self._btw_lock:
             if self._btw is not mode:
                 return
@@ -4304,7 +4043,6 @@ class Humanize(App[None]):
             self._leave_btw("a new flow started")
         with self._btw_lock:
             self._flow_task = record["task"]
-            self._btw_events.clear()
         # Nothing is left of the flow before this one to press a key about, and what is
         # being read is one of its agents unless it was the transcript they all appear on.
         # Which is where a run is watched from, so it is where a run starts.
@@ -4399,44 +4137,6 @@ class Humanize(App[None]):
         )
         self.show(f"[dim]{escape(role)}'s harness runs {escape(said)}[/dim]")
 
-    def _remember_btw(self, record: dict[str, Any]) -> None:
-        """Keeps a compact progress record for future side questions.
-
-        Reasoning is intentionally omitted: a side question needs observable progress, not a
-        second copy of private chain-of-thought. The event stream still reaches the ordinary
-        transcript exactly as before.
-        """
-        # A stopped flow can take a moment to unwind while a new one is already up. Its
-        # events must not become progress for the new run.
-        if self._run is not None and record["run"] != self._generation:
-            return
-        kind = record["kind"]
-        if kind not in {
-            "begins",
-            "ends",
-            "failed",
-            "asks",
-            "notice",
-            "tool",
-            "text",
-            "result",
-        }:
-            return
-        text = (
-            record["text"].split("\n\n", 1)[0]
-            if kind == "begins"
-            else "turn ended"
-            if kind == "ends"
-            else record["text"]
-        )
-        text = compact(text)
-        with self._btw_lock:
-            self._btw_events.append(
-                Observation(
-                    agent=record["agent"], kind=kind, text=text, at=time.monotonic()
-                )
-            )
-
     def _heard(self, record: dict[str, Any]) -> None:
         """Shows what a turn said, on the transcript of the agent that said it.
 
@@ -4465,7 +4165,6 @@ class Humanize(App[None]):
         # of is the one in front of us.
         numbered = self._following.heard(record)
         ours = record["run"] == self._generation
-        self._remember_btw(record)
         if kind == "result":
             # Kept to tell a flow saying an agent's answer back to the person -- a
             # conversation asking what next -- from a question it asks them.
