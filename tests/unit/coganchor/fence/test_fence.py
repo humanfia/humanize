@@ -28,6 +28,7 @@ from hmz.coganchor.fence import (
     NONE,
     READ,
     SYSTEM,
+    TEMPORARY,
     Fence,
     enforceable,
     landlocked,
@@ -70,14 +71,61 @@ def test_the_minimum_is_this_platforms() -> None:
 
 @pytest.mark.parametrize(("local", "user", "system"), NESTED)
 def test_each_scope_grants_its_root_at_its_level(
-    local: str, user: str, system: str
+    local: str, user: str, system: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr("os.geteuid", lambda: 0)
     fence = drawn(local, user, system)
 
     assert level(fence, f"{WORK}/src/main.py") == local
     assert level(fence, f"{HOME}/.bashrc") == user
     assert level(fence, ELSEWHERE) == system
     assert fence.scopes == (local, user, system)
+
+
+@pytest.mark.parametrize("system", [NONE, READ])
+def test_a_user_scope_of_all_writes_whatever_the_user_may_change(
+    system: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("os.geteuid", lambda: 1000)
+
+    fence = drawn(ALL, ALL, system)
+
+    assert level(fence, ELSEWHERE) == ALL
+    assert fence.open
+
+
+def test_a_user_scope_of_all_leaves_root_the_system_at_its_level(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("os.geteuid", lambda: 0)
+
+    fence = drawn(ALL, ALL, READ)
+
+    assert level(fence, ELSEWHERE) == READ
+    assert level(fence, "/usr/bin/env") == READ
+    assert level(fence, "/run/user/0/bus") == ALL
+    assert all(fence.allows(one, write=True) for one in TEMPORARY)
+
+
+@pytest.mark.parametrize(("local", "user", "system"), NESTED)
+def test_a_local_scope_of_all_writes_the_scratch_every_user_has(
+    local: str, user: str, system: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("os.geteuid", lambda: 0)
+    monkeypatch.setenv("TMPDIR", "/var/folders/xy/T")
+
+    fence = drawn(local, user, system)
+
+    for one in (*TEMPORARY, "/var/folders/xy/T/a"):
+        assert fence.allows(one, write=True) == (local == ALL)
+
+
+def test_a_relative_tmpdir_is_not_granted(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TMPDIR", "scratch")
+
+    fence = drawn(ALL, READ, READ)
+
+    assert not fence.allows(f"{Path.cwd()}/scratch", write=True)
 
 
 @pytest.mark.parametrize(("local", "user", "system"), NESTED)
@@ -89,6 +137,13 @@ def test_the_minimum_is_granted_however_little_else_is(
     assert all(fence.allows(one) for one in SYSTEM)
     assert all(fence.allows(one, write=True) for one in DEVICES)
     assert fence.allows(sys.executable)
+
+
+def test_a_thread_may_be_named_on_linux_however_little_else_is_granted() -> None:
+    # As glibc and libcuda's cuInit name a thread they did not start as (issue 276).
+    fence = Fence(write=LINUX_DEVICES)
+
+    assert fence.allows("/proc/self/task/4242/comm", write=True)
 
 
 @pytest.mark.parametrize(

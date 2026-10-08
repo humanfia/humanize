@@ -421,8 +421,10 @@ def test_a_fenced_command_is_walled_in_around_the_targets_own_paths(
     held = Fence.loads(json.dumps(policy))
     assert held.allows(link.real / "a.txt", write=True)
     assert not held.allows(f"{VIRTUAL}/a.txt", write=True)
-    assert held.allows(tmp_path / "home" / ".bashrc")
-    assert not held.allows(tmp_path / "home" / ".bashrc", write=True)
+    # Drawn as the home rather than asked of a path in it, `tmp_path` being under /tmp,
+    # which a workdir of ALL writes.
+    assert str(tmp_path / "home") in held.read
+    assert str(tmp_path / "home") not in held.write
     assert not held.online
     assert held.hosts == ()
 

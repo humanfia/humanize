@@ -59,6 +59,7 @@ __all__ = [
     "NONE",
     "READ",
     "SYSTEM",
+    "TEMPORARY",
     "Fence",
     "Proxy",
     "enforceable",
@@ -77,10 +78,9 @@ LEVELS: Final = (NONE, READ, ALL)
 #: What any program needs to read to run at all, granted however little the system scope is:
 #: the programs and the libraries they load, and the handful of files under `/etc` that the C
 #: library, a TLS stack and a resolver read before they do anything -- the certificates, who
-#: the user is, the time zone, where a host is. `/proc` and `/sys` are how a process learns
-#: about itself and the machine, and a runtime that cannot read `/proc/self` cannot start;
-#: they are read-only, and `/proc` shows only what the kernel's own ptrace check lets a
-#: process of this user see. `/opt` is not among them: a CLI installed there is granted its
+#: the user is, the time zone, where a host is. `/sys` is how a process learns about the
+#: machine, and is read-only; `/proc`, how it learns about itself, is written as well, and is
+#: among :data:`LINUX_DEVICES`. `/opt` is not among them: a CLI installed there is granted its
 #: own install tree, and nothing else under it is anybody's minimum.
 LINUX_SYSTEM: Final = (
     "/usr",
@@ -107,7 +107,6 @@ LINUX_SYSTEM: Final = (
     "/etc/ld.so.conf",
     "/etc/ld.so.conf.d",
     "/etc/alternatives",
-    "/proc",
     "/sys",
 )
 
@@ -135,8 +134,16 @@ DARWIN_SYSTEM: Final = (
 
 #: What any program needs to write to run at all, granted however little is: the devices a
 #: program writes to without meaning to change anything -- the bit bucket, the randomness, the
-#: terminal it was started on -- and `/dev/shm`, which is where POSIX shared memory lives and
-#: where a supervisor keeps the credentials it answers reads with.
+#: terminal it was started on -- `/dev/shm`, which is where POSIX shared memory lives and
+#: where a supervisor keeps the credentials it answers reads with, and `/proc`. A runtime that
+#: cannot read `/proc/self` cannot start, and a thread named by another is named by writing
+#: `/proc/self/task/<tid>/comm` -- which glibc's `pthread_setname_np` does, and libcuda's
+#: `cuInit` with it, giving up (304, `CUDA_ERROR_OPERATING_SYSTEM`) where it cannot. Landlock
+#: cannot grant `/proc/self` to a whole process tree, it being one pid when the rules are
+#: made, so it is `/proc`. The kernel's own checks still hold beneath it: another process is
+#: reached only past the ptrace check, which Landlock confines to the fenced tree, and
+#: `/proc/sys` only by root -- whom no fence holds anyway, there being calls besides opening
+#: a file that change the machine.
 LINUX_DEVICES: Final = (
     "/dev/null",
     "/dev/zero",
@@ -147,6 +154,7 @@ LINUX_DEVICES: Final = (
     "/dev/pts",
     "/dev/ptmx",
     "/dev/shm",  # noqa: S108 -- the device, not a temporary file
+    "/proc",
 )
 
 #: The same on a Mac, which has no `/dev/shm` and numbers its terminals in `/dev` itself
@@ -163,6 +171,12 @@ DARWIN_DEVICES: Final = (
     "/dev/dtracehelper",
 )
 
+#: Where every user may write scratch, granted with the workdir -- and the directory
+#: `TMPDIR` names where the fence is drawn, which on a Mac is the user's own -- as Codex's
+#: `workspace-write` grants them beside its workspace. What a program finds through `TMPDIR`
+#: is the fence's own scratch; these are for one that writes to `/tmp` by name.
+TEMPORARY: Final = ("/tmp", "/var/tmp")  # noqa: S108 -- granted, not written to
+
 #: This machine's minimum to read.
 SYSTEM: Final = DARWIN_SYSTEM if sys.platform == "darwin" else LINUX_SYSTEM
 
@@ -176,13 +190,35 @@ def _accelerators() -> tuple[str, ...]:
     A device rather than a file, as :data:`DEVICES` are: using a GPU is opening its node to
     read and write, which a program given one -- a command in a container started with GPUs,
     say -- does without changing anything anybody keeps. Looked for rather than listed, since
-    NVIDIA numbers one node per GPU; `/dev/dri` and AMD's `/dev/kfd` are the rest.
+    NVIDIA numbers one node per GPU; `/dev/dri` and AMD's `/dev/kfd` are the rest, and
+    `/dev/infiniband` is how NCCL reaches the GPUs of another machine over RDMA.
     """
     return (
         *sorted(str(one) for one in Path("/dev").glob("nvidia*")),
         "/dev/dri",
         "/dev/kfd",
+        "/dev/infiniband",
     )
+
+
+def _temporary() -> tuple[str, ...]:
+    """:data:`TEMPORARY`, and the directory `TMPDIR` names where it is absolute."""
+    named = os.environ.get("TMPDIR", "")
+    return (*TEMPORARY, *((named,) if named.startswith(os.sep) else ()))
+
+
+def _users() -> tuple[str, ...]:
+    """Everything the user the fence is drawn as may change, to write when `user` is `all`.
+
+    The whole filesystem, which the files' own permissions then hold to what this user may
+    change: the home, the scratch, a disk of the user's own mounted anywhere, the devices of
+    the groups the user is in. Not for root, whom those permissions do not hold: root is given
+    what every user has of their own besides the home -- the scratch, and its runtime
+    directory -- and the system stays at its own level.
+    """
+    if (uid := os.geteuid()) != 0:
+        return (os.sep,)
+    return (*_temporary(), f"/run/user/{uid}")
 
 
 def _rank(level: str) -> int:
@@ -313,8 +349,11 @@ class Fence:
         Each scope is a root -- `system` is `/`, `user` the home directory, `local` the
         workdir and the directory the session works in where that is somewhere else -- and a
         level: `read` puts the root in :attr:`read`, `all` puts it in :attr:`write`, and `none`
-        leaves it out. Then the minimum is added, whatever the levels were: :data:`SYSTEM` and
-        the Python humanize runs on to read, :data:`DEVICES` and the GPUs' nodes to write.
+        leaves it out. `local` at `all` writes :data:`TEMPORARY` as well, as a workspace
+        Codex may write does; `user` at `all` writes whatever the user may change, which for
+        anyone but root is the whole filesystem held by its own permissions. Then the minimum
+        is added, whatever the levels were: :data:`SYSTEM` and the Python humanize runs on to
+        read, :data:`DEVICES` and the GPUs' nodes to write.
 
         The scopes must nest, `local` at least `user` and `user` at least `system`, because
         a root is granted with everything beneath it and nothing beneath a grant can be taken
@@ -355,6 +394,10 @@ class Fence:
             scopes.append((os.fspath(cwd), local))
         reading = [root for root, level in scopes if str(level) == READ]
         writing = [root for root, level in scopes if str(level) == ALL]
+        if str(local) == ALL:
+            writing.extend(_temporary())
+        if str(user) == ALL:
+            writing.extend(_users())
         return cls(
             read=_normal((*SYSTEM, *_ours(), *reading, *read)),
             write=_normal((*DEVICES, *_accelerators(), *writing, *write)),

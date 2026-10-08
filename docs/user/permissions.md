@@ -22,15 +22,15 @@ Ask an agent to write one file in its workdir and one outside it:
 ```sh
 mkdir -p /tmp/perm-demo && cd /tmp/perm-demo
 hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
-    "Use the Bash tool to run exactly these two commands, one call each, then report each one's result in one line: 1) echo hi > inside.txt   2) echo hi > /tmp/outside.txt"
+    "Use the Bash tool to run exactly these two commands, one call each, then report each one's result in one line: 1) echo hi > inside.txt   2) echo hi > ~/outside.txt"
 ```
 
 ```text
 ● 1. `echo hi > inside.txt` — Success: created inside.txt in the current directory (/tmp/perm-demo)
-  2. `echo hi > /tmp/outside.txt` — Failed: permission denied writing to /tmp/outside.txt
+  2. `echo hi > ~/outside.txt` — Failed: permission denied writing to ~/outside.txt
 ```
 
-`inside.txt` is there afterwards. `/tmp/outside.txt` is not: the agent was never able to write
+`inside.txt` is there afterwards. `~/outside.txt` is not: the agent was never able to write
 it, however it tried.
 
 ## Before you start
@@ -66,11 +66,21 @@ So by default an agent changes its workdir, reads around it, and searches the we
 change anything else of yours. An outer scope never gets more than the one inside it, and
 `online` is either `NONE` or `ALL`.
 
+`ALL` grants a little past its root, so that what a program does there by habit works:
+
+- **`local` of `ALL`** also writes the temporary directories every user shares, `/tmp` and
+  `/var/tmp`, and the one `$TMPDIR` names, as Codex's `workspace-write` does.
+- **`user` of `ALL`** writes whatever your user account may change, wherever it is: a disk of
+  yours mounted outside your home, a device your groups may use. The file permissions are
+  what hold it. Run as root, it is your home, those temporary directories and
+  `/run/user/0`, and the rest of the machine stays at `system`.
+
 <GrantScopes />
 
 Every agent can still read what any program needs to run (the system's programs, libraries and
-certificates), and write its own settings and login, its sessions, and a temporary directory of
-its own. Everything else is held to the grant, for the agent and for every command it runs.
+certificates), and write its own settings and login, its sessions, a temporary directory of
+its own, the devices (the GPUs among them), and on Linux `/proc`, which CUDA writes to as it
+starts. Everything else is held to the grant, for the agent and for every command it runs.
 
 ## What the official flows declare
 
@@ -88,31 +98,31 @@ A flow's own page says what its roles are granted.
 ## Example: watch the default grant hold
 
 This is the run from [Try it](#try-it), in full. [`chat`](https://humanfia.ai/flows/chat) declares nothing, so its
-one role runs at the default: `local` is the directory you started in, and `/tmp` beyond it is
-`system`, which is `READ`.
+one role runs at the default: `local` is the directory you started in, and your home directory
+beyond it is `user`, which is `READ`.
 
 ```sh
 mkdir -p /tmp/perm-demo && cd /tmp/perm-demo                 # ①
 hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
-    "Use the Bash tool to run exactly these two commands, one call each, then report each one's result in one line: 1) echo hi > inside.txt   2) echo hi > /tmp/outside.txt"
+    "Use the Bash tool to run exactly these two commands, one call each, then report each one's result in one line: 1) echo hi > inside.txt   2) echo hi > ~/outside.txt"
 ```
 
 ```text
 ● assistant is working
 ● Bash(echo hi > inside.txt)                                              ②
-● Bash(echo hi > /tmp/outside.txt)                                        ③
+● Bash(echo hi > ~/outside.txt)                                           ③
 ● 1. `echo hi > inside.txt` — Success: created inside.txt in the current directory (/tmp/perm-demo)
-  2. `echo hi > /tmp/outside.txt` — Failed: permission denied writing to /tmp/outside.txt
+  2. `echo hi > ~/outside.txt` — Failed: permission denied writing to ~/outside.txt
 ✻ input 18 · output 413 · cache_read 34.7k · cache_write 7.3k · $0.01 · claude-haiku-4-5-20251001 · assistant
 ✻ Worked for 6s · assistant
 ```
 
 ```sh
-ls inside.txt /tmp/outside.txt                               # ④
+ls inside.txt ~/outside.txt                                  # ④
 ```
 
 ```text
-ls: cannot access '/tmp/outside.txt': No such file or directory
+ls: cannot access '/home/you/outside.txt': No such file or directory
 inside.txt
 ```
 
