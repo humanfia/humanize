@@ -332,6 +332,20 @@ def _hook(argv: list[str]) -> int:
     return hook(argv)
 
 
+def _web(argv: list[str]) -> int:
+    """Serves this directory's runs to a browser on this machine, until interrupted.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero once it has been interrupted; one where it could not be served.
+    """
+    from .web import web
+
+    return web(argv, apart=_apart_is_wanted())
+
+
 def _internal(argv: list[str]) -> int:
     """Routes to whichever of the lines humanize spawns for itself was named.
 
@@ -530,6 +544,7 @@ INTERNAL = {
 #: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
+    "web": (_web, "open this directory's runs in a browser on this machine"),
     "internal": (_internal, "internal commands used by humanize; do not run directly"),
 }
 

@@ -72,6 +72,13 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.daemon',
   ],
   'hmz.sdk': ['hmz.daemon', 'hmz.runtime'],
+  'hmz.web': [
+    'hmz.coganchor',
+    'hmz.daemon',
+    'hmz.runtime.epic',
+    'hmz.runtime.kept',
+    'hmz.runtime.watching',
+  ],
 }
 
 // The one pair allowed to point both ways, and only from inside `flow`, `load` and
@@ -81,6 +88,7 @@ const HANDED = { from: 'hmz.flows', to: 'hmz.runtime.flowing' }
 // What `hmz.cli` imports, since the table leaves it out.
 const CLI_IMPORTS = [
   'hmz.tui',
+  'hmz.web',
   'hmz.daemon',
   'hmz.runtime',
   'hmz.flows',
@@ -108,6 +116,14 @@ const LAYERS: Layer[] = [
     note: 'Reaches the runtime only through `daemon`, as one frontend of the runs a host holds.',
     spec: 'tui.md',
     ref: '/reference/tui',
+  },
+  {
+    id: 'web',
+    dotted: 'hmz.web',
+    here: 'The web interface: the runs of this directory in a browser on this machine, and what a page reads and asks of them.',
+    note: 'Reaches the runtime only through `daemon`, as one frontend of the runs a host holds, and draws a run with `watching` as the terminal interface does.',
+    spec: 'web.md',
+    ref: '/reference/web',
   },
   {
     id: 'sdk',
@@ -221,7 +237,7 @@ const LAYERS: Layer[] = [
 ]
 
 const BANDS: { label: string; ids: string[] }[] = [
-  { label: 'ways in', ids: ['cli', 'tui', 'sdk'] },
+  { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },

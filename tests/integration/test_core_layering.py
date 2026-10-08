@@ -99,6 +99,14 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.daemon",
     },
     "hmz.sdk": {"hmz.daemon", "hmz.runtime"},
+    # A way in like the terminal interface: the runs through `daemon`, drawn with `watching`.
+    "hmz.web": {
+        "hmz.coganchor",
+        "hmz.daemon",
+        "hmz.runtime.epic",
+        "hmz.runtime.kept",
+        "hmz.runtime.watching",
+    },
 }
 
 #: The one pair allowed to name each other, and only lazily.
