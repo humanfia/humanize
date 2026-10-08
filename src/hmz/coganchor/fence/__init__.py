@@ -135,8 +135,13 @@ DARWIN_SYSTEM: Final = (
 
 #: What any program needs to write to run at all, granted however little is: the devices a
 #: program writes to without meaning to change anything -- the bit bucket, the randomness, the
-#: terminal it was started on -- and `/dev/shm`, which is where POSIX shared memory lives and
-#: where a supervisor keeps the credentials it answers reads with.
+#: terminal it was started on -- `/dev/shm`, which is where POSIX shared memory lives and
+#: where a supervisor keeps the credentials it answers reads with, and `/proc`, through which one
+#: thread names another (`/proc/self/task/<tid>/comm`). libcuda's `cuInit` names a thread it
+#: starts that way and gives up with 304, `CUDA_ERROR_OPERATING_SYSTEM`, where it cannot, so a
+#: fence granting the GPU nodes without it is one CUDA cannot start in. All of `/proc` rather
+#: than `/proc/self`: Landlock resolves a path as the ruleset is made, which makes `/proc/self`
+#: one process's, and the tree under the fence is many.
 LINUX_DEVICES: Final = (
     "/dev/null",
     "/dev/zero",
@@ -147,6 +152,7 @@ LINUX_DEVICES: Final = (
     "/dev/pts",
     "/dev/ptmx",
     "/dev/shm",  # noqa: S108 -- the device, not a temporary file
+    "/proc",
 )
 
 #: The same on a Mac, which has no `/dev/shm` and numbers its terminals in `/dev` itself

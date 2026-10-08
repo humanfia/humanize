@@ -468,11 +468,11 @@ the CLI may:
   `/sys` (on macOS `/System` and `/private/var/select` instead of `/lib*`, `/proc` and
   `/sys`), its own programs and install trees, and the Python running humanize;
 - write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU nodes; on macOS
-  `/dev/ttys*`), its own state and sign-in directories (on macOS also the login keychain,
-  `~/Library/Keychains`), the directory its sessions are kept in, and a private scratch
-  directory that is its `TMPDIR`. `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `npm_config_cache`,
-  `PIP_CACHE_DIR` and `GOCACHE` are pointed into that directory where the fence would not let
-  them be written.
+  `/dev/ttys*`), `/proc` on Linux, where CUDA names the threads it starts, its own state and
+  sign-in directories (on macOS also the login keychain, `~/Library/Keychains`), the directory
+  its sessions are kept in, and a private scratch directory that is its `TMPDIR`.
+  `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `npm_config_cache`, `PIP_CACHE_DIR` and `GOCACHE` are
+  pointed into that directory where the fence would not let them be written.
 
 `online` `NONE` cuts the network except to the hosts the CLI's model and sign-in are at
 (read under the session's account, so a gateway the account points at is included). The

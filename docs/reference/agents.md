@@ -491,8 +491,10 @@ command it runs. A flow sets one on every session from the role's `Permission`
   `/etc/localtime`, `/etc/timezone`, `/etc/os-release`, `/etc/ld.so.cache`, `/etc/ld.so.conf`,
   `/etc/ld.so.conf.d`, `/etc/alternatives`, `/proc`, `/sys`, and the Python running humanize.
 - Always added to `write`: `/dev/null`, `/dev/zero`, `/dev/full`, `/dev/random`,
-  `/dev/urandom`, `/dev/tty`, `/dev/pts`, `/dev/ptmx`, `/dev/shm`, every `/dev/nvidia*`,
-  `/dev/dri`, `/dev/kfd`.
+  `/dev/urandom`, `/dev/tty`, `/dev/pts`, `/dev/ptmx`, `/dev/shm`, `/proc`, every
+  `/dev/nvidia*`, `/dev/dri`, `/dev/kfd`. `/proc` is written where one thread names another
+  (`/proc/self/task/<tid>/comm`), which libcuda's `cuInit` does: without it CUDA fails to
+  start with 304, `CUDA_ERROR_OPERATING_SYSTEM`, although the GPU nodes are granted.
 
 The agent widens the fence where it spawns a turn (`agent.fenced()`): its CLI's state and
 sign-in directories and its session directory to write, and on macOS `~/Library/Keychains`,

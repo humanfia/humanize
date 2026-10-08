@@ -91,6 +91,15 @@ def test_the_minimum_is_granted_however_little_else_is(
     assert fence.allows(sys.executable)
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="a Mac has no /proc")
+@pytest.mark.parametrize(("local", "user", "system"), NESTED)
+def test_a_thread_may_be_named_however_little_else_is(
+    local: str, user: str, system: str
+) -> None:
+    # Where libcuda's cuInit names the thread it starts, giving up with 304 if it cannot.
+    assert drawn(local, user, system).allows("/proc/self/task/4242/comm", write=True)
+
+
 @pytest.mark.parametrize(
     ("local", "user", "system"),
     [(READ, ALL, NONE), (NONE, READ, NONE), (ALL, NONE, READ), (NONE, NONE, ALL)],

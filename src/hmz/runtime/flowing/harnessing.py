@@ -15,8 +15,8 @@ session's agent as `AgentConfig.fence`. `system` is `/`, `user` the home directo
 `local` the workdir; READ lets a scope be read, ALL written, NONE neither. Whatever the scopes
 say, a CLI may read what any program needs to run -- the system's programs and libraries,
 the few files under `/etc` a resolver and a TLS stack read, `/proc`, `/sys` -- and its own
-programs and the Python running humanize, and write the devices, `/dev/shm`, its own state
-and a scratch directory of its own that is its `TMPDIR`, with the caches a build writes
+programs and the Python running humanize, and write the devices, `/dev/shm`, `/proc`, its own
+state and a scratch directory of its own that is its `TMPDIR`, with the caches a build writes
 pointed into it wherever the home cannot be written. `online` NONE cuts the network to the
 hosts the CLI's model and sign-in are at (:func:`hmz.coganchor.backends.reachable`, read
 under the account the session runs as); ALL leaves it alone. The default -- local ALL, user
