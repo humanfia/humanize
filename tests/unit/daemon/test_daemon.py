@@ -30,6 +30,8 @@ def test_all_names_what_the_package_offers() -> None:
         "Hmz",
         "Host",
         "Link",
+        "Older",
+        "attach",
         "daemons",
         "host",
         "linked",
@@ -231,6 +233,52 @@ def test_older_says_where_the_runs_are_and_what_to_do(
         f"the runs {said} are held by an older humanize (pid 42); "
         "stop it with that version"
     )
+
+
+@pytest.fixture
+def reached(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
+    """The runs held here as `attach` reaches them: found, started, and waited on."""
+    held = mock.Mock()
+    held.running.return_value = None
+    for name in ("running", "host"):
+        monkeypatch.setattr(daemon, name, getattr(held, name))
+    monkeypatch.setattr(time, "sleep", held.sleep)
+    return held
+
+
+def test_attach_links_to_the_host_already_there(reached: mock.Mock) -> None:
+    found = mock.Mock(protocol=PROTOCOL)
+    reached.running.return_value = found
+    assert daemon.attach("web", "browser") is found.link.return_value
+    found.link.assert_called_once_with(name="browser", kind="web")
+    reached.host.assert_not_called()
+
+
+def test_attach_starts_a_host_where_none_is(reached: mock.Mock) -> None:
+    assert daemon.attach("tui") is reached.host.return_value.link.return_value
+    reached.host.return_value.link.assert_called_once_with(name="", kind="tui")
+
+
+def test_attach_refuses_runs_held_by_an_older_humanize(reached: mock.Mock) -> None:
+    reached.running.return_value = Daemon(
+        at=Path("/d"), workspace="/w", pid=42, started="", protocol=PROTOCOL - 1
+    )
+    with pytest.raises(daemon.Older, match="older humanize"):
+        daemon.attach("tui")
+    reached.host.assert_not_called()
+
+
+def test_attach_reaches_again_for_a_host_found_going(reached: mock.Mock) -> None:
+    reached.host.return_value.link.side_effect = [OSError("gone"), "link"]
+    assert daemon.attach("tui") == "link"
+    assert reached.sleep.call_count == 1
+
+
+def test_attach_gives_up_on_runs_that_cannot_be_held_apart(reached: mock.Mock) -> None:
+    reached.host.side_effect = OSError("no fork")
+    with pytest.raises(OSError, match="no fork"):
+        daemon.attach("tui")
+    assert reached.host.call_count == 3
 
 
 def _held(at: Path, pid: int = 4242) -> Daemon:

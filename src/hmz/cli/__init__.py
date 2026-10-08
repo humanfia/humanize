@@ -49,11 +49,6 @@ __all__ = ["APART", "COMMANDS", "INTERNAL", "main", "many", "opens"]
 #: silence is runs held by a host wherever there is a terminal on both ends.
 APART = "HUMANIZE_DAEMON"
 
-#: How many times the runs held here are reached for before they are held in this process
-#: instead, and how long apart: a host is a moment from going once its last frontend has.
-_TRIES = 3
-_AGAIN = 0.5
-
 
 def many(count: int | str, thing: str) -> str:
     """How many of something there are, said as English says it.
@@ -434,28 +429,16 @@ def opens() -> int:
     if not (_apart_is_wanted() and _at_a_terminal()):
         return _here()
 
-    import time
-
     from hmz import daemon
-    from hmz.daemon.proto import PROTOCOL
 
-    failed: OSError | None = None
-    for _ in range(_TRIES):
-        found = daemon.running()
-        if found is not None and found.protocol != PROTOCOL:
-            # This machine's runs held by an older humanize, which nothing here can read and
-            # which a second daemon beside it would fight over the socket with.
-            print(f"hmz: {daemon.older(found)}", file=sys.stderr)
-            return 1
-        try:
-            link = (found or daemon.host()).link(kind="tui")
-            break
-        except OSError as why:
-            failed = why
-            # A host found on its way out -- the last interface on it has just gone -- is
-            # found gone the next time, and one started in its place.
-            time.sleep(_AGAIN)
-    else:
+    try:
+        link = daemon.attach("tui")
+    except daemon.Older as why:
+        # This machine's runs held by an older humanize, which nothing here can read and
+        # which a second daemon beside it would fight over the socket with.
+        print(f"hmz: {why}", file=sys.stderr)
+        return 1
+    except OSError as failed:
         # A machine that will not fork, a home directory that cannot be written, a socket
         # that will not bind: none of those is a reason not to open the interface. What is
         # lost is being able to walk away from the runs, which is said and then done without.
