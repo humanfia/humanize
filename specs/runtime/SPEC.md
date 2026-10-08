@@ -3,7 +3,7 @@
 What a run is: finding the flow, handing it a driver for every role it declared, writing the
 run down as it happens, remembering what a workspace was set up with, and reading the whole of
 it back afterwards. It drives no coding agent itself. Its subpackages have specs of their own:
-[doing](doing.md), [flowing](flowing.md), [tracing](tracing.md).
+[doing](doing.md), [flowing](flowing.md), [tracing](tracing.md), [watching](watching.md).
 
 ## API
 
@@ -122,6 +122,7 @@ class Ran(NamedTuple):
     budget: dict[str, Any] | None = None
     picked_up: str = ""  # the epic it was picked up from
     profile: bool = False  # whether it was profiled as well as traced
+    spent: dict[str, Any] | None = None  # cost, output_tokens and seconds, as its budget counted
     @property
     def name(self) -> str: ...
 class Epic:  # a context manager, closed however the run ends
@@ -277,7 +278,7 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
 
 - MUST offer the whole of what humanize can be asked to do in a workspace as one object, and
   MUST drive no coding agent itself: every turn MUST be taken through `coganchor`.
-- MUST NOT name `cli`, `daemon`, `tui` or `sdk`, MUST restate no rule the layers under it
+- MUST NOT name `cli`, `daemon`, `tui`, `web` or `sdk`, MUST restate no rule the layers under it
   carry out, and MUST load nothing until it is named. `telemetry` MUST name nothing above it.
 - `Settings` MUST answer what a workspace was last set up to run — the flow, what each of its
   agent and environment roles was given, its params, what a run may spend and whether a run is
@@ -360,6 +361,9 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   role, and what the run spent -- holding no session past its close to count it; and
   MUST close every driver it was given however the run ends. A run stopped from outside, or
   by its budget, MUST be written down as stopped rather than failed.
+- A run MUST read back what its budget counted as it ended -- what it cost, the output tokens
+  and the seconds -- as `Ran.spent`, and nothing for a run still going or one killed before it
+  could say.
 - A run MUST be profiled as well as traced only where it was asked to be, as it is given its
   budget -- never by a setting of the workspace it runs in -- and its epic MUST say that it
   was, so that it reads back as `Ran.profile`; a record that does not say MUST read as not.
