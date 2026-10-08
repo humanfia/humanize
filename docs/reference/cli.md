@@ -19,6 +19,7 @@ hmz                                    open the terminal interface
 hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
+hmz web [--port <port>] [--no-open]    serve this directory's runs to a browser
 hmz internal <command> [<args>...]     processes humanize spawns for itself
 ```
 
@@ -26,6 +27,7 @@ hmz internal <command> [<args>...]     processes humanize spawns for itself
 | --- | --- | --- |
 | *(none)* | `opens` | Opens the [terminal interface](/reference/tui). |
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
+| [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
 | [`internal`](#hmz-internal) | `_internal` | `internal commands used by humanize; do not run directly` |
 
 `python -m hmz` is the same program. The console script is `hmz = "hmz.cli:main"`.
@@ -41,14 +43,14 @@ thirty words. This page is the full account of each.
 | --- | --- | --- |
 | empty | [Opens the interface](#hmz). | `0`, or `1` (see below) |
 | exactly `["--version"]` | Prints `hmz <version>` (from the installed distribution's metadata) to stdout. | `0` |
-| first word is `exec` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
+| first word is `exec`, `web` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
 | `-h` or `--help` first | Prints the top-level help. | `0` |
 | anything else | argparse usage error on stderr (below). | `2` |
 
 ```console
 $ hmz bogus
 usage: hmz [-h] COMMAND ...
-hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, internal)
+hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, internal)
 ```
 
 `hmz --version <anything>` is not the version form and fails the same way.
@@ -524,6 +526,30 @@ also exits `130` without a traceback.
 A run that ends because its budget was reached is not a failure: stderr gets
 `hmz exec: stopped -- <why>` naming the limit, and the exit status is `0`.
 
+## `hmz web` {#hmz-web}
+
+```text
+hmz web [--port <port>] [--no-open]
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--port <port>` | `0` | The port to listen on, on `127.0.0.1`; `0` picks any free one. |
+| `--no-open` | off | Print the address and open no browser. |
+
+Serves this directory's runs to a browser on this machine until `SIGINT`, as one more frontend
+of them, named `browser`, of `kind` `web`. Once listening it prints
+`hmz web: http://127.0.0.1:<port>/?key=<key>` to stdout and opens that address in a browser.
+The runs are held as `hmz` holds them, but for the terminal: in this process where
+`HUMANIZE_DAEMON` is `off`, `0` or `no`, by this directory's host process otherwise. What it
+serves, refuses and answers is the [Web reference](/reference/web).
+
+| Condition | stderr | Exit |
+| --- | --- | --- |
+| Interrupted while serving | — | `0` |
+| An older humanize holds the runs | `hmz: the runs in <dir> are held by an older humanize (pid <n>); stop it with that version` | `1` |
+| The runs could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
+
 ## `hmz internal` <Badge type="warning" text="not typed by hand" /> {#hmz-internal}
 
 ```text
@@ -719,6 +745,7 @@ Carries the tool protocol both ways at once between stdin/stdout and the Unix so
 | --- | --- | --- |
 | `0` | all | Success. For `hmz exec`, including a run its budget stopped. |
 | `1` | `hmz` | Runs held by an older humanize; or the host let go of the interface. |
+| `1` | `hmz web` | Runs held by an older humanize; or the runs or the port could not be had. |
 | `1` | `hmz exec` | The flow raised (traceback on stderr; the crash is reported where reporting is on). |
 | `1` | `internal …` | Could not connect, listen, supervise, or reach a socket. |
 | `2` | all | The line was wrong: argparse rejections and everything in [What is refused](#what-is-refused-before-anything-runs). |
@@ -736,7 +763,7 @@ Variables these commands read. The complete list, with every layer's, is
 | Variable | Read by | Values | Effect |
 | --- | --- | --- | --- |
 | `HUMANIZE_HOME` | all | a path | Where humanize keeps what outlives a run. Default `~/.hmz`, which a `~/.humanize` is moved to. Empty is unset. Not created until written. |
-| `HUMANIZE_DAEMON` | `hmz` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
+| `HUMANIZE_DAEMON` | `hmz`, `hmz web` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |
@@ -777,3 +804,6 @@ Every command is a shell around [`hmz.sdk.Hmz`](/reference/sdk#hmz):
 | reading an `hmz exec` line | [`Hmz().read(argv)`](/reference/sdk#hmz-read) → `Line` |
 | `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, profile=…, resume=…)`](/reference/sdk#hmz-run) |
 | `hmz` (as a frontend of held runs) | [`Daemons().host().link()`](/reference/sdk#daemons) |
+
+`hmz web` is a frontend of held runs as `hmz` is; in Python it is `hmz.web.serve()`, which is
+not part of the SDK. See [Web › Module](/reference/web#module).

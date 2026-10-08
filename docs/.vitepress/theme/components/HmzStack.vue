@@ -199,7 +199,7 @@ const LAYERS: Layer[] = [
     id: 'watching',
     dotted: 'hmz.runtime.watching',
     here: 'A run read as it happens: who is working, what it has cost, and the view a side question is asked with. Every frontend draws the same figures from it.',
-    spec: 'runtime/SPEC.md',
+    spec: 'runtime/watching.md',
   },
   {
     id: 'coganchor',

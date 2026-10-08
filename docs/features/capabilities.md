@@ -22,9 +22,10 @@ import { withBase } from 'vitepress'
 | **Two accounts of one CLI.** A subscription and a gateway side by side, each with its own login. | [Accounts](/user/settings#accounts)<br><small>[Two accounts of one CLI](/features/accounts)</small> |
 | **Fall back.** A failed turn is tried again, then handed along a chain of other accounts, CLIs or models. | [Falling back](/user/settings#fallback)<br><small>[Two accounts of one CLI](/features/accounts)</small> |
 | **Skills.** The skills each agent loads. A flow can bring its own. | [Skills](/user/skills) |
-| **From a script.** A flow from a shell script or a cron job, no interface. | [Run it unattended](/user/unattended)<br><small>[Prompt, script or Python](/features/surfaces)</small> |
+| **In a browser.** The run going, every run before it, starting one and what they spent, on a page. | [In a browser](/user/web)<br><small>[Prompt, browser, script or Python](/features/surfaces)</small> |
+| **From a script.** A flow from a shell script or a cron job, no interface. | [Run it unattended](/user/unattended)<br><small>[Prompt, browser, script or Python](/features/surfaces)</small> |
 | **In CI.** A flow on a schedule that opens a pull request. | [humanize in CI](/user/ci) |
-| **From Python.** humanize driven by a program of your own. | [SDK reference](/reference/sdk)<br><small>[Prompt, script or Python](/features/surfaces)</small> |
+| **From Python.** humanize driven by a program of your own. | [SDK reference](/reference/sdk)<br><small>[Prompt, browser, script or Python](/features/surfaces)</small> |
 
 ## While it runs
 

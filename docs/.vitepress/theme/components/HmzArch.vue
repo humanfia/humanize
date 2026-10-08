@@ -14,7 +14,8 @@
 //   a DeepSeek API key rather than a login; it and `kimi` are the two with an extra of their
 //   own in `pyproject.toml`, and `[kimi]` adds a client, not the CLI. A CLI that speaks the
 //   Agent Client Protocol is added on the accounts page of `/settings`.
-// - The ways in are the three a reader types or imports: `hmz`, `hmz exec` and `hmz.sdk`.
+// - The ways in are the four a reader types or imports: `hmz`, `hmz web`, `hmz exec` and
+//   `hmz.sdk`.
 //
 // Every chip that has a page links to it.
 //
@@ -101,7 +102,8 @@ const BANDS: Band[] = [
       {
         label: 'ways in',
         chips: [
-          { text: 'hmz', href: '/reference/tui', tag: 'the interface' },
+          { text: 'hmz', href: '/reference/tui', tag: 'in a terminal' },
+          { text: 'hmz web', href: '/reference/web', tag: 'in a browser' },
           { text: 'hmz exec', href: '/reference/cli' },
           { text: 'hmz.sdk', href: '/reference/sdk' },
         ],

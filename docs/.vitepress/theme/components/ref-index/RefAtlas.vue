@@ -44,6 +44,7 @@ const TIERS: { label: string; nodes: Node[] }[] = [
     nodes: [
       { key: 'cli', name: 'CLI', sub: 'hmz.cli', badge: 'hmz exec' },
       { key: 'tui', name: 'TUI', sub: 'hmz.tui' },
+      { key: 'web', name: 'Web', sub: 'hmz.web' },
       { key: 'daemon', name: 'Daemon', sub: 'hmz.daemon' },
     ],
   },
@@ -103,7 +104,7 @@ const WIDE: Layout = {
   h: 360,
   cmd: { x: 14, y: 12, w: 420, h: 26, lines: [['$ hmz exec ', ARG_F, ' ', ARG_A, ' ', ARG_P, ' "…"']] },
   tiers: [
-    { y: 64, at: [0, 1, 2].map((i) => ({ x: 14 + i * 207, y: 64, w: 198 })) },
+    { y: 64, at: [0, 1, 2, 3].map((i) => ({ x: 14 + i * 155, y: 64, w: 147 })) },
     { y: 126, at: [0, 1].map((i) => ({ x: 14 + i * 311, y: 126, w: 301 })) },
     { y: 188, at: [0, 1, 2, 3].map((i) => ({ x: 14 + i * 155, y: 188, w: 147 })) },
     {
@@ -121,35 +122,44 @@ const WIDE: Layout = {
   whole: { x: 320, y: 180, s: 1 },
 }
 
+// On a phone the first tier is two rows, the CLI's below, so the route leaves it straight down.
 const NARROW: Layout = {
   w: 360,
-  h: 480,
+  h: 528,
   cmd: { x: 14, y: 10, w: 332, h: 44, lines: [['$ hmz exec ', ARG_F, ' ', ARG_A], ['    ', ARG_P, ' "…"']] },
   tiers: [
-    { y: 74, at: [0, 1, 2].map((i) => ({ x: 14 + i * 113, y: 74, w: 106 })) },
-    { y: 136, at: [0, 1].map((i) => ({ x: 14 + i * 170, y: 136, w: 162 })) },
     {
-      y: 198,
+      y: 74,
       at: [
-        { x: 14, y: 198, w: 162 },
-        { x: 184, y: 198, w: 162 },
+        { x: 14, y: 122, w: 162 },
+        { x: 184, y: 122, w: 162 },
+        { x: 14, y: 74, w: 162 },
+        { x: 184, y: 74, w: 162 },
+      ],
+    },
+    { y: 184, at: [0, 1].map((i) => ({ x: 14 + i * 170, y: 184, w: 162 })) },
+    {
+      y: 246,
+      at: [
         { x: 14, y: 246, w: 162 },
         { x: 184, y: 246, w: 162 },
+        { x: 14, y: 294, w: 162 },
+        { x: 184, y: 294, w: 162 },
       ],
     },
     {
-      y: 310,
+      y: 358,
       at: [
-        { x: 14, y: 310, w: 162 },
-        { x: 184, y: 310, w: 162 },
         { x: 14, y: 358, w: 162 },
         { x: 184, y: 358, w: 162 },
+        { x: 14, y: 406, w: 162 },
+        { x: 184, y: 406, w: 162 },
       ],
     },
   ],
-  strip: { x: 14, y: 414, w: 332 },
-  open: { x: 180, y: 80, s: 1.3 },
-  whole: { x: 180, y: 240, s: 1 },
+  strip: { x: 14, y: 462, w: 332 },
+  open: { x: 180, y: 96, s: 1.3 },
+  whole: { x: 180, y: 264, s: 1 },
 }
 
 const palette = usePalette()
@@ -269,7 +279,7 @@ const scene = useScene({
     const T3 = T2 + 3
     tl.addLabel('beat-3', T3)
     arg('arg-a', T3)
-    cam.shot({ x: narrow.value ? 180 : 300, y: narrow.value ? 230 : 190, s: 1.12 }, T3, 1.6)
+    cam.shot({ x: narrow.value ? 180 : 300, y: narrow.value ? 278 : 190, s: 1.12 }, T3, 1.6)
     tl.to(one('.wire-2'), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, T3 + 0.4)
     tl.to(one('.edge-word-2'), { opacity: 1, duration: 0.4 }, T3 + 0.6)
     cam.beam({ x: EDGE_X, y: P('flows').y + NODE_H }, { x: EDGE_X, y: P('agents').y + 4 }, lane1, T3 + 0.4, { duration: 0.7, bend: 0 })
@@ -320,8 +330,8 @@ const argClass = (part: string) => (part === ARG_F ? 'arg-f' : part === ARG_A ? 
     :scene="scene"
     :beats="BEATS"
     sim
-    mobile-ratio="3 / 4"
-    label="The reference as a map of humanize as built, a card per page with the package it covers. What you type into: CLI, hmz.cli; TUI, hmz.tui; Daemon, hmz.daemon. The Python you write against: Flows, hmz.flows; SDK, hmz.sdk. Below the flow API, all in hmz.coganchor: Agents, Machines, Providers, Remote execution. What a run reads and leaves behind: Tracing, hmz.runtime; Files; Environment variables; Settings. One request is followed through it: hmz exec -f twice -a builder=claude/… -p budget.cost=1 is typed into the CLI, which reads its environment as it starts; the runtime's runner reads the flow and its budget and runs twice; its turn goes through the runtime's flowing drivers to the claude agent driver, which runs the CLI as local, on this machine, in the workspace, and the answer comes back up; the run is written down as an epic under ~/.hmz/epics, with epic.jsonl and the sessions' logs, which Tracing reads back."
+    :mobile-ratio="`${NARROW.w} / ${NARROW.h}`"
+    label="The reference as a map of humanize as built, a card per page with the package it covers. What you type into: CLI, hmz.cli; TUI, hmz.tui; Web, hmz.web; Daemon, hmz.daemon. The Python you write against: Flows, hmz.flows; SDK, hmz.sdk. Below the flow API, all in hmz.coganchor: Agents, Machines, Providers, Remote execution. What a run reads and leaves behind: Tracing, hmz.runtime; Files; Environment variables; Settings. One request is followed through it: hmz exec -f twice -a builder=claude/… -p budget.cost=1 is typed into the CLI, which reads its environment as it starts; the runtime's runner reads the flow and its budget and runs twice; its turn goes through the runtime's flowing drivers to the claude agent driver, which runs the CLI as local, on this machine, in the workspace, and the answer comes back up; the run is written down as an epic under ~/.hmz/epics, with epic.jsonl and the sessions' logs, which Tracing reads back."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

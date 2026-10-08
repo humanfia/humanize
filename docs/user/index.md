@@ -52,6 +52,7 @@ step:
 - [Being away (/afk)](/user/afk)
 - [Stopping](/user/stopping)
 - [Leaving it running](/user/leaving)
+- [In a browser (hmz web)](/user/web)
 - [The mission board](/user/board)
 
 </div>
@@ -105,6 +106,7 @@ step:
 - [Glossary](/user/concepts)
 - [CLI reference](/reference/cli)
 - [TUI reference](/reference/tui)
+- [Web reference](/reference/web)
 
 </div>
 </div>

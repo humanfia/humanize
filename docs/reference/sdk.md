@@ -405,7 +405,7 @@ process; a [daemon](/reference/daemon) holds one in its own. Frontends reach it 
 
 | Member | Returns | Behaviour |
 | --- | --- | --- |
-| `attach(name, kind, heard, *, replay=True)` | `str` | Attaches a frontend; returns its client id. `kind`: `tui`, `cli` or `sdk`. `name` `""`: login + `@kind`; duplicates get `#2`, `#3`. `heard(message)` is called on a thread of the host's. `RuntimeError` once closed. |
+| `attach(name, kind, heard, *, replay=True)` | `str` | Attaches a frontend; returns its client id. `kind`: `tui`, `web`, `cli` or `sdk`. `name` `""`: login + `@kind`; duplicates get `#2`, `#3`. `heard(message)` is called on a thread of the host's. `RuntimeError` once closed. |
 | `detach(client)` | `None` | Lets one frontend go: its claims are released and its asides closed. |
 | `attached` | `int` | Property: frontends attached. |
 | `idle` | `bool` | Property: nothing running or stopping, nobody attached, and no unread ended run. |

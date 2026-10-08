@@ -34,7 +34,7 @@ const GROUPS: { name: string; cards: Card[] }[] = [
     cards: [
       { slug: 'backends', title: 'Every coding agent you have' },
       { slug: 'accounts', title: 'Two accounts of one CLI' },
-      { slug: 'surfaces', title: 'Prompt, script or Python' },
+      { slug: 'surfaces', title: 'Prompt, browser, script or Python' },
     ],
   },
   {
@@ -149,18 +149,21 @@ function rest(event: PointerEvent) {
                 <circle class="said a" cx="0" cy="0" r="3.5" />
                 <circle class="said b" cx="0" cy="0" r="3.5" />
               </template>
-              <!-- three ways in, one after another reaching the one workspace -->
+              <!-- four ways in, one after another reaching the one workspace -->
               <template v-else-if="card.slug === 'surfaces'">
-                <rect class="way w1" x="8" y="7" width="38" height="18" rx="4" />
-                <rect class="way w2" x="8" y="27" width="38" height="18" rx="4" />
-                <rect class="way w3" x="8" y="47" width="38" height="18" rx="4" />
-                <text class="way-word" x="27" y="20" text-anchor="middle">tui</text>
-                <text class="way-word" x="27" y="40" text-anchor="middle">cli</text>
-                <text class="way-word" x="27" y="60" text-anchor="middle">py</text>
-                <path class="to" d="M 46 16 C 80 16 90 36 116 36 M 46 36 L 116 36 M 46 56 C 80 56 90 36 116 36" />
+                <rect class="way w1" x="8" y="4" width="38" height="14" rx="4" />
+                <rect class="way w2" x="8" y="21" width="38" height="14" rx="4" />
+                <rect class="way w3" x="8" y="38" width="38" height="14" rx="4" />
+                <rect class="way w4" x="8" y="55" width="38" height="14" rx="4" />
+                <text class="way-word" x="27" y="15" text-anchor="middle">tui</text>
+                <text class="way-word" x="27" y="32" text-anchor="middle">web</text>
+                <text class="way-word" x="27" y="49" text-anchor="middle">cli</text>
+                <text class="way-word" x="27" y="66" text-anchor="middle">py</text>
+                <path class="to" d="M 46 11 C 80 11 90 36 116 36 M 46 28 C 80 28 90 36 116 36 M 46 45 C 80 45 90 36 116 36 M 46 62 C 80 62 90 36 116 36" />
                 <circle class="mote m1" cx="0" cy="0" r="3" />
                 <circle class="mote m2" cx="0" cy="0" r="3" />
                 <circle class="mote m3" cx="0" cy="0" r="3" />
+                <circle class="mote m4" cx="0" cy="0" r="3" />
                 <circle class="one-ping" cx="132" cy="36" r="14" />
                 <circle class="one" cx="132" cy="36" r="14" />
               </template>
@@ -585,6 +588,7 @@ function rest(event: PointerEvent) {
 .surfaces .w1 { stroke: var(--hmz-lane-1); }
 .surfaces .w2 { stroke: var(--hmz-lane-2); }
 .surfaces .w3 { stroke: var(--hmz-lane-3); }
+.surfaces .w4 { stroke: var(--hmz-lane-4); }
 
 .surfaces .way-word {
   font-family: var(--vp-font-family-mono);
@@ -600,18 +604,20 @@ function rest(event: PointerEvent) {
 }
 
 .surfaces .mote {
-  animation: travel 2.4s cubic-bezier(0.7, 0, 0.2, 1) infinite;
+  animation: travel 3.2s cubic-bezier(0.7, 0, 0.2, 1) infinite;
 }
 
-.surfaces .m1 { fill: var(--hmz-lane-1); offset-path: path('M 46 16 C 80 16 90 36 116 36'); }
-.surfaces .m2 { fill: var(--hmz-lane-2); offset-path: path('M 46 36 L 116 36'); animation-delay: 0.8s; }
-.surfaces .m3 { fill: var(--hmz-lane-3); offset-path: path('M 46 56 C 80 56 90 36 116 36'); animation-delay: 1.6s; }
+.surfaces .m1 { fill: var(--hmz-lane-1); offset-path: path('M 46 11 C 80 11 90 36 116 36'); }
+.surfaces .m2 { fill: var(--hmz-lane-2); offset-path: path('M 46 28 C 80 28 90 36 116 36'); animation-delay: 0.8s; }
+.surfaces .m3 { fill: var(--hmz-lane-3); offset-path: path('M 46 45 C 80 45 90 36 116 36'); animation-delay: 1.6s; }
+.surfaces .m4 { fill: var(--hmz-lane-4); offset-path: path('M 46 62 C 80 62 90 36 116 36'); animation-delay: 2.4s; }
 
+/* A quarter of the round each: one mote arrives every 0.8s, as the workspace pings. */
 @keyframes travel {
   0% { offset-distance: 0%; opacity: 0; }
-  4% { opacity: 1; }
-  33% { offset-distance: 100%; opacity: 1; }
-  36%, 100% { offset-distance: 100%; opacity: 0; }
+  3% { opacity: 1; }
+  25% { offset-distance: 100%; opacity: 1; }
+  27%, 100% { offset-distance: 100%; opacity: 0; }
 }
 
 .surfaces .one {
@@ -1307,9 +1313,10 @@ function rest(event: PointerEvent) {
   .accounts .quota { fill: color-mix(in srgb, var(--hmz-lane-5) 55%, transparent); opacity: 0.6; }
   .accounts .said.a { opacity: 0; }
   .accounts .said.b { offset-distance: 70%; }
-  .surfaces .m1 { offset-distance: 75%; }
-  .surfaces .m2 { offset-distance: 45%; }
-  .surfaces .m3 { offset-distance: 15%; }
+  .surfaces .m1 { offset-distance: 80%; }
+  .surfaces .m2 { offset-distance: 55%; }
+  .surfaces .m3 { offset-distance: 30%; }
+  .surfaces .m4 { offset-distance: 10%; }
   .steering .turn-after { transform: scaleX(0.5); }
   .steering .line-in { transform: translateY(6px); }
   .steering .ripple { opacity: 0; }

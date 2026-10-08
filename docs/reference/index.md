@@ -22,6 +22,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | --- | --- | --- |
 | [CLI](/reference/cli) | `hmz`, `hmz exec`, `hmz internal …`: synopsis, options, the `-f`/`-a`/`-e`/`-p` grammars, refusals, output and NDJSON schema, signals, exit statuses | `hmz.cli` |
 | [TUI](/reference/tui) | The interface `hmz` opens: views, status line, commands, keys, menus, `/settings`, the monitor, completion, history | `hmz.tui` |
+| [Web](/reference/web) | The interface `hmz web` serves: letting a browser in, what is refused, the page's addresses, every route it calls, the stream | `hmz.web` |
 | [Daemon](/reference/daemon) | The machine's daemon and its per-workspace host processes, their files, lifecycle, frame protocol, requests, messages and multi-frontend rules | `hmz.daemon` |
 | [SDK](/reference/sdk) | `hmz.sdk`: every exported class, method, parameter, return type and exception | `hmz.sdk` |
 | [Flows](/reference/flows) | The flow API: `@flow`, roles, params, budgets, context, errors, testing | `hmz.flows` |
@@ -48,6 +49,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | a key | [TUI › Keys](/reference/tui#keys) |
 | a menu, sheet or form | [TUI › Menus](/reference/tui#menus), [`/settings`](/reference/tui#what-humanize-remembers) |
 | the monitor | [TUI › Monitor](/reference/tui#watching-the-run) |
+| a route the web interface answers | [Web › API](/reference/web#api) |
 | a daemon request or message | [Daemon › Requests](/reference/daemon#requests), [Messages](/reference/daemon#messages) |
 | a Python class or method | [SDK](/reference/sdk) |
 | a file under `~/.hmz` | [Files](/reference/files) |
