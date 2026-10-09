@@ -154,7 +154,8 @@ def test_rlar_ends_when_the_reviewer_says_it_is_done(project: Path) -> None:
     assert returned == "all of it, tested"
     assert actor.prompts == ["the task"]
     (review,) = reviewer.prompts
-    assert review.endswith("the task")
+    # The task, then what the actor said as it ended its turn, which is held to the repository.
+    assert review.index("the task") < review.index("worked")
 
 
 def test_rlar_picked_up_hands_a_fresh_actor_the_last_review(project: Path) -> None:
