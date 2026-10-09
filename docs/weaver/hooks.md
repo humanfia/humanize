@@ -380,7 +380,7 @@ could do.
 | `claude`, `codex` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
 | `kimi` | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> |
 | `cursor-agent`, `mcode` | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
-| `pi` | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> |
+| `omp`, `pi` | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> |
 | `agy`, `dsh`, `grok`, `mimo`, `opencode`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> |
 
 Every mixin a role declares narrows the CLIs that can fill it, goals and steering included.

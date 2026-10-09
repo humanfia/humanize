@@ -138,6 +138,7 @@ const BANDS: Band[] = [
           { text: 'kimi', tag: '+ extra' },
           { text: 'mcode' },
           { text: 'mimo' },
+          { text: 'omp' },
           { text: 'opencode' },
           { text: 'pi' },
           { text: 'qwen' },

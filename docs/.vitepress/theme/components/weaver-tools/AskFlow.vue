@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // An agent asking the flow, mid-turn. The role is typed with `AskUserHookAgentMixin`, which in
-// `HARNESS_AGENTS` (src/hmz/flows/agents.py) only claude, codex, kimi and pi carry. The flow
+// `HARNESS_AGENTS` (src/hmz/flows/agents.py) only claude, codex, kimi, pi and omp carry. The flow
 // hangs `on_ask_user`; when the builder stops to ask its user, the hook is called with an
 // `AskUserHookParams` -- `question`, `options`, and the `ctx` and `session` every hook is told
 // (src/hmz/flows/hooks.py) -- and the builder's turn waits while the hook takes a whole turn of
@@ -42,7 +42,7 @@ const PARAMS: [string, string][] = [
   ['ctx', 'FlowContext'],
   ['session', 'the builder’s'],
 ]
-const ASKERS = ['claude', 'codex', 'kimi', 'pi']
+const ASKERS = ['claude', 'codex', 'kimi', 'pi', 'omp']
 
 // Where each part sits along the time axis, as fractions.
 const SPAN = { ask: 0.26, back: 0.8, rStart: 0.33, rEnd: 0.74 }
@@ -255,7 +255,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="4 / 7"
-    label="An agent asking the flow. The builder's role is typed with AskUserHookAgentMixin, which claude, codex, kimi and pi carry; others are refused before the first turn. Mid-turn, the builder asks its user: review calc.py. In a flow that user is the flow: its on_ask_user hook is called with an AskUserHookParams carrying the question, the options, the flow's context and the session. The builder's turn waits, as long as the answer takes, with no 15-minute limit, while the hook spawns a reviewer session and takes a whole reviewer turn inside the builder's turn. The hook returns AskUserHookResult with answer=said, and the builder carries on from there and ends its turn. The question is the tool: hmz.flows has no other way to hand an agent a tool."
+    label="An agent asking the flow. The builder's role is typed with AskUserHookAgentMixin, which claude, codex, kimi, pi and omp carry; others are refused before the first turn. Mid-turn, the builder asks its user: review calc.py. In a flow that user is the flow: its on_ask_user hook is called with an AskUserHookParams carrying the question, the options, the flow's context and the session. The builder's turn waits, as long as the answer takes, with no 15-minute limit, while the hook spawns a reviewer session and takes a whole reviewer turn inside the builder's turn. The hook returns AskUserHookResult with answer=said, and the builder carries on from there and ends its turn. The question is the tool: hmz.flows has no other way to hand an agent a tool."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="world">

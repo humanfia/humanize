@@ -71,6 +71,7 @@ from .kimi import KimiCodeCLIAgent, KimiCodeCLIAgentConfig, KimiCodeCLISession
 from .litellm import LiteLLMAgent, LiteLLMAgentConfig, LiteLLMSession
 from .mimo import MimoCodeAgent, MimoCodeAgentConfig, MimoCodeSession
 from .minimax import MiniMaxCodeAgent, MiniMaxCodeAgentConfig, MiniMaxCodeSession
+from .omp import OhMyPiAgent, OhMyPiAgentConfig, OhMyPiSession
 from .opencode import OpencodeAgent, OpencodeAgentConfig, OpencodeSession
 from .pi import PiAgent, PiAgentConfig, PiSession
 from .qwen import QwenCodeAgent, QwenCodeAgentConfig, QwenCodeSession
@@ -92,6 +93,7 @@ DRIVEN: dict[str, tuple[type[AgentBase], type[AgentConfig]]] = {
     "litellm": (LiteLLMAgent, LiteLLMAgentConfig),
     "mcode": (MiniMaxCodeAgent, MiniMaxCodeAgentConfig),
     "mimo": (MimoCodeAgent, MimoCodeAgentConfig),
+    "omp": (OhMyPiAgent, OhMyPiAgentConfig),
     "opencode": (OpencodeAgent, OpencodeAgentConfig),
     "pi": (PiAgent, PiAgentConfig),
     "qwen": (QwenCodeAgent, QwenCodeAgentConfig),
@@ -193,6 +195,9 @@ __all__ = [
     "MiniMaxCodeSession",
     "Moment",
     "Occasion",
+    "OhMyPiAgent",
+    "OhMyPiAgentConfig",
+    "OhMyPiSession",
     "OpencodeAgent",
     "OpencodeAgentConfig",
     "OpencodeSession",

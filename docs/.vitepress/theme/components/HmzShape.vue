@@ -22,7 +22,7 @@ import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
 
 const HELD = ['claude', 'codex', 'agy', 'grok', 'mcode', 'qwen']
-const ASKED = ['cursor-agent', 'dsh', 'kimi', 'mimo', 'opencode', 'pi', 'a CLI you added']
+const ASKED = ['cursor-agent', 'dsh', 'kimi', 'mimo', 'omp', 'opencode', 'pi', 'a CLI you added']
 
 const cli = ref('claude')
 const held = computed(() => HELD.includes(cli.value))

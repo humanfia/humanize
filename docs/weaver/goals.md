@@ -182,7 +182,7 @@ async def test_a_cli_without_goals_is_refused() -> None:
 | `codex` · Codex | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
 | `kimi` · Kimi Code | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
 | `dsh` · DeepSeek Harness | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
-| `agy`, `cursor-agent`, `grok`, `mcode`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> |
+| `agy`, `cursor-agent`, `grok`, `mcode`, `mimo`, `omp`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> |
 
 A CLI without one is refused before the first turn, not an hour into a loop:
 

@@ -17,8 +17,8 @@ import { withBase } from 'vitepress'
 - **The CLI's own login.** Signing in runs it, and humanize keeps the result apart. Your own
   sign-in is never touched.
 - **A subscription, a key or a gateway.** Two agents of one CLI can run as two of them at once.
-- **One key, several CLIs.** An Anthropic key works in Claude Code, pi, opencode and mimocode. A
-  subscription stays in its CLI.
+- **One key, several CLIs.** An Anthropic key works in Claude Code, pi, Oh My Pi, opencode and
+  mimocode. A subscription stays in its CLI.
 - **Tried again first.** A turn that failed is retried at its place as often as you said.
 - **Then the chain.** The next [place](/user/settings#fallback) takes over, and the one after it
   if that fails too: another account, CLI or model, in a new conversation.

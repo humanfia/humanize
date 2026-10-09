@@ -393,6 +393,7 @@ The value is the name `-a` uses.
 | `KIMI` | `kimi` | Kimi Code | `KimiCodeAgent` |
 | `GROK` | `grok` | Grok Build | `GrokBuildAgent` |
 | `PI` | `pi` | pi | `PiAgent` |
+| `OMP` | `omp` | Oh My Pi | `OhMyPiAgent` |
 | `AGY` | `agy` | Antigravity | `AntigravityAgent` |
 | `DSH` | `dsh` | DeepSeek Harness | `DeepSeekHarnessAgent` |
 | `LITELLM` | `litellm` | none: a model called through litellm, one chat completion a turn over the session's history, with no tools and no filesystem; its turns take `env=None` | `LiteLLMAgent` |
@@ -436,7 +437,7 @@ Generated from `hmz.runtime.flowing.spi.HARNESS_CAPABILITIES` and the harness pr
 | `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
 | `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
 | `kimi` | ✓ | | ✓ | ✓ | | ✓ | any workdir | read-only, workspace-write, auto, bypass |
-| `pi` | | | ✓ | | | ✓ | same workdir | read-only, workspace-write, auto, bypass |
+| `pi` `omp` | | | ✓ | | | ✓ | same workdir | read-only, workspace-write, auto, bypass |
 | `dsh` | ✓ | | | | | | no | bypass |
 | `litellm` | | | | | | | any workdir | read-only, workspace-write, auto, bypass |
 | `cursor-agent` | | | | | ✓ | | no | read-only, workspace-write, auto, bypass |
@@ -581,6 +582,7 @@ docker's default seccomp profile can hold `online` `ALL` but not `NONE`. See
 | `kimi` | external | external; its daemon may bind its one port |
 | `grok` | external; its own sandbox writes `/tmp` | external; `--disable-web-search` offline |
 | `pi` | external | external; started `--offline`; gateways its `models.json` declares stay reachable |
+| `omp` | external | external; never started `--offline`; the `baseUrl` of the model's provider in its `models.yml` stays reachable |
 | `agy` | external; its `--sandbox` covers only commands | external; web tools removed offline (and always with `online` `NONE`) |
 | `dsh` | external | external |
 | `acp` | external, plus the `state` declared for it | external, to the `hosts` declared for it; `NONE` with none declared refused |
@@ -605,8 +607,8 @@ docker's default seccomp profile can hold `online` `ALL` but not `NONE`. See
   coganchor's `auto` rung (Kimi's `yolo`) while either is hung. humanize answers yes unless the
   hook says no.
 - `online` also switches the CLI's own web tools (on for `ALL`, off for `NONE`) where the CLI
-  can be told; where it cannot (`cursor-agent`, `mcode`, `pi`, `agy`, `acp`) the cut network
-  stops them.
+  can be told; where it cannot (`cursor-agent`, `mcode`, `pi`, `omp`, `agy`, `acp`) the cut
+  network stops them.
 
 The rungs themselves are in [Agents](/reference/agents).
 

@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 from typing import Any
 
-from hmz.runtime.tracing.readers import pi
+from hmz.runtime.tracing.readers import omp, pi
 from tests.unit.runtime.tracing.logs import ALL, jsonl
 
 T0 = 1_767_225_600
@@ -122,3 +122,28 @@ def test_workspace_is_read_from_the_log(tmp_path: Path) -> None:
         "noid",
     }
     assert [s.ident for s in pi.collect(tmp_path, None, ("pi:the",), ALL)] == ["there"]
+
+
+def test_omps_log_is_read_as_pi_reads_its_own(tmp_path: Path) -> None:
+    log(
+        tmp_path,
+        "01a11bbb",
+        [
+            {"type": "title", "title": "fixing it"},
+            {"type": "session", "cwd": WORKSPACE, "version": 3, "timestamp": iso(0)},
+            {"type": "model_change", "model": "openrouter/anthropic/claude-x"},
+            msg(1, "user", content="fix it"),
+            {"type": "custom", "timestamp": iso(1)},
+            msg(2, "assistant", content=[{"type": "text", "text": "ok"}]),
+        ],
+    )
+    [session] = omp.collect(tmp_path, None, None, ALL)
+    assert (session.key, session.backend) == ("omp:01a11bbb", "omp")
+    assert (session.args["provider"], session.args["model"]) == (
+        "openrouter",
+        "anthropic/claude-x",
+    )
+    assert session.args["cwd"] == WORKSPACE
+    by = {(a.category, a.name): a for a in session.actions}
+    assert by["turn", "turn: fix it"].start == T0 + 1
+    assert by["message", "say: ok"].start == T0 + 2

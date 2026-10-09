@@ -42,6 +42,7 @@ const BACKENDS: Backend[] = [
   { name: 'grok', called: 'Grok Build', model: 'grok-4.6', efforts: ['xhigh', 'high', 'medium', 'low'] },
   { name: 'kimi', called: 'Kimi Code', model: 'kimi-code/k3', efforts: ['max', 'high', 'medium', 'low'] },
   { name: 'pi', called: 'pi', model: 'openai-codex/gpt-5.5', efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off'] },
+  { name: 'omp', called: 'Oh My Pi', model: 'deepseek/deepseek-v4-flash', efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off'] },
   { name: 'qwen', called: 'Qwen Code', model: 'qwen3-coder-plus', efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'none'] },
   { name: 'agy', called: 'Antigravity', model: 'gemini-3.7-flash', efforts: ['high', 'medium', 'low'] },
   { name: 'opencode', called: 'opencode', model: 'anthropic/claude-opus-5', efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },

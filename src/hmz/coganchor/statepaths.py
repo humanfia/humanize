@@ -81,6 +81,12 @@ PROFILES: tuple[AgentProfile, ...] = (
         name="pi",
         state_paths=("~/.pi",),
     ),
+    # omp keeps its home, its caches, its logs and the native addons it unpacks under one
+    # directory, its sessions and sign-ins among them.
+    AgentProfile(
+        name="omp",
+        state_paths=("~/.omp",),
+    ),
     # opencode and mimocode are one program under two names, and each keeps its install, its
     # settings, its cached model catalogue and the database its sessions are rows of in four
     # directories of its own -- and the locks it takes around refreshing that catalogue in a

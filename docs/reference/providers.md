@@ -206,6 +206,17 @@ own for variables to be set in.
 | | `vertex` | — | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_VERTEX_LOCATION` (`us-central1`); signed in by application default credentials | |
 | | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | |
 | | `azure` | — | `AZURE_RESOURCE_NAME`, `AZURE_API_KEY` • | |
+| `omp` | `anthropic-key` | — | `ANTHROPIC_API_KEY` • | |
+| | `anthropic-token` | — | `ANTHROPIC_OAUTH_TOKEN` • | |
+| | `openai-key` | — | `OPENAI_API_KEY` • | |
+| | `gemini-key` | — | `GEMINI_API_KEY` • | |
+| | `xai-key` | — | `XAI_API_KEY` • | |
+| | `openrouter-key` | — | `OPENROUTER_API_KEY` • | |
+| | `deepseek-key` | — | `DEEPSEEK_API_KEY` • | |
+| | `groq-key` | — | `GROQ_API_KEY` • | |
+| | `mistral-key` | — | `MISTRAL_API_KEY` • | |
+| | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | |
+| | `vertex` | — | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`us-central1`) | |
 | `opencode` | `login` | `opencode auth login` | — | |
 | | `wellknown` | `opencode auth login {OPENCODE_WELLKNOWN}` | `OPENCODE_WELLKNOWN` ◦ (URL answering at `/.well-known/opencode`) | |
 | | `zen` | — | `OPENCODE_API_KEY` • | |
@@ -261,6 +272,10 @@ own for variables to be set in.
 - A model on a `pi` key or cloud account is named `provider/id` (`anthropic/…`, `openai/…`,
   `google/…`, `amazon-bedrock/…`, `google-vertex/…`, `azure-openai-responses/…`); on a `pi`
   gateway account it is the gateway's own id.
+- A model on an `omp` account is named `provider/id`, as `omp models --json` lists it
+  (`anthropic/…`, `deepseek/…`).
+- `omp` has no `login`: omp keeps its sign-ins in `agent.db`, beside its settings, which an
+  account does not copy. An `omp` agent with no account runs as this machine's omp sign-in.
 - `mcode`'s `config.yaml` is a credential file, so a provider of it holds settings of its own.
 - `cursor-agent`'s `cli-config.json` is a credential file and also its settings.
 - `qwen` has no `login`: Qwen OAuth was discontinued on 2026-04-15 and `qwen` 0.24.7 refuses
@@ -317,6 +332,7 @@ directory entry covers everything inside it. In the provider's directory the thr
 | `kimi` | `$KIMI_CODE_HOME`, else `~/.kimi-code` | `credentials/`, `oauth/` |
 | `mcode` | `$MINIMAX_DATA_DIR`, else `~/.minimax` | `config.yaml`, `auth/` |
 | `mimo` | `$XDG_DATA_HOME/mimocode`, else `~/.local/share/mimocode` | `auth.json`, `mcp-auth.json` |
+| `omp` | `$PI_CODING_AGENT_DIR`, else `~/.omp/agent` | none: its sign-ins are in its `agent.db`, which is not copied |
 | `opencode` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | `auth.json`, `mcp-auth.json` |
 | `pi` | `$PI_CODING_AGENT_DIR`, else `~/.pi/agent` | `auth.json`, `auth.json.lock` |
 | `qwen` | `$QWEN_HOME`, else `~/.qwen` | none |
@@ -359,8 +375,8 @@ which is how a token is rotated by rename).
 - The filter lets other architectures' syscalls through: a 32-bit process below the CLI is not
   intercepted.
 - Requires Linux on x86-64 or aarch64 with ptrace permitted. A backend with no credential
-  files (`dsh`, `qwen`, ACP CLIs), and a provider whose credentials are only variables on such a
-  backend, needs no supervisor for credentials.
+  files (`dsh`, `omp`, `qwen`, ACP CLIs), and a provider whose credentials are only variables on
+  such a backend, needs no supervisor for credentials.
 - An anchored turn is not wrapped: a process has one tracer, so the anchor is given the same
   pairs as `redirects` and its own supervisor answers them
   ([Remote execution › Where the account lives](/reference/remote-execution#where-the-account-lives)).
@@ -428,6 +444,7 @@ as the CLI writes into them, and an entry may be a glob of one path component.
 | `kimi` | `sessions`, `session_index.jsonl`, `workspaces.json`, `server/events`, `search-index`, `file-history` |
 | `mcode` | `v2/sqlite`, `v2/sessions`, `background-tasks` |
 | `mimo` | `mimocode.db*`, `storage` |
+| `omp` | `sessions` |
 | `opencode` | `opencode.db*`, `storage` |
 | `pi` | `sessions` |
 | `qwen` | `projects`, `tmp`, `file-history` |
@@ -484,6 +501,7 @@ is left exactly as found. All four apply whichever way the account was made.
 | `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_ADAPTIVE_THINKING`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_CAPABILITIES`, `KIMI_MODEL_DISPLAY_NAME`, `KIMI_MODEL_MAX_COMPLETION_TOKENS`, `KIMI_MODEL_MAX_CONTEXT_SIZE`, `KIMI_MODEL_MAX_OUTPUT_SIZE`, `KIMI_MODEL_MAX_TOKENS`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_MODEL_REASONING_KEY`, `KIMI_MODEL_TEMPERATURE`, `KIMI_MODEL_THINKING_EFFORT`, `KIMI_MODEL_THINKING_KEEP`, `KIMI_MODEL_TOP_P`, `KIMI_OAUTH_HOST`, `KIMI_REGION`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
 | `mcode` | `MAVIS_REGION`, `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
 | `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AZURE_API_KEY`, `AZURE_RESOURCE_NAME`, `DEEPSEEK_API_KEY`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_VERTEX_LOCATION`, `GROK_CODE_XAI_API_KEY`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `MIMO_GATEWAY_API`, `MIMO_GATEWAY_KEY`, `MIMO_GATEWAY_MODEL`, `MIMO_GATEWAY_URL`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY` |
+| `omp` | `ABLITERATION_API_KEY`, `AIAND_API_KEY`, `AIMLAPI_API_KEY`, `AI_GATEWAY_API_KEY`, `ALIBABA_CODING_PLAN_API_KEY`, `ALIBABA_TOKEN_PLAN_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_FOUNDRY_API_KEY`, `ANTHROPIC_OAUTH_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `BAILIAN_TOKEN_PLAN_API_KEY`, `BASETEN_API_KEY`, `BIGMODEL_API_KEY`, `CEREBRAS_API_KEY`, `CHARM_HYPER_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_FOUNDRY`, `CLINE_API_KEY`, `CLOUDFLARE_AI_GATEWAY_API_KEY`, `COMMAND_CODE_API_KEY`, `COPILOT_GITHUB_TOKEN`, `COREWEAVE_API_KEY`, `COREWEAVE_PROJECT`, `CURSOR_ACCESS_TOKEN`, `DEEPINFRA_API_KEY`, `DEEPSEEK_API_KEY`, `DEVIN_API_KEY`, `FIREPASS_API_KEY`, `FIREWORKS_API_KEY`, `FOUNDRY_BASE_URL`, `FUGU_API_KEY`, `GEMINI_API_KEY`, `GITLAB_TOKEN`, `GMI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_API_KEY`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_PROJECT`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `HF_TOKEN`, `HUGGINGFACE_HUB_TOKEN`, `HYPER_API_KEY`, `KILO_API_KEY`, `KIMI_API_KEY`, `LITELLM_API_KEY`, `LLAMA_CPP_API_KEY`, `LM_STUDIO_API_KEY`, `META_API_KEY`, `MINIMAX_API_KEY`, `MINIMAX_CODE_API_KEY`, `MINIMAX_CODE_CN_API_KEY`, `MISTRAL_API_KEY`, `MODEL_API_KEY`, `MOONSHOT_API_KEY`, `NANO_GPT_API_KEY`, `NOVITA_API_KEY`, `NVIDIA_API_KEY`, `OLLAMA_API_KEY`, `OLLAMA_CLOUD_API_KEY`, `OMP_AUTH_BROKER_TOKEN`, `OMP_AUTH_BROKER_URL`, `OPENAI_API_KEY`, `OPENAI_CODEX_OAUTH_TOKEN`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QIANFAN_API_KEY`, `QWEN_OAUTH_TOKEN`, `QWEN_PORTAL_API_KEY`, `SAKANA_API_KEY`, `SILICONFLOW_API_KEY`, `SILICONFLOW_CN_API_KEY`, `SYNTHETIC_API_KEY`, `TOGETHER_API_KEY`, `UMANS_AI_CODING_PLAN_API_KEY`, `VENICE_API_KEY`, `VERCEL_AI_GATEWAY_API_KEY`, `VLLM_API_KEY`, `WAFER_SERVERLESS_API_KEY`, `WANDB_API_KEY`, `XAI_API_KEY`, `XAI_OAUTH_TOKEN`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `YOLO_AUTO_API_KEY`, `ZAI_API_KEY`, `ZENMUX_API_KEY`, `ZHIPU_API_KEY` |
 | `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AZURE_API_KEY`, `AZURE_RESOURCE_NAME`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_VERTEX_LOCATION`, `GOOGLE_VERTEX_PROJECT`, `GROK_CODE_XAI_API_KEY`, `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_GATEWAY_KEY`, `OPENCODE_GATEWAY_MODEL`, `OPENCODE_GATEWAY_NPM`, `OPENCODE_GATEWAY_URL`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY`, `XAI_API_KEY` |
 | `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `COPILOT_GITHUB_TOKEN`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GCLOUD_PROJECT`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_API_KEY`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_PROJECT`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `HF_TOKEN`, `KIMI_API_KEY`, `META_API_KEY`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `PI_GATEWAY_API`, `PI_GATEWAY_KEY`, `PI_GATEWAY_MODEL`, `PI_GATEWAY_URL`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `RADIUS_API_KEY`, `TOGETHER_API_KEY`, `TYPESAFE_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
 | `qwen` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL`, `BAILIAN_CODING_PLAN_API_KEY`, `BAILIAN_TOKEN_PLAN_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GOOGLE_API_KEY`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_GEMINI_BASE_URL`, `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_MODEL`, `GOOGLE_VERTEX_BASE_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_DEFAULT_AUTH_TYPE`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
@@ -518,6 +536,11 @@ A backend with an endpoint variable has its catalogue read from the endpoint whe
 sets it ([model catalogues](#models-json)). `pi` names its models `provider/id`, which an
 endpoint's ids do not carry, except on a gateway account, whose every turn is held to the one
 provider below.
+
+`omp` has no gateway way and no endpoint variable. An endpoint of its own is a provider in
+omp's own `models.yml` (or `models.yaml`) in its home, which humanize does not write; the fence
+lets through the `baseUrl` of the provider the model is named under
+([Agents › Oh My Pi](/reference/agents#oh-my-pi)).
 
 An `opencode` gateway account is a provider called `gateway` in opencode's config, set as
 `OPENCODE_CONFIG_CONTENT` (merged over the config files; it replaces an exported
@@ -674,8 +697,9 @@ it there, so a hushed variable opens no host:
 1. `Profile.hosts` (see [Agents › Network hosts](/reference/agents#network-hosts));
 2. the host (and `:port`, where one is written) of the endpoint variable and of every
    `ambient` variable ending `_URL`, `_BASE`, `_HOST`, `_ENDPOINT`, `_ORIGIN` or `_ISSUER`;
-3. for `claude` with one of the switches below set, the cloud's hosts and the host of the
-   switch's base URL variable.
+3. for `claude` with one of the switches below set, and for `omp` with
+   `CLAUDE_CODE_USE_FOUNDRY` set, the cloud's hosts and the host of the switch's base URL
+   variable.
 
 | Switch | Hosts | Region variable (default) | Base URL variable |
 | --- | --- | --- | --- |
@@ -706,8 +730,8 @@ A credential is the vendor's, so an account made for one backend can often run a
 
 - A login account holds files, not variables, so it copies nowhere.
 - `copies` of an account `cli` cannot run raises `ValueError: claude/work cannot be used with codex`.
-- Example: a `claude` `key` account (`ANTHROPIC_API_KEY`) serves `pi`, `opencode` and `mimo`;
-  the `pi` and `opencode` copies are recorded with way `env`, the `mimo` one with
+- Example: a `claude` `key` account (`ANTHROPIC_API_KEY`) serves `pi`, `omp`, `qwen`,
+  `opencode`, `mimo` and `litellm`; the `qwen` copy is recorded with way `env`, the others with
   `anthropic-key`.
 
 The TUI's account form offers an `also for <cli>` row per backend in `serves()`.

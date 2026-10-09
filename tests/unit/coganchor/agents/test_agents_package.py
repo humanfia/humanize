@@ -29,6 +29,7 @@ def test_every_driven_backend_is_a_known_cli_or_litellm() -> None:
         "litellm",
         "mcode",
         "mimo",
+        "omp",
         "opencode",
         "pi",
         "qwen",

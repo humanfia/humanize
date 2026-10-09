@@ -76,8 +76,8 @@ An absent or unreadable home, database or log line is skipped; it never fails th
 ## Where the logs are read from {#where-the-trajectories-come-from}
 
 For each CLI with a reader, in this order — `claude`, `agy`, `codex`, `dsh`, `grok`, `kimi`,
-`pi`, `qwen`, `opencode`, `mimo`, `mcode` — the reader is run over the CLI's own home, then over
-`<kept>/<cli>` for every `kept` directory. Homes are resolved as in
+`pi`, `omp`, `qwen`, `opencode`, `mimo`, `mcode` — the reader is run over the CLI's own home,
+then over `<kept>/<cli>` for every `kept` directory. Homes are resolved as in
 [Backend homes](/reference/environment#backend-homes).
 
 | CLI | Home (default) | Reads | Workspace from | Key | Sub-agents |
@@ -87,6 +87,7 @@ For each CLI with a reader, in this order — `claude`, `agy`, `codex`, `dsh`, `
 | `kimi` | `~/.kimi-code` | `sessions/*/session_*/state.json` and each agent's `wire.jsonl` | `state.json` `workDir` | `kimi:<session>:<agent id>` | agents with `parentAgentId`; labelled `<type> · <agent id>` |
 | `grok` | `~/.grok` | `sessions/<percent-encoded cwd>/*/updates.jsonl` | the decoded folder name | `grok:<id>` (short id 18 characters) | spawned sessions found by following the log |
 | `pi` | `~/.pi/agent` | `sessions/*/<started>_<id>.jsonl` | the `session` record's `cwd` | `pi:<id>` | none |
+| `omp` | `~/.omp/agent` | `sessions/*/<started>_<id>.jsonl`, read as `pi`'s | the `session` record's `cwd` | `omp:<id>` | none |
 | `qwen` | `~/.qwen` | `projects/<ws>/chats/*.jsonl` | the project folder, as `claude` | `qwen:<id>` | none |
 | `dsh` | `~/.dsh` | `sessions/*/*/session*.jsonl` (highest generation) | the header's `cwd` | `dsh:<id>` | sessions with `parentSession` |
 | `opencode` | `~/.local/share/opencode` | SQLite `opencode.db`: tables `session`, `message`, `part` (read-only) | `session.directory` | `opencode:<id>` | child sessions |
@@ -97,7 +98,7 @@ For each CLI with a reader, in this order — `claude`, `agy`, `codex`, `dsh`, `
 | `acp` | | no logs humanize can find | | | |
 
 Token counts are read as each CLI records them; where a CLI records cached input beside
-input (pi, opencode, mimo, mcode, agy), both are counted.
+input (pi, omp, opencode, mimo, mcode, agy), both are counted.
 
 ## The document {#document}
 
@@ -264,6 +265,7 @@ settings, skills and credentials remain the CLI's own.
 | `grok` | `sessions`, `active_sessions.*` |
 | `kimi` | `sessions`, `session_index.jsonl`, `workspaces.json`, `server/events`, `search-index`, `file-history` |
 | `pi` | `sessions` |
+| `omp` | `sessions` |
 | `qwen` | `projects`, `tmp`, `file-history` |
 | `opencode` | `opencode.db*`, `storage` |
 | `mimo` | `mimocode.db*`, `storage` |

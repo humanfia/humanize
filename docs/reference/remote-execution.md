@@ -507,6 +507,7 @@ A path is answered from the target unless it is one of these:
 | `kimi` | `~/.kimi-code`, `~/.kimi` |
 | `mcode` | `~/.minimax`, `~/.mavis` |
 | `mimo` | `~/.mimocode`, `~/.config/mimocode`, `~/.local/share/mimocode`, `~/.cache/mimocode`, `~/.local/state/mimocode` |
+| `omp` | `~/.omp` |
 | `opencode` | `~/.opencode`, `~/.config/opencode`, `~/.local/share/opencode`, `~/.cache/opencode`, `~/.local/state/opencode` |
 | `pi` | `~/.pi` |
 | `qwen` | `~/.qwen` |

@@ -194,7 +194,7 @@ say anything to any agent.
 
 | Your line goes into | Backends |
 | --- | --- |
-| <Badge type="tip" text="this turn" /> | Claude Code, Codex, Kimi Code, pi |
+| <Badge type="tip" text="this turn" /> | Claude Code, Codex, Kimi Code, Oh My Pi, pi |
 | <Badge type="warning" text="next turn" /> | Antigravity, Cursor, DeepSeek Harness, Grok Build, MiMo Code, MiniMax Code, opencode, Qwen Code, and any CLI you add on the Accounts page of `/settings` |
 
 The backends in the second row cannot be talked to while they work. Your line is refused, and

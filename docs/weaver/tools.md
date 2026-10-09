@@ -15,8 +15,8 @@ flow, or a decision that is yours, and only the agent knows when it needs it.
 ::: info Before you start
 - A flow of your own running: [Your first flow](/weaver/writing-a-flow).
 - What a hook is: [Hooks](/weaver/hooks).
-- A CLI that asks its user questions: Claude Code, Codex, Kimi Code or pi. See [Which CLIs
-  ask](#which-clis-ask).
+- A CLI that asks its user questions: Claude Code, Codex, Kimi Code, pi or Oh My Pi. See
+  [Which CLIs ask](#which-clis-ask).
 :::
 
 ## How it works
@@ -248,7 +248,7 @@ turn or a whole subflow. Whatever the hook spends counts against the run.
 
 | CLI (`-a`) | Asks its user |
 | --- | :---: |
-| `claude`, `codex`, `kimi`, `pi` | <Badge type="tip" text="yes" /> |
+| `claude`, `codex`, `kimi`, `omp`, `pi` | <Badge type="tip" text="yes" /> |
 | `agy`, `cursor-agent`, `dsh`, `grok`, `mcode`, `mimo`, `opencode`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> |
 
 A CLI that does not ask is refused before the first turn:

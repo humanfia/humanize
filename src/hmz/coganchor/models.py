@@ -817,6 +817,38 @@ def _pi(profile: Profile, run: Callable[..., str]) -> list[Model]:
     return found
 
 
+def _omp(profile: Profile, run: Callable[..., str]) -> list[Model]:
+    """What omp runs, which it lists as JSON with the efforts each model takes.
+
+    A client of whichever providers it is signed in to or holds a key of, as pi is, so what it
+    lists is what this install can reach -- its `models.yml` providers among them.
+
+    Args:
+      profile: omp's own.
+      run: What puts the question.
+
+    Returns:
+      One per model, as `provider/id`, at the efforts omp says it takes and `off` beside them,
+      which every model that thinks takes and none lists. A model that does not think is
+      offered at no rung.
+
+    Raises:
+      ValueError: If what it printed cannot be read.
+    """
+    found: list[Model] = []
+    for one in cast(
+        "list[Any]", _loaded(run(["models", "--json"])).get("models") or []
+    ):
+        model = cast("dict[str, Any]", one)
+        if not model.get("selector"):
+            continue
+        efforts = (
+            _rungs(profile, model.get("thinking")) if model.get("reasoning") else ()
+        )
+        found.append(Model(str(model["selector"]), efforts, profile.swarms))
+    return found
+
+
 def _agy(profile: Profile, run: Callable[..., str]) -> list[Model]:
     """What Antigravity CLI runs, which it lists as a slug and the name a person reads.
 
@@ -1167,6 +1199,7 @@ _READING: dict[str, Callable[[Profile, Callable[..., str]], list[Model]]] = {
     "litellm": _litellm,
     "mcode": _mcode,
     "pi": _pi,
+    "omp": _omp,
     "qwen": _qwen,
     "opencode": _listed,
     "mimo": _listed,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // A line typed while a turn is running, on two kinds of backend side by side. On the left, the
-// ones whose sessions set `steers` (Claude Code, Codex, Kimi Code and pi,
+// ones whose sessions set `steers` (Claude Code, Codex, Kimi Code, pi and Oh My Pi,
 // `src/hmz/coganchor/agents/`): the line goes into the turn already running, and that turn
 // answers it. On the right, every other backend: `interject` refuses, the interface says the
 // session cannot be talked to mid-turn, and the line goes back on the pin, where the next turn
@@ -135,7 +135,7 @@ const chip = (text: string) => (text.length + 15) * CH.value + 12
 const chipW0 = computed(() => chip(LINE) - 13 * CH.value)
 
 const SIDES = [
-  { title: 'into this turn', who: 'Claude Code · Codex · Kimi Code · pi', hue: 'var(--hmz-accent)' },
+  { title: 'into this turn', who: 'Claude Code · Codex · Kimi Code · pi · Oh My Pi', hue: 'var(--hmz-accent)' },
   { title: 'into the next turn', who: 'every other backend', hue: 'var(--hmz-warm)' },
 ]
 
@@ -401,7 +401,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="36 / 50"
-    label="Two backends side by side, each running a turn. The same line, and fix the tests too, is typed at both while they work, and is pinned above the prompt. Claude Code, Codex, Kimi Code and pi take it into the turn that is running, and answer it there. Every other backend refuses it mid-turn: the line goes back on the pin and waits, and the next turn takes it as it starts. Two more lines typed in a row are taken one after the other."
+    label="Two backends side by side, each running a turn. The same line, and fix the tests too, is typed at both while they work, and is pinned above the prompt. Claude Code, Codex, Kimi Code, pi and Oh My Pi take it into the turn that is running, and answer it there. Every other backend refuses it mid-turn: the line goes back on the pin and waits, and the next turn takes it as it starts. Two more lines typed in a row are taken one after the other."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

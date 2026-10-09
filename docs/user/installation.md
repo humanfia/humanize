@@ -162,6 +162,11 @@ npm i -g @earendil-works/pi-coding-agent
 pi                             # then /login, and /exit once you are signed in
 ```
 
+```sh [Oh My Pi]
+curl -fsSL https://omp.sh/install | sh
+omp                            # then /login, and /exit once you are signed in
+```
+
 ```sh [DeepSeek Harness]
 # no CLI: install the [dsh] extra, above, and give it a DeepSeek API key
 export DEEPSEEK_API_KEY=sk-…
@@ -279,7 +284,7 @@ A `dsh` agent works with full access whatever its flow declares. See
 
 ::: details Any other CLI that speaks the Agent Client Protocol
 Add it on the Accounts page of [`/settings`](/user/settings#accounts), and it is offered beside
-the twelve above. See [Many backends, one agent](/features/backends).
+the thirteen above. See [Many backends, one agent](/features/backends).
 :::
 
 ## Where humanize keeps things
@@ -306,7 +311,7 @@ humanize looks on your `PATH`, then in `~/.local/bin`, `/usr/local/bin`, `/opt/h
 `/usr/bin` and `/bin`. See which ones a shell finds:
 
 ```sh
-command -v agy claude codex cursor-agent grok kimi mcode mimo opencode pi qwen
+command -v agy claude codex cursor-agent grok kimi mcode mimo omp opencode pi qwen
 ```
 
 A CLI that is listed but still not offered is usually not signed in: run its sign-in from

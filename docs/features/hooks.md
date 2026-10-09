@@ -28,7 +28,7 @@ import { withBase } from 'vitepress'
 | Moment | CLIs that reach it |
 | --- | --- |
 | the CLI asks whether a tool may run | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> |
-| the agent asks its user | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="pi" /> |
+| the agent asks its user | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="omp" /> <Badge type="tip" text="pi" /> |
 | a subagent starts or finishes | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="cursor-agent" /> <Badge type="tip" text="mcode" /> |
 | a tool refused as it is reached for never runs | <Badge type="tip" text="claude" /> <Badge type="tip" text="qwen" /> |
 

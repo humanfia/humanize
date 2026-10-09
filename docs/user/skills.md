@@ -127,6 +127,7 @@ each CLI reads:
 | `kimi` | `~/.kimi-code/skills/`, `~/.agents/skills/` | `.kimi-code/skills/`, `.agents/skills/` |
 | `mcode` | `~/.minimax/skills/`, `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/` | `.minimax/skills/`, `.claude/skills/`, `.agents/skills/` |
 | `mimo` | `~/.config/mimocode/skill(s)/`, `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/` | `.mimocode/skill(s)/`, `.agents/skills/`, `.claude/skills/`, `.codex/skills/` |
+| `omp` | `~/.omp/agent/skills/`, `~/.agents/skills/` | `.omp/skills/`, `.agents/skills/` |
 | `opencode` | `~/.config/opencode/skill(s)/`, `~/.agents/skills/`, `~/.claude/skills/` | `.opencode/skill(s)/`, `.agents/skills/`, `.claude/skills/` |
 | `pi` | `~/.pi/agent/skills/`, `~/.agents/skills/` | <Badge type="warning" text="only in a project you trusted in pi" /> |
 | `qwen` | `~/.qwen/skills/`, `~/.agents/skills/` | `.qwen/skills/`, `.agents/skills/` |
@@ -148,7 +149,7 @@ each of them is copied into your workspace, where that CLI reads a project's own
 | --- | --- |
 | `claude` | `.claude/skills/` |
 | `cursor-agent` | `.cursor/skills/` |
-| `agy`, `codex`, `grok`, `kimi`, `mcode`, `mimo`, `opencode`, `qwen` | `.agents/skills/` |
+| `agy`, `codex`, `grok`, `kimi`, `mcode`, `mimo`, `omp`, `opencode`, `qwen` | `.agents/skills/` |
 | `dsh`, `pi` | <Badge type="danger" text="none" /> they carry only what you installed |
 
 When the last session using a skill ends, the copy goes, along with any directory that was made

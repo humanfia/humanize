@@ -211,7 +211,7 @@ async def test_an_answer_out_of_shape_is_taken_again() -> None:
 | Schema | CLI (`-a`) |
 | --- | --- |
 | <Badge type="tip" text="enforced" /> | `claude`, `codex`, `agy`, `grok`, `mcode`, `qwen` |
-| <Badge type="info" text="prompted" /> | `cursor-agent`, `dsh`, `kimi`, `mimo`, `opencode`, `pi`, an ACP CLI |
+| <Badge type="info" text="prompted" /> | `cursor-agent`, `dsh`, `kimi`, `mimo`, `omp`, `opencode`, `pi`, an ACP CLI |
 
 A prompted CLI is more likely to answer out of shape, which is one more reason to catch
 `HarnessError` around the turn.

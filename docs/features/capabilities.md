@@ -86,7 +86,7 @@ Most of the map works the same on every CLI. Three things do not:
 | Claude Code | ✓ | ✓ | ✓ |
 | Codex | ✓ | ✓ | ✓ |
 | Kimi Code | ✓ | ✓ | ✓ |
-| pi | ✓ | | ✓ |
+| pi, Oh My Pi | ✓ | | ✓ |
 | DeepSeek Harness | | ✓ | ✓ |
 | Antigravity, Grok Build, MiMo Code, MiniMax Code, opencode, Qwen Code | | | ✓ |
 | Cursor Agent | | | |

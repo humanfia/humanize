@@ -75,6 +75,13 @@ const BACKENDS: Backend[] = [
     note: 'The effort picks the model’s variant. A provider with no variants takes it and ignores it.',
   },
   {
+    cli: 'omp',
+    called: 'Oh My Pi',
+    ladder: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off'],
+    marks: { off: 'no thinking at all' },
+    note: 'Each model takes the rungs omp lists for it, and off, which asks it not to think. A model that does not think takes none: give it auto.',
+  },
+  {
     cli: 'opencode',
     called: 'opencode',
     ladder: VARIANTS,

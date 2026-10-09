@@ -97,7 +97,7 @@ cached on the instance.
 - `backends()`: every coding-agent CLI humanize drives, installed or not, as internal
   `hmz.coganchor.backends.Profile` objects (`.name`, `.aliases`, `.efforts`, `.installs`, …).
   `[p.name for p in Hmz().backends()]` is `['claude', 'agy', 'codex', 'dsh', 'grok', 'kimi',
-  'pi', 'qwen', 'opencode', 'mimo', 'cursor-agent', 'mcode']`.
+  'pi', 'omp', 'qwen', 'opencode', 'mimo', 'cursor-agent', 'mcode', 'litellm']`.
 - `reports()`: starts [error reporting](/user/reporting) where it has been answered *yes*
   (or `HUMANIZE_SENTRY=on`). Returns whether anything is being reported. Never asks.
 

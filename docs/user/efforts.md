@@ -154,8 +154,8 @@ or type any word to see what `-a` makes of it:
 <EffortLadder />
 
 A word that is not on the backend's ladder is refused before anything runs. On Codex, Cursor
-Agent and MiniMax Code each model takes only some of the rungs, and the agent sheet offers each
-model its own.
+Agent, MiniMax Code and Oh My Pi each model takes only some of the rungs, and the agent sheet
+offers each model its own.
 
 ::: details The same ladders, as a table
 
@@ -170,6 +170,7 @@ model its own.
 | `mcode` | `max`, `xhigh`, `high`, `medium`, `low` <Badge type="warning" text="only MiniMax-M3.1-Flash-Preview" /> |
 | `mimo`, `opencode` | `xhigh`, `high`, `medium`, `low`, `minimal`: the model's variant |
 | `pi` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` |
+| `omp` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` <Badge type="warning" text="subset per model" /> |
 | `qwen` | `max`, `xhigh`, `high`, `medium`, `low`, `none` |
 | `agy` | `high`, `medium`, `low` |
 | a CLI added on the Accounts page of `/settings` | any word <Badge type="info" text="not sent" /> |
@@ -190,9 +191,9 @@ hmz exec -f ralph_loop -p budget.cost=5 \
     -a agent=cursor-agent/composer-2.5:auto "fix the build"
 ```
 
-`auto` is not the bottom rung. pi's `off`, DeepSeek Harness's `off` and Qwen Code's `none` ask
-the model not to think at all; `auto` asks nothing. On the agent sheet, a model with no rungs
-shows no effort to pick, and runs as `auto`.
+`auto` is not the bottom rung. The `off` of pi, Oh My Pi and DeepSeek Harness, and Qwen Code's
+`none`, ask the model not to think at all; `auto` asks nothing. On the agent sheet, a model
+with no rungs shows no effort to pick, and runs as `auto`.
 
 ### Kimi's swarm mode
 

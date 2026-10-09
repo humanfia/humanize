@@ -108,7 +108,7 @@ onUnmounted(() => {
         </nav>
 
         <p class="under">
-          Python ≥ 3.12 · 12 agent backends, plus any CLI that speaks ACP · reuses your CLI logins
+          Python ≥ 3.12 · 13 agent backends, plus any CLI that speaks ACP · reuses your CLI logins
         </p>
       </div>
 

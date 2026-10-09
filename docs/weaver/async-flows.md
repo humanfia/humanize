@@ -288,7 +288,7 @@ session's turns that worktree as their `env`.
 
 **A word into a running turn.** To add to a turn that is already going, rather than start a
 second one, `steer` it. That needs a role that declared `SteeringAgentMixin`, which Claude
-Code, Codex, Kimi Code and pi serve. See [Steering](/user/steering).
+Code, Codex, Kimi Code, pi and Oh My Pi serve. See [Steering](/user/steering).
 
 ## Pitfalls
 

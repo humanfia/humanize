@@ -108,10 +108,10 @@ Who answers depends on what is on the screen when you type `/btw`:
 
 - **One conversation's transcript** (`btw · builder/2`): a side copy of that conversation.
   Where its CLI can fork a conversation (Claude Code, Codex, Grok Build, Kimi Code, MiMo Code,
-  opencode, pi, Qwen Code, and a CLI you added that speaks ACP), the copy is a fork and knows
-  everything the conversation knew. Otherwise, or if the fork fails, it is a fresh session of
-  the same agent, given a snapshot of the run and what that role has done lately. This works
-  for a conversation that has ended too, with no flow running.
+  Oh My Pi, opencode, pi, Qwen Code, and a CLI you added that speaks ACP), the copy is a fork
+  and knows everything the conversation knew. Otherwise, or if the fork fails, it is a fresh
+  session of the same agent, given a snapshot of the run and what that role has done lately.
+  This works for a conversation that has ended too, with no flow running.
 - **Every agent's transcript, or the monitor** (`btw · btw agent`): the **btw agent**. It is
   the flow's first agent unless you chose another on the [General page of
   `/settings`](/user/settings#general). It is given a snapshot of the run and the list of

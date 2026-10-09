@@ -114,6 +114,7 @@ const ROWS: Row[] = [
   row('litellm', 'a model, called directly', { schema: Y, fork: ELSEWHERE, rungs: ALL4, trace: Y }),
   row('mcode', 'MiniMax Code', { sub: Y, schema: Y, rungs: NO_RO, trace: Y }),
   row('mimo', 'mimocode', { fork: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('omp', 'Oh My Pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, trace: Y }),
   row('opencode', 'opencode', { fork: Y, web: Y, rungs: ALL4, trace: Y }),
   row('pi', 'pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, trace: Y }),
   row('qwen', 'Qwen Code', { schema: Y, fork: Y, web: Y, rungs: ALL4, trace: Y }),
