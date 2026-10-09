@@ -2,7 +2,7 @@
 // A grant, drawn as the scopes it is made of, and held. The default grant nests three scopes
 // that are files -- `local` ALL (the workdir) inside `user` READ (the rest of your home) inside
 // `system` READ (everything else) -- with `online` ALL beside them. The agent writes
-// `inside.txt` in its workdir and it lands; it writes `/tmp/outside.txt` and the write stops at
+// `inside.txt` in its workdir and it lands; it writes `/srv/outside.txt` and the write stops at
 // the workdir's edge, the wall Landlock (Linux) or Seatbelt (macOS) holds: permission denied.
 // It reads a file outside, and that passes, since those scopes are READ. Then a stricter grant,
 // the one `aot` gives its critic: `local=READ`, `online=NONE`. The write is refused in the
@@ -160,7 +160,7 @@ const L = computed(() => (narrow.value ? NARROW : WIDE))
 const CW = 7.2
 const chipX = (box: Box, name: string) => box.x + 12 + name.length * CW + 8
 const FILE_W = { inside: 80, gitconfig: 92, outside: 118 }
-const FILE_NAME = { inside: 'inside.txt', gitconfig: '~/.gitconfig', outside: '/tmp/outside.txt' }
+const FILE_NAME = { inside: 'inside.txt', gitconfig: '~/.gitconfig', outside: '/srv/outside.txt' }
 const FILES = ['inside', 'gitconfig', 'outside'] as const
 
 const lineD = (k: 'web' | 'model') => curve(L.value.agent, L.value.hosts[k === 'web' ? 'webEnd' : 'modelEnd'], L.value.hosts.bend[k === 'web' ? 0 : 1])
@@ -330,7 +330,7 @@ const scene = useScene({
     :scene="scene"
     :beats="BEATS"
     mobile-ratio="5 / 9"
-    label="The default grant, drawn as scopes. system READ, everything else on the machine, holds user READ, the rest of your home directory, which holds local ALL, the workdir; online ALL sits beside them. The agent writes inside.txt in its workdir and the write lands. It writes /tmp/outside.txt and the write stops at the workdir's edge, the wall Landlock or Seatbelt holds: permission denied, and the file is never made. It reads ~/.gitconfig outside the workdir and the read passes, because user and system are READ. Then the stricter grant aot gives its critic: local READ and online NONE. Now a write to inside.txt is refused too, and the network is cut: web search no longer reaches anything, while the host its model is at is still reached."
+    label="The default grant, drawn as scopes. system READ, everything else on the machine, holds user READ, the rest of your home directory, which holds local ALL, the workdir; online ALL sits beside them. The agent writes inside.txt in its workdir and the write lands. It writes /srv/outside.txt and the write stops at the workdir's edge, the wall Landlock or Seatbelt holds: permission denied, and the file is never made. It reads ~/.gitconfig outside the workdir and the read passes, because user and system are READ. Then the stricter grant aot gives its critic: local READ and online NONE. Now a write to inside.txt is refused too, and the network is cut: web search no longer reaches anything, while the host its model is at is still reached."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

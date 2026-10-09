@@ -493,6 +493,9 @@ command it runs. A flow sets one on every session from the role's `Permission`
 
 - Each scope is a root (`system` is `/`, `user` is `home`, `local` is `workdir` and `cwd`) and
   a level: `read` puts the root in `read`, `all` in `write`, `none` leaves it out.
+- `local="all"` also writes `TEMPORARY` (`/tmp`, `/var/tmp`) and `$TMPDIR` where it is
+  absolute. `user="all"` also writes `/` for any user but root, the files' permissions holding
+  it; for root, `TEMPORARY`, `$TMPDIR` and `/run/user/0`.
 - The levels must nest, `local >= user >= system`: `ValueError: scopes must nest, local >= user
   >= system; got local=read, user=all, system=none`. A level outside `none`/`read`/`all`:
   `ValueError: a scope is one of none, read, all, not 'x'`.
@@ -500,10 +503,11 @@ command it runs. A flow sets one on every session from the role's `Permission`
   `/etc/ssl`, `/etc/ca-certificates`, `/etc/pki`, `/etc/resolv.conf`, `/etc/hosts`,
   `/etc/host.conf`, `/etc/gai.conf`, `/etc/nsswitch.conf`, `/etc/passwd`, `/etc/group`,
   `/etc/localtime`, `/etc/timezone`, `/etc/os-release`, `/etc/ld.so.cache`, `/etc/ld.so.conf`,
-  `/etc/ld.so.conf.d`, `/etc/alternatives`, `/proc`, `/sys`, and the Python running humanize.
+  `/etc/ld.so.conf.d`, `/etc/alternatives`, `/sys`, and the Python running humanize.
 - Always added to `write`: `/dev/null`, `/dev/zero`, `/dev/full`, `/dev/random`,
-  `/dev/urandom`, `/dev/tty`, `/dev/pts`, `/dev/ptmx`, `/dev/shm`, every `/dev/nvidia*`,
-  `/dev/dri`, `/dev/kfd`.
+  `/dev/urandom`, `/dev/tty`, `/dev/pts`, `/dev/ptmx`, `/dev/shm`, `/proc` (a thread named by
+  another is named through `/proc/self/task/<tid>/comm`, which CUDA's `cuInit` does), every
+  `/dev/nvidia*`, `/dev/dri`, `/dev/kfd`, `/dev/infiniband`.
 
 The agent widens the fence where it spawns a turn (`agent.fenced()`): its CLI's state and
 sign-in directories and its session directory to write, and on macOS `~/Library/Keychains`,

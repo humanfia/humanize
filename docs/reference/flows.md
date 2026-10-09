@@ -516,14 +516,18 @@ A permission reaches a session twice: as a **fence** around the CLI's process tr
 **rung** of the CLI's own approval ladder.
 
 **The fence.** `system` is `/`, `user` is the home directory, `local` is the workdir. `READ`
-allows reading a scope, `ALL` reading and writing, `NONE` neither. Independently of the scopes,
-the CLI may:
+allows reading a scope, `ALL` reading and writing, `NONE` neither. `local` `ALL` also writes
+`/tmp`, `/var/tmp` and an absolute `$TMPDIR`, as Codex's `workspace-write` does. `user` `ALL`
+writes whatever the user may change: all of `/`, held by the files' own permissions, except
+for root, which gets those temporary directories and `/run/user/0` and keeps the rest at
+`system`. Independently of the scopes, the CLI may:
 
-- read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/proc`,
-  `/sys` (on macOS `/System` and `/private/var/select` instead of `/lib*`, `/proc` and
-  `/sys`), its own programs and install trees, and the Python running humanize;
-- write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU nodes; on macOS
-  `/dev/ttys*`), its own state and sign-in directories (on macOS also the login keychain,
+- read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/sys`
+  (on macOS `/System` and `/private/var/select` instead of `/lib*` and `/sys`), its own
+  programs and install trees, and the Python running humanize;
+- write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU and RDMA nodes;
+  on macOS `/dev/ttys*`), `/proc` on Linux (CUDA names a thread through
+  `/proc/self/task/<tid>/comm` as it starts), its own state and sign-in directories (on macOS also the login keychain,
   `~/Library/Keychains`), the directory its sessions are kept in, and a private scratch
   directory that is its `TMPDIR`. `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `npm_config_cache`,
   `PIP_CACHE_DIR` and `GOCACHE` are pointed into that directory where the fence would not let
@@ -531,8 +535,8 @@ the CLI may:
 
 `online` `NONE` cuts the network except to the hosts the CLI's model and sign-in are at
 (read under the session's account, so a gateway the account points at is included). The
-default permission is a real fence: the workdir and the minimum above are writable, the rest
-readable.
+default permission is a real fence: the workdir, the temporary directories and the minimum
+above are writable, the rest readable.
 
 A CLI that can enforce part of the fence itself is configured to. The rest is enforced from
 outside by `hmz internal fence`: on Linux, Landlock for paths and TCP, a seccomp filter
@@ -548,7 +552,8 @@ with [`HarnessSandboxed`](#harnesssandboxed) when it opens:
 | Linux < 6.7 | `online` `NONE` |
 | wrapper cannot trace its children (a container's default seccomp profile; Yama `ptrace_scope` 2 or 3) | `online` `NONE` |
 
-Only `local`, `user`, `system` all `ALL` with `online` `ALL` fences nothing.
+`local`, `user`, `system` all `ALL` with `online` `ALL` fences nothing, and so does `user`
+`ALL` with `online` `ALL` for anyone but root.
 
 With the network cut on Linux, a program may listen on loopback only (`127.0.0.0/8`, `::1`,
 IPv4 loopback mapped into IPv6). A `bind` elsewhere, and a `listen` on a socket bound

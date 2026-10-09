@@ -85,8 +85,10 @@ def test_drawn_grants_the_levels_around_the_targets_own_paths(tmp_path: Path) ->
     fence = drawn(said, workdirs=["/srv/work"], home=str(home))
 
     assert fence.allows("/srv/work/a.py", write=True)
-    assert fence.allows(home / "notes.txt")
-    assert not fence.allows(home / "notes.txt", write=True)
+    # Drawn as the home rather than asked of a path in it, `tmp_path` being under /tmp,
+    # which a workdir of ALL writes.
+    assert str(home) in fence.read
+    assert str(home) not in fence.write
     assert fence.allows(home / ".cli" / "state", write=True)
     assert not fence.online
     assert fence.hosts == ("api.example.com",)

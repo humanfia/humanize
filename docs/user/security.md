@@ -133,8 +133,12 @@ What that comes to in practice:
 
 - **Every scope is enforced** on the agent and on every command it runs, by Landlock on
   Linux and by Seatbelt on macOS. An agent at the default writes its working directory and nothing else of yours:
-  its CLI's own settings, login and sessions, and a temporary directory of its own. On
-  macOS its login includes the login keychain, which is where Claude Code keeps it.
+  its CLI's own settings, login and sessions, a temporary directory of its own, the
+  shared `/tmp` and `/var/tmp`, the devices, and on Linux `/proc`. On macOS its login
+  includes the login keychain, which is where Claude Code keeps it.
+- **`user` of `ALL`** lets an agent change whatever your user account may change, anywhere
+  on the machine, the file permissions being what hold it; run as root, the rest of the
+  machine stays at `system`.
 - **A read-only role** (`local` of `READ` or `NONE`) also runs in its CLI's read-only mode.
 - **`online` of `NONE`** cuts the network, except the hosts the agent's model and login are
   at. The CLI's web tools are switched off too, where it can be told.
