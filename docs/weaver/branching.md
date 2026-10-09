@@ -259,6 +259,39 @@ await asyncio.gather(
 )
 ```
 
+**Carry a conversation on in a later run.** A fork is cut from a session this run holds. To
+branch from a point a run reached and then went past -- an experiment that replays several arms
+from each boundary of an earlier run, say -- write the session into a [resumable
+flow's](/reference/flows#a-flow-that-can-be-picked-up) state at that point. The state keeps the
+conversation as it stands then, and each run picking this one up reads back a new session
+carrying it on from there:
+
+```python
+@flow(agents=Agents, envs=Envs, params=Params, resumable=True)
+async def arms(task, *, agents, envs, params, ctx):
+    agent = agents["agent"]
+    if not ctx.resumed:
+        session = await agent.spawn()
+        await agent.run(task, session=session, env=envs["workspace"])
+        ctx.state["boundary"] = session  # ①
+        await agent.run("go on", session=session, env=envs["workspace"])
+        return
+    again: Session = ctx.state["boundary"]  # ②
+    await agent.run(params.arm, session=again, env=envs["workspace"])
+```
+
+1. **Kept as it stands now**: what the session is told afterwards is not in what was kept.
+2. **A new session** of the same role, every time it is read, whose first turn forks the kept
+   conversation. Run `hmz exec --resume -p arm=…` once per arm, each a run of its own: an arm
+   that writes nothing to the state leaves the kept session in the run the next arm picks up.
+   To pick a given run up, name its epic: `Hmz().run(…, resume=<epic>)`, or *resume run* on
+   `/epics`.
+
+Only a CLI that forks can be carried on this way, on this machine, and on the harness that kept
+it; [Sessions in state](/reference/flows#sessions-in-state) lists what is refused. Where a run
+keeps no sessions of its own (macOS, `HUMANIZE_SESSIONS=off`), a conversation the CLI's home has
+gone on with past the kept point is refused rather than put back.
+
 **Fork or derive?** They sound alike and do opposite things:
 
 | | Gives you | Carries the history? |

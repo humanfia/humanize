@@ -41,7 +41,9 @@ type BoundHook = Callable[[SessionHandle, dict[str, Any]], Awaitable[HookResult]
 def default_result(kind: HookKind) -> HookResult: ...
 class HookTable:  # set / get / `in` / async fire(kind, handle, /, **fields)
 class HookBridge:  # here() / call(make, *, default) / abandon() / close()
-class SessionHandle(Protocol): ...  # id, usage, turn, move, steer, interrupt, close
+@dataclass(frozen=True, slots=True)
+class Kept: ...  # harness, id, at: a conversation a session kept, copied
+class SessionHandle(Protocol): ...  # id, usage, keep, turn, move, steer, interrupt, close
 class AgentDriver(Protocol): ...  # harness, model, effort, provider, capabilities, open, close
 class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, resources, exec,
                                # read, write, derive_*, destroy_*, snapshot, rewind,
@@ -191,6 +193,7 @@ def digest(ref: str, task: str, roles: list[str], params: bytes) -> str: ...
 class Journal:  # opened(path, loop, *, resume) -> (Journal, Past | None); close()
 class Past: ...
 class FlowStateImpl: ...  # answers to FlowState
+SESSIONS = "sessions"  # beside the journal: what sessions in state are kept beside
 
 # loading.py -- what a ref names
 class Ref:
@@ -459,6 +462,18 @@ def under() -> Path: ...  # machine()/skills
   resumption through to its callees, and MUST have no state.
 - `FlowState` MUST refuse what JSON cannot hold with `StateNotSerializable`, and MUST keep what
   JSON gives back, so that a fresh run and a resumed one read the same.
+- A session written into a call's state MUST be one of that call's agents', and MUST have its
+  conversation copied as the write is made -- by its driver, only that conversation's files,
+  into a directory of its own under `sessions/<cli>/.kept/` beside the journal, or under a
+  temporary directory removed with a run that keeps none -- and refused (`StateNotSerializable`) before
+  anything is written down where it has taken no turn, a turn of it is under way, it is over,
+  or its harness cannot fork, keeps it on another machine, or keeps it as no files. Each read
+  of it MUST be a new session of the call's agent of its role, whose first turn opens it as a
+  fork of that copy: refused there, before the harness is started or anything is copied, where
+  the harness did not keep it, cannot fork, or the turn works on another machine, and where
+  the copy is gone or the run holds a different copy of the conversation already; until a turn
+  has named it, a move MUST cut it from that copy again. One read back and written again
+  before a turn MUST be written down as what it carries on, copying nothing.
 
 ### Refs and loading
 

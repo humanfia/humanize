@@ -78,6 +78,10 @@ CACHES: Final = {
 #: run, which a fence that could not be put up is.
 _UNFENCED: Final = 126
 
+#: macOS's `confstr` selector for its per-user cache, from `<unistd.h>`; Python does not
+#: expose its symbolic name. Security.framework keeps its module database beneath it.
+_DARWIN_USER_CACHE_DIR: Final = 65538
+
 #: `prctl`'s option for the signal a process is sent when its parent dies.
 _PR_SET_PDEATHSIG: Final = 1
 
@@ -211,8 +215,14 @@ def _seatbelted(fence: Fence, argv: Sequence[str]) -> int:
         if proxy is not None:
             proxy.start()
         port = proxy.port if proxy is not None else None
+        security: tuple[str, ...] = ()
+        with contextlib.suppress(OSError, ValueError):
+            if cache := os.confstr(_DARWIN_USER_CACHE_DIR):
+                # Native TLS needs the module database's lock writable even when the
+                # program only reads the keychains. Denied, TLS reports a bad certificate.
+                security = (str(Path(cache, "mds")),)
         profile = seatbelt.Profile(
-            read=fence.read, write=(*fence.write, tmp), port=port
+            read=fence.read, write=(*fence.write, tmp, *security), port=port
         )
         pid = os.posix_spawn(
             seatbelt.SANDBOX_EXEC,

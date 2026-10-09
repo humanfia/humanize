@@ -8,7 +8,9 @@ classes' own, whatever the backend.
 from __future__ import annotations
 
 import gc
+import json
 import os
+import stat
 import time
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, ClassVar, NoReturn
@@ -20,6 +22,7 @@ from hmz.coganchor.agents import AcpAgentConfig, ClaudeCodeAgentConfig
 from hmz.coganchor.agents.allowance import Allowance, Ledger
 from hmz.coganchor.agents.base import (
     KEEPING,
+    KEPT,
     WINDOW,
     AgentBase,
     CommandSessionBase,
@@ -718,6 +721,266 @@ def test_a_fork_into_another_directory_needs_a_backend_that_can(tmp_path: Path) 
     parent("one")
     with pytest.raises(NotImplementedError, match="another directory"):
         parent.fork(cwd=tmp_path)
+
+
+# -- a conversation kept elsewhere, carried on -----------------------------------------
+
+
+class _Run:
+    """What a run is to an agent it drives: where it keeps sessions, and what it writes down."""
+
+    def __init__(self, keeps: Path) -> None:
+        self.at = keeps
+        self.said: list[tuple[str, str]] = []
+
+    @property
+    def keeps(self) -> Path:
+        return self.at
+
+    def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
+        del agent
+        self.said.append((session, parent))
+
+
+@pytest.fixture
+def supervised(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A machine whose turns are supervised, so a run keeps its agents' sessions itself."""
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: True)
+    monkeypatch.delenv(KEEPING, raising=False)
+
+
+#: What the Claude conversation `_claude_kept` keeps was told.
+TOLD = '{"said": "the codeword is papaya"}\n'
+
+
+def _claude_kept(at: Path) -> Path:
+    """A Claude conversation as a run kept it, beside one of somebody else's."""
+    project = at / "projects" / "-where-it-was-had"
+    (project / "told" / "subagents").mkdir(parents=True)
+    (project / "told.jsonl").write_text(TOLD)
+    (project / "told.jsonl").chmod(0o600)
+    (project / "told" / "subagents" / "agent-1.jsonl").write_text("{}\n")
+    (project / "somebody-else.jsonl").write_text("{}\n")
+    return project
+
+
+@pytest.mark.usefixtures("supervised")
+def test_a_recalled_conversation_is_brought_in_as_a_fork_of_it_takes_its_first_turn(
+    tmp_path: Path,
+) -> None:
+    """Copied where it sat, as the fork's first turn starts and not before, and left as it was.
+
+    Not before: a run attaches itself to the agent after the session is made, and settles
+    only then where the agent keeps its sessions.
+    """
+    project = _claude_kept(tmp_path / "snapshot")
+    agent = Scripted(backend="claude", script=_forking())
+    child = agent.recall("told", tmp_path / "snapshot", tmp_path).fork()
+    run = _Run(tmp_path / "epic")
+    agent.epic = run
+    assert not run.at.exists()
+    assert child.named is None
+
+    child("what was the codeword?")
+
+    assert agent.kept() == run.at / "claude"
+    brought = run.at / "claude" / "projects" / "-where-it-was-had"
+    assert (brought / "told.jsonl").read_text() == TOLD
+    assert stat.S_IMODE((brought / "told.jsonl").stat().st_mode) == 0o600
+    assert (brought / "told" / "subagents" / "agent-1.jsonl").is_file()
+    assert not (brought / "somebody-else.jsonl").exists()
+    assert (project / "told.jsonl").read_text() == TOLD
+    assert child.id != "told"
+    assert run.said == [(child.id, "told")]
+    assert agent.opened == [child.id]
+
+
+@pytest.mark.usefixtures("supervised")
+def test_a_conversation_cut_from_another_is_recalled_with_its_whole_line(
+    tmp_path: Path,
+) -> None:
+    """Codex reads a thread forked from another back only with that other beside it."""
+    day = tmp_path / "snapshot" / "sessions" / "2026" / "10" / "03"
+    day.mkdir(parents=True)
+
+    def rollout(ident: str, parent: str = "") -> str:
+        meta = {"id": ident, **({"forked_from_id": parent} if parent else {})}
+        name = f"rollout-2026-10-03T00-00-00-{ident}.jsonl"
+        (day / name).write_text(json.dumps({"type": "session_meta", "payload": meta}))
+        return name
+
+    line = {rollout("first"), rollout("second", "first"), rollout("third", "second")}
+    rollout("somebody-else")
+    agent = Scripted(backend="codex", script=_forking())
+    child = agent.recall("third", tmp_path / "snapshot").fork()
+    agent.epic = _Run(tmp_path / "epic")
+
+    child("go on")
+
+    brought = tmp_path / "epic" / "codex" / "sessions" / "2026" / "10" / "03"
+    assert {path.name for path in brought.iterdir()} == line
+
+
+@pytest.mark.usefixtures("supervised")
+def test_a_first_turn_that_could_not_bring_the_conversation_in_tries_again(
+    tmp_path: Path,
+) -> None:
+    _claude_kept(tmp_path / "snapshot")
+    (tmp_path / "taken").write_text("a file, where the run's directory would be")
+    agent = Scripted(backend="claude", script=_forking())
+    child = agent.recall("told", tmp_path / "snapshot").fork()
+    run = _Run(tmp_path / "taken" / "epic")
+    agent.epic = run
+
+    with pytest.raises(NotADirectoryError):
+        child("one")
+    run.at = tmp_path / "epic"
+    child("two")
+
+    brought = run.at / "claude" / "projects" / "-where-it-was-had"
+    assert (brought / "told.jsonl").read_text() == TOLD
+    assert run.said == [(child.id, "told")]
+
+
+@pytest.mark.usefixtures("supervised")
+def test_one_copy_is_brought_in_for_every_fork_carrying_it_on(tmp_path: Path) -> None:
+    _claude_kept(tmp_path / "snapshot")
+    agent = Scripted(backend="claude", script=_forking())
+    run = _Run(tmp_path / "epic")
+    agent.epic = run
+    first = agent.recall("told", tmp_path / "snapshot").fork()
+    second = agent.recall("told", tmp_path / "snapshot").fork()
+
+    first("one way")
+    second("another")
+
+    brought = run.at / "claude" / "projects" / "-where-it-was-had"
+    assert (brought / "told.jsonl").read_text() == TOLD
+    assert run.said == [(first.id, "told"), (second.id, "told")]
+
+
+#: What the conversation `_claude_kept` keeps went on to be told, after that copy was taken.
+LATER = TOLD + '{"said": "forget the codeword"}\n'
+
+
+@pytest.mark.parametrize("keeping", ["the run", "the CLI's own home"])
+def test_a_conversation_kept_otherwise_where_it_is_brought_in_is_left_as_it_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, keeping: str
+) -> None:
+    """Another copy is the run's own, or the user's, and is refused before any is copied."""
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.supervises", lambda: True)
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "home"))
+    if keeping == "the run":
+        monkeypatch.delenv(KEEPING, raising=False)
+        into = tmp_path / "epic" / "claude"
+    else:
+        monkeypatch.setenv(KEEPING, "off")
+        into = tmp_path / "home"
+    _claude_kept(tmp_path / "snapshot")
+    held = into / "projects" / "-where-it-was-had" / "told.jsonl"
+    held.parent.mkdir(parents=True)
+    held.write_text(LATER)
+    agent = Scripted(backend="claude", script=_forking())
+    child = agent.recall("told", tmp_path / "snapshot").fork()
+    run = _Run(tmp_path / "epic")
+    agent.epic = run
+
+    with pytest.raises(RuntimeError, match="another copy of conversation told is kept"):
+        child("what was the codeword?")
+
+    assert agent.kept() == into
+    assert held.read_text() == LATER
+    assert not (held.parent / "told").exists(), "nothing of it copied"
+    assert run.said == []
+
+
+@pytest.mark.usefixtures("supervised")
+def test_a_conversation_kept_as_it_stands_is_recalled_from_there(
+    tmp_path: Path,
+) -> None:
+    """Only its own files, laid out as they sat, and recalled as they were when kept."""
+    agent = Scripted(backend="claude", script=_forking())
+    agent.epic = _Run(tmp_path / "epic")
+    session = agent.new(tmp_path)
+    session("the codeword is papaya")
+    home = agent.kept()
+    assert home is not None
+    project = home / "projects" / "-where-it-was-had"
+    project.mkdir(parents=True)
+    (project / f"{session.id}.jsonl").write_text(TOLD)
+    (project / "somebody-else.jsonl").write_text("{}\n")
+
+    session.keep(tmp_path / "snapshot")
+    (project / f"{session.id}.jsonl").write_text(LATER)
+
+    kept = tmp_path / "snapshot" / "projects" / "-where-it-was-had"
+    assert sorted(one.name for one in kept.iterdir()) == [f"{session.id}.jsonl"]
+    assert (kept / f"{session.id}.jsonl").read_text() == TOLD
+    later = Scripted(backend="claude", script=_forking())
+    later("a conversation of its own first, so that the fork is not named s-1 too")
+    child = later.recall(session.id, tmp_path / "snapshot").fork()
+    later.epic = _Run(tmp_path / "later")
+    child("what was the codeword?")
+    brought = later.kept()
+    assert brought is not None
+    assert (
+        brought / "projects" / "-where-it-was-had" / f"{session.id}.jsonl"
+    ).read_text() == TOLD
+
+
+@pytest.mark.usefixtures("supervised")
+def test_what_is_kept_beside_a_clis_sessions_is_no_conversation_of_them(
+    tmp_path: Path,
+) -> None:
+    """A copy kept under `.kept` holds the id too, and is no file of the conversation."""
+    agent = Scripted(backend="claude", script=_forking())
+    agent.epic = _Run(tmp_path / "epic")
+    session = agent.new(tmp_path)
+    session("the codeword is papaya")
+    home = agent.kept()
+    assert home is not None
+    project = home / "projects" / "-where-it-was-had"
+    project.mkdir(parents=True)
+    (project / f"{session.id}.jsonl").write_text(TOLD)
+    session.keep(home / KEPT / "first")
+
+    session.keep(tmp_path / "second")
+
+    kept = sorted(
+        one.relative_to(tmp_path / "second").as_posix()
+        for one in (tmp_path / "second").rglob("*")
+        if one.is_file()
+    )
+    assert kept == [f"projects/-where-it-was-had/{session.id}.jsonl"]
+
+
+def test_a_conversation_is_kept_only_once_it_is_one(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="has not run a turn"):
+        Scripted(backend="claude", script=_forking()).new().keep(tmp_path)
+    session = Scripted(script=_forking()).new()
+    session("hello")
+    with pytest.raises(NotImplementedError, match="no way of carrying"):
+        session.keep(tmp_path)
+
+
+@pytest.mark.usefixtures("supervised")
+def test_a_conversation_nothing_kept_is_not_kept(tmp_path: Path) -> None:
+    agent = Scripted(backend="claude", script=_forking())
+    agent.epic = _Run(tmp_path / "epic")
+    session = agent.new(tmp_path)
+    session("hello")
+    with pytest.raises(RuntimeError, match=f"no conversation {session.id} under"):
+        session.keep(tmp_path / "snapshot")
+    assert not (tmp_path / "snapshot").exists()
+
+
+def test_a_conversation_is_recalled_only_from_where_it_was_kept(tmp_path: Path) -> None:
+    _claude_kept(tmp_path / "snapshot")
+
+    with pytest.raises(RuntimeError, match="no conversation another under"):
+        Scripted(backend="claude").recall("another", tmp_path / "snapshot")
+    with pytest.raises(NotImplementedError, match="no way of carrying"):
+        Scripted().recall("told", tmp_path / "snapshot")
 
 
 # -- goals -----------------------------------------------------------------------------

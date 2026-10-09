@@ -8,6 +8,7 @@ it, and the turn read back out of what it wrote.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +26,7 @@ from hmz.coganchor.agents import (
     Question,
     Verdict,
 )
+from hmz.coganchor.agents.base import KEEPING
 from hmz.coganchor.fence import Fence
 from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner, offering
 
@@ -60,6 +62,8 @@ class _Claude:
             if "--session-id" in proc.args
             else _flag(proc.args, "--resume")
         )
+        if "--fork-session" in proc.args:
+            session = f"{session}-forked"
         proc.say(
             {
                 "type": "system",
@@ -634,3 +638,65 @@ def test_reconfiguring_starts_a_process_at_the_new_settings(
 def test_it_enforces_no_part_of_a_fence_itself() -> None:
     held = Fence(read=("/a",), write=("/b",), online=False)
     assert _agent().natively(held) is held
+
+
+# -- a conversation kept elsewhere, carried on -----------------------------------------
+
+
+@pytest.fixture
+def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Claude's own home, which is where its sessions are kept by an agent no run keeps."""
+    at = tmp_path / "home"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(at))
+    monkeypatch.setenv(KEEPING, "off")
+    return at
+
+
+def _transcript(kept: Path, cwd: Path) -> Path:
+    """Where Claude keeps conversation `told` had in `cwd`, under `kept`."""
+    return kept / "projects" / re.sub(r"[^a-zA-Z0-9]", "-", str(cwd)) / "told.jsonl"
+
+
+def _kept(at: Path, cwd: Path, said: str) -> Path:
+    """A copy of conversation `told`, had in `cwd`, as Claude lays out its home."""
+    transcript = _transcript(at, cwd)
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text(said)
+    return at
+
+
+def test_a_recalled_conversation_is_forked_as_carried_on_in_another_directory(
+    spawner: Spawner, claude: _Claude, home: Path, tmp_path: Path
+) -> None:
+    """From the copy brought in, and never from one an earlier fork left there."""
+    had, there = tmp_path / "had", tmp_path / "there"
+    there.mkdir()
+    snapshot = _kept(tmp_path / "snapshot", had, "the word is papaya\n")
+    _kept(home, there, "an older copy\n")
+
+    _agent().recall("told", snapshot, there).fork()("what was the word?")
+
+    argv = spawner.last.args
+    assert (_flag(argv, "--resume"), "--fork-session" in argv) == ("told", True)
+    assert spawner.last.cwd == str(there)
+    assert _transcript(home, had).read_text() == "the word is papaya\n"
+    assert _transcript(home, there).read_text() == "the word is papaya\n"
+    assert _transcript(snapshot, had).read_text() == "the word is papaya\n"
+
+
+def test_a_second_copy_of_a_conversation_is_refused_where_the_first_was_brought_in(
+    spawner: Spawner, claude: _Claude, home: Path, tmp_path: Path
+) -> None:
+    had, there = tmp_path / "had", tmp_path / "there"
+    there.mkdir()
+    early = _kept(tmp_path / "early", had, "one\n")
+    late = _kept(tmp_path / "late", had, "one\ntwo\n")
+    agent = _agent()
+    agent.recall("told", early, there).fork()("go on")
+
+    with pytest.raises(RuntimeError, match="another copy of conversation told"):
+        agent.recall("told", late, there).fork()("go on")
+
+    assert len(spawner.started) == 1
+    assert _transcript(home, had).read_text() == "one\n"
+    assert _transcript(home, there).read_text() == "one\n"

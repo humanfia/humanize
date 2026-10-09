@@ -34,6 +34,13 @@ of ten thousand calls from being ten thousand writes. The file is synced when th
 
 Resuming rewrites the journal once, compacted: every call, the state it ended with, its end,
 its sessions and its temporary directories, and nothing of how the state got there.
+
+A session written into a flow's state is kept as its conversation stood then: copied, by its
+driver, into a directory of its own beside its CLI's sessions in `sessions/` beside the
+journal, and written
+down as an object of one key, :data:`SESSION`, saying which harness had it, what it called it,
+where the copy is and which of the call's agents it was a session of. That is what a read
+of it -- in this run, or one picking it up -- makes a new session carrying the copy on from.
 """
 
 from __future__ import annotations
@@ -45,7 +52,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 import pydantic_core
 
@@ -56,7 +63,15 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-__all__ = ["FlowStateImpl", "Journal", "Past", "digest"]
+__all__ = [
+    "SESSION",
+    "SESSIONS",
+    "Conversations",
+    "FlowStateImpl",
+    "Journal",
+    "Past",
+    "digest",
+]
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +80,35 @@ VERSION = 1
 
 #: How long a record other than a state write may wait to be written, in seconds.
 BATCH = 0.1
+
+#: Where the run keeps its sessions, beside the journal: what a session a flow's state keeps
+#: is copied beside, under its CLI's.
+SESSIONS = "sessions"
+
+#: The one key of what a session in a flow's state is written down as: a key no JSON a flow
+#: writes down has, since no flow names a key with a NUL in it.
+SESSION = "\x00session"
+
+#: :data:`SESSION` as it reads in a value written down, which is how a write is told to hold
+#: one without looking through the value.
+_SAID = json.dumps(SESSION).encode()[1:-1]
+
+
+class Conversations(Protocol):
+    """What turns the sessions in one flow call's state into what it writes down, and back."""
+
+    def kept(self, value: object) -> dict[str, Any]:
+        """A session of the call's, as it is written down: its conversation kept as it stands.
+
+        Raises:
+          TypeError: If `value` is no session, which JSON has no shape for either.
+          StateNotSerializable: If it is a session that cannot be kept.
+        """
+        ...
+
+    def carried(self, said: dict[str, Any]) -> Any:
+        """A new session carrying on what one written down as `said` kept."""
+        ...
 
 
 def digest(ref: str, task: str, roles: list[str], params: bytes) -> str:
@@ -179,15 +223,20 @@ def _read(path: Path) -> Past:
     return past
 
 
-def _dumped(value: Any) -> bytes:
-    """A value as JSON, the way a state write is written.
+def _dumped(value: Any, conversations: Conversations | None = None) -> bytes:
+    """A value as JSON, the way a state write is written, sessions kept by `conversations`.
 
     Raises:
-      StateNotSerializable: For anything JSON has no shape for.
+      StateNotSerializable: For anything JSON has no shape for, and a session that cannot
+        be kept.
     """
     try:
         return json.dumps(
-            value, ensure_ascii=False, separators=(",", ":"), allow_nan=True
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=True,
+            default=None if conversations is None else conversations.kept,
         ).encode()
     except (TypeError, ValueError, RecursionError) as error:
         raise StateNotSerializable(
@@ -357,29 +406,52 @@ class FlowStateImpl:
     string -- so a flow reads the same thing from a fresh run as from a resumed one; and
     what is kept is a copy, so changing the value written afterwards changes nothing kept.
     Without a journal -- a resumable flow in a run that is not -- it is kept in memory only.
+
+    A session in a value is kept the same way, by `conversations`: its conversation as it
+    stood when written, which every read -- in this run, or one picking it up -- answers
+    with a new session carrying on from there.
     """
 
-    __slots__ = ("_held", "_jid", "_journal")
+    __slots__ = ("_carrying", "_conversations", "_held", "_jid", "_journal")
 
-    def __init__(self, held: dict[str, Any], journal: Journal | None, jid: int) -> None:
+    def __init__(
+        self,
+        held: dict[str, Any],
+        journal: Journal | None,
+        jid: int,
+        conversations: Conversations | None = None,
+    ) -> None:
         """Holds a flow's state, written down against its call in a journal, if any."""
         self._held = held
         self._journal = journal
         self._jid = jid
+        self._conversations = conversations
+        #: The keys whose values hold a session, which are the only ones a read looks
+        #: through.
+        self._carrying = {key for key, value in held.items() if _holds(value)}
 
     def __getitem__(self, key: str) -> Any:
-        return self._held[key]
+        value = self._held[key]
+        conversations = self._conversations
+        if key not in self._carrying or conversations is None:
+            return value
+        return _carried(value, conversations)
 
     def __setitem__(self, key: str, value: Any) -> None:
         if not isinstance(key, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise StateNotSerializable(f"a state key is a string, not {key!r}")
-        said = _dumped(value)
+        said = _dumped(value, self._conversations)
         self._held[key] = json.loads(said)
+        if _SAID in said:
+            self._carrying.add(key)
+        else:
+            self._carrying.discard(key)
         if self._journal is not None:
             self._journal.set(self._jid, key, said)
 
     def __delitem__(self, key: str) -> None:
         del self._held[key]
+        self._carrying.discard(key)
         if self._journal is not None:
             self._journal.delete(self._jid, key)
 
@@ -394,7 +466,29 @@ class FlowStateImpl:
 
     def get(self, key: str, default: Any = None) -> Any:
         """The value kept under `key`, or `default`."""
-        return self._held.get(key, default)
+        return self[key] if key in self._held else default
 
     def __repr__(self) -> str:
         return f"FlowState({self._held!r})"
+
+
+def _holds(value: Any) -> bool:
+    """Whether a value read back from JSON holds a session written down."""
+    if isinstance(value, dict):
+        said: dict[str, Any] = value  # pyright: ignore[reportUnknownVariableType]
+        return (len(said) == 1 and SESSION in said) or any(map(_holds, said.values()))
+    if isinstance(value, list):
+        return any(map(_holds, value))  # pyright: ignore[reportUnknownArgumentType]
+    return False
+
+
+def _carried(value: Any, conversations: Conversations) -> Any:
+    """A value read back from JSON, every session written down in it a new one."""
+    if isinstance(value, dict):
+        said: dict[str, Any] = value  # pyright: ignore[reportUnknownVariableType]
+        if len(said) == 1 and SESSION in said:
+            return conversations.carried(said[SESSION])
+        return {key: _carried(one, conversations) for key, one in said.items()}
+    if isinstance(value, list):
+        return [_carried(one, conversations) for one in value]  # pyright: ignore[reportUnknownVariableType]
+    return value

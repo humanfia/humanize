@@ -11,7 +11,13 @@ import pytest
 from hmz.coganchor import atomic
 from hmz.flows import StateNotSerializable
 from hmz.runtime.flowing import journaling
-from hmz.runtime.flowing.journaling import FlowStateImpl, Journal, Past, digest
+from hmz.runtime.flowing.journaling import (
+    SESSION,
+    FlowStateImpl,
+    Journal,
+    Past,
+    digest,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -247,3 +253,78 @@ async def test_state_writes_land_in_the_journal(tmp_path: Path) -> None:
         {"t": "set", "id": 5, "key": "note", "value": "é"},
         {"t": "del", "id": 5, "key": "round"},
     ]
+
+
+class Session:
+    """A session, as far as a flow's state is concerned."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+class Conversations:
+    """Keeps a :class:`Session` as its name, and reads one back as a new one."""
+
+    def __init__(self) -> None:
+        self.read: list[str] = []
+
+    def kept(self, value: object) -> dict[str, Any]:
+        if not isinstance(value, Session):
+            raise TypeError(f"{value!r} is no session")
+        return {SESSION: {"name": value.name}}
+
+    def carried(self, said: dict[str, Any]) -> Session:
+        self.read.append(said["name"])
+        return Session(said["name"])
+
+
+async def test_a_session_in_state_is_written_down_and_read_back_as_a_new_one(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "run.jsonl"
+    journal, _ = Journal.opened(path, asyncio.get_running_loop(), resume=False)
+    conversations = Conversations()
+    state = FlowStateImpl({}, journal, 5, conversations)
+    one = Session("one")
+
+    state["at"] = {"round": 1, "sessions": [one, "not one"]}
+    state["plain"] = {"round": 2}
+    first, second = state["at"]["sessions"][0], state.get("at")["sessions"][0]
+    journal.close()
+
+    assert (first.name, second.name) == ("one", "one")
+    assert first is not one
+    assert first is not second
+    assert state["plain"] == {"round": 2}
+    assert conversations.read == ["one", "one"]
+    assert lines(path)[1]["value"] == {
+        "round": 1,
+        "sessions": [{SESSION: {"name": "one"}}, "not one"],
+    }
+
+
+def test_a_key_written_over_with_no_session_reads_back_as_written() -> None:
+    conversations = Conversations()
+    state = FlowStateImpl({}, None, 0, conversations)
+    state["s"] = Session("one")
+    state["s"] = {SESSION: "a flow's own", "and": "more"}
+
+    assert state["s"] == {SESSION: "a flow's own", "and": "more"}
+    del state["s"]
+    state["s"] = 1
+    assert state["s"] == 1
+    assert conversations.read == []
+
+
+def test_a_session_held_from_a_journal_is_read_back_as_one() -> None:
+    conversations = Conversations()
+    state = FlowStateImpl({"s": [{SESSION: {"name": "kept"}}]}, None, 0, conversations)
+
+    assert [one.name for one in state["s"]] == ["kept"]
+
+
+def test_a_value_no_conversations_keep_is_refused_as_json_refuses_it() -> None:
+    state = FlowStateImpl({}, None, 0, Conversations())
+
+    with pytest.raises(StateNotSerializable, match="no session"):
+        state["s"] = object()

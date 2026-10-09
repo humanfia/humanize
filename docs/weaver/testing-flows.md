@@ -377,6 +377,7 @@ next. `model=`, `effort=` and `provider=` set what it reports about itself.
 | `session.tools` | each tool its replies reached for, with the input, and whether it was allowed |
 | `session.placement.workdir` | where it worked |
 | `session.closed`, `session.forked_from` | whether it is over, and the session it was forked from |
+| `session.carried_on` | the conversation it carries on, read back from a flow's state, or `None`: its `id` is the session that was kept, and its prompts start with what that one had been told when it was kept |
 
 ## Script the workspace
 
@@ -615,6 +616,12 @@ async def test_it_picks_up_what_it_owed(tmp_path: Path) -> None:
 The first run is stopped by its budget right after the review, with `owed` saved. The second
 picks it up and hands the owed notes to a fresh actor first. The flows it
 [calls](/weaver/calling-flows) are picked up the same way.
+
+A [session written into the state](/reference/flows#sessions-in-state) is picked up too: a fake
+keeps what its session had been told when it was written, in a file beside the journal, and the
+session read back in the later run starts from that. A fake refuses what a real CLI would: a
+harness that cannot fork or keeps no files (`opencode`, `mimo`), another harness carrying it on,
+and, on a harness that forks only in place, another workdir.
 
 ## Test the parts that are not turns
 

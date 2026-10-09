@@ -32,6 +32,8 @@ import datetime
 import json
 import logging
 import math
+import shutil
+import tempfile
 import threading
 import time
 from collections.abc import Mapping
@@ -73,12 +75,13 @@ from .declaring import (
     checked_definition,
     env_roles,
 )
-from .journaling import FlowStateImpl, Journal, Past, digest
+from .journaling import SESSIONS, FlowStateImpl, Journal, Past, digest
 from .specs import spelled
 from .spi import ENV_TOOLS
 from .viewing import (
     CALLING,
     AgentView,
+    Conversations,
     EnvView,
     Made,
     OutworlderView,
@@ -400,7 +403,7 @@ class FlowImpl:
         if run.journal is not None:
             self._journaled(node, parent, task, views, env_views, params)
         elif self.resumable:
-            node.state = FlowStateImpl({}, None, 0)
+            node.state = FlowStateImpl({}, None, 0, Conversations(node, views))
         if run.recorder is not None:
             run.recorder.entered(node.record())
         live = run.live
@@ -506,7 +509,9 @@ class FlowImpl:
                 node.jid, parent.jid, said, seq, pydantic_core.to_json(self.ref)
             )
         if self.resumable:
-            node.state = FlowStateImpl(held, journal, node.jid)
+            node.state = FlowStateImpl(
+                held, journal, node.jid, Conversations(node, views)
+            )
 
 
 def _json_or_text(value: object) -> object:
@@ -1333,6 +1338,7 @@ class Run:
     __slots__ = (
         "bringing",
         "closing",
+        "conversing",
         "derived",
         "dropped",
         "due",
@@ -1399,6 +1405,25 @@ class Run:
         self.closing: set[asyncio.Task[None]] = set()
         self.derived: dict[int, EnvDriver] = {}
         self.specs: dict[tuple[AgentDriver, Grant], str] = {}
+        #: Where sessions kept in a flow's state are copied beside their CLI's, and
+        #: whether it is a temporary directory of the run's own, once one has been.
+        self.conversing: tuple[Path, bool] | None = None
+
+    def sessions(self) -> Path:
+        """Where a session a flow's state keeps is copied, beside the sessions of its CLI.
+
+        The run's own sessions beside its journal, for a run picking it up to carry it on
+        from; for a run that keeps none, a temporary directory that goes with the run.
+        """
+        conversing = self.conversing
+        if conversing is None:
+            journal = self.journal
+            if journal is not None:
+                conversing = (journal.path.parent / SESSIONS, False)
+            else:
+                conversing = (Path(tempfile.mkdtemp(prefix="hmz-sessions-")), True)
+            self.conversing = conversing
+        return conversing[0]
 
     def workspace(self) -> EnvDriver:
         """The run's own workspace, where a turn given no environment works."""
@@ -1541,6 +1566,8 @@ class Run:
         finally:
             if self.journal is not None:
                 self.journal.close()
+            if self.conversing is not None and self.conversing[1]:
+                shutil.rmtree(self.conversing[0], ignore_errors=True)
             unpin(self)
             _RUNS.discard(self)
 

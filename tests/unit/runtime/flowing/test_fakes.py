@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pydantic
@@ -58,6 +58,7 @@ from hmz.runtime.flowing.spi import (
     ENV_CAPABILITIES,
     HARNESS_CAPABILITIES,
     HookTable,
+    Kept,
     Limits,
     Placement,
     SessionHandle,
@@ -445,6 +446,104 @@ async def test_a_session_forks_once_it_has_taken_a_turn() -> None:
     assert fork.prompts == ["a", "b"]
     with pytest.raises(SessionError, match="not a session of this agent"):
         await _open(FakeAgentDriver(), fork_of=parent)
+
+
+async def _carrying(
+    driver: FakeAgentDriver, kept: Kept, placement: Placement = HERE
+) -> FakeSession:
+    return await driver.open(
+        placement, permission=Permission(), skills=(), hooks=HookTable(), carry_on=kept
+    )
+
+
+async def test_a_kept_conversation_is_carried_on_from_where_it_stood(
+    tmp_path: Path,
+) -> None:
+    driver = FakeAgentDriver(reply=_upper)
+    session = await _open(driver)
+    with pytest.raises(SessionError, match="not been named"):
+        session.keep(tmp_path)
+    await session.turn(TurnRequest("a"), Sink())
+    kept = session.keep(tmp_path)
+    await session.turn(TurnRequest("b"), Sink())
+
+    carried = await _carrying(FakeAgentDriver(reply=_upper), kept)
+    await carried.turn(TurnRequest("c"), Sink())
+
+    assert (kept.harness, kept.id) == (HarnessKind.CLAUDE, session.id)
+    assert kept.at.parent == tmp_path / "claude" / ".kept"
+    assert (carried.carried_on, carried.prompts) == (kept, ["a", "c"])
+    assert carried.id != session.id
+
+
+@pytest.mark.parametrize(
+    ("harness", "placement", "why"),
+    [
+        (HarnessKind.CURSOR_AGENT, HERE, "cannot fork a session"),
+        (HarnessKind.OPENCODE, HERE, "in a database"),
+        (
+            HarnessKind.CLAUDE,
+            Placement(EnvBackendKind.SSH, "box", PurePosixPath("/work")),
+            "on another machine",
+        ),
+    ],
+    ids=["unforked", "in-a-database", "elsewhere"],
+)
+async def test_a_conversation_a_real_cli_could_not_copy_out_is_not_kept(
+    tmp_path: Path, harness: HarnessKind, placement: Placement, why: str
+) -> None:
+    session = await _open(FakeAgentDriver(harness), placement=placement)
+    await session.turn(TurnRequest("a"), Sink())
+
+    with pytest.raises(UnsupportedOperation, match=why):
+        session.keep(tmp_path)
+    assert not (tmp_path / str(harness)).exists()
+
+
+async def test_a_kept_conversation_is_refused_where_a_real_driver_refuses_it(
+    tmp_path: Path,
+) -> None:
+    session = await _open(FakeAgentDriver(HarnessKind.QWEN))
+    await session.turn(TurnRequest("a"), Sink())
+    kept = session.keep(tmp_path)
+    elsewhere = Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/elsewhere"))
+
+    with pytest.raises(
+        UnsupportedOperation, match="codex cannot carry on a conversation qwen kept"
+    ):
+        await _carrying(FakeAgentDriver(HarnessKind.CODEX), kept)
+    with pytest.raises(UnsupportedOperation, match="cannot fork a session"):
+        await _carrying(FakeAgentDriver(HarnessKind.QWEN, forks=False), kept)
+    with pytest.raises(UnsupportedOperation, match="onto another machine"):
+        await _carrying(
+            FakeAgentDriver(HarnessKind.QWEN),
+            kept,
+            Placement(EnvBackendKind.SSH, "box", PurePosixPath("/work")),
+        )
+    with pytest.raises(SessionError, match="only in the workdir it was had in"):
+        await _carrying(FakeAgentDriver(HarnessKind.QWEN), kept, elsewhere)
+    with pytest.raises(SessionError, match="no conversation"):
+        await _carrying(
+            FakeAgentDriver(HarnessKind.QWEN), Kept(HarnessKind.QWEN, "x", kept.at)
+        )
+    carried = await _carrying(FakeAgentDriver(HarnessKind.QWEN), kept)
+    with pytest.raises(SessionError, match="only in the workdir it was had in"):
+        await carried.move(elsewhere)
+
+
+async def test_a_carried_on_session_moved_before_its_first_turn_is_cut_there(
+    tmp_path: Path,
+) -> None:
+    session = await _open(FakeAgentDriver(reply=_upper))
+    await session.turn(TurnRequest("a"), Sink())
+    kept = session.keep(tmp_path)
+    carried = await _carrying(FakeAgentDriver(reply=_upper), kept)
+
+    assert await carried.move(
+        Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/other"))
+    )
+    await carried.turn(TurnRequest("b"), Sink())
+    assert carried.prompts == ["a", "b"]
 
 
 async def test_a_fork_is_refused_at_its_first_turn_if_its_parent_moved_on() -> None:

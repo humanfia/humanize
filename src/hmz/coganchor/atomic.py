@@ -4,7 +4,9 @@ Every file coganchor keeps is read by whoever opens it next, and two `hmz` at on
 saving while a script runs, two interfaces on one home -- both write the same ones. So each is
 written beside itself and moved into place, which makes a reader find the old one or the new
 one and never half of each; and beside it under a name nothing else will pick, because two
-writers of one fixed `.new` are one of them finding its own file already moved away.
+writers of one fixed `.new` are one of them finding its own file already moved away. A file
+only one writer may make is linked into place rather than moved, which a file already there
+refuses.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
 
-__all__ = ["writes"]
+__all__ = ["creates", "writes"]
 
 
 def writes(
@@ -43,11 +45,57 @@ def writes(
     if keeps is None:
         with contextlib.suppress(FileNotFoundError):
             keeps = stat.S_IMODE(at.stat().st_mode)
-    beside, handle = _opened(at, 0o666 if keeps is None else 0o600)
+    beside = _written(at, said, keeps)
+    try:
+        beside.replace(at)
+    except BaseException:
+        beside.unlink(missing_ok=True)
+        raise
+
+
+def creates(
+    at: Path, said: str | bytes | Iterable[bytes], *, mode: int | None = None
+) -> None:
+    """Makes a file that is not there yet, whole, and on disk before it is linked into place.
+
+    What :func:`writes` is for a file only one writer may make: of two making it at once, one
+    makes it and the other is told so, and a reader finds it whole or not at all.
+
+    Args:
+      at: The file. The directory it is in must already be there.
+      said: What it is to hold, as for :func:`writes`.
+      mode: The permissions it is to have, or None for what the umask leaves of `0666`.
+
+    Raises:
+      FileExistsError: If something is at `at` already, which is left as it was.
+      OSError: If it cannot be written, with nothing of the attempt left beside it.
+    """
+    beside = _written(at, said, mode)
+    try:
+        os.link(beside, at)
+    finally:
+        beside.unlink(missing_ok=True)
+
+
+def _written(at: Path, said: str | bytes | Iterable[bytes], mode: int | None) -> Path:
+    """What is given, written whole and on disk beside a file under a name of its own.
+
+    Args:
+      at: The file it is to become.
+      said: What it is to hold.
+      mode: The permissions it is to have, or None for what the umask leaves of `0666`.
+
+    Returns:
+      Where it was written.
+
+    Raises:
+      OSError: If it cannot be written, with nothing of the attempt left.
+    """
+    beside, handle = _opened(at, 0o666 if mode is None else 0o600)
     try:
         with os.fdopen(handle, "wb") as writing:
-            if keeps is not None:
-                os.fchmod(handle, keeps)  # exactly, which is more than the umask allows
+            if mode is not None:
+                os.fchmod(handle, mode)  # exactly, which is more than the umask allows
             if isinstance(said, str):
                 writing.write(said.encode("utf-8"))
             elif isinstance(said, bytes):
@@ -56,10 +104,10 @@ def writes(
                 writing.writelines(said)
             writing.flush()
             os.fsync(handle)
-        beside.replace(at)
     except BaseException:
         beside.unlink(missing_ok=True)
         raise
+    return beside
 
 
 def _opened(at: Path, mode: int) -> tuple[Path, int]:

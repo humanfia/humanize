@@ -19,7 +19,9 @@ What a driver promises, whoever implements it:
   turn stops spending, a command is killed -- before `CancelledError` leaves it.
 - It is fast at rest: nothing here may block the event loop. Work that blocks runs on a
   thread, and everything a thread hands back to the loop goes through
-  :class:`HookBridge` or the loop's own thread-safe calls.
+  :class:`HookBridge` or the loop's own thread-safe calls. The one exception is
+  :meth:`SessionHandle.keep`, which a flow's state write calls, and which copies a
+  conversation's files as the write is made.
 
 :func:`~hmz.runtime.flowing.harnesses.open_agent` and
 :func:`~hmz.runtime.flowing.environments.open_env` make drivers from what a command line
@@ -82,6 +84,7 @@ __all__ = [
     "EnvDriver",
     "HookBridge",
     "HookTable",
+    "Kept",
     "Limits",
     "OutworlderDriver",
     "Placement",
@@ -159,6 +162,21 @@ HARNESS_CAPABILITIES: Mapping[HarnessKind, frozenset[type]] = MappingProxyType(
 )
 
 # ------------------------------------------------------------------------------ one turn
+
+
+@dataclass(frozen=True, slots=True)
+class Kept:
+    """A conversation as a session kept it, for a session of this run or a later one to carry on.
+
+    Attributes:
+      harness: The CLI that had it.
+      id: What that CLI called it.
+      at: Where it was copied, laid out as the CLI lays out its home, holding nothing else.
+    """
+
+    harness: HarnessKind
+    id: str
+    at: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -521,6 +539,28 @@ class SessionHandle(Protocol):
         """Everything this session's turns have spent, up to the moment it is read."""
         ...
 
+    def keep(self, sessions: Path) -> Kept:
+        """Copies its conversation, as it stands, for :meth:`AgentDriver.open` to carry on.
+
+        Called on the engine's loop, between two turns, and blocks it while it copies.
+
+        Args:
+          sessions: Where the run keeps its sessions, a directory per CLI. The copy goes in
+            a directory of its own under its CLI's, in `.kept/` beside the sessions there,
+            and holds the conversation's own files and nothing else -- nothing of another
+            conversation, nothing its CLI signs in with.
+
+        Returns:
+          What a session carrying it on is opened with.
+
+        Raises:
+          UnsupportedOperation: If its harness cannot carry a conversation into a later run:
+            it cannot fork, keeps the conversation on another machine, or keeps none as
+            files.
+          SessionError: If its CLI has not named it yet, or keeps nothing of it.
+        """
+        ...
+
     async def turn(
         self, request: TurnRequest, sink: UsageSink
     ) -> str | pydantic.BaseModel:
@@ -628,6 +668,7 @@ class AgentDriver(Protocol):
         skills: tuple[Skill, ...],
         hooks: HookTable,
         fork_of: SessionHandle | None = None,
+        carry_on: Kept | None = None,
     ) -> SessionHandle:
         """Opens a session.
 
@@ -639,13 +680,18 @@ class AgentDriver(Protocol):
           skills: What skills it is given.
           hooks: What is hung on the agent, which the session reaches as its moments arrive.
           fork_of: A session of this driver to carry on from, or None for a fresh one.
+          carry_on: A conversation a session kept, by :meth:`SessionHandle.keep` in this
+            run or an earlier one, to carry on from as a fork of it, or None; never given
+            with `fork_of`, and given only where it is not None.
 
         Returns:
           The session.
 
         Raises:
           UnsupportedOperation: If `fork_of` is given and the harness cannot fork, or not
-            into `placement`.
+            into `placement`; or `carry_on` is, and another harness kept it, this one
+            cannot fork, or `placement` is on another machine.
+          SessionError: If `carry_on` is not where it says.
           HarnessNotInstalled: If the CLI is not installed where `placement` is.
           HarnessError: The leaf for why the CLI could not be started.
         """

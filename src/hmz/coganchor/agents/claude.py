@@ -18,6 +18,7 @@ from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
 
     from pydantic import BaseModel
 
@@ -1374,7 +1375,14 @@ class ClaudeCodeSession(StreamSessionBase):
         Claude keeps a conversation as `projects/<the directory, spelled as a name>/<id>.jsonl`
         under its home, and `--resume <id> --fork-session` reads it from under the directory
         it is run in. So a fork opened elsewhere is given a copy there to be cut from; the
-        copy is this conversation as it stands, which is what the fork carries on from.
+        copy is this conversation as it stands, which is what the fork carries on from. Each is
+        written whole before it is moved into place, so that a fork reading one as another
+        writes it finds it whole.
+
+        A conversation recalled from a copy of where it was kept stands as that copy has it:
+        its own transcript there -- the longest, where it has more than one, another being one
+        an earlier fork left in a directory of its own, as the conversation stood then -- as
+        brought in, and not a transcript this agent kept in `cwd` before.
 
         Args:
           cwd: The directory the fork is to work in.
@@ -1384,7 +1392,9 @@ class ClaudeCodeSession(StreamSessionBase):
             keeps its conversations there rather than here.
           RuntimeError: If this conversation cannot be found where Claude keeps it.
         """
-        import shutil
+        import filecmp
+
+        from hmz.coganchor import atomic
 
         if self._agent.config.machine is not None:
             raise NotImplementedError(
@@ -1395,25 +1405,37 @@ class ClaudeCodeSession(StreamSessionBase):
         kept = self._agent.kept()
         assert kept is not None  # noqa: S101 -- Claude's home is always known
         projects = kept / "projects"
-        # Where this conversation is held first: an earlier fork carried elsewhere left a
-        # copy of it there, as it stood then, which is not where it stands now.
-        held = os.path.abspath(self.cwd)  # noqa: PTH100
-        found = next(
-            (
-                kept
-                for spelled in dict.fromkeys((held, os.path.realpath(held)))
-                if (kept := projects / _project(spelled) / f"{self.id}.jsonl").is_file()
-            ),
-            None,
-        ) or next(projects.glob(f"*/{self.id}.jsonl"), None)
-        if found is None:
+        name = f"{self.id}.jsonl"
+        found: Path | None
+        if (recalled := self._recalled_from) is not None:
+            copies = list(recalled.glob(f"projects/*/{name}"))
+            longest = max(copies, key=lambda one: one.stat().st_size, default=None)
+            found = None if longest is None else projects / longest.parent.name / name
+        else:
+            # Where this conversation is held first: an earlier fork carried elsewhere left a
+            # copy of it there, as it stood then, which is not where it stands now.
+            held = os.path.abspath(self.cwd)  # noqa: PTH100
+            found = next(
+                (
+                    kept
+                    for spelled in dict.fromkeys((held, os.path.realpath(held)))
+                    if (kept := projects / _project(spelled) / name).is_file()
+                ),
+                None,
+            ) or next(projects.glob(f"*/{name}"), None)
+        if found is None or not found.is_file():
             raise RuntimeError(f"claude: no conversation {self.id} under {projects}")
         where = os.path.abspath(cwd)  # noqa: PTH100
         for spelled in dict.fromkeys((where, os.path.realpath(where))):
             there = projects / _project(spelled)
             there.mkdir(parents=True, exist_ok=True)
-            if (there / found.name) != found:
-                shutil.copyfile(found, there / found.name)
+            copy = there / name
+            if copy == found or (
+                copy.is_file() and filecmp.cmp(found, copy, shallow=False)
+            ):
+                continue
+            with found.open("rb") as reading:
+                atomic.writes(copy, reading)
 
     def _pursue(self, objective: str) -> str:
         """Runs the turn as Claude Code's own ``/goal``, which print mode expands like any other.

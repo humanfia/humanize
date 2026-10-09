@@ -251,11 +251,65 @@ and `get(key, default=None)`.
 | --- | --- |
 | `state[key] = value` | `key` must be a `str`, else `StateNotSerializable` (`a state key is a string, not <key>`). `value` is serialized with `json.dumps(..., allow_nan=True)`; a value it cannot serialize (or a recursion error) raises `StateNotSerializable` (also a `TypeError`): `<type> cannot be kept in a flow's state: <error>`. What is stored is the JSON round-trip of the value (a tuple becomes a list, dict keys become strings), so a fresh run and a resumed run read identical values. The write is appended to the journal and flushed before `__setitem__` returns. |
 | `del state[key]` | Removes the key; `KeyError` if absent. Journaled and flushed. |
-| `state[key]` | `KeyError` if absent. |
+| `state[key]` | `KeyError` if absent. A [session kept](#sessions-in-state) in the value is read back as a new session each time. |
 | Mutating a value in place | Not recorded. Assign the value again to record it. |
 
 A resumable flow run without a journal (a resumable flow called from a non-resumable run, or
 [`run_fake`](#run-fake) without `journal=`) gets a state held in memory only.
+
+#### Sessions in state {#sessions-in-state}
+
+A [`Session`](#session) may be written into the state, alone or anywhere inside a value. The
+write keeps its conversation **as it stands then**: the runtime copies that conversation's own
+files, and nothing else of the CLI's home, into `sessions/<cli>/.kept/<hex>/` in the epic, beside that CLI's sessions (a
+temporary directory removed with the run where there is no journal). Every read of the key
+answers a **new** session of the call's agent of the same role, whose first `run` carries the
+copy on as a [fork](#fork): from where it stood when written, whatever the original session
+did afterwards. This holds in the run that wrote it and in every run [picking it
+up](#a-flow-that-can-be-picked-up), so one kept session can be carried on by several later
+runs, each a run of its own.
+
+```python
+session = await coder.spawn()
+await coder.run(task, session=session)
+ctx.state["boundary"] = session          # kept as it stands now
+await coder.run("go on", session=session)
+
+# here, or in a later run picking this one up:
+again = ctx.state["boundary"]            # a new session, carrying on the kept conversation
+await coder.run("carry on", session=again, env=envs["repo"])
+```
+
+Refused by the write, with `StateNotSerializable` and nothing written down:
+
+| Session | Message |
+| --- | --- |
+| has taken no turn | `<role>: the session to keep has taken no turn to carry on from` |
+| a turn of it is under way, or it is over | `<role>: a turn of the session to keep is under way` / `<role>: the session to keep is over` |
+| of an agent another flow call was handed | `<role>: a session is kept only in the state of the flow call it is of` |
+| an [outworlder](#outworlder)'s | `an outworlder's session cannot be kept in a flow's state` |
+| its harness does not fork (`cursor-agent`, `mcode`, `agy`, `dsh`) | `<role>: <harness> cannot fork a session` (worded by the CLI's driver) |
+| its harness keeps conversations as database rows (`opencode`, `mimo`) | `<role>: …` (the conversation cannot be found as files) |
+| its last turn ran on another machine | `<role>: <harness> keeps a conversation on another machine, not here` |
+
+Refused by the read-back session's first `run`, before the CLI starts or anything is copied:
+
+| Condition | Raises |
+| --- | --- |
+| the role's agent is now another harness | `UnsupportedOperation`: `<harness> cannot carry on a conversation <harness> kept` |
+| the turn's `env` is on another machine | `UnsupportedOperation`: `<harness> cannot carry a kept conversation onto another machine` |
+| the copy is gone (its epic deleted) | `SessionError`: `the session cannot be forked: <harness>: no conversation <id> under <dir>` |
+| the run already holds a different copy of the conversation | `SessionError`: `the session cannot be forked: <harness>: another copy of conversation <id> is kept at <path> already, which carrying this one on would replace` |
+| a harness that forks only in place, given another workdir than the conversation was had in | refused by the CLI |
+
+The last-but-one is what a run that keeps no sessions of its own meets: on macOS, or with
+[`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions), the conversation lives in
+the CLI's own home, and once the original session has gone on past the kept point, the home
+holds a later copy of it that is never put back. Where humanize supervises a turn (Linux),
+each run keeps its sessions in its own epic and this does not arise.
+
+A session read back and written again before its first turn is written down as what it
+carries on, copying nothing.
 
 ## Agent roles {#how-many-agents-and-what-they-are-for}
 
@@ -1162,7 +1216,9 @@ the name it was run under: flows kept in directories of one name -- `alice/kerne
 | a given epic without one | `<epic> has no saved progress to resume from` |
 
 **A picked-up run is a new run** with its own epic, whose `began` event names the epic it was
-`picked_up` from; the journal is copied into the new epic, compacted, and appended to.
+`picked_up` from; the journal is copied into the new epic, compacted, and appended to. A
+[session kept in state](#sessions-in-state) stays in the epic that kept it, and is read from
+there by every run picking it up.
 
 ### Journal {#journal}
 
@@ -1171,7 +1227,7 @@ the name it was run under: flows kept in directories of one name -- `alice/kerne
 | `t` | Fields | Written |
 | --- | --- | --- |
 | `call` | `id` (int), `parent` (int, `0` for the top call), `digest` (hex), `seq` (int), `ref` (canonical ref) | when a call starts; batched |
-| `set` | `id`, `key`, `value` | on each state write; flushed immediately |
+| `set` | `id`, `key`, `value` | on each state write; flushed immediately. A session in `value` is `{"\u0000session": {"harness", "id", "at", "role"}}`, `at` being its copy |
 | `del` | `id`, `key` | on each state delete; flushed immediately |
 | `session` | `id`, `role`, `harness`, `model`, `session` (the CLI's id) | once the CLI names the session (at open or during the first turn); batched |
 | `tmp` | `id`, `env` (role), `kind` (`temp_clone` \| `scratch`), `name` (the id), `chain`, `workdir` | when a copy or scratch directory is made; batched |
