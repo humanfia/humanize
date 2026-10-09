@@ -107,7 +107,7 @@ def _carried_on(tmp_path: Path, project: Path, then: str) -> None:
         assert one["session"] != told["session"]
     epics = Hmz(project).epics
     kept, *picked = epics.all()
-    (conversation,) = (kept / "conversations").iterdir()
+    (conversation,) = (kept / "sessions" / "claude" / ".kept").iterdir()
     (transcript,) = conversation.glob(f"projects/*/{told['session']}.jsonl")
     assert b"papaya" in transcript.read_bytes()
     if then:

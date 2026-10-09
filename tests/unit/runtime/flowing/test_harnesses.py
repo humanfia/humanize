@@ -399,7 +399,7 @@ async def test_a_harness_that_cannot_fork_refuses_to(
 
 
 #: A conversation a session kept, as a flow's state wrote it down.
-TOLD = Kept(HarnessKind.CLAUDE, "told", Path("/runs/then/conversations/1"))
+TOLD = Kept(HarnessKind.CLAUDE, "told", Path("/runs/then/sessions/claude/.kept/1"))
 
 
 async def _carrying(
@@ -415,13 +415,14 @@ async def test_a_session_keeps_its_conversation_once_its_cli_has_named_it(
 ) -> None:
     session = await _session(open_agent(_spec()), tmp_path)
     with pytest.raises(SessionError, match="has not been named yet"):
-        session.keep(tmp_path / "kept")
+        session.keep(tmp_path)
     await session.turn(TurnRequest("the codeword is papaya"), Sink())
 
-    assert session.keep(tmp_path / "kept") == Kept(
-        HarnessKind.CLAUDE, "conversation-1", tmp_path / "kept"
-    )
-    assert _cli(session).kept == [("conversation-1", tmp_path / "kept")]
+    kept = session.keep(tmp_path)
+
+    assert (kept.harness, kept.id) == (HarnessKind.CLAUDE, "conversation-1")
+    assert kept.at.parent == tmp_path / "claude" / ".kept", "beside claude's sessions"
+    assert _cli(session).kept == [("conversation-1", kept.at)]
 
 
 async def test_a_conversation_is_kept_only_by_a_cli_run_here(
@@ -432,7 +433,7 @@ async def test_a_conversation_is_kept_only_by_a_cli_run_here(
     _cli(session).config = Config(machine="a machine")
 
     with pytest.raises(UnsupportedOperation, match="on another machine"):
-        session.keep(tmp_path / "kept")
+        session.keep(tmp_path)
     assert _cli(session).kept == []
 
 
@@ -445,7 +446,7 @@ async def test_a_conversation_its_cli_did_not_keep_is_not_kept(
     conversation.named = "gone"
 
     with pytest.raises(SessionError, match="cannot be kept: claude: no conversation"):
-        session.keep(tmp_path / "kept")
+        session.keep(tmp_path)
 
 
 async def test_a_kept_conversation_is_carried_on_as_a_fork_cut_where_it_works(
@@ -463,7 +464,7 @@ async def test_a_kept_conversation_is_carried_on_as_a_fork_cut_where_it_works(
     ("kept", "forks", "machine", "why"),
     [
         (
-            Kept(HarnessKind.CODEX, "told", Path("/runs/then/conversations/1")),
+            Kept(HarnessKind.CODEX, "told", Path("/runs/then/sessions/claude/.kept/1")),
             True,
             None,
             "claude cannot carry on a conversation codex kept",
@@ -496,7 +497,7 @@ async def test_a_kept_conversation_is_refused_before_anything_is_built(
 async def test_a_kept_conversation_that_is_not_there_cannot_be_forked(
     coganchor: type[CLI], tmp_path: Path
 ) -> None:
-    gone = Kept(HarnessKind.CLAUDE, "gone", Path("/runs/then/conversations/1"))
+    gone = Kept(HarnessKind.CLAUDE, "gone", Path("/runs/then/sessions/claude/.kept/1"))
 
     with pytest.raises(SessionError, match="cannot be forked: claude: no conversation"):
         await _carrying(open_agent(_spec()), _placed(tmp_path), gone)

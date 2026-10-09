@@ -462,15 +462,16 @@ async def test_a_kept_conversation_is_carried_on_from_where_it_stood(
     driver = FakeAgentDriver(reply=_upper)
     session = await _open(driver)
     with pytest.raises(SessionError, match="not been named"):
-        session.keep(tmp_path / "early")
+        session.keep(tmp_path)
     await session.turn(TurnRequest("a"), Sink())
-    kept = session.keep(tmp_path / "kept")
+    kept = session.keep(tmp_path)
     await session.turn(TurnRequest("b"), Sink())
 
     carried = await _carrying(FakeAgentDriver(reply=_upper), kept)
     await carried.turn(TurnRequest("c"), Sink())
 
-    assert kept == Kept(HarnessKind.CLAUDE, session.id or "", tmp_path / "kept")
+    assert (kept.harness, kept.id) == (HarnessKind.CLAUDE, session.id)
+    assert kept.at.parent == tmp_path / "claude" / ".kept"
     assert (carried.carried_on, carried.prompts) == (kept, ["a", "c"])
     assert carried.id != session.id
 
@@ -495,8 +496,8 @@ async def test_a_conversation_a_real_cli_could_not_copy_out_is_not_kept(
     await session.turn(TurnRequest("a"), Sink())
 
     with pytest.raises(UnsupportedOperation, match=why):
-        session.keep(tmp_path / "kept")
-    assert not (tmp_path / "kept").exists()
+        session.keep(tmp_path)
+    assert not (tmp_path / str(harness)).exists()
 
 
 async def test_a_kept_conversation_is_refused_where_a_real_driver_refuses_it(
@@ -504,7 +505,7 @@ async def test_a_kept_conversation_is_refused_where_a_real_driver_refuses_it(
 ) -> None:
     session = await _open(FakeAgentDriver(HarnessKind.QWEN))
     await session.turn(TurnRequest("a"), Sink())
-    kept = session.keep(tmp_path / "kept")
+    kept = session.keep(tmp_path)
     elsewhere = Placement(EnvBackendKind.LOCAL, "", PurePosixPath("/elsewhere"))
 
     with pytest.raises(
@@ -535,7 +536,7 @@ async def test_a_carried_on_session_moved_before_its_first_turn_is_cut_there(
 ) -> None:
     session = await _open(FakeAgentDriver(reply=_upper))
     await session.turn(TurnRequest("a"), Sink())
-    kept = session.keep(tmp_path / "kept")
+    kept = session.keep(tmp_path)
     carried = await _carrying(FakeAgentDriver(reply=_upper), kept)
 
     assert await carried.move(

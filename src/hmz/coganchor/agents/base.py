@@ -86,6 +86,10 @@ class Journal(Protocol):
 #: must not need one.
 KEEPING = "HUMANIZE_SESSIONS"
 
+#: What a directory of a CLI's kept sessions holds copies of conversations under, beside the
+#: sessions themselves: a name no CLI keeps anything under, and never part of a conversation.
+KEPT = ".kept"
+
 
 #: What a turn exits with when there was nothing to run. The shell's own status for a command
 #: it could not find, put on a spawn that came back as a `FileNotFoundError` instead of as a
@@ -5819,7 +5823,8 @@ class AgentBase(ABC):
 def _naming(at: Path, session_id: str) -> list[Path]:
     """Every file under a CLI's kept sessions that is one conversation's, lineage and all.
 
-    A conversation's files carry its id in their path. One cut from another -- Codex's
+    A conversation's files carry its id in their path, and none are under :data:`KEPT`,
+    which holds copies of conversations rather than conversations. One cut from another -- Codex's
     `thread/fork`, which a resumed or carried-on thread is -- says so on its first line, as
     `forked_from_id`, and is read back only with the one it came from beside it: so the
     files of every conversation up that line are its files too.
@@ -5827,7 +5832,11 @@ def _naming(at: Path, session_id: str) -> list[Path]:
     found: list[Path] = []
     seen: set[str] = set()
     wanted = [session_id]
-    files = [path for path in sorted(at.rglob("*")) if path.is_file()]
+    files = [
+        path
+        for path in sorted(at.rglob("*"))
+        if path.is_file() and KEPT not in path.relative_to(at).parts
+    ]
     while wanted:
         one = wanted.pop()
         if one in seen:

@@ -261,7 +261,7 @@ A resumable flow run without a journal (a resumable flow called from a non-resum
 
 A [`Session`](#session) may be written into the state, alone or anywhere inside a value. The
 write keeps its conversation **as it stands then**: the runtime copies that conversation's own
-files, and nothing else of the CLI's home, into `conversations/<id>/` beside the journal (a
+files, and nothing else of the CLI's home, into `sessions/<cli>/.kept/<hex>/` in the epic, beside that CLI's sessions (a
 temporary directory removed with the run where there is no journal). Every read of the key
 answers a **new** session of the call's agent of the same role, whose first `run` carries the
 copy on as a [fork](#fork): from where it stood when written, whatever the original session

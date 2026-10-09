@@ -539,15 +539,16 @@ class SessionHandle(Protocol):
         """Everything this session's turns have spent, up to the moment it is read."""
         ...
 
-    def keep(self, into: Path) -> Kept:
+    def keep(self, sessions: Path) -> Kept:
         """Copies its conversation, as it stands, for :meth:`AgentDriver.open` to carry on.
 
         Called on the engine's loop, between two turns, and blocks it while it copies.
 
         Args:
-          into: A directory that is not there yet, to copy the conversation's own files into
-            and nothing else -- nothing of another conversation, nothing its CLI signs in
-            with.
+          sessions: Where the run keeps its sessions, a directory per CLI. The copy goes in
+            a directory of its own under its CLI's, in `.kept/` beside the sessions there,
+            and holds the conversation's own files and nothing else -- nothing of another
+            conversation, nothing its CLI signs in with.
 
         Returns:
           What a session carrying it on is opened with.

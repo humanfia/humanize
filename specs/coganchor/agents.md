@@ -752,7 +752,8 @@ class BackendAgent(AgentBase):
   before any is copied. It MUST raise `NotImplementedError` where the backend has no fork and
   `RuntimeError` where nothing under `kept` is the conversation.
 - `keep` MUST copy into `into` every file of the conversation `recall` would bring in from
-  `kept()`, where it sat there, and nothing else of `kept()`; it MUST leave the files it copied
+  `kept()`, where it sat there, and nothing else of `kept()`; no file under a `.kept`
+  directory MUST be taken for one of a conversation's, by `keep` or by `recall`; it MUST leave the files it copied
   from as they were, and MUST raise `NotImplementedError` where the backend has no fork and
   `RuntimeError` before any turn has landed or where nothing under `kept()` is the
   conversation.

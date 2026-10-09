@@ -193,7 +193,7 @@ def digest(ref: str, task: str, roles: list[str], params: bytes) -> str: ...
 class Journal:  # opened(path, loop, *, resume) -> (Journal, Past | None); close()
 class Past: ...
 class FlowStateImpl: ...  # answers to FlowState
-CONVERSATIONS = "conversations"  # beside the journal: what sessions in state kept
+SESSIONS = "sessions"  # beside the journal: what sessions in state are kept beside
 
 # loading.py -- what a ref names
 class Ref:
@@ -464,8 +464,8 @@ def under() -> Path: ...  # machine()/skills
   JSON gives back, so that a fresh run and a resumed one read the same.
 - A session written into a call's state MUST be one of that call's agents', and MUST have its
   conversation copied as the write is made -- by its driver, only that conversation's files,
-  into a directory of its own under `conversations/` beside the journal, or under a temporary
-  directory removed with a run that keeps none -- and refused (`StateNotSerializable`) before
+  into a directory of its own under `sessions/<cli>/.kept/` beside the journal, or under a
+  temporary directory removed with a run that keeps none -- and refused (`StateNotSerializable`) before
   anything is written down where it has taken no turn, a turn of it is under way, it is over,
   or its harness cannot fork, keeps it on another machine, or keeps it as no files. Each read
   of it MUST be a new session of the call's agent of its role, whose first turn opens it as a

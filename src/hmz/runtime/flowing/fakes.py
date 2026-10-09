@@ -462,8 +462,8 @@ class FakeSession:
     async def _fire(self, kind: HookKind, **fields: Any) -> HookResult:
         return await self.hooks.fire(kind, self, **fields)
 
-    def keep(self, into: Path) -> Kept:
-        """Writes what it has been told down in `into`, as `<id>.json`."""
+    def keep(self, sessions: Path) -> Kept:
+        """Writes what it has been told down as `<id>.json`, under `sessions/<harness>/.kept/`."""
         harness = self.driver.harness
         if not self.driver.forks:
             raise UnsupportedOperation(f"{harness} cannot fork a session")
@@ -478,6 +478,7 @@ class FakeSession:
         named = self.id
         if not self.named or named is None:
             raise SessionError(f"{harness}: the session has not been named yet")
+        into = sessions / harness / ".kept" / f"{next(self._numbers)}"
         into.mkdir(parents=True)
         said = {"prompts": self.prompts, "workdir": str(self.placement.workdir)}
         (into / f"{named}.json").write_text(json.dumps(said))

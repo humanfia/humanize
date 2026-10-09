@@ -45,10 +45,8 @@ import contextlib
 import contextvars
 import dataclasses
 import logging
-import shutil
 import threading
 import time
-import uuid
 import weakref
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self, overload
@@ -822,9 +820,9 @@ class Conversations:
 
     Answers to :class:`~hmz.runtime.flowing.journaling.Conversations`. A session is written
     down as its conversation stood then, copied by its driver into a directory of its own
-    under the run's `conversations/` -- beside its journal, or a temporary directory for a
-    run that keeps none -- and read back as a new session of the call's agent of that role,
-    which its first turn opens as a fork of the copy.
+    beside the sessions of its CLI in the run's `sessions/` -- beside its journal, or a
+    temporary directory for a run that keeps none -- and read back as a new session of the
+    call's agent of that role, which its first turn opens as a fork of the copy.
     """
 
     __slots__ = ("_agents", "_node")
@@ -864,11 +862,9 @@ class Conversations:
                 )
             # Read back and not yet carried on: what it carries on is kept already.
             return {SESSION: _said(carried, role)}
-        into = self._node.run.conversations() / uuid.uuid4().hex
         try:
-            carried = handle.keep(into)
+            carried = handle.keep(self._node.run.sessions())
         except (UnsupportedOperation, SessionError) as refused:
-            shutil.rmtree(into, ignore_errors=True)
             raise StateNotSerializable(f"{role}: {refused}") from refused
         return {SESSION: _said(carried, role)}
 
@@ -1342,8 +1338,8 @@ class _Person:
         del placement
         return False
 
-    def keep(self, into: Path) -> Kept:
-        del into
+    def keep(self, sessions: Path) -> Kept:
+        del sessions
         raise UnsupportedOperation("an outworlder keeps no conversation")
 
     def interrupt(self) -> None:

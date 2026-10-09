@@ -1145,8 +1145,13 @@ class HarnessSession:
                 output_tokens=self._tokens,
             )
 
-    def keep(self, into: Path) -> Kept:
+    def keep(self, sessions: Path) -> Kept:
         """Copies its conversation, as it stands; see the SPI's `SessionHandle.keep`."""
+        import shutil
+        import uuid
+
+        from hmz.coganchor.agents.base import KEPT
+
         harness = self._driver.harness
         if self._agent.config.machine is not None:
             raise UnsupportedOperation(
@@ -1155,11 +1160,15 @@ class HarnessSession:
         named = self.id
         if named is None:
             raise SessionError(f"{harness}: the session has not been named yet")
+        profile = self._driver.profile
+        cli = self._agent.backend if profile is None else profile.name
+        into = sessions / cli / KEPT / uuid.uuid4().hex
         try:
             self._session.keep(into)
         except NotImplementedError as refused:
             raise UnsupportedOperation(str(refused)) from refused
         except (RuntimeError, OSError) as refused:
+            shutil.rmtree(into, ignore_errors=True)
             raise SessionError(f"the session cannot be kept: {refused}") from refused
         return Kept(harness, named, into)
 

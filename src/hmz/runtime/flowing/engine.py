@@ -75,7 +75,7 @@ from .declaring import (
     checked_definition,
     env_roles,
 )
-from .journaling import CONVERSATIONS, FlowStateImpl, Journal, Past, digest
+from .journaling import SESSIONS, FlowStateImpl, Journal, Past, digest
 from .specs import spelled
 from .spi import ENV_TOOLS
 from .viewing import (
@@ -1405,23 +1405,23 @@ class Run:
         self.closing: set[asyncio.Task[None]] = set()
         self.derived: dict[int, EnvDriver] = {}
         self.specs: dict[tuple[AgentDriver, Grant], str] = {}
-        #: Where the conversations of sessions kept in a flow's state are copied, and
+        #: Where sessions kept in a flow's state are copied beside their CLI's, and
         #: whether it is a temporary directory of the run's own, once one has been.
         self.conversing: tuple[Path, bool] | None = None
 
-    def conversations(self) -> Path:
-        """Where to copy the conversation of a session a flow's state keeps.
+    def sessions(self) -> Path:
+        """Where a session a flow's state keeps is copied, beside the sessions of its CLI.
 
-        Beside the run's journal, for a run picking it up to carry it on from; for a run that
-        keeps none, a temporary directory that goes with the run.
+        The run's own sessions beside its journal, for a run picking it up to carry it on
+        from; for a run that keeps none, a temporary directory that goes with the run.
         """
         conversing = self.conversing
         if conversing is None:
             journal = self.journal
             if journal is not None:
-                conversing = (journal.path.parent / CONVERSATIONS, False)
+                conversing = (journal.path.parent / SESSIONS, False)
             else:
-                conversing = (Path(tempfile.mkdtemp(prefix="hmz-conversations-")), True)
+                conversing = (Path(tempfile.mkdtemp(prefix="hmz-sessions-")), True)
             self.conversing = conversing
         return conversing[0]
 

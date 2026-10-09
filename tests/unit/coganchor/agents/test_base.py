@@ -22,6 +22,7 @@ from hmz.coganchor.agents import AcpAgentConfig, ClaudeCodeAgentConfig
 from hmz.coganchor.agents.allowance import Allowance, Ledger
 from hmz.coganchor.agents.base import (
     KEEPING,
+    KEPT,
     WINDOW,
     AgentBase,
     CommandSessionBase,
@@ -925,6 +926,32 @@ def test_a_conversation_kept_as_it_stands_is_recalled_from_there(
     assert (
         brought / "projects" / "-where-it-was-had" / f"{session.id}.jsonl"
     ).read_text() == TOLD
+
+
+@pytest.mark.usefixtures("supervised")
+def test_what_is_kept_beside_a_clis_sessions_is_no_conversation_of_them(
+    tmp_path: Path,
+) -> None:
+    """A copy kept under `.kept` holds the id too, and is no file of the conversation."""
+    agent = Scripted(backend="claude", script=_forking())
+    agent.epic = _Run(tmp_path / "epic")
+    session = agent.new(tmp_path)
+    session("the codeword is papaya")
+    home = agent.kept()
+    assert home is not None
+    project = home / "projects" / "-where-it-was-had"
+    project.mkdir(parents=True)
+    (project / f"{session.id}.jsonl").write_text(TOLD)
+    session.keep(home / KEPT / "first")
+
+    session.keep(tmp_path / "second")
+
+    kept = sorted(
+        one.relative_to(tmp_path / "second").as_posix()
+        for one in (tmp_path / "second").rglob("*")
+        if one.is_file()
+    )
+    assert kept == [f"projects/-where-it-was-had/{session.id}.jsonl"]
 
 
 def test_a_conversation_is_kept_only_once_it_is_one(tmp_path: Path) -> None:

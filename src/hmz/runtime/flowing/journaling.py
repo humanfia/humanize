@@ -36,7 +36,8 @@ Resuming rewrites the journal once, compacted: every call, the state it ended wi
 its sessions and its temporary directories, and nothing of how the state got there.
 
 A session written into a flow's state is kept as its conversation stood then: copied, by its
-driver, into a directory of its own under `conversations/` beside the journal, and written
+driver, into a directory of its own beside its CLI's sessions in `sessions/` beside the
+journal, and written
 down as an object of one key, :data:`SESSION`, saying which harness had it, what it called it,
 where the copy is and which of the call's agents it was a session of. That is what a read
 of it -- in this run, or one picking it up -- makes a new session carrying the copy on from.
@@ -63,8 +64,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 __all__ = [
-    "CONVERSATIONS",
     "SESSION",
+    "SESSIONS",
     "Conversations",
     "FlowStateImpl",
     "Journal",
@@ -80,8 +81,9 @@ VERSION = 1
 #: How long a record other than a state write may wait to be written, in seconds.
 BATCH = 0.1
 
-#: Where the conversations of sessions a flow's state keeps are copied, beside the journal.
-CONVERSATIONS = "conversations"
+#: Where the run keeps its sessions, beside the journal: what a session a flow's state keeps
+#: is copied beside, under its CLI's.
+SESSIONS = "sessions"
 
 #: The one key of what a session in a flow's state is written down as: a key no JSON a flow
 #: writes down has, since no flow names a key with a NUL in it.

@@ -119,7 +119,7 @@ async def test_a_later_run_carries_on_what_an_earlier_one_kept(tmp_path: Path) -
         "continue: what was the codeword?",
     ]
     assert carried.carried_on is not None
-    assert carried.carried_on.at.parent == tmp_path / "conversations"
+    assert carried.carried_on.at.parent == tmp_path / "sessions" / "claude" / ".kept"
 
 
 @pytest.mark.usefixtures("plain_writes")
@@ -181,7 +181,7 @@ async def test_a_kept_session_whose_copy_is_gone_cannot_be_carried_on(
     await run_fake(
         remembers, agents={"coder": FakeAgentDriver(reply="ok")}, journal=journal
     )
-    shutil.rmtree(tmp_path / "conversations")
+    shutil.rmtree(tmp_path / "sessions" / "claude" / ".kept")
 
     with pytest.raises(SessionError, match="no conversation"):
         await run_fake(
