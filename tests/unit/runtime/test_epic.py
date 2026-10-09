@@ -439,6 +439,7 @@ def test_a_run_reads_back_as_what_it_was(workspace: Path) -> None:
         inner.session("helper", "codex", "team", "s2")
         inner.ended()
         one.stopped()
+        one.write("usage", cost=0.5, output_tokens=1200, seconds=61.5)
 
     ran = epic.read(one.path)
     assert ran is not None
@@ -456,6 +457,7 @@ def test_a_run_reads_back_as_what_it_was(workspace: Path) -> None:
     assert ran.resumable is True
     assert ran.picked_up == ""
     assert ran.profile is False
+    assert ran.spent == {"cost": 0.5, "output_tokens": 1200, "seconds": 61.5}
     assert [one.ident for one in ran.sessions] == ["s1", "s2"]
     assert ran.sessions[1].flow == "inner"
     assert ran.sessions[1].record == inner.record
@@ -474,6 +476,7 @@ def test_a_run_still_going_has_not_ended(workspace: Path) -> None:
     assert (ran.ended, ran.how) == ("", "")
     assert ran.used == ran.envs == ()
     assert ran.budget is None
+    assert ran.spent is None
 
 
 def test_what_this_did_not_write_reads_as_no_run(tmp_path: Path) -> None:

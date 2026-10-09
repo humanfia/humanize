@@ -30,6 +30,12 @@ Open the terminal interface in a repository:
 hmz
 ```
 
+Or open the same runs in a browser on this machine:
+
+```sh
+hmz web
+```
+
 Or run a flow from your shell:
 
 ```sh

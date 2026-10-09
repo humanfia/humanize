@@ -28,6 +28,7 @@ __all__ = [
     "Under",
     "lasting",
     "short",
+    "tallied",
     "thousands",
 ]
 
@@ -55,6 +56,9 @@ _DUST = 1.0
 #: Where a count stops fitting and starts being abbreviated.
 _THOUSAND = 1000
 _MILLION = 1_000_000
+
+#: What separates the parts of a line of figures.
+_DOT = " · "
 
 #: What a clock is read in, in the units the seconds it is given are.
 _MINUTE = 60.0
@@ -827,3 +831,42 @@ class Monitor:
         if (opened := self.opened.get(agent)) is not None:
             return opened
         return self.rested.get(agent, self.began)
+
+
+def tallied(monitor: Monitor) -> tuple[str, str] | None:
+    """What a run has cost, as the two lines every frontend draws it in.
+
+    Two lines rather than one: five kinds, a bill and a rate on one row come to a row wider
+    than a terminal, and the figures are read at a glance.
+
+    Args:
+      monitor: The run.
+
+    Returns:
+      What went on each kind of token, then the bill and the rate -- or None before anything
+      has been spent. A figure short of what some agent of the run spends without counting is
+      marked `+`, and so is a bill missing a model nobody prices.
+    """
+    spending = monitor.spending()
+    spent = sum(spend.tokens for spend in spending)
+    if not spent:
+        return None
+    rate = sum(spend.rate for spend in spending)
+    # What went on each kind of token, which is the reading anybody has a use for: an input
+    # token, an output token and a cached read are three different things bought at three
+    # different prices, and one number over the lot of them answers no question.
+    counted = monitor.reckoning()
+    # What the run has cost in money, and whether that is the whole of it: a model nobody
+    # prices adds tokens to the count and nothing to the bill, so the figure is marked as a
+    # floor rather than quietly reported as the total.
+    billed = [spend.dollars for spend in spending if spend.dollars is not None]
+    floor = "+" if billed and len(billed) < len(spending) else ""
+    costing = f"{prices.money(sum(billed))}{floor}{_DOT}" if billed else ""
+    kinds = _DOT.join(
+        f"{one.kind} {thousands(one.tokens)}{'' if one.whole else '+'}"
+        for one in counted
+    )
+    # Output alone, and said so: the input of a turn is the conversation so far, sent again
+    # at every request and mostly served out of a cache, so a rate counting it says how long
+    # the transcript has got rather than how fast the model is writing.
+    return kinds or f"{thousands(spent)} tokens", f"{costing}{rate:.0f} out/s"

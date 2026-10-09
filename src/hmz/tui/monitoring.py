@@ -35,8 +35,8 @@ from textual.widgets.option_list import Option
 
 from hmz.coganchor.agents import ANYONE, FLOW
 from hmz.coganchor.prices import money
+from hmz.runtime.watching.monitor import Shape, lasting, short, thousands
 
-from .monitor import Shape, lasting, short, thousands
 from .pick import (
     _DOT,
     _FIELD,
@@ -65,8 +65,7 @@ if TYPE_CHECKING:
 
     from hmz.runtime.flowing import EnvRole
     from hmz.runtime.kept import Runs
-
-    from .monitor import Counted, Monitor, Under
+    from hmz.runtime.watching.monitor import Counted, Monitor, Under
 
 __all__ = [
     "EVERY",

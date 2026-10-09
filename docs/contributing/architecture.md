@@ -33,9 +33,11 @@ same table, so an import that breaks it fails the run.
 | the `hmz exec` line: a flag, a refusal | `runtime/runner.py` |
 | what a run writes down | `runtime/epic.py` |
 | reading a backend's logs back as a trace | `runtime/tracing/` |
-| anything two of `cli`, `tui` and `daemon` would each need | `runtime/doing/`, once |
+| what a run looks like as it happens -- who is working, what it has cost, what a side question is told -- for every interface | `runtime/watching/`, once |
+| anything two of `cli`, `tui`, `web` and `daemon` would each need | `runtime/doing/`, once |
 | who is outside a run: claims, away, questions, lines said to agents, asides | `runtime/doing/hosting.py` |
 | a slash command, a key, a menu; what the interface draws of a message | `tui/` |
+| a view of the web interface, or a route it answers | `web/`: the page under `web/static/`, plain ES modules, and its routes beside the server |
 | runs kept going after the terminal closes, and the socket frontends reach them over | `daemon/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
@@ -148,13 +150,13 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
    checks the flows [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still
    work.
 
-### 3. Read it back, in `runtime/tracing/` and `tui/`
+### 3. Read it back, in `runtime/tracing/` and `runtime/watching/`
 
 7. **A trace reader** in `runtime/tracing/readers/<name>.py`, and its row in
    `runtime/tracing/collector.py`.
 8. **The live tally**: what its log calls each kind of token, as a row of `_KINDS` in
-   `tui/tally.py`, and a branch in `_spent` there, so the tally moves during a turn. Cover its
-   kinds in the `tests/unit/tui/` tests of the tally.
+   `runtime/watching/tally.py`, and a branch in `_spent` there, so the tally moves during a
+   turn. Cover its kinds in the `tests/unit/runtime/watching/` tests of the tally.
 
 ### 4. Test it
 
@@ -180,7 +182,7 @@ kind of driver it needs, which `specs/coganchor/agents.md` says.
 ### Check it worked
 
 ```sh
-uv run pytest tests/unit/coganchor tests/unit/flows tests/unit/tui \
+uv run pytest tests/unit/coganchor tests/unit/flows tests/unit/runtime/watching \
     tests/integration/test_agents_<name>.py tests/integration/test_core_layering.py
 ```
 
@@ -219,13 +221,15 @@ not edit a SPEC unless you were asked to. Propose a SPEC change separately.
 | --- | --- |
 | `specs/SPEC.md` | The tree, what each layer is, and how layers may name one another |
 | `specs/cli.md` | Every command line |
-| `specs/tui.md` | Every behaviour the interface must have |
+| `specs/tui.md` | Every behaviour the terminal interface must have |
+| `specs/web.md` | Every behaviour the web interface must have |
 | `specs/sdk.md` | How a tool that is not humanize reaches humanize |
 | `specs/daemon.md` | Holding every workspace's runs on a machine apart from a terminal, for the frontends that read them |
 | `specs/runtime/SPEC.md` | What a run is, and what humanize remembers of one |
 | `specs/runtime/doing.md` | humanize as one object: a workspace and everything doable in it |
 | `specs/runtime/flowing.md` | What humanize does to a flow: the engine, the drivers, refs, resuming |
 | `specs/runtime/tracing.md` | The collect API and what a trace must hold |
+| `specs/runtime/watching.md` | A run read as it happens, as every interface reads it |
 | `specs/flows.md` | The flow API: what a flow imports, declares and is handed |
 | `specs/coganchor/SPEC.md` | Driving a coding agent CLI, and what an anchor entitles you to |
 | `specs/coganchor/agents.md` | The agent and session contract every backend keeps |

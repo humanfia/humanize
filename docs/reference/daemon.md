@@ -11,12 +11,13 @@ import '../.vitepress/theme/components/ref-cli/ref.css'
 The **daemon**: one process per machine and user, which every frontend reaches and which
 hands each to the **host** of the workspace it names: one process per workspace, holding that
 workspace's runs. And the protocol **frontends** use to read and drive them. A frontend is an
-`hmz` interface (`kind` `tui`) or a program linked through the [SDK](/reference/sdk#link)
-(`kind` `sdk`). Package: `hmz.daemon`. Notation: [Conventions](/reference/#conventions).
+`hmz` interface (`kind` `tui`), the [web interface](/reference/web) `hmz web` serves (`kind`
+`web`, named `browser`), or a program linked through the [SDK](/reference/sdk#link) (`kind`
+`sdk`). Package: `hmz.daemon`. Notation: [Conventions](/reference/#conventions).
 
 ```text
  hmz (alice@tui) ──┐                               ┌─ host process, ~/src/api ──────────────────┐
- hmz (bob@tui) ────┼── daemon.sock ── daemon ──┬──▶│ Host: the run, claims, away, queued lines, │
+ hmz web (browser) ┼── daemon.sock ── daemon ──┬──▶│ Host: the run, claims, away, queued lines, │
  program (ci@sdk) ─┘   (one per machine)       │   │ questions, history, snapshots              │
                                                │   └────────────────────────────────────────────┘
  MESSAGE frames: JSON requests in, messages    └──▶┌─ host process, ~/src/web ──────────────────┐
@@ -43,6 +44,8 @@ workspace's runs. And the protocol **frontends** use to read and drive them. A f
 | `hmz` at a terminal | A host process, found or started (see [CLI › Where the runs are held](/reference/cli#where-runs-are-held)). |
 | `hmz` with stdin or stdout not a TTY, or `HUMANIZE_DAEMON` = `off`/`0`/`no` | In the interface's process. |
 | `hmz` after 3 failed attempts, 0.5 s apart | In the interface's process; stderr says `hmz: runs cannot be detached from the terminal (<why>), so they will run in this process instead`. |
+| `hmz web` | A host process, found or started with [`attach`](#module), tried 3 times 0.5 s apart; where none can be had it says so and exits `1`. |
+| `hmz web` with `HUMANIZE_DAEMON` = `off`/`0`/`no` | In `hmz web`'s process. |
 | `Daemons().host()`, `hmz.daemon.host()` | A host process, found or started. `HUMANIZE_DAEMON` is not consulted. |
 | `Hmz().host()` | In the calling process. |
 | `hmz exec` | No host. |
@@ -462,11 +465,19 @@ def running(workspace=None) -> Daemon | None: ...
 def daemons() -> list[Daemon]: ...
 def host(workspace=None, *, seconds: float = 10.0) -> Daemon: ...
 def older(daemon: Daemon) -> str: ...
+class Older(RuntimeError): ...                      # the runs are held by an older humanize
+def attach(kind: str, name: str = "", *, workspace=None) -> Link: ...
 def linked(host: Host, name: str = "", kind: str = "tui", *, replay: bool = True) -> Link: ...
 def reached(at: Path, workspace: str, name: str = "", kind: str = "sdk", *,
             replay: bool = True) -> Link: ...
-Hmz, Host                                           # hmz.runtime's, fetched on access
+Hmz, Host, Refused                                  # hmz.runtime's, fetched on access
 ```
+
+`attach` is how `hmz` and `hmz web` reach runs held apart from them: it finds the host holding
+the workspace's runs, or starts the daemon and one where none is, and links to it as `kind`,
+tried **3** times **0.5 s** apart while linking raises `OSError`, the last of which it raises. A
+daemon or host of another `protocol` raises `Older`, saying what [`older`](#discovery) says,
+and nothing is started beside it.
 
 `hmz.daemon.proto`: `GONE = b"X"`, `CONTROL = b"C"`, `MESSAGE = b"M"`, `PROTOCOL = 2`,
 `frame(kind, payload=b"") -> bytes`, `spoken(kind, said) -> bytes` (JSON-encodes a dict),

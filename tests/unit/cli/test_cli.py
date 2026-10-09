@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import os
 import sys
-import time
 import types
 from importlib.metadata import version
 from typing import Any
@@ -17,7 +16,6 @@ import hmz.coganchor.fence.wrap
 import hmz.coganchor.providers.redirect
 import hmz.daemon
 from hmz.cli import APART, COMMANDS, INTERNAL, main, many, opens
-from hmz.daemon.proto import PROTOCOL
 
 
 @pytest.mark.parametrize(
@@ -36,8 +34,8 @@ def test_many_says_a_count_as_english_does(
     assert many(count, thing) == said
 
 
-def test_the_commands_are_exec_and_the_internal_door() -> None:
-    assert set(COMMANDS) == {"exec", "internal"}
+def test_the_commands_are_exec_web_and_the_internal_door() -> None:
+    assert set(COMMANDS) == {"exec", "web", "internal"}
     assert set(INTERNAL) == {"anchor", "cred", "fence", "hook", "tools"}
     for run, summary in (*COMMANDS.values(), *INTERNAL.values()):
         assert callable(run)
@@ -223,14 +221,11 @@ def _opened(
 
 @pytest.fixture
 def terminal(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
-    """A terminal on both ends, runs wanted apart, and `hmz.daemon` mocked."""
+    """A terminal on both ends, runs wanted apart, and attaching to them mocked."""
     monkeypatch.setenv(APART, "on")
-    held = mock.Mock()
-    held.running.return_value = None
-    for name in ("running", "host", "older"):
-        monkeypatch.setattr(hmz.daemon, name, getattr(held, name))
-    monkeypatch.setattr(time, "sleep", held.sleep)
-    return held
+    attach = mock.Mock()
+    monkeypatch.setattr(hmz.daemon, "attach", attach)
+    return attach
 
 
 @pytest.mark.parametrize("value", ["off", "0", "no", " OFF "])
@@ -240,7 +235,7 @@ def test_runs_are_held_here_where_the_machine_says_so(
     monkeypatch.setenv(APART, value)
     assert _opened(monkeypatch) == 0
     assert app.made == [{}]
-    terminal.host.assert_not_called()
+    terminal.assert_not_called()
 
 
 def test_runs_are_held_here_where_there_is_no_terminal(
@@ -248,25 +243,15 @@ def test_runs_are_held_here_where_there_is_no_terminal(
 ) -> None:
     assert _opened(monkeypatch, stdout=io.StringIO()) == 0
     assert app.made == [{}]
-    terminal.host.assert_not_called()
+    terminal.assert_not_called()
 
 
-def test_a_host_is_started_where_none_is(
+def test_the_interface_opens_on_the_runs_held_here(
     app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     assert _opened(monkeypatch) == 0
-    terminal.host.return_value.link.assert_called_once_with(kind="tui")
-    assert app.made == [{"link": terminal.host.return_value.link.return_value}]
-
-
-def test_a_host_already_there_is_linked_to(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    found = mock.Mock(protocol=PROTOCOL)
-    terminal.running.return_value = found
-    assert _opened(monkeypatch) == 0
-    terminal.host.assert_not_called()
-    assert app.made == [{"link": found.link.return_value}]
+    terminal.assert_called_once_with("tui")
+    assert app.made == [{"link": terminal.return_value}]
 
 
 def test_a_daemon_of_an_older_humanize_is_said_and_not_opened(
@@ -275,20 +260,10 @@ def test_a_daemon_of_an_older_humanize_is_said_and_not_opened(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    terminal.running.return_value = mock.Mock(protocol=PROTOCOL - 1)
-    terminal.older.return_value = "held by an older humanize"
+    terminal.side_effect = hmz.daemon.Older("held by an older humanize")
     assert _opened(monkeypatch) == 1
     assert capsys.readouterr().err == "hmz: held by an older humanize\n"
     assert app.made == []
-
-
-def test_a_host_found_going_is_reached_for_again(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    terminal.host.return_value.link.side_effect = [OSError("gone"), "link"]
-    assert _opened(monkeypatch) == 0
-    assert terminal.sleep.call_count == 1
-    assert app.made == [{"link": "link"}]
 
 
 def test_runs_that_cannot_be_held_apart_are_held_here(
@@ -297,9 +272,8 @@ def test_runs_that_cannot_be_held_apart_are_held_here(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    terminal.host.side_effect = OSError("no fork")
+    terminal.side_effect = OSError("no fork")
     assert _opened(monkeypatch) == 0
-    assert terminal.host.call_count == 3
     assert "runs cannot be detached from the terminal (no fork)" in (
         capsys.readouterr().err
     )

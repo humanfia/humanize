@@ -1,4 +1,4 @@
-"""`hmz.tui.monitor`: what a flow is doing, kept from the turns going past."""
+"""`hmz.runtime.watching.monitor`: what a flow is doing, kept from the turns going past."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor import prices
-from hmz.tui.monitor import (
+from hmz.runtime.watching.monitor import (
     Counted,
     Monitor,
     Shape,

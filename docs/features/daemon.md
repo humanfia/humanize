@@ -33,7 +33,8 @@ import { withBase } from 'vitepress'
   answer, line and stop says who.
 - **Claims are about questions.** Anybody may still say anything to any agent.
 - **Leaving hands your part back.** A frontend that goes gives its roles back to anybody.
-- **Programs too.** A program on the [SDK](/reference/sdk#link) is a frontend like any interface.
+- **Programs too.** A program on the [SDK](/reference/sdk#link) is a frontend like any interface,
+  and so is a browser on [`hmz web`](/user/web).
 
 </div>
 

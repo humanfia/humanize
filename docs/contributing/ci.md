@@ -18,8 +18,8 @@ and per system, so no job waits on another and each stays short:
 title ─────────────────────────────────────────┐
 lint ──────────────────────────────────────────┤
 package ───────────────────────────────────────┤
-unit         7 packages × Linux, macOS ────────┼─▶ ci-ok
-integration  5 topics   × Linux, macOS ────────┘
+unit         8 packages × Linux, macOS ────────┼─▶ ci-ok
+integration  6 topics   × Linux, macOS ────────┘
 ```
 
 | Job | Checks | Run it yourself |
@@ -27,8 +27,8 @@ integration  5 topics   × Linux, macOS ────────┘
 | `title` | The pull request's title is a [Conventional Commit](/contributing/#commits): squashing writes it to the branch, and a release's changelog is written from those titles. Skipped on a push, and on the release pull request's run, whose title release-please writes | |
 | `package` | The wheel and the sdist build, and PyPI would render `README.md`, so any commit on a `release/*` branch can be [released](/contributing/releasing) | `uv build --no-sources && uvx twine check --strict dist/*` |
 | `lint` | Every pre-commit hook: `ruff`, `pyright` strict, `actionlint` and `zizmor` over `.github/`, and the file hygiene | `uv run pre-commit run --all-files` |
-| `unit (<os>, <package>)` | `tests/unit/<package>`, for each of `cli`, `coganchor`, `daemon`, `flows`, `runtime`, `sdk` and `tui` | `uv run pytest tests/unit/<package>` |
-| `integration (<os>, <topic>)` | `tests/integration/test_<topic>_*.py`, for each of `core`, `agents`, `tui`, `daemon` and `anchor` | `uv run pytest tests/integration/test_<topic>_*.py` |
+| `unit (<os>, <package>)` | `tests/unit/<package>`, for each of `cli`, `coganchor`, `daemon`, `flows`, `runtime`, `sdk`, `tui` and `web` | `uv run pytest tests/unit/<package>` |
+| `integration (<os>, <topic>)` | `tests/integration/test_<topic>_*.py`, for each of `core`, `agents`, `tui`, `daemon`, `anchor` and `web` | `uv run pytest tests/integration/test_<topic>_*.py` |
 | `ci-ok` | Every job above passed, or `title` was skipped | |
 
 Every job runs on Python 3.12, from the environment `uv.lock` pins with every extra; the tests

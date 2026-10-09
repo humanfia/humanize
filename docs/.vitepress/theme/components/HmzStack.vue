@@ -30,6 +30,7 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.runtime.telemetry': ['hmz.runtime.settings'],
   'hmz.runtime.epic': ['hmz.coganchor', 'hmz.runtime.tracing'],
   'hmz.runtime.tracing': ['hmz.coganchor'],
+  'hmz.runtime.watching': ['hmz.coganchor'],
   'hmz.runtime.exporting': ['hmz.coganchor', 'hmz.runtime.epic', 'hmz.runtime.tracing'],
   'hmz.runtime.runner': [
     'hmz.coganchor',
@@ -67,9 +68,17 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.exporting',
     'hmz.runtime.kept',
     'hmz.runtime.telemetry',
+    'hmz.runtime.watching',
     'hmz.daemon',
   ],
   'hmz.sdk': ['hmz.daemon', 'hmz.runtime'],
+  'hmz.web': [
+    'hmz.coganchor',
+    'hmz.daemon',
+    'hmz.runtime.epic',
+    'hmz.runtime.kept',
+    'hmz.runtime.watching',
+  ],
 }
 
 // The one pair allowed to point both ways, and only from inside `flow`, `load` and
@@ -79,6 +88,7 @@ const HANDED = { from: 'hmz.flows', to: 'hmz.runtime.flowing' }
 // What `hmz.cli` imports, since the table leaves it out.
 const CLI_IMPORTS = [
   'hmz.tui',
+  'hmz.web',
   'hmz.daemon',
   'hmz.runtime',
   'hmz.flows',
@@ -106,6 +116,14 @@ const LAYERS: Layer[] = [
     note: 'Reaches the runtime only through `daemon`, as one frontend of the runs a host holds.',
     spec: 'tui.md',
     ref: '/reference/tui',
+  },
+  {
+    id: 'web',
+    dotted: 'hmz.web',
+    here: 'The web interface: the runs of this directory in a browser on this machine, and what a page reads and asks of them.',
+    note: 'Reaches the runtime only through `daemon`, as one frontend of the runs a host holds, and draws a run with `watching` as the terminal interface does.',
+    spec: 'web.md',
+    ref: '/reference/web',
   },
   {
     id: 'sdk',
@@ -178,6 +196,12 @@ const LAYERS: Layer[] = [
     ref: '/reference/tracing',
   },
   {
+    id: 'watching',
+    dotted: 'hmz.runtime.watching',
+    here: 'A run read as it happens: who is working, what it has cost, and the view a side question is asked with. Every frontend draws the same figures from it.',
+    spec: 'runtime/watching.md',
+  },
+  {
     id: 'coganchor',
     dotted: 'hmz.coganchor',
     here: 'Driving a coding agent CLI: backends, drivers, accounts, models, fallbacks, prices, machines, and the anchor.',
@@ -213,11 +237,11 @@ const LAYERS: Layer[] = [
 ]
 
 const BANDS: { label: string; ids: string[] }[] = [
-  { label: 'ways in', ids: ['cli', 'tui', 'sdk'] },
+  { label: 'ways in', ids: ['cli', 'tui', 'web', 'sdk'] },
   { label: 'holding a run', ids: ['daemon'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
-  { label: 'what a run leaves', ids: ['exporting', 'epic', 'tracing'] },
+  { label: 'what a run leaves', ids: ['exporting', 'epic', 'tracing', 'watching'] },
   { label: 'driving agents', ids: ['coganchor', 'serve'] },
   { label: 'remembered', ids: ['telemetry', 'settings', 'kept'] },
 ]

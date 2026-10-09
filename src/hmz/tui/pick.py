@@ -79,11 +79,10 @@ from hmz.flows import Budget
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SENT
+from hmz.runtime.watching.monitor import thousands
 
 from .complete import paths
-from .discover import installed, ready_to_open
 from .dropdown import Dropdown, Value, anchor
-from .monitor import thousands
 from .selecting import Choices
 
 if TYPE_CHECKING:
@@ -2056,9 +2055,8 @@ def opens_on(
       The one agent, or nothing at all where no backend here has both said what it runs and
       can be opened without further setup.
     """
-    where = Path.cwd()
     for backend, found in agents.items():
-        if found and serves(backend, role) and ready_to_open(backend, where):
+        if found and serves(backend, role) and _hmz().ready_to_open(backend):
             # Not the hardest effort, which is where the cursor starts: that is the one to
             # reach for, and this is the one to spend before anybody has asked for anything.
             # `high` where the model takes it, which is nearly always -- and the least it
@@ -3993,7 +3991,7 @@ class Signing(Form[Signs]):
         self._held = dict(held or {})
         self._copies = copies
         #: What is installed here, read once: the form is redrawn per keystroke.
-        self._here = frozenset(installed())
+        self._here = frozenset(_hmz().installed())
         names = [profile.name for profile in hmz.backends()]
         #: The backends a new account could be for, the ones installed here first.
         self._clis = [one for one in names if one in self._here] + [

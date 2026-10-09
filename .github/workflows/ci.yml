@@ -92,7 +92,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        package: [cli, coganchor, daemon, flows, runtime, sdk, tui]
+        package: [cli, coganchor, daemon, flows, runtime, sdk, tui, web]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -117,7 +117,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        topic: [core, agents, tui, daemon, anchor]
+        topic: [core, agents, tui, daemon, anchor, web]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-// Three ways into humanize -- the terminal interface, the command line and Python -- over one
-// workspace: the same flows (this project's first, then yours, then the flowverses), the same
-// accounts, and one history of runs whichever way a run was started. A run started from the
-// command line is in the terminal interface's list of runs. A flow's settings are one model, so
-// a bad value is refused the same way everywhere, before any agent starts. The picker lights
-// the ways in that do a thing; each answer is what that way in does (`src/hmz/tui/`,
-// `src/hmz/cli/`, `src/hmz/sdk/`).
+// The ways into humanize -- an interface, in a terminal (`hmz`) or a browser (`hmz web`), the
+// command line and Python -- over one workspace: the same flows (this project's first, then
+// yours, then the flowverses), the same accounts, and one history of runs whichever way a run
+// was started. The two interfaces are one door here: each is a frontend of the same runs, and
+// what one does the other shows. A run started from the command line is in an interface's list
+// of runs. A flow's settings are one model, so a bad value is refused the same way everywhere,
+// before any agent starts. The picker lights the ways in that do a thing; each answer is what
+// that way in does (`src/hmz/tui/` and `src/hmz/web/`, `src/hmz/cli/`, `src/hmz/sdk/`).
 import { computed, ref } from 'vue'
 
 import HmzStage from '../motion/HmzStage.vue'
@@ -16,7 +17,7 @@ import { useScene } from '../motion/useScene'
 import { blink, breathe, crawl } from './sway'
 
 const BEATS = [
-  'Three ways in',
+  'Every way in',
   'The same flows, the same accounts',
   'Every run lands in one history',
   'Start it in one, open it in another',
@@ -25,7 +26,7 @@ const BEATS = [
 
 type Door = 0 | 1 | 2
 const DOORS = [
-  { name: 'terminal interface', lane: 1 },
+  { name: 'terminal or browser', lane: 1 },
   { name: 'command line', lane: 4 },
   { name: 'Python', lane: 3 },
 ]
@@ -139,7 +140,7 @@ const pills = computed(() => {
 })
 
 const label =
-  'Three ways in -- the terminal interface, the command line (hmz exec -f goal) and Python (Hmz().run("goal", ...)) -- over one workspace. All three find a flow the same way, in this project first, then yours, then the flowverses, and use the same accounts, claude@work and codex@home. Every run, whichever way it was started, lands in one history. A run started from the command line opens in the terminal interface. A bad value from any of the three falls on one settings model and is refused there, before any agent starts.'
+  'Every way in -- an interface in a terminal or a browser (hmz, hmz web), the command line (hmz exec -f goal) and Python (Hmz().run("goal", ...)) -- over one workspace. Every one finds a flow the same way, in this project first, then yours, then the flowverses, and uses the same accounts, claude@work and codex@home. Every run, whichever way it was started, lands in one history. A run started from the command line opens in either interface. A bad value from any of them falls on one settings model and is refused there, before any agent starts.'
 
 const scene = useScene({
   still: 'rest',
@@ -179,7 +180,7 @@ const scene = useScene({
     tl.set(one('.runs'), { text: '0 runs' }, 0)
     tl.set(pill, { autoAlpha: 0 }, 0)
 
-    // ---------------------------------------------------------------- 0 · three ways in
+    // ---------------------------------------------------------------- 0 · every way in
     tl.addLabel('beat-0', 0)
     win.forEach((w, i) => {
       const at = 0.2 + i * 0.55
@@ -373,7 +374,7 @@ const scene = useScene({
                 <path class="bar" :d="`M0 24 L${b.w} 24`" />
                 <circle v-for="k in 3" :key="k" class="dot" :cx="4 + k * 8" cy="12" r="2.6" />
                 <text class="win-name" x="38" y="16">{{ DOORS[i].name }}</text>
-                <!-- the terminal interface: a list of runs beside a conversation -->
+                <!-- an interface, in a terminal or a browser: a list of runs beside a conversation -->
                 <template v-if="i === 0">
                   <path class="rule" :d="`M58 30 L58 ${b.h - 8}`" />
                   <rect v-for="k in 3" :key="k" class="ink" x="10" :y="28 + k * 14" width="40" height="7" rx="3.5" />

@@ -15,10 +15,10 @@ once, each a :class:`Link` of its own saying JSON: an interface, or a program wr
 the SDK. Letting go of one is not stopping the run: the flow goes on taking its turns, and the
 next frontend to arrive is told it from the top.
 
-What the runs *are* is the runtime's, and it is reached from here: :class:`Hmz` and
-:class:`Host` are handed through from :mod:`hmz.runtime` under this name, and :func:`linked`
-makes the same :class:`Link` over runs held in the process that asked, so that a frontend is
-written once whichever way it reaches them.
+What the runs *are* is the runtime's, and it is reached from here: :class:`Hmz`, :class:`Host`
+and the :class:`Refused` a link raises are handed through from :mod:`hmz.runtime` under this
+name, and :func:`linked` makes the same :class:`Link` over runs held in the process that
+asked, so that a frontend is written once whichever way it reaches them.
 """
 
 from __future__ import annotations
@@ -39,13 +39,16 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from hmz.runtime import Hmz, Host
+    from hmz.runtime import Hmz, Host, Refused
 
 __all__ = [
     "Daemon",
     "Hmz",
     "Host",
     "Link",
+    "Older",
+    "Refused",
+    "attach",
     "daemons",
     "host",
     "linked",
@@ -68,6 +71,13 @@ _UNWINDING = 20.0
 
 #: How often a process being waited on is looked at.
 _TICK = 0.1
+
+#: How many times a frontend reaches for the host of its workspace before it gives up holding
+#: runs apart from itself, and how long it waits between: a host found on its way out -- the
+#: last frontend on it has just gone -- is found gone the next time, and one started in its
+#: place.
+_ATTACHES = 3
+_AGAIN = 0.5
 
 #: How long the socket of a daemon that may not be listening is given to answer at all. It
 #: is a connect to a file on this machine: either it is refused at once or it is taken, and a
@@ -92,7 +102,7 @@ def __getattr__(name: str) -> object:
     Raises:
       AttributeError: If nothing here is called that, as for any other module.
     """
-    if name not in ("Hmz", "Host"):
+    if name not in ("Hmz", "Host", "Refused"):
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     import hmz.runtime
 
@@ -356,6 +366,48 @@ def _machine(seconds: float) -> dict[str, Any]:
     if said.get("protocol") != PROTOCOL:
         raise OSError(errno.EADDRINUSE, older(_other(said, "")))
     return said
+
+
+class Older(RuntimeError):  # noqa: N818 -- what holds the runs, not what went wrong
+    """The runs asked for are held by an older humanize, which no frontend of this one reads.
+
+    Apart from failing to reach a host at all: a second daemon started beside it would fight
+    it over the socket, so a frontend says so and opens nothing rather than holding the runs
+    itself.
+    """
+
+
+def attach(
+    kind: str, name: str = "", *, workspace: str | os.PathLike[str] | None = None
+) -> Link:
+    """Links a frontend to the runs held for a workspace, starting a host where none is.
+
+    What every frontend holding runs apart from itself does first, so that each frontend opened
+    here -- in this terminal, in the next one, in a browser -- is one more of the same runs.
+
+    Args:
+      kind: What the frontend is, as the runs list their frontends: `tui`, `web`.
+      name: What to call it there, or "" for the runs to name it.
+      workspace: The project directory, or None for wherever humanize is being run.
+
+    Returns:
+      The link, attached.
+
+    Raises:
+      Older: If this workspace's runs are held by an older humanize.
+      OSError: If no host could be reached or started, after a few tries.
+    """
+    failed = OSError(f"the runs in {where.workspace(workspace)} could not be reached")
+    for _ in range(_ATTACHES):
+        found = running(workspace)
+        if found is not None and found.protocol != PROTOCOL:
+            raise Older(older(found))
+        try:
+            return (found or host(workspace)).link(name=name, kind=kind)
+        except OSError as why:
+            failed = why
+            time.sleep(_AGAIN)
+    raise failed
 
 
 def older(daemon: Daemon) -> str:

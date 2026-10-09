@@ -26,7 +26,10 @@ def running(workspace: str | os.PathLike[str] | None = None) -> Daemon | None: .
 def daemons() -> list[Daemon]: ...
 def host(workspace: str | os.PathLike[str] | None = None, *, seconds: float = 10.0) -> Daemon: ...
 def older(daemon: Daemon) -> str: ...  # what to say of a daemon of an older humanize
-def __getattr__(name: str) -> object: ...  # `Hmz` and `Host`, handed through from `hmz.runtime`
+class Older(RuntimeError): ...  # the runs asked for are held by an older humanize
+def attach(kind: str, name: str = "", *,
+           workspace: str | os.PathLike[str] | None = None) -> Link: ...  # kind: tui, web
+def __getattr__(name: str) -> object: ...  # `Hmz`, `Host` and `Refused`, from `hmz.runtime`
 # link.py -- one frontend's end of a workspace's runs, through the daemon or in this process
 class Link:  # a context manager; iterable of messages until a listener is set
     client: str
@@ -80,8 +83,14 @@ class Frames:
 ## Requirements
 
 - MUST hold `hmz.runtime.Host` and MUST know nothing about how a run is opened.
-- MUST offer `Hmz` and `Host` under this package, as the same objects `hmz.runtime` holds and
-  fetched when named; what is held MUST reach the runtime by that name rather than over the socket.
+- MUST offer `Hmz`, `Host` and `Refused` under this package, as the same objects `hmz.runtime`
+  holds and fetched when named; what is held MUST reach the runtime by that name rather than over
+  the socket.
+- `attach` MUST be how every frontend holding runs apart from itself reaches them: one more
+  frontend of the given kind of the host holding the workspace's runs, starting one where none
+  is, tried again a few times while a host is coming up or going. It MUST raise `Older` for
+  runs an older humanize holds, opening nothing beside them, and `OSError` where no host would
+  take it.
 - MUST be one daemon per machine and user, kept in `hmz.machine()` and never under `hmz.home()`,
   claimed against a race rather than by looking first, released however the process ends; it MUST
   hold every workspace's runs there, each in a host process of its own standing in that workspace,

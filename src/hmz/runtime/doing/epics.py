@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
     from typing import Any
 
-    from hmz.runtime.epic import Ran, Session
+    from hmz.runtime.epic import Called, Ran, Session
 
 __all__ = ["Epics"]
 
@@ -54,6 +54,12 @@ class Epics:
         from hmz.runtime.epic import read
 
         return read(epic)
+
+    def tree(self, epic: Path) -> tuple[Called, ...]:
+        """Every flow one run called, as the tree of calls it was: each call's under it."""
+        from hmz.runtime.epic import tree
+
+        return tree(epic)
 
     def sessions(self, epic: Path) -> list[Session]:
         """Every session one run opened, across each of the records it holds."""

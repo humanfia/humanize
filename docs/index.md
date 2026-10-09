@@ -142,7 +142,9 @@ straight away.
 Or start from the menu: type `/flow`, pick `ralph_loop`, set it up, press **Save**, and then
 type the task at `❯`.
 
-<kbd>ctrl+c</kbd> twice stops the flow, `/` lists every command, and `/exit` leaves.
+<kbd>ctrl+c</kbd> twice stops the flow, `/` lists every command, and `/exit` leaves. To watch
+the same run in a browser, run `hmz web` in another terminal in the same directory: see
+[In a browser](/user/web).
 
 <HmzCast name="tui" alt="hmz opens, / lists its commands, /flow lists the flows installed here and → opens one's roles; esc steps back out through its first screen" />
 

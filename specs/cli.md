@@ -1,9 +1,9 @@
 # `cli`
 
-`hmz` -- the whole command line, over layers that have none of their own. Two commands anybody types,
-one door onto what humanize spawns for itself, and naming no command at all opens the terminal
-interface. It reads a line, routes it and settles who is reading; it decides nothing a layer under it
-decides.
+`hmz` -- the whole command line, over layers that have none of their own. Two commands anybody
+types, one door onto what humanize spawns for itself, and naming no command at all opens the
+terminal interface; `hmz web` opens the web interface instead. It reads a line, routes it and
+settles who is reading; it decides nothing a layer under it decides.
 
 ## API
 
@@ -11,6 +11,7 @@ decides.
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
          [-p|--params <param>[,<param>...]]... [--profile] [--resume] [--json] <task>
+hmz web [--port <port>] [--no-open]
 <ref>    := [@<flowverse>/][<user>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
 <path>   := .<...> | /<...> | ~<...>   # nothing else is a path
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
@@ -34,7 +35,7 @@ hmz internal hook --at <socket>
 ```python
 # __init__.py
 APART = "HUMANIZE_DAEMON"   # `off`, `0` or `no`: keep the run with the terminal
-COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, internal
+COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, web, internal
 INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, fence, hook, tools
 def main(argv: list[str] | None = None) -> int: ...
 def opens() -> int: ...
@@ -62,6 +63,8 @@ class Shown:    # the agents' own events, drawn as one run; a context manager
         self, agent: AgentBase, session: SessionBase | None, event: Event
     ) -> None: ...
 
+# web.py -- `hmz web`
+def web(argv: list[str], *, apart: bool) -> int: ...
 # anchor.py, cred.py, fence.py, hook.py, tools.py -- one command apiece
 def anchor(argv: list[str]) -> int: ...
 def cred(argv: list[str]) -> int: ...
@@ -72,9 +75,10 @@ def tools(argv: list[str]) -> int: ...
 
 ## Requirements
 
-- MUST offer exactly one command to a person -- `hmz exec` -- and MUST leave everything else humanize
-  keeps to the prompt or to `sdk`, a run already held here included: `hmz` opens it.
-- MUST gather every line humanize spawns for itself under `hmz internal`, MUST show both commands in
+- MUST offer exactly two commands to a person -- `hmz exec` and `hmz web` -- and MUST leave
+  everything else humanize keeps to the prompt, to the web interface or to `sdk`, a run already
+  held here included: `hmz` and `hmz web` each open it.
+- MUST gather every line humanize spawns for itself under `hmz internal`, MUST show every command in
   the listing, MUST leave nothing it routes out of it, and MUST have each of those lines say in its
   own help that it is not one to type.
 - Every `--help` MUST read at a glance: a flag's help, a command's summary, a description and an
@@ -89,6 +93,11 @@ def tools(argv: list[str]) -> int: ...
   none is; with no terminal on both ends it MUST hold the runs in this process. `APART` MUST refuse
   holding for a whole machine, anything else that stops the runs being held MUST be said and then
   done without, and runs held by an older humanize MUST be said to be and left alone.
+- `hmz web` MUST serve the web interface until it is interrupted, holding the runs as the
+  terminal interface does -- apart where `APART` allows, in this process where it refuses --,
+  MUST print the address it listens at, key and all, on a line of its own, MUST open a browser
+  on it unless told `--no-open`, and MUST exit zero once interrupted and one, saying why, where
+  the runs or the port cannot be had or an older humanize holds the runs.
 - MUST settle whether escapes may be written in one place: `NO_COLOR` MUST win over everything, then
   `TERM=dumb`, then `FORCE_COLOR`, and otherwise whether a terminal is reading. `FORCE_COLOR` MUST NOT
   make a run believe somebody is watching it, and `rich` MUST NOT be reached until escapes are wanted.

@@ -1,4 +1,4 @@
-"""`hmz.tui.tally`: what a run has cost, read from the logs the agents keep for themselves."""
+"""`hmz.runtime.watching.tally`: what a run has cost, read from the agents' own logs."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 from hmz.coganchor import backends
-from hmz.tui.tally import Seen, Tally, reported
+from hmz.runtime.watching.tally import Seen, Tally, reported
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
     from pathlib import Path
 
-    from hmz.tui.monitor import Monitor
+    from hmz.runtime.watching.monitor import Monitor
 
 
 @dataclass

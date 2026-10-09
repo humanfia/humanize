@@ -196,7 +196,7 @@ export default defineConfig({
           items: [
             { text: 'Every coding agent you have', link: '/features/backends' },
             { text: 'Two accounts of one CLI', link: '/features/accounts' },
-            { text: 'Prompt, script or Python', link: '/features/surfaces' },
+            { text: 'Prompt, browser, script or Python', link: '/features/surfaces' },
           ],
         },
         {
@@ -272,6 +272,7 @@ export default defineConfig({
             { text: 'Being away (/afk)', link: '/user/afk' },
             { text: 'Stopping', link: '/user/stopping' },
             { text: 'Leaving it running', link: '/user/leaving' },
+            { text: 'In a browser (hmz web)', link: '/user/web' },
             { text: 'The mission board', link: '/user/board' },
           ],
         },
@@ -414,6 +415,7 @@ export default defineConfig({
           items: [
             { text: 'CLI', link: '/reference/cli' },
             { text: 'TUI', link: '/reference/tui' },
+            { text: 'Web', link: '/reference/web' },
             { text: 'Daemon', link: '/reference/daemon' },
           ],
         },

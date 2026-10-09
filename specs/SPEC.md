@@ -41,6 +41,7 @@ def machine() -> pathlib.Path: ...
 | `cli` | The command line | [cli.md](cli.md) |
 | `daemon` | Holding every workspace's runs on a machine where a terminal closing cannot end them, for every frontend reading them | [daemon.md](daemon.md) |
 | `tui` | The terminal interface | [tui.md](tui.md) |
+| `web` | The web interface | [web.md](web.md) |
 | `sdk` | The way in from outside | [sdk.md](sdk.md) |
 
 ## Requirements
@@ -69,8 +70,8 @@ def machine() -> pathlib.Path: ...
   those protocols structurally. Everything humanize does *to* a flow MUST be `runtime/flowing`
   instead. The flows humanize ships MUST be kept in `flows/builtin`, written against `flows`
   like any other flow and importing nothing else.
-- `cli`, `daemon` and `tui` MUST each be a way of reaching the runtime's one object rather
-  than a second copy of what it does. Anything two of them would otherwise each have written
+- `cli`, `daemon`, `tui` and `web` MUST each be a way of reaching the runtime's one object
+  rather than a second copy of what it does. Anything two of them would otherwise each have written
   MUST be written in `runtime` instead, so that a thing which can be done one way can be done
   every way and is refused the same way whichever way it was asked.
 - `sdk` MUST be the way in from outside, MUST offer both ways of reaching a run, and MUST
@@ -79,13 +80,14 @@ def machine() -> pathlib.Path: ...
 ### How layers may name one another
 
 - Each layer MUST import only its own subtree, `hmz` itself, and the layers listed for it in
-  `tests/integration/layering/test_layering.py`, which MUST hold the table.
+  `tests/integration/test_core_layering.py`, which MUST hold the table.
 - No two layers MUST name each other, but for one pair: `flows` MAY hand `flow`, `load` and
   `Outworlder.new` to `runtime/flowing`, importing it inside the call and never at import.
   `flows` MUST import nothing else of humanize, and MUST be checked to do so rather than taken
   on trust.
-- `cli` MUST reach `runtime` by name. `tui` MUST reach it through `daemon`, and `daemon` MUST
-  offer it. `sdk` MUST be named by no layer.
+- `cli` MUST reach `runtime` by name. `tui` and `web` MUST each reach it through `daemon`, and
+  `daemon` MUST offer it. What both of them work out of a run as it happens MUST be
+  `runtime/watching`'s. `sdk` MUST be named by no layer.
 - `coganchor/serve` — the half that ships to a target of any architecture — MUST name the
   wire protocol and nothing else of `coganchor`.
 - Any layer MAY name `runtime/telemetry`, which MUST name nothing above itself.

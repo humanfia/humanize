@@ -2,7 +2,7 @@
 // The readout above the editor, for a run of whichever agents are switched on. The figures are
 // invented; the rules are the interface's own: every kind any agent reports is a column, a
 // kind is marked `+` where some agent of the run does not report it (`Monitor.reckoning` in
-// `src/hmz/tui/monitor.py`), the money is the priced models' sum and wears `+` where a model
+// `src/hmz/runtime/watching/monitor.py`), the money is the priced models' sum and wears `+` where a model
 // has no price (`HmzApp._draw` in `src/hmz/tui/app.py`), and the rate is output tokens a
 // second. Which kinds each backend reports is its `counts`, plus what its own log names.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'

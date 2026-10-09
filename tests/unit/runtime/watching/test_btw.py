@@ -1,4 +1,4 @@
-"""`hmz.tui.btw`: the bounded prompts side questions are asked with, and `@ask` lines."""
+"""`hmz.runtime.watching.btw`: the prompts side questions are asked with, and `@ask` lines."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.tui import btw
-from hmz.tui.btw import (
+from hmz.runtime.watching import btw
+from hmz.runtime.watching.btw import (
     HOPS,
     AgentProgress,
     FlowSnapshot,
@@ -326,3 +326,138 @@ def test_the_snapshot_types_are_frozen() -> None:
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         agent.turns = 2  # pyright: ignore[reportAttributeAccessIssue]
+
+
+class _Runs:
+    """The runs, as a side conversation reaches them: each one opened, and each prompt said.
+
+    Args:
+      answers: What each side conversation answers, by what it was opened as, in turn.
+      forks: Whether a fork of a session will answer, rather than raise.
+    """
+
+    def __init__(self, answers: dict[str, list[str]], *, forks: bool = True) -> None:
+        self.answers = answers
+        self.forks = forks
+        self.opened: list[dict[str, object]] = []
+        self.closed: list[str] = []
+        self._of: dict[str, str] = {}
+
+    def aside(self, **said: object) -> dict[str, object]:
+        if "prompt" in said:
+            opened = self._of[str(said["side"])]
+            if opened.endswith("fork") and not self.forks:
+                raise RuntimeError("the fork would not answer")
+            return {"answer": self.answers[opened].pop(0)}
+        side = f"s{len(self.opened) + 1}"
+        self.opened.append(said)
+        whose = str(said.get("key") or said.get("runs"))
+        self._of[side] = f"{whose} fork" if said.get("fork") else whose
+        return {"side": side, "forked": bool(said.get("fork"))}
+
+    def btw(
+        self, target: str = "", asking: Callable[[str, str], object] | None = None
+    ) -> btw.Btw:
+        return btw.Btw(
+            target,
+            aside=self.aside,
+            unaside=self.closed.append,
+            sessions=lambda: ["builder/1", "critic/1"],
+            source=lambda: {"runs": "claude/opus"},
+            asking=asking,
+        )
+
+
+def test_a_fork_that_will_not_answer_is_asked_again_as_a_copy() -> None:
+    runs = _Runs({"builder/1": ["from the copy"]}, forks=False)
+
+    answer = runs.btw("builder/1").ask("what now", _snapshot())
+
+    assert answer == "from the copy"
+    assert runs.opened == [{"key": "builder/1", "fork": True}, {"key": "builder/1"}]
+    assert runs.closed == ["s1"]
+
+
+def test_the_btw_agent_carries_out_what_it_asks_and_answers_with_what_came_back() -> (
+    None
+):
+    runs = _Runs(
+        {
+            "claude/opus": [
+                "@ask builder/1: how far along?\n@ask nobody/9: hello?",
+                "nearly done",
+            ],
+            "builder/1 fork": ["two tests left"],
+        }
+    )
+    told: list[tuple[str, str]] = []
+
+    answer = runs.btw(asking=lambda key, question: told.append((key, question))).ask(
+        "status?", _snapshot()
+    )
+
+    assert answer == "nearly done"
+    assert told == [("builder/1", "how far along?"), ("nobody/9", "hello?")]
+
+
+def test_the_btw_agent_asks_no_more_than_its_hops() -> None:
+    asking = "\n".join(f"@ask builder/1: question {at}" for at in range(HOPS + 3))
+    runs = _Runs(
+        {
+            "claude/opus": [asking, asking, "done asking"],
+            "builder/1 fork": [f"answer {at}" for at in range(HOPS)],
+        }
+    )
+    told: list[tuple[str, str]] = []
+
+    answer = runs.btw(asking=lambda key, question: told.append((key, question))).ask(
+        "go on", _snapshot()
+    )
+
+    assert len(told) == HOPS
+    assert answer == ""  # the @ask lines past the bound are taken off what is said
+
+
+def test_a_side_conversation_opened_after_the_mode_was_left_is_closed_again() -> None:
+    runs = _Runs({})
+
+    def opens(**said: object) -> dict[str, object]:
+        mode.close()
+        return runs.aside(**said)
+
+    mode = btw.Btw(
+        "",
+        aside=opens,
+        unaside=runs.closed.append,
+        sessions=list,
+        source=lambda: {"runs": "claude/opus"},
+    )
+
+    with pytest.raises(btw.Left):
+        mode.ask("anything", _snapshot())
+    assert runs.closed == ["s1"]
+    assert not mode.busy
+
+
+@pytest.mark.parametrize(
+    ("chosen", "roles", "sessions", "expected"),
+    [
+        ("codex/gpt", {"builder": "claude/opus"}, ["builder/1"], {"runs": "codex/gpt"}),
+        (
+            "",
+            {"builder": "claude/opus"},
+            ["critic/1", "builder/1"],
+            {"key": "builder/1"},
+        ),
+        ("", {"builder": "claude/opus"}, ["critic/1"], {"runs": "claude/opus"}),
+        ("", {"builder": ""}, ["critic/1"], {"key": "critic/1"}),
+        ("", {}, [], None),
+    ],
+)
+def test_the_btw_agent_is_the_one_settings_name_or_the_flows_first(
+    chosen: str,
+    roles: dict[str, str],
+    sessions: list[str],
+    expected: dict[str, str] | None,
+) -> None:
+    assert btw.opened_as(chosen, roles, sessions) == expected

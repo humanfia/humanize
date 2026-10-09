@@ -1052,7 +1052,7 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
   and a row with no timestamp is counted.
   What is shown per model is the higher of what the logs and the backends say, never the sum.
 
-<small>Defined in [`src/hmz/coganchor/agents/event.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/event.py) (`Usage`, `KINDS`), [`src/hmz/coganchor/agents/allowance.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/allowance.py), [`src/hmz/coganchor/prices.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/prices.py), [`src/hmz/tui/tally.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/tui/tally.py).</small>
+<small>Defined in [`src/hmz/coganchor/agents/event.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/event.py) (`Usage`, `KINDS`), [`src/hmz/coganchor/agents/allowance.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/allowance.py), [`src/hmz/coganchor/prices.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/prices.py), [`src/hmz/runtime/watching/tally.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/watching/tally.py).</small>
 
 ## Skills {#the-skills-an-agent-carries}
 

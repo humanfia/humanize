@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="humanize">
+  <title>humanize</title>
+  <!-- The prompt, `>_`, cut from flat planes: an ink chevron, and a red wedge rising on the
+       one diagonal. -->
+  <style>
+    .ink { fill: #16161a; }
+    .red { fill: #d6331f; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #ece6da; }
+      .red { fill: #ff5a43; }
+    }
+  </style>
+  <polygon class="ink" points="12,16 32,16 62,50 32,84 12,84 42,50"/>
+  <polygon class="red" points="60,84 94,84 94,64 60,74"/>
+</svg>
