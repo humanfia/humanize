@@ -31,8 +31,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 
 ### Reaching it
 
-- MUST listen on this machine's loopback alone, and MUST be served by the standard library
-  alone: no dependency and no build step beyond what `hmz` already installs.
+- MUST listen on this machine's loopback alone -- on every loopback it has, IPv4's and IPv6's,
+  on one port -- and MUST be served by the standard library alone: no dependency and no build
+  step beyond what `hmz` already installs.
 - MUST let a browser in only by the key the printed address carries, made afresh each time it
   is served, and MUST then hold it by a cookie that is `HttpOnly` and `SameSite=Strict` and
   carries that key. Everything under `/api/` MUST be refused to a browser not let in, and to a
@@ -41,10 +42,10 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST NOT put the key on any command line: a browser it opens MUST be opened on a page only
   this account can read, which sends it on to the address, and only where there is a desktop
   to open one on.
-- MUST refuse any request whose `Host` does not name this machine -- `127.0.0.1`, `localhost`,
-  `[::1]`, on any port -- before anything else is read, so that a page elsewhere that points
-  its own name at the loopback reaches nothing; a port forwarded from another machine MUST
-  still be let in.
+- MUST refuse any request whose connection did not come from this machine before anything else
+  is read, and MUST NOT ask what name it was reached by: a port forwarded or proxied on to it
+  from here MUST be let in, and a page elsewhere that points its own name at the loopback is
+  kept out by the key, since a browser hands a name only that name's cookies.
 - MUST take a write only as JSON sent from its own page's origin, and no larger than a request
   here may be; MUST answer what it refuses as JSON saying why in one sentence, with a status
   saying what kind of refusal it is.

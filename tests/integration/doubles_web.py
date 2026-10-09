@@ -66,11 +66,13 @@ class Browser:
       site: The interface it reaches.
       host: What its requests name the server as, which is the address's own by default.
       cookie: The cookie it carries, or "" before it is let in.
+      at: Which loopback it connects to.
     """
 
     site: Site
     host: str = ""
     cookie: str = field(default="")
+    at: str = "127.0.0.1"
 
     def signs_in(self) -> Answer:
         """Opens the address the interface printed, keeping the cookie it is handed."""
@@ -99,7 +101,7 @@ class Browser:
         self, method: str, path: str, body: bytes | None, headers: dict[str, str]
     ) -> Answer:
         connection = http.client.HTTPConnection(
-            "127.0.0.1", self.site.port, timeout=PATIENCE
+            self.at, self.site.port, timeout=PATIENCE
         )
         try:
             sent = {"Host": self._host()} | (
@@ -126,7 +128,7 @@ class Browser:
           What gives the next event: its id, what it is, and what it carries.
         """
         connection = http.client.HTTPConnection(
-            "127.0.0.1", self.site.port, timeout=PATIENCE
+            self.at, self.site.port, timeout=PATIENCE
         )
         headers = {"Host": self._host(), "Cookie": self.cookie}
         if last:

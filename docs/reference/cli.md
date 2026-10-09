@@ -534,7 +534,7 @@ hmz web [--port <port>] [--no-open]
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--port <port>` | `0` | The port to listen on, on `127.0.0.1`; `0` picks any free one. |
+| `--port <port>` | `0` | The port to listen on, on `127.0.0.1` and, where this machine has IPv6, on `::1`; `0` picks any free one on both. |
 | `--no-open` | off | Print the address and open no browser. |
 
 Serves this directory's runs to a browser on this machine until `SIGINT`, as one more frontend

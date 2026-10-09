@@ -42,7 +42,8 @@ That has three consequences:
   going, as closing a terminal does. See [Leaving it running](/user/leaving).
 - **One run per directory.** `hmz web` serves the directory it was started in. Another project
   needs an `hmz web` of its own, on another port.
-- **It only listens on this machine.** The address is `127.0.0.1`, and it carries a key made
+- **It only listens on this machine.** The address is `127.0.0.1` (`localhost` works too, over
+  IPv4 or IPv6), and it carries a key made
   afresh each time `hmz web` starts. Opening the address hands your browser that key as a
   cookie, and only a browser holding it is answered. See [What it refuses](#what-it-refuses).
 
@@ -169,16 +170,20 @@ hmz web --port 8765 --no-open
 ```
 
 Open the printed address in your laptop's browser. A port forwarded to another number on your
-side works too: change the port in the address and keep the key.
+side works too: change the port in the address and keep the key. So does any name the port is
+reached by -- a forwarded port in VS Code or Codespaces, or a reverse proxy on the server such
+as `tailscale serve` -- as long as the proxy runs on the same machine as `hmz web`: change the
+start of the address and keep `/?key=…`.
 
 ## What it refuses {#what-it-refuses}
 
 Anything that can reach a port on this machine could otherwise drive your runs, so the page is
 answered only where it was meant to be:
 
-- **Only this machine.** It listens on `127.0.0.1` alone, and refuses any request that names
-  another host. That stops a web page elsewhere from pointing a name of its own at your machine
-  and reading the runs through your browser.
+- **Only this machine.** It listens on the loopback alone, and answers only connections from
+  this machine -- whatever name they used, so a port forwarded or proxied from here works. A web
+  page elsewhere that points a name of its own at your machine still reads nothing: your browser
+  never hands that name the key's cookie.
 - **Only the browser it was opened in.** The key in the address becomes a cookie that scripts
   cannot read and other sites cannot send. A browser without it is told it is not let in.
 - **Only its own page.** Every change is JSON from the page's own address, and every question

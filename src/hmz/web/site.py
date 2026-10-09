@@ -1,24 +1,29 @@
 """The web interface's server: what a browser on this machine is answered by.
 
-It listens on this machine's loopback alone and answers only a browser that came in through the
-address `hmz web` printed: that address carries a key, which the browser is handed back as a
-cookie, and every question about the runs must carry it. A loopback port is open to every
-account on a machine, where the socket the runs are held behind is not; the key is what keeps
-the runs this account's. A page from anywhere else cannot ask anything either: the browser says
-where a request came from, and only this server's own page, or an address typed or opened, is
-answered -- a page served from another port of this machine is the same site to a cookie, and
-not to this. A write must also say it comes from this server's own page, and a name that is not
-this machine's is refused outright whatever port it arrived through -- which is what lets the
-port be forwarded.
+It listens on this machine's loopback alone -- IPv4's and, where there is one, IPv6's, on one
+port -- and answers only a browser that came in through the address `hmz web` printed: that
+address carries a key, which the browser is handed back as a cookie, and every question about
+the runs must carry it. A loopback port is open to every account on a machine, where the socket
+the runs are held behind is not; the key is what keeps the runs this account's. What name the
+browser reached it by is not asked, so a port forwarded or proxied on to it is answered: what is
+asked is that the connection came from this machine, and the key. A page elsewhere that points a
+name of its own at the loopback is answered as a stranger, since a browser hands a name the
+cookies of that name alone. A page from anywhere else cannot ask anything either: the browser
+says where a request came from, and only this server's own page, or an address typed or opened,
+is answered -- a page served from another port of this machine is the same site to a cookie, and
+not to this. A write must also say it comes from this server's own page.
 """
 
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
+import ipaddress
 import json
 import secrets
 import shutil
+import socket
 import string
 import sys
 import threading
@@ -51,8 +56,11 @@ ROUTES: tuple[Route, ...] = (
     *runtimes.ROUTES,
 )
 
-#: The names this machine answers to from a browser on it, whatever the port.
-_HERE = frozenset({"127.0.0.1", "localhost", "[::1]"})
+#: How many ports any would do for are tried before one free on both loopbacks is given up on.
+_PORTS = 8
+
+#: What binding IPv6's loopback fails with on a machine that has none.
+_NO_IPV6 = frozenset({errno.EADDRNOTAVAIL, errno.EAFNOSUPPORT})
 
 #: The most a write may send.
 _LARGEST = 1 << 20
@@ -86,8 +94,12 @@ _LONGEST = 200
 class Site(ThreadingHTTPServer):
     """The server, holding what its routes are answered from.
 
+    Listens on IPv4's loopback itself and on IPv6's beside it, on the same port, so that a
+    browser reaching `localhost` by either is answered; a machine with no IPv6 is answered on
+    IPv4's alone.
+
     Args:
-      port: The port to listen on, or 0 for any free one.
+      port: The port to listen on, or 0 for any free one on both.
       hmz: humanize, for the workspace the runs are of.
       held: The runs held for that workspace, as this interface follows them.
       runs: The runs written down there.
@@ -97,13 +109,29 @@ class Site(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, port: int, *, hmz: Any, held: Held, runs: Runs) -> None:
-        super().__init__(("127.0.0.1", port), _Handler)
+        self._beside: _Beside | None = None
+        for left in reversed(range(_PORTS)):
+            super().__init__(("127.0.0.1", port), _Handler)
+            try:
+                self._beside = _beside(self)
+                break
+            except OSError:
+                self.server_close()
+                # A port any would do for, free on one loopback and taken on the other: the
+                # next one picked may be free on both.
+                if port or not left:
+                    raise
         self.hmz = hmz
         self.held = held
         self.runs = runs
         #: Set as the server stops, which is what ends every stream it is sending.
         self.going = threading.Event()
         self._key = secrets.token_urlsafe(32)
+
+    @property
+    def site(self) -> Site:
+        """Itself: what a connection to either loopback is answered from."""
+        return self
 
     @property
     def port(self) -> int:
@@ -124,6 +152,61 @@ class Site(ThreadingHTTPServer):
         """Whether a key is the one `address` carries."""
         return secrets.compare_digest(key.encode(), self._key.encode())
 
+    def serve_forever(self, poll_interval: float = 0.5) -> None:
+        """Answers both loopbacks until `shutdown`: IPv6's on a thread of its own."""
+        if self._beside is not None:
+            threading.Thread(
+                target=self._beside.serve_forever,
+                args=(poll_interval,),
+                daemon=True,
+                name="hmz-web-ipv6",
+            ).start()
+        super().serve_forever(poll_interval)
+
+    def shutdown(self) -> None:
+        """Stops answering both loopbacks."""
+        super().shutdown()
+        if self._beside is not None:
+            self._beside.shutdown()
+
+    def server_close(self) -> None:
+        """Stops listening on both loopbacks."""
+        super().server_close()
+        if self._beside is not None:
+            self._beside.server_close()
+
+
+class _Beside(ThreadingHTTPServer):
+    """IPv6's loopback, answered as the site it stands beside answers IPv4's.
+
+    Args:
+      site: The site, listening on IPv4's loopback on the port this one takes too.
+    """
+
+    address_family = socket.AF_INET6
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, site: Site) -> None:
+        super().__init__(("::1", site.port), _Handler)
+        self.site = site
+
+
+def _beside(site: Site) -> _Beside | None:
+    """IPv6's loopback on the port the site took on IPv4's, or None on a machine without one.
+
+    Raises:
+      OSError: If the port is taken there.
+    """
+    if not socket.has_ipv6:
+        return None
+    try:
+        return _Beside(site)
+    except OSError as why:
+        if why.errno in _NO_IPV6:
+            return None
+        raise
+
 
 class _Handler(BaseHTTPRequestHandler):
     """One connection from a browser."""
@@ -141,8 +224,8 @@ class _Handler(BaseHTTPRequestHandler):
 
     @property
     def site(self) -> Site:
-        """The server this connection came to, which holds what it is answered from."""
-        return cast("Site", self.server)
+        """The site this connection came to, on either loopback."""
+        return cast("Site | _Beside", self.server).site
 
     def do_GET(self) -> None:
         self._answers("GET")
@@ -181,12 +264,11 @@ class _Handler(BaseHTTPRequestHandler):
             self._file(path)
 
     def _here(self) -> bool:
-        """Whether the browser named this machine, which a page elsewhere cannot make it do."""
-        named = self.headers.get("Host", "")
-        name = named.rpartition(":")[0] if named.rstrip("]").count(":") else named
-        if named.startswith("[") and "]" in named:
-            name = named[: named.index("]") + 1]
-        return name.lower() in _HERE
+        """Whether the connection came from this machine, by whatever name it was reached.
+
+        Whatever forwards or proxies a port on to this one does it from here as well.
+        """
+        return ipaddress.ip_address(str(self.client_address[0])).is_loopback
 
     def _signed_in(self) -> bool:
         """Whether the browser carries the key the address handed it.
@@ -205,13 +287,27 @@ class _Handler(BaseHTTPRequestHandler):
         """Whether a request came from this server's own page, or from an address opened.
 
         A browser says where a request came from: `same-origin` from this server's page,
-        `none` from an address typed or opened. One saying nothing is not a browser of today,
-        and is let in by the key alone.
+        `none` from an address typed or opened. One that does not say is not a browser of
+        today: it is let in by the key alone, unless it names a page that is not this one.
         """
         fetched = self.headers.get("Sec-Fetch-Site")
-        origin = self.headers.get("Origin")
-        return (fetched is None or fetched in ("same-origin", "none")) and (
-            origin is None or origin == f"http://{self.headers.get('Host', '')}"
+        if fetched is not None:
+            return fetched in ("same-origin", "none")
+        return "Origin" not in self.headers or self._from_its_page()
+
+    def _from_its_page(self) -> bool:
+        """Whether the browser says this server's own page made a request.
+
+        As the page was reached, through a proxy too: a browser that says where a request came
+        from is taken at its word, and one that does not is asked for an `Origin` naming the
+        `Host` it asked, by either scheme, since a proxy may have added one.
+        """
+        fetched = self.headers.get("Sec-Fetch-Site")
+        if fetched is not None:
+            return fetched == "same-origin"
+        origin = urllib.parse.urlsplit(self.headers.get("Origin", ""))
+        return origin.scheme in ("http", "https") and origin.netloc == self.headers.get(
+            "Host", ""
         )
 
     def _signs_in(self, key: str) -> None:
@@ -266,8 +362,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _body(self) -> dict[str, Any]:
         """What a write sent, which must come from this server's own page and be JSON."""
-        origin = self.headers.get("Origin", "")
-        if origin != f"http://{self.headers.get('Host', '')}":
+        if not self._from_its_page():
             raise Refusal("Use this server's own page to make this request.", 403)
         if not self.headers.get("Content-Type", "").startswith("application/json"):
             raise Refusal("Send JSON.", 415)

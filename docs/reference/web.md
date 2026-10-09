@@ -26,7 +26,7 @@ hmz web [--port <port>] [--no-open]
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--port <port>` | `0` | The port to listen on, on `127.0.0.1`. `0` picks any free one. |
+| `--port <port>` | `0` | The port to listen on, on `127.0.0.1` and, where this machine has IPv6, on `::1` too. `0` picks any free one on both. |
 | `--no-open` | off | Print the address and open no browser. |
 
 Once listening it prints one line to stdout, flushed, and serves until `SIGINT`. Unless
@@ -76,9 +76,9 @@ this order.
 
 | Status | Condition | `error` |
 | --- | --- | --- |
-| `403` | `Host` is not `127.0.0.1`, `localhost` or `[::1]`, on any port | `Open the address hmz web printed, on the machine it runs on.` |
+| `403` | The connection did not come from a loopback address | `Open the address hmz web printed, on the machine it runs on.` |
 | `401` | `/api/…` without the key's cookie | `Open the address hmz web printed to let this browser in.` |
-| `403` | `/api/…` that the browser says came from another page -- `Sec-Fetch-Site` other than `same-origin` or `none` -- or whose `Origin` is not `http://<Host>`; a `POST` without an `Origin` too | `Use this server's own page to make this request.` |
+| `403` | `/api/…` that the browser says came from another page: `Sec-Fetch-Site` other than `same-origin` or `none` (a `POST`: other than `same-origin`); or, from a browser that sends no `Sec-Fetch-Site`, an `Origin` whose host and port are not the `Host` asked, by `http` or `https` -- for a `POST`, a missing `Origin` too | `Use this server's own page to make this request.` |
 | `415` | `POST` whose `Content-Type` is not `application/json` | `Send JSON.` |
 | `411` | `POST` whose `Content-Length` is not a number, or is below `0` | `Say how long what is sent is.` |
 | `413` | `POST` body over **1 MiB** | `That is more than a request here may send.` |
@@ -90,9 +90,11 @@ this order.
 | `503` | The runs could not be asked | `The runs could not be asked: <why>` |
 | `500` | Anything else, with a traceback on `hmz web`'s stderr | `Something went wrong here: <why>` |
 
-A `Host` naming another machine is refused before anything else is read: a web page elsewhere
-that points a name of its own at `127.0.0.1` reaches nothing. A port forwarded from another
-machine still names the loopback, so it is let in. A page served from another port of this
+Which name the server was reached by is not asked: a port forwarded over ssh, or proxied on to
+it by a server on this machine, is answered under whatever name the browser used, once that
+browser has been let in there with the key. A web page elsewhere that points a name of its own
+at `127.0.0.1` reaches the server, but its browser hands it that name's cookies only, never the
+key's, so it is answered `401`. A page served from another port of this
 machine is the same site to a cookie, so its browser sends the cookie along; it is refused all
 the same, by what the browser says of where the request came from. A connection that says
 nothing for **60 s** is closed.

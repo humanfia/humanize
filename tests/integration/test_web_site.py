@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 import urllib.parse
 from typing import TYPE_CHECKING
 
@@ -44,21 +45,36 @@ def test_a_browser_is_let_in_by_the_key_it_was_printed_and_nothing_else(
         assert held.json()["workspace"] == str(project)
 
 
-def test_a_page_elsewhere_cannot_reach_the_interface_through_this_machine(
+def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(
     project: Path,
 ) -> None:
     with served() as site:
         browser = Browser(site)
         browser.signs_in()
 
-        # A name that resolves here is still not this machine's: a page on another site
-        # that rebinds its own name to the loopback is refused before anything is read.
-        rebound = Browser(site, host="evil.example", cookie=browser.cookie)
-        assert rebound.get("/api/held").status == 403
-        assert rebound.get("/").status == 403
-        # Any port, though: an address forwarded from another machine names its own.
-        forwarded = Browser(site, host="localhost:9000", cookie=browser.cookie)
-        assert forwarded.get("/api/held").status == 200
+        # A page on another site that rebinds its own name to the loopback is handed that
+        # name's cookies, never this one: it is a stranger, however it got here.
+        rebound = Browser(site, host="evil.example")
+        assert rebound.get("/api/held").status == 401
+        # A port forwarded or proxied on to this one, from here, names what it likes: a
+        # browser let in there carries the key there too, and its page writes as its own.
+        proxied = Browser(site, host="hmz.example", cookie=browser.cookie)
+        assert proxied.get("/api/held").status == 200
+        assert proxied.get("/").status == 200
+        said = {"Origin": "https://hmz.example"}
+        assert proxied.post("/api/settings", {"details": True}, **said).status == 200
+        rewritten = {"Origin": "https://hmz.example", "Sec-Fetch-Site": "same-origin"}
+        assert (
+            browser.post("/api/settings", {"details": True}, **rewritten).status == 200
+        )
+        assert (
+            browser.post(
+                "/api/settings",
+                {"details": True},
+                **{"Origin": "https://hmz.example", "Sec-Fetch-Site": "same-site"},
+            ).status
+            == 403
+        )
 
         assert browser.post("/api/settings", {"details": True}).status == 200
         elsewhere = browser.post(
@@ -139,3 +155,21 @@ def test_what_another_site_left_in_the_cookie_jar_is_not_this_ones_business(
         assert browser.get("/api/held").status == 200
         lying = browser.post("/api/settings", {}, **{"Content-Length": "-1"})
         assert lying.status == 411
+
+
+@pytest.mark.skipif(not socket.has_ipv6, reason="no IPv6 here")
+def test_both_loopbacks_are_answered_on_one_port(project: Path) -> None:
+    try:
+        with socket.create_server(("::1", 0), family=socket.AF_INET6):
+            pass
+    except OSError:
+        pytest.skip("no IPv6 loopback here")
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        there = Browser(
+            site, host=f"[::1]:{site.port}", cookie=browser.cookie, at="::1"
+        )
+        assert there.get("/api/held").status == 200
+        assert Browser(site, at="::1").get("/api/held").status == 401
