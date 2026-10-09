@@ -23,8 +23,9 @@ each of those into plain `hmz`.
 ## How it works
 
 **`main` is where changes land, and never what is released.** Every change reaches it as a
-pull request, squashed into one commit titled with the pull request's title, once `ci-ok` is
-green. `ci-ok` holds the title to Conventional Commits and builds the package.
+pull request, squashed into one commit titled with the pull request's title, through the merge
+queue once `ci-ok` is green on it as `main` will be. `ci-ok` holds the title to Conventional
+Commits and builds the package.
 
 **Every release comes from a `release/X.Y` branch**, pre-releases included: `0.2.0-alpha.1`,
 `0.2.0-rc.1`, `0.2.0` and `0.2.1` all come from `release/0.2`. The branch is held to the same
@@ -35,7 +36,9 @@ rules as `main`. Three workflows do it:
    pull request against it. For a new `X.Y` it first cuts `release/X.Y` from `main`. The pull
    request bumps `version` in `pyproject.toml` and `uv.lock`, and adds the release's section
    to `CHANGELOG.md`, written from the pull request titles since the last release of that line,
-   or, for a new line, since the line before it was cut.
+   or, for a new line, since the line before it was cut: the breaking changes first, then
+   Added (`feat`), Fixed (`fix`) and Others (every other type), as
+   `release-please-config.json` groups them.
 2. **`ci.yml`** runs on the release pull request, started by `release.yml`: a pull request a
    workflow opened starts no checks of its own, and `ci-ok` is needed to merge it.
 3. **`publish.yml`**, on a push to a `release/*` branch that merged its release pull request,

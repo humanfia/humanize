@@ -62,15 +62,17 @@ Commits follow the same form: see
 [Commits](https://docs.humanfia.ai/humanize/contributing/#commits).
 
 A pull request is squashed into one commit titled with it, and a release's changelog is
-written from those titles, so the title is what somebody upgrading reads about your change, and
-its `feat` or `!` is what puts it under Features or Breaking changes.
+written from those titles, so the title is what somebody upgrading reads about your change. Its
+type is the group it is read under: `feat` under Added, `fix` under Fixed, and every other type
+under Others; a `!` lists it among the breaking changes, ahead of them all.
 
 No sign-off or CLA is asked for. What you contribute is under the project's
 [Apache-2.0 license](LICENSE), as its section 5 says.
 
 ## Review
 
-- A pull request merges once a maintainer approves it and CI passes. A maintainer merges it.
+- A pull request merges once a maintainer approves it and CI passes. A maintainer adds it to
+  the merge queue, which merges it once CI passes again on it as `main` will be.
   [Conflicts of interest](https://github.com/humanfia/.github/blob/main/GOVERNANCE.md#conflicts-of-interest),
   in the organization's governance, covers a maintainer's own pull requests.
 - Expect a first answer within a week. If a week passes without one, comment on the pull

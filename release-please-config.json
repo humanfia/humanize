@@ -10,17 +10,17 @@
       "draft": true,
       "force-tag-creation": true,
       "changelog-sections": [
-        { "type": "feat", "section": "Features" },
-        { "type": "fix", "section": "Fixes" },
-        { "type": "perf", "section": "Performance" },
-        { "type": "revert", "section": "Reverts" },
-        { "type": "docs", "section": "Documentation", "hidden": true },
-        { "type": "refactor", "section": "Refactoring", "hidden": true },
-        { "type": "test", "section": "Tests", "hidden": true },
-        { "type": "build", "section": "Build", "hidden": true },
-        { "type": "ci", "section": "CI", "hidden": true },
-        { "type": "style", "section": "Style", "hidden": true },
-        { "type": "chore", "section": "Chores", "hidden": true }
+        { "type": "feat", "section": "Added" },
+        { "type": "fix", "section": "Fixed" },
+        { "type": "perf", "section": "Others" },
+        { "type": "revert", "section": "Others" },
+        { "type": "docs", "section": "Others" },
+        { "type": "refactor", "section": "Others" },
+        { "type": "test", "section": "Others" },
+        { "type": "build", "section": "Others" },
+        { "type": "ci", "section": "Others" },
+        { "type": "style", "section": "Others" },
+        { "type": "chore", "section": "Others" }
       ],
       "extra-files": [
         {

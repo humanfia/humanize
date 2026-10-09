@@ -1,6 +1,8 @@
 # The pull request's title, lint, the package, then the unit tests one job per package and the
-# integration tests one job per topic, on Linux and macOS. `ci-ok` is the one check a branch rule needs.
-# `tests/system` runs real agents and is never run here. docs/contributing/ci.md has the rest.
+# integration tests one job per topic, on Linux and macOS. `ci-ok` is the one check a branch rule
+# needs, and the merge queue runs it again on each pull request as `main` will be once it
+# merges. `tests/system` runs real agents and is never run here. docs/contributing/ci.md has the
+# rest.
 
 name: ci
 
@@ -10,6 +12,8 @@ on:
   pull_request:
     # `edited` too, so a title fixed after the pull request opened is checked again.
     types: [opened, synchronize, reopened, edited]
+  # The merge queue: `main`, with the pull requests ahead of this one merged, and this one.
+  merge_group:
   # release.yml runs it on the release pull request, which its token cannot start otherwise.
   workflow_dispatch:
 
@@ -26,8 +30,9 @@ env:
 
 jobs:
   # Squashing writes the title to the branch as the commit's, and a release's notes are those
-  # titles. A push or a dispatch has no pull request, and skips it: release.yml dispatches only
-  # for the release pull request, whose title release-please writes.
+  # titles. A push, a dispatch or a merge group has no pull request, and skips it: a pull
+  # request's title was checked before it queued, and release.yml dispatches only for the
+  # release pull request, whose title release-please writes.
   title:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

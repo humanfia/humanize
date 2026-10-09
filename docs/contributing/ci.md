@@ -2,7 +2,9 @@
 
 In this guide you read what CI ran on your change, and fix what it failed. Every push to `main`
 and every pull request runs `.github/workflows/ci.yml`, again whenever the pull request's title
-is edited, and it runs the same jobs every time. The release pull request is the exception
+is edited, and once more in the merge queue, on `main` with the pull requests ahead of yours
+merged and then yours: what merges is what was tested. It runs the same jobs every time, but
+for `title`, which only a pull request has. The release pull request is the exception
 that proves it: `release.yml` starts its run itself, since a pull request a workflow opened
 starts none of its own.
 
@@ -24,7 +26,7 @@ integration  6 topics   × Linux, macOS ────────┘
 
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
-| `title` | The pull request's title is a [Conventional Commit](/contributing/#commits): squashing writes it to the branch, and a release's changelog is written from those titles. Skipped on a push, and on the release pull request's run, whose title release-please writes | |
+| `title` | The pull request's title is a [Conventional Commit](/contributing/#commits): squashing writes it to the branch, and a release's changelog is written from those titles. Skipped on a push, in the merge queue, whose pull requests had theirs checked before they queued, and on the release pull request's run, whose title release-please writes | |
 | `package` | The wheel and the sdist build, and PyPI would render `README.md`, so any commit on a `release/*` branch can be [released](/contributing/releasing) | `uv build --no-sources && uvx twine check --strict dist/*` |
 | `lint` | Every pre-commit hook: `ruff`, `pyright` strict, `actionlint` and `zizmor` over `.github/`, and the file hygiene | `uv run pre-commit run --all-files` |
 | `unit (<os>, <package>)` | `tests/unit/<package>`, for each of `cli`, `coganchor`, `daemon`, `flows`, `runtime`, `sdk`, `tui` and `web` | `uv run pytest tests/unit/<package>` |
