@@ -23,8 +23,9 @@ each of those into plain `hmz`.
 ## How it works
 
 **`main` is where changes land, and never what is released.** Every change reaches it as a
-pull request, squashed into one commit titled with the pull request's title, once `ci-ok` is
-green. `ci-ok` holds the title to Conventional Commits and builds the package.
+pull request, squashed into one commit titled with the pull request's title, through the merge
+queue once `ci-ok` is green on it as `main` will be. `ci-ok` holds the title to Conventional
+Commits and builds the package.
 
 **Every release comes from a `release/X.Y` branch**, pre-releases included: `0.2.0-alpha.1`,
 `0.2.0-rc.1`, `0.2.0` and `0.2.1` all come from `release/0.2`. The branch is held to the same
