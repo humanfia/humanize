@@ -58,7 +58,7 @@ async def test_a_review_that_says_done_ends_it_with_its_notes(
     assert "built and tested" in capsys.readouterr().out
     assert doubles.prompts(actor) == ["the task"]
     reviewer.run.assert_awaited_once_with(
-        rlar.REVIEW_PROMPT + "the task",
+        rlar.REVIEW_PROMPT + "the task" + rlar.SAID.format(said="did it"),
         session=doubles.sessions(reviewer)[0],
         env=doubles.WORKSPACE,
         output_schema=rlar.Review,
@@ -88,6 +88,35 @@ async def test_the_actor_is_told_each_review_in_its_one_session(rlar: Any) -> No
     assert reviewer.spawn.await_count == 3
     assert len(set(map(id, doubles.sessions(reviewer)))) == 3
     assert state == {}
+
+
+async def test_each_fresh_reviewer_reads_what_the_actor_said_that_round(
+    rlar: Any,
+) -> None:
+    # A task whose deliverable is the answer itself: there is no file to read it from.
+    actor = doubles.agent(
+        "one thread at a time", "one thread at a time, on a shared thing"
+    )
+    reviewer = doubles.agent(
+        review(rlar, "say what it guards"), review(rlar, "right", done=True)
+    )
+
+    await doubles.call(
+        rlar.rlar,
+        "what is a mutex",
+        ctx=doubles.context({}),
+        actor=actor,
+        reviewer=reviewer,
+    )
+
+    assert doubles.prompts(reviewer) == [
+        rlar.REVIEW_PROMPT + "what is a mutex" + rlar.SAID.format(said=said)
+        for said in ("one thread at a time", "one thread at a time, on a shared thing")
+    ]
+    # Told what the actor said and nothing else of its conversation, each in a session of its
+    # own: the reviewer stays as fresh as it was.
+    assert len(set(map(id, doubles.sessions(reviewer)))) == 2
+    assert doubles.prompts(actor) == ["what is a mutex", "say what it guards"]
 
 
 async def test_each_round_not_done_is_kept_for_a_resume(rlar: Any) -> None:
