@@ -2,7 +2,9 @@
 
 In this guide you read what CI ran on your change, and fix what it failed. Every push to `main`
 and every pull request runs `.github/workflows/ci.yml`, again whenever the pull request's title
-is edited, and it runs the same jobs every time.
+is edited, and it runs the same jobs every time. The release pull request is the exception
+that proves it: `release.yml` starts its run itself, since a pull request a workflow opened
+starts none of its own.
 
 Wait for one check: **`ci-ok`**. It is green when every other job in the run passed, and it is
 the one check a branch rule needs.
@@ -22,8 +24,8 @@ integration  5 topics   × Linux, macOS ────────┘
 
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
-| `title` | The pull request's title is a [Conventional Commit](/contributing/#commits): squashing writes it to `main`, and a release's notes are those titles. Skipped on a push, which has no pull request | |
-| `package` | The wheel and the sdist build, and PyPI would render `README.md`, so any commit can be [released](/contributing/releasing) | `uv build --no-sources && uvx twine check --strict dist/*` |
+| `title` | The pull request's title is a [Conventional Commit](/contributing/#commits): squashing writes it to the branch, and a release's changelog is written from those titles. Skipped on a push, and on the release pull request's run, whose title release-please writes | |
+| `package` | The wheel and the sdist build, and PyPI would render `README.md`, so any commit on a `release/*` branch can be [released](/contributing/releasing) | `uv build --no-sources && uvx twine check --strict dist/*` |
 | `lint` | Every pre-commit hook: `ruff`, `pyright` strict, `actionlint` and `zizmor` over `.github/`, and the file hygiene | `uv run pre-commit run --all-files` |
 | `unit (<os>, <package>)` | `tests/unit/<package>`, for each of `cli`, `coganchor`, `daemon`, `flows`, `runtime`, `sdk` and `tui` | `uv run pytest tests/unit/<package>` |
 | `integration (<os>, <topic>)` | `tests/integration/test_<topic>_*.py`, for each of `core`, `agents`, `tui`, `daemon` and `anchor` | `uv run pytest tests/integration/test_<topic>_*.py` |
@@ -82,12 +84,13 @@ A job's name says what it ran: `unit (macos-latest, tui)` is `tests/unit/tui` on
 
 ## Other workflows
 
-Neither reports to `ci-ok`.
+None of them reports to `ci-ok`.
 
 | Workflow | Runs on | Does |
 | --- | --- | --- |
 | `build-docs.yml` | a pull request or a push to `main` that changed `docs/` | Builds the site, checks every `#fragment` resolves and every word is legible on a phone, and on `main` deploys it: [Working on these docs](/contributing/docs) |
-| `publish.yml` | a maintainer publishing a GitHub release | Checks the tag, builds the wheel and sdist with its version, and publishes them to PyPI: [Releasing](/contributing/releasing) |
+| `release.yml` | a maintainer, by hand on `main`, with a version | Checks it, cuts `release/X.Y` from `main` for a new line, and has release-please open the release pull request against it: [Releasing](/contributing/releasing) |
+| `publish.yml` | a push to a `release/*` branch | Once a release pull request merges, tags it, builds the wheel and sdist, publishes them to PyPI, then publishes the GitHub release: [Releasing](/contributing/releasing) |
 
 ## Next steps
 

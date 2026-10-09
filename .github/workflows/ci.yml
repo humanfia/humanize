@@ -10,6 +10,8 @@ on:
   pull_request:
     # `edited` too, so a title fixed after the pull request opened is checked again.
     types: [opened, synchronize, reopened, edited]
+  # release.yml runs it on the release pull request, which its token cannot start otherwise.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,7 +26,8 @@ env:
 
 jobs:
   # Squashing writes the title to the branch as the commit's, and a release's notes are those
-  # titles. A push has no pull request, and skips it.
+  # titles. A push or a dispatch has no pull request, and skips it: release.yml dispatches only
+  # for the release pull request, whose title release-please writes.
   title:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -62,7 +65,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: uv run --frozen --all-extras pre-commit run --all-files --show-diff-on-failure
 
-  # What a release would build, so any commit on `main` or a `release/*` branch can be released.
+  # What a release would build, so any commit on a `release/*` branch can be released.
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 10

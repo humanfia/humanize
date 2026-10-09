@@ -1,0 +1,133 @@
+# Opens a release: run by hand on `main` with the version, it finds `release/X.Y`, cutting it
+# from `main` for a new `X.Y`, and has release-please open the release pull request against it,
+# which bumps `version` in pyproject.toml and uv.lock and writes CHANGELOG.md. Merging that pull
+# request is the release: publish.yml takes it from there. Nothing is released from `main`.
+# docs/contributing/releasing.md is how a maintainer gets there.
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version, SemVer without the v: 0.2.0, 0.2.0-rc.1, or 0.1.3"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  open:
+    name: open the release pull request
+    if: github.repository == 'humanfia/humanize' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # the release branch
+      pull-requests: write # the release pull request
+      issues: write # the `autorelease:` labels release-please finds its pull requests by
+      actions: write # to run ci.yml on the release pull request
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every tag and every release branch, to place the version among them.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+
+      # `X.Y.Z` and its pre-releases come from `release/X.Y`, and come after every release of
+      # that line, so alpha, beta and rc only move forward. A `.0` with no branch yet cuts it,
+      # if no later line exists; a patch needs its `.0` released.
+      - name: Check the version, and find its branch
+        id: plan
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          uv run --no-project --with packaging==26.3 python - <<'PY'
+          import os, re, subprocess, sys
+          from packaging.version import Version
+
+          SEMVER = r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(alpha|beta|rc)\.(0|[1-9]\d*))?"
+
+          def pep440(semver):
+              return Version(re.sub(r"-(alpha|beta|rc)\.", lambda m: {"alpha": "a", "beta": "b", "rc": "rc"}[m[1]], semver))
+
+          def git(*args):
+              return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout.split()
+
+          version = os.environ["VERSION"]
+          m = re.fullmatch(SEMVER, version)
+          if not m:
+              sys.exit(f"::error::{version} is not X.Y.Z or X.Y.Z-(alpha|beta|rc).N")
+          line, branch = (int(m[1]), int(m[2])), f"release/{m[1]}.{m[2]}"
+          tags = [t[1:] for t in git("tag", "-l", "v*") if re.fullmatch(SEMVER, t[1:])]
+          branches = {
+              (int(a), int(b)): f"release/{a}.{b}"
+              for a, b in (re.fullmatch(r"origin/release/(\d+)\.(\d+)", r).groups() for r in git("branch", "-r", "--list", "origin/release/*") if re.fullmatch(r"origin/release/\d+\.\d+", r))
+          }
+          ours = [t for t in tags if t.startswith(f"{m[1]}.{m[2]}.")]
+          if version in tags:
+              sys.exit(f"::error::v{version} is released already")
+          if ours and pep440(version) <= pep440(newest := max(ours, key=pep440)):
+              sys.exit(f"::error::{version} does not come after v{newest}")
+          if m[3] != "0" and f"{m[1]}.{m[2]}.0" not in tags:
+              sys.exit(f"::error::{version} patches {m[1]}.{m[2]}.0, which is not released")
+          cut = ""
+          if line not in branches:
+              if m[3] != "0":
+                  sys.exit(f"::error::{branch} does not exist, so {version} has nowhere to come from")
+              lines = [*branches, *((int(t.split(".")[0]), int(t.split(".")[1])) for t in tags)]
+              if lines and line < max(lines):
+                  sys.exit(f"::error::{branch} would start a line before {'.'.join(map(str, max(lines)))}")
+              if earlier := [other for other in branches if other < line]:
+                  cut = git("merge-base", "origin/main", f"origin/{branches[max(earlier)]}")[0]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"branch={branch}", f"cut={line not in branches and 'true' or 'false'}", f"since={cut}", sep="\n", file=out)
+          PY
+
+      # A new line's changes are those since the line before it was cut from `main`, which is
+      # where release-please is told to start: its manifest on `main` names no release.
+      - name: Cut the release branch
+        if: steps.plan.outputs.cut == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          SINCE: ${{ steps.plan.outputs.since }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH" origin/main
+          if [[ -n "$SINCE" ]]; then
+            jq --arg sha "$SINCE" '. + {"last-release-sha": $sha}' release-please-config.json \
+              > "$RUNNER_TEMP/config.json"
+            mv "$RUNNER_TEMP/config.json" release-please-config.json
+            git commit -am "chore(release): start $BRANCH where the line before it was cut"
+          fi
+          git push "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
+
+      - name: Open the release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          npx --yes release-please@17.11.2 release-pr --token "$GH_TOKEN" \
+            --repo-url "$GITHUB_REPOSITORY" --target-branch "$BRANCH" --release-as "$VERSION"
+
+      # A pull request this workflow's token opens or updates starts no `ci-ok` of its own, and
+      # the branch rule needs one. A dispatch is the one event that token may start.
+      - name: Run CI on the release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+        run: |
+          head="$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BRANCH" --label 'autorelease: pending' \
+            --json headRefName --jq '.[0].headRefName')"
+          gh workflow run ci.yml --ref "$head" --repo "$GITHUB_REPOSITORY"
