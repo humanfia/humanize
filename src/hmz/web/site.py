@@ -17,9 +17,9 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import re
 import secrets
 import shutil
+import string
 import sys
 import threading
 import traceback
@@ -72,8 +72,15 @@ _POLICY = (
     "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 )
 
-#: A file the page is made of, by the name it is asked for under.
-_FILE = re.compile(r"[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\.[a-z0-9]+")
+#: What each part of the name of a file the page is made of is spelled with: words, never a dot,
+#: so that no part is `..` and nothing hidden is named.
+_SPELLED = frozenset(string.ascii_letters + string.digits + "_-")
+
+#: What a file's kind is spelled with, after its one dot.
+_KIND = frozenset(string.ascii_lowercase + string.digits)
+
+#: The longest name a file the page is made of is asked for under.
+_LONGEST = 200
 
 
 class Site(ThreadingHTTPServer):
@@ -289,7 +296,7 @@ class _Handler(BaseHTTPRequestHandler):
     def _file(self, path: str) -> None:
         """One of the files the page is made of."""
         name = "index.html" if path == "/" else path.lstrip("/")
-        if not _FILE.fullmatch(name):
+        if not _is_file(name):
             raise Refusal("There is nothing here by that name.", 404)
         held = resources.files("hmz.web").joinpath("static", *name.split("/"))
         kind = _KINDS.get(f".{name.rpartition('.')[2]}")
@@ -367,6 +374,23 @@ class _Handler(BaseHTTPRequestHandler):
                 ]
                 self.wfile.write("\n".join(lines).encode())
             self.wfile.flush()
+
+
+def _is_file(name: str) -> bool:
+    """Whether a name could be one of the page's own files: parts of words, then a kind.
+
+    Read a character at a time rather than matched, so that how long a hostile name takes to
+    refuse is how long it is.
+    """
+    *folders, last = name.split("/")
+    stem, dot, kind = last.rpartition(".")
+    return (
+        len(name) <= _LONGEST
+        and bool(dot)
+        and bool(kind)
+        and set(kind) <= _KIND
+        and all(part and set(part) <= _SPELLED for part in (*folders, stem))
+    )
 
 
 def _removes(path: Path) -> None:
