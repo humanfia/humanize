@@ -339,6 +339,11 @@ It is often an account out of quota or signed out. See
 
 ## Next steps
 
+- **Use a remote GPU for a kernel task.** The flowverse
+  [kernel example](https://github.com/humanfia/flowverse/tree/main/examples/kernel-benchmark)
+  selects a local or KCoral evaluator while the agent keeps its usual workspace.
+  Start KCoral once on the GPU machine, then select `backend=kcoral` and its `url`
+  in the flow parameters; the flow supplies the agent's benchmark command.
 - **Carry on from where it stopped.** `flame_chase` can be picked up. Run the same line with
   `--resume` and a fresh budget, and it carries on with whichever chaser was next. See
   [Picking a run up](/user/resuming).
