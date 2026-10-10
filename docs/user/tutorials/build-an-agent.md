@@ -37,15 +37,15 @@ humanize, and export your key before step 2:
 ::: code-group
 
 ```sh [pip]
-pip install 'hmz[dsh]>=0.1.0b1'
+pip install 'hmz[dsh]'
 ```
 
 ```sh [pipx]
-pipx install --force 'hmz[dsh]>=0.1.0b1'
+pipx install --force 'hmz[dsh]'
 ```
 
 ```sh [uv tool]
-uv tool install 'hmz[dsh]>=0.1.0b1'
+uv tool install 'hmz[dsh]'
 ```
 
 :::
