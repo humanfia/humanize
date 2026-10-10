@@ -186,11 +186,12 @@ class Flow(Protocol):
         ...
 
 
+# No comma after the last type parameter, and so not formatted: CodeQL cannot parse one.
 class FlowFn[
     TAgentCollection: AgentCollection,
     TEnvCollection: EnvCollection,
-    TFlowParams: FlowParams,
-](Protocol):
+    TFlowParams: FlowParams
+](Protocol):  # fmt: skip
     """The function :func:`flow` decorates: async, with `task` and four keyword arguments."""
 
     async def __call__(
@@ -226,10 +227,11 @@ def _caller(depth: int) -> tuple[dict[str, Any], Mapping[str, Any]]:
         del frame
 
 
+# No comma after the last type parameter, and so not formatted: CodeQL cannot parse one.
 def flow[
     TAgentCollection: AgentCollection,
     TEnvCollection: EnvCollection,
-    TFlowParams: FlowParams,
+    TFlowParams: FlowParams
 ](
     *,
     agents: type[TAgentCollection],
@@ -239,7 +241,7 @@ def flow[
     description: str | None = None,
     hidden: bool = False,
     resumable: bool = False,
-) -> Callable[[FlowFn[TAgentCollection, TEnvCollection, TFlowParams]], Flow]:
+) -> Callable[[FlowFn[TAgentCollection, TEnvCollection, TFlowParams]], Flow]:  # fmt: skip
     """Makes an async function a flow, saying what it needs.
 
     Args:
