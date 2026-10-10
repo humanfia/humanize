@@ -1548,10 +1548,11 @@ class Run:
 # ------------------------------------------------------------------- the entry points
 
 
+# No comma after the last type parameter, and so not formatted: CodeQL cannot parse one.
 def define_flow[
     TAgentCollection: AgentCollection,
     TEnvCollection: EnvCollection,
-    TFlowParams: FlowParams,
+    TFlowParams: FlowParams
 ](
     fn: FlowFn[TAgentCollection, TEnvCollection, TFlowParams],
     *,
@@ -1564,7 +1565,7 @@ def define_flow[
     resumable: bool,
     caller_globals: Mapping[str, Any],
     caller_locals: Mapping[str, Any],
-) -> Flow:
+) -> Flow:  # fmt: skip
     """Makes a decorated function a flow, which is what `hmz.flows.flow` answers with.
 
     Cheap, since it runs at import: the collections' annotations are resolved later, the
