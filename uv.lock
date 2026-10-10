@@ -617,7 +617,7 @@ wheels = [
 
 [[package]]
 name = "hmz"
-version = "0.1.0-beta.2"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "dateparser" },

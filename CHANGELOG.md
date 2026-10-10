@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.0](https://github.com/humanfia/humanize/compare/v0.1.0-beta.2...v0.1.0) (2026-10-10)
+
+
+### Fixes
+
+* **flows:** drop the trailing comma CodeQL cannot parse in type parameter lists ([#293](https://github.com/humanfia/humanize/issues/293)) ([e5f0797](https://github.com/humanfia/humanize/commit/e5f07975849a642fba66e5b78b37ba83a6c9dea4))
+* **flows:** drop the trailing comma CodeQL cannot parse in type parameter lists ([#295](https://github.com/humanfia/humanize/issues/295)) ([e5f0797](https://github.com/humanfia/humanize/commit/e5f07975849a642fba66e5b78b37ba83a6c9dea4))
+* **flows:** let rlar's reviewer read what the actor said ([#290](https://github.com/humanfia/humanize/issues/290)) ([#291](https://github.com/humanfia/humanize/issues/291)) ([458c008](https://github.com/humanfia/humanize/commit/458c0080a42ff788623572e74f4a2df0f8b96822))
+
 ## 0.1.0-beta.2 (2026-10-09)
 
 
