@@ -3,6 +3,10 @@
     hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
         -p budget.cost=20 "the task"
 
+Each round's reviewer is told the task and what the actor said as it ended its turn, and reads
+the repository: what the actor said is its own account, held to what the files show, and is
+itself the deliverable of a task that asks for an answer rather than a change.
+
 It ends when the reviewer says the task is done, or when the budget is spent; `--resume`
 hands a fresh actor the last review to pick up from. A turn that fails, or a review out of
 shape, is taken again next round; three failures in a row end it with the last one.
@@ -80,6 +84,17 @@ are most there to catch.
 Task (TASK.md):
 """
 
+SAID = """
+
+What the agent said as it ended its last turn is below. It is its own account of its work, not \
+evidence of it: hold every claim in it to what the repository shows. Where the task asks for an \
+answer rather than a change, it is the answer to review.
+
+<agent_said>
+{said}
+</agent_said>
+"""
+
 PICKED_UP = """{task}
 
 Work in this repository is already under way: an earlier run here was stopped before it \
@@ -117,7 +132,7 @@ async def rlar(
             reading = await reviewer.spawn()
             try:
                 review = await reviewer.run(
-                    REVIEW_PROMPT + task,
+                    REVIEW_PROMPT + task + SAID.format(said=worked),
                     session=reading,
                     env=workspace,
                     output_schema=Review,
