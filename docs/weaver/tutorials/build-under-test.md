@@ -543,7 +543,7 @@ async def test_the_notes_are_the_next_prompt() -> None:
 ```
 
 ```sh
-uvx --with 'hmz>=0.1.0b1' \
+uvx --with hmz \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto .hmz/tests
 ```
 

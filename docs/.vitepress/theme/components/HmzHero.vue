@@ -16,7 +16,7 @@ import { motion, SplitText } from '../motion/gsap'
 import HeroScene from './home/HeroScene.vue'
 
 // The same line README.md and the quickstart below install with.
-const LINE = "uv tool install 'hmz>=0.1.0b1'"
+const LINE = "uv tool install hmz"
 
 // Same-page fragments, so no `withBase`: these resolve against whatever the page is served as,
 // which under `base: '/humanize/'` is the only spelling that stays right.

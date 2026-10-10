@@ -276,7 +276,7 @@ async def test_it_gives_up_after_six_fresh_rounds() -> None:
 ```
 
 ```sh
-uvx --with 'hmz>=0.1.0b1' \
+uvx --with hmz \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto
 ```
 

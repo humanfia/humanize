@@ -90,13 +90,13 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
 
-      # For Kimi Code or DeepSeek Harness, install 'hmz[all]>=0.1.0b1' instead.
+      # For Kimi Code or DeepSeek Harness, install 'hmz[all]' instead.
       - name: Install the agent's CLI and humanize   # ④
         run: |
           npm install -g @anthropic-ai/claude-code
           uv venv --python 3.12 "$RUNNER_TEMP/hmz"
           uv pip install --python "$RUNNER_TEMP/hmz/bin/python" \
-            'hmz>=0.1.0b1'
+            hmz
           echo "$RUNNER_TEMP/hmz/bin" >> "$GITHUB_PATH"
 
       - name: Run the loop                          # ⑤
