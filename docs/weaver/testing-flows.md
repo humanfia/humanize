@@ -109,7 +109,7 @@ async def twice(
 :::
 
 ```sh
-uvx --with 'hmz>=0.1.0b1' \
+uvx --with hmz \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto
 ```
 
@@ -264,7 +264,7 @@ async def test_it_stops_when_the_reviewer_says_done() -> None:
 ```
 
 ```sh
-uvx --with 'hmz>=0.1.0b1' \
+uvx --with hmz \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto .hmz/tests/test_reviewed.py
 ```
 
@@ -646,7 +646,7 @@ def test_unfinished() -> None:
 ```
 
 ```sh
-uvx --with 'hmz>=0.1.0b1' \
+uvx --with hmz \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto -o pythonpath=review
 ```
 
@@ -668,7 +668,7 @@ requires-python = ">=3.12"
 
 [dependency-groups]
 dev = [
-    "hmz>=0.1.0b1",
+    "hmz",
     "pytest",
     "pytest-asyncio",
 ]
