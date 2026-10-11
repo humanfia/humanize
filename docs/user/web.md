@@ -192,24 +192,10 @@ offered as `(at a terminal)` and made from `/settings` in `hmz`.
 ### Themes {#themes}
 
 The page is drawn in a theme. humanize comes with **presets**, each a pair of a light theme and a
-dark one: its own, **Humanize Green**, and one for every Chrysos Heir of Amphoreus in
-*Honkai: Star Rail*, in their colours and named for their Primum Mobile and the colour they are
-most:
-
-| Pair | Heir | Primum Mobile |
-| --- | --- | --- |
-| **Temperate Gold** | Aglaea | Temperance |
-| **Concordant Scarlet** | Tribbie | Concord |
-| **Restrained Crimson** | Mydei | Restraint |
-| **Critical Teal** | Anaxa | Critique |
-| **Desirous Indigo** | Cipher | Desire |
-| **Peaceful Lilac** | Castorice | Peace |
-| **Hateful Silver** | Phainon | Hatred |
-| **Devoted Pink** | Hyacine | Devotion |
-| **Self-Negating Plum** | Hysilens | Self-Negation |
-| **Dominant Azure** | Cerydra | Dominance |
-| **Surviving Jade** | Dan Heng • Permansor Terrae | Survival |
-| **Lamenting Orchid** | Cyrene | Lament |
+dark one: its own, **Humanize Green**, and **Temperate Gold**, **Concordant Scarlet**,
+**Restrained Crimson**, **Critical Teal**, **Desirous Indigo**, **Peaceful Lilac**,
+**Hateful Silver**, **Devoted Pink**, **Self-Negating Plum**, **Dominant Azure**,
+**Surviving Jade** and **Lamenting Orchid**.
 
 **Auto**, the default, follows your system with a pair: pick one from the machine menu's
 **Pairs**, or under **Settings → Themes → Auto** pick a **Pair** -- or any theme for the

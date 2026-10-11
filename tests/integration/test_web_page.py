@@ -197,8 +197,8 @@ def _painted(page: Page, token: str, said: str) -> None:
     raise AssertionError(f"{token} is {_paints(page, token)!r}, not {said!r}")
 
 
-#: Every pair of themes humanize comes with: its own, then one for each Chrysos Heir, named
-#: for their Primum Mobile and their colour.
+#: Every pair of themes humanize comes with: its own, then twelve more, each named for a mood
+#: and its colour.
 _PAIRS = [
     "Humanize Green",
     "Temperate Gold",

@@ -94,7 +94,7 @@ function list(holder) {
           () => offered(one),
         ),
       ),
-      h('div', { class: 'theme-name' }, h('b', {}, pair.name), h('span', { class: 'dim' }, pair.heir || 'humanize', on ? ' · In use' : '')),
+      h('div', { class: 'theme-name' }, h('b', {}, pair.name), h('span', { class: 'dim' }, on ? 'Light · Dark · In use' : 'Light · Dark')),
       h(
         'div',
         { class: 'row' },
