@@ -58,7 +58,7 @@ export function draw(holder) {
         ? h(
             'div',
             { class: 'table-wrap' },
-            h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'CLI'), h('th', {}, 'Account'), h('th', {}, 'Sets'), h('th', {}, 'Runs'), h('th', {}, ''))), h('tbody', {}, rows)),
+            h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'CLI'), h('th', {}, 'Account'), h('th', {}, 'Sets'), h('th', {}, 'Models'), h('th', {}, ''))), h('tbody', {}, rows)),
           )
         : h('p', { class: 'dim' }, 'Nobody has made an account yet: every agent runs as this machine’s own sign-in.'),
     )

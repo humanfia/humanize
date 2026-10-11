@@ -95,7 +95,7 @@ function connect() {
     tell()
   })
   on('gone', (event) => {
-    state.gone = JSON.parse(event.data).why || 'The runs let this page go.'
+    state.gone = JSON.parse(event.data).why || 'The host let this page go.'
     state.connected = false
     tell()
   })

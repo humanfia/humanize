@@ -116,16 +116,19 @@ Each view is an address after `#`, so it can be kept and opened again:
 
 | Address | View |
 | --- | --- |
-| `#/runs[?status=&flow=&q=&offset=]` | Every run of the workspace. `status`: how it went, `running` or `unfinished`. |
-| `#/live` | The run going, or the last one. |
-| `#/runs/<name>` | One run written down, by its epic's name; live where it is the run going. |
-| `#/start[?flow=&resume=<name>]` | Starting a flow, or picking the run named up. |
+| `#/new[?flow=&resume=<name>]` | A new epic: the flow picked, or the epic named picked up. The page opens here. |
+| `#/live` | The epic going; its address becomes `#/epics/<name>` once it is written down. |
+| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. |
+| `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
+| `#/epics/<name>/sessions/<role>/<n>` | The thread of the `n`-th session that role opened, as the epic going names it (`/` written `%2F`). |
 | `#/flows[?flow=]` | The flows on offer, one opened. |
-| `#/usage[?days=]` | What the runs spent over the last `days` (7, 30, 90 or 365; default 30), by UTC day. |
-| `#/settings/<page>` | `general`, `accounts`, `fallback`, `runtimes` or `workspace`. |
+| `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
+| `#/settings/<page>[?days=]` | A dialog: `general`, `accounts`, `fallback`, `runtimes`, `workspace` or `usage`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
 
-The colours chosen in the bar are kept in the browser's `localStorage` as `hmz-theme` (`light`,
-`dark`, or absent for the system's).
+The page keeps a few conveniences in the browser's `localStorage`, each forgotten without
+harm: the colours chosen as `hmz-theme` (`light`, `dark`, or absent for the system's), a sidebar
+folded away as `hmz-sidebar`, a side panel closed as `hmz-panel`, and which epics are opened out
+in the sidebar as `hmz-opened`.
 
 ## API {#api}
 

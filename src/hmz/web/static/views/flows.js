@@ -1,18 +1,24 @@
-// The flows there are to run here, by where each came from, and what one declares: its roles,
-// its params and whether a run of it can be picked up -- with the way to start one.
+// The flows there are to run here, as ChatGPT lays out what it can be: a card for each, by
+// where it came from, and -- one opened -- what it declares: its roles, its environments, its
+// params and whether a run of it can be picked up, with the way to start one.
 
 import { get, poll } from '../api.js'
 import { stays } from '../app.js'
-import { empty, fill, h, permitted, problem } from '../dom.js'
+import { empty, fill, h, icon, permitted, problem } from '../dom.js'
+import { bar } from '../shell.js'
 
 export function mount(root, { query }) {
   let chosen = query.get('flow') || ''
-  const list = h('div', { class: 'nodes', 'data-hmz': 'flows' })
-  const shown = h('section', { class: 'panel', 'aria-live': 'polite' })
+  const list = h('div', { class: 'gallery', 'data-hmz': 'flows' }, h('p', { class: 'loading', role: 'status' }, 'Reading the flows…'))
+  const shown = h('section', { class: 'flow-detail', 'aria-live': 'polite', hidden: true })
   fill(
     root,
-    h('div', { class: 'head' }, h('div', {}, h('div', { class: 'kicker' }, 'what can run here'), h('h1', {}, 'Flows'), h('p', { class: 'lede' }, 'The flows of this directory, yours, and the flowverses installed here.'))),
-    h('div', { class: 'grid wide' }, shown, h('section', { class: 'panel' }, h('h2', {}, 'On offer'), list)),
+    h(
+      'div',
+      { class: 'view' },
+      bar({ title: 'Flows', sub: [h('span', {}, 'The flows of this directory, yours, and the flowverses installed here.')] }),
+      h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, shown, list)),
+    ),
   )
 
   const stop = poll('/api/flows', 30000, (data, error) => {
@@ -24,27 +30,39 @@ export function mount(root, { query }) {
     for (const one of data.flows) (whose[one.whose] ||= []).push(one)
     fill(
       list,
-      Object.entries(whose).map(([from, flows]) => [
-        h('div', { class: 'kicker' }, from),
-        flows.map((one) => {
-          const button = h(
-            'button',
-            { class: ['node', one.name === chosen && 'working'], type: 'button', style: { textAlign: 'left', cursor: 'pointer' } },
-            h('div', { class: 'top' }, one.name),
-            one.about ? h('div', { class: 'meta' }, one.about) : null,
-          )
-          button.addEventListener('click', () => show(one.name))
-          return button
-        }),
-      ]),
+      Object.entries(whose).map(([from, flows]) =>
+        h(
+          'section',
+          { class: 'gallery-group' },
+          h('h2', { class: 'kicker' }, from),
+          h(
+            'div',
+            { class: 'cards' },
+            flows.map((one) => {
+              const card = h(
+                'button',
+                { class: ['card', one.name === chosen && 'chosen'], type: 'button', 'data-flow': one.name, 'aria-pressed': String(one.name === chosen) },
+                h('span', { class: 'card-mark', 'aria-hidden': 'true' }, one.name.slice(0, 1).toUpperCase()),
+                h('span', { class: 'card-name' }, one.name, one.name === data.flow ? h('span', { class: 'node-tag' }, 'last used here') : null),
+                one.about ? h('span', { class: 'card-about' }, one.about) : null,
+              )
+              card.addEventListener('click', () => show(one.name))
+              return card
+            }),
+          ),
+        ),
+      ),
     )
-    if (!chosen && data.flows.length) show(data.flow || data.flows[0].name)
   })
 
   async function show(name) {
     chosen = name
     stays({ flow: name })
-    for (const button of list.querySelectorAll('.node')) button.classList.toggle('working', button.querySelector('.top').textContent === name)
+    for (const card of list.querySelectorAll('.card')) {
+      card.classList.toggle('chosen', card.dataset.flow === name)
+      card.setAttribute('aria-pressed', String(card.dataset.flow === name))
+    }
+    shown.hidden = false
     fill(shown, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let flow
     try {
@@ -58,15 +76,20 @@ export function mount(root, { query }) {
     const params = Object.entries(flow.params.properties || {})
     fill(
       shown,
-      h('header', {}, h('h2', {}, flow.name), h('a', { class: 'btn primary', href: `#/start?flow=${encodeURIComponent(flow.name)}` }, 'Start it')),
-      flow.description ? h('p', { class: 'lede' }, flow.description) : null,
+      h(
+        'header',
+        {},
+        h('div', {}, h('div', { class: 'kicker' }, 'flow'), h('h2', {}, flow.name)),
+        h('a', { class: 'btn primary', href: `#/new?flow=${encodeURIComponent(flow.name)}` }, icon('new'), 'Start it'),
+      ),
+      flow.description ? h('p', { class: 'prose' }, flow.description) : null,
       h(
         'dl',
         { class: 'facts' },
         h('dt', {}, 'ref'),
         h('dd', { class: 'mono' }, flow.ref),
         h('dt', {}, 'resumable'),
-        h('dd', {}, flow.resumable ? (flow.resumes ? 'yes, and a run of it here can be picked up' : 'yes') : 'no'),
+        h('dd', {}, flow.resumable ? (flow.resumes ? 'yes, and an epic of it here can be picked up' : 'yes') : 'no'),
         h('dt', {}, 'agents'),
         h('dd', {}, flow.agents.length ? flow.agents.map((role) => h('div', {}, h('b', {}, role.name), role.auto ? h('span', { class: 'dim' }, ' (a person, answering here)') : null, role.harness ? [' ', h('span', { class: 'chip' }, role.harness)] : null, role.auto ? null : h('div', { class: 'dim' }, permitted(role.permission)))) : '—'),
         h('dt', {}, 'environments'),
@@ -78,6 +101,9 @@ export function mount(root, { query }) {
   }
 
   if (chosen) show(chosen)
-  else fill(shown, empty('Pick a flow.', ' What it declares is shown here.'))
+  else {
+    shown.hidden = false
+    fill(shown, empty('Pick a flow.', ' What it declares is shown here.'))
+  }
   return stop
 }

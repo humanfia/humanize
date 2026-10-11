@@ -8,8 +8,8 @@ answer it in the browser, or the other way round.
 ::: info At a glance
 - **You will** watch, steer and start runs from a browser, read a run written down, and see what
   the runs here spent.
-- **Use it when** a picture of a run reads better than a transcript: several sessions at once, a
-  long run's turns laid out over time, a week's spend by flow.
+- **Use it when** a picture of a run reads better than a transcript: its agents and who handed
+  to whom, each session's turns laid out over time, a week's spend by flow.
 - **You need** humanize installed as in [Installation](/user/installation), and a browser on the
   machine `hmz` runs on, or an ssh tunnel to it.
 :::
@@ -47,80 +47,99 @@ That has three consequences:
   afresh each time `hmz web` starts. Opening the address hands your browser that key as a
   cookie, and only a browser holding it is answered. See [What it refuses](#what-it-refuses).
 
-## The views
+## The page {#the-page}
 
-The bar across the top says which directory this is, links to each view, and says whether a run
-is going: `live · <flow>` takes you to it. The last control switches between your system's
-colours, light and dark.
+The page is laid out as a desktop chat app is. In it, every run of a flow is an **epic**, the
+way every conversation of an agent is a session: the sidebar lists your epics as a chat app
+lists its chats, and an epic opens out into its agents and the sessions each opened.
 
-| View | What it shows | What you can do there |
+| Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Runs** | Every run of this directory, newest first: how it went, its task and flow, its agents, what it spent, how long it took, when it began | Find runs by how they went, by flow, or by a word of their task; open one |
-| **Live** | The run going, or the last one, as it happens | Everything a person may do to a run; see [The run going](#the-run-going) |
-| **A run** | One run written down | Read its turns and transcript out of its logs, export it, pick it up |
-| **Start** | A flow set up as this directory last ran it | Start it, or pick an earlier run up |
-| **Flows** | The flows on offer here, and what each declares | Start one |
-| **Usage** | What the runs here spent, by day and by flow | Look back 7, 30, 90 or 365 days |
-| **Settings** | What humanize remembers | Change it, as [`/settings`](/user/settings) does |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then every epic of this directory, newest first under the day it began: how it ended, or `live` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions |
+| **New epic** | A box for the task, the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
+| **An epic** | Its graph: who handed to whom | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
+| **A session** | Its thread, as the terminal draws it | Say a line into it while the epic goes |
+| **Flows** | A card for each flow on offer here, and what one declares | Start one |
+| **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its agents, what it spent and how long it took | Find epics by how they went, by flow, or by a word of their task |
+| **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
+
+The foot of the sidebar names this directory and says whether an epic is going, `live · <flow>`;
+its menu switches between your system's colours, light and dark, and opens **Settings** and
+**Usage**. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
+the sidebar is a drawer behind the button in the corner.
 
 Every view is an address: copy it, keep it, or open it in another tab.
 
-### The run going {#the-run-going}
+### An epic {#an-epic}
 
-**Live** draws the run from what the host tells it, as the terminal interface does:
+An epic opens as a graph, drawn from what the host tells the page, as the terminal interface's
+monitor is:
 
-- **The figures.** How long it has been going, what it has spent and how fast, the tokens by
-  kind, and a meter for each limit of its [budget](/features/allowances).
-- **Turns.** A lane per session, with a capsule for each turn it took. A turn still open is
-  ringed; a line marks now. Click a lane or a turn to read that session's transcript.
-- **Transcript.** What each session said, drawn as the terminal draws it: an agent's words on
-  a dot, your lines on `❯`, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
-  The **all** tab is every session at once.
-- **Agents.** A card per role: working or idle and for how long, its turns and tokens, the
-  sub-agents it started, and who handed to whom.
+- **Agents.** A node per agent, in a frame for the flow it worked in, saying what it runs,
+  whether it is working or idle and for how long, and its tokens. A person the flow has is a
+  dashed node. Click an agent to pick it out; the panel beside says the rest of it.
+- **Handovers.** An arrow from one agent to the next each way the epic handed over, with how
+  many times it did. The last handover is the red arrow, and the agent working now is lit.
+- **Sessions.** On each node, a lane per session it opened, with a mark for each turn it took
+  over the epic. A turn still open is lit. Click a session to read its thread.
 
-And, while it goes, what a person does to a run:
+The panel beside it (the button at the top right shows and hides it) holds:
 
-- **Waiting for you.** A question the run put to a person, with its offered answers as
-  buttons and a field for your own. A question another window holds says whose it is. See
-  [Questions](/user/questions).
-- **Say a line.** To the run as a line typed in `hmz` goes (`the next turn`), to a role, to
-  one session (marked `working` while it has a turn open), or to a person the flow has. See
-  [Talking to a running turn](/user/steering).
-- **Ask beside it.** A side question, as [`/btw`](/user/btw) asks it: of the btw agent, or of
-  one session's side copy. The run never sees it. Every question after the first goes on in
-  the same side conversation until you press **Close them**, or a new run starts.
+- **Epic.** How long it has been going, what it has spent and how fast, the tokens by kind, a
+  meter for each limit of its [budget](/features/allowances), the task, who handed to whom in
+  words, the flows going or the flows it called, and how it was set up.
+- **Ask beside.** A side question, as [`/btw`](/user/btw) asks it: of the btw agent, or of one
+  session's side copy. The epic never sees it. Every question after the first goes on in the
+  same side conversation until you press **Close them**, or a new epic starts.
+- **Board.** For an epic that holds one: edit, remove and add its lines. See
+  [The mission board](/user/board).
 - **People.** Each person the flow has: **Answer it here** holds the role for this browser,
   **Take it** takes it from another window, **Let go** gives it back; **Away** answers its
   questions with nothing, as [`/afk`](/user/afk) does.
-- **Board.** For a run that holds one: edit, remove and add its lines. See
-  [The mission board](/user/board).
-- **Stop.** Asks first, then stops the run for everybody reading it. While it unwinds,
+
+And under the graph, while it goes:
+
+- **Waiting for you.** A question the epic put to a person, with its offered answers as buttons
+  and a field for your own. A question another window holds says whose it is. See
+  [Questions](/user/questions).
+- **Say something.** <kbd>Enter</kbd> sends a line to the epic as a line typed in `hmz` goes
+  (`the next turn`), to a role, to one session (marked `working` while it has a turn open), or
+  to a person the flow has; <kbd>Shift</kbd>+<kbd>Enter</kbd> starts a new line. In a session's
+  thread it goes into that session. See [Talking to a running turn](/user/steering).
+- **Stop.** Asks first, then stops the epic for everybody reading it. While it unwinds,
   **Force** closes every session under its turn. See [Stopping](/user/stopping).
 
-### A run written down
+### A session {#a-session}
 
-Open a run from **Runs**, or press **Its epic** on **Live**. The page says how it was set up --
-its agents, environments, params and budget -- the flows it called, its sessions, what it
+A session opens as its thread, drawn as the terminal draws it: an agent's words on a dot, your
+lines set apart on the right, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
+
+### An epic written down
+
+An epic that has ended keeps its graph and its panel. Opened later, it says how it was set up
+-- its agents, environments, params and budget -- the flows it called, its sessions, what it
 spent, and how long it took, with how much of that was spent working.
 
-- **Read its turns and transcript** reads what each session did out of the logs it kept, as
-  [tracing](/user/tracing) does. It takes a moment on a long run.
-- **Export** downloads the run as one archive, struck of credentials. See
-  [Exporting a run](/user/export).
-- **Pick it up** opens **Start** on that run, where its flow can be picked up. See
+- **Read its turns** reads who handed to whom, and each session's turns, out of the logs it
+  kept, as [tracing](/user/tracing) does. It takes a moment on a long epic. Opening a session
+  reads its thread the same way.
+- **Export** (the arrow at the top) downloads the epic as one archive, struck of credentials.
+  See [Exporting a run](/user/export).
+- **Pick it up** opens a new epic on it, where its flow can be picked up. See
   [Picking a run up](/user/resuming).
 
-### Starting a run
+### Starting an epic {#starting-an-epic}
 
-**Start** opens on the flow this directory last ran, set up as it was: an agent for each role,
-spelled as `-a` spells one (the field offers the models each installed CLI said it runs), where
-each environment works, the flow's params, its budget, and whether it is profiled. Every flow but
-`chat` needs at least one limit. **Start** sends it, and the page goes to **Live**.
+**New epic** opens on the flow this directory last ran; pick another at the top. Type the task
+and press <kbd>Enter</kbd>. **Options** holds what the flow is set up with, as this directory
+last set it up: an agent for each role, spelled as `-a` spells one (the field offers the models
+each installed CLI said it runs), where each environment works, the flow's params, its budget,
+and whether it is profiled. The chips beside **Options** say what is set. Every flow but `chat`
+needs at least one limit. The page goes to the epic once it starts.
 
 ### Settings
 
-The same pages as [`/settings`](/user/settings), in the same order:
+The same pages as [`/settings`](/user/settings), in the same order, and what the epics spent:
 
 | Page | What is there |
 | --- | --- |
@@ -129,29 +148,31 @@ The same pages as [`/settings`](/user/settings), in the same order:
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Workspace** | What this directory was last set up with, and forgetting it |
+| **Usage** | What the epics here spent, by day and by flow, looking back 7, 30, 90 or 365 days |
 
 An account is never shown by its values: a page lists the names of the variables it sets, and
 nothing else. A way in that runs a CLI's own sign-in, such as `login`, needs a terminal: it is
 offered as `(at a terminal)` and made from `/settings` in `hmz`.
 
-## Example: start a run in the browser, answer it in the terminal
+## Example: start an epic in the browser, answer it in the terminal
 
-Start `hmz web` in a project, and open **Start**:
+Start `hmz web` in a project, and open **New epic**:
 
-1. **flow** is `chat`. Type a task, give `assistant` an agent such as
-   `claude/claude-haiku-4-5:high`, and press **Start**. The page goes to **Live**.
+1. Pick `chat` at the top. Open **Options** and give `assistant` an agent such as
+   `claude/claude-haiku-4-5:high`. Type a task and press <kbd>Enter</kbd>. The page goes to
+   the epic.
 2. When the agent has answered, **Waiting for you** shows the question `chat` puts to you.
 3. In a terminal in the same directory, run `hmz`. It opens on the same run, with the same
    question waiting.
 4. Answer it in the terminal. In the browser, the question goes, and the answer is in the
-   transcript.
+   assistant's session.
 5. Press **Stop** in the browser, then **Stop it**. The terminal says
    `— browser is stopping the flow —`.
 
 ### Check it worked
 
 - The terminal's transcript shows the task you typed in the browser, marked `· by browser`.
-- **Runs** lists the run, `stopped`, with what it spent.
+- The sidebar lists the epic, `stopped`; **Search epics** shows what it spent.
 
 ## From another machine {#over-ssh}
 
@@ -223,11 +244,11 @@ another `--port`, or leave it out.
 An older humanize holds this directory's runs, or this machine's. Stop them with that version, as
 the message says, then start `hmz web` again.
 
-### The bar says why the runs let it go
+### The sidebar says why the host let it go
 
 The host holding the runs went: it was closed, or it let this window go. The page reaches the
-runs again by itself a moment later, starting a host where none is, and the bar says
-`no run going` or `live` again once it has.
+runs again by itself a moment later, starting a host where none is, and the foot of the sidebar
+says `no epic going` or `live` again once it has.
 
 ### A way in is marked `(at a terminal)`
 

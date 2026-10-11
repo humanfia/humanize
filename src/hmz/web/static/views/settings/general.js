@@ -33,7 +33,7 @@ export function draw(holder) {
           'div',
           { class: 'form' },
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'details'), h('label', { class: 'check' }, details, 'Show every tool call and all of the thinking')),
-          h('div', { class: 'field' }, h('span', { class: 'label' }, '/btw agent'), btw, h('span', { class: 'hint' }, 'Who a side question about a run is asked of, as -a spells an agent. Empty asks the flow’s first agent.')),
+          h('div', { class: 'field' }, h('span', { class: 'label' }, '/btw agent'), btw, h('span', { class: 'hint' }, 'Who a side question about an epic is asked of, as -a spells an agent. Empty asks the flow’s first agent.')),
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'error reports'), reports, h('span', { class: 'hint' }, 'Whether humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
           h('div', { class: 'row' }, save),
         ),

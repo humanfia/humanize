@@ -5,6 +5,7 @@
 import { get, post } from './api.js'
 import { acting, confirming, fill, h, problem } from './dom.js'
 import { ask } from './held.js'
+import { chipSelect, composer } from './composer.js'
 import { line } from './transcript.js'
 
 /** One question the run is waiting on a person for, answerable here unless another holds it. */
@@ -37,34 +38,22 @@ export function question(one, me, clients) {
 }
 
 /**
- * Says a line to the run: into one session's turn, to a role, or to the next turn to start.
- * Made once for a page, as `asides` is, and told who there is to say it to as that changes,
- * so that a line being typed outlives every drawing of the page around it.
+ * Says a line to the run: into one session's turn, to a role, or to the next turn to start --
+ * or, given a session, into that session alone. Made once for a page, as `asides` is, and told
+ * who there is to say it to as that changes, so that a line being typed outlives every drawing
+ * of the page around it.
  */
-export function saying() {
+export function saying(session = '') {
   const to = h('select', { 'aria-label': 'Say it to' })
-  const text = h('textarea', { rows: '2', placeholder: 'Say something to the run', 'aria-label': 'What to say' })
-  const send = h('button', { class: 'btn primary', type: 'submit' }, 'Say it')
-  const form = h('form', { class: 'form', 'data-hmz': 'say' }, text, h('div', { class: 'row' }, h('span', { class: 'kicker' }, 'to'), to, send))
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault()
-    if (!text.value.trim()) return
-    send.disabled = true
-    form.querySelector('.error')?.remove()
-    try {
-      await ask('say', { text: text.value, to: to.value })
-      text.value = ''
-    } catch (error) {
-      form.append(problem(error))
-    } finally {
-      send.disabled = false
-    }
+  const box = composer({
+    placeholder: session ? `Say something to ${session}` : 'Say something to the epic',
+    label: 'What to say',
+    submit: (text) => ask('say', { text, to: session || to.value }),
+    tools: session ? [] : [chipSelect('to', to)],
   })
-  text.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) form.requestSubmit()
-  })
+  box.node.dataset.hmz = 'say'
   return {
-    node: form,
+    node: box.node,
     /** Offers the roles, sessions and people there are to say a line to, keeping the one picked. */
     offers(roles, sessions, working, outworlders) {
       const picked = to.value
@@ -152,7 +141,7 @@ export function outworlders(roles, { claims, away, me, clients }) {
     )
   })
   const all = acting(everybody ? 'I am back' : 'Away from all of them', () => ask('afk', { on: !everybody }), { kind: 'btn small quiet' })
-  return [rows, h('p', { class: 'dim' }, 'Away, a question a person is asked is answered at once with nothing, and the run carries on.'), all]
+  return [rows, h('p', { class: 'dim' }, 'Away, a question a person is asked is answered at once with nothing, and the epic carries on.'), all]
 }
 
 /**
@@ -165,16 +154,28 @@ export function outworlders(roles, { claims, away, me, clients }) {
  */
 export function asides() {
   const to = h('select', { 'aria-label': 'Ask it of' }, h('option', { value: '' }, 'the btw agent'))
-  const text = h('textarea', { rows: '2', placeholder: 'Ask something about the run', 'aria-label': 'Side question' })
-  const send = h('button', { class: 'btn', type: 'submit' }, 'Ask')
   const leave = h('button', { class: 'btn quiet small', type: 'button', hidden: true }, 'Close them')
-  const log = h('div', { class: 'transcript', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
-  const form = h('form', { class: 'form', 'data-hmz': 'btw' }, log, text, h('div', { class: 'row' }, h('span', { class: 'kicker' }, 'of'), to, send, leave))
+  const log = h('div', { class: 'thread aside-log', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
   const asked = (question, of) => log.append(line('you', question, { who: `btw · ${of || 'btw agent'}` }))
   const answered = (said) => {
     for (const one of said.asked) log.append(line('begins', `asked ${one.to}: ${one.question}`))
     log.append(line('btw', said.answer))
   }
+  const box = composer({
+    placeholder: 'Ask something about the epic',
+    label: 'Side question',
+    tools: [chipSelect('of', to), leave],
+    submit: async (question) => {
+      asked(question.trim(), to.value)
+      try {
+        answered(await post('/api/btw', { question: question.trim(), to: to.value }))
+        leave.hidden = false
+      } finally {
+        log.scrollTop = log.scrollHeight
+      }
+    },
+  })
+  box.node.dataset.hmz = 'btw'
   get('/api/btw').then(({ open, said }) => {
     for (const one of said) {
       asked(one.question, one.to)
@@ -182,28 +183,6 @@ export function asides() {
     }
     leave.hidden = !open.length
   }, () => {})
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault()
-    const question = text.value.trim()
-    if (!question || send.disabled) return
-    send.disabled = true
-    send.textContent = 'Asking…'
-    asked(question, to.value)
-    try {
-      answered(await post('/api/btw', { question, to: to.value }))
-      text.value = ''
-      leave.hidden = false
-    } catch (error) {
-      log.append(problem(error))
-    } finally {
-      send.disabled = false
-      send.textContent = 'Ask'
-      log.scrollTop = log.scrollHeight
-    }
-  })
-  text.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) form.requestSubmit()
-  })
   leave.addEventListener('click', async () => {
     try {
       await post('/api/btw/leave', {})
@@ -214,7 +193,7 @@ export function asides() {
     }
   })
   return {
-    node: form,
+    node: h('div', { class: 'aside' }, log, box.node),
     /** Offers the conversations there are to ask, keeping the one picked. */
     sessions(keys) {
       const picked = to.value

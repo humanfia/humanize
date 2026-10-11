@@ -217,3 +217,58 @@ export function permitted(permission) {
 export function lane(index) {
   return `var(--lane-${index < 0 ? 6 : (index % 6) + 1})`
 }
+
+/** The strokes of every icon the page draws, each on a 24-unit square. */
+const ICONS = {
+  new: ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'],
+  search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z', 'm20 20-4-4'],
+  flows: ['M4 4h6v6H4Z', 'M14 4h6v6h-6Z', 'M4 14h6v6H4Z', 'M14 17h6', 'M17 14v6'],
+  sidebar: ['M3 4h18v16H3Z', 'M9 4v16'],
+  panel: ['M3 4h18v16H3Z', 'M15 4v16'],
+  gear: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z'],
+  chart: ['M4 20V10', 'M10 20V4', 'M16 20v-7', 'M22 20H2'],
+  chevron: ['m9 6 6 6-6 6'],
+  down: ['m6 9 6 6 6-6'],
+  close: ['M6 6l12 12', 'M18 6 6 18'],
+  send: ['M12 19V5', 'm5 12 7-7 7 7'],
+  stop: ['M7 7h10v10H7Z'],
+  download: ['M12 4v12', 'm6 10 6 6 6-6', 'M4 20h16'],
+  link: ['M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1', 'M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1'],
+  resume: ['M4 12a8 8 0 1 0 2.3-5.7', 'M4 4v4h4'],
+  plus: ['M12 5v14', 'M5 12h14'],
+  minus: ['M5 12h14'],
+  fit: ['M4 9V4h5', 'M20 9V4h-5', 'M4 15v5h5', 'M20 15v5h-5'],
+  sliders: ['M4 6h10', 'M18 6h2', 'M4 12h4', 'M12 12h8', 'M4 18h12', 'M20 18h0', 'M16 4v4', 'M10 10v4', 'M18 16v4'],
+  menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
+  check: ['m5 12 5 5 9-10'],
+  sun: ['M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M12 2v2', 'M12 20v2', 'M4.9 4.9l1.4 1.4', 'M17.7 17.7l1.4 1.4', 'M2 12h2', 'M20 12h2', 'M4.9 19.1l1.4-1.4', 'M17.7 6.3l1.4-1.4'],
+  agent: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4 21a8 8 0 0 1 16 0'],
+  thread: ['M4 5h16v11H8l-4 4Z'],
+}
+
+/** An icon, drawn in the colour of the text around it and said by nothing: its button says it. */
+export function icon(name) {
+  return svg(
+    'svg',
+    { class: 'icon', viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'square', 'stroke-linejoin': 'miter', 'aria-hidden': 'true' },
+    (ICONS[name] || []).map((d) => svg('path', { d })),
+  )
+}
+
+/** A button drawn as an icon alone, said by its label to whoever cannot see it. */
+export function iconButton(name, label, props = {}) {
+  const { class: extra, ...rest } = props
+  return h('button', { type: 'button', 'aria-label': label, title: label, ...rest, class: ['icon-btn', extra] }, icon(name))
+}
+
+/** The first line of a task, which is what a run is named by in a list. */
+export function headline(task) {
+  const first = String(task || '').trim().split('\n')[0]
+  return first || '(no task)'
+}
+
+/** A flow as a list names it: a flow named by its path, by the last part of it. */
+export function flowName(flow) {
+  const said = String(flow || '')
+  return /^[./~]|^git\+/.test(said) ? said.replace(/[/#]+$/, '').split(/[/#]/).pop() : said
+}
