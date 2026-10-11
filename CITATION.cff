@@ -1,7 +1,8 @@
-# How to cite humanize. GitHub reads this file for the "Cite this repository" button.
+# How to cite humanize. GitHub reads this file for the "Cite this repository" button, which
+# offers `preferred-citation`, the paper, over the software described above it.
 # Validate a change with `uvx cffconvert --validate`.
 cff-version: 1.2.0
-message: If you use humanize in your research, please cite it as below.
+message: If you use humanize in your research, please cite the paper below.
 type: software
 title: humanize
 abstract: The agent flow system for token maxxing.
@@ -18,3 +19,34 @@ keywords:
   - agent flows
   - LLM
   - orchestration
+preferred-citation:
+  type: article
+  title: "Humanize: Judgement Engineering for Agentic Coding"
+  authors:
+    - given-names: Sihao
+      family-names: Liu
+    - given-names: Ligeng
+      family-names: Zhu
+    - given-names: Zijian
+      family-names: Zhang
+    - given-names: Dongyun
+      family-names: Zou
+    - given-names: Zhengyang
+      family-names: Zhang
+    - given-names: Changye
+      family-names: Li
+    - given-names: Song
+      family-names: Bian
+    - given-names: Song
+      family-names: Han
+    - given-names: Tony
+      family-names: Nowatzki
+  year: 2026
+  month: 10
+  journal: arXiv preprint
+  doi: 10.48550/arXiv.2610.08900
+  url: https://arxiv.org/abs/2610.08900
+  identifiers:
+    - type: other
+      value: "arXiv:2610.08900"
+      description: The arXiv identifier
