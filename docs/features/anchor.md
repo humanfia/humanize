@@ -36,6 +36,12 @@ to the target environment and workspace, and hands the result back to the CLI as
 were local. How it is built, from the system calls up, is on
 [Deep Tech](https://humanfia.ai/research/deep-tech#coganchor) on humanfia.ai.
 
+The name comes from the **Chronocognitive Anchor** (识刻锚) of *Honkai: Star Rail*. Screwllum
+builds it into the Emperor's Scepter that runs Amphoreus. It keeps one person whole inside that
+other world and lets them still reach the rest of the cosmos. CogAnchor does the same for an
+agent whose work is on another machine: the work happens there, and the agent stays itself,
+at home, on its own account.
+
 <div class="hmz-paths by-three">
   <a :href="withBase('/user/remote-execution')">
     <strong>Point an agent elsewhere</strong>
