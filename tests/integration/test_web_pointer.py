@@ -108,6 +108,7 @@ def test_a_folder_is_browsed_for_a_step_at_a_time(project: Path, engine: str) ->
         panel.locator(".path-entry", has_text="work").click()
         expect(panel.locator(".crumb").last).to_have_text("work")
         panel.locator(".path-entry", has_text="app").click()
+        expect(panel.locator(".crumb").last).to_have_text("app")
         panel.locator("[data-hmz=path-choose]").click()
         expect(page.locator("[data-hmz=workspace-path]")).to_have_value("~/work/app")
         page.get_by_role("button", name="Open", exact=True).click()
@@ -125,6 +126,7 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
         panel = page.locator("[data-hmz=path-panel]")
         panel.get_by_label("Hidden").check()
         panel.locator(".path-entry", has_text=".ssh").click()
+        expect(panel.locator(".crumb").last).to_have_text(".ssh")
         panel.locator(".path-entry", has_text="id_ed25519").click()
         expect(page.locator("#runtime-identity_file")).to_have_value(
             "~/.ssh/id_ed25519"
