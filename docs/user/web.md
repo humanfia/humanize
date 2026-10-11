@@ -245,6 +245,9 @@ The key changes every time `hmz web` starts, so an address from an earlier one l
   any free one.
 - **No browser.** `hmz web --no-open` only prints the address, for a browser of your choosing.
   On a machine without a desktop -- one reached over ssh -- it opens none anyway.
+- **Stopped by what started it.** `hmz web --attached` stops once its standard input closes,
+  so a program that starts it -- a desktop app, a script -- takes it down by exiting, even by
+  crashing.
 - **Runs that end with it.** With `HUMANIZE_DAEMON=off`, `hmz web` holds the runs in its own
   process, and stopping it stops them, as [`hmz` does](/user/leaving#when-it-cant-be-left-running).
 

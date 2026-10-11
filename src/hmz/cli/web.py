@@ -2,14 +2,20 @@
 
 The web interface is one more frontend of the runs the daemon holds, as the terminal interface
 is -- of every workspace's, as the daemon holds every workspace's: what this line does is serve
-it, say where, and open a browser on it, until it is interrupted. The runs go on without it, as
-they go on without a terminal. Where it is started is only where a new epic is offered first.
+it, say where, and open a browser on it, until it is interrupted, terminated or hung up on --
+or, attached, until whatever started it lets go of its standard input. The runs go on without
+it, as they go on without a terminal. Where it is started is only where a new epic is offered first.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 __all__ = ["web"]
 
@@ -46,15 +52,77 @@ def _shows_a_browser() -> bool:
     )
 
 
+@contextlib.contextmanager
+def _ending(*, attached: bool) -> Generator[None]:
+    """Stops `hmz web` on a terminate or a hangup as on an interrupt, and on its stdin closing.
+
+    Left to themselves a terminate or a hangup would end the process where it stood, leaving
+    the page that forwards a browser behind and every stream cut rather than ended. Raised as
+    an interrupt instead, the server unwinds as it does at a terminal. Whichever came first,
+    a terminate or a hangup after it is ignored while it does; a second interrupt is not.
+
+    Attached, standard input is whatever started it, which holds the other end for as long as
+    it lives: that end closing -- however that went, a crash or a kill included -- is the word
+    to stop, which nothing has to remember to send.
+
+    Args:
+      attached: Whether the end of standard input stops it too.
+    """
+    import _thread
+    import select
+    import signal
+    import threading
+
+    stopping = threading.Event()
+
+    def ends(signum: int, _frame: object) -> None:
+        # Once: a second is the server already letting go, which raising again would cut
+        # short -- but for an interrupt, which is somebody asking to cut it short.
+        if stopping.is_set() and signum != signal.SIGINT:
+            return
+        stopping.set()
+        raise KeyboardInterrupt
+
+    def reads() -> None:
+        # Waited on before each read, which a stdin left non-blocking would otherwise end; and
+        # one that is not there at all is one that has closed.
+        with contextlib.suppress(OSError):
+            while True:
+                select.select([0], [], [])
+                with contextlib.suppress(BlockingIOError):
+                    if not os.read(0, 1 << 16):
+                        break
+        # Raised as a signal is, on the thread that serves -- the first one handled here, as
+        # one that is ignored would not be.
+        if was and not stopping.is_set():
+            _thread.interrupt_main(next(iter(was)))
+
+    was: dict[signal.Signals, Any] = {}
+    for one in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        with contextlib.suppress(ValueError):  # off the main thread, where none reaches
+            # A signal somebody chose to have ignored -- a hangup under `nohup`, an interrupt
+            # to a job a script put in the background -- stays so.
+            if signal.getsignal(one) != signal.SIG_IGN:
+                was[one] = signal.signal(one, ends)
+    if attached:
+        threading.Thread(target=reads, daemon=True, name="hmz-web-attached").start()
+    try:
+        yield
+    finally:
+        stopping.set()
+        for one, before in was.items():
+            signal.signal(one, signal.SIG_DFL if before is None else before)
+
+
 def web(argv: list[str], *, apart: bool) -> int:
-    """Serves the web interface until it is interrupted.
+    """Serves the web interface until it is interrupted, terminated or hung up on.
 
     Args:
       argv: What followed the command name.
       apart: Whether this machine wants runs held apart from the process that started them.
 
     Returns:
-      Zero once it has been interrupted; one where the runs or the port could not be had.
+      Zero once it has been stopped; one where the runs or the port could not be had.
     """
     import argparse
 
@@ -74,6 +142,11 @@ def web(argv: list[str], *, apart: bool) -> int:
         action="store_true",
         help="print the address rather than open a browser on it",
     )
+    parser.add_argument(
+        "--attached",
+        action="store_true",
+        help="stop once standard input closes",
+    )
     line = parser.parse_args(argv)
 
     import webbrowser
@@ -84,13 +157,13 @@ def web(argv: list[str], *, apart: bool) -> int:
     def shown(address: str) -> None:
         print(f"hmz web: {address}", flush=True)
 
+    opened = webbrowser.open if not line.no_open and _shows_a_browser() else None
     try:
-        serve(
-            port=line.port,
-            apart=apart,
-            shown=shown,
-            opened=webbrowser.open if not line.no_open and _shows_a_browser() else None,
-        )
+        with _ending(attached=line.attached):
+            serve(port=line.port, apart=apart, shown=shown, opened=opened)
+    except KeyboardInterrupt:
+        # Stopped before it was serving, or while it let go: nothing is left to unwind.
+        return 0
     except daemon.Older as why:
         print(f"hmz: {why}", file=sys.stderr)
         return 1

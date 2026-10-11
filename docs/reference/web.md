@@ -21,16 +21,24 @@ they are: `hmz web` installs nothing beyond `hmz` and builds nothing.
 ## Command line {#command-line}
 
 ```text
-hmz web [--port <port>] [--no-open]
+hmz web [--port <port>] [--no-open] [--attached]
 ```
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--port <port>` | `0` | The port to listen on, on `127.0.0.1` and, where this machine has IPv6, on `::1` too. `0` picks any free one on both. |
 | `--no-open` | off | Print the address and open no browser. |
+| `--attached` | off | Stop once standard input closes. |
 
-Once listening it prints one line to stdout, flushed, and serves until `SIGINT`. Unless
-`--no-open` was given, or there is no desktop to open a browser on (Linux with neither
+Once listening it prints one line to stdout, flushed, and serves until `SIGINT`, `SIGTERM` or
+`SIGHUP` -- or, with `--attached`, until standard input closes, so that the program that
+started it takes it down by exiting, crashed or killed included. Each stops it the same way,
+exiting `0`: every stream ends, the port is let go of, and the page below is removed. A
+`SIGTERM`, `SIGHUP` or closed stdin while it stops is ignored and a second `SIGINT` cuts the
+stopping short; a signal already ignored when it starts, as a hangup is under `nohup`, stays
+ignored.
+
+Unless `--no-open` was given, or there is no desktop to open a browser on (Linux with neither
 `DISPLAY` nor `WAYLAND_DISPLAY`), it also opens a browser, through Python's `webbrowser`, on a
 page that only this account can read -- `web-<port>.html` in this machine's own directory,
 removed when it stops -- which sends the browser on to the address: the key is never on a
