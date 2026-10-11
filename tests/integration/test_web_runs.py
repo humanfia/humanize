@@ -163,6 +163,8 @@ def _chatted(browser: Browser, task: str) -> None:
     with browser.follows() as heard:
         until(heard, lambda event, data: event == "hello", "hello")
         assert browser.post("/api/held/start", _CHAT | {"task": task}).status == 200
+        # The stream begins with what came before: an earlier epic's asking and ending too.
+        until(heard, _record("started", task=task), "chat starting")
         until(heard, _record("asked"), "chat asking")
         browser.post("/api/held/stop")
         until(heard, _record("ended"), "the run ending")
