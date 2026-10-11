@@ -14,7 +14,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import AGENT, install, write_flow
-from tests.integration.doubles_web import Browser, opened, served, until
+from tests.integration.doubles_web import ENGINES, Browser, opened, served, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -109,8 +109,9 @@ def _go(page: Page, address: str) -> None:
     page.evaluate("(to) => { location.hash = to }", address)
 
 
+@pytest.mark.parametrize("engine", ENGINES)
 def test_the_sidebar_is_a_folder_of_epics_per_workspace(
-    project: Path, other: Path
+    project: Path, other: Path, engine: str
 ) -> None:
     with served() as site:
         browser = Browser(site)
@@ -118,7 +119,7 @@ def test_the_sidebar_is_a_folder_of_epics_per_workspace(
         _ran(browser, project.resolve(), "first task")
         _ran(browser, other, "second task")
 
-        with opened(site) as page:
+        with opened(site, engine=engine) as page:
             folders = page.locator("[data-hmz=workspace]")
             expect(folders).to_have_count(2)
             second = page.locator(f"[data-hmz=workspace][data-path='{other}']")
@@ -136,10 +137,11 @@ def test_the_sidebar_is_a_folder_of_epics_per_workspace(
             )
 
 
+@pytest.mark.parametrize("engine", ENGINES)
 def test_an_epic_is_started_in_a_folder_opened_by_its_path(
-    project: Path, other: Path
+    project: Path, other: Path, engine: str
 ) -> None:
-    with served() as site, opened(site) as page:
+    with served() as site, opened(site, engine=engine) as page:
         _go(page, "/new?flow=chat")
         page.locator("[data-hmz=workspace-picker]").click()
         page.get_by_role("menuitem", name="Open folder…").click()

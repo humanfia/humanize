@@ -11,7 +11,7 @@ settles who is reading; it decides nothing a layer under it decides.
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
          [-p|--params <param>[,<param>...]]... [--profile] [--resume] [--json] <task>
-hmz web [--port <port>] [--no-open]
+hmz web [--port <port>] [--no-open] [--attached]
 <ref>    := [@<flowverse>/][<user>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
 <path>   := .<...> | /<...> | ~<...>   # nothing else is a path
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
@@ -98,7 +98,9 @@ def tools(argv: list[str]) -> int: ...
   runs as the terminal interface does -- apart where `APART` allows, in this process where it
   refuses --, MUST print the address it listens at, key and all, on a line of its own, MUST open
   a browser on it unless told `--no-open`, and MUST exit zero once interrupted and one, saying
-  why, where the port cannot be had.
+  why, where the port cannot be had. A terminate or a hangup MUST stop it as an interrupt does,
+  and so MUST its standard input closing where it is told `--attached`: whatever started it
+  takes it down by going, however it went.
 - MUST settle whether escapes may be written in one place: `NO_COLOR` MUST win over everything, then
   `TERM=dumb`, then `FORCE_COLOR`, and otherwise whether a terminal is reading. `FORCE_COLOR` MUST NOT
   make a run believe somebody is watching it, and `rich` MUST NOT be reached until escapes are wanted.

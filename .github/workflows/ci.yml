@@ -134,10 +134,11 @@ jobs:
           # Pull requests restore what `main` saved and write nothing.
           save-cache: ${{ github.ref == 'refs/heads/main' }}
 
-      # The web interface's page is driven in a real browser, which Playwright fetches.
-      - name: playwright install chromium
+      # The web interface's page is driven in real browsers, which Playwright fetches: Chromium,
+      # and WebKit, which the macOS app's window draws the page with.
+      - name: playwright install chromium webkit
         if: matrix.topic == 'web'
-        run: uv run --frozen --all-extras playwright install --with-deps chromium
+        run: uv run --frozen --all-extras playwright install --with-deps chromium webkit
 
       # Two workers a vCPU: these tests wait on subprocesses, sockets and pseudoterminals far
       # more than they compute, and `-n auto` alone counts physical cores.

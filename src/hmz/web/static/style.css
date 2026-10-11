@@ -992,6 +992,25 @@ textarea {
   min-width: 0;
 }
 
+/* Each engine greys a placeholder its own way, WebKit's barely on the dark ground. */
+::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+/* WebKit draws a select its own way, deaf to the border, padding and background above: each is
+   drawn plain, as every engine then draws it, with a chevron of two gradients in the ink. */
+select {
+  appearance: none;
+  padding-right: 22px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(-45deg, transparent 50%, var(--ink-3) 50%);
+  background-position: right 12px center, right 8px center;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -1738,8 +1757,9 @@ pre.block {
 
 .chip-select select {
   border: 0;
-  padding: 0 2px;
-  background: transparent;
+  padding: 0 14px 0 2px;
+  background-color: transparent;
+  background-position: right 4px center, right 0 center;
   font: 600 12.5px var(--mono);
   max-width: 220px;
 }
@@ -1843,6 +1863,7 @@ pre.block {
 
 .canvas.dragging {
   cursor: grabbing;
+  -webkit-user-select: none; /* Safari has only the prefixed one */
   user-select: none;
 }
 

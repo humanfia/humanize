@@ -96,8 +96,12 @@ def serve(
     with listening(port=port, apart=apart) as site, contextlib.ExitStack() as made:
         shown(site.address)
         if opened is not None:
-            page = _forwarding(site)
+            from hmz import machine
+
+            page = machine() / f"web-{site.port}.html"
+            # Before it is written: one stopped while writing it leaves none behind either.
             made.callback(page.unlink, missing_ok=True)
+            _forwarding(site, page)
             # Off the thread that serves: a browser slow to start is no page slow to load.
             threading.Thread(
                 target=opened, args=(page.as_uri(),), daemon=True, name="hmz-web-open"
@@ -106,20 +110,14 @@ def serve(
             site.serve_forever(poll_interval=0.5)
 
 
-def _forwarding(site: Site) -> Path:
+def _forwarding(site: Site, page: Path) -> None:
     """Writes the page that sends a browser on to the address, where only this account reads.
 
     Args:
       site: The server, listening.
-
-    Returns:
-      The page, in this machine's own directory, which is this account's alone.
+      page: Where, in this machine's own directory, which is this account's alone.
     """
-    from hmz import machine
-
-    page = machine() / f"web-{site.port}.html"
     page.unlink(missing_ok=True)
     held = os.open(page, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(held, "w", encoding="utf-8") as written:
         written.write(_FORWARD.format(html.escape(site.address)))
-    return page

@@ -19,7 +19,7 @@ hmz                                    open the terminal interface
 hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
-hmz web [--port <port>] [--no-open]    serve this directory's runs to a browser
+hmz web [<options>]                    serve every workspace's runs to a browser
 hmz internal <command> [<args>...]     processes humanize spawns for itself
 ```
 
@@ -530,15 +530,18 @@ A run that ends because its budget was reached is not a failure: stderr gets
 ## `hmz web` {#hmz-web}
 
 ```text
-hmz web [--port <port>] [--no-open]
+hmz web [--port <port>] [--no-open] [--attached]
 ```
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--port <port>` | `0` | The port to listen on, on `127.0.0.1` and, where this machine has IPv6, on `::1`; `0` picks any free one on both. |
 | `--no-open` | off | Print the address and open no browser. |
+| `--attached` | off | Stop once standard input closes. |
 
-Serves this directory's runs to a browser on this machine until `SIGINT`, as one more frontend
+Serves this directory's runs to a browser on this machine until `SIGINT`, `SIGTERM` or
+`SIGHUP` -- or, with `--attached`, until standard input closes, which is how a program that
+started it takes it down even when that program crashes or is killed -- as one more frontend
 of them, named `browser`, of `kind` `web`. Once listening it prints
 `hmz web: http://127.0.0.1:<port>/?key=<key>` to stdout and opens that address in a browser.
 The runs are held as `hmz` holds them, but for the terminal: in this process where
@@ -547,7 +550,7 @@ serves, refuses and answers is the [Web reference](/reference/web).
 
 | Condition | stderr | Exit |
 | --- | --- | --- |
-| Interrupted while serving | — | `0` |
+| Interrupted, terminated or hung up on, or, attached, standard input closed | — | `0` |
 | An older humanize holds the runs | `hmz: the runs in <dir> are held by an older humanize (pid <n>); stop it with that version` | `1` |
 | The runs could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
 
