@@ -72,11 +72,18 @@ class Runs:
             status, out, err = (
                 rule.answers[0] if len(rule.answers) == 1 else rule.answers.pop(0)
             )
-            return subprocess.CompletedProcess(said, status, out, err)
-        return subprocess.CompletedProcess(said, 0, "", "")
+            return subprocess.CompletedProcess(said, status, *_as(kwargs, out, err))
+        return subprocess.CompletedProcess(said, 0, *_as(kwargs, "", ""))
 
     def called(self, *words: str) -> list[list[str]]:
         return [one for one in self.calls if holds(one, words)]
+
+
+def _as(asked: dict[str, Any], *said: str) -> tuple[str | bytes, ...]:
+    """What was said, as text where it was asked for as text and as bytes otherwise."""
+    if asked.get("text") or asked.get("universal_newlines") or asked.get("encoding"):
+        return said
+    return tuple(one.encode() for one in said)
 
 
 @pytest.fixture

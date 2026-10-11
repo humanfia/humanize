@@ -71,6 +71,8 @@ def parser() -> ArgumentParser: ...
 def settings(args: Namespace) -> AnchorConfig: ...
 def render(config: AnchorConfig, argv: Sequence[str]) -> list[str]: ...
 def options(config: AnchorConfig) -> list[str]: ...
+def kept(token: str) -> str: ...  # the file a secret is named by on a command line
+def forget(token: str) -> None: ...
 
 # elsewhere.py -- putting the harness on a machine that is not this one
 def harnessed(where: str, target: str) -> Target: ...
@@ -369,7 +371,8 @@ class Target:
     scheme: str
     host: str = ""
     port: int = 0
-    path: str = ""           # a `local:` directory, a meeting's ticket, a container's daemon
+    path: str = ""           # a `local:` directory, a meeting's ticket, a container's daemon,
+                             # a Slurm job's Python: slurm://JOBID?python=PATH
     options: tuple[tuple[str, str], ...] = ()  # ssh://HOST?KEYWORD=VALUE&...; `F` the config
     @classmethod
     def parse(cls, spec: str) -> Target: ...
@@ -386,6 +389,7 @@ class Road:
     quotes: bool
     cache: str
     mirrors: str
+    python: str = ""  # the Python tried there before every other
     @classmethod
     def to(cls, target: Target) -> Road: ...
     def line(self, argv: Sequence[str]) -> list[str]: ...
@@ -410,7 +414,10 @@ def serve_line(
     target: Target, exports: list[str], *, meeting: Meeting | None = None
 ) -> list[str]: ...
 def python_command(
-    args: list[str], bundle: str = "", setting: Sequence[tuple[str, str]] = ()
+    args: list[str],
+    bundle: str = "",
+    setting: Sequence[tuple[str, str]] = (),
+    python: str = "",  # tried first: absolute, or `~/` for that machine's home
 ) -> list[str]: ...
 def ssh_flags(options: Sequence[tuple[str, str]]) -> tuple[str, ...]: ...
 def bundled() -> tuple[Path, str]: ...
@@ -470,14 +477,17 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   where it can run instead, and MUST ask that only of the harness's machine — where the account
   goes too. `check` MUST answer what a target is without running anything on it.
 - A target MUST be `ssh://[USER@]HOST[:PORT]`, `docker://CONTAINER[@ENDPOINT]`,
-  `apple-container://CONTAINER`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`,
-  and an endpoint `local`,
+  `apple-container://CONTAINER`, `slurm://JOBID[?python=PATH]`, `tcp://HOST:PORT`,
+  `peer://TICKET@HOST:PORT` or `local[:DIR]`, and an endpoint `local`,
   `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`, `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` or
   `context:NAME`; a container naming none, or `local`, MUST be held by docker's default as this
   process's environment leaves it. Every `docker` on a container's road MUST name any other
   endpoint on its own command line and MUST be run without the variables that would take it
   elsewhere, an `ssh://` one's options MUST reach the `ssh` docker dials with, and nothing MUST
-  be needed inside the container but `/bin/sh` and a Python of at least 3.12.
+  be needed inside the container but `/bin/sh` and a Python of at least 3.12. A Slurm job's road
+  MUST be a step of that job sharing its allocation on its one node, passing nothing of this
+  process's environment or directory but whose it is, and MUST try the Python its target names
+  before any the node has.
 - A supervised agent MUST start in the workspace, or the directory in it the session opened at,
   named as the target names it, and MUST see the target inside it: the same names, contents, sizes,
   modes and timestamps at the same paths, with failures answered by the target's own error.
@@ -500,6 +510,8 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   still take effect there.
 - A native session MUST refuse a CLI the target has not got before it has put anything on that
   machine, saying what is missing and the line that installs it there.
+- A `tcp://` target's secret MUST NOT be written on any command line: one a process is
+  spawned with MUST name a file only this user can read that holds it.
 - What an ssh target is told besides its host MUST reach every `ssh` to it ahead of humanize's
   own options and MUST survive its spelling being read back, and two targets at one host told
   different things MUST NOT share a connection.

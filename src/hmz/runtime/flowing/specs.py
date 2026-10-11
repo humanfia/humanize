@@ -162,6 +162,7 @@ _HERES = (
     EnvBackendKind.DOCKER,
     EnvBackendKind.SWARM,
     EnvBackendKind.APPLE_CONTAINER,
+    EnvBackendKind.SLURM,
 )
 
 

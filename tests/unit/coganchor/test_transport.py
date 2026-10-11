@@ -21,6 +21,7 @@ from hmz.coganchor.transport import (
     PYTHON_CANDIDATES,
     REMOTE_CACHE,
     REMOTE_MIRRORS,
+    SLURM,
     Endpoint,
     Road,
     Target,
@@ -54,6 +55,12 @@ from hmz.coganchor.transport import (
         ("docker://c@context:far", Target("docker", host="c", path="context:far")),
         ("docker://c@tcp://h:2376", Target("docker", host="c", path="tcp://h:2376")),
         (f"{APPLE}://box", Target(APPLE, host="box")),
+        (f"{SLURM}://42", Target(SLURM, host="42")),
+        (
+            f"{SLURM}://42?python=/opt/py%20b",
+            Target(SLURM, host="42", path="/opt/py b"),
+        ),
+        (f"{SLURM}://42?python=~/py", Target(SLURM, host="42", path="~/py")),
         ("tcp://h:9", Target("tcp", host="h", port=9)),
         ("tcp://::1:9", Target("tcp", host="::1", port=9)),
         ("peer://t@b:7", Target("peer", host="b", port=7, path="t")),
@@ -77,6 +84,9 @@ def test_a_target_reads_as_what_it_names(spec: str, target: Target) -> None:
         "docker://c@unix:///var/run/d.sock",
         "docker://c@tcp://h:2376?tls=/certs",
         f"{APPLE}://box",
+        f"{SLURM}://42",
+        f"{SLURM}://42?python=/opt/py%20b",
+        f"{SLURM}://42?python=~/py",
         "tcp://h:9",
         "peer://t@b:7",
     ],
@@ -102,6 +112,12 @@ def test_a_target_describes_itself_as_it_was_spelled(spec: str) -> None:
         f"{APPLE}://",
         f"{APPLE}://a@b",
         f"{APPLE}://a/b",
+        f"{SLURM}://",
+        f"{SLURM}://job",
+        f"{SLURM}://42@n1",
+        f"{SLURM}://42?python=py",
+        f"{SLURM}://42?other=/x",
+        f"{SLURM}://42?python=/a&python=/b",
         "peer://b:7",
         "peer://t@b",
         "ssh://box?novalue",
@@ -292,6 +308,13 @@ def test_running_an_archive_touches_it_first() -> None:
     assert 'exec "$py" "$HOME/x.pyz" "$@"' in script
 
 
+def test_a_python_named_is_tried_before_every_other() -> None:
+    script = python_command([], python="/opt/my py/bin/python3")[2]
+    assert script.index("'/opt/my py/bin/python3'") < script.index("python3.14")
+    homed = python_command([], python="~/py/bin/python3")[2]
+    assert 'for py in "$HOME"/py/bin/python3 python3 ' in homed
+
+
 def test_settings_are_exported_and_made_before_the_search() -> None:
     script = python_command([], setting=(("HUMANIZE_SHADOW", "$HOME/m"),))[2]
     assert script.startswith(
@@ -335,6 +358,18 @@ def test_a_container_road_carries_argv_straight_through(
     road = Road.to(Target.parse(spec))
     assert road.line(["ls", "a b"]) == [*prefix, "ls", "a b"]
     assert (road.cache, road.mirrors) == (CONTAINER_CACHE, CONTAINER_MIRRORS)
+
+
+def test_a_slurm_road_is_a_step_of_the_job_carrying_argv_straight_through() -> None:
+    road = Road.to(Target.parse(f"{SLURM}://42?python=/opt/py"))
+    line = road.line(["ls", "a b"])
+    assert line[:3] == ["srun", "--jobid=42", "--overlap"]
+    assert "--export=HOME,USER" in line
+    assert "--chdir=/" in line
+    assert line[-2:] == ["ls", "a b"]
+    assert (road.cache, road.mirrors) == (REMOTE_CACHE, REMOTE_MIRRORS)
+    assert road.python == "/opt/py"
+    assert Road.to(Target.parse(f"{SLURM}://42")).python == ""
 
 
 def test_a_container_on_another_daemon_is_reached_through_it() -> None:
@@ -526,3 +561,22 @@ def test_closing_a_transport_puts_its_process_down(
     Transport(channel, child).close()  # pyright: ignore[reportArgumentType]
     assert channel.closed
     assert child.calls == calls
+
+
+def test_a_slurm_job_is_given_the_archive_and_runs_it_under_its_python(
+    archive: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran = Ran()
+    monkeypatch.setattr(subprocess, "run", ran)
+    road = Road.to(Target.parse(f"{SLURM}://4242?python=/opt/py"))
+    road.forget()
+
+    line = road.hmz(["internal", "anchor", "serve", "--stdio"])
+
+    ((installing, fed),) = ran.asked
+    assert installing[:2] == ["srun", "--jobid=4242"]
+    assert "for py in /opt/py python3 " in installing[installing.index("-c") + 1]
+    assert fed == b"PK-archive"
+    assert line[:2] == ["srun", "--jobid=4242"]
+    assert "for py in /opt/py python3 " in line[line.index("-c") + 1]
+    road.forget()

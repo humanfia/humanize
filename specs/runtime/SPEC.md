@@ -339,7 +339,9 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   for an environment that cannot be reached or whose provider cannot hold what its role asks
   -- nor any runtime that provider falls back to --, and for anything the engine refuses
   before the flow is called.
-- `arun` MUST probe every environment it was given before the flow is called. Where an `-e`
+- `arun` MUST probe every environment it was given before the flow is called, all at once --
+  a refusal stopping the rest, and the first role refused, in the order they are declared,
+  being the one raised. Where an `-e`
   names a saved runtime with a fallback list and that runtime cannot hold the role -- it cannot
   be opened or reached or has not got the workdir, it has not got what the role asks left to
   hand out or is at its container limit, or its machine is short of a resource the role

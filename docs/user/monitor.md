@@ -365,7 +365,7 @@ out:
 
 | Row | Shows |
 | --- | --- |
-| `kind` | `LOCAL`, `SSH`, `DOCKER`, `SWARM` or `APPLE-CONTAINER`. |
+| `kind` | `LOCAL`, `SSH`, `DOCKER`, `SWARM`, `APPLE-CONTAINER` or `SLURM`. |
 | `target` | The ssh host or the container runtime, or `this machine`. |
 | `workdir` | The directory its sessions work in. |
 | `set up as` | What it was given with `-e` or on `/flow`, where it was set up here. |

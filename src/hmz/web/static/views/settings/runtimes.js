@@ -1,5 +1,5 @@
-// The runtimes: an ssh host, a docker daemon, a docker swarm or this Mac's Apple containers,
-// written down under a name an `-e` names. Each can be asked what it has, the way a run
+// The runtimes: an ssh host, a docker daemon, a docker swarm, this Mac's Apple containers or
+// the Slurm cluster this machine submits to, written down under a name an `-e` names. Each can be asked what it has, the way a run
 // reaching it asks; a new one is written from its backend's own fields, or brought in from
 // the hosts an ssh config names.
 
@@ -169,6 +169,7 @@ export function draw(holder) {
 /** Where a runtime is reached, as somebody would write it. */
 function reached(one) {
   if (one.backend === 'ssh') return `${one.user ? `${one.user}@` : ''}${one.host || one.alias}${one.port ? `:${one.port}` : ''}`
+  if (one.backend === 'slurm') return ['sbatch', one.partition ? `-p ${one.partition}` : '', one.account ? `-A ${one.account}` : ''].filter(Boolean).join(' ')
   return one.endpoint || 'this Mac'
 }
 

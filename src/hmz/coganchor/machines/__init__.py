@@ -20,6 +20,7 @@ from .docker import (
     info,
 )
 from .mapped import Mapped, Ran
+from .slurm import Slurm, SlurmConfig
 from .swarm import Swarm, SwarmConfig
 
 __all__ = [
@@ -34,6 +35,8 @@ __all__ = [
     "MachineConfig",
     "Mapped",
     "Ran",
+    "Slurm",
+    "SlurmConfig",
     "Swarm",
     "SwarmConfig",
     "allocations",

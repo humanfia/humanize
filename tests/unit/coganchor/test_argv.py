@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
 from hmz.coganchor.anchor import AnchorConfig
-from hmz.coganchor.argv import options, parser, render, settings
+from hmz.coganchor.argv import forget, kept, options, parser, render, settings
 from hmz.coganchor.fence import ALL, NONE, READ, Fence
 
 ENVIRONMENT = (
@@ -180,3 +181,21 @@ def test_render_runs_this_interpreter_with_the_agent_after() -> None:
     assert line[:5] == [sys.executable, "-Pm", "hmz", "internal", "anchor"]
     assert line[5:-3] == options(NATIVE)
     assert line[-3:] == ["claude", "-p", "hi"]
+
+
+def test_a_secret_is_never_on_the_command_line_but_in_a_file_only_its_user_reads() -> (
+    None
+):
+    written = options(AnchorConfig(target="tcp://node:4000", token="s3cret"))
+
+    assert not [one for one in written if "s3cret" in one]
+    (named,) = [one for one in written if one.startswith("--token-file=")]
+    held = Path(named.partition("=")[2])
+    assert held.read_text() == "s3cret"
+    assert held.stat().st_mode & 0o077 == 0
+    assert read(*written).token == "s3cret"
+    assert kept("s3cret") == str(held)
+
+    forget("s3cret")
+
+    assert not held.exists()

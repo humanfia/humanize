@@ -959,15 +959,15 @@ older than 7 days; when an account never asked is chosen; on **Check again**.
 
 | Row | Kind | About / values |
 | --- | --- | --- |
-| `backend` | ▾ `local` `ssh` `docker` `swarm` `apple-container` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon` / `a container on whichever node of a docker swarm has room` / `an Apple container on this Mac`, beside each on the list too. Starts on the first of `ssh`, `docker`, `swarm`, `apple-container` with a saved runtime, else `local`. Changing it clears host and workdir. |
-| `host` (ssh, apple-container) · `daemon` (docker) · `swarm` (swarm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, `choose a saved host, or add one` (ssh), or `none: <backend> on this machine, or choose a saved one` (docker, swarm, apple-container: left empty, it is this machine). Absent for `local`. |
+| `backend` | ▾ `local` `ssh` `docker` `swarm` `apple-container` `slurm` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon` / `a container on whichever node of a docker swarm has room` / `an Apple container on this Mac` / `a job on whichever node of a Slurm partition has room`, beside each on the list too. Starts on the first of `ssh`, `docker`, `swarm`, `apple-container`, `slurm` with a saved runtime, else `local`. Changing it clears host and workdir. |
+| `host` (ssh, apple-container) · `daemon` (docker) · `swarm` (swarm) · `cluster` (slurm) | ▸ | Opens the [host picker](#host-picker). Shows the saved runtime's description, `not saved: connects via ssh as entered`, `not saved in settings`, `choose a saved host, or add one` (ssh), or `none: <backend> on this machine, or choose a saved one` (docker, swarm, apple-container, slurm: left empty, it is this machine). Absent for `local`. |
 | `workdir` | written | `absolute path on this machine` (local, and apple-container with nothing saved); `leave blank to use saved default: <dir>` (a runtime saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the runtime's workdir; while unchanged, the spec omits it. |
 | `as -e` | written | `full -e spec: typing one sets the rows above` |
 
 Button: **Done**, `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`.
 
-The rows are composed as `-e` spells them: no provider for `local`, nor for docker, swarm or
-apple-container left on this machine (`docker/<workdir>`); an ssh host that is no saved runtime in brackets
+The rows are composed as `-e` spells them: no provider for `local`, nor for docker, swarm,
+apple-container or slurm left on this machine (`docker/<workdir>`); an ssh host that is no saved runtime in brackets
 (`ssh@[<host>]/<workdir>`). The composed spec is read as
 [`-e`](/reference/cli#writing-an-environment) reads it and refused in its words (e.g.
 `-e 'box=ssh@[somehost]': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one`
@@ -978,9 +978,9 @@ where no workdir is given or saved). Partial answers: `fill in the <host|workdir
 
 | Element | Value |
 | --- | --- |
-| Title | `Select the ssh host to use` / `Select the docker host to use` / `Select the docker swarm to use` / `Select the host for Apple containers to use` |
+| Title | `Select the ssh host to use` / `Select the docker host to use` / `Select the docker swarm to use` / `Select the host for Apple containers to use` / `Select the Slurm cluster to use` |
 | About | `Saved on the runtimes page of /settings; any host you add here is saved there.` |
-| Buttons | **Add an ssh host** / **Add a docker host** / **Add a docker swarm** / **Add a host for Apple containers** (the [runtime forms](#runtimes), saving at once and returning with it chosen; `host` as its step of the way across the top); **Name a host…** (ssh; `one nobody saved: any host ssh can reach`); **Search…** |
+| Buttons | **Add an ssh host** / **Add a docker host** / **Add a docker swarm** / **Add a host for Apple containers** / **Add a Slurm cluster** (the [runtime forms](#runtimes), saving at once and returning with it chosen; `host` as its step of the way across the top); **Name a host…** (ssh; `one nobody saved: any host ssh can reach`); **Search…** |
 | Empty | `no ssh host is saved yet` |
 
 **Name a host…** opens **Unsaved ssh host** (`Connects using your ssh config with no extra
@@ -1147,7 +1147,7 @@ Storage keys are in [Settings](/reference/settings).
   │    where a turn goes when its agent fails                                │
   │──────────────────────────────────────────────────────────────────────────│
   │ ▦  Runtimes                                                    1 machine │
-  │    ssh hosts, docker daemons, swarms and Apple containers                │
+  │    ssh hosts, docker daemons, swarms, Apple containers and Slurm         │
   │──────────────────────────────────────────────────────────────────────────│
   │ ⌂  Workspace                                        work/api · flow rlar │
   │    this directory: its flow, and forgetting it                           │
@@ -1194,7 +1194,8 @@ Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
 | Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
 
-**Add a runtime…** drops `ssh host`, `docker host`, `docker swarm` and `apple containers`
+**Add a runtime…** drops `ssh host`, `docker host`, `docker swarm`, `apple containers` and
+`slurm cluster`
 (titled `add a runtime`) over the button; picking one opens [its form](#ssh-form), `esc` or a
 click off it none.
 
@@ -1386,9 +1387,10 @@ fallback`.
 ### Runtimes page {#runtimes}
 
 Intro: `Saved ssh hosts, docker daemons with the resources each may hand out, docker swarms
-with what their tasks may reserve, and this Mac's Apple containers, used by name as flow
-environments in -e and /flow. Changes take effect immediately.` Rows under `ssh`, `docker`,
-`swarm` and `apple-container` headings.
+with what their tasks may reserve, this Mac's Apple containers, and Slurm clusters with what
+their jobs are submitted under, used by name as flow environments in -e and /flow. Changes take
+effect immediately.` Rows under `ssh`, `docker`, `swarm`, `apple-container` and `slurm`
+headings.
 Empty: `no machines saved yet; a role can still name one directly`. `/settings environments`,
 the page's former name, still opens it. Storage and semantics: [Machines ›
 Runtimes](/reference/machines#runtimes).
@@ -1398,6 +1400,7 @@ Runtimes](/reference/machines#runtimes).
 | ssh | `user@host[:port]` or `from ~/.ssh/config` / `…, from <config>`, then ` · key <path>`, ` · through <jump>`, ` · -o K=V, …` |
 | docker | `<endpoint> · <image> · OCI runtime <r> · <cpus> CPUs, <mem>, GPUs <ids>\|no limits · max <n> containers` |
 | swarm | `<endpoint> · <image> · on <constraint>, … · <cpus> CPUs, <mem>\|no limits · GPUs as <resource> · max <n> tasks` -- not its nodes |
+| slurm | `partition <p>\|default partition · account <a> · qos <q> · time <t> · on <constraint> · python <path> · via tcp · <cpus> CPUs, <mem>\|no limits · max <n> jobs · waits <s>s for a node`, each only where set |
 | all | ` · working directory: <dir>`; ` · checking…` while checked |
 
 `enter`, `→` or a click on a runtime opens its menu, `<backend>/<name>`, its about the row's
@@ -1406,7 +1409,7 @@ description. Keys: `enter choose   tab actions   esc back`.
 | Row or button | Description | Effect |
 | --- | --- | --- |
 | `edit` | `edit saved settings` | Its form, without `name`; checked after saving (`<backend>/<name> updated`). |
-| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits`; swarm: `check the swarm's nodes against its quota`; apple-container: `check this Mac's resources against its limits` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …` -- for a swarm `answers: swarm <version>; <n> nodes: <a>, <b>, … and <k> more; <cpus> CPUs, <mem> all told`, naming the first 8 of the nodes that may take a task; for Apple containers `answers: container <version>; <cpus> CPUs, <mem>`; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
+| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits`; swarm: `check the swarm's nodes against its quota`; apple-container: `check this Mac's resources against its limits`; slurm: `check the partition's nodes against its quota` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …` -- for a swarm `answers: swarm <version>; <n> nodes: <a>, <b>, … and <k> more; <cpus> CPUs, <mem> all told`, naming the first 8 of the nodes that may take a task; for Apple containers `answers: container <version>; <cpus> CPUs, <mem>`; for a Slurm cluster `answers: slurm <version>; <n> nodes: <a>, <b>, … and <k> more; <cpus> CPUs, <mem> all told`, naming the first 8 of the partition's nodes that may take a job; for a docker daemon whose listed GPUs do not all answer, a yellow `<n> of <m> GPUs answer; GPU <ids> does not` / `do not`; a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
 | **Remove** (red) | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`, and `<names> reached a swarm through this host; edit them` for a swarm whose endpoint or one of whose nodes it was. |
 
 #### ssh host form {#ssh-form}
@@ -1427,7 +1430,7 @@ never read.`
 | `options` | `additional ssh options: KEYWORD=VALUE, …` |
 | `workdir` | `default working directory when -e specifies none: /abs or ~/path` |
 | `falls back to` | `runtimes to try in order if this one cannot: docker:box, ssh:gpu2`. Entries apart by commas, saved as the runtime's [`fallback`](/reference/machines#falling-back); its row then ends `· falls back to <entries>`. |
-| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>; blank for self where the CLI is there, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
+| `harness runs on` | `where an agent's harness runs, in order, the next only when one has no room: self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, slurm:<name>; blank for self where the CLI is there, else local`. The runtime's [`affinity`](/reference/remote-execution#affinity), entries apart by commas. |
 
 Button: **Done**, `adds ssh/<name>, and checks its resources` / `updates …`.
 
@@ -1515,6 +1518,38 @@ then `detected …: auto-filled` with the focus back on the list and the cursor 
 detects host resources`). Refusals: `a host for
 Apple containers named <name> already exists; …`, and the docker host form's for memory,
 CPUs, max containers and run args.
+
+#### Slurm cluster form {#slurm-form}
+
+Title `Add a Slurm cluster` / `Edit slurm/<name>`; intro `The Slurm cluster this machine
+submits to, where each flow environment is a job of its own, placed on whichever node of its
+partition has room. Flows on it are limited to the quota configured here.` No daemon to name:
+the cluster is the one this machine's `sbatch` submits to.
+
+| Row | Description |
+| --- | --- |
+| `partition` | `blank for the cluster's default` |
+| `name` (add) | `name used in -e and /flow`. Follows the partition until typed, as the ssh form's follows the host; `slurm` if empty. |
+| `harness runs on` | as on the ssh form |
+| `account` | `blank for your default account` |
+| `qos` | `quality of service; blank for the default` |
+| `time` | `max run time per job, e.g. 4:00:00; blank for the partition's` |
+| `constraint` | `node features a job needs, e.g. a100` |
+| `python` | `Python 3.12+ on its nodes, /abs or ~/path; blank for theirs` |
+| `via` | ▾ `srun` (`a step of the job per connection, which every cluster allows`) / `tcp` (`a port the job serves; needs this machine to reach its nodes`) |
+| `run args` | `extra arguments for sbatch` |
+| `max jobs` | `max concurrent jobs; blank for no limit` |
+| `max wait` | `seconds a job may wait for a node; blank for as long as it waits` |
+| `workdir` | `default working directory, on every node, when -e specifies none` |
+| `falls back to` | as on the ssh form |
+| `cpus` | `CPUs all jobs may reserve; blank for no quota` |
+| `memory` | `e.g. 64G for all jobs; blank for no quota` |
+
+Button: **Done** (`adds slurm/<name> and checks its partition's nodes` / `updates …`).
+Refusals: `a Slurm cluster named <name> already exists; …`, `max jobs: '<x>' must be a number`
+(also `max wait`), `run args: …`, the docker host form's for memory and CPUs, and the store's
+own for a partition, account, qos, time, constraint, Python or `via` it does not take
+([Machines › Validation](/reference/machines#validation)).
 
 #### Import form {#import-form}
 
@@ -1707,7 +1742,7 @@ run: `This environment is not in the run.`
 
 | Row | Value |
 | --- | --- |
-| `kind` | `LOCAL`, `SSH`, `DOCKER`, `SWARM`, `APPLE-CONTAINER` |
+| `kind` | `LOCAL`, `SSH`, `DOCKER`, `SWARM`, `APPLE-CONTAINER`, `SLURM` |
 | `target` | the ssh host or container runtime, or `this machine` |
 | `workdir` | as the run reported it |
 | `set up as` | the role's `-e` spelling |

@@ -4,10 +4,11 @@
 a run was started in, which is what fills a `LocalEnv` role. Both are
 :class:`~hmz.runtime.flowing.environing.MachineEnvDriver`, over this machine, over a host
 reached with ssh, over a container of its own on a docker daemon, over one a docker swarm
-placed on whichever of its nodes had room, or over an Apple container of its own on this Mac,
-and all serve every environment capability. None touches the network: an ssh host is reached,
-and a container started or a swarm's service created, the first time something is asked of
-it, and :func:`probe` is how to ask before anything else -- which the ways in do for every
+placed on whichever of its nodes had room, over an Apple container of its own on this Mac, or
+over the node of a job of its own on a Slurm cluster, and all serve every environment
+capability. None touches the network: an ssh host is reached, and a container started, a
+swarm's service created or a Slurm job submitted, the first time something is asked of it,
+and :func:`probe` is how to ask before anything else -- which the ways in do for every
 environment a run is given, so that `available` and the resources a machine has are known,
 and a container has taken its share of its runtime, before a flow's requirements are checked
 against them. :func:`settle` is that probe for an environment an `-e` named, moving it down
@@ -56,7 +57,9 @@ def open_env(
         `swarm@name/abs/path` for a task of its own on the swarm a saved swarm runtime names,
         `swarm/...` on the swarm this machine manages; or `apple-container@name/abs/path` for
         an Apple container of its own on this Mac, as a saved runtime of that backend shares
-        it out, `apple-container/...` with nothing saved.
+        it out, `apple-container/...` with nothing saved; or `slurm@name/abs/path` for a job
+        of its own on the Slurm cluster this machine submits to, as a saved Slurm runtime asks
+        for one, `slurm/...` with the cluster's defaults.
       role: What the environment is for, as its flow declares it: a container is started
         from its image and given its resources. None asks for nothing.
       traced: Whether a harness is to run there, supervising its agent: a container is
@@ -67,8 +70,8 @@ def open_env(
 
     Raises:
       EnvUnavailable: If the workdir is known not to exist -- which for this machine is
-        looked at now -- the host is no ssh destination, or no docker, swarm or Apple
-        container runtime is written down under that name.
+        looked at now -- the host is no ssh destination, or no docker, swarm, Apple
+        container or Slurm runtime is written down under that name.
     """
     if spec.backend is EnvBackendKind.DOCKER:
         return _docker_env(spec, role, traced=traced)
@@ -76,6 +79,8 @@ def open_env(
         return _swarm_env(spec, role, traced=traced)
     if spec.backend is EnvBackendKind.APPLE_CONTAINER:
         return _apple_container_env(spec, role, traced=traced)
+    if spec.backend is EnvBackendKind.SLURM:
+        return _slurm_env(spec, role)
     if spec.backend is EnvBackendKind.SSH:
         from hmz.coganchor.machines import store
 
@@ -245,6 +250,38 @@ def _apple_container_env(
         role=role,
         named=spec.role,
         traced=traced,
+    )
+    return MachineEnvDriver(machine, workdir)
+
+
+def _slurm_env(spec: EnvSpec, role: EnvRole | None) -> EnvDriver:
+    """The driver for a job of its own on the Slurm cluster this machine submits to.
+
+    Raises:
+      EnvUnavailable: If no Slurm runtime is written down under that name -- none named
+        being the cluster's defaults.
+    """
+    from hmz.coganchor.machines import store
+
+    from .environing_slurm import LOCAL, SlurmMachine
+
+    stored = store.find(store.SLURM, spec.provider)
+    if stored is not None and not isinstance(stored, store.SlurmRuntime):
+        stored = None
+    if stored is None and spec.provider:
+        if _unreadable(spec.provider, store.SLURM):
+            raise EnvUnavailable(
+                f"the Slurm cluster {spec.provider!r} cannot be read; fix or "
+                f"remove it: {_kept(store.SLURM, spec.provider)}"
+            )
+        raise EnvUnavailable(
+            f"Slurm cluster {spec.provider!r} not found: add one, or name none for the "
+            "cluster's defaults, as slurm/<workdir>"
+        )
+    # Under the home of this machine's user, who is whom the job runs as on its node.
+    workdir = PurePosixPath(Path(str(tidy_workdir(spec.workdir))).expanduser())
+    machine = SlurmMachine(
+        spec.provider or LOCAL, workdir, stored=stored, role=role, named=spec.role
     )
     return MachineEnvDriver(machine, workdir)
 

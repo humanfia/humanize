@@ -15,10 +15,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from argparse import ArgumentParser, Namespace
     from collections.abc import Sequence
+    from pathlib import Path
 
     from .anchor import AnchorConfig
 
-__all__ = ["options", "parser", "render", "settings"]
+__all__ = ["forget", "kept", "options", "parser", "render", "settings"]
 
 
 def parser() -> ArgumentParser:
@@ -136,6 +137,11 @@ def parser() -> ArgumentParser:
         help="shared secret expected by a tcp:// target (default: $HUMANIZE_TOKEN)",
     )
     built.add_argument(
+        "--token-file",
+        metavar="FILE",
+        help="read that secret from FILE instead, which no other user's ps can",
+    )
+    built.add_argument(
         "--force",
         action="store_true",
         help="use the mirror directory even if it holds unrelated files",
@@ -235,7 +241,7 @@ def settings(args: Namespace) -> AnchorConfig:
         private=tuple(args.private),
         net=args.net,
         net_allow=tuple(args.net_allow),
-        token=args.token,
+        token=_secret(args.token_file) if args.token_file else args.token,
         force=args.force,
         native=args.native,
         hushes=tuple(args.hush),
@@ -283,7 +289,8 @@ def options(config: AnchorConfig) -> list[str]:
         ("--chdir", config.chdir),
         ("--remote-path", config.remote_path),
         ("--shadow", config.shadow),
-        ("--token", config.token),
+        # By the file it is kept in, never by itself: a command line is in every user's `ps`.
+        ("--token-file", kept(config.token) if config.token is not None else None),
         # Written only where there is one, unlike the two above: each defaults to "" rather
         # than to None, and an empty line would read as a CLI nothing installs.
         ("--installs", config.installs or None),
@@ -327,3 +334,52 @@ def _pair(said: str) -> tuple[str, str]:
     """
     named, _, instead = said.partition("=")
     return named, instead
+
+
+def kept(token: str) -> str:
+    """The file a secret is kept in for a command line to name, written where it is not yet.
+
+    Among what is this machine's and this user's alone, named by the secret's digest -- so a
+    secret written down once is the same file however many lines name it -- and readable by
+    nobody else from the instant it exists.
+
+    Args:
+      token: The secret.
+
+    Returns:
+      The file's path.
+    """
+    import os
+
+    at = _keeping(token)
+    if not at.exists():
+        at.parent.mkdir(mode=0o700, exist_ok=True)
+        staged = at.with_name(f".{at.name}.{os.getpid()}")
+        made = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(made, token.encode())
+        finally:
+            os.close(made)
+        staged.replace(at)
+    return str(at)
+
+
+def forget(token: str) -> None:
+    """Removes the file a secret was kept in, for one nothing will be asked for again."""
+    _keeping(token).unlink(missing_ok=True)
+
+
+def _keeping(token: str) -> Path:
+    """Where :func:`kept` keeps a secret, whether or not it is there yet."""
+    import hashlib
+
+    from hmz import machine
+
+    return machine() / "tokens" / hashlib.sha256(token.encode()).hexdigest()[:32]
+
+
+def _secret(path: str) -> str:
+    """The secret a file holds, as :func:`kept` wrote it."""
+    from pathlib import Path
+
+    return Path(path).read_text(encoding="utf-8")

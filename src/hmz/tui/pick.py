@@ -104,6 +104,7 @@ if TYPE_CHECKING:
         AppleContainerRuntime,
         DockerRuntime,
         Runtime,
+        SlurmRuntime,
         SSHRuntime,
         SwarmRuntime,
     )
@@ -6484,7 +6485,13 @@ class Providers(Pages):
 #: The backends a runtime is saved for, as `-e` and the store name them. A swarm's is not
 #: `_SWARM`, which is the row an agent's turns are run as a fleet on: the same word, for
 #: another thing.
-_SSH, _DOCKER, _DOCKER_SWARM, _APPLE = "ssh", "docker", "swarm", "apple-container"
+_SSH, _DOCKER, _DOCKER_SWARM, _APPLE, _SLURM = (
+    "ssh",
+    "docker",
+    "swarm",
+    "apple-container",
+    "slurm",
+)
 
 #: What one runtime of each is called on the form that adds one.
 _KINDS = {
@@ -6492,6 +6499,7 @@ _KINDS = {
     _DOCKER: "a docker host",
     _DOCKER_SWARM: "a docker swarm",
     _APPLE: "a host for Apple containers",
+    _SLURM: "a Slurm cluster",
 }
 
 #: The kinds the one button that adds a runtime drops, in its order, each with what it is.
@@ -6500,10 +6508,11 @@ _ADDING = (
     Value(_DOCKER, "docker host", "a local or remote docker daemon"),
     Value(_DOCKER_SWARM, "docker swarm", "a docker swarm, through one of its managers"),
     Value(_APPLE, "apple containers", "Apple's Linux containers on this Mac"),
+    Value(_SLURM, "slurm cluster", "the Slurm cluster this machine submits to"),
 )
 
-#: How many of a swarm's nodes a check names before it only counts the rest: a cluster's
-#: hundred names are no line anybody reads.
+#: How many of a swarm's nodes, or a Slurm partition's, a check names before it only counts
+#: the rest: a cluster's hundred names are no line anybody reads.
 _NAMED_NODES = 8
 
 #: The ssh config an import reads unless it is told another, as the row says it.
@@ -6658,7 +6667,7 @@ def _config_named(config: str) -> str:
 
 
 def _hands_out(cpus: float, memory: int, gpus: Sequence[str] = ()) -> str:
-    """What a docker daemon may hand out, or a swarm's tasks reserve, as a row says it."""
+    """What a docker daemon may hand out, or a swarm's tasks or a cluster's jobs reserve."""
     held = [
         *((f"{cpus:g} CPUs",) if cpus else ()),
         *((_sized(memory),) if memory else ()),
@@ -6680,6 +6689,25 @@ def _swarm_line(one: SwarmRuntime) -> list[str]:
         _hands_out(one.cpus, one.memory),
         *((f"GPUs as {one.gpu_resource}",) if one.gpu_resource else ()),
         *((f"max {one.max_tasks} tasks",) if one.max_tasks else ()),
+    ]
+
+
+def _slurm_line(one: SlurmRuntime) -> list[str]:
+    """What a row says about a Slurm cluster: what its jobs are submitted under, and may have.
+
+    Each of what `sbatch` is told only where it says something: blank is the cluster's own.
+    """
+    return [
+        f"partition {one.partition}" if one.partition else "default partition",
+        *((f"account {one.account}",) if one.account else ()),
+        *((f"qos {one.qos}",) if one.qos else ()),
+        *((f"time {one.time}",) if one.time else ()),
+        *((f"on {one.constraint}",) if one.constraint else ()),
+        *((f"python {one.python}",) if one.python else ()),
+        *((f"via {one.via}",) if one.via != "srun" else ()),
+        _hands_out(one.cpus, one.memory),
+        *((f"max {one.max_jobs} jobs",) if one.max_jobs else ()),
+        *((f"waits {one.max_wait}s for a node",) if one.max_wait else ()),
     ]
 
 
@@ -6718,6 +6746,8 @@ def _machine_line(one: Runtime) -> str:
                 else ()
             ),
         ]
+    elif one.backend == _SLURM:
+        said = _slurm_line(cast("SlurmRuntime", one))
     else:
         daemon = cast("DockerRuntime", one)
         said = [
@@ -6743,12 +6773,13 @@ def _answered(one: Runtime, said: _Had) -> str:
 
     What it has, and in yellow what it was saved as handing out and has not got: a resource
     the daemon does not have is a run refused later, so it is said now. A swarm says it is
-    one, and which of its nodes may be given a task -- all told, for a swarm's.
+    one, and which of its nodes may be given a task, and a Slurm cluster which nodes of its
+    partition may be given a job -- what it has being all told, for either.
     """
     named = f"{one.backend}/{one.name}"
     if not said.reached:
         return bad(escape(f"{named} could not be reached: {said.said}"))
-    swarm = one.backend == _DOCKER_SWARM
+    swarm = one.backend in (_DOCKER_SWARM, _SLURM)
     lead = (
         f": {_SERVED_BY.get(one.backend, 'docker')} {said.version}"
         if said.version
@@ -6756,7 +6787,12 @@ def _answered(one: Runtime, said: _Had) -> str:
         if said.home
         else ""
     )
-    has = f"{_nodes(said.nodes)}; {_has(said)} all told" if swarm else _has(said)
+    has = (
+        f"{_nodes(said.nodes, 'job' if one.backend == _SLURM else 'task')}; "
+        f"{_has(said)} all told"
+        if swarm
+        else _has(said)
+    )
     line = escape(f"{named} answers{lead}; {has}")
     if failed := _failed(said):
         line += "\n" + iffy(escape(failed))
@@ -6768,17 +6804,20 @@ def _answered(one: Runtime, said: _Had) -> str:
 
 
 #: What a runtime that says its version is, by backend, as a check says it: `docker 29.4.3`.
-_SERVED_BY = {_DOCKER_SWARM: "swarm", _APPLE: "container"}
+_SERVED_BY = {_DOCKER_SWARM: "swarm", _APPLE: "container", _SLURM: "slurm"}
 
 
-def _nodes(names: Sequence[str]) -> str:
+def _nodes(names: Sequence[str], given: str = "task") -> str:
     """A swarm's nodes that may take a task, as a line says them: counted, the first named.
+
+    Or a Slurm partition's that may take a job.
 
     Args:
       names: Their host names.
+      given: What one of them may take: a `task`, or a `job`.
     """
     if not names:
-        return "no node may take a task"
+        return f"no node may take a {given}"
     count = f"{len(names)} node{'' if len(names) == 1 else 's'}"
     shown = ", ".join(names[:_NAMED_NODES])
     more = len(names) - _NAMED_NODES
@@ -6856,7 +6895,7 @@ async def provided(host: App[None], backend: str) -> tuple[Runtime | None, str]:
 
     Args:
       host: The interface, which the form is pushed onto.
-      backend: `ssh`, `docker`, `swarm` or `apple-container`.
+      backend: `ssh`, `docker`, `swarm`, `apple-container` or `slurm`.
 
     Returns:
       The runtime, saved -- or None, and why not: "" for a form walked out of.
@@ -6868,6 +6907,8 @@ async def provided(host: App[None], backend: str) -> tuple[Runtime | None, str]:
         if backend == _DOCKER_SWARM
         else Containing()
         if backend == _APPLE
+        else Slurming()
+        if backend == _SLURM
         else Docking()
     )
     one = await host.push_screen_wait(form)
@@ -6916,7 +6957,8 @@ def _fallback(said: str) -> list[str]:
 _AFFINITY = "affinity"
 _AFFINITY_ABOUT = (
     "where an agent's harness runs, in order, the next only when one has no room: "
-    "self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>; "
+    "self, local, ssh:<name>, docker:<name>, swarm:<name>, apple-container:<name>, "
+    "slurm:<name>; "
     "blank for self where the CLI is there, else local"
 )
 
@@ -8024,6 +8066,243 @@ class Containing(Form["Runtime"]):
         self.dismiss(made)
 
 
+#: The rows of the form a Slurm cluster is written on, by the field each answers: what
+#: `sbatch` is told, and how many jobs it may have and for how long one waits.
+_PARTITION, _CHARGED, _QOS, _TIME_LIMIT, _CONSTRAINT, _PYTHON, _JOBS, _WAIT = (
+    "partition",
+    "account",
+    "qos",
+    "time",
+    "constraint",
+    "python",
+    "max_jobs",
+    "max_wait",
+)
+
+#: How a job's node is reached once it runs, as the `via` row steps through them.
+_SLURM_VIAS = {
+    "srun": "a step of the job per connection, which every cluster allows",
+    "tcp": "a port the job serves; needs this machine to reach its nodes",
+}
+
+
+class Slurming(Form["Runtime"]):
+    """The Slurm cluster this machine submits to, on one form: what its jobs are submitted under.
+
+    No daemon to say where: the cluster is the one this machine's `sbatch` submits to. The
+    partition first, the name following it until somebody types over it, so that a cluster's
+    partitions are a runtime apiece; then what else `sbatch` is told -- the account, the
+    quality of service, the time, the node features, each blank for the cluster's own -- the
+    Python its nodes run the serving half with, how a job's node is reached, and what all of
+    its jobs together may reserve, how many jobs at once and how long one waits for a node,
+    each blank for no limit.
+
+    Correcting one asks the same, less the name it is saved under.
+    """
+
+    #: What one is called, after `a`.
+    KIND: ClassVar[str] = "Slurm cluster"
+
+    def __init__(self, one: SlurmRuntime | None = None) -> None:
+        """Initializes the form on one, or on nothing for one being added.
+
+        Args:
+          one: The one being corrected, or None to add one.
+        """
+        super().__init__()
+        self._one = one
+        #: What Slurm clusters are saved as, read once: the name is written in per keystroke.
+        self._taken = frozenset(each.name for each in _hmz().runtimes.all(_SLURM))
+        if one is None:
+            self._typed_in = {_VIA: "srun"}
+            self._names()
+            return
+        self._typed_in = {
+            _PARTITION: one.partition,
+            _CHARGED: one.account,
+            _QOS: one.qos,
+            _TIME_LIMIT: one.time,
+            _CONSTRAINT: one.constraint,
+            _PYTHON: one.python,
+            _VIA: one.via,
+            _ARGS: shlex.join(one.run_args),
+            _JOBS: str(one.max_jobs) if one.max_jobs else "",
+            _WAIT: str(one.max_wait) if one.max_wait else "",
+            _WORKDIR: one.workdir,
+            _FALLEN_TO: ", ".join(one.fallback),
+            _AFFINITY: ", ".join(one.affinity),
+            _CPUS: f"{one.cpus:g}" if one.cpus else "",
+            _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
+        }
+
+    def _names(self) -> None:
+        """Calls it after its partition, until somebody has typed a name of their own."""
+        if self._one is not None:
+            return
+        if self._typed_in.get(_CALLED) and _CALLED not in self._fresh:
+            return
+        self._typed_in[_CALLED] = _unique(
+            _called_after(self._typed_in.get(_PARTITION, ""), _SLURM), self._taken
+        )
+        self._fresh.add(_CALLED)
+
+    def asked(self) -> list[Question]:
+        """Its partition, its name, what `sbatch` is told, and what its jobs may have."""
+        rows = [
+            Question(_PARTITION, "partition", "blank for the cluster's default"),
+        ]
+        if self._one is None:
+            rows.append(
+                Question(
+                    _CALLED,
+                    "name",
+                    "name used in -e and /flow",
+                    needed=not self._typed_in.get(_CALLED, "").strip(),
+                )
+            )
+        return [
+            *rows,
+            Question(_AFFINITY, "harness runs on", _AFFINITY_ABOUT),
+            Question(_CHARGED, "account", "blank for your default account"),
+            Question(_QOS, "qos", "quality of service; blank for the default"),
+            Question(
+                _TIME_LIMIT,
+                "time",
+                "max run time per job, e.g. 4:00:00; blank for the partition's",
+            ),
+            Question(_CONSTRAINT, "constraint", "node features a job needs, e.g. a100"),
+            Question(
+                _PYTHON,
+                "python",
+                "Python 3.12+ on its nodes, /abs or ~/path; blank for theirs",
+            ),
+            Question(
+                _VIA, "via", _SLURM_VIAS.get(self._typed_in.get(_VIA, ""), ""), _STEPS
+            ),
+            Question(_ARGS, "run args", "extra arguments for sbatch"),
+            Question(_JOBS, "max jobs", "max concurrent jobs; blank for no limit"),
+            Question(
+                _WAIT,
+                "max wait",
+                "seconds a job may wait for a node; blank for as long as it waits",
+            ),
+            Question(
+                _WORKDIR,
+                "workdir",
+                "default working directory, on every node, when -e specifies none",
+            ),
+            _fallback_row(),
+            Question(_CPUS, "cpus", "CPUs all jobs may reserve; blank for no quota"),
+            Question(_MEMORY, "memory", "e.g. 64G for all jobs; blank for no quota"),
+        ]
+
+    def choices(self, held: str) -> Sequence[str]:
+        """The ways a job's node is reached."""
+        return list(_SLURM_VIAS) if held == _VIA else ()
+
+    def means(self, held: str, value: str) -> str:
+        """What each way a job's node is reached is, on the list it is picked from.
+
+        Args:
+          held: The row.
+          value: The way.
+
+        Returns:
+          A few words.
+        """
+        del held
+        return _SLURM_VIAS.get(value, "")
+
+    def writes(self, row: str, event: events.Key) -> bool:
+        """Takes a letter, and calls it after the partition being typed, where it is.
+
+        Args:
+          row: The question, by id.
+          event: The key.
+
+        Returns:
+          Whether it was taken.
+        """
+        taken = super().writes(row, event)
+        if taken and row == _PARTITION:
+            self._names()
+        return taken
+
+    def edited(self) -> None:
+        """Takes a row kept, pasted into or walked off, which the name may follow."""
+        super().edited()
+        self._names()
+
+    def done_about(self) -> str:
+        """What answering it does: saves it, and asks the cluster what its partition has."""
+        name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
+        doing = "updates" if self._one else "adds"
+        return f"{doing} {_SLURM}/{name} and checks its partition's nodes"
+
+    def _ask(self) -> None:
+        """Says what is being added or corrected, and puts the questions up."""
+        self.query_one("#asked", Label).update(
+            escape(f"Edit {_SLURM}/{self._one.name}")
+            if self._one
+            else f"Add a {self.KIND}"
+        )
+        self.query_one("#about", Label).update(
+            "The Slurm cluster this machine submits to, where each flow "
+            "environment is a job of its own, placed on whichever node of its "
+            "partition has room. Flows on it are limited to the quota configured "
+            "here."
+        )
+        self._fill()
+
+    def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """Everything the form says of it besides its name, as the store takes it.
+
+        Raises:
+          ValueError: For an amount that is not one, or run args that do not split.
+        """
+        try:
+            argv = shlex.split(typed.get(_ARGS, ""))
+        except ValueError as why:
+            raise ValueError(f"run args: {why}") from None
+        return {
+            "partition": typed.get(_PARTITION, ""),
+            "account": typed.get(_CHARGED, ""),
+            "qos": typed.get(_QOS, ""),
+            "time": typed.get(_TIME_LIMIT, ""),
+            "constraint": typed.get(_CONSTRAINT, ""),
+            "python": typed.get(_PYTHON, ""),
+            "via": typed.get(_VIA, "") or "srun",
+            "run_args": argv,
+            "cpus": _number(typed.get(_CPUS, ""), "cpus"),
+            "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
+            "max_jobs": _how_many(typed.get(_JOBS, ""), "max jobs"),
+            "max_wait": _how_many(typed.get(_WAIT, ""), "max wait"),
+            "workdir": typed.get(_WORKDIR, ""),
+            "fallback": _fallback(typed.get(_FALLEN_TO, "")),
+            "affinity": _affinity(typed.get(_AFFINITY, "")),
+        }
+
+    def action_done(self) -> None:
+        """Answers with it, once everything said of it reads."""
+        envs = _hmz().runtimes
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        name = self._one.name if self._one is not None else typed.get(_CALLED, "")
+        if self._one is None and envs.find(_SLURM, name) is not None:
+            self._wrong = (
+                f"a {self.KIND} named {name} already exists; edit it from its "
+                "row, or choose a different name"
+            )
+            self._fill()
+            return
+        try:
+            made = envs.new(_SLURM, name, **self._fields(typed))
+        except ValueError as why:
+            self._wrong = str(why)
+            self._fill()
+            return
+        self.dismiss(made)
+
+
 class Imported(NamedTuple):
     """Which hosts of an ssh config to save, as the form they are switched on in answers.
 
@@ -8237,9 +8516,9 @@ class Machine(Picks):
     """What to do with one runtime: correct it, check it, or take it away.
 
     Its own menu, as an account's is: questions about the one under the cursor, and taking it
-    away the button under them. Each happens at once -- checking one runs `ssh` or `docker`,
-    one corrected is checked as it lands, and one taken away is a directory gone; a run
-    already on it keeps what it read as it started.
+    away the button under them. Each happens at once -- checking one runs `ssh`, `docker`,
+    `container` or `sinfo`, one corrected is checked as it lands, and one taken away is a
+    directory gone; a run already on it keeps what it read as it started.
     """
 
     SEARCHES: ClassVar = False
@@ -8268,6 +8547,8 @@ class Machine(Picks):
                 if self._one.backend == _DOCKER_SWARM
                 else "check this Mac's resources against its limits"
                 if self._one.backend == _APPLE
+                else "check the partition's nodes against its quota"
+                if self._one.backend == _SLURM
                 else "check daemon resources against its limits",
             ),
         ]
@@ -8315,6 +8596,7 @@ class Hosts(Picks):
             _DOCKER: "Select the docker host to use",
             _DOCKER_SWARM: "Select the docker swarm to use",
             _APPLE: "Select the host for Apple containers to use",
+            _SLURM: "Select the Slurm cluster to use",
         }.get(backend, f"Select the {backend} host to use")
         self.about = (
             "Saved on the runtimes page of /settings; any host you add here is "
@@ -8497,10 +8779,17 @@ _BACKENDS_ABOUT = {
     _DOCKER: "a container on a docker daemon",
     _DOCKER_SWARM: "a container on whichever node of a docker swarm has room",
     _APPLE: "an Apple container on this Mac",
+    _SLURM: "a job on whichever node of a Slurm partition has room",
 }
 
 #: What the machine is called on the row it is chosen on.
-_ON_ROW = {_SSH: "host", _DOCKER: "daemon", _DOCKER_SWARM: "swarm", _APPLE: "host"}
+_ON_ROW = {
+    _SSH: "host",
+    _DOCKER: "daemon",
+    _DOCKER_SWARM: "swarm",
+    _APPLE: "host",
+    _SLURM: "cluster",
+}
 
 
 class Placing(Form[str]):
@@ -8572,8 +8861,9 @@ class Placing(Form[str]):
 
         Where the directory is still the one the runtime is saved with, it is left out, so
         that the role goes on working wherever that runtime is saved to. No machine is this
-        one, for docker, the swarm and Apple's containers as for `local`; and an ssh host
-        nobody saved goes in the brackets `-e` takes one in, however it came to be in the row.
+        one, for docker, the swarm, Apple's containers and the cluster as for `local`; and an
+        ssh host nobody saved goes in the brackets `-e` takes one in, however it came to be in
+        the row.
         """
         from hmz.runtime.flowing.specs import where
 
@@ -8825,23 +9115,26 @@ class Machines(Pages):
     """The runtimes page of `/settings`: every saved machine a flow's environments may go on.
 
     What a role's machine is chosen out of on `/flow` -- ssh hosts, docker daemons with what
-    each may hand out, and docker swarms with what their tasks may reserve all told -- under a
+    each may hand out, docker swarms with what their tasks may reserve all told, this Mac's
+    Apple containers, and Slurm clusters with what their jobs are submitted under -- under a
     heading per backend, over the buttons that bring one in: adding any of them on one form,
     and importing the hosts an ssh config names. Enter on one opens what can be done to it:
     correcting it, checking it, taking it away.
 
     Nothing here is held until the menu is saved, so the page has no button to save from. What
     is added or corrected is asked what it has as it lands -- `ssh` into the host, `docker
-    info` of the daemon, `docker node ls` of the swarm's manager -- and an import runs `ssh
-    -G`: each is a command run, and something that has already run is not a draft. Taking one
-    away goes with them, as a flowverse's does, on a page that holds nothing.
+    info` of the daemon, `docker node ls` of the swarm's manager, `sinfo` of the cluster --
+    and an import runs `ssh -G`: each is a command run, and something that has already run is
+    not a draft. Taking one away goes with them, as a flowverse's does, on a page that holds
+    nothing.
     """
 
     #: What the page says it is.
     MACHINES_ABOUT = (
         "Saved ssh hosts, docker daemons with the resources each may hand "
-        "out, docker swarms with what their tasks may reserve, and this "
-        "Mac's Apple containers, used by name as flow environments in -e "
+        "out, docker swarms with what their tasks may reserve, this Mac's "
+        "Apple containers, and Slurm clusters with what their jobs are "
+        "submitted under, used by name as flow environments in -e "
         "and /flow. "
         "Changes take effect immediately."
     )
@@ -8873,7 +9166,8 @@ class Machines(Pages):
             Action(
                 _ACT_ADD,
                 "add a runtime…",
-                "an ssh host, a docker host, a docker swarm or Apple containers",
+                "an ssh host, a docker host, a docker swarm, Apple containers or a "
+                "Slurm cluster",
                 self._picks_kind,
             ),
             Action(
@@ -8989,7 +9283,7 @@ class Machines(Pages):
         """Asks for a runtime on the form that makes one, saves it, and asks what it has.
 
         Args:
-          backend: `ssh`, `docker`, `swarm` or `apple-container`.
+          backend: `ssh`, `docker`, `swarm`, `apple-container` or `slurm`.
         """
         if self.opening():
             return
@@ -9032,6 +9326,8 @@ class Machines(Pages):
             if one.backend == _DOCKER_SWARM
             else Containing(cast("AppleContainerRuntime", one))
             if one.backend == _APPLE
+            else Slurming(cast("SlurmRuntime", one))
+            if one.backend == _SLURM
             else Docking(cast("DockerRuntime", one))
         )
         fixed = await showing.push_screen_wait(form)

@@ -226,7 +226,7 @@ class Checked:
     runtimes: tuple[str, ...] = ()  # a docker daemon's OCI runtimes, its default first
     version: str = ""
     short: tuple[str, ...] = ()  # what it was written down as handing out and has not got
-    nodes: tuple[str, ...] = ()  # a swarm's nodes that may take a task, by host name
+    nodes: tuple[str, ...] = ()  # a swarm's nodes that may take a task, a partition's a job
 class Runtimes:
     def all(self, backend: str = "") -> list[Runtime]: ...
     def find(self, backend: str, name: str) -> Runtime | None: ...
@@ -294,7 +294,8 @@ class Fallbacks:
 - Checking a runtime MUST ask an ssh host what a run asks it on the way in, down
   the same road, a docker daemon its own `docker info`, a swarm's manager its `docker info`
   -- refusing one that manages no active swarm -- and its nodes, totalling what those that may
-  take a task have, and Apple's containers their `container system status`; it MUST NOT wait longer than it was
+  take a task have, Apple's containers their `container system status`, and a Slurm cluster its
+  `sinfo` -- the nodes of its partition that may take a job, totalling what those have; it MUST NOT wait longer than it was
   given, MUST NOT ask anybody for a password, and MUST answer a runtime that said nothing with
   why rather than raise.
 - Which backends are installed here, what each last said it runs, which are only missing

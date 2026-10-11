@@ -54,6 +54,7 @@ def saved(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], Runtime]:
         "DockerRuntime",
         "SwarmRuntime",
         "AppleContainerRuntime",
+        "SlurmRuntime",
     ):
         monkeypatch.setattr(store, kind, Runtime)
     monkeypatch.setattr(store, "find", find)
@@ -188,13 +189,14 @@ def test_an_ssh_workdir_neither_absolute_nor_under_home_is_unavailable(
         open_env(_spec(EnvBackendKind.SSH, "gpu", workdir))
 
 
-# --------------------------------------------------------------------- docker, swarm, Apple
+# -------------------------------------------------------------- docker, swarm, Apple, Slurm
 
 
 _RUNTIMES = [
     (EnvBackendKind.DOCKER, store.DOCKER, "docker host"),
     (EnvBackendKind.SWARM, store.SWARM, "docker swarm"),
     (EnvBackendKind.APPLE_CONTAINER, store.APPLE_CONTAINER, "apple-container host"),
+    (EnvBackendKind.SLURM, store.SLURM, "Slurm cluster"),
 ]
 
 
@@ -250,8 +252,11 @@ def test_a_home_workdir_is_only_for_a_daemon_on_this_machine(
             open_env(_spec(backend, name, "~/repo"))
 
 
-def test_an_apple_container_workdir_under_home_is_this_users() -> None:
-    driver = open_env(_spec(EnvBackendKind.APPLE_CONTAINER, workdir="~/repo"))
+@pytest.mark.parametrize(
+    "backend", [EnvBackendKind.APPLE_CONTAINER, EnvBackendKind.SLURM]
+)
+def test_a_workdir_under_home_is_this_users(backend: EnvBackendKind) -> None:
+    driver = open_env(_spec(backend, workdir="~/repo"))
 
     assert driver.workdir == PurePosixPath(Path.home() / "repo")
 
