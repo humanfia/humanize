@@ -58,6 +58,7 @@ from textual.theme import Theme
 from textual.widgets import OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
+from hmz.coganchor import releases
 from hmz.coganchor.prices import refresh
 from hmz.daemon import Hmz
 from hmz.runtime import telemetry
@@ -1197,6 +1198,9 @@ class Humanize(App[None]):
         # waits on a network. What is already kept is served
         # throughout, including while this is still in the air and including if it never lands.
         refresh()
+        threading.Thread(
+            target=self._tells_of_releases, daemon=True, name="humanize-releases"
+        ).start()
         # The editor is the only thing to type at, so it is the only thing that takes focus:
         # a transcript or a list that could hold it would swallow the keystrokes meant for it.
         for elsewhere in self.query("#transcript, #offers"):
@@ -1337,6 +1341,20 @@ class Humanize(App[None]):
         # And whether the last run here is of a flow that can be picked up, which is a
         # question about a flow.
         self._looks_for_resume()
+
+    def _tells_of_releases(self) -> None:
+        """Says, once, that a newer release of humanize is out, asking PyPI where it has got old.
+
+        On a thread of its own, which is what asking may hold up for as long as it takes.
+        """
+        releases.refresh(wait=True)
+        newer = releases.newer()
+        # Closed before PyPI answered, which leaves nobody to say it to.
+        with contextlib.suppress(RuntimeError):
+            if newer:
+                self.call_from_thread(
+                    self._says, f"hmz {newer} is out: run `hmz update` to update"
+                )
 
     def _welcome(self) -> None:
         """The box this opens with: what this is, and how to begin.

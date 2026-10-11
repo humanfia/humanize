@@ -20,6 +20,7 @@ hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
+hmz update                             update hmz to its newest release
 hmz internal <command> [<args>...]     processes humanize spawns for itself
 ```
 
@@ -28,6 +29,7 @@ hmz internal <command> [<args>...]     processes humanize spawns for itself
 | *(none)* | `opens` | Opens the [terminal interface](/reference/tui). |
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
 | [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
+| [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
 | [`internal`](#hmz-internal) | `_internal` | `internal commands used by humanize; do not run directly` |
 
 `python -m hmz` is the same program. The console script is `hmz = "hmz.cli:main"`.
@@ -43,14 +45,14 @@ thirty words. This page is the full account of each.
 | --- | --- | --- |
 | empty | [Opens the interface](#hmz). | `0`, or `1` (see below) |
 | exactly `["--version"]` | Prints `hmz <version>` (from the installed distribution's metadata) to stdout. | `0` |
-| first word is `exec`, `web` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
+| first word is `exec`, `web`, `update` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
 | `-h` or `--help` first | Prints the top-level help. | `0` |
 | anything else | argparse usage error on stderr (below). | `2` |
 
 ```console
 $ hmz bogus
 usage: hmz [-h] COMMAND ...
-hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, internal)
+hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, update, internal)
 ```
 
 `hmz --version <anything>` is not the version form and fails the same way.
@@ -554,6 +556,40 @@ serves, refuses and answers is the [Web reference](/reference/web).
 | An older humanize holds the runs | `hmz: the runs in <dir> are held by an older humanize (pid <n>); stop it with that version` | `1` |
 | The runs could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
 
+## `hmz update` {#hmz-update}
+
+```text
+hmz update
+```
+
+Asks PyPI for the newest release of `hmz` (`info.version` of `https://pypi.org/pypi/hmz/json`,
+which skips pre-releases) and, where it is newer than the one running, has whatever installed
+this `hmz` install it:
+
+| Installed by | Recognised by | Runs |
+| --- | --- | --- |
+| `uv tool install` | `uv-receipt.toml` in `sys.prefix` | `uv tool upgrade hmz` (keeps the extras) |
+| `pipx install` | `pipx_metadata.json` in `sys.prefix` | `pipx upgrade hmz` (keeps the extras) |
+| anything else | — | `python -m pip install --upgrade hmz[<extras>]`, or `uv pip install --python <python> --upgrade hmz[<extras>]` where there is no pip; `<extras>` are those whose packages are all installed |
+
+It then asks a fresh interpreter which version is installed, and prints
+`Updated hmz to <version>`. A uv tool installed with a pin (`uv tool install hmz==<v>`) is held
+to it, as `uv tool upgrade` holds it; uv says how to lift the pin. Epics a [daemon](/reference/daemon) already holds keep running
+under the release it started with until it stops; where one is running, `hmz update` says so
+and leaves it alone. The interfaces say when a newer release is out: the [terminal
+interface](/reference/tui) in a line as it opens, the [web interface](/reference/web) with
+`Update` in the machine menu.
+
+| Condition | Output | Exit |
+| --- | --- | --- |
+| Already the newest release | stdout `hmz <version> is the newest release`; nothing is run | `0` |
+| Updated | stdout `Updating hmz <old> to <new>: <line>`, the installer's own output, `Updated hmz to <new>` | `0` |
+| Installed from a checkout or a URL (`direct_url.json`) | stderr `hmz update: hmz was installed from <url>, not PyPI; update it there` | `1` |
+| The installer is not on `PATH` | stderr `hmz update: <uv\|pipx> installed hmz but is not on PATH` | `1` |
+| PyPI did not answer, or `HUMANIZE_RELEASES=off` | stderr `hmz update: PyPI could not be asked for the newest release` | `1` |
+| The installer failed | stderr `hmz update: <installer> exited <status>` | `1` |
+| The installer left another version | stderr `hmz update: <installer> left hmz at <version>, not <new>` | `1` |
+
 ## `hmz internal` <Badge type="warning" text="not typed by hand" /> {#hmz-internal}
 
 ```text
@@ -750,6 +786,7 @@ Carries the tool protocol both ways at once between stdin/stdout and the Unix so
 | `0` | all | Success. For `hmz exec`, including a run its budget stopped. |
 | `1` | `hmz` | Runs held by an older humanize; or the host let go of the interface. |
 | `1` | `hmz web` | Runs held by an older humanize; or the runs or the port could not be had. |
+| `1` | `hmz update` | Installed from a source, or no installer, PyPI or install that worked. |
 | `1` | `hmz exec` | The flow raised (traceback on stderr; the crash is reported where reporting is on). |
 | `1` | `internal …` | Could not connect, listen, supervise, or reach a socket. |
 | `2` | all | The line was wrong: argparse rejections and everything in [What is refused](#what-is-refused-before-anything-runs). |
@@ -770,6 +807,7 @@ Variables these commands read. The complete list, with every layer's, is
 | `HUMANIZE_DAEMON` | `hmz`, `hmz web` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
+| `HUMANIZE_RELEASES` | `hmz`, `hmz web`, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |
 | `TEXTUAL_THEME` | `hmz` | a Textual theme name | The interface's theme; unknown names are ignored. |
 | `TMUX`, `TERM_PROGRAM`, `LC_TERMINAL` | `hmz` | | Decide `TEXTUAL_DISABLE_KITTY_KEY` ([Terminal preparation](#terminal-preparation)). |
@@ -795,6 +833,7 @@ is [Files](/reference/files).
 | `history.jsonl` | `hmz` | read and written: [prompt history](/reference/tui#history) |
 | `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
+| `releases.json` (in the machine's directory) | `hmz`, `hmz web`, `hmz update` | the newest release, refreshed when older than a day by the interfaces as they open and by `hmz update` |
 | `settings.yaml`, `providers/` | all | read when an agent or environment is opened |
 | `flowverses/`; `~/.hmz/flows/` and `./.hmz/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 

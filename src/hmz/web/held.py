@@ -640,13 +640,14 @@ def _figures(following: Any) -> dict[str, Any]:
 def _held(asked: Asked) -> dict[str, Any]:
     import socket
 
-    from hmz.coganchor import __version__
+    from hmz.coganchor import __version__, releases
 
     places = asked.site.places
     return {
         "machine": socket.gethostname().split(".")[0],
         "here": str(places.here),
         "version": __version__,
+        "newer": releases.newer() or "",
         "running": places.running(),
     }
 

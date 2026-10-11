@@ -28,6 +28,9 @@ classifiers = [
 ]
 dependencies = [
     "dateparser>=1.4.3",
+    # Which release of humanize is newer than the one running, and which extras an install
+    # took, are PEP 440's and PEP 508's rules: `hmz update` reads both.
+    "packaging>=26.2",
     "psutil>=7.2.2",
     # A flow says what it can be configured with by declaring a model, and the menu that
     # asks is read off that model: the types, the bounds and the combinations a flow

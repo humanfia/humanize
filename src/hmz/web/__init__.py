@@ -57,6 +57,8 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
     """
     from pathlib import Path
 
+    from hmz.coganchor import releases
+
     from .places import Places
     from .runs import Runs
     from .site import Site
@@ -68,6 +70,8 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
         site = Site(port, places=places, runs=Runs(places))
         # What each index lists now, fetched once in the background as the interface starts.
         fetches(places.hmz)
+        # And which release of humanize is the newest, where what is kept has got old.
+        releases.refresh()
         held_open.callback(site.server_close)
         # Set first as the block ends, which is what ends every stream being sent.
         held_open.callback(site.going.set)

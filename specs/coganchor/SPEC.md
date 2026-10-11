@@ -204,6 +204,16 @@ def cost(usage: Mapping[str, float], model: str) -> float | None: ...
 def money(dollars: float) -> str: ...
 def refresh(*, wait: bool = False) -> bool: ...
 
+# releases.py -- the newest release of humanize, as PyPI says
+SOURCE: str
+WHENCE = "HUMANIZE_RELEASES"  # another URL or file, or `off`
+STALE: float
+def where() -> pathlib.Path: ...
+def latest() -> str | None: ...
+def newer() -> str | None: ...  # latest, where it is past the running one
+def refresh(*, wait: bool = False) -> None: ...
+def fetch() -> str | None: ...
+
 # fallbacks.py -- where a turn goes when the place taking it cannot, and how often it retries
 BASE: float
 CEILING: float
@@ -526,6 +536,11 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   environment variable and leave what was kept however it fails; a model no source lists MUST answer
   nothing rather than nothing spent, a near miss MUST be a miss, and every figure MUST be a floor
   read under a backend's own accounting of the turn.
+- `latest` and `newer` MUST cost one file read and no network; `newer` MUST answer only a release
+  past the running one by PEP 440, and nothing in a source tree. `refresh` MUST ask PyPI only
+  where what was kept is older than `STALE`, on a thread of its own unless told to wait; `fetch`
+  MUST ask whatever was kept; both MUST be refusable by `WHENCE` and leave what was kept however
+  they fail.
 - A place MUST be `CLI[@ACCOUNT]/MODEL` and no more; one naming a CLI no backend answers to MUST be
   refused where written; a place's chain MUST be an ordered list of places, never its own place
   and never one place twice, `points` raising `ValueError` for either and for one it cannot read;

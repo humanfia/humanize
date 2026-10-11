@@ -19,7 +19,7 @@ const MARKS = { running: '●', stopping: '◐', done: '✔', failed: '✕', sto
 
 /**
  * @param {HTMLElement} root The sidebar.
- * @param {{machine: string, here: string}} context What the server said this page is of.
+ * @param {{machine: string, here: string, newer: string}} context What the server said this page is of.
  * @param {() => {parts: string[], query: URLSearchParams}} where Where the page is.
  */
 export function mountSidebar(root, context, where) {
@@ -39,6 +39,8 @@ export function mountSidebar(root, context, where) {
     { class: 'side-account', type: 'button', 'data-hmz': 'machine-menu' },
     h('span', { class: 'side-avatar', 'aria-hidden': 'true' }, (context.machine || 'h').slice(0, 1).toUpperCase()),
     h('span', { class: 'side-account-text' }, h('b', {}, context.machine || 'This machine'), state),
+    // A newer release of humanize, as PyPI said when it was last asked.
+    context.newer ? h('span', { class: 'side-badge', 'data-hmz': 'newer', title: `hmz ${context.newer} is out` }, '↑') : null,
   )
   menu(
     account,
@@ -46,6 +48,7 @@ export function mountSidebar(root, context, where) {
       section('Theme'),
       ['system', 'light', 'dark'].map((one) => choice({ label: { system: 'Adaptive', light: 'Light', dark: 'Dark' }[one], chosen: themeChosen() === one, act: () => setTheme(one), close })),
       h('hr'),
+      context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
       choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
     ],

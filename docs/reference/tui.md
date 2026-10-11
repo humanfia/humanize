@@ -44,6 +44,7 @@ At mount, in the background, the interface:
 | Fetches flowverses | Every flowverse index with a URL (cloning `official` the first time) whose clone holds no local edits, one at a time. Installed flows are not touched. A fetch that brings new commits makes open flow lists re-read. Then, where any installed flow's index lists a newer release, prints once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`. |
 | Looks for a run to resume | Decides whether [`/resume`](#resume) is listed. |
 | Refreshes prices | `$TMPDIR/humanize-<uid>/prices.json` from `HUMANIZE_PRICES` (default `https://openllmprices.com/data/prices.json`) when older than 24 h; at most one attempt an hour, 20 s timeout. |
+| Asks after a newer humanize | `$TMPDIR/humanize-<uid>/releases.json` from `HUMANIZE_RELEASES` (default PyPI) when older than 24 h; then, where it names a release newer than this one, prints once, dim: ``hmz <version> is out: run `hmz update` to update``. |
 | Asks the reporting question | Only where unanswered: [First start](#first-start). |
 
 ## Screen {#the-screen}
@@ -1808,6 +1809,7 @@ Textual.
 | `HUMANIZE_NAME` | This frontend's name before `@tui`. |
 | `HUMANIZE_SENTRY` | `on`/`1`/`true`/`yes` or `off`/`0`/`false`/`no`: answers reporting for this process. |
 | `HUMANIZE_PRICES` | Price source URL or path; `""`, `off`, `0`, `no`, `none`: none. |
+| `HUMANIZE_RELEASES` | Where the newest release is asked for, URL or path; `""`, `off`, `0`, `no`, `none`: nowhere. |
 | `TEXTUAL_THEME` | Theme. |
 | `NO_COLOR` | No colour. |
 | `TMUX`, `TERM_PROGRAM`, `LC_TERMINAL` | [Keyboard protocol](#keyboard-protocol). |

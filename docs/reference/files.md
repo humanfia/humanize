@@ -59,6 +59,7 @@ H/
 
 M/
 ├── prices.json                         the price table
+├── releases.json                       the newest release of hmz
 ├── models/<cli>/<account>.json         model catalogues, `_local` for the CLI's own sign-in
 ├── harness/                            workdir of a harness an affinity puts on a docker daemon or Apple containers here
 ├── pinned/<blake2b-8(url)>/<sha>/      checkouts of git+ refs and of releases installed
@@ -115,6 +116,17 @@ process, 20 s timeout: by the TUI as it opens, in the background; and by every r
 which waits for it before its first turn. Written to `.prices.json.<random>.new`, fsynced and
 renamed. Each fetch first deletes any `.prices.json.*.new` or `prices.json.*` (the older
 naming) more than 10 min old, left by a process that exited mid-write.
+
+### `M/releases.json` {#h-releases-json}
+
+```json
+{"latest": "0.3.0"}
+```
+
+The newest release of `hmz` PyPI lists, from
+[`HUMANIZE_RELEASES`](/reference/environment#humanize-releases), 10 s timeout. Asked again
+by the TUI and `hmz web` as they open, in the background, when older than 24 h, and by every
+[`hmz update`](/reference/cli#hmz-update). Written whole and renamed. Safe to delete.
 
 ### Model catalogues
 

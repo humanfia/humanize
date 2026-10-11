@@ -3,7 +3,8 @@
     hmz
     hmz exec -f ralph_loop -a coder=claude/MODEL:high -p budget.cost=5 "$(cat TASK.md)"
 
-There is one command anybody types, and everything else humanize keeps is walked at the
+A few commands anybody types -- running a flow, serving the web interface, and moving
+humanize itself to its newest release -- and everything else humanize keeps is walked at the
 prompt: a listing with a noun in it for every store would be a second interface to learn, and
 the one with the sheets in it is the interface.
 
@@ -12,7 +13,7 @@ for itself gathered under one name. They are listed rather than hidden because a
 nobody can discover is a command nobody can debug, and a listing that leaves out half of what
 a program runs says something untrue about it. What they are is said instead of concealed:
 one door marked `internal`, so that `hmz --help` is the whole of what this program does and
-still reads as one command anybody types.
+still reads as the few commands anybody types.
 
 A command imports what it needs when it is the one asked for, and no earlier. Two things turn
 on that: `hmz exec` must not pay for the terminal interface it is not opening, and
@@ -20,10 +21,10 @@ on that: `hmz exec` must not pay for the terminal interface it is not opening, a
 coganchor is the only layer present and the architecture is whatever the target happens to be.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
-one of them costs nothing for the others -- which is what `anchor.py`, `cred.py`, `fence.py`,
-`hook.py` and `tools.py`, the five under `hmz internal`, are. `exec` has none: the line it takes is
-read by :func:`hmz.runtime.runner.read_line`, since the terminal interface starts a flow from
-the same parts.
+one of them costs nothing for the others -- which is what `web.py`, `update.py`, and `anchor.py`,
+`cred.py`, `fence.py`, `hook.py` and `tools.py`, the five under `hmz internal`, are. `exec` has
+none: the line it takes is read by :func:`hmz.runtime.runner.read_line`, since the terminal
+interface starts a flow from the same parts.
 
 :mod:`hmz.cli.output` is the one module every command may reach: who is reading -- somebody at
 a terminal, or a program -- is one question rather than one per command, and it costs nothing
@@ -346,6 +347,20 @@ def _web(argv: list[str]) -> int:
     return web(argv, apart=_apart_is_wanted())
 
 
+def _update(argv: list[str]) -> int:
+    """Moves this install of humanize to its newest release, with whatever installed it.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero once it is the newest release; one where it could not be made so.
+    """
+    from .update import update
+
+    return update(argv)
+
+
 def _internal(argv: list[str]) -> int:
     """Routes to whichever of the lines humanize spawns for itself was named.
 
@@ -535,16 +550,17 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. One is for
-#: anybody: running a flow in a directory is what a line is for, and everything else humanize
-#: keeps is walked at the prompt rather than typed -- a run already held here included, which
-#: `hmz` with no command opens. The other is the door onto :data:`INTERNAL` -- one entry
-#: rather than four, so that what a person may type stays one line long while what humanize
-#: runs stays something they can read. There is no command for the terminal interface either:
-#: naming nothing at all is how it opens.
+#: Each command, as what carries it out and the line a listing shows it as. Three are for
+#: anybody: running a flow in a directory, serving the web interface, and moving humanize
+#: itself to its newest release -- everything else humanize keeps is walked at the prompt
+#: rather than typed, a run already held here included, which `hmz` with no command opens.
+#: The last is the door onto :data:`INTERNAL` -- one entry rather than five, so that what a
+#: person may type stays short while what humanize runs stays something they can read. There
+#: is no command for the terminal interface either: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
+    "update": (_update, "update hmz to its newest release"),
     "internal": (_internal, "internal commands used by humanize; do not run directly"),
 }
 

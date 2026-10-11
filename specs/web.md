@@ -93,6 +93,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 
 - MUST do everything the terminal interface does to flows and runs, as it does it, beside what
   only a page can.
+- MUST ask `coganchor.releases` which release of humanize is newest as it starts, in the
+  background, and where it is newer than the one serving, MUST mark the machine and offer
+  `Update` in its menu, which copies `hmz update`.
 - MUST offer every workspace as a folder of its runs, newest first -- how each ended or that it
   is going, its task, flow and agents, what it spent and how long it took, how many sessions it
   opened, whether it can be picked up and where it is written down -- found by how it went, by

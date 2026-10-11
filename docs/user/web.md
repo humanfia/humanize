@@ -67,7 +67,8 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 The foot of the sidebar names this machine and says how many epics are going on it;
 its menu switches between your system's colours, light and dark, and opens **Settings** and
-**Usage**. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
+**Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
+**Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
 Every view is an address: copy it, keep it, or open it in another tab.

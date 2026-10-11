@@ -338,6 +338,15 @@ Its extra is missing. Run the command on its row, or reinstall with the extra fr
 
 ## Upgrade
 
+```sh
+hmz update
+```
+
+`hmz update` asks PyPI for the newest release and has whatever installed `hmz` install it --
+`uv tool`, `pipx`, or `pip` in an environment you made -- keeping the extras it was installed
+with. `hmz` and `hmz web` say when a newer release is out. An install from a checkout is
+updated there, with `git pull`. By hand, the same is:
+
 ::: code-group
 
 ```sh [uv tool]

@@ -33,6 +33,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   install nothing by it; MUST then say once in the transcript which installed flows have a newer
   release, by SemVer, and that they are updated from `/flow`. MUST NOT install, update or
   uninstall a flow while one runs.
+- MUST ask `coganchor.releases` which release of humanize is newest as it starts, in the
+  background, and MUST then say once in the transcript where it is newer than the one running,
+  and that `hmz update` updates to it.
 - MUST say why a flow will not load: not installed, a flowverse unfetched, a module missing, a
   file broken, no flow named in it.
 - MUST read `/name` as a command, `$name [prompt]` as a flow and what to say to it -- `name`

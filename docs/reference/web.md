@@ -156,7 +156,7 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/held` | | `machine` (this machine's name), `here` (where `hmz web` started), `version`, `running` (`{workspace: run}`: the [`run` snapshot](/reference/daemon#snapshots) of each workspace whose epic is going, or what its host's `status` says of it) |
+| `GET /api/held` | | `machine` (this machine's name), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`{workspace: run}`: the [`run` snapshot](/reference/daemon#snapshots) of each workspace whose epic is going, or what its host's `status` says of it) |
 | `GET /api/held/stream` | `?workspace=`; `Last-Event-ID` header, or `?last=` | [The stream](#stream) of that workspace's runs, attaching to them |
 | `POST /api/held/start` | `workspace`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile` (bool); `resume` (bool, or an epic) | The host's answer: `run` |
 | `POST /api/held/say` | `text`; `to` (`""`, a role, `<role>/<n>`, or `outworlder:<role>`, routed as [`say` routes it](/reference/daemon#say-routing)) | The host's answer |

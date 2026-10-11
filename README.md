@@ -20,6 +20,8 @@ Code, `[litellm]` for a model called directly, `[all]` for all three.
 uv tool install 'hmz[all]'
 ```
 
+`hmz update` moves it to the newest release, keeping the extras it was installed with.
+
 ### Desktop app
 
 On macOS, `humanize-<version>-macos-universal.dmg` from the

@@ -1,8 +1,9 @@
 # `cli`
 
-`hmz` -- the whole command line, over layers that have none of their own. Two commands anybody
+`hmz` -- the whole command line, over layers that have none of their own. Three commands anybody
 types, one door onto what humanize spawns for itself, and naming no command at all opens the
-terminal interface; `hmz web` opens the web interface instead. It reads a line, routes it and
+terminal interface; `hmz web` opens the web interface instead, and `hmz update` moves humanize
+itself to its newest release. It reads a line, routes it and
 settles who is reading; it decides nothing a layer under it decides.
 
 ## API
@@ -12,6 +13,7 @@ hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the ter
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
          [-p|--params <param>[,<param>...]]... [--profile] [--resume] [--json] <task>
 hmz web [--port <port>] [--no-open] [--attached]
+hmz update
 <ref>    := [@<flowverse>/][<user>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
 <path>   := .<...> | /<...> | ~<...>   # nothing else is a path
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
@@ -35,7 +37,7 @@ hmz internal hook --at <socket>
 ```python
 # __init__.py
 APART = "HUMANIZE_DAEMON"   # `off`, `0` or `no`: keep the run with the terminal
-COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, web, internal
+COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, web, update, internal
 INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, fence, hook, tools
 def main(argv: list[str] | None = None) -> int: ...
 def opens() -> int: ...
@@ -65,6 +67,8 @@ class Shown:    # the agents' own events, drawn as one run; a context manager
 
 # web.py -- `hmz web`
 def web(argv: list[str], *, apart: bool) -> int: ...
+# update.py -- `hmz update`
+def update(argv: list[str]) -> int: ...
 # anchor.py, cred.py, fence.py, hook.py, tools.py -- one command apiece
 def anchor(argv: list[str]) -> int: ...
 def cred(argv: list[str]) -> int: ...
@@ -75,9 +79,9 @@ def tools(argv: list[str]) -> int: ...
 
 ## Requirements
 
-- MUST offer exactly two commands to a person -- `hmz exec` and `hmz web` -- and MUST leave
-  everything else humanize keeps to the prompt, to the web interface or to `sdk`, a run already
-  held here included: `hmz` and `hmz web` each open it.
+- MUST offer exactly three commands to a person -- `hmz exec`, `hmz web` and `hmz update` -- and
+  MUST leave everything else humanize keeps to the prompt, to the web interface or to `sdk`, a run
+  already held here included: `hmz` and `hmz web` each open it.
 - MUST gather every line humanize spawns for itself under `hmz internal`, MUST show every command in
   the listing, MUST leave nothing it routes out of it, and MUST have each of those lines say in its
   own help that it is not one to type.
@@ -101,6 +105,14 @@ def tools(argv: list[str]) -> int: ...
   why, where the port cannot be had. A terminate or a hangup MUST stop it as an interrupt does,
   and so MUST its standard input closing where it is told `--attached`: whatever started it
   takes it down by going, however it went.
+- `hmz update` MUST move this install to the newest release `coganchor.releases` fetches, with
+  whatever installed it -- `uv tool upgrade` for a uv tool, `pipx upgrade` for a pipx one, and
+  otherwise pip, or uv's pip where there is no pip, asked for the extras whose packages are all
+  installed -- and MUST say, rather than run, one installed from a checkout or a URL, an installer
+  not on `PATH`, and a PyPI that did not answer. It MUST exit zero once the newest release is
+  installed, saying so, and with nothing run where it already was; and one, saying why, where the
+  installer failed or left another version. Where a daemon holds this machine's epics it MUST say
+  they run the release they started under until it stops, and MUST leave it alone.
 - MUST settle whether escapes may be written in one place: `NO_COLOR` MUST win over everything, then
   `TERM=dumb`, then `FORCE_COLOR`, and otherwise whether a terminal is reading. `FORCE_COLOR` MUST NOT
   make a run believe somebody is watching it, and `rich` MUST NOT be reached until escapes are wanted.

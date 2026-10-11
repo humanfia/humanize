@@ -180,6 +180,28 @@ def test_the_colours_are_light_dark_or_adaptive(project: Path, engine: str) -> N
         expect(page.locator("html")).to_have_attribute("data-theme", "dark")
 
 
+def test_a_newer_release_is_offered_under_the_machine(
+    project: Path, engine: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    import hmz.coganchor
+    from hmz.coganchor import releases
+
+    pypi = project.parent / "pypi.json"
+    pypi.write_text(json.dumps({"info": {"version": "99.0.0"}}))
+    monkeypatch.setenv(releases.WHENCE, str(pypi))
+    monkeypatch.setattr(hmz.coganchor, "__version__", "0.1.0", raising=False)
+    releases.fetch()
+    with served() as site, opened(site, engine=engine) as page:
+        expect(page.locator("[data-hmz=newer]")).to_be_visible()
+        page.locator("[data-hmz=machine-menu]").click()
+        expect(page.locator("[role=menu] .choice-label")).to_have_text(
+            ["Adaptive", "Light", "Dark", "Update", "Settings", "Usage"]
+        )
+        expect(page.locator("[role=menu] .choice-about")).to_have_text("hmz 99.0.0")
+
+
 def test_a_flow_is_opened_and_started_from_the_flows(
     project: Path, engine: str
 ) -> None:

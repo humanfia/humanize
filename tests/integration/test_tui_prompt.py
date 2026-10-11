@@ -152,3 +152,17 @@ async def test_ctrl_c_takes_back_a_half_typed_line(workspace: Path) -> None:
 
         await until(pilot, lambda: "never mind" not in screen(app), "the line to go")
         assert app.is_running
+
+
+async def test_a_newer_release_is_said_as_it_opens(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hmz.coganchor
+    from hmz.coganchor import releases
+
+    pypi = workspace.parent / "pypi.json"
+    pypi.write_text(json.dumps({"info": {"version": "99.0.0"}}))
+    monkeypatch.setenv(releases.WHENCE, str(pypi))
+    monkeypatch.setattr(hmz.coganchor, "__version__", "0.1.0", raising=False)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await shows(pilot, "hmz 99.0.0 is out: run `hmz update` to update")

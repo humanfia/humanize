@@ -45,12 +45,13 @@ _ASKS = hmz.coganchor.models.ask
 
 @pytest.fixture(autouse=True)
 def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A home of the test's own; no crash reports, no daemon, no price fetch."""
+    """A home of the test's own; no crash reports, no daemon, no price or release fetch."""
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize-home"))
     monkeypatch.setenv("HUMANIZE_SENTRY", "off")
     monkeypatch.setenv("HUMANIZE_SHADOWS", str(tmp_path / "shadows"))
     monkeypatch.setenv("HUMANIZE_DAEMON", "off")
     monkeypatch.setenv("HUMANIZE_PRICES", "off")
+    monkeypatch.setenv("HUMANIZE_RELEASES", "off")
     telemetry.again()
 
 

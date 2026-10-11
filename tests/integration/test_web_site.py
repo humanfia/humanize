@@ -45,6 +45,30 @@ def test_a_browser_is_let_in_by_the_key_it_was_printed_and_nothing_else(
         assert held.json()["here"] == str(project.resolve())
 
 
+def test_a_newer_release_is_in_what_the_page_is_told(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    import time
+
+    import hmz.coganchor
+    from hmz.coganchor import releases
+
+    pypi = project.parent / "pypi.json"
+    pypi.write_text(json.dumps({"info": {"version": "99.0.0"}}))
+    monkeypatch.setenv(releases.WHENCE, str(pypi))
+    monkeypatch.setattr(hmz.coganchor, "__version__", "0.1.0", raising=False)
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        # Asked of PyPI as it starts, on a thread of its own.
+        until = time.monotonic() + 10
+        while not (newer := browser.get("/api/held").json()["newer"]):
+            assert time.monotonic() < until
+            time.sleep(0.05)
+        assert newer == "99.0.0"
+
+
 def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(
     project: Path,
 ) -> None:
