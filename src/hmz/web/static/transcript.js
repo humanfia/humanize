@@ -42,21 +42,31 @@ export function line(kind, body, { who = '', folded = false } = {}) {
 }
 
 /**
- * What a run going says, a record at a time: on one session's transcript, or every one's
- * where `key` is "". Kept between records, so that a transcript of thousands of lines is
- * drawn once and then added to, rather than drawn again for every word.
+ * What a run going says, a record at a time, as one of the terminal interface's transcripts
+ * says it: one session's, `<role>/<n>`; one agent's, every session of it, `agent:<role>`; one
+ * person's, what is asked of them and what they answer, `person:<role>`; or every one's, the
+ * shared one, where `key` is "". Kept between records, so that a transcript of thousands of
+ * lines is drawn once and then added to, rather than drawn again for every word.
  *
  * @returns {(record: object) => Node[]} What one more record adds to the transcript.
  */
 export function sayer(key) {
   const began = new Map()
+  const [kind, role] = key.startsWith('agent:') ? ['agent', key.slice(6)] : key.startsWith('person:') ? ['person', key.slice(7)] : ['session', '']
+  const of = (record) => String(record.session || record.key || record.agent || '')
+  const whose = (record) => (kind === 'agent' ? of(record).split('/')[0] === role : kind === 'person' ? false : of(record) === key)
+  const label = !key || kind === 'agent'
   return (record) => {
-    const mine = !key || record.key === key || record.session === key
+    const mine = !key || whose(record)
     switch (record.type) {
-      case 'said':
-        return mine ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+      case 'said': {
+        const toPerson = kind === 'person' && (record.to === `outworlder:${role}` || record.role === role || record.by === role)
+        return mine || toPerson ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+      }
       case 'asked':
-        return !key || (record.role && key.startsWith(`${record.role}/`)) ? [line('asks', record.text, { who: `${record.role || 'the flow'} asks` })] : []
+        return !key || (kind === 'person' ? record.role === role : record.role && (kind === 'agent' ? record.role === role : key.startsWith(`${record.role}/`)))
+          ? [line('asks', record.text, { who: `${record.role || 'the flow'} asks` })]
+          : []
       case 'notice':
       case 'printed':
         return key ? [] : [line('notice', record.text)]
@@ -66,7 +76,7 @@ export function sayer(key) {
         if (key) return []
         return [line(record.how === 'done' ? 'ends' : 'failed', record.how === 'done' ? '— the flow is done —' : `hmz: ${record.why || record.how}`)]
       case 'event':
-        return mine ? said(record, key ? '' : record.session || record.agent, began) : []
+        return mine ? said(record, label ? record.session || record.agent : '', began) : []
       default:
         return []
     }
@@ -106,17 +116,23 @@ function said(record, who, began) {
   }
 }
 
-/** What one session of a run written down said and did, read off its trace. */
-export function saidTraced(session) {
+/**
+ * What sessions of a run written down said and did, read off its trace: one session's, or
+ * several in the order they did it, each line saying whose it is.
+ */
+export function saidTraced(...sessions) {
   const lines = []
-  for (const action of session.actions) {
+  const many = sessions.length > 1
+  const actions = sessions.flatMap((one) => one.actions.map((action) => ({ ...action, whose: one.label || one.key }))).sort((a, b) => a.start - b.start)
+  for (const action of actions) {
     const args = action.args || {}
+    const who = many ? action.whose : ''
     switch (action.category) {
       case 'turn':
-        lines.push(h('div', { class: 'said turn' }, h('span', { class: 'g' }, '❯'), h('div', { class: 'body' }, args.prompt ? String(args.prompt) : action.name)))
+        lines.push(h('div', { class: 'said turn' }, h('span', { class: 'g' }, '❯'), h('div', { class: 'body' }, many ? h('div', { class: 'who' }, action.whose) : null, args.prompt ? String(args.prompt) : action.name)))
         break
       case 'message':
-        lines.push(line('text', args.text ?? action.name))
+        lines.push(line('text', args.text ?? action.name, { who }))
         break
       case 'tool': {
         const said = [action.name]
@@ -126,7 +142,7 @@ export function saidTraced(session) {
           said.push(`\n⎿ ${typeof out === 'string' ? out : JSON.stringify(out, null, 2)}`)
         }
         if (args.error) said.push(`\n✕ ${args.error}`)
-        lines.push(line('tool', said.join(''), { folded: true }))
+        lines.push(line('tool', said.join(''), { who, folded: true }))
         break
       }
       case 'llm':

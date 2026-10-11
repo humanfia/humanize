@@ -1,15 +1,20 @@
-// The flows there are to run here, as ChatGPT lays out what it can be: a card for each, by
-// where it came from, and -- one opened -- what it declares: its roles, its environments, its
-// params and whether a run of it can be picked up, with the way to start one.
+// The flows, in the two pages `/flow` opens on in the terminal interface. Installed: a card for
+// each flow on offer in a workspace, by where it came from, each installed out of an index with
+// its release and any newer one -- and, one opened, what it declares, with starting it, updating
+// it, uninstalling it and copying it into the workspace whole. Flowverses: every place flows come
+// from, fetched or written into, and -- one opened -- every flow its index lists, every release
+// of each, installing, switching and uninstalling one; with adding, fetching and removing one.
 
-import { get, poll } from '../api.js'
+import { get, poll, post, refresh } from '../api.js'
 import { stays } from '../app.js'
-import { empty, fill, h, icon, permitted, problem } from '../dom.js'
+import { acting, confirming, empty, fill, h, icon, permitted, problem } from '../dom.js'
 import { workspacePicker } from '../places.js'
-import { bar } from '../shell.js'
+import { bar, tabbed } from '../shell.js'
 
 export function mount(root, { query }) {
+  let tab = query.get('tab') === 'verses' ? 'verses' : 'installed'
   let chosen = query.get('flow') || ''
+  let verse = query.get('verse') || ''
   // A workspace's flows: its own and yours, and the flowverses installed.
   let workspace = query.get('workspace') || ''
   const place = workspacePicker(workspace, (path) => {
@@ -17,6 +22,8 @@ export function mount(root, { query }) {
     chosen = ''
     watch()
   })
+  const tabs = h('div', { class: 'flows-tabs' })
+  const said = h('div', { class: 'flows-said', 'aria-live': 'polite' })
   const list = h('div', { class: 'gallery', 'data-hmz': 'flows' }, h('p', { class: 'loading', role: 'status' }, 'Reading the flows…'))
   const shown = h('section', { class: 'flow-detail', 'aria-live': 'polite', hidden: true })
   fill(
@@ -25,27 +32,80 @@ export function mount(root, { query }) {
       'div',
       { class: 'view' },
       bar({ title: 'Flows', actions: [place.node] }),
-      h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, shown, list)),
+      h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, tabs, said, shown, list)),
     ),
   )
 
+  /** Every flowverse, what is installed out of them, and the newer releases there are. */
+  let verses = null
   let stop = () => {}
+  let stopVerses = () => {}
+
   const watch = () => {
     stop()
-    stays({ workspace, flow: chosen })
-    stop = poll(`/api/flows?workspace=${encodeURIComponent(workspace)}`, 30000, drawn)
-    if (chosen) show(chosen)
-    else {
-      shown.hidden = false
-      fill(shown, empty('Pick a flow.', ' What it declares is shown here.'))
+    stopVerses()
+    stays({ tab: tab === 'verses' ? 'verses' : '', workspace, flow: tab === 'installed' ? chosen : '', verse: tab === 'verses' ? verse : '' })
+    fill(tabs, tabbed([['installed', 'Installed'], ['verses', 'Flowverses']], tab, (key) => {
+      tab = key
+      watch()
+    }))
+    stopVerses = poll('/api/flowverses', 30000, (data, error) => {
+      if (data) verses = data
+      drawUpdates(error)
+      if (tab === 'verses') drawVerses(error)
+    })
+    if (tab === 'installed') {
+      stop = poll(`/api/flows?workspace=${encodeURIComponent(workspace)}`, 30000, drawFlows)
+      if (chosen) show(chosen)
+      else {
+        shown.hidden = false
+        fill(shown, empty('Pick a flow.', ' What it declares is shown here.'))
+      }
+    } else {
+      stop = () => {}
+      if (verse) openVerse(verse)
+      else {
+        shown.hidden = false
+        fill(shown, addVerse())
+      }
     }
   }
 
-  function drawn(data, error) {
+  /** Says what changed, and reads again what it changed. */
+  async function change(url, body) {
+    const answer = await post(url, body)
+    fill(said, h('p', { class: 'note', role: 'status' }, answer.said || 'Done.'))
+    refresh('/api/flowverses')
+    refresh('/api/flows')
+    return answer
+  }
+
+  function drawUpdates(error) {
+    if (error) return
+    const updates = verses ? verses.updates : []
+    const banner = said.querySelector('[data-hmz=update-banner]')
+    if (banner) banner.remove()
+    if (!updates.length) return
+    said.prepend(
+      h(
+        'div',
+        { class: 'note', 'data-hmz': 'update-banner' },
+        h('b', {}, `${updates.length} update${updates.length === 1 ? '' : 's'}`),
+        ' ',
+        updates.map((one) => h('span', { class: 'chip' }, `${one.flow} ${one.from} → ${one.to}`)),
+      ),
+    )
+  }
+
+  // ------------------------------------------------------------------ installed
+
+  function drawFlows(data, error) {
     if (!data) {
       fill(list, error ? problem(error) : h('p', { class: 'loading' }, 'Reading the flows…'))
       return
     }
+    const installed = Object.fromEntries(((verses && verses.installed) || []).map((one) => [one.flow, one]))
+    const updates = Object.fromEntries(((verses && verses.updates) || []).map((one) => [one.flow, one]))
     const whose = {}
     for (const one of data.flows) (whose[one.whose] ||= []).push(one)
     fill(
@@ -62,8 +122,15 @@ export function mount(root, { query }) {
               const card = h(
                 'button',
                 { class: ['card', one.name === chosen && 'chosen'], type: 'button', 'data-flow': one.name, 'aria-pressed': String(one.name === chosen) },
-                h('span', { class: 'card-mark', 'aria-hidden': 'true' }, one.name.slice(0, 1).toUpperCase()),
-                h('span', { class: 'card-name' }, one.name, one.name === data.flow ? h('span', { class: 'node-tag' }, 'Default') : null),
+                h('span', { class: 'card-mark', 'aria-hidden': 'true' }, one.name.replace(/^@[^/]+\//, '').slice(0, 1).toUpperCase()),
+                h(
+                  'span',
+                  { class: 'card-name' },
+                  one.name,
+                  one.name === data.flow ? h('span', { class: 'node-tag' }, 'Default') : null,
+                  installed[one.name] ? h('span', { class: 'node-tag' }, installed[one.name].version) : null,
+                  updates[one.name] ? h('span', { class: 'node-tag fresh' }, `${updates[one.name].to} out`) : null,
+                ),
                 one.about ? h('span', { class: 'card-about' }, one.about) : null,
               )
               card.addEventListener('click', () => show(one.name))
@@ -93,15 +160,16 @@ export function mount(root, { query }) {
     }
     // Another flow was chosen while this one was read: what it says is no longer asked for.
     if (chosen !== name) return
+    const installed = ((verses && verses.installed) || []).find((one) => one.flow === name)
+    const update = ((verses && verses.updates) || []).find((one) => one.flow === name)
+    const actions = [h('a', { class: 'btn primary', href: `#/new?flow=${encodeURIComponent(flow.name)}&workspace=${encodeURIComponent(workspace)}` }, icon('new'), 'New epic')]
+    if (update) actions.push(acting(`Update to ${update.to}`, () => change('/api/flowverses/install', { flow: name, version: update.to }), { busy: 'Updating…' }))
+    if (!name.startsWith('@local/')) actions.push(acting('Copy here', () => change('/api/flows/fork', { flow: name, workspace }), { kind: 'btn quiet', busy: 'Copying…' }))
+    if (installed) actions.push(confirming({ label: 'Uninstall', ask: `Uninstall ${name}?`, yes: 'Uninstall', no: 'Cancel', act: () => change('/api/flowverses/uninstall', { flow: name }) }))
     const params = Object.entries(flow.params.properties || {})
     fill(
       shown,
-      h(
-        'header',
-        {},
-        h('div', {}, h('div', { class: 'kicker' }, 'flow'), h('h2', {}, flow.name)),
-        h('a', { class: 'btn primary', href: `#/new?flow=${encodeURIComponent(flow.name)}&workspace=${encodeURIComponent(workspace)}` }, icon('new'), 'New epic'),
-      ),
+      h('header', {}, h('div', {}, h('div', { class: 'kicker' }, installed ? `${installed.verse} · ${installed.version}` : 'flow'), h('h2', {}, flow.name)), h('div', { class: 'row' }, actions)),
       flow.description ? h('p', { class: 'prose' }, flow.description) : null,
       h(
         'dl',
@@ -120,6 +188,135 @@ export function mount(root, { query }) {
     )
   }
 
+  // ------------------------------------------------------------------ flowverses
+
+  function drawVerses(error) {
+    if (!verses) {
+      fill(list, error ? problem(error) : h('p', { class: 'loading' }, 'Reading the flowverses…'))
+      return
+    }
+    fill(
+      list,
+      h(
+        'div',
+        { class: 'cards', 'data-hmz': 'verses' },
+        verses.verses.map((one) => {
+          const card = h(
+            'button',
+            { class: ['card', one.name === verse && 'chosen'], type: 'button', 'data-verse': one.name, 'aria-pressed': String(one.name === verse) },
+            h('span', { class: 'card-mark', 'aria-hidden': 'true' }, one.name.slice(0, 1).toUpperCase()),
+            h(
+              'span',
+              { class: 'card-name' },
+              one.name,
+              one.fixed ? h('span', { class: 'node-tag' }, 'Built in') : null,
+              one.edited ? h('span', { class: 'node-tag' }, 'Edited') : null,
+              !one.fetched ? h('span', { class: 'node-tag' }, 'Not fetched') : null,
+            ),
+            h('span', { class: 'card-about' }, one.url || 'local', one.installed ? ` · ${one.installed} installed` : ''),
+          )
+          card.addEventListener('click', () => openVerse(one.name))
+          return card
+        }),
+        h('button', { class: 'card card-add', type: 'button', 'data-hmz': 'add-verse', onclick: () => {
+          verse = ''
+          stays({ tab: 'verses', workspace })
+          fill(shown, addVerse())
+        } }, h('span', { class: 'card-mark', 'aria-hidden': 'true' }, icon('plus')), h('span', { class: 'card-name' }, 'Add flowverse')),
+      ),
+    )
+  }
+
+  function addVerse() {
+    const url = h('input', { type: 'text', placeholder: 'owner/repo or URL', 'aria-label': 'URL', required: true })
+    const name = h('input', { type: 'text', placeholder: 'Name (optional)', 'aria-label': 'Name' })
+    const form = h('form', { class: 'form', 'data-hmz': 'add-verse-form' }, h('h2', {}, 'Add flowverse'), h('div', { class: 'row' }, h('label', { class: 'field' }, h('span', { class: 'label' }, 'URL'), url), h('label', { class: 'field' }, h('span', { class: 'label' }, 'Name'), name)), h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'submit' }, 'Add')))
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault()
+      form.querySelector('.error')?.remove()
+      const button = form.querySelector('button')
+      button.disabled = true
+      button.textContent = 'Adding…'
+      try {
+        const answer = await change('/api/flowverses', { url: url.value.trim(), name: name.value.trim() })
+        const added = String(answer.said || '').replace(/^added /, '')
+        if (added) openVerse(added)
+      } catch (error) {
+        form.append(problem(error))
+      } finally {
+        button.disabled = false
+        button.textContent = 'Add'
+      }
+    })
+    return form
+  }
+
+  async function openVerse(name) {
+    verse = name
+    stays({ tab: 'verses', workspace, verse: name })
+    for (const card of list.querySelectorAll('.card[data-verse]')) card.classList.toggle('chosen', card.dataset.verse === name)
+    shown.hidden = false
+    fill(shown, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
+    let index
+    try {
+      index = await get(`/api/flowverses/${encodeURIComponent(name)}`)
+    } catch (error) {
+      if (verse === name) fill(shown, problem(error))
+      return
+    }
+    if (verse !== name) return
+    const actions = []
+    if (!index.fixed || name === 'official') actions.push(acting(index.fetched ? 'Fetch' : 'Fetch now', async () => {
+      await change('/api/flowverses/fetch', { name })
+      openVerse(name)
+    }, { kind: 'btn', busy: 'Fetching…' }))
+    if (!index.fixed) actions.push(confirming({ label: 'Remove', ask: `Remove ${name} and every flow installed out of it?`, yes: 'Remove', no: 'Cancel', act: async () => {
+      await change('/api/flowverses/remove', { name })
+      verse = ''
+      fill(shown, addVerse())
+    } }))
+    fill(
+      shown,
+      h('header', {}, h('div', {}, h('div', { class: 'kicker' }, 'flowverse'), h('h2', {}, name)), h('div', { class: 'row' }, actions)),
+      h('p', { class: 'dim mono' }, index.url || 'local'),
+      index.edited ? h('p', { class: 'note' }, 'Something is written into it: fetching resets it to what its repository says.') : null,
+      index.flows.length
+        ? h('div', { class: 'releases', 'data-hmz': 'index' }, index.flows.map((one) => release(name, one)))
+        : h('p', { class: 'dim' }, index.fetched ? 'Its index lists no flow.' : 'Fetch it to see what it lists.'),
+      index.skipped.length
+        ? h('details', {}, h('summary', {}, `${index.skipped.length} skipped`), h('ul', { class: 'tree' }, index.skipped.map((one) => h('li', {}, h('span', { class: 'mono' }, one.at), h('div', { class: 'dim' }, one.why)))))
+        : null,
+    )
+  }
+
+  function release(name, one) {
+    const pick = h(
+      'select',
+      { 'aria-label': `Release of ${one.listed}` },
+      one.releases.map((each) => h('option', { value: each.version, selected: each.version === one.installed }, `${each.version}${each.prerelease ? ' (pre)' : ''}${each.version === one.installed ? ' ✓' : ''}`)),
+    )
+    const newest = one.releases.find((each) => !each.prerelease) || one.releases[0]
+    if (!one.installed && newest) pick.value = newest.version
+    const go = acting(one.installed ? 'Switch' : 'Install', async () => {
+      await change('/api/flowverses/install', { flow: one.flow, version: pick.value })
+      openVerse(name)
+    }, { kind: 'btn small', busy: 'Installing…' })
+    const remove = one.installed ? confirming({ label: 'Uninstall', ask: `Uninstall ${one.flow}?`, yes: 'Uninstall', no: 'Cancel', small: true, act: async () => {
+      await change('/api/flowverses/uninstall', { flow: one.flow })
+      openVerse(name)
+    } }) : null
+    const about = (one.releases.find((each) => each.version === (one.installed || (newest && newest.version))) || {}).description
+    return h(
+      'div',
+      { class: 'release', 'data-hmz': 'release', 'data-flow': one.flow },
+      h('div', {}, h('b', {}, one.listed), one.installed ? h('span', { class: 'node-tag' }, `${one.installed} installed`) : null, about ? h('div', { class: 'dim' }, about) : null),
+      h('div', { class: 'row' }, pick, go, remove),
+    )
+  }
+
   watch()
-  return () => stop()
+  return () => {
+    stop()
+    stopVerses()
+  }
 }

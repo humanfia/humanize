@@ -24,6 +24,14 @@ export function mountSidebar(root, context, where) {
   const list = h('nav', { class: 'side-runs', 'aria-label': 'Epics', 'data-hmz': 'epics' }, h('p', { class: 'side-quiet', role: 'status' }, 'Reading the epics…'))
   const more = h('button', { class: 'side-more', type: 'button', hidden: true }, 'Show more')
   const state = h('span', { class: 'side-state', 'data-hmz': 'state' })
+  // How many installed flows have a newer release, as the indexes were fetched as it started.
+  const updates = h('span', { class: 'side-badge', 'data-hmz': 'updates', hidden: true })
+  poll('/api/flowverses', 60000, (answer) => {
+    const count = answer ? answer.updates.length : 0
+    updates.hidden = !count
+    updates.textContent = String(count)
+    updates.title = count ? `${count} flow${count === 1 ? ' has' : 's have'} a newer release` : ''
+  })
   const account = h(
     'button',
     { class: 'side-account', type: 'button', 'data-hmz': 'machine-menu' },
@@ -54,7 +62,7 @@ export function mountSidebar(root, context, where) {
       { class: 'side-nav' },
       h('a', { href: '#/new', 'data-nav': 'new' }, icon('new'), h('span', {}, 'New epic'), h('kbd', {}, '⇧⌘O')),
       h('a', { href: '#/search', 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search epics'), h('kbd', {}, '⌘K')),
-      h('a', { href: '#/flows', 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows')),
+      h('a', { href: '#/flows', 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows'), updates),
     ),
     h('div', { class: 'side-scroll' }, list, more),
     h('div', { class: 'side-foot' }, account),
@@ -202,9 +210,15 @@ export function mountSidebar(root, context, where) {
     const agents = run.agents.map((one) => ({ role: one.role, runs: one.runs, sessions: sessions.filter((session) => session.role === one.role) }))
     if (!agents.length) return h('p', { class: 'side-quiet nested' }, 'No agents')
     const base = `#/epics/${encodeURIComponent(run.name)}`
+    const logged = run.name === here && parts[2] === 'logs' && !parts[3]
     return h(
       'ul',
       { class: 'side-tree', role: 'list' },
+      h(
+        'li',
+        {},
+        h('a', { class: ['side-agent', logged && 'current'], href: `${base}/logs`, 'aria-current': logged ? 'page' : null, 'data-hmz': 'log' }, icon('thread'), h('span', { class: 'side-label' }, 'Log')),
+      ),
       agents.map((agent) => {
         const at = run.name === here && parts[2] === 'agents' && parts[3] === agent.role
         return h(

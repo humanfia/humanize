@@ -113,6 +113,8 @@ export function mount(root, { query }) {
                 run.agents.map((one) => h('span', { class: 'chip', title: one.runs }, one.role, h('span', { class: 'dim' }, one.runs.split(':')[0]))),
                 h('span', { class: 'mono' }, run.spent ? `${run.spent.money || '—'} · ${run.spent.tokens} out` : '—'),
                 run.ended ? h('span', { class: 'mono' }, `took ${lasting((Date.parse(run.ended) - Date.parse(run.began)) / 1000)}`) : null,
+                h('span', { class: 'mono' }, `${run.sessions} session${run.sessions === 1 ? '' : 's'}`),
+                run.resumable && !run.held && run.how !== 'done' ? h('span', { class: 'node-tag' }, 'Resumable') : null,
               ),
             ),
           ),

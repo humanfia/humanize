@@ -227,7 +227,12 @@ export function graph({ open }) {
         'data-role': agent.role,
       },
       head,
-      sessions.length ? h('div', { class: 'node-sessions' }, sessions) : null,
+      h(
+        'div',
+        { class: 'node-sessions' },
+        h('a', { class: 'node-session node-log', href: `${base}/logs/${encodeURIComponent(agent.role)}`, 'data-hmz': 'graph-log' }, h('span', { class: 'session-key mono' }, '≡ log'), h('span', { class: 'dim' }, agent.person ? 'asked and answered' : 'every session')),
+        sessions,
+      ),
     )
   }
 
@@ -235,7 +240,8 @@ export function graph({ open }) {
 }
 
 function heightOf(agent) {
-  return HEAD + (agent ? agent.sessions.length : 0) * ROW + FOOT
+  // The log's row, then a row per session.
+  return HEAD + ((agent ? agent.sessions.length : 0) + 1) * ROW + FOOT
 }
 
 function arrow(id, kind) {

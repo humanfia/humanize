@@ -61,7 +61,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it while the epic goes |
-| **Flows** | A card for each flow on offer in the directory picked, and what one declares | Start one |
+| **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: every place flows come from, and every release each index lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
 | **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task |
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
@@ -87,9 +87,11 @@ monitor is:
 
 The panel beside it (the button at the top right shows and hides it) holds:
 
-- **Epic.** How long it has been going, what it has spent and how fast, the tokens by kind, a
-  meter for each limit of its [budget](/features/allowances), the task, who handed to whom in
-  words, the flows going or the flows it called, and how it was set up.
+- **Epic.** How long it has been going, what it has spent and how fast, a meter for each limit of
+  its [budget](/features/allowances), the task, who handed to whom in words, **Spending** by
+  model and kind of token (`≥` marks a figure that is only a floor), **Environments** -- where
+  each session works and where its harness went -- the **Frontends** reading it, the flows going
+  or the flows it called, and how it was set up and where it is written down.
 - **Ask beside.** A side question, as [`/btw`](/user/btw) asks it: of the btw agent, or of one
   session's side copy. The epic never sees it. Every question after the first goes on in the
   same side conversation until you press **Close them**, or a new epic starts.
@@ -115,6 +117,13 @@ And under the graph, while it goes:
 
 A session opens as its thread, drawn as the terminal draws it: an agent's words on a dot, your
 lines set apart on the right, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
+
+**Log**, first under an epic in the sidebar, is the transcript every agent and person appears
+on; each node's **log** row is that agent's across its sessions, and a person's node opens what
+they were asked and answered. A line typed under one goes to whose it is.
+
+**List**, at the top right of the graph, draws the agents as a list instead, the working first;
+your choice is kept in this browser.
 
 ### An epic written down
 
@@ -145,7 +154,8 @@ directory last set it up:
   the model.
 - **Environments.** Per role: the **Backend**, the **Runtime** of it (or **Add runtime…**, or
   for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
-- **Parameters**, the **Budget**, and **Profile**. The chips beside **Options** say what is set. Every flow but `chat`
+- **Parameters**, the **Budget**, and **Profile**. **Save** keeps all of it for that directory
+  without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set. Every flow but `chat`
 needs at least one limit. The page goes to the epic once it starts.
 
 ### Settings
@@ -155,7 +165,7 @@ The same pages as [`/settings`](/user/settings), in the same order, and what the
 | Page | What is there |
 | --- | --- |
 | **General** | Whether a turn's working is shown, the [`/btw` agent](/user/btw), and [error reports](/user/reporting) |
-| **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, copy it to another CLI, remove it, or make one |
+| **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |

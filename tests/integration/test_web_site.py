@@ -173,3 +173,36 @@ def test_both_loopbacks_are_answered_on_one_port(project: Path) -> None:
         )
         assert there.get("/api/held").status == 200
         assert Browser(site, at="::1").get("/api/held").status == 401
+
+
+def test_an_account_is_corrected_without_its_values_being_shown(project: Path) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        ways = browser.get("/api/accounts").json()["backends"]
+        claude = next(one for one in ways if one["cli"] == "claude")
+        way = next(one for one in claude["ways"] if not one["terminal"] and one["asks"])
+        asks = {one["env"]: "first" for one in way["asks"] if not one["fixed"]}
+        made = browser.post(
+            "/api/accounts",
+            {"cli": "claude", "name": "work", "way": way["name"], "answers": asks},
+        )
+        assert made.status == 200, made.body
+
+        key = next(iter(asks))
+        corrected = browser.post(
+            "/api/accounts/correct",
+            {"cli": "claude", "name": "work", "answers": {key: "second"}},
+        )
+        assert corrected.status == 200, corrected.body
+        assert "second" not in corrected.body.decode()
+        assert "first" not in corrected.body.decode()
+        unknown = browser.post(
+            "/api/accounts/correct",
+            {"cli": "claude", "name": "work", "answers": {"NOT_ASKED": "x"}},
+        )
+        assert unknown.status == 400
+        missing = browser.post(
+            "/api/accounts/correct", {"cli": "claude", "name": "nobody", "answers": {}}
+        )
+        assert missing.status == 404

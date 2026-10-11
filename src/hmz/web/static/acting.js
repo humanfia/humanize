@@ -46,7 +46,7 @@ export function question(workspace, one, me, clients) {
 export function saying(workspace, session = '') {
   const to = h('select', { 'aria-label': 'Say it to' })
   const box = composer({
-    placeholder: session ? `Message ${session}` : 'Message the epic',
+    placeholder: session ? `Message ${session.replace(/^outworlder:/, '')}` : 'Message the epic',
     label: 'What to say',
     submit: (text) => ask(workspace, 'say', { text, to: session || to.value }),
     tools: session ? [] : [chipSelect('To', to)],
@@ -77,7 +77,7 @@ export function board(workspace, items) {
     const edit = h('button', { class: 'btn quiet small', type: 'button' }, 'Edit')
     edit.addEventListener('click', () => {
       const field = h('input', { type: 'text', value: one.value, 'aria-label': `New value of ${one.key}` })
-      const form = h('form', { class: 'row' }, field, h('button', { class: 'btn small primary', type: 'submit' }, 'Write'))
+      const form = h('form', { class: 'row' }, field, h('button', { class: 'btn small primary', type: 'submit' }, 'Save'))
       form.addEventListener('submit', async (event) => {
         event.preventDefault()
         try {
@@ -95,12 +95,15 @@ export function board(workspace, items) {
         { class: 'line' },
         h('b', {}, one.key),
         value,
-        h(
-          'span',
-          { class: 'row' },
-          edit,
-          confirming({ label: 'Remove', ask: '', yes: 'Remove', no: 'Keep', small: true, act: () => ask(workspace, 'board', { key: one.key, value: '' }) }),
-        ),
+        // A line the flow owns is the flow's to change, as the terminal interface refuses it.
+        one.whose === 'flow'
+          ? h('span', { class: 'node-tag', title: 'Only the flow changes this line' }, 'Flow')
+          : h(
+              'span',
+              { class: 'row' },
+              edit,
+              confirming({ label: 'Remove', ask: '', yes: 'Remove', no: 'Cancel', small: true, act: () => ask(workspace, 'board', { key: one.key, value: '' }) }),
+            ),
       ),
     )
   }

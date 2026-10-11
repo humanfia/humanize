@@ -90,18 +90,30 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 
 ### The page
 
+- MUST do everything the terminal interface does to flows and runs, as it does it, beside what
+  only a page can.
 - MUST offer every workspace as a folder of its runs, newest first -- how each ended or that it
-  is going, its task, flow and agents, what it spent and how long it took -- found by how it
-  went, by workspace, by flow and by its task, a page at a time.
+  is going, its task, flow and agents, what it spent and how long it took, how many sessions it
+  opened, whether it can be picked up and where it is written down -- found by how it went, by
+  workspace, by flow and by its task, a page at a time.
 - MUST draw the run going as it happens: its sessions as lanes of turns over time, what each
   said as the terminal interface's transcript says it, its agents and who handed to whom, what
-  it has spent against its budget, the questions it waits on a person for, the people it has
-  and who holds each, its board and the flows it is in; and MUST offer, while it goes, every
-  thing a person may do to it, never drawing over what somebody is typing while what it is
-  about stands.
+  it has spent against its budget and by model and kind of token -- never one lump over the
+  kinds, a figure that is only a floor marked as one -- the questions it waits on a person for,
+  the people it has and who holds each, its board -- a line the flow owns never offered to be
+  changed -- the flows it is in, where each session works and where its harness went, and every
+  frontend reading it; as a graph or, switched, as a list of its agents, the working first; and
+  MUST offer, while it goes, every thing a person may do to it, never drawing over what somebody
+  is typing while what it is about stands.
+- MUST offer the transcripts the terminal interface keeps: one per session, one per agent
+  across its sessions, one per person of what they are asked and answer, and one they all
+  appear on -- a line said in one going to whose it is.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
+- MUST let a flow be set up in a workspace and saved without starting it, refused where a role
+  has no agent or -- for every flow but chat -- nothing says what it may spend, and MUST save
+  it as it is started.
 - MUST start a run in the workspace picked -- any it serves, or one opened by its path,
   completed as it is typed -- as that workspace last set its flow up -- its agents,
   environments, params, budget and profiling -- and pick a run up, in its own workspace, as
@@ -112,9 +124,20 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   taking one typed where it cannot say, and an effort that model takes; and an environment by
   its backend, a runtime of it saved or made there, and its directory, completed as it is typed
   where it is on this machine. Each MUST come to what `-a` or `-e` spells.
-- MUST offer the flows on offer in a workspace and what each declares, what the runs spent by
-  day and by flow -- of every workspace or of one -- and the pages `/settings` has: general,
-  accounts, fallback, runtimes and the workspace, for any workspace it serves. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
+- MUST offer the flows on offer in a workspace and what each declares, each installed out of
+  an index with its release and the newer one its index lists, with updating, uninstalling and
+  copying it into that workspace whole; and every flowverse -- whether its index is fetched or
+  written into, the flows it lists, every release of each newest first, prereleases marked and
+  the installed one marked -- with installing, switching to and uninstalling a release, and
+  adding, fetching and removing a flowverse, removing what was installed out of it, asked
+  first, a URL never shown with anything signed into it, and every manifest skipped named. It
+  MUST fetch every index once as it starts, in the background and saying nothing, and say which
+  installed flows have a newer release, and MUST NOT install, update or uninstall a flow while
+  an epic runs on the machine.
+- MUST offer what the runs spent by day and by flow -- of every workspace or of one -- and the
+  pages `/settings` has: general, accounts -- correcting an account with what is left blank
+  kept, never a value shown -- fallback, runtimes and the workspace, for any workspace it
+  serves. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
   run.
 - MUST name what it draws -- a button, a tab, a menu's choice, a heading, a field -- by a word
   or a short phrase, never a sentence, and MUST call a run of a flow an epic.

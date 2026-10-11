@@ -9,14 +9,14 @@ as which.
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .routing import Refusal, routes
 
 if TYPE_CHECKING:
     from .routing import Asked
 
-__all__ = ["ROUTES", "declared"]
+__all__ = ["ROUTES", "declared", "remembered"]
 
 
 def declared(hmz: Any, name: str) -> dict[str, Any]:
@@ -86,6 +86,79 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
             "profile": settings.profile(name),
         },
     }
+
+
+def remembered(hmz: Any, said: dict[str, Any]) -> None:
+    """Writes down what a workspace is set up to run a flow with, as `/flow` saves it.
+
+    What a new epic there opens on from then on: its agents, environments, params, budget and
+    whether it is profiled. Refused, as the terminal interface refuses to save it, where a role
+    names no agent or -- for every flow but chat -- nothing says what it may spend.
+
+    Args:
+      hmz: humanize, for the workspace.
+      said: The flow and what it is set up with, as a page sends a start.
+
+    Raises:
+      Refusal: If the flow is not on offer there, an agent is not one, or it is not set up
+        enough to run.
+    """
+    from hmz.runtime.kept import read_back
+
+    flow = said.get("flow")
+    if not isinstance(flow, str) or flow not in {one.name for one in hmz.flows.all()}:
+        raise Refusal(f"{flow} is not a flow on offer here.", 404)
+    given: object = said.get("agents") or {}
+    if not isinstance(given, dict):
+        raise Refusal("agents is an object of agents as -a spells them.")
+    agents: dict[str, Any] = {}
+    for role, spec in cast("dict[str, object]", given).items():
+        runs = read_back(spec) if isinstance(spec, str) else None
+        if runs is None:
+            raise Refusal(f"{role} is not given an agent as -a spells one: {spec}.")
+        agents[str(role)] = runs
+    try:
+        roles = hmz.flows.declared(flow).agents
+    except Exception as why:
+        raise Refusal(f"{flow} cannot be set up: {why}", 404) from why
+    if missing := [
+        one.name
+        for one in roles
+        if one.required and not one.auto and one.name not in agents
+    ]:
+        raise Refusal(f"{flow} needs an agent for {', '.join(missing)}.")
+    budget: object = said.get("budget")
+    if flow != "chat" and not budget:
+        raise Refusal(f"{flow} needs at least one limit on what it may spend.")
+    envs: object = said.get("envs")
+    params: object = said.get("params")
+    daemon_settings(hmz).remember(
+        flow,
+        agents,
+        cast("dict[str, str]", envs) if isinstance(envs, dict) else None,
+        cast("dict[str, Any]", params) if isinstance(params, dict) else None,
+        cast("dict[str, Any]", budget) if isinstance(budget, dict) else {},
+        profile=said.get("profile") is True,
+    )
+
+
+def daemon_settings(hmz: Any) -> Any:
+    """A workspace's settings read afresh: its runs write them as well as this does."""
+    from hmz import daemon
+
+    return daemon.Hmz(hmz.workspace).settings
+
+
+def _setup(asked: Asked) -> dict[str, Any]:
+    hmz = _place(asked).hmz
+    remembered(hmz, asked.body)
+    return declared(hmz, asked.text("flow"))
+
+
+def _place(asked: Asked) -> Any:
+    """The workspace a write names, or where the interface started."""
+    said = asked.body.get("workspace", "")
+    return asked.site.places.of(said if isinstance(said, str) else "")
 
 
 def _hmz(asked: Asked) -> Any:
@@ -165,4 +238,5 @@ ROUTES = routes(
     ("GET", "/api/flows", _flows),
     ("GET", "/api/flow", _flow),
     ("GET", "/api/backends", _backends),
+    ("POST", "/api/flows/setup", _setup),
 )

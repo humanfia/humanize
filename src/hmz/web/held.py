@@ -660,8 +660,12 @@ def _acts(asked: Asked) -> dict[str, Any]:
     said = {name: value for name, value in asked.body.items() if name != "workspace"}
     workspace = _workspace(asked)
     if asked.matched["do"] == "start":
-        # Somewhere an epic was started is somewhere to offer the next.
-        asked.site.places.of(workspace).hmz.settings.keeps()
+        from .flows import remembered
+
+        # Started as it is set up is set up so from then on, as `/flow` saves it -- and
+        # somewhere an epic was started is somewhere to offer the next.
+        place = asked.site.places.of(workspace)
+        remembered(place.hmz, said)
     return asked.site.places.held(workspace).asks(asked.matched["do"], said)
 
 

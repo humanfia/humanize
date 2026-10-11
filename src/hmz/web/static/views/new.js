@@ -4,10 +4,10 @@
 // Options on the box, set up as this directory last ran that flow, the way `/flow` in the
 // terminal interface sets one up. Picking a run up again is the same box, on that run.
 
-import { get } from '../api.js'
+import { get, post } from '../api.js'
 import { go, stays } from '../app.js'
 import { composer } from '../composer.js'
-import { fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
+import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
 import { workspacePicker, workspaces } from '../places.js'
@@ -170,6 +170,14 @@ export function mount(root, { query }) {
     const params = schemaForm(flow.params, kept.params || {})
     const budget = budgetFields(kept.budget || {}, summarise)
     const profile = h('input', { type: 'checkbox', checked: Boolean(kept.profile) })
+    /** What the flow is set up with, as a start sends it. */
+    function readAll() {
+      const agentsSaid = {}
+      for (const [role, one] of Object.entries(pickers)) if (one.value()) agentsSaid[role] = one.value()
+      const envsSaid = {}
+      for (const [role, one] of Object.entries(places)) if (one.value()) envsSaid[role] = one.value()
+      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile: profile.checked }
+    }
     for (const one of Object.values(leaving)) one()
     leaving = Object.values(pickers).map((one) => one.leave)
     fill(
@@ -180,6 +188,8 @@ export function mount(root, { query }) {
         params.fields.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Parameters'), h('div', { class: 'grid' }, params.fields)) : null,
         h('section', { class: 'option-group' }, h('h3', {}, 'Budget'), budget.fields, h('span', { class: 'hint' }, flow.name === 'chat' ? 'Optional for chat.' : 'At least one limit.')),
         h('label', { class: 'check' }, profile, 'Profile'),
+        // Set up without starting, as `/flow` saves it: what a new epic here opens on.
+        h('div', { class: 'row' }, acting('Save', () => post('/api/flows/setup', { workspace, flow: flow.name, ...readAll() }), { kind: 'btn small', busy: 'Saving…', done: 'Saved' })),
       ),
     )
     return {
@@ -189,13 +199,7 @@ export function mount(root, { query }) {
         if (limit) said.push(limit)
         return said
       },
-      read() {
-        const agentsSaid = {}
-        for (const [role, one] of Object.entries(pickers)) if (one.value()) agentsSaid[role] = one.value()
-        const envsSaid = {}
-        for (const [role, one] of Object.entries(places)) if (one.value()) envsSaid[role] = one.value()
-        return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile: profile.checked }
-      },
+      read: readAll,
     }
   }
 

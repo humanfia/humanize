@@ -118,6 +118,44 @@ def _make(asked: Asked) -> dict[str, Any]:
     return listed(hmz)
 
 
+def _correct(asked: Asked) -> dict[str, Any]:
+    """Writes an account down again with what its way in is answered with now.
+
+    What is left blank keeps what it was: a page is never handed a value to show back, so it
+    can only say what changes. A way in that runs the CLI's own sign-in is corrected at a
+    terminal, which signs in again.
+    """
+    hmz = asked.site.hmz
+    cli, name = asked.text("cli"), asked.text("name")
+    try:
+        one = hmz.accounts.find(cli, name)
+    except ValueError as why:
+        raise Refusal(str(why)) from why
+    if one is None or not name:
+        raise Refusal(
+            f"{cli} has no account called {name or 'of this machine'} to correct.", 404
+        )
+    way = hmz.accounts.way(cli, one.way) if one.way else None
+    if way is not None and way.argv:
+        raise Refusal(
+            f"{name} runs {cli}'s own sign-in, which needs a terminal: sign in again from "
+            "/settings in hmz."
+        )
+    answers = asked.named("answers")
+    if not all(isinstance(each, str) for each in answers.values()):
+        raise Refusal("Say each answer as text.")
+    if way is not None and (
+        unknown := sorted(set(answers) - {each.env for each in way.asks})
+    ):
+        raise Refusal(f"{one.way} asks nothing called {', '.join(unknown)}.")
+    env = dict(one.env) | {key: value for key, value in answers.items() if value}
+    try:
+        hmz.accounts.write(cli, name, one.way, env)
+    except (ValueError, OSError) as why:
+        raise Refusal(str(why)) from why
+    return listed(hmz)
+
+
 def _remove(asked: Asked) -> dict[str, Any]:
     hmz = asked.site.hmz
     cli, name = asked.text("cli"), asked.text("name")
@@ -162,6 +200,7 @@ def _copy(asked: Asked) -> dict[str, Any]:
 ROUTES = routes(
     ("GET", "/api/accounts", lambda asked: listed(asked.site.hmz)),
     ("POST", "/api/accounts", _make),
+    ("POST", "/api/accounts/correct", _correct),
     ("POST", "/api/accounts/remove", _remove),
     ("POST", "/api/accounts/models", _models),
     ("POST", "/api/accounts/copy", _copy),

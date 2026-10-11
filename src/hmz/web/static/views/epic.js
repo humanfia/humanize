@@ -13,7 +13,7 @@ import { ago, badge, flowName, confirming, copier, empty, fill, h, headline, ico
 import { ask } from '../held.js'
 import { live, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
-import { bar, sidePanel, tabbed } from '../shell.js'
+import { bar, keep, kept, sidePanel, tabbed } from '../shell.js'
 import { saidTraced, sayer } from '../transcript.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
@@ -30,7 +30,9 @@ export function mount(root, { parts, query }) {
   const dock = h('div', { class: 'dock', 'data-hmz': 'dock' })
   fill(root, h('div', { class: 'view view-epic' }, h('div', { class: 'work' }, head, main, dock), panel.node))
 
-  const drawn_ = graph({ open: (role) => go(`/epics/${encodeURIComponent(name)}/agents/${encodeURIComponent(role)}`) })
+  // A person is read by their log, as the terminal interface's monitor reads one; an agent is
+  // picked out on the graph.
+  const drawn_ = graph({ open: (role) => go(`/epics/${encodeURIComponent(name)}/${persons.has(role) ? 'logs' : 'agents'}/${encodeURIComponent(role)}`) })
   // What is said to the epic, and asked beside it, once it is known which workspace it is of.
   let say = null
   let sayTo = null
@@ -93,9 +95,10 @@ export function mount(root, { parts, query }) {
     }
     const run = going && going.started ? going : null
     const model = run ? live(held, run, detail) : written(detail, traced)
-    const roleOfSession = mode.session ? mode.session.split('/')[0] : ''
+    const roleOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
+    persons = new Set(model.agents.filter((one) => one.person).map((one) => one.role))
     drawHead(detail, run)
-    if (mode.session) drawThread(detail, run)
+    if (reading(mode)) drawThread(detail, run)
     else drawGraph(detail, run, model)
     drawDock(detail, run)
     drawPanel(detail, run, model, mode.focus || roleOfSession)
@@ -122,8 +125,9 @@ export function mount(root, { parts, query }) {
         h('span', { title: when(detail.began) }, `began ${ago(detail.began)}`),
         h('span', { class: 'mono', 'data-hmz': 'clock' }),
       ]
-      const title = mode.session
-        ? h('span', { class: 'crumbs' }, h('a', { href: base }, headline(detail.task)), h('span', { 'aria-hidden': 'true' }, ' / '), h('span', { class: 'mono' }, mode.session))
+      const where = mode.session || (mode.log ? `${mode.log} log` : 'Log')
+      const title = reading(mode)
+        ? h('span', { class: 'crumbs' }, h('a', { href: base }, headline(detail.task)), h('span', { 'aria-hidden': 'true' }, ' / '), h('span', { class: 'mono' }, where))
         : headline(detail.task)
       fill(head, bar({ title, sub, actions }))
     })
@@ -135,10 +139,20 @@ export function mount(root, { parts, query }) {
   // ------------------------------------------------------------------ the graph
 
   function drawGraph(detail, run, model) {
-    region('main-kind', ['graph'], () => {
-      fill(main, drawn_.node)
-      for (const one of ['thread', 'thread-head']) drawn[one] = undefined
+    region('main-kind', ['graph', shape], () => {
+      const switching = h('div', { class: 'segmented shape-switch', role: 'group', 'aria-label': 'Shape' }, [['graph', 'Graph'], ['list', 'List']].map(([key, label]) => h('button', { type: 'button', 'aria-pressed': String(shape === key), onclick: () => {
+        shape = key
+        keep('hmz-shape', key === 'graph' ? null : key)
+        draw()
+      } }, label)))
+      listed = h('div', { class: 'shape-list', 'data-hmz': 'agent-list' })
+      fill(main, shape === 'graph' ? drawn_.node : h('div', { class: 'list-scroll' }, listed), switching)
+      for (const one of ['thread', 'thread-head', 'agent-list', 'graph-note']) drawn[one] = undefined
     })
+    if (shape === 'list') {
+      region('agent-list', [model.agents.map(({ role, working, status, spec, sessions, tokens }) => [role, working, status, spec, tokens, sessions.map((one) => [one.key, one.working, one.turns.length])]), mode.focus], () => fill(listed, listOf(model, detail.name, mode.focus)))
+      return
+    }
     const asking = !run && !traced
     region('graph-note', [asking, tracing, String(traceError)], () => {
       main.querySelector('.graph-note')?.remove()
@@ -171,8 +185,22 @@ export function mount(root, { parts, query }) {
   let saidUpTo = -1
   let saidFor = ''
 
+  /** Whether the agents are drawn as a graph or as a list, as this browser last chose. */
+  let shape = kept('hmz-shape', 'graph') === 'list' ? 'list' : 'graph'
+  let listed = null
+
+  /** Who is a person in the epic in front, whose log is what is asked of them. */
+  let persons = new Set()
+
+  /** What the thread in front is the transcript of, as `sayer` takes it. */
+  function threadKey() {
+    if (mode.session) return mode.session
+    if (!mode.log) return ''
+    return persons.has(mode.log) ? `person:${mode.log}` : `agent:${mode.log}`
+  }
+
   function drawThread(detail, run) {
-    const key = mode.session
+    const key = threadKey()
     region('main-kind', ['thread'], () => {
       box = h('div', { class: 'thread', 'data-hmz': 'thread', role: 'log', 'aria-live': 'off' })
       cut = h('p', { class: 'dim thread-cut', hidden: true }, `Only its last ${LINES} lines are drawn here; the epic keeps every one.`)
@@ -205,7 +233,7 @@ export function mount(root, { parts, query }) {
         box.firstElementChild.remove()
         cut.hidden = false
       }
-      if (!box.childElementCount) box.append(h('p', { class: 'dim thread-empty' }, 'Nothing has been said in this session yet.'))
+      if (!box.childElementCount) box.append(h('p', { class: 'dim thread-empty' }, 'Nothing said yet.'))
       else if (added) box.querySelector(':scope > .thread-empty')?.remove()
       if (added && stuck) scroller.scrollTop = scroller.scrollHeight
       return
@@ -215,19 +243,20 @@ export function mount(root, { parts, query }) {
     if (!traced && !tracing && !traceError) readTrace()
     region('thread', [key, Boolean(traced), tracing, String(traceError)], () => {
       saidFor = ''
-      const session = sessionsOf(detail).find((one) => one.key === key)
-      const read = traced && session ? traced.find((one) => one.key === session.traced) : null
+      // The sessions the thread is of: one, every one of an agent's, or every one.
+      const sessions = sessionsOf(detail).filter((one) => (mode.session ? one.key === key : !mode.log || one.role === mode.log))
+      const read = traced ? sessions.map((one) => ({ ...(traced.find((each) => each.key === one.traced) || { actions: [] }), label: one.key })).filter((one) => one.actions.length) : []
       fill(
         box,
         traceError
           ? problem(traceError)
           : !traced
             ? h('p', { class: 'loading', role: 'status' }, 'Reading its logs…')
-            : !session
+            : mode.session && !sessions.length
               ? empty('There is no such session in this epic.', ' Pick one of its sessions in the sidebar.')
-              : read
-                ? saidTraced(read)
-                : h('p', { class: 'dim' }, 'Its logs held nothing this session said.'),
+              : read.length
+                ? saidTraced(...read)
+                : h('p', { class: 'dim' }, persons.has(mode.log) ? 'A person’s log is kept while the epic is.' : 'Its logs held nothing said.'),
       )
     })
   }
@@ -258,13 +287,15 @@ export function mount(root, { parts, query }) {
       const roles = run.started.roles || Object.keys(run.started.agents || {})
       const people = run.started.outworlders || []
       region('dock-offers', [roles, sessions, working, people], () => say.offers(roles, sessions, working, people))
-      if (mode.session && sayToKey !== mode.session) {
-        sayTo = saying(workspace(), mode.session)
-        sayToKey = mode.session
+      // In a thread, a line goes to whose thread it is: a session, an agent, or a person.
+      const to = mode.session || (mode.log ? (persons.has(mode.log) ? `outworlder:${mode.log}` : mode.log) : '')
+      if (to && sayToKey !== to) {
+        sayTo = saying(workspace(), to)
+        sayToKey = to
       }
     }
-    const composer = going ? (mode.session ? sayTo.node : say.node) : null
-    region('dock-composer', [going, mode.session, detail.picks_up], () => {
+    const composer = going ? (reading(mode) && sayToKey && (mode.session || mode.log) ? sayTo.node : say.node) : null
+    region('dock-composer', [going, mode.session, mode.log, detail.picks_up], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
       if (composer) dock.append(composer)
       else if (detail.picks_up)
@@ -363,6 +394,14 @@ export function mount(root, { parts, query }) {
           : h('p', { class: 'dim' }, run ? 'Nobody has handed over yet.' : !traced ? 'Read its turns to see who handed to whom.' : traced.length ? 'Nobody handed over.' : 'Its logs held no turn to read.'),
       ),
     )
+    if (figures && figures.spending && figures.spending.length) parts.push(section('Spending', spendingOf(figures)))
+    const places = placesOf(detail, run)
+    if (places.length) parts.push(section('Environments', h('ul', { class: 'links', 'data-hmz': 'environments' }, places.map(([key, where, harness]) => h('li', {}, h('span', { class: 'mono' }, key), ` ${where}`, harness ? h('div', { class: 'dim' }, `harness on ${harness}`) : null)))))
+    const clients = (standing.clients && standing.clients.clients) || []
+    if (going && clients.length) {
+      const me = held() ? held().me : ''
+      parts.push(section('Frontends', h('ul', { class: 'links', 'data-hmz': 'frontends' }, clients.map((one) => h('li', {}, h('b', {}, one.name || one.client), h('span', { class: 'dim' }, ` ${one.kind}${one.client === me ? ' · this page' : ''}`))))))
+    }
     const calls = (standing.calls && standing.calls.calls) || []
     if (run && calls.length) {
       const offset = run.offset
@@ -409,7 +448,80 @@ export function mount(root, { parts, query }) {
 }
 
 function modeOf(parts) {
-  return { session: parts[2] === 'sessions' ? parts[3] || '' : '', focus: parts[2] === 'agents' ? parts[3] || '' : '' }
+  return {
+    session: parts[2] === 'sessions' ? parts[3] || '' : '',
+    focus: parts[2] === 'agents' ? parts[3] || '' : '',
+    // A log: every agent's and person's lines, "" -- or one agent's, or one person's, by role.
+    log: parts[2] === 'logs' ? parts[3] || '' : null,
+  }
+}
+
+/** Whether a view of an epic is a thread to read rather than its graph. */
+function reading(mode) {
+  return Boolean(mode.session) || mode.log !== null
+}
+
+/**
+ * What the run has spent, model by model and kind by kind -- never one lump over the kinds -- in
+ * an order that does not change, money beside the tokens where it is known, and a figure that is
+ * only a floor marked as one, as the terminal interface's monitor says it.
+ */
+function spendingOf(figures) {
+  const kinds = (figures.reckoning || []).map((one) => one.kind)
+  const named = (kind) => kind || 'unsorted'
+  return [
+    h(
+      'div',
+      { class: 'table-wrap' },
+      h(
+        'table',
+        { class: 'spending', 'data-hmz': 'spending' },
+        h('thead', {}, h('tr', {}, h('th', {}, 'Model'), kinds.map((kind) => h('th', { class: 'num' }, named(kind))), h('th', { class: 'num' }, 'Cost'), h('th', { class: 'num' }, 'Out/s'))),
+        h(
+          'tbody',
+          {},
+          figures.spending.map((one) =>
+            h('tr', {}, h('td', { class: 'mono' }, one.model), kinds.map((kind) => h('td', { class: 'num' }, one.kinds[kind] ? Math.round(one.kinds[kind]) : '—')), h('td', { class: 'num' }, one.money || '—'), h('td', { class: 'num' }, one.rate)),
+          ),
+          h('tr', { class: 'whole' }, h('td', {}, 'All'), (figures.reckoning || []).map((one) => h('td', { class: 'num', title: one.whole ? '' : 'at least: a backend here does not count this kind' }, `${one.whole ? '' : '≥'}${Math.round(one.tokens)}`)), h('td'), h('td')),
+        ),
+      ),
+    ),
+  ]
+}
+
+/** Where each session of an epic works, and where its harness was put, as each opened. */
+function placesOf(detail, run) {
+  if (run) {
+    return run.records.filter((one) => one.type === 'opened' && !one.person && (one.env || one.harness)).map((one) => [one.key, one.env || '', one.harness || ''])
+  }
+  return sessionsOf(detail).filter((one) => one.harness).map((one) => [one.key, '', one.harness]).concat(detail.used.map((one) => [one.split('=')[0], one.split('=').slice(1).join('='), '']))
+}
+
+/** The agents as a list rather than a graph: the working first, then in the flow's order. */
+function listOf(model, epic, focus) {
+  const base = `#/epics/${encodeURIComponent(epic)}`
+  const order = [...model.agents].sort((a, b) => Number(b.working) - Number(a.working))
+  return order.map((agent) =>
+    h(
+      'section',
+      { class: ['list-agent', agent.working && 'working', agent.role === focus && 'focused'], style: { '--lane': agent.color }, 'data-role': agent.role },
+      h(
+        'a',
+        { class: 'list-head', href: agent.person ? `${base}/logs/${encodeURIComponent(agent.role)}` : `${base}/agents/${encodeURIComponent(agent.role)}` },
+        h('i', { class: 'swatch', 'aria-hidden': 'true' }),
+        h('b', {}, agent.role),
+        h('span', { class: 'mono dim' }, agent.spec || '—'),
+        h('span', { class: 'list-state' }, agent.working ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, [agent.status, agent.tokens ? `${agent.tokens} tokens` : ''].filter(Boolean).join(' · ')),
+      ),
+      h(
+        'ul',
+        { class: 'links' },
+        h('li', {}, h('a', { href: `${base}/logs/${encodeURIComponent(agent.role)}` }, '≡ log')),
+        agent.sessions.map((one) => h('li', {}, h('a', { href: `${base}/sessions/${encodeURIComponent(one.key)}` }, one.working ? '● ' : '○ ', h('span', { class: 'mono' }, one.key)), h('span', { class: 'dim' }, ` ${one.turns.length} turn${one.turns.length === 1 ? '' : 's'}${one.about ? ` · ${one.about}` : ''}`))),
+      ),
+    ),
+  )
 }
 
 function section(title, ...kids) {
@@ -457,6 +569,10 @@ function facts(detail) {
     { class: 'facts' },
     h('dt', {}, 'epic'),
     h('dd', { class: 'mono' }, detail.name),
+    h('dt', {}, 'written to'),
+    h('dd', { class: 'mono' }, detail.at),
+    h('dt', {}, 'workdir'),
+    h('dd', { class: 'mono' }, detail.workspace),
     h('dt', {}, 'agents'),
     h('dd', {}, detail.agents.length ? detail.agents.map((one) => h('div', { class: 'mono' }, `${one.role}=${one.runs}`)) : '—'),
     h('dt', {}, 'envs'),

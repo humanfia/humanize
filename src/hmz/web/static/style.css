@@ -259,6 +259,16 @@ code {
   box-shadow: inset 4px 0 0 var(--red);
 }
 
+.side-badge {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 0 5px;
+  background: var(--red);
+  color: var(--on-red);
+  font: 700 10.5px/18px var(--mono);
+  text-align: center;
+}
+
 .side-nav kbd {
   margin-left: auto;
   font-size: 11px;
@@ -2008,6 +2018,16 @@ pre.block {
   color: var(--ink-2);
 }
 
+.node-log {
+  grid-template-columns: 50px minmax(0, 1fr);
+  font-size: 11.5px;
+}
+
+.node-log .session-key {
+  color: var(--red);
+  font-weight: 700;
+}
+
 .node-session.working .session-key {
   color: var(--live-ink);
   font-weight: 700;
@@ -2081,6 +2101,76 @@ pre.block {
 
 .graph-note > span {
   flex: 1;
+}
+
+.shape-switch {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.list-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 64px 20px 32px;
+}
+
+.shape-list {
+  max-width: var(--column);
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
+.list-agent {
+  border: 2px solid var(--ink);
+  border-top: 6px solid var(--lane);
+  background: var(--raised);
+  padding: 8px 12px;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.list-agent.working {
+  border-color: var(--live);
+  box-shadow: 4px 4px 0 var(--live);
+}
+
+.list-agent.focused {
+  box-shadow: 5px 5px 0 var(--red);
+}
+
+.list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.list-state {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+table.spending {
+  font-size: 12px;
+}
+
+table.spending td,
+table.spending th {
+  padding: 4px 6px;
+}
+
+table.spending tr.whole td {
+  font-weight: 700;
+  border-top: 2px solid var(--ink);
 }
 
 /* ------------------------------------------------------------------ a thread */
@@ -2435,6 +2525,50 @@ details.said-more summary {
 
 .flow-detail .empty {
   margin: 0;
+}
+
+.flows-tabs .tabs {
+  margin-bottom: 16px;
+}
+
+.flows-said:empty {
+  display: none;
+}
+
+.node-tag.fresh {
+  color: var(--on-red);
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.card-add {
+  border-style: dashed;
+  box-shadow: none;
+  align-items: center;
+}
+
+.card-add .card-mark {
+  background: var(--red);
+}
+
+.releases {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+
+.release {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.release b {
+  margin-right: 6px;
 }
 
 /* ------------------------------------------------------------------ dialogs */

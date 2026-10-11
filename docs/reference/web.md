@@ -128,14 +128,17 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<role>/<n>` | The thread of the `n`-th session that role opened, as the epic going names it (`/` written `%2F`). |
-| `#/flows[?flow=]` | The flows on offer, one opened. |
+| `#/epics/<name>/logs[/<role>]` | The log every agent and person appears on; or one agent's, across its sessions; or one person's, what they are asked and answer. |
+| `#/flows[?workspace=&flow=]` | The flows on offer in a workspace, one opened. |
+| `#/flows?tab=verses[&verse=]` | The flowverses, one opened. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
 | `#/settings/<page>[?days=]` | A dialog: `general`, `accounts`, `fallback`, `runtimes`, `workspace` or `usage`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
 
 The page keeps a few conveniences in the browser's `localStorage`, each forgotten without
 harm: the colours chosen as `hmz-theme` (`light`, `dark`, or absent for the system's), a sidebar
-folded away as `hmz-sidebar`, a side panel closed as `hmz-panel`, and which epics are opened out
-in the sidebar as `hmz-opened`.
+folded away as `hmz-sidebar`, a side panel closed as `hmz-panel`, which epics are opened out
+in the sidebar as `hmz-opened` and which workspaces folded away as `hmz-shut`, and whether an
+epic's agents are drawn as a list as `hmz-shape`.
 
 ## API {#api}
 
@@ -196,6 +199,14 @@ going) and `spent`: what its budget counted as it ended, or `null`. A run of no 
 | `GET /api/workspaces` | | `here`, and `workspaces`: each `path`, `name`, `epics` (how many), `last` (when the latest began), `running`, `here`, `there` (whether the directory is still there) -- where `hmz web` started first, then those going, then where epics ran, newest first, then those only written down in the settings |
 | `POST /api/workspaces` | `workspace` | Writes it down in the settings: `kept` (its whole path), and as `GET` |
 | `POST /api/workspaces/forget` | `workspace` | Forgets what it was set up with, which stops it being offered where no epic ran there; as `GET` |
+| `POST /api/flows/setup` | `workspace`; `flow`, and as `POST /api/held/start` takes them `agents`, `envs`, `params`, `budget`, `profile` | Writes down what that workspace runs the flow with, as `/flow` saves it -- which a start writes too; as `GET /api/flow`. `400` where a role has no agent or, but for `chat`, there is no budget |
+| `GET /api/flowverses` | | `verses` (`name`, `url` with nothing signed into it, `fetched`, `fixed`, `edited`, `installed`), `installed` (`flow`, `verse`, `listed`, `version`, `repo`, `ref`), `updates` (`flow`, `from`, `to`). Every index is fetched once as `hmz web` starts, in the background, but one written into |
+| `GET /api/flowverses/<name>` | | Its index: `flows` (`listed`, `flow` as installing takes it, `installed`, `releases`: `version`, `description`, `prerelease`, `license`, `repo`, `dependencies`, newest first) and `skipped` (`at`, `why`) |
+| `POST /api/flowverses` | `url`; `name` | Clones the index and keeps it; `said`, and as `GET` |
+| `POST /api/flowverses/fetch`, `/remove` | `name` | Fetches it again, or removes it and what was installed out of it; `said`, and as `GET` |
+| `POST /api/flowverses/install` | `flow`; `version` (`""` for the newest that is not a prerelease) | Installs, updates or switches it, with what it needs; `said`, and as `GET` |
+| `POST /api/flowverses/uninstall` | `flow` | `said`, and as `GET`. Installing, uninstalling and removing are refused `409` while an epic runs on the machine |
+| `POST /api/flows/fork` | `flow`; `workspace` | Copies it whole into that workspace's own flows: `said`, `at` |
 | `GET /api/paths` | `typed` (query): a path being written, `~` and all | `paths`: the directories it could become, spelled as typed, each ending in `/`, at most 50 |
 
 ### Settings {#api-settings}
@@ -208,6 +219,7 @@ going) and `spent`: what its budget counted as it ended, or `null`. A run of no 
 | `GET /api/accounts` | | `accounts` (`cli`, `name`, `way`, `sets`, `made`, `models`, `asked`, `serves`) and `backends` (each CLI's `ways`: `name`, `about`, `terminal`, `asks`) |
 | `POST /api/accounts` | `cli`, `name`, `way`; `answers` (`{variable: value}`) | As `GET`. A way whose `terminal` is true is refused: it runs the CLI's own sign-in. |
 | `POST /api/accounts/remove` | `cli`, `name` | As `GET` |
+| `POST /api/accounts/correct` | `cli`, `name`; `answers` (`{env: value}`, what is left out kept) | Writes it again with what changed, never answering with a value; as `GET`. `400` for a way that asks nothing of that name, and for one that runs the CLI's own sign-in, which a terminal corrects |
 | `POST /api/accounts/models` | `cli`; `name` (`""` for this machine's own) | As `GET`, once the CLI has said what it runs; `502` where it would not say |
 | `POST /api/accounts/copy` | `cli`, `name`, `into` | As `GET` |
 | `GET /api/fallbacks` | | `steps` (`spec`, `to`, `tries`, `policy`, `timeout`), `policies`, `default`, `places` |

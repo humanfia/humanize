@@ -38,6 +38,7 @@ export function draw(holder) {
             { class: 'row' },
             acting('Refresh models', async () => shown(await post('/api/accounts/models', { cli: one.cli, name: one.name })), { kind: 'btn small quiet', busy: 'Asking…' }),
             one.serves.length ? copying(one) : null,
+            one.name ? h('button', { class: 'btn small quiet', type: 'button', onclick: () => correcting(one) }, 'Edit') : null,
             one.name
               ? confirming({
                   label: 'Remove',
@@ -73,6 +74,54 @@ export function draw(holder) {
       into,
       acting('Copy', async () => shown(await post('/api/accounts/copy', { cli: one.cli, name: one.name, into: into.value })), { kind: 'btn small quiet', busy: 'Copying…' }),
     )
+  }
+
+  /**
+   * Corrects one account, as its way in asks it: every answer left blank keeps what it was,
+   * since nothing it holds is ever shown back. A way in that runs the CLI's own sign-in is
+   * corrected at a terminal, by signing in again.
+   */
+  function correcting(one) {
+    const way = (data.backends.find((each) => each.cli === one.cli)?.ways || []).find((each) => each.name === one.way)
+    const said = h('div', { 'aria-live': 'polite' })
+    const close = h('button', { class: 'btn quiet', type: 'button', onclick: () => drawMaking() }, 'Cancel')
+    if (way && way.terminal) {
+      fill(making, h('h2', {}, `Edit ${one.cli}@${one.name}`), h('p', { class: 'note' }, `${one.way} runs ${one.cli}’s own sign-in: sign in again from `, h('code', {}, '/settings'), ' in ', h('code', {}, 'hmz'), '.'), close)
+      return
+    }
+    const asks = way ? way.asks : one.sets.map((env) => ({ env, about: '', secret: true, fixed: '' }))
+    const save = h('button', { class: 'btn primary', type: 'submit' }, 'Save')
+    const form = h(
+      'form',
+      { class: 'form', 'data-hmz': 'correct-account' },
+      asks.map((each) =>
+        h(
+          'div',
+          { class: 'field' },
+          h('label', { for: `correct-${each.env}` }, each.env),
+          h('input', { id: `correct-${each.env}`, 'data-env': each.env, type: each.secret ? 'password' : 'text', placeholder: 'Unchanged', autocomplete: 'off' }),
+          each.about ? h('span', { class: 'hint' }, each.about) : null,
+        ),
+      ),
+      h('div', { class: 'row' }, save, close, said),
+    )
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault()
+      const given = {}
+      for (const input of form.querySelectorAll('input[data-env]')) if (input.value) given[input.dataset.env] = input.value
+      save.disabled = true
+      try {
+        shown(await post('/api/accounts/correct', { cli: one.cli, name: one.name, answers: given }))
+        fill(said, h('span', { class: 'dim', role: 'status' }, 'Saved.'))
+        for (const input of form.querySelectorAll('input')) input.value = ''
+      } catch (error) {
+        fill(said, problem(error))
+      } finally {
+        save.disabled = false
+      }
+    })
+    fill(making, h('h2', {}, `Edit ${one.cli}@${one.name}`), form)
+    making.scrollIntoView({ block: 'nearest' })
   }
 
   function drawMaking() {

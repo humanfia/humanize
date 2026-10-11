@@ -212,3 +212,52 @@ def test_every_label_is_a_word_or_a_phrase(project: Path) -> None:
             and (len(one.split()) > 4 or re.search(r"[.?!]$", one))
         ]
         assert not long, f"labels said as sentences: {long}"
+
+
+def test_a_setup_is_saved_without_starting_an_epic(project: Path) -> None:
+    with served() as site, opened(site) as page:
+        _go(page, "/new?flow=chat")
+        page.get_by_role("button", name="Options").click()
+        role = page.locator("[data-role=assistant]")
+        expect(role.locator("[data-hmz=pick-model] option").first).to_have_text(
+            "claude-haiku-4-5"
+        )
+        role.locator("[data-hmz=pick-model]").select_option("claude-opus-4-1")
+        page.locator("[data-hmz=options]").get_by_role("button", name="Save").click()
+        expect(
+            page.locator("[data-hmz=options]").get_by_role("button", name="Saved")
+        ).to_be_visible()
+
+        page.reload()
+        _go(page, "/new?flow=chat")
+        page.get_by_role("button", name="Options").click()
+        expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
+
+
+def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(project: Path) -> None:
+    with served() as site, opened(site) as page:
+        _start_chat(page, "log me")
+        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+
+        inspector = page.locator("[data-hmz=inspector]")
+        expect(inspector.locator("[data-hmz=spending]")).to_contain_text(
+            "claude-haiku-4-5"
+        )
+        expect(inspector.locator("[data-hmz=frontends]")).to_contain_text("this page")
+
+        page.locator("[data-hmz=sidebar] [data-hmz=log]").click()
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: log me")
+        expect(thread).to_contain_text("human asks")
+        expect(page.locator("[data-hmz=bar] .crumbs")).to_contain_text("Log")
+
+        page.locator("[data-hmz=bar] .crumbs a").click()
+        page.locator(".shape-switch").get_by_role("button", name="List").click()
+        listed = page.locator("[data-hmz=agent-list] [data-role=assistant]")
+        expect(listed).to_contain_text("assistant/1")
+        listed.get_by_role("link", name="≡ log").click()
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: log me")
+        page.locator("[data-hmz=bar] .crumbs a").click()
+        page.locator(".shape-switch").get_by_role("button", name="Graph").click()
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
