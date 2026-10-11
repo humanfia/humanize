@@ -1,5 +1,6 @@
 # The pull request's title, lint, the package, then the unit tests one job per package and the
-# integration tests one job per topic, on Linux and macOS. `ci-ok` is the one check a branch rule
+# integration tests one job per topic, on Linux and macOS, and the macOS app in desktop/ built and
+# tested on macOS. `ci-ok` is the one check a branch rule
 # needs, and the merge queue runs it again on each pull request as `main` will be once it
 # merges. `tests/system` runs real agents and is never run here. docs/contributing/ci.md has the
 # rest.
@@ -149,9 +150,56 @@ jobs:
           PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN))) \
             uv run --frozen --all-extras pytest tests/integration/test_"$TOPIC"_*.py --durations=25
 
+  # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
+  # as a release builds it, but unoptimised and without the disk image.
+  desktop:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+          # Pull requests restore what `main` saved and write nothing.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: cargo fmt --check
+        working-directory: desktop/src-tauri
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        working-directory: desktop/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: desktop/src-tauri
+        run: cargo test --locked
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        run: pnpm tauri build --debug --bundles app
+
   ci-ok:
     if: always()
-    needs: [title, lint, package, unit, integration]
+    needs: [title, lint, package, unit, integration, desktop]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

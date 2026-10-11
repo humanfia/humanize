@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The app's own page, which asks the app's own commands alone: they need no permission, and no page is granted any.",
+  "windows": ["main"],
+  "permissions": []
+}

@@ -237,6 +237,7 @@ not edit a SPEC unless you were asked to. Propose a SPEC change separately.
 | `specs/coganchor/machines.md` | What a machine is |
 | `specs/coganchor/serve.md` | The half that ships to a target |
 | `specs/coganchor/linux.md` | What the anchor intercepts on the target |
+| `specs/desktop.md` | The macOS app in `desktop/`, beside the package: a window on `hmz web` |
 :::
 
 ## Next steps

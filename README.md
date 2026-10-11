@@ -20,6 +20,13 @@ Code, `[litellm]` for a model called directly, `[all]` for all three.
 uv tool install 'hmz[all]'
 ```
 
+### Desktop app
+
+On macOS, `humanize-<version>-macos-universal.dmg` from the
+[latest release](https://github.com/humanfia/humanize/releases/latest) puts `hmz web` in a
+window of its own: drag humanize to Applications. It runs the `hmz` installed above. The
+[guide](https://docs.humanfia.ai/humanize/user/desktop) says how to open it the first time.
+
 ## Usage
 
 Open the terminal interface in a repository:

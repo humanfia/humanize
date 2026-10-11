@@ -1,0 +1,13 @@
+{
+  "name": "humanize-desktop",
+  "private": true,
+  "packageManager": "pnpm@10.18.0",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1"
+  },
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  }
+}

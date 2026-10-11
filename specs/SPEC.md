@@ -48,6 +48,12 @@ def working_in(workspace: str | os.PathLike[str]) -> Generator[None]: ...  # `he
 | `web` | The web interface | [web.md](web.md) |
 | `sdk` | The way in from outside | [sdk.md](sdk.md) |
 
+Beside the package, and bound by a spec of its own rather than by the requirements below:
+
+| Directory | Answerable for | Spec |
+| --- | --- | --- |
+| `desktop` | The macOS app: a window on what `hmz web` serves, which it starts and stops | [desktop.md](desktop.md) |
+
 ## Requirements
 
 ### The tree

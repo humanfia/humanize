@@ -74,8 +74,37 @@ runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 | `tests/unit/` | ✓ | ✓ a job per package, on Linux and macOS |
 | `tests/integration/` | ✓ | ✓ a job per topic, on Linux and macOS |
 | `tests/system/` | ✓ by hand, a file at a time, when your change needs it | never |
+| [the macOS app](#the-macos-app) | ✓ on a Mac, when you change `desktop/` | ✓ `desktop`, on macOS |
 
 [CI](/contributing/ci) has every job, and how to read a run.
+
+## The macOS app
+
+`desktop/` is [the macOS app](/user/desktop): a window on `hmz web`'s page, in Rust with
+[Tauri](https://tauri.app/), held to
+[its spec](https://github.com/humanfia/humanize/blob/main/specs/desktop.md). Working on it
+takes a Mac, [Rust](https://rustup.rs/), Node and pnpm. `pnpm dev` opens it against the `hmz`
+on your `PATH`; `HUMANIZE_HMZ` names another, such as this checkout's:
+
+```sh
+cd desktop
+pnpm install
+HUMANIZE_HMZ="$PWD/../.venv/bin/hmz" pnpm dev
+```
+
+Before you push a change to it, run what CI's `desktop` job runs:
+
+```sh
+cd desktop/src-tauri
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+cd .. && pnpm tauri build --debug --bundles app
+```
+
+The disk image a release attaches, for both architectures, is
+`pnpm tauri build --target universal-apple-darwin --bundles dmg`, once
+`rustup target add aarch64-apple-darwin x86_64-apple-darwin` has run.
 
 ## Where a test goes
 

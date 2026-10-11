@@ -1,0 +1,40 @@
+# The macOS app: a window around `hmz web`. Its version is tauri.conf.json's alone, which a
+# release sets; this one stays 0.0.0, as pyproject.toml does on `main`.
+
+[package]
+name = "humanize"
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "humanize_lib"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# No default features: the window, the menus and the webview, and nothing this app never asks.
+tauri = { version = "2", default-features = false, features = ["wry"] }
+tauri-plugin-log = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+libc = "0.2"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+shared_child = "1"
+tokio = { version = "1", features = ["sync"] }
+url = "2"
+
+[dev-dependencies]
+serde_json = "1"
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

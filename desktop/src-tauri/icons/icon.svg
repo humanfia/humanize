@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- The app's icon: src/hmz/web/static/mark.svg on a tile of the page's paper, in the grid
+       macOS draws its icons on. `pnpm tauri icon src-tauri/icons/icon.svg` makes the rest. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#f5edf0"/>
+  <g transform="translate(194 212) scale(6)">
+    <polygon fill="#1b1720" points="12,16 32,16 62,50 32,84 12,84 42,50"/>
+    <polygon fill="#76b900" points="60,84 94,84 94,64 60,74"/>
+  </g>
+</svg>

@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- The app's own page: a splash while `hmz web` starts, and what to do where it cannot. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light dark" />
+    <title>humanize</title>
+    <link rel="stylesheet" href="ui.css" />
+    <script src="ui.js" defer></script>
+  </head>
+  <body>
+    <main data-state="starting">
+      <svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
+        <polygon class="ink" points="12,16 32,16 62,50 32,84 12,84 42,50" />
+        <polygon class="green" points="60,84 94,84 94,64 60,74" />
+      </svg>
+      <p class="starting" role="status">Starting</p>
+      <h1 id="title"></h1>
+      <p id="lead"></p>
+      <div class="command" id="command">
+        <code id="line"></code>
+        <button class="btn quiet" id="copy" type="button">Copy</button>
+      </div>
+      <pre id="detail"></pre>
+      <div class="actions">
+        <button class="btn primary" id="retry" type="button">Retry</button>
+        <a class="btn quiet" href="https://docs.humanfia.ai/humanize/">Documentation</a>
+      </div>
+    </main>
+  </body>
+</html>

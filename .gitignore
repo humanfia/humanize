@@ -226,3 +226,7 @@ __marimo__/
 # Scratch the agent harness keeps here: worktrees of this repository, which git would
 # otherwise record as gitlinks to commits no clone of this one can resolve.
 .claude/
+
+# The macOS app: what pnpm installs, and the schemas tauri-build writes on every build.
+desktop/node_modules/
+desktop/src-tauri/gen/
