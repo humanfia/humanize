@@ -246,7 +246,9 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
         _painted(page, "--paper", "#fdf6f5")
         page.locator("[data-hmz=auto-pair]").select_option(label="Critical Teal")
         _painted(page, "--paper", "#0f1518")
-        page.locator("[data-hmz=auto-light]").select_option(label="Hateful Silver · Light")
+        page.locator("[data-hmz=auto-light]").select_option(
+            label="Hateful Silver · Light"
+        )
         expect(page.locator("[data-hmz=auto-pair]")).to_have_value("")
 
 
