@@ -101,10 +101,10 @@ export function mount(root, { parts }) {
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
     region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state], () => {
       const actions = []
-      if (going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop it', no: 'Keep running', act: () => ask('stop') }))
-      else if (going && run.state === 'stopping') actions.push(confirming({ label: 'Force', ask: 'Close every session under its turn?', yes: 'Force it', no: 'Let it unwind', act: () => ask('force') }))
-      if (!going && detail.picks_up) actions.push(h('a', { class: 'btn', href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, icon('resume'), 'Pick it up'))
-      if (!going) actions.push(h('a', { class: 'icon-btn', href: `/api/runs/${encodeURIComponent(detail.name)}/bundle`, download: '', 'aria-label': 'Export the epic', title: 'Export the epic' }, icon('download')))
+      if (going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask('stop') }))
+      else if (going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask('force') }))
+      if (!going && detail.picks_up) actions.push(h('a', { class: 'btn', href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, icon('resume'), 'Resume'))
+      if (!going) actions.push(h('a', { class: 'icon-btn', href: `/api/runs/${encodeURIComponent(detail.name)}/bundle`, download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
       actions.push(copier('Copy link', () => location.href))
       actions.push(panel.toggle)
       const base = `#/epics/${encodeURIComponent(detail.name)}`
@@ -135,9 +135,9 @@ export function mount(root, { parts }) {
     region('graph-note', [asking, tracing, String(traceError)], () => {
       main.querySelector('.graph-note')?.remove()
       if (!asking) return
-      const reading = h('button', { class: 'btn small', type: 'button', disabled: tracing }, tracing ? 'Reading its logs…' : 'Read its turns')
+      const reading = h('button', { class: 'btn small', type: 'button', disabled: tracing }, tracing ? 'Reading…' : 'Read turns')
       reading.addEventListener('click', readTrace)
-      main.append(h('div', { class: 'graph-note', role: 'status' }, traceError ? problem(traceError) : h('span', {}, 'Who handed to whom, and each session’s turns, are read out of the logs it kept.'), reading))
+      main.append(h('div', { class: 'graph-note', role: 'status' }, traceError ? problem(traceError) : h('span', {}, 'Handovers and turns come from the epic’s logs.'), reading))
     })
     drawn_.draw(model, mode.focus, detail.name)
   }
@@ -260,7 +260,7 @@ export function mount(root, { parts }) {
       dock.querySelector('.composer, .dock-note')?.remove()
       if (composer) dock.append(composer)
       else if (detail.picks_up)
-        dock.append(h('p', { class: 'dock-note' }, 'This epic has ended. ', h('a', { href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, 'Pick it up'), ' to carry on from where it stopped.'))
+        dock.append(h('p', { class: 'dock-note' }, 'Ended · ', h('a', { href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, 'Resume')))
     })
   }
 
@@ -271,7 +271,7 @@ export function mount(root, { parts }) {
     const standing = held() ? held().standing : {}
     const items = going && standing.board ? standing.board.items : null
     const people = going ? run.started.outworlders || [] : []
-    const tabs = [['epic', 'Epic'], ['aside', 'Ask beside'], items ? ['board', 'Board'] : null, people.length ? ['people', 'People'] : null].filter(Boolean)
+    const tabs = [['epic', 'Epic'], ['aside', 'Aside'], items ? ['board', 'Board'] : null, people.length ? ['people', 'People'] : null].filter(Boolean)
     if (!tabs.some(([key]) => key === tab)) tab = 'epic'
     region('panel-tabs', [tabs, tab], () => {
       fill(
@@ -295,7 +295,7 @@ export function mount(root, { parts }) {
       const opened = model.agents.flatMap((one) => one.sessions.map((session) => session.key))
       region('panel-aside', [run ? opened : []], () => {
         btw.sessions(run ? opened : [])
-        fill(pane, h('p', { class: 'dim' }, 'A side question goes to a side conversation, never to the epic.'), btw.node)
+        fill(pane, h('p', { class: 'dim' }, 'Side questions never reach the epic.'), btw.node)
       })
     } else if (tab === 'board') {
       region('panel-board', [items], () => fill(pane, board(items || [])))
@@ -329,7 +329,7 @@ export function mount(root, { parts }) {
     if (run) {
       const lines = figures && figures.tally && figures.tally.length ? figures.tally : []
       const elapsed = figures ? figures.lasting : took(detail, run) || '—'
-      parts.push(section('Figures', h('div', { class: 'tiles' }, tile('time', elapsed, going ? 'and counting' : 'all told'), spentTile(lines[1] || ''), tile('tokens', lines[0] ? '' : '—', lines[0] || ''), budgetTile(standing.usage))))
+      parts.push(section('Figures', h('div', { class: 'tiles' }, tile('time', elapsed, going ? 'elapsed' : 'total'), spentTile(lines[1] || ''), tile('tokens', lines[0] ? '' : '—', lines[0] || ''), budgetTile(standing.usage))))
     } else {
       const spent = detail.spent
       parts.push(
@@ -338,7 +338,7 @@ export function mount(root, { parts }) {
           h(
             'div',
             { class: 'tiles' },
-            tile('spent', spent ? spent.money || '—' : '—', spent ? '' : 'nothing said'),
+            tile('spent', spent ? spent.money || '—' : '—', ''),
             tile('output tokens', spent ? spent.tokens : '—', ''),
             tile('took', took(detail, null) || '—', spent && spent.worked ? `${spent.worked} of it working` : ''),
             tile('sessions', String(detail.sessions.length), `${detail.agents.length} agent role${detail.agents.length === 1 ? '' : 's'}`),
@@ -349,7 +349,7 @@ export function mount(root, { parts }) {
     parts.push(section('Task', detail.task.length > 400 ? h('details', {}, h('summary', {}, detail.task.slice(0, 240), '…'), h('pre', { class: 'block' }, detail.task)) : h('p', { class: 'prose' }, detail.task)))
     parts.push(
       section(
-        'Handed over',
+        'Handovers',
         model.handovers.length
           ? h('ul', { class: 'handovers' }, model.handovers.map((one) => h('li', { class: model.latest && model.latest[0] === one.from && model.latest[1] === one.to ? 'latest' : '' }, `${one.from} → ${one.to} ×${one.count}`)))
           : h('p', { class: 'dim' }, run ? 'Nobody has handed over yet.' : !traced ? 'Read its turns to see who handed to whom.' : traced.length ? 'Nobody handed over.' : 'Its logs held no turn to read.'),
@@ -358,11 +358,11 @@ export function mount(root, { parts }) {
     const calls = (standing.calls && standing.calls.calls) || []
     if (run && calls.length) {
       const offset = run.offset
-      parts.push(section('Flows going', h('ul', { class: 'tree' }, calls.map((call) => h('li', { style: { marginLeft: `${call.depth * 14}px` } }, h('b', {}, call.name), ' ', h('span', { class: 'dim' }, offset === null ? '' : lasting(Date.now() / 1000 - (call.since + offset))))))))
+      parts.push(section('Running flows', h('ul', { class: 'tree' }, calls.map((call) => h('li', { style: { marginLeft: `${call.depth * 14}px` } }, h('b', {}, call.name), ' ', h('span', { class: 'dim' }, offset === null ? '' : lasting(Date.now() / 1000 - (call.since + offset))))))))
     } else if (detail.calls.length) {
-      parts.push(section('Flows it called', tree(detail.calls)))
+      parts.push(section('Called flows', tree(detail.calls)))
     }
-    parts.push(section('Set up', facts(detail)))
+    parts.push(section('Setup', facts(detail)))
     return parts
   }
 
@@ -412,7 +412,7 @@ function section(title, ...kids) {
 function spentTile(said) {
   const parts = said.split(' · ')
   const priced = parts.length > 1 && parts[0].startsWith('$')
-  return tile('spent', priced ? parts[0] : '—', priced ? parts.slice(1).join(' · ') : said || 'nothing yet')
+  return tile('spent', priced ? parts[0] : '—', priced ? parts.slice(1).join(' · ') : said)
 }
 
 function tile(label, value, sub) {
@@ -421,7 +421,7 @@ function tile(label, value, sub) {
 
 /** What the run may spend against what it has: a meter for each limit it has. */
 function budgetTile(usage) {
-  if (!usage || !usage.budget || !usage.usage) return tile('budget', '—', 'no limit said')
+  if (!usage || !usage.budget || !usage.usage) return tile('budget', '—', 'No limit')
   const limits = []
   const spent = usage.usage
   const allowed = usage.budget
@@ -440,7 +440,7 @@ function budgetTile(usage) {
   meter('cost', spent.cost, allowed.cost, (dollars) => `$${dollars.toFixed(2)}`)
   meter('output', spent.output_tokens, allowed.output_tokens, (count) => String(Math.round(count)))
   meter('time', secondsOf(spent.duration), secondsOf(allowed.duration), lasting)
-  return h('div', { class: 'tile' }, h('div', { class: 'kicker' }, 'budget'), limits.length ? limits : h('div', { class: 'sub' }, 'no limit it can be measured against'))
+  return h('div', { class: 'tile' }, h('div', { class: 'kicker' }, 'budget'), limits.length ? limits : h('div', { class: 'sub' }, 'No measurable limit'))
 }
 
 function facts(detail) {
@@ -459,7 +459,7 @@ function facts(detail) {
     h('dd', {}, budgeted(detail.budget)),
     h('dt', {}, 'sessions'),
     h('dd', {}, detail.sessions.length ? sessionsOf(detail).map((one) => h('div', {}, h('span', { class: 'mono' }, one.key), ` · ${one.backend}`, one.provider ? `@${one.provider}` : '', h('div', { class: 'dim mono' }, one.ident))) : 'none'),
-    detail.picked_up ? [h('dt', {}, 'picked up'), h('dd', {}, h('a', { href: `#/epics/${encodeURIComponent(detail.picked_up)}` }, detail.picked_up))] : null,
+    detail.picked_up ? [h('dt', {}, 'resumed from'), h('dd', {}, h('a', { href: `#/epics/${encodeURIComponent(detail.picked_up)}` }, detail.picked_up))] : null,
     detail.profile ? [h('dt', {}, 'profiled'), h('dd', {}, 'yes')] : null,
   )
 }

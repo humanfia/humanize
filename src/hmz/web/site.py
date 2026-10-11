@@ -34,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from . import accounts, fallbacks, flows, held, runs, runtimes, settings
+from . import accounts, fallbacks, flows, held, paths, runs, runtimes, settings
 from .routing import Asked, Download, Refusal, Route, Stream
 
 if TYPE_CHECKING:
@@ -54,6 +54,7 @@ ROUTES: tuple[Route, ...] = (
     *accounts.ROUTES,
     *fallbacks.ROUTES,
     *runtimes.ROUTES,
+    *paths.ROUTES,
 )
 
 #: How many ports any would do for are tried before one free on both loopbacks is given up on.

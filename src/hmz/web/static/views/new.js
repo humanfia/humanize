@@ -9,13 +9,14 @@ import { go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
+import { agentPicker, envPicker, readBackends } from '../pickers.js'
 import { bar, choice, menu, section } from '../shell.js'
 
 export function mount(root, { query }) {
   const resume = query.get('resume') || ''
   const picker = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'flow-picker' }, h('span', {}, 'flow'), h('b', {}, '…'), icon('down'))
   const pickerHolder = h('div', { class: 'menu-holder' }, picker)
-  const greeting = h('h2', { class: 'greeting' }, resume ? 'Pick it up again' : 'What should the agents do?')
+  const greeting = h('h2', { class: 'greeting' }, resume ? 'Resume epic' : 'What should the agents do?')
   const about = h('p', { class: 'greeting-about' })
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
   const optionsChip = h('button', { class: 'chip-btn', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
@@ -45,10 +46,13 @@ export function mount(root, { query }) {
   )
 
   let flows = []
-  let backends = { installed: {}, installable: {} }
+  let backends = { clis: {}, installable: {}, envs: ['local'] }
+  let runtimes = []
   let picked = null
   let run = null
   let setup = null
+  /** What lets go of the pickers drawn last. */
+  let leaving = []
   /** Which flow was chosen last: one read after another was chosen draws nothing. */
   let choosing = ''
 
@@ -65,10 +69,11 @@ export function mount(root, { query }) {
     { label: 'Flows' },
   )
 
-  Promise.all([get('/api/flows'), get('/api/backends'), resume ? get(`/api/runs/${encodeURIComponent(resume)}`) : null])
-    .then(([found, installed, ran]) => {
+  Promise.all([get('/api/flows'), readBackends(), get('/api/runtimes'), resume ? get(`/api/runs/${encodeURIComponent(resume)}`) : null])
+    .then(([found, installed, saved, ran]) => {
       flows = found.flows
       backends = installed
+      runtimes = saved.runtimes
       run = ran
       // A flow the address names that is not on offer here opens the one this directory last set up.
       const asked = flows.some((one) => one.name === query.get('flow')) ? query.get('flow') : ''
@@ -94,7 +99,7 @@ export function mount(root, { query }) {
     picked = read
     fill(about, picked.description || '')
     fill(resumed, ran ? h('p', { class: 'note' }, `Picks up ${ran.name}, carrying on from where it stopped.`) : null)
-    greeting.textContent = ran ? 'Pick it up again' : `What should ${name} do?`
+    greeting.textContent = ran ? 'Resume epic' : `What should ${name} do?`
     setup = drawOptions(picked, ran)
     if (ran && !box.text.value) {
       box.text.value = ran.task
@@ -122,53 +127,50 @@ export function mount(root, { query }) {
       : { ...flow.remembered }
     const agents = flow.agents.filter((one) => !one.auto)
     const envs = flow.envs.filter((one) => !one.auto)
-    const roleInputs = {}
-    const envInputs = {}
-    const specs = h('datalist', { id: 'specs' }, agentSpecs(backends.installed).map((spec) => h('option', { value: spec })))
+    const pickers = {}
+    const places = {}
     const roles = agents.map((role) => {
-      const input = h('input', { type: 'text', list: 'specs', value: (kept.agents || {})[role.name] || '', placeholder: 'cli/model:effort', 'aria-label': `Agent for ${role.name}`, required: role.required })
-      roleInputs[role.name] = input
-      input.addEventListener('input', summarise)
+      pickers[role.name] = agentPicker(role, (kept.agents || {})[role.name] || '', summarise)
       return h(
         'div',
-        { class: 'role', 'data-hmz': 'role' },
-        h('h3', {}, role.name, role.harness ? h('span', { class: 'chip' }, role.harness) : null, role.required ? null : h('span', { class: 'dim' }, 'optional')),
-        input,
-        h('div', { class: 'dim' }, permitted(role.permission), role.skills.length ? ` · skills: ${role.skills.join(', ')}` : ''),
+        { class: 'role', 'data-hmz': 'role', 'data-role': role.name },
+        h('h3', {}, role.name, role.harness ? h('span', { class: 'chip' }, role.harness) : null, role.required ? null : h('span', { class: 'dim' }, 'Optional')),
+        pickers[role.name].node,
+        h('div', { class: 'hint' }, permitted(role.permission), role.skills.length ? ` · skills: ${role.skills.join(', ')}` : ''),
       )
     })
-    const places = envs.map((role) => {
-      const input = h('input', { type: 'text', value: (kept.envs || {})[role.name] || '', placeholder: 'local/<dir>, ssh@<host>/<dir>, docker/<dir>…', 'aria-label': `Where ${role.name} works`, required: role.required })
-      envInputs[role.name] = input
-      const wants = [role.cpu && `${role.cpu} cpu`, role.memory && `${Math.ceil(role.memory / 2 ** 30)} GiB memory`, role.gpu && `${role.gpu} gpu`, role.image && `image ${role.image}`].filter(Boolean)
-      return h('div', { class: 'role' }, h('h3', {}, role.name, h('span', { class: 'dim' }, wants.join(' · '))), input)
+    const rooms = envs.map((role) => {
+      places[role.name] = envPicker(role, (kept.envs || {})[role.name] || '', backends, runtimes)
+      const wants = [role.cpu && `${role.cpu} CPU`, role.memory && `${Math.ceil(role.memory / 2 ** 30)} GiB`, role.gpu && `${role.gpu} GPU`, role.image && role.image].filter(Boolean)
+      return h('div', { class: 'role', 'data-hmz': 'env', 'data-role': role.name }, h('h3', {}, role.name, h('span', { class: 'dim' }, wants.join(' · '))), places[role.name].node)
     })
     const params = schemaForm(flow.params, kept.params || {})
     const budget = budgetFields(kept.budget || {}, summarise)
     const profile = h('input', { type: 'checkbox', checked: Boolean(kept.profile) })
+    for (const one of Object.values(leaving)) one()
+    leaving = Object.values(pickers).map((one) => one.leave)
     fill(
       options,
-      specs,
       h('div', { class: 'form' },
-        roles.length ? h('div', { class: 'field' }, h('span', { class: 'label' }, 'agents'), h('div', { class: 'grid' }, roles), h('span', { class: 'hint' }, 'Each as -a spells one: cli, an @account where it runs as one, the model and an effort.')) : null,
-        places.length ? h('div', { class: 'field' }, h('span', { class: 'label' }, 'environments'), h('div', { class: 'grid' }, places)) : null,
-        params.fields.length ? h('div', { class: 'field' }, h('span', { class: 'label' }, 'params'), h('div', { class: 'grid' }, params.fields)) : null,
-        h('div', { class: 'field' }, h('span', { class: 'label' }, 'budget'), budget.fields, h('span', { class: 'hint' }, flow.name === 'chat' ? 'chat runs for as long as you answer it, and needs none.' : 'Every flow but chat needs at least one limit.')),
-        h('label', { class: 'check' }, profile, 'Profile the programs its agents start, as well as tracing them'),
+        roles.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Agents'), h('div', { class: 'stack' }, roles)) : null,
+        rooms.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Environments'), h('div', { class: 'stack' }, rooms)) : null,
+        params.fields.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Parameters'), h('div', { class: 'grid' }, params.fields)) : null,
+        h('section', { class: 'option-group' }, h('h3', {}, 'Budget'), budget.fields, h('span', { class: 'hint' }, flow.name === 'chat' ? 'Optional for chat.' : 'At least one limit.')),
+        h('label', { class: 'check' }, profile, 'Profile'),
       ),
     )
     return {
       summary() {
-        const said = Object.entries(roleInputs).map(([role, input]) => `${role}: ${input.value.trim() || '—'}`)
+        const said = Object.entries(pickers).map(([role, one]) => `${role}: ${one.value() || '—'}`)
         const limit = budget.said()
         if (limit) said.push(limit)
         return said
       },
       read() {
         const agentsSaid = {}
-        for (const [role, input] of Object.entries(roleInputs)) if (input.value.trim()) agentsSaid[role] = input.value.trim()
+        for (const [role, one] of Object.entries(pickers)) if (one.value()) agentsSaid[role] = one.value()
         const envsSaid = {}
-        for (const [role, input] of Object.entries(envInputs)) if (input.value.trim()) envsSaid[role] = input.value.trim()
+        for (const [role, one] of Object.entries(places)) if (one.value()) envsSaid[role] = one.value()
         return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile: profile.checked }
       },
     }
@@ -187,19 +189,16 @@ export function mount(root, { query }) {
     await ask('start', { flow: picked.name, task, ...read, resume: run ? run.at : false })
     go('/live')
   }
-}
 
-/** Every agent there is to pick here, as -a spells one: each model of each CLI, at each effort. */
-function agentSpecs(installed) {
-  const specs = []
-  for (const [cli, models] of Object.entries(installed)) {
-    if (!models.length) specs.push(`${cli}/`)
-    for (const model of models) {
-      if (!model.efforts.length) specs.push(`${cli}/${model.name}`)
-      for (const effort of model.efforts) specs.push(`${cli}/${model.name}:${effort}`)
-    }
+  // Back from making an account or a runtime, the pickers offer it.
+  const back = () => {
+    if (!location.hash.startsWith('#/settings')) readBackends().catch(() => {})
   }
-  return specs
+  window.addEventListener('hashchange', back)
+  return () => {
+    window.removeEventListener('hashchange', back)
+    for (const one of leaving) one()
+  }
 }
 
 /** The fields of a budget: what it may cost, how long it may take, and how much it may write. */
@@ -210,7 +209,14 @@ function budgetFields(kept, changed) {
   const graceful = h('input', { type: 'checkbox', checked: kept.graceful !== false })
   for (const one of [cost, minutes, tokens]) one.addEventListener('input', changed)
   return {
-    fields: h('div', { class: 'row' }, h('span', {}, '$'), cost, minutes, h('span', { class: 'dim' }, 'min'), tokens, h('label', { class: 'check' }, graceful, 'let the last turn finish')),
+    fields: h(
+      'div',
+      { class: 'row' },
+      h('label', { class: 'field' }, h('span', { class: 'label' }, 'Cost, $'), cost),
+      h('label', { class: 'field' }, h('span', { class: 'label' }, 'Time, min'), minutes),
+      h('label', { class: 'field' }, h('span', { class: 'label' }, 'Output tokens'), tokens),
+      h('label', { class: 'check' }, graceful, 'Graceful'),
+    ),
     said() {
       return [cost.value !== '' && `$${cost.value}`, minutes.value !== '' && `${minutes.value} min`, tokens.value !== '' && `${tokens.value} out`].filter(Boolean).join(' · ')
     },

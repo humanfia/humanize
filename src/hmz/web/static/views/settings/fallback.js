@@ -34,8 +34,8 @@ export function draw(holder) {
           h(
             'div',
             { class: 'row' },
-            h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Change'),
-            confirming({ label: 'Clear', ask: `Let ${one.spec} fall back nowhere again?`, yes: 'Clear it', small: true, act: async () => shown(await post('/api/fallbacks/clear', { spec: one.spec })) }),
+            h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
+            confirming({ label: 'Clear', ask: `Let ${one.spec} fall back nowhere again?`, yes: 'Clear', small: true, act: async () => shown(await post('/api/fallbacks/clear', { spec: one.spec })) }),
           ),
         ),
       ),
@@ -45,7 +45,7 @@ export function draw(holder) {
       h('h2', {}, 'Steps'),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Place'), h('th', {}, 'Tried'), h('th', {}, 'Then'), h('th', {}, ''))), h('tbody', {}, rows)))
-        : h('p', { class: 'dim' }, 'Nothing is written down: a turn that fails, fails where it ran.'),
+        : h('p', { class: 'dim' }, 'No steps. A failed turn fails where it ran.'),
     )
   }
 
@@ -60,7 +60,7 @@ export function draw(holder) {
     const spec = h('input', { type: 'text', id: 'step-spec', list: 'places', value: was.spec, placeholder: 'claude@work/opus', required: true, autocomplete: 'off' })
     const chain = h('div', { class: 'form' })
     const add = (value = '') => {
-      const input = h('input', { type: 'text', list: 'places', value, placeholder: 'another place', 'aria-label': `Place ${chain.childElementCount + 1} to go to` })
+      const input = h('input', { type: 'text', list: 'places', value, placeholder: 'Place', 'aria-label': `Place ${chain.childElementCount + 1} to go to` })
       const drop = h('button', { class: 'btn small quiet', type: 'button', onclick: () => line.remove() }, 'Remove')
       const line = h('div', { class: 'row' }, input, drop)
       chain.append(line)
@@ -78,28 +78,28 @@ export function draw(holder) {
     const form = h(
       'form',
       { class: 'form' },
-      h('div', { class: 'field' }, h('label', { for: 'step-spec' }, 'place'), spec, h('span', { class: 'hint' }, 'Where the turn runs: CLI[@ACCOUNT]/MODEL.')),
-      h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'step-tries' }, 'tries again'), tries), h('div', { class: 'field' }, h('label', { for: 'step-policy' }, 'waiting'), policy), h('div', { class: 'field' }, h('label', { for: 'step-timeout' }, 'for at most, seconds'), timeout)),
-      h('div', { class: 'field' }, h('span', { class: 'label' }, 'then goes to'), chain, h('div', {}, h('button', { class: 'btn small quiet', type: 'button', onclick: () => add() }, 'Another place'))),
+      h('div', { class: 'field' }, h('label', { for: 'step-spec' }, 'Place'), spec, h('span', { class: 'hint' }, 'CLI[@ACCOUNT]/MODEL')),
+      h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'step-tries' }, 'Retries'), tries), h('div', { class: 'field' }, h('label', { for: 'step-policy' }, 'Backoff'), policy), h('div', { class: 'field' }, h('label', { for: 'step-timeout' }, 'Timeout, s'), timeout)),
+      h('div', { class: 'field' }, h('span', { class: 'label' }, 'Then'), chain, h('div', {}, h('button', { class: 'btn small quiet', type: 'button', onclick: () => add() }, 'Add place'))),
       h(
         'div',
         { class: 'row' },
         acting(
-          editing ? 'Write it over' : 'Write it',
+          'Save',
           async () => {
             const to = [...chain.querySelectorAll('input')].map((input) => input.value.trim()).filter(Boolean)
             const answer = await post('/api/fallbacks', { spec: spec.value.trim(), to, tries: Number(tries.value || 0), policy: policy.value, timeout: Number(timeout.value || 0) })
             editing = null
             shown(answer)
           },
-          { kind: 'btn primary', busy: 'Writing…' },
+          { kind: 'btn primary', busy: 'Saving…' },
         ),
-        editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, 'Write a new one') : null,
+        editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, 'New step') : null,
         said,
       ),
     )
     form.addEventListener('submit', (event) => event.preventDefault())
-    fill(writing, h('h2', {}, editing ? `Change ${editing.spec}` : 'Write a step'), form)
+    fill(writing, h('h2', {}, editing ? `Edit ${editing.spec}` : 'New step'), form)
   }
 
   get('/api/fallbacks')

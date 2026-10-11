@@ -53,7 +53,7 @@ export function bar({ title = '', sub = null, actions = [], lead = null } = {}) 
   return h(
     'header',
     { class: 'bar', 'data-hmz': 'bar' },
-    iconButton('sidebar', 'Show the sidebar', { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
+    iconButton('sidebar', 'Show sidebar', { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
     lead,
     h('div', { class: 'bar-title' }, title ? h('h1', {}, title) : null, sub ? h('div', { class: 'bar-sub' }, sub) : null),
     h('div', { class: 'bar-actions' }, actions),
@@ -128,9 +128,9 @@ export function section(label) {
  */
 export function sidePanel(label) {
   const body = h('div', { class: 'panel-body' })
-  const shut = iconButton('close', `Close ${label}`, { class: 'panel-close' })
+  const shut = iconButton('close', 'Close panel', { class: 'panel-close' })
   const node = h('aside', { class: 'inspector', 'aria-label': label, 'data-hmz': 'inspector' }, shut, body)
-  const toggle = iconButton('panel', `Show or hide ${label}`, { class: 'panel-toggle' })
+  const toggle = iconButton('panel', 'Toggle panel', { class: 'panel-toggle' })
   const set = (open) => {
     node.hidden = !open
     toggle.setAttribute('aria-pressed', String(open))

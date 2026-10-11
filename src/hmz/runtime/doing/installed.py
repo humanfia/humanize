@@ -24,8 +24,9 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.backends import Model
     from hmz.runtime.doing.accounts import Accounts
+    from hmz.runtime.flowing import AgentRole
 
-__all__ = ["installable", "installed", "ready_to_open"]
+__all__ = ["installable", "installed", "ready_to_open", "serves"]
 
 #: The backends that want something of this Python environment as well as of this machine,
 #: by the modules that say the extra carrying one is installed. Every module of it, because
@@ -139,3 +140,30 @@ def ready_to_open(backend: str, where: Path) -> bool:
     from hmz.coganchor.agents.dsh import native_ready
 
     return native_ready(where)
+
+
+def serves(backend: str, role: AgentRole | None) -> bool:
+    """Whether one backend could fill an agent role, as a run of the flow would ask it.
+
+    Args:
+      backend: The backend.
+      role: What the flow declared of the role, or None for an agent that is no flow's --
+        either end of a fallback step, which a flow says nothing about.
+
+    Returns:
+      False for a backend that is not the harness the role names, or that cannot do what the
+      role declares it must; True otherwise.
+    """
+    if role is None:
+        return True
+    from hmz.flows import HarnessKind
+    from hmz.runtime.flowing import HARNESS_CAPABILITIES
+
+    try:
+        harness = HarnessKind(backend)
+    except ValueError:
+        # Every backend humanize does not drive itself is driven over ACP.
+        harness = HarnessKind.ACP
+    if role.harness is not None and harness != role.harness:
+        return False
+    return role.capabilities <= HARNESS_CAPABILITIES[harness]

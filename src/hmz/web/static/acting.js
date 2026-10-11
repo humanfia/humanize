@@ -19,7 +19,7 @@ export function question(one, me, clients) {
   const options = (one.options || []).map((option, index) =>
     acting(option, () => ask('answer', { question: one.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
   )
-  const typed = h('input', { type: 'text', placeholder: 'Or say an answer', 'aria-label': 'Answer' })
+  const typed = h('input', { type: 'text', placeholder: 'Answer', 'aria-label': 'Answer' })
   const form = h('form', { class: 'row' }, typed, h('button', { class: 'btn small primary', type: 'submit' }, 'Answer'))
   form.addEventListener('submit', async (event) => {
     event.preventDefault()
@@ -46,10 +46,10 @@ export function question(one, me, clients) {
 export function saying(session = '') {
   const to = h('select', { 'aria-label': 'Say it to' })
   const box = composer({
-    placeholder: session ? `Say something to ${session}` : 'Say something to the epic',
+    placeholder: session ? `Message ${session}` : 'Message the epic',
     label: 'What to say',
     submit: (text) => ask('say', { text, to: session || to.value }),
-    tools: session ? [] : [chipSelect('to', to)],
+    tools: session ? [] : [chipSelect('To', to)],
   })
   box.node.dataset.hmz = 'say'
   return {
@@ -59,10 +59,10 @@ export function saying(session = '') {
       const picked = to.value
       fill(
         to,
-        h('option', { value: '' }, 'the next turn'),
+        h('option', { value: '' }, 'Next turn'),
         roles.map((role) => h('option', { value: role }, role)),
         sessions.map((key) => h('option', { value: key }, `${key}${working.includes(key) ? ' (working)' : ''}`)),
-        outworlders.map((role) => h('option', { value: `outworlder:${role}` }, `${role} (a person)`)),
+        outworlders.map((role) => h('option', { value: `outworlder:${role}` }, `${role} (person)`)),
       )
       if ([...to.options].some((option) => option.value === picked)) to.value = picked
     },
@@ -104,8 +104,8 @@ export function board(items) {
       ),
     )
   }
-  const key = h('input', { type: 'text', placeholder: 'name', 'aria-label': 'Name of the new line', size: '12' })
-  const value = h('input', { type: 'text', placeholder: 'what it says', 'aria-label': 'What the new line says' })
+  const key = h('input', { type: 'text', placeholder: 'Key', 'aria-label': 'Key', size: '12' })
+  const value = h('input', { type: 'text', placeholder: 'Value', 'aria-label': 'Value' })
   const adding = h('form', { class: 'row' }, key, value, h('button', { class: 'btn small', type: 'submit' }, 'Add'))
   adding.addEventListener('submit', async (event) => {
     event.preventDefault()
@@ -133,14 +133,14 @@ export function outworlders(roles, { claims, away, me, clients }) {
       'div',
       { class: 'row', 'data-hmz': 'outworlder' },
       h('b', { class: 'mono' }, role),
-      h('span', { class: 'dim' }, holder ? (holding ? 'you answer it' : `${named[holder] || holder} answers it`) : 'anybody answers it'),
+      h('span', { class: 'dim' }, holder ? (holding ? 'You' : named[holder] || holder) : 'Anyone'),
       holding
-        ? acting('Let go', () => ask('release', { role }), { kind: 'btn small quiet' })
-        : acting(holder ? 'Take it' : 'Answer it here', () => ask('claim', { role, take: Boolean(holder) }), { kind: 'btn small' }),
-      acting(absent ? 'I am here' : 'Away', () => ask('afk', { on: !absent, role }), { kind: 'btn small quiet' }),
+        ? acting('Release', () => ask('release', { role }), { kind: 'btn small quiet' })
+        : acting(holder ? 'Take over' : 'Claim', () => ask('claim', { role, take: Boolean(holder) }), { kind: 'btn small' }),
+      acting(absent ? 'Back' : 'Away', () => ask('afk', { on: !absent, role }), { kind: 'btn small quiet' }),
     )
   })
-  const all = acting(everybody ? 'I am back' : 'Away from all of them', () => ask('afk', { on: !everybody }), { kind: 'btn small quiet' })
+  const all = acting(everybody ? 'Back for all' : 'Away for all', () => ask('afk', { on: !everybody }), { kind: 'btn small quiet' })
   return [rows, h('p', { class: 'dim' }, 'Away, a question a person is asked is answered at once with nothing, and the epic carries on.'), all]
 }
 
@@ -153,8 +153,8 @@ export function outworlders(roles, { claims, away, me, clients }) {
  * the next, so that what is being typed outlives a redraw.
  */
 export function asides() {
-  const to = h('select', { 'aria-label': 'Ask it of' }, h('option', { value: '' }, 'the btw agent'))
-  const leave = h('button', { class: 'btn quiet small', type: 'button', hidden: true }, 'Close them')
+  const to = h('select', { 'aria-label': 'Ask it of' }, h('option', { value: '' }, 'btw agent'))
+  const leave = h('button', { class: 'btn quiet small', type: 'button', hidden: true }, 'Close')
   const log = h('div', { class: 'thread aside-log', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
   const asked = (question, of) => log.append(line('you', question, { who: `btw · ${of || 'btw agent'}` }))
   const answered = (said) => {
@@ -162,9 +162,9 @@ export function asides() {
     log.append(line('btw', said.answer))
   }
   const box = composer({
-    placeholder: 'Ask something about the epic',
+    placeholder: 'Ask about the epic',
     label: 'Side question',
-    tools: [chipSelect('of', to), leave],
+    tools: [chipSelect('Ask', to), leave],
     submit: async (question) => {
       asked(question.trim(), to.value)
       try {
@@ -197,7 +197,7 @@ export function asides() {
     /** Offers the conversations there are to ask, keeping the one picked. */
     sessions(keys) {
       const picked = to.value
-      fill(to, h('option', { value: '' }, 'the btw agent'), keys.map((key) => h('option', { value: key }, key)))
+      fill(to, h('option', { value: '' }, 'btw agent'), keys.map((key) => h('option', { value: key }, key)))
       to.value = keys.includes(picked) ? picked : ''
     },
   }

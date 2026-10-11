@@ -13,7 +13,7 @@ export function draw(holder, query) {
   let days = Number(query.get('days')) || 30
   const range = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How far back' })
   const body = h('div', { 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, 'Reading what the epics spent…'))
-  fill(holder, h('div', { class: 'row' }, h('span', { class: 'dim' }, 'Looking back'), range), body)
+  fill(holder, h('div', { class: 'row' }, h('span', { class: 'dim' }, 'Range'), range), body)
 
   let stop = () => {}
   const watch = () => {
@@ -52,7 +52,7 @@ export function draw(holder, query) {
           { class: 'tiles' },
           tile('spent', whole.money || '$0', `over ${whole.runs} epic${whole.runs === 1 ? '' : 's'}`),
           tile('output tokens', whole.tokens || '0', ''),
-          tile('agent time', whole.worked || '0s', 'as the budgets counted it'),
+          tile('agent time', whole.worked || '0s', ''),
           h('div', { class: 'tile' }, h('div', { class: 'kicker' }, 'ended'), h('div', { class: 'row' }, Object.entries(data.ended).map(([how, count]) => h('span', {}, badge(how), ' ', count)))),
         ),
       ),
@@ -79,7 +79,7 @@ export function draw(holder, query) {
         h(
           'details',
           {},
-          h('summary', {}, 'As a table'),
+          h('summary', {}, 'Table'),
           h(
             'div',
             { class: 'table-wrap' },

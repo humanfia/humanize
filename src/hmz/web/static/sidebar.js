@@ -35,12 +35,12 @@ export function mountSidebar(root, context, where) {
     account,
     (close) => [
       section(context.workspace),
-      ['system', 'light', 'dark'].map((one) => choice({ label: { system: 'Colours as the system has them', light: 'Light', dark: 'Dark' }[one], chosen: themeChosen() === one, act: () => setTheme(one), close })),
+      ['system', 'light', 'dark'].map((one) => choice({ label: { system: 'Adaptive', light: 'Light', dark: 'Dark' }[one], chosen: themeChosen() === one, act: () => setTheme(one), close })),
       h('hr'),
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
       choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
     ],
-    { up: true, label: 'This directory' },
+    { up: true, label: 'Workspace' },
   )
   fill(
     root,
@@ -48,7 +48,7 @@ export function mountSidebar(root, context, where) {
       'div',
       { class: 'side-top' },
       h('a', { class: 'brand', href: '#/new', 'aria-label': 'humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
-      iconButton('sidebar', 'Hide the sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
+      iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
     ),
     h(
       'div',
@@ -123,7 +123,7 @@ export function mountSidebar(root, context, where) {
     const link = `#/epics/${encodeURIComponent(run.name)}`
     const toggle = h(
       'button',
-      { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': `${shown ? 'Fold' : 'Open out'} its agents` },
+      { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': shown ? 'Collapse' : 'Expand' },
       icon('chevron'),
     )
     toggle.addEventListener('click', () => {

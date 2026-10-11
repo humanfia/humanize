@@ -27,22 +27,22 @@ export function draw(holder) {
         'tr',
         { 'data-hmz': 'account' },
         h('td', { class: 'mono' }, one.cli),
-        h('td', {}, h('b', {}, one.name || 'this machine’s own'), h('div', { class: 'dim' }, one.name ? `made by ${one.way}` : 'signed in outside humanize')),
+        h('td', {}, h('b', {}, one.name || 'Local'), h('div', { class: 'dim' }, one.name ? `made by ${one.way}` : 'signed in outside humanize')),
         h('td', {}, one.sets.length ? h('div', { class: 'row' }, one.sets.map((name) => h('span', { class: 'chip mono' }, name))) : h('span', { class: 'dim' }, 'nothing')),
-        h('td', {}, one.models.length ? h('span', { title: one.models.join('\n') }, `${one.models.length} model${one.models.length === 1 ? '' : 's'}`) : h('span', { class: 'dim' }, 'none known'), one.asked ? h('div', { class: 'dim' }, `asked ${ago(one.asked)}`) : null),
+        h('td', {}, one.models.length ? h('span', { title: one.models.join('\n') }, `${one.models.length} model${one.models.length === 1 ? '' : 's'}`) : h('span', { class: 'dim' }, 'None'), one.asked ? h('div', { class: 'dim' }, `asked ${ago(one.asked)}`) : null),
         h(
           'td',
           {},
           h(
             'div',
             { class: 'row' },
-            acting('Ask again', async () => shown(await post('/api/accounts/models', { cli: one.cli, name: one.name })), { kind: 'btn small quiet', busy: 'Asking…' }),
+            acting('Refresh models', async () => shown(await post('/api/accounts/models', { cli: one.cli, name: one.name })), { kind: 'btn small quiet', busy: 'Asking…' }),
             one.serves.length ? copying(one) : null,
             one.name
               ? confirming({
                   label: 'Remove',
                   ask: `Remove ${one.cli}@${one.name}, credentials and all?`,
-                  yes: 'Remove it',
+                  yes: 'Remove',
                   small: true,
                   act: async () => shown(await post('/api/accounts/remove', { cli: one.cli, name: one.name })),
                 })
@@ -77,16 +77,16 @@ export function draw(holder) {
 
   function drawMaking() {
     const cli = h('select', { 'aria-label': 'CLI', id: 'account-cli' }, data.backends.map((one) => h('option', { value: one.cli }, one.cli)))
-    const way = h('select', { 'aria-label': 'Way in', id: 'account-way' })
+    const way = h('select', { 'aria-label': 'Sign-in method', id: 'account-way' })
     const name = h('input', { type: 'text', id: 'account-name', placeholder: 'work', required: true, autocomplete: 'off' })
     const about = h('p', { class: 'hint' })
     const answers = h('div', { class: 'form' })
     const said = h('div', { 'aria-live': 'polite' })
-    const make = h('button', { class: 'btn primary', type: 'submit' }, 'Make it')
+    const make = h('button', { class: 'btn primary', type: 'submit' }, 'Create')
     const form = h(
       'form',
       { class: 'form' },
-      h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'account-cli' }, 'cli'), cli), h('div', { class: 'field' }, h('label', { for: 'account-way' }, 'way in'), way), h('div', { class: 'field' }, h('label', { for: 'account-name' }, 'name'), name)),
+      h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'account-cli' }, 'CLI'), cli), h('div', { class: 'field' }, h('label', { for: 'account-way' }, 'Sign-in method'), way), h('div', { class: 'field' }, h('label', { for: 'account-name' }, 'Name'), name)),
       about,
       answers,
       h('div', { class: 'row' }, make, said),
@@ -146,7 +146,7 @@ export function draw(holder) {
         make.disabled = Boolean(picked()?.terminal)
       }
     })
-    fill(making, h('h2', {}, 'Make an account'), form)
+    fill(making, h('h2', {}, 'New account'), form)
     drawWays()
   }
 

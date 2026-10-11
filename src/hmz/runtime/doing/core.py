@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.hosting import Host
     from hmz.runtime.doing.running import Run
     from hmz.runtime.doing.runtimes import Runtimes
-    from hmz.runtime.flowing import AgentDriver, EnvDriver, OutworlderDriver
+    from hmz.runtime.flowing import AgentDriver, AgentRole, EnvDriver, OutworlderDriver
     from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
     from hmz.runtime.runner import Line, Runner
     from hmz.runtime.settings import Settings
@@ -163,6 +163,21 @@ class Hmz:
         from hmz.runtime.doing import installed
 
         return installed.installable(self.accounts)
+
+    def serves(self, backend: str, role: AgentRole | None) -> bool:
+        """Whether a backend could fill an agent role, as a run of its flow would ask it.
+
+        Args:
+          backend: The backend.
+          role: What the flow declared of the role, or None for an agent that is no flow's.
+
+        Returns:
+          False for a backend that is not the harness the role names, or that cannot do
+          what the role declares it must.
+        """
+        from hmz.runtime.doing import installed
+
+        return installed.serves(backend, role)
 
     def ready_to_open(self, backend: str) -> bool:
         """Whether an installed backend may be chosen here without somebody choosing it.

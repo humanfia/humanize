@@ -8,12 +8,12 @@ import { fill, h, iconButton, problem } from '../dom.js'
 
 /** Every page, by the word in the address that opens it. */
 const PAGES = {
-  general: { label: 'General', about: 'How humanize shows an epic, who a side question goes to, and what it reports.', load: () => import('./settings/general.js') },
-  accounts: { label: 'Accounts', about: 'The named sets of credentials an agent can be run as.', load: () => import('./settings/accounts.js') },
-  fallback: { label: 'Fallback', about: 'Where a turn goes when the place it runs at cannot take it.', load: () => import('./settings/fallback.js') },
-  runtimes: { label: 'Runtimes', about: 'The machines a flow’s environments can be put on.', load: () => import('./settings/runtimes.js') },
-  workspace: { label: 'Workspace', about: 'What this directory was last set up with.', load: () => import('./settings/workspace.js') },
-  usage: { label: 'Usage', about: 'What the epics here spent, as each counted it against its budget.', load: () => import('./settings/usage.js') },
+  general: { label: 'General', about: 'Display, side questions and reporting', load: () => import('./settings/general.js') },
+  accounts: { label: 'Accounts', about: 'Credentials agents run as', load: () => import('./settings/accounts.js') },
+  fallback: { label: 'Fallback', about: 'Where a failed turn goes next', load: () => import('./settings/fallback.js') },
+  runtimes: { label: 'Runtimes', about: 'Machines environments run on', load: () => import('./settings/runtimes.js') },
+  workspace: { label: 'Workspace', about: 'This directory’s saved setup', load: () => import('./settings/workspace.js') },
+  usage: { label: 'Usage', about: 'Spending by day and flow', load: () => import('./settings/usage.js') },
 }
 
 export function mount(root, { parts, query }) {

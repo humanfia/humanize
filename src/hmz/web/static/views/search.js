@@ -74,7 +74,7 @@ export function mount(root, { query }) {
       }),
     )
     const names = [...new Set([...data.flows, chosen.flow].filter(Boolean))].sort()
-    fill(flows, h('option', { value: '' }, 'Every flow'), names.map((name) => h('option', { value: name, selected: name === chosen.flow }, name)))
+    fill(flows, h('option', { value: '' }, 'All flows'), names.map((name) => h('option', { value: name, selected: name === chosen.flow }, name)))
     if (!data.total) {
       fill(body, error ? h('p', { class: 'error', role: 'alert' }, error.message) : null, empty(chosen.status || chosen.flow || chosen.q ? 'No epic is like that.' : 'No epic here yet.', chosen.status || chosen.flow || chosen.q ? ' Clear the filters to see every epic.' : ' Start a flow, and its epic is written down here as it goes.'))
       fill(foot)

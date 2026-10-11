@@ -16,7 +16,7 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'view' },
-      bar({ title: 'Flows', sub: [h('span', {}, 'The flows of this directory, yours, and the flowverses installed here.')] }),
+      bar({ title: 'Flows' }),
       h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, shown, list)),
     ),
   )
@@ -43,7 +43,7 @@ export function mount(root, { query }) {
                 'button',
                 { class: ['card', one.name === chosen && 'chosen'], type: 'button', 'data-flow': one.name, 'aria-pressed': String(one.name === chosen) },
                 h('span', { class: 'card-mark', 'aria-hidden': 'true' }, one.name.slice(0, 1).toUpperCase()),
-                h('span', { class: 'card-name' }, one.name, one.name === data.flow ? h('span', { class: 'node-tag' }, 'last used here') : null),
+                h('span', { class: 'card-name' }, one.name, one.name === data.flow ? h('span', { class: 'node-tag' }, 'Default') : null),
                 one.about ? h('span', { class: 'card-about' }, one.about) : null,
               )
               card.addEventListener('click', () => show(one.name))
@@ -80,7 +80,7 @@ export function mount(root, { query }) {
         'header',
         {},
         h('div', {}, h('div', { class: 'kicker' }, 'flow'), h('h2', {}, flow.name)),
-        h('a', { class: 'btn primary', href: `#/new?flow=${encodeURIComponent(flow.name)}` }, icon('new'), 'Start it'),
+        h('a', { class: 'btn primary', href: `#/new?flow=${encodeURIComponent(flow.name)}` }, icon('new'), 'New epic'),
       ),
       flow.description ? h('p', { class: 'prose' }, flow.description) : null,
       h(
@@ -89,7 +89,7 @@ export function mount(root, { query }) {
         h('dt', {}, 'ref'),
         h('dd', { class: 'mono' }, flow.ref),
         h('dt', {}, 'resumable'),
-        h('dd', {}, flow.resumable ? (flow.resumes ? 'yes, and an epic of it here can be picked up' : 'yes') : 'no'),
+        h('dd', {}, flow.resumable ? (flow.resumes ? 'yes, with an epic here to resume' : 'yes') : 'no'),
         h('dt', {}, 'agents'),
         h('dd', {}, flow.agents.length ? flow.agents.map((role) => h('div', {}, h('b', {}, role.name), role.auto ? h('span', { class: 'dim' }, ' (a person, answering here)') : null, role.harness ? [' ', h('span', { class: 'chip' }, role.harness)] : null, role.auto ? null : h('div', { class: 'dim' }, permitted(role.permission)))) : '—'),
         h('dt', {}, 'environments'),

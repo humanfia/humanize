@@ -18,18 +18,18 @@ export function draw(holder) {
           h('dd', { class: 'mono' }, settings.workspace),
           h('dt', {}, 'default flow'),
           h('dd', {}, settings.flow || 'none', h('div', { class: 'dim' }, 'what Start opens on, and what /flow chose last')),
-          h('dt', {}, 'set up'),
-          h('dd', {}, settings.flows.length ? settings.flows.join(', ') : 'nothing yet'),
+          h('dt', {}, 'configured'),
+          h('dd', {}, settings.flows.length ? settings.flows.join(', ') : 'none'),
         ),
         forgot === undefined ? null : h('p', { class: 'note', role: 'status' }, forgot ? 'Forgotten: every flow here starts from nothing again.' : 'There was nothing here to forget.'),
         h(
           'p',
           { class: 'row' },
           confirming({
-            label: 'Forget this directory',
+            label: 'Forget',
             ask: `Forget what ${settings.flows.length || 'every'} flow${settings.flows.length === 1 ? ' was' : 's were'} set up with here?`,
-            yes: 'Forget it',
-            no: 'Keep it',
+            yes: 'Forget',
+            no: 'Cancel',
             act: async () => {
               const answer = await post('/api/settings/forget')
               shown(answer, answer.forgot)

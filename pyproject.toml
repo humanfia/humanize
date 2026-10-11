@@ -112,6 +112,9 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    # The web interface's page is driven in a real browser by its integration tests: what it
+    # draws and what it sends are only seen there.
+    "playwright>=1.55",
     "pre-commit>=4.6.2",
     "pyright>=1.1.414",
     "pytest>=8",

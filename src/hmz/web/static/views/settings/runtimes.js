@@ -47,8 +47,8 @@ export function draw(holder) {
               },
               { kind: 'btn small quiet', busy: 'Asking…' },
             ),
-            h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Change'),
-            confirming({ label: 'Remove', ask: `Remove ${one.name}?`, yes: 'Remove it', small: true, act: async () => shown(await post('/api/runtimes/remove', { backend: one.backend, name: one.name })) }),
+            h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
+            confirming({ label: 'Remove', ask: `Remove ${one.name}?`, yes: 'Remove', small: true, act: async () => shown(await post('/api/runtimes/remove', { backend: one.backend, name: one.name })) }),
           ),
         ),
       )
@@ -57,7 +57,7 @@ export function draw(holder) {
       listing,
       h('h2', {}, 'Runtimes'),
       rows.length
-        ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Backend'), h('th', {}, 'Name'), h('th', {}, 'Reached at'), h('th', {}, 'Has'), h('th', {}, ''))), h('tbody', {}, rows)))
+        ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Backend'), h('th', {}, 'Name'), h('th', {}, 'Address'), h('th', {}, 'Resources'), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'None yet: every environment is this machine, or spelled out where it is named.'),
     )
   }
@@ -88,17 +88,17 @@ export function draw(holder) {
     const said = h('div', { 'aria-live': 'polite' })
     fill(
       writing,
-      h('h2', {}, editing ? `Change ${editing.name}` : 'Add a runtime'),
+      h('h2', {}, editing ? `Edit ${editing.name}` : 'New runtime'),
       h(
         'form',
         { class: 'form', onsubmit: (event) => event.preventDefault() },
-        h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'runtime-backend' }, 'backend'), backend), h('div', { class: 'field' }, h('label', { for: 'runtime-name' }, 'name'), name)),
+        h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'runtime-backend' }, 'Backend'), backend), h('div', { class: 'field' }, h('label', { for: 'runtime-name' }, 'Name'), name)),
         fields,
         h(
           'div',
           { class: 'row' },
           acting(
-            editing ? 'Write it over' : 'Add it',
+            editing ? 'Save' : 'Add',
             async () => {
               const given = {}
               for (const [key, read] of Object.entries(readers)) given[key] = read()
@@ -106,7 +106,7 @@ export function draw(holder) {
               editing = null
               shown(answer)
             },
-            { kind: 'btn primary', busy: 'Writing…' },
+            { kind: 'btn primary', busy: 'Saving…' },
           ),
           editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, 'Add a new one') : null,
           said,
@@ -118,34 +118,34 @@ export function draw(holder) {
 
   function drawImporting() {
     const read = acting(
-      'Read the ssh config',
+      'Read SSH config',
       async () => {
         const { hosts } = await get('/api/runtimes/hosts')
         const boxes = hosts.map((one) => ({ one, box: h('input', { type: 'checkbox', disabled: one.saved }) }))
         fill(
           importing,
-          h('h2', {}, 'From your ssh config'),
+          h('h2', {}, 'SSH config'),
           hosts.length
             ? [
                 h(
                   'div',
                   { class: 'form' },
                   boxes.map(({ one, box }) =>
-                    h('label', { class: 'check' }, box, h('b', { class: 'mono' }, one.alias), h('span', { class: 'dim' }, `${one.user ? `${one.user}@` : ''}${one.host}${one.port && one.port !== 22 ? `:${one.port}` : ''}${one.saved ? ' · written down already' : ''}`)),
+                    h('label', { class: 'check' }, box, h('b', { class: 'mono' }, one.alias), h('span', { class: 'dim' }, `${one.user ? `${one.user}@` : ''}${one.host}${one.port && one.port !== 22 ? `:${one.port}` : ''}${one.saved ? ' · saved' : ''}`)),
                   ),
                 ),
                 h(
                   'p',
                   { class: 'row' },
                   acting(
-                    'Bring them in',
+                    'Import',
                     async () => {
                       const names = boxes.filter(({ box }) => box.checked).map(({ one }) => one.alias)
                       if (!names.length) return
                       shown(await post('/api/runtimes/import', { names }))
                       drawImporting()
                     },
-                    { kind: 'btn primary', busy: 'Bringing them in…' },
+                    { kind: 'btn primary', busy: 'Importing…' },
                   ),
                 ),
               ]
@@ -154,7 +154,7 @@ export function draw(holder) {
       },
       { kind: 'btn', busy: 'Reading…' },
     )
-    fill(importing, h('h2', {}, 'From your ssh config'), h('p', { class: 'dim' }, 'Each host your ssh config names can be written down as a runtime of its own.'), read)
+    fill(importing, h('h2', {}, 'SSH config'), h('p', { class: 'dim' }, 'Import hosts from your SSH config as runtimes.'), read)
   }
 
   get('/api/runtimes')
@@ -188,11 +188,11 @@ function said(answer) {
 function field(key, empty, value) {
   const id = `runtime-${key}`
   if (Array.isArray(empty)) {
-    const input = h('textarea', { id, rows: '2', placeholder: 'one per line' }, (value || []).join('\n'))
+    const input = h('textarea', { id, rows: '2', placeholder: 'One per line' }, (value || []).join('\n'))
     return [input, () => input.value.split('\n').map((one) => one.trim()).filter(Boolean)]
   }
   if (empty && typeof empty === 'object') {
-    const input = h('textarea', { id, rows: '2', placeholder: 'KEY=VALUE, one per line' }, Object.entries(value || {}).map(([name, set]) => `${name}=${set}`).join('\n'))
+    const input = h('textarea', { id, rows: '2', placeholder: 'KEY=VALUE per line' }, Object.entries(value || {}).map(([name, set]) => `${name}=${set}`).join('\n'))
     return [input, () => Object.fromEntries(input.value.split('\n').filter((one) => one.includes('=')).map((one) => [one.slice(0, one.indexOf('=')).trim(), one.slice(one.indexOf('=') + 1).trim()]))]
   }
   if (typeof empty === 'number') {

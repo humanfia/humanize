@@ -35,7 +35,7 @@ export function graph({ open }) {
     iconButton('minus', 'Zoom out', { onclick: () => scale(at / 1.2) }),
     zoomed,
     iconButton('plus', 'Zoom in', { onclick: () => scale(at * 1.2) }),
-    iconButton('fit', 'Fit the graph', { onclick: () => fit() }),
+    iconButton('fit', 'Fit', { onclick: () => fit() }),
   )
   const node = h('div', { class: 'graph' }, canvas, zoom)
   let at = 1

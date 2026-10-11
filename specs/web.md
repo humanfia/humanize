@@ -94,10 +94,18 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   up where its flow says it can be.
 - MUST start a run as this directory last set its flow up -- its agents, environments, params,
   budget and profiling -- and pick a run up as that run was started.
+- MUST set an agent up as the terminal interface does, a step at a time: a CLI installed here
+  that can fill the role, the account it runs as -- this machine's own or one made, and a way to
+  make one -- a model known runnable as that account, asking the CLI where none is known yet and
+  taking one typed where it cannot say, and an effort that model takes; and an environment by
+  its backend, a runtime of it saved or made there, and its directory, completed as it is typed
+  where it is on this machine. Each MUST come to what `-a` or `-e` spells.
 - MUST offer the flows on offer and what each declares, what the runs here spent by day and by
   flow, and the pages `/settings` has: general, accounts, fallback, runtimes and this
   workspace. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
   run.
+- MUST name what it draws -- a button, a tab, a menu's choice, a heading, a field -- by a word
+  or a short phrase, never a sentence, and MUST call a run of a flow an epic.
 - MUST draw in humanize's own colours and type, light or dark as the browser asks or as chosen,
   MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
   to be reduced.

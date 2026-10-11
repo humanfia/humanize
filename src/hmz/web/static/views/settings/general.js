@@ -7,13 +7,13 @@ import { acting, fill, h, problem } from '../../dom.js'
 export function draw(holder) {
   const shown = (settings) => {
     const details = h('input', { type: 'checkbox', checked: settings.details })
-    const btw = h('input', { type: 'text', value: settings.btw, placeholder: 'the flow’s first agent', 'aria-label': 'The agent a side question goes to', size: '32' })
+    const btw = h('input', { type: 'text', value: settings.btw, placeholder: 'First agent of the flow', 'aria-label': 'The agent a side question goes to', size: '32' })
     const reports = h(
       'select',
       { 'aria-label': 'Report humanize’s own failures' },
-      h('option', { value: '', selected: settings.reports === null, disabled: true }, 'not answered yet'),
-      h('option', { value: 'yes', selected: settings.reports === true }, 'yes, report them'),
-      h('option', { value: 'no', selected: settings.reports === false }, 'no'),
+      h('option', { value: '', selected: settings.reports === null, disabled: true }, 'Not set'),
+      h('option', { value: 'yes', selected: settings.reports === true }, 'On'),
+      h('option', { value: 'no', selected: settings.reports === false }, 'Off'),
     )
     const save = acting(
       'Save',
@@ -32,9 +32,9 @@ export function draw(holder) {
         h(
           'div',
           { class: 'form' },
-          h('div', { class: 'field' }, h('span', { class: 'label' }, 'details'), h('label', { class: 'check' }, details, 'Show every tool call and all of the thinking')),
-          h('div', { class: 'field' }, h('span', { class: 'label' }, '/btw agent'), btw, h('span', { class: 'hint' }, 'Who a side question about an epic is asked of, as -a spells an agent. Empty asks the flow’s first agent.')),
-          h('div', { class: 'field' }, h('span', { class: 'label' }, 'error reports'), reports, h('span', { class: 'hint' }, 'Whether humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
+          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Details'), h('label', { class: 'check' }, details, 'Tool calls and thinking')),
+          h('div', { class: 'field' }, h('span', { class: 'label' }, 'btw agent'), btw, h('span', { class: 'hint' }, 'Who a side question about an epic is asked of, as -a spells an agent. Empty asks the flow’s first agent.')),
+          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Error reports'), reports, h('span', { class: 'hint' }, 'Whether humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
           h('div', { class: 'row' }, save),
         ),
       ),

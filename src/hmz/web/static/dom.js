@@ -81,7 +81,7 @@ export function empty(title, text, ...actions) {
  * A button that asks before it does something that cannot be undone, in place rather than in
  * a dialog: pressed, it becomes the question and two answers.
  */
-export function confirming({ label, ask, yes, no = 'Keep it', act, danger = true, small = false }) {
+export function confirming({ label, ask, yes, no = 'Cancel', act, danger = true, small = false }) {
   const holder = h('span', { class: 'confirm' })
   const start = () => {
     const doing = h('button', { class: ['btn', danger && 'danger', small && 'small'], type: 'button' }, yes)
@@ -137,7 +137,7 @@ export function copier(label, text) {
       await navigator.clipboard.writeText(typeof text === 'function' ? text() : text)
       button.textContent = 'Copied'
     } catch {
-      button.textContent = 'Select it to copy'
+      button.textContent = 'Copy failed'
     }
     setTimeout(() => (button.textContent = label), 1800)
   })

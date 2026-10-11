@@ -178,8 +178,9 @@ going) and `spent`: what its budget counted as it ended, or `null`. A run of no 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
 | `GET /api/flows` | | `flows` (`[{whose, name, about}]`), `flow` (the one this workspace opens on), `running` (the flows going, `[{ref, name, depth, since, task}]`) |
-| `GET /api/flow` | `name` | What it declares: `ref`, `description`, `resumable`, `resumes`, `agents` (`name`, `required`, `auto`, `harness`, `permission`, `skills`), `envs`, `params` (its JSON schema), and `remembered` (what this workspace last set it up with). `404` for a name that is not one of `GET /api/flows`' -- a path or a repository is never loaded -- and for one that will not load. |
-| `GET /api/backends` | | `installed` and `installable`: `{cli: [{name, efforts}]}` |
+| `GET /api/flow` | `name` | What it declares: `ref`, `description`, `resumable`, `resumes`, `agents` (`name`, `required`, `auto`, `harness`, `permission`, `skills`, and `clis`: the CLIs installed here that can fill it), `envs`, `params` (its JSON schema), and `remembered` (what this workspace last set it up with). `404` for a name that is not one of `GET /api/flows`' -- a path or a repository is never loaded -- and for one that will not load. |
+| `GET /api/backends` | | `clis`: each CLI installed here, `{cli: {accounts: [{name, models: [{name, efforts}], asked}]}}`, this machine's own account first as `""`; `installable`: `{cli: [{name, efforts}]}`; `envs`: every backend `-e` takes |
+| `GET /api/paths` | `typed` (query): a path being written, `~` and all | `paths`: the directories it could become, spelled as typed, each ending in `/`, at most 50 |
 
 ### Settings {#api-settings}
 
@@ -191,7 +192,7 @@ going) and `spent`: what its budget counted as it ended, or `null`. A run of no 
 | `GET /api/accounts` | | `accounts` (`cli`, `name`, `way`, `sets`, `made`, `models`, `asked`, `serves`) and `backends` (each CLI's `ways`: `name`, `about`, `terminal`, `asks`) |
 | `POST /api/accounts` | `cli`, `name`, `way`; `answers` (`{variable: value}`) | As `GET`. A way whose `terminal` is true is refused: it runs the CLI's own sign-in. |
 | `POST /api/accounts/remove` | `cli`, `name` | As `GET` |
-| `POST /api/accounts/models` | `cli`; `name` (`""` for this machine's own) | As `GET`, once the CLI has said what it runs |
+| `POST /api/accounts/models` | `cli`; `name` (`""` for this machine's own) | As `GET`, once the CLI has said what it runs; `502` where it would not say |
 | `POST /api/accounts/copy` | `cli`, `name`, `into` | As `GET` |
 | `GET /api/fallbacks` | | `steps` (`spec`, `to`, `tries`, `policy`, `timeout`), `policies`, `default`, `places` |
 | `POST /api/fallbacks` | `spec`; `to` (places, in order); `tries`; `policy`; `timeout` (seconds, `0` none) | As `GET` |

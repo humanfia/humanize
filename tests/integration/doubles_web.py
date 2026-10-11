@@ -4,7 +4,9 @@ The interface is served over runs held in the test's own process, as `hmz web` s
 runs are not held apart, and answers on a thread of its own until the test is done. A browser
 is a client speaking HTTP to it from this machine, one connection a request -- let in with the
 key the address carries, or not -- and the stream of a run is read as a browser reads it, an
-event at a time.
+event at a time. A page is the page itself, drawn by a real browser opened on the address --
+headless Chromium, as Playwright drives it -- in which anything the page throws or logs as an
+error fails the test.
 """
 
 from __future__ import annotations
@@ -12,10 +14,14 @@ from __future__ import annotations
 import contextlib
 import http.client
 import json
+import os
+import re
+import sys
 import threading
 import time
 import urllib.parse
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hmz.web import listening
@@ -23,10 +29,23 @@ from hmz.web import listening
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    from playwright.sync_api import Page
+
     from hmz.web.site import Site
 
 #: How long anything here waits for the interface before failing the test.
 PATIENCE = 30.0
+
+# Where Playwright keeps its browsers is under the home of whoever installed them, and a test
+# gives the stand-in a home of its own: the browsers are pinned to the real one before it does.
+os.environ.setdefault(
+    "PLAYWRIGHT_BROWSERS_PATH",
+    str(
+        Path.home() / "Library" / "Caches" / "ms-playwright"
+        if sys.platform == "darwin"
+        else Path.home() / ".cache" / "ms-playwright"
+    ),
+)
 
 
 @contextlib.contextmanager
@@ -43,6 +62,59 @@ def served() -> Generator[Site]:
             yield site
         finally:
             site.shutdown()
+
+
+@contextlib.contextmanager
+def opened(
+    site: Site, *, width: int = 1280, height: int = 860, dark: bool = False
+) -> Generator[Page]:
+    """The page, in a browser let in by the address, until the block ends.
+
+    Args:
+      site: The interface it is opened on.
+      width: How wide the window is: under 860, a phone's layout.
+      height: How tall it is.
+      dark: Whether the system the browser runs on asks for dark colours.
+
+    Yields:
+      The page, drawn and with its sidebar up.
+
+    Raises:
+      AssertionError: If the page threw anything, or logged an error, while it was open.
+    """
+    from playwright.sync_api import expect, sync_playwright
+
+    expect.set_options(timeout=PATIENCE * 1000)
+
+    with sync_playwright() as driving:
+        browser = driving.chromium.launch()
+        try:
+            context = browser.new_context(
+                viewport={"width": width, "height": height},
+                color_scheme="dark" if dark else "light",
+            )
+            context.set_default_timeout(PATIENCE * 1000)
+            page = context.new_page()
+            failed: list[str] = []
+            page.on("pageerror", lambda error: failed.append(str(error)))
+            # A refusal is the server answering, which the page says where it happened; what
+            # fails the test is the page throwing, or the server failing.
+            page.on(
+                "console",
+                lambda said: (
+                    failed.append(said.text)
+                    if said.type == "error"
+                    and not re.search(r"status of 4\d\d", said.text)
+                    and "status of 502" not in said.text
+                    else None
+                ),
+            )
+            page.goto(site.address)
+            page.wait_for_selector("[data-hmz=sidebar] .brand")
+            yield page
+            assert not failed, f"the page went wrong: {failed}"
+        finally:
+            browser.close()
 
 
 @dataclass

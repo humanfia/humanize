@@ -9,6 +9,7 @@ it drives the real CLI. It answers a prompt as a model would be asked to:
 - `/goal <words>` answers `goal met: <words>`;
 - `silent` answers nothing;
 - a turn asked for a JSON schema answers `{"done": true, "notes": "reviewed"}`;
+- asked what it runs, before any session, it runs `claude-haiku-4-5` and `claude-opus-4-1`;
 - anything else is answered `did: <prompt>`, after writing the prompt into `landed.txt` in the
   directory it was started in -- the work, wherever the workspace is.
 
@@ -67,6 +68,22 @@ schema = flags.get("--json-schema")
 def out(said):
     print(json.dumps(said), flush=True)
 
+
+if "--session-id" not in flags and "--resume" not in flags:
+    # Asked what it runs, as Claude Code is: a control request answered before any session.
+    for line in sys.stdin:
+        said = json.loads(line)
+        asking = said.get("type") == "control_request"
+        if asking and said["request"].get("subtype") == "list_models":
+            out({"type": "control_response", "response": {
+                "subtype": "success", "request_id": said["request_id"],
+                "response": {"models": [
+                    {"value": "haiku", "resolvedModel": "claude-haiku-4-5",
+                     "supportedEffortLevels": ["low", "medium", "high"]},
+                    {"value": "opus", "resolvedModel": "claude-opus-4-1",
+                     "supportedEffortLevels": ["low", "medium", "high", "max"]},
+                ]}}})
+    sys.exit(0)
 
 if "--resume" in flags:
     was = flags["--resume"]

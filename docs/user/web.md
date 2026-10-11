@@ -132,9 +132,16 @@ spent, and how long it took, with how much of that was spent working.
 
 **New epic** opens on the flow this directory last ran; pick another at the top. Type the task
 and press <kbd>Enter</kbd>. **Options** holds what the flow is set up with, as this directory
-last set it up: an agent for each role, spelled as `-a` spells one (the field offers the models
-each installed CLI said it runs), where each environment works, the flow's params, its budget,
-and whether it is profiled. The chips beside **Options** say what is set. Every flow but `chat`
+last set it up:
+
+- **Agents.** Per role: the **CLI** (installed ones that can fill it), the **Account** it runs
+  as (**Local** is this machine's own sign-in; **Add account…** opens Settings), the **Model**
+  and the **Effort**. A CLI never asked what it runs is asked the first time it is picked, which
+  can take a while; the refresh button asks again. Where it cannot say, pick **Other…** and type
+  the model.
+- **Environments.** Per role: the **Backend**, the **Runtime** of it (or **Add runtime…**, or
+  for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
+- **Parameters**, the **Budget**, and **Profile**. The chips beside **Options** say what is set. Every flow but `chat`
 needs at least one limit. The page goes to the epic once it starts.
 
 ### Settings
