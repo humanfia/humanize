@@ -3,7 +3,8 @@
 // how long it waits between, and the places that take the turn after, in order.
 
 import { get, post } from '../../api.js'
-import { acting, confirming, fill, h, lasting, problem } from '../../dom.js'
+import { acting, confirming, fill, h, iconButton, lasting, problem } from '../../dom.js'
+import { placePicker, readBackends } from '../../pickers.js'
 
 export function draw(holder) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'fallbacks' })
@@ -57,12 +58,26 @@ export function draw(holder) {
 
   function drawWriting() {
     const was = editing || { spec: '', to: [], tries: 0, policy: data.default, timeout: 0 }
-    const spec = h('input', { type: 'text', id: 'step-spec', list: 'places', value: was.spec, placeholder: 'claude@work/opus', required: true, autocomplete: 'off' })
-    const chain = h('div', { class: 'form' })
+    // Each place picked as the terminal interface's form picks one: a CLI, an account, a model.
+    for (const one of pickers) one.leave()
+    pickers = []
+    const spec = placePicker(was.spec, 'Place')
+    pickers.push(spec)
+    const chain = h('div', { class: 'form', 'data-hmz': 'fallback-chain' })
     const add = (value = '') => {
-      const input = h('input', { type: 'text', list: 'places', value, placeholder: 'Place', 'aria-label': `Place ${chain.childElementCount + 1} to go to` })
-      const drop = h('button', { class: 'btn small quiet', type: 'button', onclick: () => line.remove() }, 'Remove')
-      const line = h('div', { class: 'row' }, input, drop)
+      const picked = placePicker(value, `Place ${chain.childElementCount + 1}`)
+      pickers.push(picked)
+      const line = h(
+        'div',
+        { class: 'chain-row', 'data-hmz': 'fallback-place' },
+        picked.node,
+        iconButton('down', 'Move down', { class: 'small', onclick: () => line.nextElementSibling && line.nextElementSibling.after(line) }),
+        iconButton('close', 'Remove', { class: 'small', onclick: () => {
+          line.remove()
+          picked.leave()
+        } }),
+      )
+      line.picked = picked
       chain.append(line)
     }
     for (const one of was.to) add(one)
@@ -78,7 +93,7 @@ export function draw(holder) {
     const form = h(
       'form',
       { class: 'form' },
-      h('div', { class: 'field' }, h('label', { for: 'step-spec' }, 'Place'), spec, h('span', { class: 'hint' }, 'CLI[@ACCOUNT]/MODEL')),
+      h('div', { class: 'field', 'data-hmz': 'fallback-spec' }, h('span', { class: 'label' }, 'Place'), spec.node),
       h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'step-tries' }, 'Retries'), tries), h('div', { class: 'field' }, h('label', { for: 'step-policy' }, 'Backoff'), policy), h('div', { class: 'field' }, h('label', { for: 'step-timeout' }, 'Timeout, s'), timeout)),
       h('div', { class: 'field' }, h('span', { class: 'label' }, 'Then'), chain, h('div', {}, h('button', { class: 'btn small quiet', type: 'button', onclick: () => add() }, 'Add place'))),
       h(
@@ -87,8 +102,8 @@ export function draw(holder) {
         acting(
           'Save',
           async () => {
-            const to = [...chain.querySelectorAll('input')].map((input) => input.value.trim()).filter(Boolean)
-            const answer = await post('/api/fallbacks', { spec: spec.value.trim(), to, tries: Number(tries.value || 0), policy: policy.value, timeout: Number(timeout.value || 0) })
+            const to = [...chain.children].map((line) => line.picked.value()).filter(Boolean)
+            const answer = await post('/api/fallbacks', { spec: spec.value(), to, tries: Number(tries.value || 0), policy: policy.value, timeout: Number(timeout.value || 0) })
             editing = null
             shown(answer)
           },
@@ -102,7 +117,8 @@ export function draw(holder) {
     fill(writing, h('h2', {}, editing ? `Edit ${editing.spec}` : 'New step'), form)
   }
 
-  get('/api/fallbacks')
-    .then(shown)
+  let pickers = []
+  Promise.all([get('/api/fallbacks'), readBackends()])
+    .then(([answer]) => shown(answer))
     .catch((error) => fill(listing, problem(error)))
 }

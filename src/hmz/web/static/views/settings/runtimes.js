@@ -4,7 +4,8 @@
 // the hosts an ssh config names.
 
 import { get, post } from '../../api.js'
-import { acting, confirming, fill, h, problem } from '../../dom.js'
+import { acting, confirming, fill, h, icon, iconButton, problem } from '../../dom.js'
+import { pathPicker } from '../../paths.js'
 
 const GIB = 2 ** 30
 
@@ -78,9 +79,9 @@ export function draw(holder) {
       fill(fields)
       for (const [key, empty] of Object.entries(blank)) {
         const value = editing ? editing[key] : empty
-        const [input, read] = field(key, empty, value)
+        const [input, read] = field(key, empty, value, { backend: backend.value, name: name.value.trim(), runtimes: data.runtimes })
         readers[key] = read
-        fields.append(h('div', { class: 'field' }, h('label', { for: `runtime-${key}` }, key.endsWith('memory') ? `${key}, GiB` : key), input))
+        fields.append(h('div', { class: ['field', (Array.isArray(empty) || (empty && typeof empty === 'object')) && 'wide'] }, h('label', { for: `runtime-${key}` }, labelOf(key)), input))
       }
       for (const key of Object.keys(readers)) if (!(key in blank)) delete readers[key]
     }
@@ -184,22 +185,126 @@ function said(answer) {
   return h('div', {}, h('span', { class: 'ok' }, '✔ '), has.join(' · ') || 'answered', answer.short.length ? h('div', { class: 'bad' }, `short of: ${answer.short.join(', ')}`) : null)
 }
 
-/** One field of a runtime: the input it is written in, and what reads it back as JSON holds it. */
-function field(key, empty, value) {
+/** What a runtime's field is called on its form: its name, as words. */
+function labelOf(key) {
+  const named = { identity_file: 'Identity file', proxy_jump: 'Proxy jump', tls_dir: 'TLS directory', run_args: 'Run arguments', gpu_memory: 'GPU memory, GiB', gpus: 'GPUs', cpus: 'CPUs', config: 'SSH config', workdir: 'Workdir', affinity: 'Harness runs on', fallback: 'Falls back to', options: 'SSH options' }
+  if (named[key]) return named[key]
+  const words = key.replace(/_/g, ' ')
+  return `${words.slice(0, 1).toUpperCase()}${words.slice(1)}${key.endsWith('memory') ? ', GiB' : ''}`
+}
+
+/** The SSH hosts your config names, read once, for the fields that name one. */
+let hosts = null
+function sshHosts() {
+  hosts ||= get('/api/runtimes/hosts').then((answer) => answer.hosts.map((one) => one.alias), () => [])
+  return hosts
+}
+
+/**
+ * One field of a runtime: what it is picked or written in, and what reads it back as JSON holds
+ * it. Each as the terminal interface's form asks it rather than as a string to spell: a file or
+ * a directory browsed for, the runtimes to fall back to and where a harness runs picked from
+ * what is saved and put in order, options as names and values, and a list a row at a time.
+ */
+function field(key, empty, value, { backend, name, runtimes }) {
   const id = `runtime-${key}`
+  if (key === 'identity_file' || key === 'config' || key === 'tls_dir') {
+    const picked = pathPicker({ value: value || '', files: key !== 'tls_dir', label: labelOf(key), id, placeholder: key === 'config' ? '~/.ssh/config' : key === 'tls_dir' ? '~/.docker' : '~/.ssh/id_ed25519' })
+    return [picked.node, () => picked.value()]
+  }
+  if (key === 'fallback') {
+    const others = runtimes.filter((one) => one.backend === backend && one.name !== name).map((one) => one.name)
+    const listed = listing(value || [], { id, options: () => others, none: 'No other runtime of this backend' })
+    return [listed.node, listed.read]
+  }
+  if (key === 'affinity') {
+    const places = ['self', 'local', ...runtimes.filter((one) => one.name !== name || one.backend !== backend).map((one) => `${one.backend}:${one.name}`)]
+    const listed = listing(value || [], { id, options: () => places })
+    return [listed.node, listed.read]
+  }
   if (Array.isArray(empty)) {
-    const input = h('textarea', { id, rows: '2', placeholder: 'One per line' }, (value || []).join('\n'))
-    return [input, () => input.value.split('\n').map((one) => one.trim()).filter(Boolean)]
+    const listed = listing(value || [], { id, placeholder: key === 'gpus' ? '0' : key === 'run_args' ? '--shm-size=8g' : '' })
+    return [listed.node, listed.read]
   }
   if (empty && typeof empty === 'object') {
-    const input = h('textarea', { id, rows: '2', placeholder: 'KEY=VALUE per line' }, Object.entries(value || {}).map(([name, set]) => `${name}=${set}`).join('\n'))
-    return [input, () => Object.fromEntries(input.value.split('\n').filter((one) => one.includes('=')).map((one) => [one.slice(0, one.indexOf('=')).trim(), one.slice(one.indexOf('=') + 1).trim()]))]
+    const pairs = pairing(value || {}, id)
+    return [pairs.node, pairs.read]
   }
   if (typeof empty === 'number') {
     const memory = key.endsWith('memory')
     const input = h('input', { id, type: 'number', min: '0', step: memory || !Number.isInteger(empty) || key === 'cpus' ? 'any' : '1', value: value ? String(memory ? value / GIB : value) : '' })
     return [input, () => (input.value === '' ? 0 : memory ? Math.round(Number(input.value) * GIB) : Number(input.value))]
   }
+  if (typeof empty === 'boolean') {
+    const input = h('input', { id, type: 'checkbox', checked: Boolean(value) })
+    return [h('label', { class: 'check' }, input, 'On'), () => input.checked]
+  }
+  if (key === 'alias' || key === 'proxy_jump' || (key === 'host' && backend === 'ssh')) {
+    // A host your SSH config names, picked; any other written.
+    const offered = h('datalist', { id: `${id}-hosts` })
+    const input = h('input', { id, type: 'text', value: value || '', list: offered.id, autocomplete: 'off', placeholder: key === 'alias' ? 'A host in your SSH config' : key === 'host' ? 'box.example' : 'user@jump' })
+    sshHosts().then((names) => fill(offered, names.map((one) => h('option', { value: one }))))
+    return [h('div', { class: 'row' }, input, offered), () => input.value.trim()]
+  }
   const input = h('input', { id, type: 'text', value: value || '', autocomplete: 'off' })
   return [input, () => input.value.trim()]
+}
+
+/**
+ * A list a row at a time, in order: each picked from what there is to pick, or written; moved
+ * up, down and taken away; and one more added.
+ */
+function listing(values, { id, options = null, placeholder = '', none = '' }) {
+  const rows = h('div', { class: 'list-rows', id, 'data-hmz': 'list-editor' })
+  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), 'Add')
+  const node = h('div', { class: 'list-editor' }, rows, add)
+  const row = (value) => {
+    const choices = options ? options() : null
+    const input = choices
+      ? h('select', { 'aria-label': 'Value' }, [...new Set([...choices, value].filter(Boolean))].map((one) => h('option', { value: one, selected: one === value }, one)))
+      : h('input', { type: 'text', value, placeholder, 'aria-label': 'Value' })
+    const line = h(
+      'div',
+      { class: 'list-row' },
+      input,
+      iconButton('down', 'Move down', { class: 'small', onclick: () => line.nextElementSibling && line.nextElementSibling.after(line) }),
+      iconButton('close', 'Remove', { class: 'small', onclick: () => line.remove() }),
+    )
+    rows.append(line)
+  }
+  for (const one of values) row(String(one))
+  add.addEventListener('click', () => {
+    const choices = options ? options() : null
+    if (choices && !choices.length) return
+    row(choices ? choices.find((one) => !read().includes(one)) || choices[0] : '')
+    rows.lastElementChild.querySelector('input, select').focus()
+  })
+  if (options && !options().length && none) add.after(h('span', { class: 'hint' }, none))
+  const read = () => [...rows.querySelectorAll('input, select')].map((one) => one.value.trim()).filter(Boolean)
+  return { node, read }
+}
+
+/** Names and their values, a pair a row: one more added, any taken away. */
+function pairing(values, id) {
+  const rows = h('div', { class: 'list-rows', id, 'data-hmz': 'pair-editor' })
+  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), 'Add')
+  const row = (key, value) => {
+    const line = h(
+      'div',
+      { class: 'list-row' },
+      h('input', { type: 'text', value: key, placeholder: 'Name', 'aria-label': 'Name', class: 'pair-key' }),
+      h('input', { type: 'text', value, placeholder: 'Value', 'aria-label': 'Value', class: 'pair-value' }),
+      iconButton('close', 'Remove', { class: 'small', onclick: () => line.remove() }),
+    )
+    rows.append(line)
+  }
+  for (const [key, value] of Object.entries(values)) row(key, String(value))
+  add.addEventListener('click', () => {
+    row('', '')
+    rows.lastElementChild.querySelector('input').focus()
+  })
+  return {
+    node: h('div', { class: 'list-editor' }, rows, add),
+    read: () => Object.fromEntries([...rows.children].map((line) => [line.querySelector('.pair-key').value.trim(), line.querySelector('.pair-value').value.trim()]).filter(([key]) => key)),
+  }
 }

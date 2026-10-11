@@ -211,7 +211,7 @@ export function written(detail, traced) {
       color: lane(index),
       spec: specs[role] || '',
       working: false,
-      status: traced ? `${count} turn${count === 1 ? '' : 's'}` : `${mine.length} session${mine.length === 1 ? '' : 's'}`,
+      status: `${mine.length} session${mine.length === 1 ? '' : 's'}`,
       turns: traced ? count : null,
       tokens: '',
       under: [],

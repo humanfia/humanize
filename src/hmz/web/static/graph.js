@@ -5,6 +5,7 @@
 // last handover is the red one, and a line on every lane says where now is.
 
 import { flowName, h, iconButton, lasting, svg, when } from './dom.js'
+import { copy, menuOn } from './ui.js'
 
 /** The measures the graph is laid out in, in pixels. */
 const WIDE = 248
@@ -38,6 +39,10 @@ export function graph({ open }) {
     iconButton('fit', 'Fit', { onclick: () => fit() }),
   )
   const node = h('div', { class: 'graph' }, canvas, zoom)
+  menuOn(canvas, () => [
+    { label: 'Fit', glyph: 'fit', act: () => fit() },
+    { label: 'Actual size', glyph: 'plus', act: () => scale(1) },
+  ])
   let at = 1
   let size = { width: 0, height: 0 }
   let shape = ''
@@ -210,15 +215,19 @@ export function graph({ open }) {
         nows.push(now)
         track.append(now)
       }
-      return h(
+      return menuOn(h(
         'a',
-        { class: ['node-session', one.working && 'working'], href: `${base}/sessions/${encodeURIComponent(one.key)}`, title: one.about, 'data-hmz': 'graph-session' },
+        { class: ['node-session', one.working && 'working'], href: `${base}/sessions/${encodeURIComponent(one.key)}`, title: [one.key, one.about, `${one.turns.length} turn${one.turns.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '), 'data-hmz': 'graph-session' },
         h('span', { class: 'session-key mono' }, one.working ? '●' : '○', ' ', one.key.split('/').pop(), one.unread ? h('i', { class: 'unread', title: 'Unread' }) : null),
         track,
         h('span', { class: 'sr-only' }, `${one.key}: ${one.turns.length} turns${one.working ? ', working' : ''}`),
-      )
+      ), () => [
+        { head: one.key },
+        { label: 'Open', glyph: 'open', href: `${base}/sessions/${encodeURIComponent(one.key)}` },
+        { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/sessions/${encodeURIComponent(one.key)}`, 'Link copied') },
+      ])
     })
-    return h(
+    const made = h(
       'div',
       {
         class: ['node', agent.working && 'working', agent.person && 'person', focused && 'focused', agent.sessions.some((one) => one.unread) && 'has-unread'],
@@ -234,6 +243,14 @@ export function graph({ open }) {
         sessions,
       ),
     )
+    return menuOn(made, () => [
+      { head: agent.spec ? `${agent.role} · ${agent.spec}` : agent.role },
+      agent.person ? null : { label: focused ? 'Shown' : 'Pick out', glyph: 'agent', act: () => open(agent.role), disabled: focused },
+      { label: 'Open log', glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.role)}` },
+      ...agent.sessions.slice(0, 8).map((one) => ({ label: `Open ${one.key}`, glyph: 'open', href: `${base}/sessions/${encodeURIComponent(one.key)}` })),
+      '-',
+      agent.spec && !agent.person ? { label: 'Copy agent', glyph: 'copy', act: () => copy(agent.spec, 'Agent copied') } : null,
+    ])
   }
 
   return { node, draw, fit }

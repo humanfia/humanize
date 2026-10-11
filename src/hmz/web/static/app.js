@@ -8,6 +8,7 @@ import { get } from './api.js'
 import { fill, h, problem } from './dom.js'
 import { applyTheme, mountSidebar } from './sidebar.js'
 import { kept, toggleSidebar } from './shell.js'
+import './ui.js'
 
 /** Every view, by the first part of the address that names it. */
 const VIEWS = {

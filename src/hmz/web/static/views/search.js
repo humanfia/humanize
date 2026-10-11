@@ -6,6 +6,8 @@
 import { address, poll } from '../api.js'
 import { shut, stays } from '../app.js'
 import { nameOf, workspaces } from '../places.js'
+import { epicMenu } from '../sidebar.js'
+import { menuOn } from '../ui.js'
 import { ago, badge, flowName, empty, fill, h, headline, icon, iconButton, lasting, settled, when } from '../dom.js'
 
 /** How a run can have ended, in the order the filter offers them. */
@@ -101,9 +103,9 @@ export function mount(root, { query }) {
           h(
             'li',
             {},
-            h(
+            menuOn(h(
               'a',
-              { class: ['result', run.held && 'held'], href: `#/epics/${encodeURIComponent(run.name)}`, 'data-hmz': 'epic' },
+              { class: ['result', run.held && 'held'], href: `#/epics/${encodeURIComponent(run.name)}`, title: run.task, 'data-hmz': 'epic' },
               h('span', { class: 'result-top' }, badge(run.how), h('span', { class: 'result-task' }, headline(run.task)), h('span', { class: 'result-when', title: when(run.began) }, ago(run.began))),
               h(
                 'span',
@@ -116,7 +118,7 @@ export function mount(root, { query }) {
                 h('span', { class: 'mono' }, `${run.sessions} session${run.sessions === 1 ? '' : 's'}`),
                 run.resumable && !run.held && run.how !== 'done' ? h('span', { class: 'node-tag' }, 'Resumable') : null,
               ),
-            ),
+            ), () => epicMenu(run)),
           ),
         ),
       ),
