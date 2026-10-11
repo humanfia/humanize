@@ -184,7 +184,7 @@ def _ran_now(client: RemoteClient, argv: list[str], cwd: str, within: float) -> 
 
 
 def _opened(
-    provider: str, target: str, over: str = "ssh"
+    provider: str, target: str, over: str = "ssh", token: str | None = None
 ) -> tuple[Transport, RemoteClient, _Facts]:
     """Reaches a host and learns what it has, from a thread that may wait.
 
@@ -192,6 +192,8 @@ def _opened(
       provider: The host as it was named, which is what an error says.
       target: The coganchor target that reaches it.
       over: What reaches it, which is what an error says too.
+      token: The secret a serving half left listening asks for, or None for one started
+        down a pipe.
 
     Raises:
       EnvUnavailable: If there is no such host.
@@ -214,7 +216,7 @@ def _opened(
         ) from error
     client = RemoteClient(link.channel)
     try:
-        client.start()
+        client.start(token)
         facts = facts_of(
             _ran_now(client, ["/bin/sh", "-c", PROBE_SCRIPT], "/", _PROBE_WITHIN)
         )
@@ -440,6 +442,8 @@ class SSHMachine(Machine):
         self.provider = provider
         self.target = target or f"ssh://{provider}"
         self.identity = "ssh:" + self.target.removeprefix("ssh://")
+        #: The secret the target asks for, where it is a serving half left listening.
+        self.token: str | None = None
         self._link: Transport | None = None
         self._client: RemoteClient | None = None
         self._facts: _Facts | None = None
@@ -495,7 +499,7 @@ class SSHMachine(Machine):
             await asyncio.to_thread(_shut, *stale)
         try:
             link, client, facts = await asyncio.to_thread(
-                _opened, self.provider, self.target, self.over
+                _opened, self.provider, self.target, self.over, self.token
             )
         except EnvError:
             self._reached = False

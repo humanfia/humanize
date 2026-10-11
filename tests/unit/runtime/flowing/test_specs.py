@@ -215,6 +215,7 @@ def test_parse_budget_refuses_an_unreadable_param_as_a_param() -> None:
     [
         ("repo=local/tmp/x", EnvBackendKind.LOCAL, "", "/tmp/x"),
         ("box=docker/srv/x", EnvBackendKind.DOCKER, "", "/srv/x"),
+        ("job=slurm/lustre/x", EnvBackendKind.SLURM, "", "/lustre/x"),
         (
             "far=ssh@[me@far.host:2222]/srv/x",
             EnvBackendKind.SSH,
@@ -240,11 +241,13 @@ def test_parse_envs_reads_places_nobody_saved(
 def test_parse_envs_reads_a_saved_runtime_and_its_workdir(saved: Saved) -> None:
     saved.save("ssh", "gpu", "/home/me/repo")
     saved.save("docker", "box", "srv")
-    specs = parse_envs(["a=ssh@gpu", "b=ssh@gpu/elsewhere,c=docker@box"])
+    saved.save("slurm", "hpc", "/lustre/me")
+    specs = parse_envs(["a=ssh@gpu", "b=ssh@gpu/elsewhere,c=docker@box", "d=slurm@hpc"])
     assert [(one.role, one.provider, str(one.workdir)) for one in specs] == [
         ("a", "gpu", "/home/me/repo"),
         ("b", "gpu", "/elsewhere"),
         ("c", "box", "/srv"),
+        ("d", "hpc", "/lustre/me"),
     ]
 
 
@@ -271,6 +274,8 @@ def test_an_env_spec_is_written_back_as_it_was_read(saved: Saved) -> None:
         ("r=ssh@gpu/x", "no ssh host is saved"),
         ("r=ssh@!bad/x", "no ssh host is saved"),
         ("r=docker@local/x", "names no provider"),
+        ("r=slurm@local/x", "names no provider"),
+        ("r=slurm@[host]/x", "only ssh takes a host nobody saved"),
         ("r=docker@other/x", "no docker runtime is saved"),
         ("r=docker@a]b/x", "expected"),
         ("r=local", "may be left off"),

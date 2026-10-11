@@ -943,6 +943,58 @@ def test_an_environment_moved_down_its_fallback_list_is_where_the_run_says_it_ra
     assert ran["used"] == ("box=docker/y",)
 
 
+def test_every_environment_is_brought_up_at_once(
+    engine_: Flowing, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    engine_.impl.declared = Declaration(
+        agents=engine_.impl.declared.agents, envs=(EnvRole("box"), EnvRole("spare"))
+    )
+    waiting: set[str] = set()
+    both = asyncio.Event()
+
+    async def settle(spec: EnvSpec, driver: Env, role: object, **_: Any) -> Any:
+        waiting.add(spec.role)
+        if len(waiting) == 2:
+            both.set()
+        await asyncio.wait_for(both.wait(), 5)  # each waits on the other being asked
+        return spec, driver
+
+    monkeypatch.setattr(environments, "settle", settle)
+    runner = _runner(envs={"box": "local/x", "spare": "local/y"}, workspace=tmp_path)
+
+    asyncio.run(runner.arun("t"))
+
+    assert waiting == {"box", "spare"}
+    assert runner.used == {"box": "local/x", "spare": "local/y"}
+
+
+def test_the_first_environment_refused_stops_the_rest_and_is_what_is_raised(
+    engine_: Flowing, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    engine_.impl.declared = Declaration(
+        agents=engine_.impl.declared.agents, envs=(EnvRole("box"), EnvRole("spare"))
+    )
+    stopped: list[str] = []
+
+    async def settle(spec: EnvSpec, driver: Env, role: object, **_: Any) -> Any:
+        if spec.role == "spare":
+            raise EnvError("spare is down")
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            stopped.append(spec.role)
+            raise
+        return spec, driver
+
+    monkeypatch.setattr(environments, "settle", settle)
+    runner = _runner(envs={"box": "local/x", "spare": "local/y"}, workspace=tmp_path)
+
+    with pytest.raises(Refused, match="spare is down"):
+        runner.run("t")
+    assert stopped == ["box"]
+    assert all(cast("Env", one).closed == 1 for one in runner.envs.values())
+
+
 def test_a_driver_that_will_not_close_does_not_stop_the_rest(
     engine_: Flowing, tmp_path: Path
 ) -> None:

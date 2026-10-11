@@ -321,8 +321,8 @@ class FakeRemote:
 
     # --- what `RemoteClient` does
 
-    def start(self) -> None:
-        return
+    def start(self, token: str | None = None) -> None:
+        del token
 
     def close(self) -> None:
         self.closes += 1
@@ -452,6 +452,15 @@ class Runtime:
     run_args: tuple[str, ...] = ()
     constraints: tuple[str, ...] = ()
     nodes: Mapping[str, str] = field(default_factory=dict[str, str])
+    partition: str = ""
+    account: str = ""
+    qos: str = ""
+    time: str = ""
+    constraint: str = ""
+    python: str = ""
+    via: str = "srun"
+    max_jobs: int = 0
+    max_wait: int = 0
     ssh_target: str = "ssh://me@box"
 
     def daemon(self) -> Endpoint:

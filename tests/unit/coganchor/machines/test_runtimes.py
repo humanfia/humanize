@@ -16,10 +16,12 @@ from hmz.coganchor.machines.store import (
     HERE,
     IMPORTED,
     SELF,
+    SLURM,
     SSH,
     SWARM,
     AppleContainerRuntime,
     DockerRuntime,
+    SlurmRuntime,
     SSHRuntime,
     SwarmRuntime,
     add,
@@ -257,6 +259,74 @@ def test_what_apple_containers_could_not_be_told_is_refused(
         AppleContainerRuntime(name="mac", **said)
 
 
+@pytest.mark.parametrize(
+    ("said", "why"),
+    [
+        ({"partition": "a b"}, "invalid partition"),
+        ({"account": "-x"}, "invalid account"),
+        ({"qos": "a,b"}, "invalid quality of service"),
+        ({"time": "soon"}, "invalid time"),
+        ({"time": "1:2:3:4"}, "invalid time"),
+        ({"constraint": "-x"}, "invalid constraint"),
+        ({"constraint": "a b"}, "invalid constraint"),
+        ({"python": "python3"}, "must be absolute or under ~/"),
+        ({"python": "/a\nb"}, "cannot contain newlines"),
+        ({"via": "ssh"}, "via must be srun or tcp"),
+        ({"run_args": ("\n",)}, "cannot contain newlines"),
+        ({"cpus": -1.0}, "cannot be negative"),
+        ({"memory": -1}, "cannot be negative"),
+        ({"max_jobs": -1}, "cannot be negative"),
+        ({"max_wait": -1}, "cannot be negative"),
+        ({"workdir": "rel"}, "must be absolute or under"),
+        ({"fallback": ("slurm:sl",)}, "cannot fall back to itself"),
+        ({"made": IMPORTED}, "made must be typed"),
+    ],
+)
+def test_what_a_slurm_cluster_could_not_be_told_is_refused(
+    said: dict[str, Any], why: str
+) -> None:
+    with pytest.raises(ValueError, match=re.escape(why)):
+        SlurmRuntime(name="sl", **said)
+
+
+@pytest.mark.parametrize(
+    "time", ["30", "30:00", "4:00:00", "1-0", "1-12", "1-12:30", "2-0:0:0", "UNLIMITED"]
+)
+def test_a_slurm_time_is_any_time_sbatch_takes(time: str) -> None:
+    assert SlurmRuntime(name="sl", time=time).time == time
+
+
+def test_a_slurm_cluster_takes_what_its_jobs_are_submitted_under() -> None:
+    runtime = SlurmRuntime(
+        name="sl",
+        partition="cpu_short",
+        account="team.a",
+        qos="normal",
+        time="4:00:00",
+        constraint="gpu&(a100|h100)",
+        python="~/.local/bin/python3.12",
+        via="tcp",
+        run_args=("--exclusive",),
+        max_jobs=8,
+        max_wait=600,
+        affinity=("local",),
+    )
+
+    assert (
+        new(
+            SLURM,
+            "sl",
+            **{
+                key: value
+                for key, value in runtime.held().items()
+                if key not in ("backend", "name")
+            },
+        )
+        == runtime
+    )
+    assert runtime.held()["backend"] == SLURM
+
+
 def test_a_runtime_is_written_down_with_its_backend_and_every_field() -> None:
     held = DockerRuntime(name="box", gpus=("0",), fallback=("ssh:gpu",)).held()
 
@@ -276,6 +346,7 @@ def test_a_runtime_is_written_down_with_its_backend_and_every_field() -> None:
         (DOCKER, DockerRuntime),
         (SWARM, SwarmRuntime),
         (APPLE_CONTAINER, AppleContainerRuntime),
+        (SLURM, SlurmRuntime),
     ],
 )
 def test_a_runtime_is_made_of_whichever_backend(backend: str, kind: type) -> None:
@@ -364,12 +435,14 @@ def test_every_runtime_is_listed_by_backend_then_by_name() -> None:
     write(DockerRuntime(name="a"))
     write(SSHRuntime(name="z", host="h"))
     write(AppleContainerRuntime(name="mac"))
+    write(SlurmRuntime(name="hpc"))
 
     assert [(one.backend, one.name) for one in runtimes()] == [
         (SSH, "z"),
         (DOCKER, "a"),
         (DOCKER, "b"),
         (APPLE_CONTAINER, "mac"),
+        (SLURM, "hpc"),
     ]
     assert [one.name for one in runtimes(DOCKER)] == ["a", "b"]
 
@@ -495,6 +568,7 @@ def test_a_node_that_is_neither_is_refused() -> None:
         ("docker@local/x", "docker/x"),
         ("swarm@local", "swarm"),
         ("apple-container@local/w", "apple-container/w"),
+        ("slurm@local/w", "slurm/w"),
         ("docker@other/x", "docker@other/x"),
         ("local@/x", "local/x"),
         ("ftp@box/x", "ftp@box/x"),
@@ -595,4 +669,4 @@ def test_two_hosts_that_would_share_a_name_import_once(tmp_path: Path) -> None:
 
 
 def test_a_backends_list_is_what_an_environment_may_name() -> None:
-    assert BACKENDS == (SSH, DOCKER, SWARM, APPLE_CONTAINER)
+    assert BACKENDS == (SSH, DOCKER, SWARM, APPLE_CONTAINER, SLURM)

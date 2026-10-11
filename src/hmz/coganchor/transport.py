@@ -1,16 +1,17 @@
 """Getting a :class:`~hmz.coganchor.proto.Channel` to ``serve`` on the target.
 
-Six ways in, and they are two kinds of thing.
+Seven ways in, and they are two kinds of thing.
 
-Four of them *start* the serving half and take the pipe they started it down. ``local[:REAL]``
+Five of them *start* the serving half and take the pipe they started it down. ``local[:REAL]``
 runs it as a child of this process, where ``REAL`` is the directory standing in for the
-target's copy of the workspace; ``ssh://[user@]host[:port]``, ``docker://container[@endpoint]``
-and ``apple-container://container`` ship a self-contained zipapp of coganchor to the far side
-and run it there, needing nothing installed but a Python 3. Those four differ in one thing only
--- how a command is run over there -- so they are one road with four prefixes, and :class:`Road`
-is that road. A docker container's prefix names the daemon holding it, which :class:`Endpoint`
-is; an Apple container's names none, Apple's `container` reaching the containers of this Mac
-and no other.
+target's copy of the workspace; ``ssh://[user@]host[:port]``, ``docker://container[@endpoint]``,
+``apple-container://container`` and ``slurm://JOBID`` ship a self-contained zipapp of coganchor
+to the far side and run it there, needing nothing installed but a Python 3. Those five differ in
+one thing only -- how a command is run over there -- so they are one road with five prefixes,
+and :class:`Road` is that road. A docker container's prefix names the daemon holding it, which
+:class:`Endpoint` is; an Apple container's names none, Apple's `container` reaching the
+containers of this Mac and no other; and a Slurm job's is an `srun` sharing that job's
+allocation, on the node it was given.
 
 Two of them *find* a serving half somebody else started. ``tcp://host:port`` dials one left
 listening. ``peer://TICKET@BROKER:PORT`` meets one through
@@ -78,6 +79,10 @@ CONTAINER_CACHE = "/tmp/humanize"  # noqa: S108
 #: What an Apple container's target is spelled with: `apple-container://NAME`, a container of
 #: this Mac's, which Apple's `container` reaches and no daemon stands between.
 APPLE = "apple-container"
+
+#: What a Slurm job's target is spelled with: `slurm://JOBID`, a job of the cluster this
+#: machine submits to, whose node `srun` reaches by sharing the job's allocation.
+SLURM = "slurm"
 
 #: Where a harness put on another machine keeps its mirror of the workspace. *Beside* the
 #: archive's cache rather than inside it, and that is not a matter of taste: `~/.cache/humanize`
@@ -187,13 +192,14 @@ for one in os.scandir(cache):
 _INSTALLING = f"exec({_INSTALL_SOURCE!r})"
 
 
-def _installing(cache: str, name: str, digest: str) -> list[str]:
+def _installing(cache: str, name: str, digest: str, python: str = "") -> list[str]:
     """The command that installs an archive arriving on its input, on the far side.
 
     Args:
       cache: The directory it goes in, as that machine's own shell spells it.
       name: What it is called there.
       digest: What its SHA-256 has to start with, there and on its way.
+      python: The Python to try there first, or "" for the usual ones alone.
 
     Returns:
       The argv to run over there.
@@ -201,6 +207,7 @@ def _installing(cache: str, name: str, digest: str) -> list[str]:
     return python_command(
         ["-c", _INSTALLING, name, digest, str(_KEPT_FOR)],
         setting=(("HUMANIZE_BUNDLES", cache),),
+        python=python,
     )
 
 
@@ -239,7 +246,10 @@ _FIND_PYTHON = (
 
 
 def python_command(
-    args: list[str], bundle: str = "", setting: Sequence[tuple[str, str]] = ()
+    args: list[str],
+    bundle: str = "",
+    setting: Sequence[tuple[str, str]] = (),
+    python: str = "",
 ) -> list[str]:
     """The command that runs ``args`` under the target's Python, wherever it keeps one.
 
@@ -255,12 +265,19 @@ def python_command(
       setting: Variables to export first, whose values are read by the shell on the far side
         -- which is the only way to name that machine's home directory, since everything in
         `args` crosses as the word it already is.
+      python: An interpreter to try before every other, for a machine whose own are all too
+        old: absolute, or under `~/` for that machine's home.
 
     Returns:
       The argv to run over there.
     """
+    first = ""
+    if python.startswith("~/"):
+        first = '"$HOME"' + shlex.quote(python[1:]) + " "
+    elif python:
+        first = shlex.quote(python) + " "
     script = _FIND_PYTHON.format(
-        candidates=" ".join(PYTHON_CANDIDATES),
+        candidates=first + " ".join(PYTHON_CANDIDATES),
         minimum=f"({MINIMUM_PYTHON[0]}, {MINIMUM_PYTHON[1]})",
         version=".".join(str(part) for part in MINIMUM_PYTHON),
         run=f'exec "$py" "{bundle}" "$@"' if bundle else 'exec "$py" "$@"',
@@ -484,6 +501,10 @@ class Target:
     """Where the target is.
 
     Attributes:
+      host: The host, the container, or for a `slurm://` target the job's id.
+      path: For a `local` target, the directory standing in for the workspace; for a
+        `docker://` one, its daemon; for a `slurm://` one, the Python to run the serving half
+        with on the job's node where that node's own are all too old, `?python=PATH`.
       options: For an ssh target, what its `ssh` is told besides the destination, as
         `(KEYWORD, VALUE)` pairs: each an ssh_config keyword, passed as `-o KEYWORD=VALUE`,
         but for `F`, the config file ssh reads instead of the user's own (`-F VALUE`).
@@ -501,7 +522,7 @@ class Target:
         """Reads a target spelling.
 
         Args:
-          spec: One of the six, as the command line and the settings both write them.
+          spec: One of the seven, as the command line and the settings both write them.
 
         Returns:
           The target it names.
@@ -532,6 +553,11 @@ class Target:
             container = spec[len(f"{APPLE}://") :]
             if container and not set("@/?#") & set(container):
                 return cls(APPLE, host=container)
+        if spec.startswith(f"{SLURM}://"):
+            job, _, query = spec[len(f"{SLURM}://") :].partition("?")
+            python = _python_option(query, spec)
+            if job.isdigit():
+                return cls(SLURM, host=job, path=python)
         if spec.startswith("tcp://"):
             host, _, port = spec[len("tcp://") :].rpartition(":")
             if not host or not port.isdigit():
@@ -544,8 +570,9 @@ class Target:
             return cls("peer", host=met.host, port=met.port, path=met.ticket)
         raise ValueError(
             f"unsupported target {spec!r}; expected ssh://HOST, "
-            f"docker://CONTAINER[@ENDPOINT], {APPLE}://CONTAINER, tcp://HOST:PORT, "
-            "peer://TICKET@HOST:PORT or local[:PATH]"
+            f"docker://CONTAINER[@ENDPOINT], {APPLE}://CONTAINER, "
+            f"{SLURM}://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or "
+            "local[:PATH]"
         )
 
     def describe(self) -> str:
@@ -561,6 +588,11 @@ class Target:
             return f"docker://{self.host}" + (f"@{self.path}" if self.path else "")
         if self.scheme == APPLE:
             return f"{APPLE}://{self.host}"
+        if self.scheme == SLURM:
+            from urllib.parse import quote
+
+            python = f"?python={quote(self.path, safe='/~:@,')}" if self.path else ""
+            return f"{SLURM}://{self.host}{python}"
         if self.scheme == "tcp":
             return f"tcp://{self.host}:{self.port}"
         if self.scheme == "peer":
@@ -621,6 +653,32 @@ def _ssh_options(query: str, spec: str) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
+def _python_option(query: str, spec: str) -> str:
+    """The Python a `slurm://` target names after its `?`, or "" for none.
+
+    Raises:
+      ValueError: For anything but one `python=PATH`, the path absolute or under `~/`.
+    """
+    from urllib.parse import parse_qsl
+
+    if not query:
+        return ""
+    try:
+        pairs = parse_qsl(query, strict_parsing=True)
+    except ValueError:
+        pairs = []
+    if (
+        len(pairs) != 1
+        or pairs[0][0] != "python"
+        or not pairs[0][1].startswith(("/", "~/"))
+        or set(pairs[0][1]) & set('\n\r\0"')
+    ):
+        raise ValueError(
+            f"malformed target {spec!r}; expected {SLURM}://JOBID[?python=PATH]"
+        )
+    return pairs[0][1]
+
+
 def ssh_flags(options: Sequence[tuple[str, str]]) -> tuple[str, ...]:
     """What `ssh` is told for a target's options, in the order they were written.
 
@@ -659,6 +717,7 @@ class Road:
       cache: Where the bundle is kept over there, as that machine's own shell reads it.
       mirrors: And where a harness running there keeps its mirrors, which is somewhere else
         again -- see :data:`REMOTE_MIRRORS` for why it may not be under `cache`.
+      python: The Python to try there before every other, or "" for those alone.
     """
 
     target: Target
@@ -666,6 +725,7 @@ class Road:
     quotes: bool
     cache: str
     mirrors: str
+    python: str = ""
 
     @classmethod
     def to(cls, target: Target) -> Road:
@@ -716,6 +776,29 @@ class Road:
                 quotes=False,
                 cache=CONTAINER_CACHE,
                 mirrors=CONTAINER_MIRRORS,
+            )
+        if target.scheme == SLURM:
+            # A step of the job's own, sharing its allocation rather than waiting for a share
+            # of it, on its one node: argv straight through, the bytes as they come, nothing of
+            # this process's environment but whose it is, and none of its directory either --
+            # which the node may not have.
+            return cls(
+                target,
+                (
+                    "srun",
+                    f"--jobid={target.host}",
+                    "--overlap",
+                    "--nodes=1",
+                    "--ntasks=1",
+                    "--unbuffered",
+                    "--quiet",
+                    "--export=HOME,USER",
+                    "--chdir=/",
+                ),
+                quotes=False,
+                cache=REMOTE_CACHE,
+                mirrors=REMOTE_MIRRORS,
+                python=target.path,
             )
         raise ValueError(f"nothing is started on the far side of {target.describe()}")
 
@@ -793,7 +876,12 @@ class Road:
         if self.target.scheme == "local":
             return [*_myself(), *argv]
         return self.line(
-            python_command(list(argv), bundle=self.installed(), setting=setting)
+            python_command(
+                list(argv),
+                bundle=self.installed(),
+                setting=setting,
+                python=self.python,
+            )
         )
 
     def installed(self) -> str:
@@ -828,7 +916,7 @@ class Road:
             # Swept between being asked for and being read, which only an archive nothing had
             # used for weeks can be: built again, under the same name.
             carried = _rebundled().read_bytes()
-        result = self.run(_installing(self.cache, name, digest), carried)
+        result = self.run(_installing(self.cache, name, digest, self.python), carried)
         if result.returncode != 0:
             raise ConnectionError(
                 f"could not install humanize on {self.target.describe()}: "

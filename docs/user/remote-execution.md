@@ -97,6 +97,7 @@ host in brackets; leave it off for this machine:
 | `docker@gpubox/home/me/myproject` | a [container of its own](/user/containers#try-it-a-container-per-environment) on the docker daemon saved as `gpubox`, holding that directory of the daemon's host |
 | `docker/home/me/myproject` | the same, on docker's default here, with nothing saved |
 | `apple-container/Users/me/myproject` | an [Apple container](/user/containers#apple-containers) of its own on this Mac, holding that directory |
+| `slurm@hpc/lustre/me/myproject` | a [job of its own](#slurm) on the Slurm cluster saved as `hpc`, on whichever node the cluster gives it, holding that directory of the shared filesystem |
 | `local/srv/project` | a directory on this machine |
 
 Every turn the flow gives `box` works on the host: the files it reads and writes are the
@@ -113,7 +114,7 @@ places tried in order.
 | --- | --- |
 | `self` | on the host itself, where the CLI is installed there and can hold the role's fence |
 | `local` | here, reaching the host's files and commands |
-| `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` | on another saved runtime, reaching the host's work from there |
+| `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`, `slurm:<name>` | on another saved runtime, reaching the host's work from there |
 
 With no affinity, and on a host nobody saved, the CLI runs on the host where it is installed
 there and here otherwise. Work in the workspace always has its harness here. The places are
@@ -364,6 +365,63 @@ Its `endpoint` may be a saved ssh host, the daemon on that host, reached with ev
 host says. A docker swarm is saved there too, with `docker swarm` under **Add a runtime…** -- the same form for
 one of its managers, with where its tasks may go in place of GPU ids -- and named with
 `-e box=swarm@<name>/…`, or `swarm/…` for the swarm this machine manages.
+A Slurm cluster is saved there too, with `slurm cluster`: see [A Slurm cluster](#slurm).
+
+## A Slurm cluster {#slurm}
+
+Where the machines are a Slurm cluster and this machine can `sbatch` to it, let the cluster
+choose the node: `-e box=slurm[@<name>]/<workdir>` gives the role a job of its own, one task on
+one node, submitted when the run starts and cancelled when it ends. The job asks for the CPUs,
+memory and GPUs the flow's role declares, and the cluster keeps it to them; everything the
+agent runs lands on the job's node, inside that allocation. The agent's CLI runs here,
+supervised, unless the node has one of its own or the runtime's affinity says otherwise
+([Where the agent runs](#where-the-agent-runs)), so the nodes need no CLI.
+
+```sh
+hmz exec -f onbox \
+    -a builder=claude/claude-haiku-4-5-20251001:low \
+    -a reviewer=claude/claude-haiku-4-5-20251001:low \
+    -e box=slurm@hpc/lustre/me/myproject \
+    -p budget.duration=30m "Make test_calc.py pass."
+```
+
+`slurm/…`, naming no runtime, submits with the cluster's defaults. To say the partition, the
+account and the rest, open `/settings`, **Runtimes**, choose **Add a runtime…**, then
+`slurm cluster`:
+
+| Row | What to put |
+| --- | --- |
+| `partition` | where the jobs go; blank for the cluster's default. The name follows it until you type one |
+| `account`, `qos`, `time`, `constraint` | what `sbatch` is told as `--account`, `--qos`, `--time` (`4:00:00`) and `--constraint`; each blank for the cluster's own |
+| `python` | a Python 3.12 or newer the nodes can run, where theirs is older (see below) |
+| `via` | `srun` or `tcp`: how the node is reached once the job runs (see below) |
+| `max jobs`, `cpus`, `memory` | what this runtime's jobs may hold at once, all told, across every run on this machine; blank for no limit |
+| `max wait` | seconds a job may wait in the queue for a node; past it the role [falls back](/reference/machines#falling-back), or the run stops saying why Slurm kept it waiting |
+| `workdir` | the project's path when `-e` names none |
+
+Saving it asks `sinfo` which nodes of the partition may take a job, and says so.
+
+What to know before the first run:
+
+- **The workdir must be on a shared filesystem**, at the same path here and on every node a
+  job may land on: nothing is copied. `~/…` is your home.
+- **The nodes need Python 3.12 or newer.** A cluster's nodes often have only an old system
+  Python (3.8 on the cluster this was tested on). Put one on the shared filesystem, for example
+  with `uv python install 3.12`, and name it in `python`:
+  `~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/bin/python3.12`.
+- **`via: srun` works on any cluster, but holds ports.** Each connection is an
+  `srun --overlap` step of the job, and each live `srun` holds listening ports on this machine
+  from the cluster's `SrunPortRange` (`scontrol show config | grep SrunPortRange`). A cluster
+  may allow only a few dozen: `SrunPortRange=30927-30951` caps it at about 8 connections at
+  once, which a flow with several roles and agents runs out of.
+- **`via: tcp` holds none.** The job itself runs humanize's serving half on its node, on a free
+  port, and each connection presents a secret only this run knows; `srun` is used just to put
+  humanize on the node and read the port. It needs this machine to reach the nodes' ports, and
+  its traffic, authenticated but not encrypted, stays within the cluster's network.
+- **A job waiting in the queue keeps no one else waiting.** Every role's environment is brought
+  up at once, and other runs on this machine can submit while yours waits.
+
+Details: [Machines › Slurm environments](/reference/machines#slurm-environments).
 
 ## Where the agent runs {#where-the-agent-runs}
 
@@ -517,6 +575,8 @@ and the python.org installer put one, and says what it looked for if it finds no
   for whoever ssh logs in as, without spelling out the home.
 - **A container instead of a host.** `-e box=docker/home/me/myproject` gives the role a
   container of its own: see [Containers](/user/containers).
+- **A job on a Slurm cluster.** `-e box=slurm@hpc/lustre/me/myproject` gives the role a job
+  of its own on whichever node the cluster gives it: see [A Slurm cluster](#slurm).
 - **A directory on this machine.** `-e box=local/srv/project` puts the role somewhere other
   than the workspace, on this machine.
 - **Another host when this one is down.** Fill in `falls back to` on a saved host's form
@@ -546,7 +606,7 @@ status 2.
 | `cannot keep the local copy of the work at …` on the first turn | The path cannot be created here. Use one you can create, or put `self` in the host's affinity. |
 | `… nowhere its affinity (self) names has room …: claude is not installed on ssh@build-box: …` | `self` and no CLI on the host's `PATH`. Install it there, or add `local` to the affinity. |
 | `… nowhere its affinity (docker:gpubox) names has room …: a fence cannot hold a harness that runs on another machine` | A runtime in the affinity for a role not granted everything. Add `local` after it. |
-| `build-box: 'somewhere' is not where a harness runs: self, local or <ssh\|docker\|swarm>:<runtime name>` | Saving the host refused an affinity entry. Spell each as one of those. |
+| `build-box: 'somewhere' is not where a harness runs: self, local or <ssh\|docker\|swarm\|apple-container\|slurm>:<runtime name>` | Saving the host refused an affinity entry. Spell each as one of those. |
 
 More, with what causes each, are in [Troubleshooting](/user/troubleshooting).
 

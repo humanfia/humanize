@@ -1,7 +1,8 @@
 """The environments a flow's agents work in, and what a flow may ask of each.
 
-An environment is a working directory on a machine: this one, one reached over ssh, or a
-container started for it on a docker daemon, a docker swarm or Apple's `container` on this Mac.
+An environment is a working directory on a machine: this one, one reached over ssh, a
+container started for it on a docker daemon, a docker swarm or Apple's `container` on this Mac,
+or the node of a job held for it on a Slurm cluster.
 A flow declares the environments it needs as an :class:`EnvCollection`, one role apiece, and
 says what it will do in each by the mixins the role's type carries::
 
@@ -66,6 +67,9 @@ class EnvBackendKind(StrEnum):
     #: Mac. Spelled out rather than `auto()`, which would say `apple_container` where `-e` and
     #: the runtimes say `apple-container`.
     APPLE_CONTAINER = "apple-container"
+    #: A job of its own on the Slurm cluster this machine submits to, as a runtime asks for
+    #: one, on whichever node the cluster gave it.
+    SLURM = auto()
 
 
 class SequenceNotStr[T](Protocol):

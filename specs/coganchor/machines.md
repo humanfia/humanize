@@ -181,6 +181,46 @@ def status(seconds: float | None = None) -> dict[str, Any]: ...  # `container sy
 def capacity(said: Mapping[str, Any]) -> tuple[float, int]: ...  # its CPUs, the Mac's memory
 def mounted(workspace: str) -> list[str]: ...  # a `--mount` per name a Mac gives it
 
+# slurm.py -- a job of a Slurm cluster held for the agent, on whichever node it was given
+SRUN = "srun"   # its node reached by a step of the job's own per connection
+TCP = "tcp"     # or by a connection apiece to the serving half the job itself runs
+VIA = (SRUN, TCP)
+
+class Unplaced(RuntimeError): ...  # no node took the job in time; the scheduler's reason
+
+@dataclass(frozen=True, kw_only=True)
+class SlurmConfig(MachineConfig):
+    workspace: str              # absolute, as every node it may land on names it
+    name: str | None = None     # of the job
+    partition: str = ""
+    account: str = ""
+    qos: str = ""
+    time: str = ""              # as `--time` takes it
+    cpus: int | None = None
+    memory: int | None = None   # bytes, asked in whole MiB
+    gpus: int = 0
+    constraint: str = ""        # as `--constraint` takes it
+    python: str = ""            # a Python of at least 3.12 on its node: absolute, or `~/`
+    via: str = SRUN
+    sbatch_args: tuple[str, ...] = ()  # what else `sbatch` is told
+    labels: Mapping[str, str] = field(default_factory=dict[str, str])
+    placing: float | None = None  # seconds it may wait for a node; None for as long as it does
+    @property
+    def capabilities(self) -> frozenset[str]: ...
+    def create(self) -> Slurm: ...
+
+class Slurm(MachineBase):
+    job: str                    # its id once submitted, "" before
+    token: str | None           # what its serving half asks of a connection, over TCP
+    def __init__(self, config: SlurmConfig) -> None: ...
+    def submit(self) -> str: ...  # without waiting for it to run
+    def start(self) -> AnchorConfig: ...
+    def stop(self) -> None: ...
+
+def jobs(
+    labels: Mapping[str, str] | None = None, *, seconds: float | None = None
+) -> list[Allocation]: ...  # this user's of humanize's, waiting or running, by job id
+
 # mapped.py -- the workspace on that machine, as a flow's own Python reaches it
 @dataclass(frozen=True, slots=True)
 class Ran:
@@ -222,7 +262,8 @@ SSH = "ssh"
 DOCKER = "docker"
 SWARM = "swarm"
 APPLE_CONTAINER = "apple-container"
-BACKENDS = (SSH, DOCKER, SWARM, APPLE_CONTAINER)
+SLURM = "slurm"
+BACKENDS = (SSH, DOCKER, SWARM, APPLE_CONTAINER, SLURM)
 SELF = "self"  # an affinity's entry for a harness natively on the runtime's own machine
 HERE = "local"  # and for one on this machine, anchored to it
 TYPED = "typed"
@@ -315,7 +356,33 @@ class AppleContainerRuntime:
     def at(self) -> Path: ...
     def held(self) -> dict[str, Any]: ...
 
-type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime | AppleContainerRuntime
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SlurmRuntime:
+    backend: ClassVar[str] = SLURM
+    name: str
+    partition: str = ""
+    account: str = ""
+    qos: str = ""
+    time: str = ""  # minutes, MM:SS, HH:MM:SS or D-HH[:MM[:SS]]
+    constraint: str = ""
+    python: str = ""  # a Python of at least 3.12 on its nodes: absolute, or `~/`
+    via: str = "srun"  # srun or tcp
+    run_args: tuple[str, ...] = ()  # what else `sbatch` is told
+    cpus: float = 0.0  # what its jobs may hold all told; 0 for what the cluster gives
+    memory: int = 0
+    max_jobs: int = 0  # waiting or running
+    max_wait: int = 0  # seconds a job may wait for a node; 0 for as long as it does
+    workdir: str = ""
+    fallback: tuple[str, ...] = ()
+    made: str = TYPED
+    affinity: tuple[str, ...] = ()
+    @property
+    def at(self) -> Path: ...
+    def held(self) -> dict[str, Any]: ...
+
+type Runtime = (
+    SSHRuntime | DockerRuntime | SwarmRuntime | AppleContainerRuntime | SlurmRuntime
+)
 
 def affine(entry: str) -> tuple[str, str] | None: ...  # (backend, name), None for self/local
 def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint: ...
@@ -422,6 +489,25 @@ def hosts(
   humanize's here, `container` filtering nothing, the size its virtual machine has, and the
   labels only where `container` says none; both it and `status` MUST raise `OSError` where
   `container` could not be asked, did not answer within `seconds`, or is not running.
+- A Slurm job MUST be one task on one node, submitted with `sbatch` here under the partition,
+  account, quality of service, time, features and arguments its setting says, asking for
+  exactly the CPUs, memory and GPUs its setting says, with nothing of this process's
+  environment but whose it is, in the workspace, and with its labels in its comment -- those
+  and `humanize` written as on a container, never taken from the caller's labels. It MUST come
+  to `remote`, `managed` and `linux`, never `isolated`, and MUST be given the project directory
+  as its node names it, refused where its node has none.
+- `start` MUST wait for the job to run: one still waiting once `placing` is over MUST raise
+  `Unplaced` with Slurm's reason, and one that ended or went before it ran `RuntimeError`;
+  whatever it raises, its job MUST be cancelled. `submit` alone MUST NOT wait.
+- A job reached by `srun` MUST be named by its anchor as `slurm://<job>`, with its setting's
+  Python; one reached over TCP MUST run nothing but the serving half as its own batch step,
+  listening on its node for every connection and asking each for a secret this process made
+  and put on no command line, and its anchor MUST name `tcp://<node>:<port>` and that secret
+  -- `srun` putting the serving half's archive on the node and reading its port, and holding
+  nothing once it has. `stop` MUST cancel the job, and only the one it submitted.
+- `jobs` MUST read the labels back for every job of humanize's of this user's that is waiting
+  or running, as `allocations` does for containers, reading a comment that is not one as no
+  job of humanize's, and MUST raise `OSError` where Slurm could not be asked.
 - `Mapped` MUST reach the machine down the same road a turn takes, and MUST take a path either
   as the machine names it or relative to the workspace.
 - `Mapped.run` MUST answer with the exit status and everything written on both streams, MUST
@@ -432,8 +518,8 @@ def hosts(
 
 ### Runtimes
 
-- A runtime is a machine saved under a name -- an ssh host, a docker daemon, a docker swarm or
-  this Mac's Apple containers -- that a flow's
+- A runtime is a machine saved under a name -- an ssh host, a docker daemon, a docker swarm,
+  this Mac's Apple containers or the Slurm cluster this machine submits to -- that a flow's
   environment is put on when an `-e` names it. It MUST NOT be anything a flow sees: a flow's
   environments stay `Env`s whatever runtime they were put on.
 - One runtime MUST be one entry under `runtimes: <backend>: <name>:` in humanize's settings
@@ -449,6 +535,9 @@ def hosts(
   a swarm runtime with the same, or a constraint that compares nothing, a generic resource of
   no single word, or a node reached by neither a runtime's name nor an ssh destination;
   a runtime of Apple containers with an image of more than one word or a negative amount;
+  a Slurm runtime with a partition, account or quality of service of more than one name, a
+  time `--time` does not take, a constraint of more than one word, a Python neither absolute
+  nor under `~/`, a way to its nodes but `srun` and `tcp`, or a negative amount;
   and any of them with an affinity entry that is none of `self`, `local` and
   `<backend>:<name>`, one named twice, or one naming the runtime itself, which is `self`; or
   with a fallback entry that is not `<backend>:<name>` of a backend there is and a name a

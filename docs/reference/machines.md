@@ -18,7 +18,7 @@ machines) is [Remote execution](/reference/remote-execution).
 | **Machine** | A `MachineBase` made by `MachineConfig.create()`: brought up by `start()`, taken down by `stop()`. |
 | **Anchor** | The [`AnchorConfig`](/reference/remote-execution#anchorconfig) `start()` returns; every turn of the agent runs under it. |
 | **Environment** | A working directory on a machine that a flow role is given: a `LocalEnv`, or a role filled with `-e`. |
-| **Runtime** | An ssh host, a docker daemon, a docker swarm or this Mac's Apple containers saved under a name under `runtimes` in `$HUMANIZE_HOME/settings.yaml`, so that `-e` can name it and an environment is put on it. |
+| **Runtime** | An ssh host, a docker daemon, a docker swarm, this Mac's Apple containers or the Slurm cluster this machine submits to, saved under a name under `runtimes` in `$HUMANIZE_HOME/settings.yaml`, so that `-e` can name it and an environment is put on it. |
 | **Endpoint** | The docker daemon a container is run on, spelled as `docker --host`/`--context` spell one. |
 | **Mirror** | The directory on the harness machine a supervised agent works in, reproducing the target's workspace. |
 | **Capability** | A word a machine setting, a machine or an anchor answers to (`remote`, `isolated`, …), or an environment mixin a driver serves. |
@@ -33,6 +33,7 @@ machines) is [Remote execution](/reference/remote-execution).
 | `AnchoredConfig(anchor=…)` | at the anchor's target | never; the machine is already running | never | the anchor as written |
 | `DockerConfig(…)` | in a new container of the image | on the agent's first turn | when the agent is garbage-collected, or at interpreter exit | a `docker://` anchor, supervised, with a private mirror |
 | `AppleContainerConfig(…)` | in a new Apple container of the image, on this Mac | the same | the same | an `apple-container://` anchor, supervised, with a private mirror |
+| `SlurmConfig(…)` | in a new Slurm job of one task, on whichever node the cluster gives it | the same | the same | a `slurm://` (or `tcp://`) anchor, supervised, with a private mirror |
 
 Lifecycle rules, common to every setting:
 
@@ -191,6 +192,79 @@ does. `stop()` runs `container delete --force <id from the cidfile>`.
 
 <small>Defined in [`src/hmz/coganchor/machines/apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/apple_container.py).</small>
 
+### `SlurmConfig`
+
+A job of one task on the Slurm cluster this machine submits to, on whichever node the cluster
+gives it. Nothing is a container: the workspace is the directory as the node names it (a
+shared filesystem, at the same path here and on every node the job may land on), and commands
+run as this user with the node's own tools, confined to the job's allocation.
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `workspace` | `str` | required | The project directory, absolute, as every node the job may land on names it. |
+| `name` | `str \| None` | `None` (`humanize-<random>`) | The job's name. |
+| `partition` | `str` | `""` (the cluster's default) | `--partition`. |
+| `account` | `str` | `""` (the user's default) | `--account`. |
+| `qos` | `str` | `""` (the default) | `--qos`. |
+| `time` | `str` | `""` (the partition's default) | `--time`, as Slurm takes it. |
+| `cpus` | `int \| None` | `None` (the partition's default) | `--cpus-per-task`. |
+| `memory` | `int \| None` | `None` (the default) | `--mem`, in bytes, rounded up to a whole MiB. |
+| `gpus` | `int` | `0` | `--gpus`. |
+| `constraint` | `str` | `""` | `--constraint`: the node features the job needs. |
+| `python` | `str` | `""` (whatever the node has) | A Python >= 3.12 on the node, absolute or under `~/`, tried before any other: for nodes whose own Python is older. |
+| `via` | `str` | `"srun"` | How the node is reached once the job runs: `srun` or `tcp` (see below). |
+| `sbatch_args` | `tuple[str, ...]` | `()` | Extra `sbatch` arguments, placed before humanize's resource flags. |
+| `labels` | `Mapping[str, str]` | `{}` | Extra labels, written in the job's comment. `humanize`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` are dropped from it. |
+| `placing` | `float \| None` | `None` (as long as it waits) | Seconds the job may wait for a node before `start()` gives up with `Unplaced`. |
+
+Validation (`ValueError`): a workspace that is not absolute, a `python` neither absolute nor
+under `~/`, `cpus` or `memory` not above 0, negative `gpus`, `via` neither `srun` nor `tcp`, a
+label name empty or containing `=`.
+
+`submit()` requires `sbatch` on `PATH` (`FileNotFoundError: no sbatch command here`) and
+submits, without waiting for the job to run:
+
+```text
+sbatch --parsable
+  --job-name <name>
+  --output /dev/null | --output /tmp/humanize-slurm-%j.out     the latter for via=tcp
+  --export HOME,USER
+  --chdir <workspace>
+  --comment <labels, URL-encoded>          caller's labels, then humanize=<uid>,
+                                           humanize.cpus, humanize.memory, humanize.gpus
+  <sbatch_args>...
+  --nodes 1 --ntasks 1
+  [--partition P] [--account A] [--qos Q] [--time T] [--constraint C]
+  [--cpus-per-task N] [--mem <MiB>M] [--gpus N]
+  --wrap <script>
+```
+
+`start()` submits where `submit()` has not, follows the job with `squeue` until it is
+`RUNNING` -- asking after 1 s, then twice as long each time up to 10 s apart, and asking again
+where `squeue` timed out or said an error of the controller's rather than `Invalid job id` --
+and reaches its node:
+
+| `via` | The job's script | Anchor |
+| --- | --- | --- |
+| `srun` | `exec sleep 2147483647`: nothing, for as long as the job is let | `slurm://<job>[?python=<python>]`: every connection is a step of the job, `srun --jobid=<job> --overlap`, sharing its allocation (see [Remote execution › Targets](/reference/remote-execution#targets)) |
+| `tcp` | waits for the serving half's archive under `$HOME/.cache/humanize/`, then runs the serving half listening on `0.0.0.0:<free port>`, exporting `/`, with a random secret set in the script (`HUMANIZE_TOKEN`), never on a command line on the node | `tcp://<node>:<port>` with `token` the secret; `srun` is used once to put the archive on the node and to read the port off `/tmp/humanize-slurm-<job>.out` there (60 s) |
+
+The mirror is at `<dir>/shadow` of a private temporary directory here, and the anchor is
+observed as `DockerConfig`'s is. `stop()` runs `scancel <job>` (never a job it did not submit)
+and removes the temporary directory.
+
+| `start()` error | Message |
+| --- | --- |
+| `sbatch` failed | `RuntimeError: could not submit a job to Slurm: <stderr>` |
+| still waiting once `placing` is over | `Unplaced: job <job> was not given a node within <n>s: it is pending for <Slurm's reason>` |
+| the job ended or went before it ran | `RuntimeError: job <job> is <state> before it ran: <reason>` |
+| the serving half did not say it was listening (`tcp`) | `RuntimeError: job <job> did not say it was listening within 60s: …` |
+| the node cannot serve the workspace | `OSError` from the workspace check |
+
+Any failure cancels the job before re-raising.
+
+<small>Defined in [`src/hmz/coganchor/machines/slurm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/slurm.py).</small>
+
 ## Endpoints {#endpoints}
 
 A docker endpoint names one daemon. `hmz.coganchor.transport.Endpoint.parse` reads:
@@ -235,9 +309,9 @@ every other role is filled by `-e`.
 | Part | Rule |
 | --- | --- |
 | `ROLE` | A Python identifier; each role at most once per run. |
-| `BACKEND` | `local`, `ssh`, `docker`, `swarm` or `apple-container`. |
-| `PROVIDER` | Written only after an `@`: the [runtime](#runtimes) saved under that name for `BACKEND`, or, for `ssh` alone, a host nobody saved, in brackets (`[host]`, `[user@host:port]`, `[<ssh config alias>]`). `ssh` always has one. Absent, it is this machine: a directory here (`local`, which takes no provider), docker's default here, the swarm this machine manages, this Mac's Apple containers with nothing saved. |
-| `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here, swarm with a manager here, apple-container). Omitted: the saved runtime's `workdir`, which then must be set. |
+| `BACKEND` | `local`, `ssh`, `docker`, `swarm`, `apple-container` or `slurm`. |
+| `PROVIDER` | Written only after an `@`: the [runtime](#runtimes) saved under that name for `BACKEND`, or, for `ssh` alone, a host nobody saved, in brackets (`[host]`, `[user@host:port]`, `[<ssh config alias>]`). `ssh` always has one. Absent, it is this machine: a directory here (`local`, which takes no provider), docker's default here, the swarm this machine manages, this Mac's Apple containers with nothing saved, the Slurm cluster this machine submits to with its defaults. |
+| `WORKDIR` | From the first `/` after the provider: an absolute path, or `~/…` under the login's home (ssh), or this user's home (docker on a daemon here, swarm with a manager here, apple-container, slurm). Omitted: the saved runtime's `workdir`, which then must be set. |
 
 Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 
@@ -246,13 +320,13 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | not the shape above | `-e 'repo=ssh@[x': expected <role>=<backend>[@<provider>][/<workdir>]` |
 | no workdir, and none saved | `-e 'repo=docker': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one` |
 | role not an identifier | `-e '9r=local/tmp': the role '9r' is not an identifier` |
-| unknown backend | `-e 'repo=bogus@x/y': 'bogus' is not a backend; one of local, ssh, docker, swarm, apple-container` |
+| unknown backend | `-e 'repo=bogus@x/y': 'bogus' is not a backend; one of local, ssh, docker, swarm, apple-container, slurm` |
 | `ssh` without a host | `-e 'repo=ssh/y': ssh needs a host: ssh@<saved host>/y, or ssh@[user@host:port]/y for a host not saved` |
 | `ssh` naming no saved runtime, out of brackets | `-e 'repo=ssh@box/y': no ssh host is saved as 'box'; write repo=ssh@[box]/y for a host not saved` |
 | a bracketed host that is not one | `-e 'repo=ssh@[-x]/y': '-x' is not an ssh host, as [user@]host[:port]` |
-| brackets on `docker`, `swarm` or `apple-container` | `-e 'repo=docker@[x]/y': only ssh takes a host nobody saved; docker@<name> names a docker runtime saved on the runtimes page of /settings` |
-| `docker@local`, `swarm@local`, `apple-container@local`, nothing saved as `local` | `-e 'repo=docker@local/y': docker on this machine names no provider; write repo=docker/y` |
-| `docker`, `swarm` or `apple-container` naming no saved runtime | `-e 'repo=docker@nope/y': no docker runtime is saved as 'nope'; save one on the runtimes page of /settings, or write repo=docker/y for docker on this machine` |
+| brackets on `docker`, `swarm`, `apple-container` or `slurm` | `-e 'repo=docker@[x]/y': only ssh takes a host nobody saved; docker@<name> names a docker runtime saved on the runtimes page of /settings` |
+| `docker@local`, `swarm@local`, `apple-container@local`, `slurm@local`, nothing saved as `local` | `-e 'repo=docker@local/y': docker on this machine names no provider; write repo=docker/y` |
+| `docker`, `swarm`, `apple-container` or `slurm` naming no saved runtime | `-e 'repo=docker@nope/y': no docker runtime is saved as 'nope'; save one on the runtimes page of /settings, or write repo=docker/y for docker on this machine` |
 | an `@` with nothing after it | `-e 'repo=docker@/y': an @ is written only before a provider; write repo=docker/y` |
 | `local` with a provider | `-e 'repo=local@/y': local takes no provider; write repo=local/y` |
 | a role given twice | `-e: the role 'repo' is given twice` |
@@ -272,6 +346,8 @@ Items are separated by a comma followed by `KEY=`; a `-e` may be repeated.
 | `swarm/…` | a new service on the swarm this machine manages | the same, with provider `local` |
 | `apple-container@NAME/…` | a new Apple container on this Mac, out of what `NAME` may hand out | `target="apple-container://humanize-NAME-ROLE-<8 hex>"`, `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<container>/` |
 | `apple-container/…` | a new Apple container on this Mac, with nothing saved | the same, with provider `local` |
+| `slurm@NAME/…` | a new job of one task submitted with `sbatch` as `NAME` asks, on whichever node the cluster gives it | `target="slurm://<job id>[?python=<python>]"` once the job runs (`via: srun`), or `target="tcp://<node>:<port>"` with the job's `token` (`via: tcp`); `workspace` the workdir, `shadow` under `$HUMANIZE_HOME/envs/mirrors/<job name>/` |
+| `slurm/…` | a new job with the cluster's defaults, nothing saved | the same, with provider `local` |
 
 Where the harness goes for such a session (supervised here, native on the machine, or on
 another runtime) is decided by the `affinity` of the runtime it is on: see
@@ -292,6 +368,8 @@ A `local` environment's work always has its harness here.
 | `~/…` on a swarm managed elsewhere | `<workdir> is on a remote docker swarm, so it must be an absolute path` |
 | an unknown runtime of Apple containers | `apple-container host '<name>' not found: add one, or name none for this Mac's own, as apple-container/<workdir>` |
 | a saved runtime of Apple containers that cannot be read | `the apple-container host '<name>' cannot be read; fix or remove it: runtimes.<backend>.<name> in <settings.yaml>` |
+| an unknown Slurm runtime | `Slurm cluster '<name>' not found: add one, or name none for the cluster's defaults, as slurm/<workdir>` |
+| a saved Slurm runtime that cannot be read | `the Slurm cluster '<name>' cannot be read; fix or remove it: runtimes.<backend>.<name> in <settings.yaml>` |
 | a `~` workdir that climbs out of home | `<workdir> climbs out of the home directory it is under` |
 | a workdir neither absolute nor under `~` | `<workdir> is neither absolute nor under ~` |
 
@@ -309,9 +387,12 @@ shares that machine and its connection.
 | `docker` | `DockerMachine` | the serving half over `docker exec -i` | the ssh probe, run in the container, after the container is started |
 | `swarm` | `SwarmMachine` | the serving half over `docker exec -i`, against the daemon of the node the task landed on | the ssh probe, run in the container, after the task is running |
 | `apple-container` | `AppleContainerMachine` | the serving half over `container exec -i` | the ssh probe, run in the container, after the container is started |
+| `slurm` | `SlurmMachine` | the serving half over `srun --jobid=<job> --overlap`, a step of the job; or over TCP to the serving half the job runs (`via: tcp`) | the ssh probe, run on the job's node, after the job is running |
 
 - Nothing connects until the run probes its environments, which it does before any agent
-  starts (and for every runtime an affinity puts a harness on too).
+  starts (and for every runtime an affinity puts a harness on too). Every environment of the
+  run is brought up at once -- a Slurm job may wait in its queue -- and the first refusal
+  stops the rest; of several refusals, the first role's in declaration order is raised.
 - Every command runs in its own process group with stdin closed; a timeout, cancellation or
   closing the driver kills the group.
 - Derived environments live under humanize's home on that machine:
@@ -324,7 +405,8 @@ shares that machine and its connection.
   ```
 
   `<digest>` is 12 hex digits of BLAKE2b over the absolute path or id. A docker, swarm or
-  Apple container environment's derived directories are inside its container and go with it.
+  Apple container environment's derived directories are inside its container and go with it;
+  a Slurm environment's are under humanize's home on its node, as an ssh host's are.
 
 | Error | Meaning |
 | --- | --- |
@@ -534,6 +616,73 @@ To remove humanize's Apple containers by hand: `container list` shows them as
 
 <small>Defined in [`src/hmz/runtime/flowing/environing_apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_apple_container.py), [`src/hmz/coganchor/machines/apple_container.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/apple_container.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_apple_container_env`), [`specs/runtime/flowing.md`](https://github.com/humanfia/humanize/blob/main/specs/runtime/flowing.md) (Apple container environments).</small>
 
+### Slurm environments {#slurm-environments}
+
+`-e ROLE=slurm@RUNTIME/WORKDIR` (or `slurm/WORKDIR`, the cluster's defaults with nothing saved)
+gives the role one job of its own on the Slurm cluster this machine submits to: one task on one
+node, submitted with `sbatch` when the run reaches its environments and cancelled (`scancel`)
+when the run closes it. The cluster puts it on whichever node has what the role asks for; once
+it runs, its node is reached through coganchor's serving half, and everything downstream --
+mirrors, files, derived environments -- is as for an [ssh host](#environment-drivers).
+
+| Aspect | Rule |
+| --- | --- |
+| Name | `humanize-<provider>-<role>-<8 hex>`, the job's (`--job-name`) |
+| Workdir | a directory of the node the job lands on, at the same path on every node it may land on and here (a shared filesystem); `~/…` is this user's home. Nothing is mounted or copied |
+| Request | `--nodes 1 --ntasks 1`; exactly the role's `_cpu_count` (`--cpus-per-task`), `_memory` (`--mem`, rounded up to a whole MiB) and `_gpu_count` (`--gpus`); nothing the role does not declare, which leaves the partition's defaults. The cluster confines the job to what it asked for |
+| Placement | the runtime's `partition`, `account`, `qos`, `time` and `constraint`, each only where set |
+| Arguments | the runtime's `run_args`, given to `sbatch` before the request |
+| Environment | `--export HOME,USER`: nothing of this process's environment but whose it is |
+| Labels | in the job's comment, URL-encoded: `humanize.provider`, `humanize.role`, `humanize.host`, `humanize.pid`, `humanize.name`, plus `humanize=<uid>`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` |
+| Reached | `via: srun` (default): every connection is `srun --jobid=<job> --overlap`, a step of the job on its node; `via: tcp`: the job's batch step is the serving half, and every connection dials `<node>:<port>` with a secret only this run was told. The runtime's `python` is tried first on the node |
+| Agents | anchored to the job's node; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<job name>/<12 hex>` where the node has no CLI (it needs none), or as the runtime's `affinity` says. Every command lands on the job's node, within its allocation |
+
+Allocation holds an exclusive `flock` on `$TMPDIR/humanize-<uid>/.slurm.<name>.lock` while
+what is free is worked out and the job is submitted, and not while the job waits in the queue:
+
+1. `squeue --me` (60 s) for this user's jobs of humanize's on this runtime, waiting or running,
+   read off their comments.
+2. Jobs labelled with this host whose `humanize.pid` no longer exists are cancelled
+   (`scancel`), with their mirrors.
+3. Against the runtime's `max_jobs`, and its `cpus` and `memory` where set, less what its jobs
+   hold -- counted across every run on this machine. Whether a node has room is the
+   scheduler's to say. Anything short raises `ResourceUnmet`:
+
+```text
+slurm@hpc has 4 of the 4 jobs it may (one held by humanize-hpc-box-1a2b3c4d, pid 4242 on login1; …)
+slurm@hpc has 2 of 32 CPUs free, and 'box' asks for 4 (8 CPUs held by …)
+slurm@hpc has 8 GiB of 64 GiB of memory free, and 'box' asks for 16 GiB (…)
+```
+
+4. `sbatch`, then the lock is let go of and the job followed with `squeue` until it runs. Still
+   waiting after the runtime's `max_wait` seconds (`0`: as long as it waits), it is cancelled
+   and raises `ResourceUnmet` with Slurm's reason, which [falls back](#falling-back) where
+   the runtime has a `fallback`:
+
+```text
+slurm@hpc: job 812345 was not given a node within 600s: it is pending for Resources
+```
+
+| Start failure | Error |
+| --- | --- |
+| no `sbatch` here | `EnvUnavailable: slurm@<p>: sbatch was not found on this machine` |
+| `squeue` not answering | `EnvConnectionError: could not connect to slurm@<p>: could not ask Slurm for its jobs: …` |
+| job would not be submitted | `EnvUnavailable: slurm@<p>: could not submit a job to Slurm: …` |
+| the job ended before it ran | `EnvUnavailable: slurm@<p>: job <id> is <state> before it ran: <reason>` |
+| the serving half not listening (`via: tcp`) | `EnvUnavailable: slurm@<p>: job <id> did not say it was listening within 60s: …` |
+| the node not reachable, or no such workdir there | `EnvConnectionError: slurm@<p>: …` |
+
+These and the shortages above name a saved runtime `slurm@<p>`, and the cluster's defaults
+`slurm` alone.
+
+To cancel humanize's jobs by hand:
+
+```sh
+squeue --me --noheader --format '%i %j' | awk '$2 ~ /^humanize-/ {print $1}' | xargs -r scancel
+```
+
+<small>Defined in [`src/hmz/runtime/flowing/environing_slurm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environing_slurm.py), [`src/hmz/coganchor/machines/slurm.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/machines/slurm.py), [`src/hmz/runtime/flowing/environments.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/environments.py) (`_slurm_env`).</small>
+
 ## Runtimes {#runtimes}
 
 A saved machine an environment may be put on: used as an environment when `-e` names it.
@@ -542,7 +691,7 @@ TUI on the Runtimes page of `/settings`.
 
 | Aspect | Rule |
 | --- | --- |
-| Location | `runtimes.<backend>.<name>` in `$HUMANIZE_HOME/settings.yaml`, `<backend>` `ssh`, `docker`, `swarm` or `apple-container`; see [Settings](/reference/settings#runtimes) |
+| Location | `runtimes.<backend>.<name>` in `$HUMANIZE_HOME/settings.yaml`, `<backend>` `ssh`, `docker`, `swarm`, `apple-container` or `slurm`; see [Settings](/reference/settings#runtimes) |
 | Name | `[A-Za-z0-9][A-Za-z0-9._-]*` |
 | Modes | the settings file's: `0600` when it is made, written to a temporary file and renamed |
 | Format | a mapping of every field of the runtime (tuples as lists) |
@@ -584,7 +733,7 @@ runtimes:
 | `workdir` | `str` | `""` | Default workdir for `-e ROLE=ssh@NAME`: absolute, `~` or `~/…`. |
 | `fallback` | `tuple[str, ...]` | `()` | Saved runtimes, each `<backend>:<name>`, to move an environment to in order when this one cannot hold it: see [Falling back](#falling-back). |
 | `made` | `str` | `"typed"` | `typed` or `imported`. |
-| `affinity` | `tuple[str, ...]` | `()` | Where the harness of an agent working on it runs, in the order tried: `self`, `local`, `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`. Empty: on it where its CLI is, else here. See [Remote execution › Affinity](/reference/remote-execution#affinity). |
+| `affinity` | `tuple[str, ...]` | `()` | Where the harness of an agent working on it runs, in the order tried: `self`, `local`, `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`, `slurm:<name>`. Empty: on it where its CLI is, else here. See [Remote execution › Affinity](/reference/remote-execution#affinity). |
 
 `target()` is `ssh://[user@]<alias or host>[:port][?F=…&HostName=…&IdentityFile=…&ProxyJump=…&<options>]`.
 These options come before humanize's own `ssh` options, and `ssh` keeps the first value it
@@ -689,6 +838,46 @@ of the Mac they may have between them.
 }
 ```
 
+### A Slurm cluster {#a-slurm-cluster}
+
+`hmz.coganchor.machines.store.SlurmRuntime`: the Slurm cluster this machine's `sbatch` submits
+to -- there is no daemon to name -- and how a job of humanize's is asked for on it.
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `name` | `str` | required | The runtime's name. |
+| `partition` | `str` | `""` | The partition a job is submitted to; empty for the cluster's default. |
+| `account` | `str` | `""` | The account a job is charged to; empty for the user's default. |
+| `qos` | `str` | `""` | Its quality of service; empty for the default. |
+| `time` | `str` | `""` | How long a job may run: minutes, `MM:SS`, `HH:MM:SS`, `D-HH[:MM[:SS]]`, `UNLIMITED` or `INFINITE`; empty for the partition's default. |
+| `constraint` | `str` | `""` | The node features a job needs, as `--constraint` takes them; one word. |
+| `python` | `str` | `""` | A Python >= 3.12 on its nodes, absolute or under `~/`, tried before any other; empty for whatever they have. |
+| `via` | `str` | `"srun"` | How a job's node is reached: `srun`, a step of the job per connection, which every cluster allows; or `tcp`, a connection apiece to the serving half the job itself runs, which needs this machine to reach the nodes' ports. See [Remote execution › Slurm](/user/remote-execution#slurm). |
+| `run_args` | `tuple[str, ...]` | `()` | Extra `sbatch` arguments; no newlines. |
+| `cpus` | `float` | `0.0` | CPUs its jobs may hold all told, waiting or running; `0` for no limit. |
+| `memory` | `int` | `0` | Bytes, likewise. |
+| `max_jobs` | `int` | `0` | Jobs at once, waiting or running; `0` for no limit. |
+| `max_wait` | `int` | `0` | Seconds a job may wait for a node before the environment is given up on (`ResourceUnmet`); `0` for as long as it waits. |
+| `workdir` | `str` | `""` | Default workdir for `-e ROLE=slurm@NAME`; a directory every node a job may land on has, at the same path. |
+| `fallback` | `tuple[str, ...]` | `()` | As for an ssh host: see [Falling back](#falling-back). |
+| `made` | `str` | `"typed"` | Always `typed`. |
+| `affinity` | `tuple[str, ...]` | `()` | As for an ssh host. |
+
+```json
+{
+  "backend": "slurm",
+  "name": "hpc",
+  "partition": "batch",
+  "account": "myteam",
+  "time": "04:00:00",
+  "python": "~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/bin/python3.12",
+  "via": "tcp",
+  "max_jobs": 8,
+  "max_wait": 600,
+  "workdir": "/lustre/me/project"
+}
+```
+
 ### Validation
 
 `store.new(backend, name, **fields)` builds and checks one without writing it; `add` refuses
@@ -696,7 +885,7 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 
 | Input | Message |
 | --- | --- |
-| backend not `ssh`, `docker`, `swarm` or `apple-container` | `'bogus' is not a runtime backend: ssh, docker, swarm, apple-container` |
+| backend not `ssh`, `docker`, `swarm`, `apple-container` or `slurm` | `'bogus' is not a runtime backend: ssh, docker, swarm, apple-container, slurm` |
 | bad name | `invalid runtime name '-x': must start with a letter or digit and contain only letters, digits, dots, dashes, and underscores` |
 | unknown field | `x: unknown ssh host setting 'bogus'` |
 | wrong type | `x: port cannot be '22'` |
@@ -714,14 +903,19 @@ an existing name; `write` replaces. Every refusal is a `ValueError`:
 | image with whitespace | `x: invalid image 'a b'` |
 | bad OCI runtime | `x: invalid OCI runtime '<value>'` |
 | bad or repeated GPU id | `x: invalid GPU id '<id>'`, `x: duplicate GPU specified` |
-| negative amount | `x: CPUs cannot be negative: -1.0` (also `memory`, `GPU memory`, `containers`, `tasks`) |
+| negative amount | `x: CPUs cannot be negative: -1.0` (also `memory`, `GPU memory`, `containers`, `tasks`, `jobs`, `the wait`) |
 | a swarm constraint comparing nothing | `x: invalid constraint 'node.labels.gpu': expected <attribute>==<value> or <attribute>!=<value>` |
 | a swarm GPU resource of more than one word | `x: invalid generic resource 'NVIDIA GPU'` |
 | a swarm node's bad host name, or a value neither a name nor a destination | `x: invalid node host name '-n'`, `x: node gpu-1: '<value>' is neither a saved ssh host nor [user@]host[:port]` |
-| a fallback entry not `<backend>:<name>` | `x: fallback 'gpu2' must be <backend>:<name>, the backend one of ssh, docker, swarm, apple-container` |
+| a Slurm partition, account or quality of service that is not one name | `x: invalid partition 'a b'` (also `account`, `quality of service`) |
+| a Slurm time `--time` does not take | `x: invalid time '4h': expected minutes, MM:SS, HH:MM:SS or D-HH[:MM[:SS]]` |
+| a Slurm constraint of more than one word, or beginning with `-` | `x: invalid constraint 'a b'` |
+| a Slurm `via` neither `srun` nor `tcp` | `x: via must be srun or tcp, not 'ssh'` |
+| a Slurm `python` neither absolute nor under `~/` | `x: the Python 'python3' must be absolute or under ~/` |
+| a fallback entry not `<backend>:<name>` | `x: fallback 'gpu2' must be <backend>:<name>, the backend one of ssh, docker, swarm, apple-container, slurm` |
 | a fallback naming the runtime itself | `x: a runtime cannot fall back to itself` |
 | a fallback entry named twice | `x: fallback ssh:gpu2 is named twice` |
-| an affinity entry that is not `self`, `local` or `<backend>:<name>` | `x: 'here' is not where a harness runs: self, local or <ssh\|docker\|swarm\|apple-container>:<runtime name>` |
+| an affinity entry that is not `self`, `local` or `<backend>:<name>` | `x: 'here' is not where a harness runs: self, local or <ssh\|docker\|swarm\|apple-container\|slurm>:<runtime name>` |
 | an affinity entry twice | `x: local is in its affinity twice` |
 | an affinity naming the runtime itself | `x: its affinity names itself; self is its own machine` |
 | `add` over an existing one | `ssh host 'gpu' already exists` |
@@ -749,11 +943,11 @@ environment landed on.
 | Aspect | Rule |
 | --- | --- |
 | Entry | `<backend>:<name>` of a saved runtime, e.g. `ssh:gpu2`, `docker:box`, `swarm:cluster`; checked when written for its shape, never itself, never twice. Whether it exists is asked when it is tried. |
-| Walked when | an `-e` names this runtime (it is the *main*), and it cannot hold the role: opening it is refused (an [opening refusal](#resolution) such as a `~/…` workdir on a daemon elsewhere), probing it fails (`EnvUnavailable`, `EnvConnectionError`), its daemon has not got what the role asks left or is at `max_containers`, or its swarm has no node with room or is at `max_tasks` (`ResourceUnmet`), or its machine is short of a resource the role declares (`ResourceUnmet`) |
+| Walked when | an `-e` names this runtime (it is the *main*), and it cannot hold the role: opening it is refused (an [opening refusal](#resolution) such as a `~/…` workdir on a daemon elsewhere), probing it fails (`EnvUnavailable`, `EnvConnectionError`), its daemon has not got what the role asks left or is at `max_containers`, or its swarm has no node with room or is at `max_tasks`, or its Slurm job was not given a node within `max_wait` or it is at `max_jobs` (`ResourceUnmet`), or its machine is short of a resource the role declares (`ResourceUnmet`) |
 | Order | the list's, until one holds the role; each refused environment is closed |
 | Transitivity | none: a runtime reached by fallback never walks its own list, and an `-e` naming a runtime that is only someone else's fallback walks nothing unless it has a list of its own |
 | Workdir | the fallback runtime's saved `workdir`, else the path the `-e` gave |
-| Unsaved specs | `local/…`, `ssh@[user@host]/…`, `docker/…`, `swarm/…`, `apple-container/…`: no fallback |
+| Unsaved specs | `local/…`, `ssh@[user@host]/…`, `docker/…`, `swarm/…`, `apple-container/…`, `slurm/…`: no fallback |
 | Said | `hmz exec: <backend>:<A> cannot hold '<role>': <why>; using <backend>:<B>`, on stderr (a `notice` in the TUI) |
 | All refused | the last refusal's kind, naming every runtime tried and why: `ssh:a cannot hold 'box': …; ssh:b cannot hold 'box': …` |
 | Recorded | the epic's `envs` keeps the `-e` as given (what a picked-up run is given again, and what settings remember); `used` is where each role was put, written only where it differs |
@@ -790,6 +984,14 @@ does not answer or is not running. `cpus` is the CPUs it counts, `memory` the Ma
 the container system's; `short` says `it is to hand out N CPUs and has M` and `it is to hand out
 N bytes and has M`. `gpus`, `usable` and `runtimes` are empty.
 
+A Slurm cluster is checked with `sinfo`: `sinfo --version` (not reached, saying why, where
+there is no Slurm here to ask), then `sinfo --Node` of the runtime's partition (the cluster's
+default where it names none). `nodes` is the host names of the nodes that may take a job (idle,
+mixed, allocated or completing, and none not responding, powered down, rebooting or reserved);
+`cpus` and `memory` are what those have all told; `version` Slurm's; `short` says `no node of
+partition <p> may take a job` (or `of the cluster`), `it is to hand out N CPUs and has M` and
+`it is to hand out N bytes and has M`. `gpus`, `usable` and `runtimes` are empty.
+
 The ssh check runs the environment probe down the same `ssh` a run uses, in a new session with
 no terminal and `SSH_ASKPASS_REQUIRE=never`, so a host that wants a password fails instead of
 waiting.
@@ -818,7 +1020,10 @@ to the declaration instead, and refused only when the runtime cannot hand it out
 environment reserves the declaration of its node, as its limit too -- GPUs as the runtime's
 `gpu_resource` -- and is refused when the runtime or the swarm cannot
 ([how](#swarm-environments)). An Apple container environment is sized to its CPUs and memory
-as a docker one is, and refused for any GPU ([how](#apple-container-environments)).
+as a docker one is, and refused for any GPU ([how](#apple-container-environments)). A Slurm
+environment's job asks for the declaration, which the cluster confines it to, and is refused
+when its runtime cannot hand it out or no node takes the job within its `max_wait`
+([how](#slurm-environments)); GPU memory is checked against what the node's GPUs have.
 
 ## Capabilities {#capabilities}
 
@@ -828,10 +1033,10 @@ Each setting answers `capabilities` without starting anything.
 
 | Word | Meaning | Said by |
 | --- | --- | --- |
-| `remote` | Work lands through an anchor, not as ordinary processes here. A `local:` target counts. | `AnchoredConfig`, `DockerConfig`, `SwarmConfig`, `AppleContainerConfig` |
+| `remote` | Work lands through an anchor, not as ordinary processes here. A `local:` target counts. | `AnchoredConfig`, `DockerConfig`, `SwarmConfig`, `AppleContainerConfig`, `SlurmConfig` |
 | `isolated` | The tools a command finds are the image's. | `DockerConfig`, `SwarmConfig`, `AppleContainerConfig` |
-| `managed` | Started for the agent and taken down with it. | `DockerConfig`, `SwarmConfig`, `AppleContainerConfig` |
-| `linux`, `darwin` | The platform. | `DockerConfig`, `SwarmConfig` and `AppleContainerConfig` promise `linux`; any machine after `observe()` |
+| `managed` | Started for the agent and taken down with it. | `DockerConfig`, `SwarmConfig`, `AppleContainerConfig`, `SlurmConfig` |
+| `linux`, `darwin` | The platform. | `DockerConfig`, `SwarmConfig`, `AppleContainerConfig` and `SlurmConfig` promise `linux`; any machine after `observe()` |
 | `anchor:supervised` | The agent runs under a supervisor; files and commands are answered from the target. | the anchor |
 | `anchor:native-cli` | The target's own CLI runs there. | the anchor, `native=True` |
 | `anchor:afar` | Supervised, with the harness on another machine; always with `anchor:supervised`. | the anchor, harness elsewhere |
@@ -879,8 +1084,8 @@ it is:
 | --- | --- |
 | `AnchoredConfig` with `shadow` unset, harness here | the workspace's own absolute path on this machine |
 | `-e ssh@…` session, harness here | the same: the workdir's path on this machine |
-| `DockerConfig` or `AppleContainerConfig` machine | `<tmp>/humanize-<random>/shadow`, removed with the container |
-| `-e docker[@…]/…` or `-e apple-container[@…]/…` session, harness here | `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex of the workdir>`, removed with the container |
+| `DockerConfig`, `AppleContainerConfig` or `SlurmConfig` machine | `<tmp>/humanize-<random>/shadow`, removed with the container or job |
+| `-e docker[@…]/…`, `-e apple-container[@…]/…` or `-e slurm[@…]/…` session, harness here | `$HUMANIZE_HOME/envs/mirrors/<container or job name>/<12 hex of the workdir>`, removed with the container or job |
 | harness on another machine, `shadow` unset | `$HOME/.cache/humanize-mirrors/<16 hex>` there (`/tmp/humanize-mirrors/<16 hex>` in a container), kept between turns |
 
 A mirror path that already holds unrelated files, or was last used for another target, is
@@ -953,6 +1158,12 @@ running container `container list --format json` lists with a `humanize` label, 
 `container system status --format json` as a dict, raising `OSError` where it does not answer
 or is not running; and `capacity(status)` the CPUs it counts and the Mac's memory.
 
+`hmz.coganchor.machines.slurm` has the same for a Slurm cluster: `jobs(labels=None, *,
+seconds=None)` reads an `Allocation` (named by the job's id) off every job of this user's
+`squeue --me` lists, waiting or running, whose comment carries the `humanize` label, the rest
+of `labels` matched against the comment too; a comment that is not one of humanize's counts as
+no job of humanize's. It raises `OSError` where `squeue` could not be asked.
+
 ## Writing a machine of your own {#writing-a-machine-of-your-own}
 
 | Type | Contract |
@@ -1015,11 +1226,13 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 ```python
 from hmz.coganchor.machines import (
     MachineConfig, MachineBase, AnchoredConfig, Anchored, DockerConfig, Docker,
-    SwarmConfig, Swarm, AppleContainerConfig, AppleContainer, Allocation, allocations,
+    SwarmConfig, Swarm, AppleContainerConfig, AppleContainer, SlurmConfig, Slurm,
+    Allocation, allocations,
     info, gpus_listed, Mapped, Ran,
 )
 from hmz.coganchor.machines.store import (
-    SSHRuntime, DockerRuntime, SwarmRuntime, AppleContainerRuntime, new, add, write, find,
+    SSHRuntime, DockerRuntime, SwarmRuntime, AppleContainerRuntime, SlurmRuntime, new, add,
+    write, find,
     runtimes, remove, where, under, imports, daemon_of, node_of,
 )
 from hmz.coganchor.transport import Endpoint

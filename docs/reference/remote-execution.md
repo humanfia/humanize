@@ -82,6 +82,7 @@ machine in `AnchorConfig.harness`.
 | `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` | a host reached with the system `ssh` | the serving half is bootstrapped over `ssh` and spoken to on its pipes | yes | POSIX `/bin/sh`, Python >= 3.12 |
 | `docker://CONTAINER[@ENDPOINT]` | a running container | the serving half is bootstrapped with `docker exec -i`, running as the container's user | yes | `docker` here; `/bin/sh` and Python >= 3.12 in the container |
 | `apple-container://CONTAINER` | a running Apple container on this Mac | the serving half is bootstrapped with `container exec -i`, running as the container's user | yes | Apple's `container` here; `/bin/sh` and Python >= 3.12 in the container |
+| `slurm://JOBID[?python=PATH]` | the node a running Slurm job of this user's was given | the serving half is bootstrapped with `srun --jobid=JOBID --overlap`, a step of that job sharing its allocation, running as this user | yes | `srun` here; `/bin/sh` and Python >= 3.12 on the node (`PATH`, absolute or under `~/`, is tried first) |
 | `tcp://HOST:PORT` | a serving half [left listening](#serving-a-target) | a TCP connection, `TCP_NODELAY`, 30 s connect timeout | no | a served target and its token |
 | `peer://TICKET@HOST:PORT` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting `TICKET` | no | written by humanize only |
 
@@ -96,12 +97,15 @@ Parsing rules:
 - `docker://`: the container name ends at the first `@`; the rest is a docker
   [endpoint](/reference/machines#endpoints). An endpoint of `local` is the same target as none.
 - `apple-container://`: the container name, holding no `@`, `/`, `?` or `#`.
+- `slurm://`: the job's id, all digits; after `?`, only `python=PATH`, URL-quoted, `PATH`
+  absolute or under `~/` (the node's home) and holding no newline, carriage return, NUL or `"`.
 - `tcp://`: `HOST:PORT` split at the last `:`; the port must be digits.
 - `peer://`: `TICKET@HOST:PORT`; brackets around an IPv6 host are stripped.
 
 | Input | `ValueError` message |
 | --- | --- |
-| an unknown scheme | `unsupported target 'bogus://x'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]` |
+| an unknown scheme | `unsupported target 'bogus://x'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], apple-container://CONTAINER, slurm://JOBID[?python=PATH], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]` |
+| a `slurm://` query other than one `python=PATH` | `malformed target 'slurm://12?py=x'; expected slurm://JOBID[?python=PATH]` |
 | `tcp://` without a numeric port | `malformed target 'tcp://h'; expected tcp://HOST:PORT` |
 | an ssh option that is not one | `malformed target 'ssh://h?Bad-Key=1'; Bad-Key='1' is not an ssh option` |
 | an ssh query that does not parse | `malformed target '<spec>'; expected ssh://HOST?KEYWORD=VALUE&...` |
@@ -110,16 +114,16 @@ Parsing rules:
 
 ### Bootstrapping the serving half
 
-For `local`, `ssh://`, `docker://` and `apple-container://`, humanize starts `hmz internal anchor serve --stdio
+For `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://`, humanize starts `hmz internal anchor serve --stdio
 --export WORKSPACE[:REAL]` on the far side and speaks the protocol over its stdin and stdout.
 
 | Step | Behaviour |
 | --- | --- |
 | Archive | A zipapp of `hmz.coganchor` and the command line reaching it, with an `hmz-<version>.dist-info/METADATA` so that `__version__` and `hmz --version` answer the same on the target, built once per source tree into `$TMPDIR/humanize-<uid>/humanize-<digest>.pyz` (directory `0700`, refused if anyone else can write it), beside a `<stamp>.digest` naming the archive each source tree (by version, path, file sizes and modification times) built. Two checkouts or versions never share an archive. A run touches the archive it uses at least hourly; a build removes anything in the directory, and the `$TMPDIR/humanize-<uid>.pyz` an earlier humanize shared, untouched for 14 days. A directory anyone else can write fails the install with `ConnectionError: could not install humanize on <target>: …`. The driving half (`agents`, `providers`, `machines`, `backends.py`, `models.py`, `fallbacks.py`, `prices.py`) is left out. Pure standard library; runs on any architecture. |
 | Name on the target | `humanize-<digest>.pyz`, `<digest>` the first 16 hex digits of the archive's SHA-256. |
-| Cache on the target | `$HOME/.cache/humanize/` over ssh, `/tmp/humanize/` in a container. |
+| Cache on the target | `$HOME/.cache/humanize/` over ssh and on a Slurm node, `/tmp/humanize/` in a container. |
 | Install | Run with the interpreter below, `HUMANIZE_BUNDLES` set to the cache and `mkdir -p`'d by the far side's shell, the archive on stdin: refuse it (`humanize: <n> bytes arrived that are not humanize-<digest>.pyz`) unless its SHA-256 starts with `<digest>`; keep a file already there only if its own SHA-256 does too, touching it; otherwise write `<file>.<pid>` and move it into place. Then remove other `humanize-*.pyz*` in the cache untouched for 14 days. Every line that runs the archive first `touch -c`es it. Concurrent installs are safe. Each (target, digest) pair is pushed at most once per process. |
-| Interpreter | The first candidate that exists and reports a version >= 3.12, tried in order: `python3`, `python3.14`, `python3.13`, `python3.12`, `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`, `/usr/bin/python3`. |
+| Interpreter | The first candidate that exists and reports a version >= 3.12, tried in order: a `slurm://` target's `python`, then `python3`, `python3.14`, `python3.13`, `python3.12`, `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`, `/usr/bin/python3`. |
 | No interpreter | Exit 127, stderr `humanize: no python 3.12 or newer on this machine; looked for: <candidates>`. |
 | Install failure | `ConnectionError: could not install humanize on <target>: <stderr>`; for a container, `; the container said: <last 3 log lines>` is appended. |
 | Protocol | Both halves send `PROTOCOL_VERSION` (currently `1`). A mismatch fails the handshake with `EPROTO`, `client speaks protocol <n>, this humanize speaks 1`, and closes the connection. |
@@ -144,6 +148,25 @@ ssh <target options> -T -o BatchMode=no -o ServerAliveInterval=30 <reuse options
   `0700`. The `-<8 hex>` suffix is a digest of the target's options, so two targets at one host
   with different options use different master connections.
 - The command is sent as one string, each word shell-quoted, prefixed with `exec`.
+
+### Slurm steps
+
+Every command humanize runs on a `slurm://JOBID` target is a step of that job:
+
+```text
+srun --jobid=JOBID --overlap --nodes=1 --ntasks=1 --unbuffered --quiet --export=HOME,USER --chdir=/ <argv>
+```
+
+- `--overlap` shares the job's allocation rather than waiting for a share of it; the step runs
+  on the job's one node, within its CPUs, memory and GPUs.
+- The argv is passed as it is, not through a shell; nothing of this process's environment
+  crosses but `HOME` and `USER`, nor its directory, which the node may not have.
+- Each step that is running holds listening ports on this machine, from the cluster's
+  `SrunPortRange`, which may be only a few dozen ports shared by every user here: a cluster
+  with `SrunPortRange=30927-30951` holds about 8 connections at once. A
+  [Slurm runtime](/reference/machines#a-slurm-cluster) saved with `via: tcp` holds none: its job
+  runs the serving half [listening](#serving-a-target) on its node, and `srun` is used only to
+  put the archive there and read the port.
 
 <small>Defined in [`src/hmz/coganchor/transport.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/transport.py) (`Target`, `Road`, `python_command`, `build_bundle`), [`src/hmz/coganchor/proto.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/proto.py), [`src/hmz/coganchor/serve/server.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/serve/server.py).</small>
 
@@ -294,21 +317,21 @@ places for the harness of an agent whose work is on it.
 
 ```text
 affinity := [<entry>, ...]
-<entry>  := self | local | ssh:<name> | docker:<name> | swarm:<name> | apple-container:<name>
+<entry>  := self | local | ssh:<name> | docker:<name> | swarm:<name> | apple-container:<name> | slurm:<name>
 ```
 
 | Entry | The harness | No room when |
 | --- | --- | --- |
 | `local` | supervised here, anchored to the environment's machine | never |
 | `self` | native on the environment's machine | the CLI is missing there (`HarnessNotInstalled`), or the machine cannot hold the session's fence (`HarnessSandboxed`) |
-| `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` | supervised on that saved runtime's machine, reaching the environment's machine through the anchor | it cannot be opened or reached (`EnvError`), has no share left, its container limit among it (`ResourceUnmet`), or the role's `Permission` fences anything (`HarnessSandboxed`) |
+| `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>`, `slurm:<name>` | supervised on that saved runtime's machine, reaching the environment's machine through the anchor | it cannot be opened or reached (`EnvError`), has no share left, its container limit among it (`ResourceUnmet`), or the role's `Permission` fences anything (`HarnessSandboxed`) |
 
 - Entries are tried in order; the next only when the one before has no room. Where none has,
   the last refusal is raised, of the same type, as `<backend>[@<provider>]: nowhere its
   affinity (<entries>) names has room for <cli>'s harness; the last: <refusal>`. A machine
   that cannot be asked (`HarnessUnrecoverable`) is raised as it is, not passed by.
 - Work in a `local` environment always has its harness here. Work on a machine that is no saved
-  runtime (`ssh@[<host>]`, a host nobody saved; `docker/…`, `swarm/…` or `apple-container/…`, this machine's), or
+  runtime (`ssh@[<host>]`, a host nobody saved; `docker/…`, `swarm/…`, `apple-container/…` or `slurm/…`, this machine's), or
   on a runtime with an empty affinity, is placed by the [default](#default-resolution).
 - The affinity read is the one of the runtime the session's placement names
   (`store.find(placement.backend, placement.provider)`), the one actually opened. A runtime a
@@ -324,7 +347,7 @@ affinity := [<entry>, ...]
   output goes to a socket (opencode's, Claude Code's stdin) is run with that output lost.
 - An affinity is checked when the runtime is made: an entry that is none of the above, one
   named twice, or one naming the runtime itself is a `ValueError`
-  (`<name>: '<entry>' is not where a harness runs: self, local or <ssh|docker|swarm|apple-container>:<runtime name>`,
+  (`<name>: '<entry>' is not where a harness runs: self, local or <ssh|docker|swarm|apple-container|slurm>:<runtime name>`,
   `<name>: <entry> is in its affinity twice`, `<name>: its affinity names itself; self is its
   own machine`). An entry naming a runtime nobody saved is accepted, and has no room.
 
@@ -683,8 +706,8 @@ hmz internal anchor serve --export VIRTUAL[:REAL] [--export ...]
 
 | Mode | Serves | Started by |
 | --- | --- | --- |
-| `--stdio` | one session on stdin/stdout; fds 0 and 1 are pointed at `/dev/null` for the rest of the process | humanize, for `local`, `ssh://`, `docker://` and `apple-container://` targets |
-| `--listen [HOST:]PORT` | every TCP connection, one thread each, until interrupted; prints `hmz internal anchor serve listening HOST PORT` on stderr | a person, for `tcp://` targets |
+| `--stdio` | one session on stdin/stdout; fds 0 and 1 are pointed at `/dev/null` for the rest of the process | humanize, for `local`, `ssh://`, `docker://`, `apple-container://` and `slurm://` targets |
+| `--listen [HOST:]PORT` | every TCP connection, one thread each, until interrupted; prints `hmz internal anchor serve listening HOST PORT` on stderr | a person, for `tcp://` targets; or the batch step of a Slurm job whose runtime says `via: tcp`, on `0.0.0.0:0` with a random secret set in its script |
 | `--peer TICKET@HOST:PORT` | one session met at a broker | humanize, for a harness on a third machine |
 
 - `--export VIRTUAL[:REAL]` is required and repeatable. `VIRTUAL` must be absolute; `REAL`
@@ -698,8 +721,8 @@ hmz internal anchor serve --export VIRTUAL[:REAL] [--export ...]
   expected [HOST:]PORT`, exit 2. A bind failure exits 1.
 - `--token` defaults to `$HUMANIZE_TOKEN`. With a token, a session whose handshake does not
   present it is refused with `invalid token`.
-- For `ssh://` and `docker://` targets the token is unused; ssh and the docker socket
-  authenticate the session.
+- For `ssh://`, `docker://` and `slurm://` targets the token is unused; ssh, the docker socket
+  and Slurm authenticate the session.
 
 ::: danger A listening serving half is a shell on its machine
 An export bounds which paths a request may name; it does not confine what the commands it
@@ -742,6 +765,7 @@ from hmz.coganchor.anchor import NotInstalled
 | This machine, when the harness is elsewhere or the arrangement is native | none of the above; only what runs the three streams |
 | A target | a POSIX `/bin/sh` and Python >= 3.12; no root, compiler, kernel module or installed package |
 | A target of a fenced session | Linux with Landlock (ABI >= 1); ABI >= 4 (Linux 6.7), seccomp user notification and `pidfd_getfd` where the network is cut. Or macOS, not itself inside a sandbox (Seatbelt) |
+| A Slurm target | the job's node sees the workspace at the same path as this machine (a shared filesystem); `srun` here; with `via: tcp`, this machine able to reach the node's ports |
 | A native target | the CLI installed and on the login's `PATH` |
 | A harness machine elsewhere | an `ssh://` or `docker://` machine meeting the first row, with the CLI installed |
 | A third-machine harness | both machines able to reach this machine's broker port over IPv4 |
@@ -793,6 +817,7 @@ from hmz.coganchor.anchor import NotInstalled
 | A provider's variables reach commands on the target | never under supervised (`private`); under `native`, the CLI's environment is the turn's |
 | A credential appears in an argv | never; projected files cross on stdin |
 | A listening serving half without a token | loopback only |
+| A Slurm job's listening serving half (`via: tcp`) | token-authenticated, the token set in its batch script, never on a command line on the node; the traffic is not encrypted, so it stays within the cluster's network |
 | A broker port | open on every interface for the life of the process that booked a third-machine harness; pairing requires a 128-bit ticket known to exactly two machines |
 | A mirror overwrites a directory it did not create | never without `force` |
 

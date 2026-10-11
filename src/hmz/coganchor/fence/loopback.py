@@ -114,9 +114,11 @@ def supervisable() -> bool:
     with contextlib.suppress(OSError, ValueError):
         if int(Path(_YAMA).read_text(encoding="ascii")) >= 2:  # noqa: PLR2004
             return False
+    # A Python may be built without `pidfd_open` -- the standalone builds `uv` installs are --
+    # and one that has not got it cannot take a descriptor out of anything.
     try:
         pidfd = os.pidfd_open(os.getpid())
-    except OSError:
+    except (OSError, AttributeError):
         return False
     try:
         held = _getfd(pidfd, pidfd)

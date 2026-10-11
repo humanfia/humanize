@@ -90,7 +90,7 @@ inherits the setup of the built-in or installed flow it shadows.
 | Key | Type | Meaning | Read back |
 | --- | --- | --- | --- |
 | `agents` | `{role: str}` | each agent role's `cli[@account]/model:effort` (the [`-a`](/reference/flows#a-agents) spec after `<role>=`) | an entry that does not read as `cli[@account]/model:effort` (split at the first `/` and the last `:`) makes the whole `agents` mapping read as absent |
-| `envs` | `{role: str}` | each environment role's [`-e`](/reference/flows#e-environments) spec after `<role>=` | any non-string value makes the mapping read as absent; in a file with no [`spelling`](#spelling), a spec in the spelling `-e` refuses with a hint (`local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, an unsaved ssh host out of brackets) is rewritten in the one the hint gives, in every workspace, when the file is first read |
+| `envs` | `{role: str}` | each environment role's [`-e`](/reference/flows#e-environments) spec after `<role>=` | any non-string value makes the mapping read as absent; in a file with no [`spelling`](#spelling), a spec in the spelling `-e` refuses with a hint (`local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets) is rewritten in the one the hint gives, in every workspace, when the file is first read |
 | `params` | mapping | the params, as JSON | validated through the flow's current params model; a failure reads as not set up |
 | `budget` | `{duration, cost, output_tokens, graceful}` | the budget as `Budget.model_dump_json` writes it (`duration` ISO 8601, `cost` `"Infinity"` for unlimited) | validated as a `Budget`; a failure reads as absent |
 | `profile` | `bool`, written only as `true` | whether a run of the flow started from the TUI is [profiled](/reference/tracing#profiling-a-run), set on the `/flow` menu's **profiling** row | anything but `true` reads as off |
@@ -133,8 +133,8 @@ every added CLI.
 ### `runtimes`
 
 [Runtimes](/reference/machines#runtimes), written by `/settings` › Runtimes and
-`Hmz().runtimes`: `runtimes.<backend>.<name>`, `<backend>` `ssh`, `docker`, `swarm` or
-`apple-container`. The backend and the name are where the entry is, whatever it says; an
+`Hmz().runtimes`: `runtimes.<backend>.<name>`, `<backend>` `ssh`, `docker`, `swarm`,
+`apple-container` or `slurm`. The backend and the name are where the entry is, whatever it says; an
 entry that does not validate is skipped.
 
 `ssh`:
@@ -172,6 +172,33 @@ entry that does not validate is skipped.
 
 `apple-container`: `image`, `workdir` (`str`), `run_args`, `fallback`, `affinity` (`[str]`),
 `cpus` (`float`), `memory`, `max_containers` (`int`), `made` (`"typed"`).
+
+`slurm`:
+
+| Field | Type |
+| --- | --- |
+| `partition`, `account`, `qos`, `constraint`, `workdir` | `str` |
+| `time` | `str`: minutes, `MM:SS`, `HH:MM:SS`, `D-HH[:MM[:SS]]`, `UNLIMITED` or `INFINITE` |
+| `python` | `str`: absolute, or under `~/` |
+| `via` | `"srun"` or `"tcp"` |
+| `run_args`, `fallback`, `affinity` | `[str]` |
+| `cpus` | `float` |
+| `memory`, `max_jobs`, `max_wait` | `int` |
+| `made` | `"typed"` |
+
+```yaml
+runtimes:
+  slurm:
+    hpc:
+      partition: batch
+      account: myteam
+      time: '04:00:00'
+      python: ~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/bin/python3.12
+      via: tcp
+      max_jobs: 8
+      max_wait: 600
+      workdir: /lustre/me/project
+```
 
 ## File behaviour
 

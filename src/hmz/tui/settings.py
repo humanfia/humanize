@@ -140,7 +140,9 @@ _PAGES = (
     ),
     _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
     _Page("Fallback", "↻", "where a turn goes when its agent fails"),
-    _Page("Runtimes", "▦", "ssh hosts, docker daemons, swarms and Apple containers"),
+    _Page(
+        "Runtimes", "▦", "ssh hosts, docker daemons, swarms, Apple containers and Slurm"
+    ),
     _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
 )
 

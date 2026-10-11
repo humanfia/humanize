@@ -602,6 +602,32 @@ def under() -> Path: ...  # machine()/skills
 - Its container MUST be deleted when the environment is closed, and one whose process on this
   host has gone MUST be deleted by the next run on its provider.
 
+### Slurm environments
+
+- A `slurm` environment MUST be a job of its own per environment a run is given, submitted
+  from this machine to the cluster it submits to, under the partition, account, quality of
+  service, time, features and arguments its provider says -- `local` being the cluster's
+  defaults where no provider is written down under that name -- and everything derived from
+  it MUST be on that job's node, within that job. Its workdir MUST be the path it has on that
+  node, and the image a role declares MUST say nothing of it.
+- It MUST ask for exactly the CPUs, memory and GPUs its role declares, nothing where it
+  declares none; it MUST be labelled as a docker environment's container is, in its comment;
+  its driver MUST report what it asked for.
+- Before any agent starts, what the role asks MUST be held against what its provider may hand
+  out -- its job limit, and the CPUs and memory it was written down with where it was -- less
+  what that provider's jobs hold, waiting or running; what is short MUST raise `ResourceUnmet`
+  saying how much is free and which job holds the rest, and no two runs on this machine MUST
+  work it out for one provider at once -- for no longer than it takes to submit the job, never
+  while it waits for a node. A job still waiting once its provider's wait is over MUST raise
+  `ResourceUnmet` with Slurm's reason, and be cancelled. No `sbatch` here, a job refused or
+  ended before it ran, and a node without the workdir MUST raise `EnvUnavailable`.
+- An agent working on one MUST be anchored to its job: by a step of the job per connection, or
+  where its provider says, by a connection apiece to the serving half the job itself runs,
+  presenting the secret that job was given -- with the Python its provider names where it
+  names one; its harness put where the next section says.
+- Its job MUST be cancelled when the environment is closed, and one whose process on this host
+  has gone MUST be cancelled by the next run on its provider.
+
 ### Where the harness runs
 
 - A driver MUST put each session's harness where the affinity of the runtime its work is on

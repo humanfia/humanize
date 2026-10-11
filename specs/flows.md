@@ -9,7 +9,7 @@ Mixin system is crucial to the flow system. It allows the flow to declare what i
 `hmz exec` should support these flags:
 
 - `-a|--agents <role>=<harness>[@<provider>]/<model>[:<effort>]`: specifying an agent spec; `<model>` may hold `/` and `:` of its own, so a trailing `:<effort>` is the effort only where it is spelled as one (words of letters joined by `-`, `_` or a space), and is the model's otherwise; no effort is `auto`;
-- `-e|--envs <role>=<backend>[@<provider>][/<workdir>]`: specifying an env spec; `@<provider>` is the name of a runtime of that backend written down (`hmz.coganchor.machines.store`), and naming none is this machine -- `local/<workdir>` a directory here, `docker/<workdir>` docker's default here, `swarm/<workdir>` the swarm this machine manages, `apple-container/<workdir>` this Mac's Apple containers with nothing saved; for `ssh` a provider is needed, and a destination nobody saved is written in brackets, `ssh@[user@host:port]/<workdir>`, which no other backend takes; for `docker`, `<workdir>` is a directory of the daemon's host, which the role's container of its own is given; for `swarm`, `<workdir>` is a directory every node the role's task may land on has at that path; for `apple-container`, `<workdir>` is a directory of this Mac, which the role's container of its own is given; `/<workdir>` may be left off for a runtime written down with one;
+- `-e|--envs <role>=<backend>[@<provider>][/<workdir>]`: specifying an env spec; `@<provider>` is the name of a runtime of that backend written down (`hmz.coganchor.machines.store`), and naming none is this machine -- `local/<workdir>` a directory here, `docker/<workdir>` docker's default here, `swarm/<workdir>` the swarm this machine manages, `apple-container/<workdir>` this Mac's Apple containers, `slurm/<workdir>` the Slurm cluster this machine submits to with its defaults, with nothing saved; for `ssh` a provider is needed, and a destination nobody saved is written in brackets, `ssh@[user@host:port]/<workdir>`, which no other backend takes; for `docker`, `<workdir>` is a directory of the daemon's host, which the role's container of its own is given; for `swarm`, `<workdir>` is a directory every node the role's task may land on has at that path; for `apple-container`, `<workdir>` is a directory of this Mac, which the role's container of its own is given; for `slurm`, `<workdir>` is a directory every node the role's job may land on has at that path; `/<workdir>` may be left off for a runtime written down with one;
 - `-p|--params <key>=<value>`: specifying a flow param; `-p budget.duration=<duration>,budget.cost=<cost>,budget.output_tokens=<output_tokens>,budget.graceful=<bool>` is the run's budget instead, which is why no flow may have a param called `budget`.
 
 All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)
@@ -25,6 +25,7 @@ class EnvBackendKind(StrEnum):
     DOCKER = auto()
     SWARM = auto()
     APPLE_CONTAINER = "apple-container"
+    SLURM = auto()
 
 class Env(Protocol):
     @property
@@ -151,7 +152,10 @@ whichever node has room for what the role declares -- reserved there, and the li
 runtime with nothing left for it, or a task no node takes in time, is `ResourceUnmet` as well.
 An `apple-container` env is a container of its own too, a virtual machine Apple's `container`
 sizes with the CPUs and memory the role declares; a role declaring a GPU is `ResourceUnmet`,
-as Apple's containers are given none.
+as Apple's containers are given none. A `slurm` env is no container: it is a job of its own on
+the Slurm cluster this machine submits to, asking for the CPUs, memory and GPUs the role
+declares on whichever node has them, and the image says nothing of it; a runtime with nothing
+left for it, or a job no node takes within the runtime's wait, is `ResourceUnmet` as well.
 
 ## Agents
 

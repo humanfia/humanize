@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
 import yaml
 
 from hmz.tui import Humanize
+from hmz.tui.dropdown import Dropdown
+from hmz.tui.pick import Slurming
 from hmz.tui.settings import PAGES, Adjusts
 from tests.integration.doubles_tui import (
     SIZE,
     leaves,
     on,
+    onto,
     opened,
     opens,
     picks,
@@ -125,3 +129,49 @@ async def test_the_accounts_and_runtimes_pages_start_empty(workspace: Path) -> N
 
         await opens(pilot, "accounts")
         await shows(pilot, "no accounts yet", "Add an account")
+
+
+#: A stand-in `sinfo`: Slurm's version, and three nodes of which two may take a job.
+_SINFO = """
+import sys
+
+if "--version" in sys.argv:
+    print("slurm 23.02.7")
+else:
+    print("gpu-01|64|512000|idle")
+    print("gpu-02|64|512000|mix")
+    print("gpu-03|64|512000|drain")
+"""
+
+
+async def test_a_slurm_cluster_made_on_its_form_is_saved_listed_and_checked(
+    workspace: Path, tmp_path: Path
+) -> None:
+    sinfo = tmp_path / "bin" / "sinfo"
+    sinfo.write_text(f"#!{sys.executable}\n{_SINFO}")
+    sinfo.chmod(0o755)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_settings(pilot, "runtimes")
+        await pilot.click("#act-add")
+        await on(pilot, Dropdown)
+        await onto(pilot, "slurm", "OptionList")
+        await pilot.press("enter")
+        await on(pilot, Slurming)
+        await shows(pilot, "Add a Slurm cluster")
+
+        await onto(pilot, "partition")
+        await pilot.press(*"gpu", "enter")
+        await onto(pilot, "max_jobs")
+        await pilot.press("4", "enter")
+        await pilot.click("#act-done")
+
+        await shows(
+            pilot,
+            "slurm/gpu answers: slurm 23.02.7; 2 nodes: gpu-01, gpu-02; "
+            "128 CPUs, 1000G all told",
+            "partition gpu · no limits · max 4 jobs",
+        )
+    saved = kept(tmp_path)["runtimes"]
+    assert isinstance(saved, dict)
+    assert saved["slurm"]["gpu"]["partition"] == "gpu"
+    assert saved["slurm"]["gpu"]["max_jobs"] == 4

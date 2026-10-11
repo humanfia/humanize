@@ -23,6 +23,7 @@ from hmz.flows import (
         (EnvBackendKind.DOCKER, "docker"),
         (EnvBackendKind.SWARM, "swarm"),
         (EnvBackendKind.APPLE_CONTAINER, "apple-container"),
+        (EnvBackendKind.SLURM, "slurm"),
     ],
 )
 def test_a_backend_is_named_as_dash_e_names_it(kind: EnvBackendKind, name: str) -> None:
@@ -30,8 +31,8 @@ def test_a_backend_is_named_as_dash_e_names_it(kind: EnvBackendKind, name: str) 
     assert EnvBackendKind(name) is kind
 
 
-def test_there_are_five_backends() -> None:
-    assert len(EnvBackendKind) == 5
+def test_there_are_six_backends() -> None:
+    assert len(EnvBackendKind) == 6
 
 
 def test_an_unknown_backend_is_refused() -> None:

@@ -955,9 +955,9 @@ a caller passes it under.
 
 ## Environment roles {#where-each-agent-works}
 
-An environment is a working directory on a machine: this one, one reached with `ssh`, or a
-container of its own on a docker daemon, on whichever node of a docker swarm has room, or in
-Apple's `container` on this Mac.
+An environment is a working directory on a machine: this one, one reached with `ssh`, a
+container of its own on a docker daemon, on whichever node of a docker swarm has room or in
+Apple's `container` on this Mac, or the node of a job of its own on a Slurm cluster.
 
 ### `EnvCollection` {#envcollection}
 
@@ -984,9 +984,9 @@ class Env(Protocol):
 
 | Member | Value |
 | --- | --- |
-| `workdir` | Where commands run and relative paths resolve: absolute, or `~/…` under the ssh login's home. For `docker`, a directory of the daemon's host, mounted at the same path in the container; for `swarm`, one of the node the task landed on, likewise; for `apple-container`, one of this Mac, likewise. |
-| `backend` | `local`, `ssh`, `docker`, `swarm` or `apple-container`. |
-| `provider` | `""` for `local`; the ssh destination or saved runtime name for `ssh`; the docker runtime name (`local` for docker's default here) for `docker`; the swarm runtime name (`local` for the swarm this machine manages) for `swarm`; the Apple container runtime name (`local` for this Mac's with nothing saved) for `apple-container`. |
+| `workdir` | Where commands run and relative paths resolve: absolute, or `~/…` under the ssh login's home. For `docker`, a directory of the daemon's host, mounted at the same path in the container; for `swarm`, one of the node the task landed on, likewise; for `apple-container`, one of this Mac, likewise; for `slurm`, one of a shared filesystem, at the same path on the job's node and here. |
+| `backend` | `local`, `ssh`, `docker`, `swarm`, `apple-container` or `slurm`. |
+| `provider` | `""` for `local`; the ssh destination or saved runtime name for `ssh`; the docker runtime name (`local` for docker's default here) for `docker`; the swarm runtime name (`local` for the swarm this machine manages) for `swarm`; the Apple container runtime name (`local` for this Mac's with nothing saved) for `apple-container`; the Slurm runtime name (`local` for the cluster's defaults) for `slurm`. |
 | `available` | Whether the machine was reachable and the workdir existed, as last probed. |
 | `role` | The key it fills. |
 | `derive_subdir(subdir=…)` | An environment at a directory under this workdir, created if missing, same role and grant. `ValueError` for an absolute `subdir` or one that climbs out; `EnvError` if it cannot be made. |
@@ -1010,7 +1010,9 @@ environment on this machine; an environment on another machine raises `Capabilit
 `ssh` reaches), `DOCKER = "docker"` (a container of its own on a docker runtime's daemon),
 `SWARM = "swarm"` (a container of its own as the one task of a service on a swarm runtime's
 swarm, on whichever node it was placed), `APPLE_CONTAINER = "apple-container"` (a container of
-its own, a small Linux virtual machine Apple's `container` runs on this Mac).
+its own, a small Linux virtual machine Apple's `container` runs on this Mac), `SLURM = "slurm"`
+(a job of its own on the Slurm cluster this machine submits to, on whichever node the cluster
+gave it).
 
 ### What an environment can do {#what-an-environment-can-do}
 
@@ -1034,7 +1036,7 @@ and tuples of strings match.
 | `CPUEnvMixin` | `_cpu_count: int` | `1` | Minimum logical CPUs. |
 | `MemoryEnvMixin` | `_memory: int` | `0` | Minimum memory, bytes. |
 | `GPUEnvMixin` | `_gpu_count: int`, `_gpu_memory: int` | `1`, `0` | Minimum GPUs; minimum memory per GPU, bytes. |
-| `ImageEnvMixin` | `_image: str` | `""` | Image a `docker`, `swarm` or `apple-container` environment's container starts from: `""` for the provider's image, else `python:3.12-slim`. Needs `/bin/sh` and Python ≥ 3.12; no sshd. Ignored for `local` and `ssh`. |
+| `ImageEnvMixin` | `_image: str` | `""` | Image a `docker`, `swarm` or `apple-container` environment's container starts from: `""` for the provider's image, else `python:3.12-slim`. Needs `/bin/sh` and Python ≥ 3.12; no sshd. Ignored for `local`, `ssh` and `slurm`. |
 
 An attribute is read only where its mixin is among the type's bases. For `local` and `ssh`, a
 machine with less than declared is refused before anything runs with
@@ -1058,6 +1060,13 @@ For `apple-container` the CPUs and memory size the container's virtual machine, 
 declaring `GPUEnvMixin` is refused with `ResourceUnmet`, Apple's containers being given no GPU
 ([how](/reference/machines#apple-container-environments)). Everything derived from an
 `apple-container` environment is in the same container.
+
+For `slurm` the amounts are what the job asks for (`--cpus-per-task`, `--mem`, `--gpus`), which
+the cluster confines it to; nothing declared is asked for, leaving the partition's defaults. A
+runtime without that much left of its `cpus`, `memory` or `max_jobs`, or a job no node takes
+within its `max_wait`, is refused with `ResourceUnmet`
+([how](/reference/machines#slurm-environments)). Everything derived from a `slurm`
+environment is on the job's node, under humanize's home there.
 
 ### Worktrees, copies and scratch directories {#worktrees-copies-and-scratch-directories}
 
@@ -1761,21 +1770,22 @@ for `ssh` alone, a host nobody saved, in brackets. None is this machine.
 | `docker/abs/path`, `docker@<name>/abs/path` | a container of its own on docker's default daemon here, or on a saved docker runtime's daemon; the path is on the daemon's host and is mounted at the same path |
 | `swarm/abs/path`, `swarm@<name>/abs/path` | a container of its own as the one task of a service on the swarm this machine manages, or on a saved swarm runtime's swarm, on whichever node has room; the path is on that node and is mounted at the same path |
 | `apple-container/abs/path`, `apple-container@<name>/abs/path` | an Apple container of its own on this Mac, with nothing saved or as a saved runtime of that backend shares it out; the path is this Mac's and is mounted at the same path |
-| `ssh@<name>`, `docker@<name>`, `swarm@<name>`, `apple-container@<name>` | the workdir the saved runtime was saved with |
+| `slurm/abs/path`, `slurm@<name>/abs/path` | a job of its own on the Slurm cluster this machine submits to, with its defaults or as a saved Slurm runtime asks for one, on whichever node the cluster gives it; the path is on a shared filesystem, the same here and on that node; `~/…` is this user's home |
+| `ssh@<name>`, `docker@<name>`, `swarm@<name>`, `apple-container@<name>`, `slurm@<name>` | the workdir the saved runtime was saved with |
 
 | Input | Message |
 | --- | --- |
 | not `<role>=…`, or a stray bracket | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
 | no `/workdir` and no saved runtime workdir | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one` |
 | role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
-| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm, apple-container` |
+| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm, apple-container, slurm` |
 | `ssh` without host | `-e '<item>': ssh needs a host: ssh@<saved host>/<workdir>, or ssh@[user@host:port]/<workdir> for a host not saved` |
 | `ssh@<name>`, nothing saved as `<name>` | `-e '<item>': no ssh host is saved as '<name>'; write <role>=ssh@[<name>]/<workdir> for a host not saved` |
 | `ssh@[<host>]`, not a host | `-e '<item>': '<host>' is not an ssh host, as [user@]host[:port]` |
-| brackets on `docker`, `swarm` or `apple-container` | `-e '<item>': only ssh takes a host nobody saved; <backend>@<name> names a <backend> runtime saved on the runtimes page of /settings` |
-| `docker@local`, `swarm@local`, `apple-container@local`, nothing saved as `local` | `-e '<item>': <backend> on this machine names no provider; write <role>=<backend>/<workdir>` |
-| `docker@<name>`, `swarm@<name>`, `apple-container@<name>`, nothing saved as `<name>` | `-e '<item>': no <backend> runtime is saved as '<name>'; save one on the runtimes page of /settings, or write <role>=<backend>/<workdir> for <backend> on this machine` |
-| `docker@`, `swarm@` or `apple-container@` with nothing after | `-e '<item>': an @ is written only before a provider; write <role>=<backend>/<workdir>` |
+| brackets on `docker`, `swarm`, `apple-container` or `slurm` | `-e '<item>': only ssh takes a host nobody saved; <backend>@<name> names a <backend> runtime saved on the runtimes page of /settings` |
+| `docker@local`, `swarm@local`, `apple-container@local`, `slurm@local`, nothing saved as `local` | `-e '<item>': <backend> on this machine names no provider; write <role>=<backend>/<workdir>` |
+| `docker@<name>`, `swarm@<name>`, `apple-container@<name>`, `slurm@<name>`, nothing saved as `<name>` | `-e '<item>': no <backend> runtime is saved as '<name>'; save one on the runtimes page of /settings, or write <role>=<backend>/<workdir> for <backend> on this machine` |
+| `docker@`, `swarm@`, `apple-container@` or `slurm@` with nothing after | `-e '<item>': an @ is written only before a provider; write <role>=<backend>/<workdir>` |
 | `local` with an `@` | `-e '<item>': local takes no provider; write <role>=local/<workdir>` |
 | role twice | `-e: the role '<role>' is given twice` |
 | role not declared | `<flow> has no environment role '<role>'; available roles are …` |
@@ -1833,7 +1843,7 @@ work is on, an ordered list whose next entry is tried only where the one before 
 | --- | --- |
 | here | here |
 | on a machine nobody saved, or a runtime with no affinity | on the environment's machine, natively, if all hold: no `on_pre_tool_use`/`on_permission_request` hook hung when the session opens (an `on_ask_user` hook does not keep it here); the CLI is on that machine's `PATH`; for a fenced session, that machine can hold the fence. Otherwise here, anchored to the machine. |
-| on a runtime with an affinity | the first entry with room: `local` here, anchored to the machine (always room); `self` natively on the machine (no room where the CLI is missing or the fence cannot be held); `ssh:<name>`, `docker:<name>`, `swarm:<name>` or `apple-container:<name>` on that runtime, acting on the work through the anchor (no room where it cannot be opened or reached, has no share left, or the role's permission is anything but every scope `ALL`) |
+| on a runtime with an affinity | the first entry with room: `local` here, anchored to the machine (always room); `self` natively on the machine (no room where the CLI is missing or the fence cannot be held); `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>` on that runtime, acting on the work through the anchor (no room where it cannot be opened or reached, has no share left, or the role's permission is anything but every scope `ALL`) |
 
 The affinity is the one of the runtime actually opened for the work; a runtime a harness is
 put on is opened as an environment of its own (its workdir, else `~` over ssh, else

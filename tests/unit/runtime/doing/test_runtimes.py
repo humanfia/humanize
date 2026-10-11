@@ -129,8 +129,15 @@ class Apple:
 
 
 @dataclass
+class Slurm:
+    partition: str = ""
+    cpus: float = 0.0
+    memory: int = 0
+
+
+@dataclass
 class Machine:
-    """What `subprocess.run` answers with: one answer per program, by its first argument."""
+    """What `subprocess.run` answers with: one per program, by its first word or first two."""
 
     said: dict[str, tuple[int, str, str]] = field(
         default_factory=dict[str, tuple[int, str, str]]
@@ -142,7 +149,9 @@ class Machine:
         self.asked.append({"argv": argv, **kwargs})
         if self.raises is not None:
             raise self.raises
-        status, out, err = self.said.get(argv[0], (0, "", ""))
+        status, out, err = self.said.get(
+            " ".join(argv[:2]), self.said.get(argv[0], (0, "", ""))
+        )
         return subprocess.CompletedProcess(argv, status, out, err)
 
 
@@ -153,6 +162,7 @@ def machine(monkeypatch: pytest.MonkeyPatch) -> Machine:
     monkeypatch.setattr(store, "SSHRuntime", SSH)
     monkeypatch.setattr(store, "SwarmRuntime", Swarm)
     monkeypatch.setattr(store, "AppleContainerRuntime", Apple)
+    monkeypatch.setattr(store, "SlurmRuntime", Slurm)
     return made
 
 
@@ -495,4 +505,89 @@ def test_apple_containers_that_are_not_running_say_why(
 
     assert _check(Apple()) == Checked(
         reached=False, said="the container system is not running"
+    )
+
+
+# ------------------------------------------------------------------ slurm
+
+
+def test_a_slurm_cluster_is_held_up_against_the_nodes_of_its_partition(
+    machine: Machine,
+) -> None:
+    machine.said["sinfo --version"] = (0, "slurm 23.02.4\n", "")
+    machine.said["sinfo"] = (
+        0,
+        (
+            "n1|96|1000|idle\n"
+            "n2|96|1000|mix\n"
+            "n2|96|1000|mix\n"
+            "n3|96|1000|alloc*\n"
+            "n4|96|1000|drain\n"
+            "n5|96|1000|down*\n"
+            "n6|96|1000+|mix~\n"
+        ),
+        "",
+    )
+
+    said = _check(Slurm(partition="cpu", cpus=96, memory=1000 << 20))
+
+    assert said == Checked(
+        reached=True,
+        cpus=288.0,
+        memory=3000 << 20,
+        version="23.02.4",
+        nodes=("n1", "n2", "n6"),
+    )
+    asked = machine.asked[-1]["argv"]
+    assert asked[asked.index("--partition") + 1] == "cpu"
+
+
+def test_a_slurm_cluster_short_of_everything_says_all_of_it(machine: Machine) -> None:
+    machine.said["sinfo --version"] = (0, "slurm 23.02.4\n", "")
+    machine.said["sinfo"] = (0, "n1|4|10|drain\n", "")
+
+    said = _check(Slurm(partition="gpu", cpus=1, memory=1))
+
+    assert said.short == (
+        "no node of partition gpu may take a job",
+        "it is to hand out 1 CPUs and has 0",
+        "it is to hand out 1 bytes and has 0",
+    )
+    assert _check(Slurm()).short[0] == "no node of the cluster may take a job"
+    assert "--partition" not in machine.asked[-1]["argv"]
+
+
+@pytest.mark.parametrize(
+    ("version", "nodes", "why"),
+    [
+        (
+            (127, "", "sinfo: command not found"),
+            (0, "", ""),
+            "sinfo: command not found",
+        ),
+        ((0, "slurm 23.02.4", ""), (1, "", "slurm_load_partitions error\n"), "error"),
+    ],
+)
+def test_a_slurm_cluster_that_does_not_answer_says_why(
+    machine: Machine,
+    version: tuple[int, str, str],
+    nodes: tuple[int, str, str],
+    why: str,
+) -> None:
+    machine.said["sinfo --version"] = version
+    machine.said["sinfo"] = nodes
+
+    said = _check(Slurm())
+
+    assert said.reached is False
+    assert why in said.said
+
+
+def test_a_slurm_cluster_with_no_time_left_to_list_its_nodes_did_not_answer(
+    machine: Machine,
+) -> None:
+    machine.said["sinfo --version"] = (0, "slurm 23.02.4", "")
+
+    assert _check(Slurm(), 0.0) == Checked(
+        reached=False, said="it did not answer within 0s"
     )

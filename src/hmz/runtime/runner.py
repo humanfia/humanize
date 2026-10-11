@@ -754,13 +754,14 @@ class Runner:
         from hmz.runtime.flowing.environments import settle
 
         impl = self._impl
-        for name in list(self._places):
+
+        async def settled(name: str) -> None:
             driver = self._envs.get(name) or self._unopened[name]
             spec = self._asked.get(name)
             if spec is None:
                 if not isinstance(driver, Exception):
                     await probe(driver)
-                continue
+                return
             role = self._declared.env(name)
 
             def fits(driver: EnvDriver, role: EnvRole | None = role) -> None:
@@ -771,6 +772,22 @@ class Runner:
                 spec, driver, role, fits=fits, moved=noticed
             )
             self._used[name] = str(held).partition("=")[2]
+
+        # All at once, since bringing one up may be waiting on a scheduler's queue; the
+        # first refusal stops the rest, and the first of those in the order the roles were
+        # declared is the one raised.
+        tasks = [asyncio.ensure_future(settled(name)) for name in list(self._places)]
+        if not tasks:
+            return
+        try:
+            await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        for task in tasks:
+            if not task.cancelled() and (error := task.exception()) is not None:
+                raise error
 
     async def _placeable(self, local: EnvDriver) -> None:
         """Settles where each harness goes on every machine of the run, or refuses it.

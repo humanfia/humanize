@@ -3,8 +3,9 @@
 A runtime is one machine something can be put on, named by what somebody called it rather than
 by how it is reached: an ssh host with the login, port, key and jump host it takes, a docker
 daemon with the resources it may hand out, a docker swarm whose manager schedules a task for
-each environment onto whichever of its nodes has room, or this Mac's Apple containers with the
-share of it they may have. A flow's environment is put on one
+each environment onto whichever of its nodes has room, this Mac's Apple containers with the
+share of it they may have, or the Slurm cluster this machine submits to, with the partition and
+account a job for each environment is submitted under. A flow's environment is put on one
 when an `-e` names it, and moved down the runtimes it falls back to where it cannot be held
 there. One entry per runtime, under `runtimes: <backend>: <name>:` in humanize's settings,
 beside everything else `/settings` sets.
@@ -38,6 +39,7 @@ __all__ = [
     "HERE",
     "IMPORTED",
     "SELF",
+    "SLURM",
     "SPELLING",
     "SSH",
     "SWARM",
@@ -46,6 +48,7 @@ __all__ = [
     "DockerRuntime",
     "Runtime",
     "SSHRuntime",
+    "SlurmRuntime",
     "SwarmRuntime",
     "add",
     "affine",
@@ -67,7 +70,8 @@ SSH = "ssh"
 DOCKER = "docker"
 SWARM = "swarm"
 APPLE_CONTAINER = "apple-container"
-BACKENDS = (SSH, DOCKER, SWARM, APPLE_CONTAINER)
+SLURM = "slurm"
+BACKENDS = (SSH, DOCKER, SWARM, APPLE_CONTAINER, SLURM)
 
 #: The two places a harness may be put that are not a runtime of their own, as an affinity
 #: names them: natively on the machine of the runtime the work is on, and on this machine,
@@ -684,8 +688,133 @@ class AppleContainerRuntime:
         return {"backend": APPLE_CONTAINER, **_fields(self)}
 
 
+#: How long a Slurm job may run, as `--time` takes it: minutes, `MM:SS`, `HH:MM:SS`, or days
+#: and a part of one, `D-HH[:MM[:SS]]`; or no limit beyond the partition's.
+_TIME = re.compile(
+    r"(\d+(:\d{1,2}){0,2}|\d+-\d{1,2}(:\d{1,2}){0,2}|UNLIMITED|INFINITE)\Z"
+)
+
+#: A partition, an account or a quality of service: one word Slurm takes as a name.
+_SLURM_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*\Z")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SlurmRuntime:
+    """The Slurm cluster this machine submits to, and how a job of humanize's is asked for.
+
+    Every environment on it is a job of its own, submitted with `sbatch` from here and held
+    while the environment is, which the cluster places on whichever node has what the role
+    asks for -- and which is then reached by `srun` as a step of that job. There is no daemon
+    to name: the cluster is the one this machine's `sbatch` submits to.
+
+    Attributes:
+      name: What it is called, which is what an environment on it names.
+      partition: The partition a job is submitted to, or "" for the cluster's default.
+      account: The account a job is charged to, or "" for the user's default.
+      qos: Its quality of service, or "" for the default.
+      time: How long a job may run, as `--time` takes it, or "" for the partition's default.
+      constraint: The node features a job needs, as `--constraint` takes them, or "".
+      python: A Python of at least 3.12 on its nodes, absolute or under `~/`, for a cluster
+        whose nodes have none; "" for whatever they have.
+      via: How a job's node is reached once it runs: `srun`, a step of the job per
+        connection, which every cluster allows; or `tcp`, a connection apiece to the serving
+        half the job itself runs, which needs this machine to reach its nodes' ports and
+        holds none of the ports `srun` may have here, which a cluster may give it few of.
+      run_args: What else `sbatch` is told.
+      cpus: How many CPUs its jobs may hold all told, or 0 for as many as the cluster gives.
+      memory: How many bytes of memory, likewise.
+      max_jobs: How many jobs it may have at once, waiting or running, or 0 for no limit.
+      max_wait: How many seconds a job may wait for a node before the environment is given
+        up on, or 0 for as long as it waits.
+      workdir: Where an `-e` naming it with no workdir works -- a directory every node a job
+        may land on has, at the same path.
+      fallback: The runtimes an environment an `-e` puts here moves to, in order, where this
+        one cannot hold it -- each `<backend>:<name>`.
+      made: How it was made, which is :data:`TYPED`.
+      affinity: Where the harness of an agent working on it runs, in the order tried: the
+        next only where the one before has no room. See :func:`affine` for an entry.
+    """
+
+    backend: ClassVar[str] = SLURM
+
+    name: str
+    partition: str = ""
+    account: str = ""
+    qos: str = ""
+    time: str = ""
+    constraint: str = ""
+    python: str = ""
+    via: str = "srun"
+    run_args: tuple[str, ...] = ()
+    cpus: float = 0.0
+    memory: int = 0
+    max_jobs: int = 0
+    max_wait: int = 0
+    workdir: str = ""
+    fallback: tuple[str, ...] = ()
+    made: str = TYPED
+    affinity: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _named(self.name)
+        _affinity(self)
+        for value, what in (
+            (self.partition, "partition"),
+            (self.account, "account"),
+            (self.qos, "quality of service"),
+        ):
+            if value and not _SLURM_NAME.match(value):
+                raise ValueError(f"{self.name}: invalid {what} {value!r}")
+        if self.time and not _TIME.match(self.time):
+            raise ValueError(
+                f"{self.name}: invalid time {self.time!r}: expected minutes, MM:SS, "
+                "HH:MM:SS or D-HH[:MM[:SS]]"
+            )
+        if self.constraint and (
+            self.constraint.startswith("-") or not re.fullmatch(r"\S+", self.constraint)
+        ):
+            raise ValueError(f"{self.name}: invalid constraint {self.constraint!r}")
+        if self.via not in ("srun", "tcp"):
+            raise ValueError(f"{self.name}: via must be srun or tcp, not {self.via!r}")
+        _text(self.python, "the Python")
+        if self.python and not self.python.startswith(("/", "~/")):
+            raise ValueError(
+                f"{self.name}: the Python {self.python!r} must be absolute or under ~/"
+            )
+        for said in self.run_args:
+            if set(said) & set("\n\r\0"):
+                raise ValueError(
+                    f"{self.name}: argument {said!r} cannot contain newlines"
+                )
+        for amount, what in (
+            (self.cpus, "CPUs"),
+            (self.memory, "memory"),
+            (self.max_jobs, "jobs"),
+            (self.max_wait, "the wait"),
+        ):
+            if amount < 0:
+                raise ValueError(f"{self.name}: {what} cannot be negative: {amount}")
+        _workdir(self.workdir)
+        _falls_back(SLURM, self.name, self.fallback)
+        if self.made != TYPED:
+            raise ValueError(
+                f"{self.name}: made must be {TYPED} for a Slurm cluster, not {self.made!r}"
+            )
+
+    @property
+    def at(self) -> Path:
+        """The file it is kept in."""
+        return settings.where()
+
+    def held(self) -> dict[str, Any]:
+        """It as it is written down."""
+        return {"backend": SLURM, **_fields(self)}
+
+
 #: One runtime, of whichever backend.
-type Runtime = SSHRuntime | DockerRuntime | SwarmRuntime | AppleContainerRuntime
+type Runtime = (
+    SSHRuntime | DockerRuntime | SwarmRuntime | AppleContainerRuntime | SlurmRuntime
+)
 
 
 def _fields(runtime: Runtime) -> dict[str, Any]:
@@ -794,7 +923,8 @@ def saved(backend: str, name: str) -> bool:
     """Whether a runtime of a backend is written down under a name, whether or not it reads.
 
     Args:
-      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM` or :data:`APPLE_CONTAINER`.
+      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM`, :data:`APPLE_CONTAINER` or
+        :data:`SLURM`.
       name: What the runtime is called.
 
     Raises:
@@ -819,7 +949,8 @@ def new(backend: str, name: str, **fields: Any) -> Runtime:
     """One runtime, checked, and written nowhere.
 
     Args:
-      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM` or :data:`APPLE_CONTAINER`.
+      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM`, :data:`APPLE_CONTAINER` or
+        :data:`SLURM`.
       name: What it is called.
       **fields: The rest of it, by field -- as :meth:`SSHRuntime.held` writes them, lists and
         numbers as JSON has them.
@@ -838,6 +969,7 @@ def new(backend: str, name: str, **fields: Any) -> Runtime:
         DOCKER: DockerRuntime,
         SWARM: SwarmRuntime,
         APPLE_CONTAINER: AppleContainerRuntime,
+        SLURM: SlurmRuntime,
     }[backend]
     known = {one.name: one for one in dataclasses.fields(kind)}
     given: dict[str, Any] = {"name": name}
@@ -884,7 +1016,8 @@ def runtimes(backend: str = "") -> list[Runtime]:
     """Every runtime there is, or every one of a backend.
 
     Args:
-      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM`, :data:`APPLE_CONTAINER`, or ""
+      backend: :data:`SSH`, :data:`DOCKER`, :data:`SWARM`, :data:`APPLE_CONTAINER`,
+        :data:`SLURM`, or ""
         for every one.
 
     Returns:
@@ -946,10 +1079,11 @@ def respelled(spec: str) -> str:
 
     Which turns on what is saved here. `ssh@gpu/x` is the runtime `gpu` where one is written
     down under that name -- read or not -- and otherwise the host `ssh` was handed, which `-e`
-    takes in brackets now: `ssh@[gpu]/x`. `docker@local/x`, `swarm@local/x` and
-    `apple-container@local/x` are docker's default here, the swarm this machine manages and
-    this Mac's Apple containers, `docker/x`, `swarm/x` and `apple-container/x`, unless a
-    runtime of theirs is saved as `local`, which was taken first. `local@/x` is `local/x`.
+    takes in brackets now: `ssh@[gpu]/x`. `docker@local/x`, `swarm@local/x`,
+    `apple-container@local/x` and `slurm@local/x` are docker's default here, the swarm this
+    machine manages, this Mac's Apple containers and the cluster this machine submits to,
+    `docker/x`, `swarm/x`, `apple-container/x` and `slurm/x`, unless a runtime of theirs is
+    saved as `local`, which was taken first. `local@/x` is `local/x`.
     For what was kept before :data:`SPELLING` was written beside it -- settings, and the record
     of a run -- and for what a machine calls itself; never for a line, which is refused saying
     the same.
@@ -1028,7 +1162,7 @@ def write(runtime: Runtime) -> Runtime:
     """
     if isinstance(runtime, SSHRuntime):
         _here(runtime.config, "the config file")
-    elif not isinstance(runtime, AppleContainerRuntime):
+    elif isinstance(runtime, DockerRuntime | SwarmRuntime):
         _here(runtime.tls_dir, "the TLS directory")
     saved(runtime.backend, runtime.name)  # which refuses a name no runtime may have
     entry = {

@@ -206,6 +206,83 @@ def fakes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Fakes:
     return made
 
 
+#: `sbatch`, `squeue`, `scancel` and `srun`, for a cluster whose one node is this machine. A
+#: job is its `--wrap` run here in a session of its own, in the far home, writing where its
+#: `--output` says under the far root; it runs until it is cancelled or ends, and `squeue`
+#: says so. `srun --jobid=J ... ARGV` runs ARGV here, as `--export=HOME,USER` leaves it.
+_SLURM = """
+import signal, subprocess
+
+tool = os.path.basename(sys.argv[0])
+note(tool)
+state = os.environ["FAKE_SLURM"]
+args = sys.argv[1:]
+
+def held(job):
+    try:
+        with open(os.path.join(state, job + ".json"), encoding="utf-8") as one:
+            said = json.load(one)
+    except OSError:
+        return None
+    try:
+        os.kill(said["pid"], 0)
+    except OSError:
+        return None
+    return said
+
+if tool == "sbatch":
+    fail_if_asked(tool)
+    flags = {}
+    while args:
+        flag = args.pop(0)
+        flags[flag] = "" if flag == "--parsable" else args.pop(0)
+    jobs = sorted(int(one[:-5]) for one in os.listdir(state) if one.endswith(".json"))
+    job = str((jobs[-1] if jobs else 100) + 1)
+    output = rooted([flags.get("--output", os.devnull).replace("%j", job)])[0]
+    with open(output, "ab") as out:
+        made = subprocess.Popen(
+            ["/bin/sh", "-c", flags["--wrap"]],
+            cwd=flags["--chdir"] if os.path.isdir(flags.get("--chdir", "")) else None,
+            env={"HOME": os.environ["FAKE_HOME"], "USER": "me", "PATH": "/usr/bin:/bin"},
+            stdin=subprocess.DEVNULL, stdout=out, stderr=out, start_new_session=True,
+        )
+    with open(os.path.join(state, job + ".json"), "w", encoding="utf-8") as one:
+        json.dump({"pid": made.pid, "comment": flags.get("--comment", "")}, one)
+    print(job)
+elif tool == "squeue":
+    asked = args[args.index("--jobs") + 1] if "--jobs" in args else ""
+    for name in sorted(os.listdir(state)):
+        job = name[:-5]
+        said = held(job) if name.endswith(".json") else None
+        if said is not None and asked in ("", job):
+            print(f"{job}|RUNNING|None|{said['comment']}|localhost")
+elif tool == "scancel":
+    said = held(args[0])
+    if said is not None:
+        os.killpg(said["pid"], signal.SIGTERM)
+elif tool == "srun":
+    fail_if_asked(tool)
+    while args and args[0].startswith("--"):
+        args.pop(0)
+    env = {"HOME": os.environ["FAKE_HOME"], "USER": "me"}
+    argv = rooted(args)
+    os.execve(argv[0], argv, env)
+"""
+
+
+def slurm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Fakes:
+    """`sbatch`, `squeue`, `scancel` and `srun` on `PATH`, beside the other fakes."""
+    made = fakes(tmp_path, monkeypatch)
+    jobs = tmp_path / "fake-slurm"
+    jobs.mkdir()
+    for name in ("sbatch", "squeue", "scancel", "srun"):
+        path = made.bin / name
+        path.write_text(f"#!{sys.executable}\n{_COMMON}{_SLURM}")
+        path.chmod(0o755)
+    monkeypatch.setenv("FAKE_SLURM", str(jobs))
+    return made
+
+
 #: The fence stand-in: writes the policy it was given down, then becomes the program.
 _FENCE = """\
 import os, sys

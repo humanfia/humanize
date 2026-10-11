@@ -112,7 +112,7 @@ straight into the one named, and the word is offered as you type it:
 | [**General**](#general) | `general` | whether the screen [shows the working](#details), which agent `/btw` talks to, and whether humanize reports what goes wrong |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
-| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms and Apple containers |
+| [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, and forgetting it |
 
 The names they had still open them: `settings` and `everywhere` open General, `directory`
@@ -209,7 +209,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
      <span class="m">where a turn goes when its agent fails</span>
    ────────────────────────────────────────────────────────────────────────
    ▦  <b>Runtimes</b>                                                0 machines
-     <span class="m">ssh hosts, docker daemons, swarms and Apple containers</span>
+     <span class="m">ssh hosts, docker daemons, swarms, Apple containers and Slurm</span>
    ────────────────────────────────────────────────────────────────────────
    ⌂  <b>Workspace</b>                                   demo · flow ralph_loop
      <span class="m">this directory: its flow, and forgetting it</span>
@@ -860,8 +860,9 @@ The rest is in the [SDK reference](/reference/sdk).
 A **runtime** is a machine a flow's [environment
 roles](/user/remote-execution) can be put on, saved under a name: an ssh host with everything
 `ssh` has to be told to reach it, a docker daemon with what it may hand out, a docker swarm
-with where its tasks may go and what they may reserve all told, or this Mac's Apple
-containers with what they may have between them. Save one here,
+with where its tasks may go and what they may reserve all told, this Mac's Apple
+containers with what they may have between them, or a Slurm cluster with the partition and
+account its jobs are submitted under. Save one here,
 then choose it for a role at [`/flow`](#choosing-one-for-a-role), or name it after the `@` of
 `-e`:
 
@@ -871,7 +872,7 @@ hmz exec -f onbox -e box=ssh@gpu -p budget.duration=1h "run the benchmarks"
 
 `ssh@gpu` with no directory works where `gpu` was saved to work. Reach for one when a machine
 needs more than its name to be reached (a login, a port, a key, a jump host), or when it is a
-docker daemon or a swarm.
+docker daemon, a swarm or a Slurm cluster.
 
 ### Try it {#runtimes-try-it}
 
@@ -881,8 +882,9 @@ Type `/settings runtimes`:
 
 <pre>  <span class="m">hmz › /settings ›</span> <span class="p b">Runtimes</span>
   <span class="m">Saved ssh hosts, docker daemons with the resources each may hand out, docker
-  swarms with what their tasks may reserve, and this Mac's Apple containers, used by
-  name as flow environments in -e and /flow. Changes take effect immediately.</span>
+  swarms with what their tasks may reserve, this Mac's Apple containers, and Slurm
+  clusters with what their jobs are submitted under, used by name as flow
+  environments in -e and /flow. Changes take effect immediately.</span>
 
   <span class="p">╭──────────────────────────────────────────────────────────────────────────────────╮</span>
     <span class="p">ssh</span>
@@ -906,8 +908,8 @@ Type `/settings runtimes`:
   <kbd>enter</kbd>. From an empty page, where the focus opens on **Add a runtime…**, that is
   three key presses, <kbd>→</kbd> <kbd>enter</kbd> <kbd>enter</kbd>, however many hosts there
   are -- or two clicks.
-- **Add one by hand.** Press **Add a runtime…**: it drops the four kinds, `ssh host`,
-  `docker host`, `docker swarm` and `apple containers`, over the button. Pick `ssh host`, type
+- **Add one by hand.** Press **Add a runtime…**: it drops the five kinds, `ssh host`,
+  `docker host`, `docker swarm`, `apple containers` and `slurm cluster`, over the button. Pick `ssh host`, type
   `me@box.example.com:2200`, and press **Done** (<kbd>tab</kbd> <kbd>enter</kbd>, or a click).
   The login and the port go to their own rows,
   and the name is written in for you (`box`, the host's first label).
@@ -934,7 +936,7 @@ answered, or why it could not be reached.
 | proxy jump | The host it is reached through (`ProxyJump`). |
 | options | Anything else ssh is told, `KEYWORD=VALUE` with a comma between two: `ServerAliveInterval=15, Compression=yes`. A setting with a row of its own is refused here. |
 | workdir | Where it works when `-e` names no directory: `/abs/path`, or `~/path` under the login's home. |
-| harness runs on | Where the CLI of an agent working on it runs, tried in order, the next only when one has no room: `self` (on this host), `local` (here), or another saved runtime as `ssh:<name>`, `docker:<name>`, `swarm:<name>` or `apple-container:<name>`, a comma between two: `self, local`. Blank is on the host where its CLI is installed, else here. See [Where the agent runs](/user/remote-execution#where-the-agent-runs). |
+| harness runs on | Where the CLI of an agent working on it runs, tried in order, the next only when one has no room: `self` (on this host), `local` (here), or another saved runtime as `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>`, a comma between two: `self, local`. Blank is on the host where its CLI is installed, else here. See [Where the agent runs](/user/remote-execution#where-the-agent-runs). |
 
 Whatever is set is passed to `ssh` ahead of your own config, so what is written here wins.
 
@@ -1018,6 +1020,30 @@ them, each blank for all of this Mac's. **`detect`** writes those in from
 `container system status` and the Mac's memory. See
 [Containers › Apple containers on a Mac](/user/containers#apple-containers).
 
+### A Slurm cluster
+
+`slurm cluster` under **Add a runtime…** opens a form for the cluster this machine's `sbatch`
+submits to: there is no daemon to name. Each job it submits is one environment, on whichever
+node the cluster gives it.
+
+| Row | Takes | Blank is |
+| --- | --- | --- |
+| partition | where its jobs go; the name follows it until you type one | the cluster's default |
+| account, qos | what `sbatch` is told as `--account` and `--qos` | your defaults |
+| time | how long a job may run, as `--time` takes it: `4:00:00` | the partition's |
+| constraint | the node features a job needs: `a100` | any node |
+| python | a Python 3.12 or newer on the nodes, `/abs/path` or `~/path`, for nodes whose own is older | the nodes' own |
+| via | `srun`, a step of the job per connection, which every cluster allows; or `tcp`, a port the job serves, which needs this machine to reach the nodes | `srun` |
+| run args | anything else `sbatch` is told | nothing |
+| max jobs | how many jobs it may have at once, waiting or running | no limit |
+| max wait | seconds a job may wait for a node before the role falls back or the run stops | as long as it waits |
+| workdir | where it works when `-e` names no directory, on a shared filesystem at the same path on every node | none |
+| cpus, memory | what all of its jobs together may hold | no quota |
+
+A check asks `sinfo` which nodes of the partition may take a job, and says which those are
+and what they have all told. What `via` and `python` are for: [Remote execution › A Slurm
+cluster](/user/remote-execution#slurm).
+
 ### On one runtime
 
 <kbd>enter</kbd>, <kbd>→</kbd> or a click on a runtime opens what can be done to it, all of it at once:
@@ -1025,7 +1051,7 @@ them, each blank for all of this Mac's. **`detect`** writes those in from
 | On its menu | What it does |
 | --- | --- |
 | **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
-| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A swarm's manager is asked which of its nodes may take a task, and what those have. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Each is given 30 seconds, in the background: the row says `checking…` until it answers. |
+| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A swarm's manager is asked which of its nodes may take a task, and what those have; a Slurm cluster, with `sinfo`, which nodes of its partition may take a job. A docker daemon is asked `docker info`, and which of the GPUs it lists answer: a short container of the runtime's image per GPU, which may take a moment the first time an image is pulled. A failed GPU is said in yellow: `1 of 2 GPUs answer; GPU 1 does not`. Each is given 30 seconds, in the background: the row says `checking…` until it answers. |
 | **Remove**, the button under them | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing, and so is a swarm whose manager or one of whose nodes it reached. |
 
 ### Choosing one for a role {#choosing-one-for-a-role}
@@ -1066,8 +1092,8 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
 - `host` (`daemon` for a docker backend, once `-e` takes one) opens the runtimes of that
   backend saved here, with **Add an ssh host** under them (the same form, and the new one comes
   back chosen) and, for ssh, **Name a host…**: any host `ssh` reaches, as you would type it,
-  saved nowhere, and spelled in brackets (`ssh@[me@box:2222]/…`). For docker, a swarm or Apple
-  containers, left empty it is this machine's (`docker/…`).
+  saved nowhere, and spelled in brackets (`ssh@[me@box:2222]/…`). For docker, a swarm, Apple
+  containers or Slurm, left empty it is this machine's (`docker/…`).
 - `workdir` starts from where the runtime was saved to work. Left as it is, the spelling
   leaves it out (`ssh@gpu`), so the role goes on following the runtime when its workdir is
   corrected; type over it for another directory there (`ssh@gpu/~/other`).
@@ -1124,9 +1150,9 @@ When the flow changes, what was saved is checked against it again. A setting the
 since dropped or renamed is asked for again, rather than carried over.
 
 Where each environment role works is kept as `-e` spells it. One kept as `local@/srv/x`,
-`docker@local/srv/x`, `swarm@local/srv/x`, `apple-container@local/srv/x` or an ssh host nobody
-saved out of brackets is read, and kept from then on, as `local/srv/x`, `docker/srv/x`,
-`swarm/srv/x`, `apple-container/srv/x` or `ssh@[host]/…` -- the `@local` ones only while no
+`docker@local/srv/x`, `swarm@local/srv/x`, `apple-container@local/srv/x`, `slurm@local/srv/x`
+or an ssh host nobody saved out of brackets is read, and kept from then on, as `local/srv/x`,
+`docker/srv/x`, `swarm/srv/x`, `apple-container/srv/x`, `slurm/srv/x` or `ssh@[host]/…` -- the `@local` ones only while no
 runtime of theirs is saved as `local`, and an ssh host only while none is saved by its name.
 
 ### Changing it

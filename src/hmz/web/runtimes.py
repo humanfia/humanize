@@ -1,9 +1,10 @@
 """The runtimes -- the machines a flow's environments may be put on: listed, written, asked.
 
-An ssh host, a docker daemon, a docker swarm or this Mac's Apple containers, written down
-under a name an `-e` names. The runtimes page `/settings` opens in the terminal interface,
-through the same object and into the same store: what a page writes is a runtime the next
-run offers, and what a check says is what a run reaching it would find.
+An ssh host, a docker daemon, a docker swarm, this Mac's Apple containers or the Slurm
+cluster this machine submits to, written down under a name an `-e` names. The runtimes page
+`/settings` opens in the terminal interface, through the same object and into the same
+store: what a page writes is a runtime the next run offers, and what a check says is what a
+run reaching it would find.
 """
 
 from __future__ import annotations
@@ -36,12 +37,19 @@ def _blanks() -> dict[str, dict[str, Any]]:
     from hmz.coganchor.machines.store import (
         AppleContainerRuntime,
         DockerRuntime,
+        SlurmRuntime,
         SSHRuntime,
         SwarmRuntime,
     )
 
     blanks: dict[str, dict[str, Any]] = {}
-    for kind in (SSHRuntime, DockerRuntime, SwarmRuntime, AppleContainerRuntime):
+    for kind in (
+        SSHRuntime,
+        DockerRuntime,
+        SwarmRuntime,
+        AppleContainerRuntime,
+        SlurmRuntime,
+    ):
         held: dict[str, Any] = {}
         for one in dataclasses.fields(kind):
             if one.name in _OWN:

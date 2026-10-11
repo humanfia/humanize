@@ -1,7 +1,7 @@
 """Environment drivers, as an `-e` opens them, doing their work on the machine they name.
 
-A directory here is the real thing. An ssh host, a docker container, a swarm task and an
-Apple container are reached through the fakes in `doubles_anchor`, which run what they are
+A directory here is the real thing. An ssh host, a docker container, a swarm task, an Apple
+container and a Slurm job are reached through the fakes in `doubles_anchor`, which run what they are
 sent on this machine: so commands, files and subdirectories go over coganchor's road for
 real. A container must say it is linux, which a fake one on a Mac cannot -- there, what is
 checked is that the environment is refused and its container taken down.
@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.machines import AnchoredConfig
+from hmz.coganchor.machines import AnchoredConfig, store
 from hmz.flows import (
     EnvBackendKind,
     EnvCommandTimeout,
@@ -27,12 +27,13 @@ from hmz.flows import (
     EnvError,
     EnvFileNotFound,
     EnvUnavailable,
+    ResourceUnmet,
 )
 from hmz.runtime.flowing.environing import MachineEnvDriver
 from hmz.runtime.flowing.environing_docker import HOST, PID, PROVIDER
 from hmz.runtime.flowing.environments import local_env, open_env, probe
 from hmz.runtime.flowing.specs import parse_envs
-from tests.integration.doubles_anchor import Fakes, fakes
+from tests.integration.doubles_anchor import Fakes, fakes, slurm
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -435,3 +436,84 @@ def test_a_placement_anchors_the_agent_to_the_machine_it_names(
     assert placement.machine.anchor.target.startswith("docker://humanize-local-work-")
     assert placement.machine.anchor.workspace == str(work)
     assert not far.calls("docker")
+
+
+@pytest.fixture
+def cluster(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Fakes:
+    """A cluster of one node, this machine, saved as `hpc` with this interpreter on it."""
+    made = slurm(tmp_path, monkeypatch)
+    store.write(store.new(store.SLURM, "hpc", python=sys.executable, max_jobs=2))
+    return made
+
+
+@linux
+@pytest.mark.parametrize("via", ["srun", "tcp"])
+async def test_a_slurm_environment_works_on_a_job_of_its_own(
+    cluster: Fakes, work: Path, via: str
+) -> None:
+    store.write(store.new(store.SLURM, "hpc", python=sys.executable, via=via))
+    driver = _opened(f"work=slurm@hpc{work}")
+    try:
+        await probe(driver)
+        assert driver.available
+        await _uses(driver, work)
+        placed = driver.placement().machine
+        assert isinstance(placed, AnchoredConfig)
+        assert placed.anchor.target.startswith("tcp://" if via == "tcp" else "slurm://")
+        assert (placed.anchor.token is None) == (via == "srun")
+    finally:
+        await driver.close()
+
+    (submitted,) = cluster.calls("sbatch")
+    comment = submitted[submitted.index("--comment") + 1]
+    assert f"{PROVIDER}=hpc" in comment
+    assert f"{PID}={os.getpid()}" in comment
+    assert len(cluster.calls("scancel")) == 1
+
+
+@linux
+async def test_slurm_environments_past_their_runtimes_job_limit_are_refused(
+    cluster: Fakes, work: Path
+) -> None:
+    first, second, third = (_opened(f"w{one}=slurm@hpc{work}") for one in range(3))
+    try:
+        await asyncio.gather(probe(first), probe(second))
+        with pytest.raises(ResourceUnmet, match="has 2 of the 2 jobs it may"):
+            await probe(third)
+    finally:
+        for one in (first, second, third):
+            await one.close()
+
+    assert len(cluster.calls("sbatch")) == 2
+
+
+def _submitted(host: str, pid: str) -> str:
+    """A job a run on `host` as `pid` submitted to the cluster, and left there."""
+    import subprocess
+
+    said = (
+        f"humanize={os.getuid()}",
+        f"{PROVIDER}=hpc",
+        f"{HOST}={host}",
+        f"{PID}={pid}",
+    )
+    return subprocess.run(
+        ["sbatch", "--wrap", "exec sleep 600", "--comment", "&".join(said)],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+@linux
+async def test_a_job_a_dead_run_left_is_cancelled_by_the_next(
+    cluster: Fakes, work: Path
+) -> None:
+    left = await asyncio.to_thread(_submitted, socket.gethostname(), "999999999")
+    driver = _opened(f"work=slurm@hpc{work}")
+    try:
+        await probe(driver)
+    finally:
+        await driver.close()
+
+    assert [left] in cluster.calls("scancel")
