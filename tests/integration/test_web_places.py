@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import expect
 
-from tests.integration.doubles_core import AGENT, install
+from tests.integration.doubles_core import AGENT, install, write_flow
 from tests.integration.doubles_web import Browser, opened, served, until
 
 if TYPE_CHECKING:
@@ -161,3 +161,51 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
             re.compile("stopped")
         )
+
+
+#: A flow of a project's own: one agent, one turn.
+_OWN = '''
+from hmz.flows import (
+    Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, LocalEnv, flow,
+)
+
+
+class Agents(AgentCollection):
+    """The one."""
+
+    solo: Agent
+
+
+class Envs(EnvCollection):
+    """Where it works."""
+
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def mine(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> str:
+    """A project's own flow."""
+    one = agents["solo"]
+    return await one.run(task, session=await one.spawn(), env=envs["workspace"])
+'''
+
+
+def test_a_projects_own_flows_are_offered_in_that_project_alone(
+    project: Path, other: Path
+) -> None:
+    write_flow(other / ".hmz" / "flows", "mine", _OWN)
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        there = browser.get(f"/api/flows?workspace={other}").json()["flows"]
+        assert ("local", "@local/mine") in [
+            (one["whose"], one["name"]) for one in there
+        ]
+        here = browser.get("/api/flows").json()["flows"]
+        assert "@local/mine" not in [one["name"] for one in here]
+        declared = browser.get(f"/api/flow?name=@local/mine&workspace={other}").json()
+        assert [one["name"] for one in declared["agents"]] == ["solo"]
+        assert browser.get("/api/flow?name=@local/mine").status == 404

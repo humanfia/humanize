@@ -10,6 +10,7 @@ spelled once.
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -39,25 +40,35 @@ class Flowverses:
 
     The same directories every way in walks, so that a flowverse added or a flow installed from
     a command line is one the interface offers a moment later.
+
+    Args:
+      workspace: The workspace whose own flows are one of the places, or None for the directory
+        being run in.
     """
+
+    def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None:
+        self._workspace = workspace
 
     def all(self) -> list[Flowverse]:
         """Every place there is, in the order their flows are offered."""
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.flowverses()
+            return verses.flowverses()
 
     def nearest(self) -> list[Flowverse]:
         """The same places, in the order a flow's name is looked up in."""
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.nearest()
+            return verses.nearest()
 
     def find(self, name: str) -> Flowverse | None:
         """The place called this, or None for a name none answers to."""
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.named(name)
+            return verses.named(name)
 
     def add(self, url: str, name: str = "") -> Flowverse:
         """Fetches an index, and offers what is installed out of it under a name.
@@ -74,9 +85,10 @@ class Flowverses:
             directory may be called.
           OSError: If it cannot be cloned or kept.
         """
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.add(url, name)
+            return verses.add(url, name)
 
     def fetch(self, name: str) -> Flowverse:
         """Fetches one again, or for the first time.
@@ -91,9 +103,10 @@ class Flowverses:
           ValueError: If no place answers to that name, or it is one nothing fetches.
           OSError: If git refused.
         """
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.fetch(name)
+            return verses.fetch(name)
 
     def remove(self, name: str) -> bool:
         """Takes one away: its index, and every flow installed out of it.
@@ -108,9 +121,10 @@ class Flowverses:
           ValueError: If it is one of the ones that are always there.
           OSError: If the directory will not go.
         """
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.remove(name)
+            return verses.remove(name)
 
     def holds(self, one: Flowverse) -> list[Offer]:
         """What one place holds to run, by the name each flow is offered under.
@@ -125,9 +139,10 @@ class Flowverses:
           One offer per flow installed out of it, or written into it for your own two: the
           ones in the package as well for humanize's own. Never a flow its index only lists.
         """
-        from hmz.runtime.flowing import offers
+        with _within(self._workspace):
+            from hmz.runtime.flowing import offers
 
-        return offers(one)
+            return offers(one)
 
     def index(self, name: str) -> Index:
         """Every release one place's index lists, as it was last fetched.
@@ -139,9 +154,10 @@ class Flowverses:
           Its releases, newest first within each flow, and the manifests that did not read
           with why. Nothing for a place that is not an index or has not been fetched.
         """
-        from hmz.runtime.flowing.index import index
+        with _within(self._workspace):
+            from hmz.runtime.flowing.index import index
 
-        return index(name)
+            return index(name)
 
     def install(self, flow: str, version: str = "") -> list[Installed]:
         """Installs one release of a flow out of its index, and what it needs.
@@ -161,10 +177,11 @@ class Flowverses:
             needs cannot be had without a cycle or without breaking another installed flow.
           OSError: If a repository cannot be fetched, or the flow cannot be copied.
         """
-        from hmz.runtime.flowing.index import install
-        from hmz.runtime.flowing.verses import split
+        with _within(self._workspace):
+            from hmz.runtime.flowing.index import install
+            from hmz.runtime.flowing.verses import split
 
-        return install(*split(flow), version)
+            return install(*split(flow), version)
 
     def uninstall(self, flow: str) -> bool:
         """Takes one installed flow away.
@@ -179,22 +196,25 @@ class Flowverses:
           ValueError: If that is no flow's name, or another installed flow needs it.
           OSError: If it will not go.
         """
-        from hmz.runtime.flowing.index import uninstall
-        from hmz.runtime.flowing.verses import split
+        with _within(self._workspace):
+            from hmz.runtime.flowing.index import uninstall
+            from hmz.runtime.flowing.verses import split
 
-        return uninstall(*split(flow))
+            return uninstall(*split(flow))
 
     def installed(self) -> list[Installed]:
         """Every flow installed out of an index, and the release each is at."""
-        from hmz.runtime.flowing.index import installed
+        with _within(self._workspace):
+            from hmz.runtime.flowing.index import installed
 
-        return installed()
+            return installed()
 
     def updates(self) -> list[Update]:
         """Every installed flow its index lists a newer release of, as last fetched."""
-        from hmz.runtime.flowing.index import updates
+        with _within(self._workspace):
+            from hmz.runtime.flowing.index import updates
 
-        return updates()
+            return updates()
 
     def edited(self, one: Flowverse) -> bool:
         """Whether one has anything written into it that fetching it again would undo.
@@ -210,9 +230,10 @@ class Flowverses:
           Whether there is anything of somebody's own in it, and False for one that is not a
           clone at all -- there being no fetch to take anything away.
         """
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.edited(one.at)
+            return verses.edited(one.at)
 
     def standing(self, one: Flowverse) -> str:
         """Which commit its clone stands at, which a fetch moves only where it brought something.
@@ -230,21 +251,24 @@ class Flowverses:
           nobody has fetched yet reads as, and compares unequal to whatever it stands at once
           it has been.
         """
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.standing(one.at)
+            return verses.standing(one.at)
 
     def where(self, name: str) -> Path:
         """The directory one place is kept in, whether or not anything has been fetched into it."""
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.where(name)
+            return verses.where(name)
 
     def plain(self, url: str) -> str:
         """A URL with whatever was signed into it taken out, as it may be printed."""
-        from hmz.runtime.flowing import verses
+        with _within(self._workspace):
+            from hmz.runtime.flowing import verses
 
-        return verses.plain(url)
+            return verses.plain(url)
 
     def whence(self, one: Flowverse, nowhere: str = _NOWHERE) -> str:
         """Where a place came from, as it may be shown to somebody.
@@ -266,18 +290,25 @@ class Flowverses:
           line is printed every time the places are listed, and a token printed once is a
           token in the log of every job that ran it.
         """
-        from hmz.runtime.flowing.verses import MINE, plain
+        with _within(self._workspace):
+            from hmz.runtime.flowing.verses import MINE, plain
 
-        if one.name in MINE:
-            return f"your own flows in {MINE[one.name]}"
-        return plain(one.url) if one.url else nowhere
+            if one.name in MINE:
+                return f"your own flows in {MINE[one.name]}"
+            return plain(one.url) if one.url else nowhere
 
 
 class Flows:
-    """The flows there are: what is offered, what one of them takes, and what one says it is."""
+    """The flows there are: what is offered, what one of them takes, and what one says it is.
 
-    def __init__(self) -> None:
-        self._verses = Flowverses()
+    Args:
+      workspace: The workspace whose own flows are offered with the rest, or None for the
+        directory being run in.
+    """
+
+    def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None:
+        self._workspace = workspace
+        self._verses = Flowverses(workspace)
 
     @property
     def verses(self) -> Flowverses:
@@ -286,9 +317,10 @@ class Flows:
 
     def all(self) -> list[Offer]:
         """Every flow there is to run, by the name `-f` takes."""
-        from hmz.runtime.flowing import found
+        with _within(self._workspace):
+            from hmz.runtime.flowing import found
 
-        return found()
+            return found()
 
     def find(self, named: str) -> str:
         """The file one flow is written in.
@@ -304,15 +336,17 @@ class Flows:
           a name is never read as a path, so `demo.py` is no flow even where there is a file
           of that name, and `./demo.py` is the one there is.
         """
-        from hmz.runtime.flowing import find
+        with _within(self._workspace):
+            from hmz.runtime.flowing import find
 
-        return find(named)
+            return find(named)
 
     def about(self, named: str) -> str:
         """The line a flow says about itself, and "" for one that says nothing."""
-        from hmz.runtime.flowing import about
+        with _within(self._workspace):
+            from hmz.runtime.flowing import about
 
-        return about(named)
+            return about(named)
 
     def declared(self, named: str | os.PathLike[str]) -> Declaration:
         """Everything a flow declares: its agent and environment roles, params and marks.
@@ -330,14 +364,16 @@ class Flows:
           FlowException: If the flow cannot be loaded -- not there, not a ref, written wrong
             -- as the flow API names what went wrong.
         """
-        from hmz.runtime.flowing import resolved
-        from hmz.runtime.flowing.verses import spelled
+        with _within(self._workspace):
+            from hmz.runtime.flowing import resolved
+            from hmz.runtime.flowing.verses import spelled
 
-        return resolved(spelled(named)).describe()
+            return resolved(spelled(named)).describe()
 
     def resumes(self, named: str | os.PathLike[str]) -> bool:
         """Whether a flow says it can be picked up where the last run of it left off."""
-        return self.declared(named).resumable
+        with _within(self._workspace):
+            return self.declared(named).resumable
 
     def fork(self, named: str, into: str | os.PathLike[str] | None = None) -> str:
         """Copies a flow into this project's own flows, whole -- what it imports and all.
@@ -359,9 +395,10 @@ class Flows:
             over.
           OSError: If it cannot be copied.
         """
-        from hmz.runtime.flowing import fork
+        with _within(self._workspace):
+            from hmz.runtime.flowing import fork
 
-        return fork(named, into)
+            return fork(named, into)
 
     def running(self) -> tuple[LiveCall, ...]:
         """Every flow call going in this process now, oldest first.
@@ -369,6 +406,16 @@ class Flows:
         Each says its flow, how deep it is and which call made it: the running tree, read the
         same way from anywhere, inside a flow or out.
         """
-        from hmz.runtime.flowing import running
+        with _within(self._workspace):
+            from hmz.runtime.flowing import running
 
-        return running()
+            return running()
+
+
+def _within(
+    workspace: str | os.PathLike[str] | None,
+) -> contextlib.AbstractContextManager[None]:
+    """Where `here` is while flows are asked about: the workspace, where one was named."""
+    from hmz import working_in
+
+    return contextlib.nullcontext() if workspace is None else working_in(workspace)

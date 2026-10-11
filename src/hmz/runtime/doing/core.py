@@ -91,7 +91,7 @@ class Hmz:
         if self._flows is None:
             from hmz.runtime.doing.flows import Flows
 
-            self._flows = Flows()
+            self._flows = Flows(self._workspace)
         return self._flows
 
     @property

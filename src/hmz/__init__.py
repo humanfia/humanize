@@ -3,17 +3,27 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import functools
 import os
 import pathlib
 import stat
 import tempfile
+from typing import TYPE_CHECKING
 
-__all__ = ["here", "home", "machine"]
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+__all__ = ["here", "home", "machine", "working_in"]
 
 #: What humanize's own directories are called, and what they were called before.
 _NAME = ".hmz"
 _WAS = ".humanize"
+
+#: The workspace a thread is working in, where it is not the directory being run in.
+_WORKING: contextvars.ContextVar[pathlib.Path | None] = contextvars.ContextVar(
+    "hmz_working", default=None
+)
 
 
 def home() -> pathlib.Path:
@@ -41,10 +51,12 @@ def here() -> pathlib.Path:
     directory `HUMANIZE_HOME` names.
 
     Returns:
-      The directory, relative to the one being run in: kept unresolved, so that a directory
-      since removed is one holding nothing rather than a reason to fail. It is not made here.
+      The directory, relative to the one being run in -- or under the workspace
+      :func:`working_in` names -- kept unresolved, so that a directory since removed is one
+      holding nothing rather than a reason to fail. It is not made here.
     """
-    at = pathlib.Path(_NAME)
+    working = _WORKING.get()
+    at = working / _NAME if working is not None else pathlib.Path(_NAME)
     # Run in a directory since removed: there is nothing there to move.
     with contextlib.suppress(OSError):
         _project(at.absolute(), home())
@@ -122,3 +134,24 @@ def _moved(at: pathlib.Path) -> pathlib.Path:
         if not at.exists():
             at.with_name(_WAS).rename(at)
     return at
+
+
+@contextlib.contextmanager
+def working_in(workspace: str | os.PathLike[str]) -> Generator[None]:
+    """Answers :func:`here` under one workspace rather than the directory being run in.
+
+    For this thread, and whatever it calls, until the block ends: what lets one process -- the
+    web interface, serving every workspace of a machine -- find each one's own flows without
+    moving the directory everything else in the process is run in.
+
+    Args:
+      workspace: The workspace.
+
+    Yields:
+      Nothing; inside the block, :func:`here` is `<workspace>/.hmz`.
+    """
+    token = _WORKING.set(pathlib.Path(workspace))
+    try:
+        yield
+    finally:
+        _WORKING.reset(token)
