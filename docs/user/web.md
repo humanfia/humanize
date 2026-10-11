@@ -92,8 +92,9 @@ The panel beside it (the button at the top right shows and hides it) holds:
   model and kind of token (`≥` marks a figure that is only a floor), **Environments** -- where
   each session works and where its harness went -- the **Frontends** reading it, the flows going
   or the flows it called, and how it was set up and where it is written down.
-- **Ask beside.** A side question, as [`/btw`](/user/btw) asks it: of the btw agent, or of one
-  session's side copy. The epic never sees it. Every question after the first goes on in the
+- **Aside.** A side question, as [`/btw`](/user/btw) asks it: of the btw agent, or of one
+  session's side copy -- any epic's session, an earlier one forked from where that epic kept it,
+  so it answers with that session's own history. The epic never sees it. Every question after the first goes on in the
   same side conversation until you press **Close them**, or a new epic starts.
 - **Board.** For an epic that holds one: edit, remove and add its lines. See
   [The mission board](/user/board).

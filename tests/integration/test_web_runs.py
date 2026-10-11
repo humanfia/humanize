@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests.integration.doubles_core import AGENT, install
+from tests.integration.doubles_core import AGENT, install, started
 from tests.integration.doubles_web import Browser, served, until
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
 #: Chat, on the stand-in, as a page starts it.
 _CHAT = {"flow": "chat", "task": "hello there", "agents": {"assistant": AGENT}}
@@ -156,3 +156,82 @@ def test_a_side_question_is_asked_beside_the_run_and_never_of_it(
                 "the run ending",
             )
             assert all("what is it doing" not in text for text in heard_of_run)
+
+
+def _chatted(browser: Browser, task: str) -> None:
+    """Runs chat on a task until it asks back, then stops it."""
+    with browser.follows() as heard:
+        until(heard, lambda event, data: event == "hello", "hello")
+        assert browser.post("/api/held/start", _CHAT | {"task": task}).status == 200
+        until(heard, _record("asked"), "chat asking")
+        browser.post("/api/held/stop")
+        until(heard, _record("ended"), "the run ending")
+
+
+def test_an_epic_written_down_is_read_back_out_of_the_logs_it_kept(
+    project: Path,
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        _chatted(browser, "the first one")
+
+        (ran,) = browser.get("/api/runs").json()["runs"]
+        traced = browser.get(f"/api/runs/{ran['name']}/trace").json()["sessions"]
+        (session,) = traced
+        turns = [one for one in session["actions"] if one["category"] == "turn"]
+        assert [one["args"]["prompt"] for one in turns] == ["the first one"]
+        said = [
+            one["args"].get("text")
+            for one in session["actions"]
+            if one["category"] == "message"
+        ]
+        assert "did: the first one" in said
+
+
+def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_history(
+    tmp_path: Path, project: Path
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        _chatted(browser, "remember papaya")
+        _chatted(browser, "and then this")
+        earlier, latest = reversed(browser.get("/api/runs").json()["runs"])
+        assert latest["task"] == "and then this"
+
+        kept = (
+            Path(browser.get(f"/api/runs/{earlier['name']}").json()["at"]) / "sessions"
+        )
+        before = sorted(str(one) for one in kept.rglob("*"))
+
+        aside = browser.post(
+            "/api/btw",
+            {
+                "question": "what was the word",
+                "to": "assistant/1",
+                "epic": earlier["name"],
+            },
+        )
+
+        assert aside.status == 200, aside.body
+        said = aside.json()
+        assert said["to"] == f"{earlier['name']}/assistant/1"
+        # A fork carries the session's history and is told it is a side copy of it.
+        assert "read-only side copy of the flow session" in said["answer"]
+        ident = browser.get(f"/api/runs/{earlier['name']}").json()["sessions"][0][
+            "ident"
+        ]
+        argv = started(tmp_path)[-1]["argv"]
+        assert argv[argv.index("--resume") + 1] == ident
+        assert "--fork-session" in argv
+        # Nothing of the side conversation is kept where the earlier epic keeps its own.
+        assert sorted(str(one) for one in kept.rglob("*")) == before
+        browser.post("/api/btw/leave", {})
+        assert (
+            browser.post(
+                "/api/btw",
+                {"question": "x", "to": "assistant/9", "epic": earlier["name"]},
+            ).status
+            == 404
+        )

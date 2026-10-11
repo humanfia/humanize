@@ -167,7 +167,7 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 | `POST /api/held/release` | `role` | The host's answer |
 | `POST /api/held/board` | `key`; `value` (`""` removes the line) | The host's answer |
 | `GET /api/btw` | `?workspace=` | `open` (the conversations a side one is open on, `""` the btw agent's) and `said` (each question answered since, oldest first, as `POST` answers it; the last **200**) |
-| `POST /api/btw` | `workspace`; `question`; `to` (`""` the btw agent, or `<role>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
+| `POST /api/btw` | `workspace`; `question`; `to` (`""` the btw agent, or `<role>/<n>`); `epic` (the epic `to` is of: a session of one the runs hold no more is carried on from where that epic kept it, its conversation answered as `<epic>/<role>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
 | `POST /api/btw/leave` | `workspace`; `to`, or nothing for every side conversation | `{"ok": true}` |
 
 Every request about one workspace's runs names it as `workspace` -- in the query of a `GET`, in

@@ -155,7 +155,7 @@ export function outworlders(workspace, roles, { claims, away, me, clients }) {
  * page opened again reads them back; made once for a page and moved from one drawing of it to
  * the next, so that what is being typed outlives a redraw.
  */
-export function asides(workspace) {
+export function asides(workspace, epic = '') {
   const to = h('select', { 'aria-label': 'Ask it of' }, h('option', { value: '' }, 'btw agent'))
   const leave = h('button', { class: 'btn quiet small', type: 'button', hidden: true }, 'Close')
   const log = h('div', { class: 'thread aside-log', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
@@ -171,7 +171,7 @@ export function asides(workspace) {
     submit: async (question) => {
       asked(question.trim(), to.value)
       try {
-        answered(await post('/api/btw', { question: question.trim(), to: to.value, workspace }))
+        answered(await post('/api/btw', { question: question.trim(), to: to.value, workspace, epic }))
         leave.hidden = false
       } finally {
         log.scrollTop = log.scrollHeight

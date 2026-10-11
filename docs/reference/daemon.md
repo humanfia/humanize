@@ -287,7 +287,7 @@ An exception inside a request is refused with `str(exception)` or its type name.
 | `claim` | `role` (str, required), `take` (bool, `false`) | — | `a role to claim is named`, `<role> is <name>'s` (without `take`). Needs no run; role not checked against the flow. |
 | `release` | `role` | — | `<role> is not yours to release` |
 | `board` | `key`, `value` (`""` removes the line); acts on the last run's board as `user` | — | `this run has no board`, `<key> is not on the board`, `<key> is flow's to change, not user's` (and other `<key> is <whose>'s to change, not <by>'s` refusals) |
-| `aside` (open) | `key` (`<role>/<n>` of the last run) with `fork` (bool), **or** `runs` (an `-a` spec after `<role>=`) | `side` (`s<n>`), `forked` (bool) | `<key> has no conversation to ask`, `<runs> is not an agent that can be made here`, `an aside is about a conversation, or asks an agent`, `this frontend has gone` |
+| `aside` (open) | `key` (`<role>/<n>` of the last run) with `fork` (bool), **or** `runs` (an `-a` spec after `<role>=`) -- with `recall` (what its CLI called a session an earlier run kept), `kept` (where that run kept it) and `cwd`, and `fork`, for a side conversation about that session | `side` (`s<n>`), `forked` (bool) | `<key> has no conversation to ask`, `<runs> is not an agent that can be made here`, `an aside is about a conversation, or asks an agent`, `this frontend has gone` |
 | `aside` (ask) | `side`, `prompt` | `answer` (str, stripped) | `no aside <side> is open`, `the aside is still answering the last question` |
 | `unaside` | `side` | — | `no aside <side> is open` |
 | `status` | — | [status keys](#status) without the † host keys | — |
@@ -312,8 +312,12 @@ to the head of the queue).
 
 An aside is a read-only side session: `permission` read-only, no goals, no skills, no allowed
 tools, MCP approval off, watched by nothing. Only the newest 256 conversations of the last run
-can be forked. An aside is closed on `unaside`, when its frontend detaches, when a run starts,
-and when the host closes. No message announces asides.
+can be forked. An aside about a session an earlier run kept is a fork of it carried on from
+where that run kept it -- into a directory of the aside's own in this machine's directory,
+removed as the aside is closed, never where that run keeps its sessions nor the CLI's own home --
+and a fresh copy of its agent where its CLI does not fork or the session was not kept. An aside
+is closed on `unaside`, when its frontend detaches, when a run starts, and when the host closes.
+No message announces asides.
 
 ## Messages {#messages}
 

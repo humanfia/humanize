@@ -213,6 +213,8 @@ class Held:
         *,
         workspace: str,
         source: Callable[[Mapping[str, Any] | None, list[str]], dict[str, str] | None],
+        opening: Mapping[str, Any] | None = None,
+        about: FlowSnapshot | None = None,
     ) -> dict[str, Any]:
         """Asks one side question about the run, beside it rather than of it.
 
@@ -225,6 +227,9 @@ class Held:
           workspace: Where the runs are, as the question is told it.
           source: What the btw agent is opened as, given the run as the runs last said it
             and its conversations.
+          opening: What opens the side conversation of a session that is none of the run's
+            -- one an earlier run kept -- as :class:`Btw` takes it, or None.
+          about: The run that session was of, frozen, told in place of the run going.
 
         Returns:
           The answer, and each conversation the btw agent asked on the way to it.
@@ -251,13 +256,14 @@ class Held:
                     asking=lambda key, asking: told.append(
                         {"to": key, "question": asking}
                     ),
+                    opening=opening,
                 )
                 self._asides[target], self._hops[target] = mode, told
             if mode.busy:
                 raise Refusal(
                     "btw is still answering the last question asked of it.", 409
                 )
-            snapshot = self._snapshot(workspace)
+            snapshot = about if about is not None else self._snapshot(workspace)
             # Taken before the lock is let go, so that a second question finds it busy.
             mode.busy = True
             hops = self._hops[target]
@@ -284,6 +290,11 @@ class Held:
             if self._asides.get(target) is mode:
                 self._said = [*self._said, said][-_SAID:]
         return said
+
+    def sessions(self) -> list[str]:
+        """The conversations of the run in front of this interface, `<role>/<n>` apiece."""
+        with self._changed:
+            return list(self._following.seen)
 
     def asides(self) -> dict[str, Any]:
         """Btw mode as it stands: the conversations side ones are open on, and what was said."""
@@ -674,12 +685,88 @@ def _btw(asked: Asked) -> dict[str, Any]:
     workspace = _workspace(asked)
     place = places.of(workspace)
     question = " ".join(asked.text("question").split())
-    return places.held(workspace).btw(
+    to, epic = asked.text("to", required=False), asked.text("epic", required=False)
+    held = places.held(workspace)
+    opening: dict[str, Any] | None = None
+    about = None
+    target = to
+    if epic and to and not _held_still(asked, held, epic, to):
+        # A session of an earlier epic, which the runs hold no more: carried on from where
+        # that epic kept it, and told that epic rather than the run going.
+        opening, about = _recalled(asked.site.runs.named(epic), to)
+        target = f"{epic}/{to}"
+    return held.btw(
         question,
-        asked.text("to", required=False),
+        target,
         workspace=str(place.workspace),
         source=functools.partial(_source, place.hmz),
+        opening=opening,
+        about=about,
     )
+
+
+def _held_still(asked: Asked, held: Held, epic: str, to: str) -> bool:
+    """Whether a session of an epic is one the runs still hold: of the latest, and known."""
+    latest = asked.site.runs.all(_workspace(asked))
+    return bool(latest) and latest[0].name == epic and to in held.sessions()
+
+
+def _recalled(ran: Any, key: str) -> tuple[dict[str, Any], FlowSnapshot]:
+    """How a side conversation about a session of an epic written down is opened, and the epic.
+
+    Args:
+      ran: The epic.
+      key: The session, `<role>/<n>`: the n-th its role opened.
+
+    Returns:
+      Its agent, conversation and where it was kept, as a link's `aside` takes them; and the
+      epic, frozen, as a side question is told it.
+
+    Raises:
+      Refusal: If the epic opened no such session, or its agent is not written down.
+    """
+    from hmz.runtime.epic import where
+    from hmz.runtime.watching.btw import AgentProgress, FlowSnapshot
+
+    role, _, number = key.rpartition("/")
+    mine = [one for one in ran.sessions if one.agent == role]
+    if not number.isdigit() or not 0 < int(number) <= len(mine):
+        raise Refusal(f"{ran.name} opened no session {key}.", 404)
+    session = mine[int(number) - 1]
+    runs = next((one.spec for one in ran.agents if one.agent == role), "")
+    if not runs:
+        raise Refusal(f"{ran.name} says nothing of what {role} ran as.", 404)
+    began, ended = _moment(ran.began), _moment(ran.ended)
+    about = FlowSnapshot(
+        flow=ran.flow,
+        task=ran.task,
+        workspace=ran.workspace,
+        elapsed=max(0.0, ended - began) if began and ended else 0.0,
+        finished=True,
+        agents=tuple(
+            AgentProgress(
+                agent=one.agent, model=one.model, turns=0, working=False, role=one.agent
+            )
+            for one in ran.agents
+        ),
+    )
+    opening = {
+        "runs": runs,
+        "recall": session.ident,
+        "kept": str(where(ran.at, session)),
+        "cwd": ran.workspace,
+    }
+    return opening, about
+
+
+def _moment(stamp: str) -> float:
+    """A moment an epic wrote down, in seconds since the epoch, or 0 for none."""
+    import datetime
+
+    try:
+        return datetime.datetime.fromisoformat(stamp).timestamp()
+    except ValueError:
+        return 0.0
 
 
 def _source(

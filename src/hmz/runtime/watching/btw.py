@@ -355,6 +355,10 @@ class Btw:
       sessions: The run's conversations a side one may be opened on, `<role>/<n>` apiece.
       source: What the btw agent is opened as (:func:`opened_as`), or None for nothing.
       asking: Told each session the btw agent asks, and what, as it asks it.
+      opening: What opens the target's side conversation, as a link's `aside` takes it, for
+        a session that is none of the run's -- one an earlier run kept, carried on from where
+        it was kept: its agent as `runs`, its conversation as `recall` and where it is as
+        `kept`. None for a session of the run, opened by its key.
 
     Attributes:
       target: The session asked, or "" for the btw agent.
@@ -370,8 +374,10 @@ class Btw:
         sessions: Callable[[], Sequence[str]],
         source: Callable[[], dict[str, str] | None],
         asking: Callable[[str, str], object] | None = None,
+        opening: Mapping[str, Any] | None = None,
     ) -> None:
         self.target = target
+        self._opening = dict(opening) if opening is not None else None
         self.busy = False
         self._aside = aside
         self._unaside = unaside
@@ -451,9 +457,14 @@ class Btw:
         side = self._sides.get(key)
         if side is not None:
             return self._said(side, format_turn(question))
-        if key not in self._sessions():
+        opening = self._opening
+        if opening is None and key not in self._sessions():
             return f"(session {key} not found)"
-        opened = self._aside(key=key, fork=True)
+        opened = (
+            self._aside(**opening, fork=True)
+            if opening
+            else self._aside(key=key, fork=True)
+        )
         side = self._kept(key, str(opened["side"]))
         if opened.get("forked"):
             try:
@@ -466,7 +477,9 @@ class Btw:
                 if self._sides.get(key) == side:
                     del self._sides[key]
             self._unaside(side)
-            side = self._kept(key, str(self._aside(key=key)["side"]))
+            # A copy of its agent, opened afresh: for an earlier run's, without its history.
+            fresh = {"runs": opening["runs"]} if opening else {"key": key}
+            side = self._kept(key, str(self._aside(**fresh)["side"]))
         role = key.rpartition("/")[0]
         about = replace(
             snapshot,

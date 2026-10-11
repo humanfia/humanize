@@ -10,6 +10,7 @@ it drives the real CLI. It answers a prompt as a model would be asked to:
 - `silent` answers nothing;
 - a turn asked for a JSON schema answers `{"done": true, "notes": "reviewed"}`;
 - asked what it runs, before any session, it runs `claude-haiku-4-5` and `claude-opus-4-1`;
+- every prompt and every answer is logged to its transcript as Claude Code logs them, with when;
 - anything else is answered `did: <prompt>`, after writing the prompt into `landed.txt` in the
   directory it was started in -- the work, wherever the workspace is.
 
@@ -41,7 +42,7 @@ AGENT = f"claude/{MODEL}"
 TOKENS = 7
 
 CLAUDE = r"""
-import json, os, pathlib, re, sys, uuid
+import datetime, json, os, pathlib, re, sys, uuid
 
 argv = sys.argv[1:]
 flags = {}
@@ -122,8 +123,10 @@ for line in sys.stdin:
         continue
     text = said["message"]["content"][0]["text"]
     out({"type": "system", "subtype": "init", "session_id": session, "model": model})
+    asked_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     with transcript.open("a") as kept:
         kept.write(json.dumps({"type": "user", "sessionId": session, "cwd": os.getcwd(),
+                               "timestamp": asked_at, "promptId": str(uuid.uuid4()),
                                "message": {"role": "user", "content": text}}) + "\n")
     answered = answer(text)
     if answered is None:
@@ -132,6 +135,15 @@ for line in sys.stdin:
         sys.exit(1)
     spent["in"] += 10
     spent["out"] += TOKENS
+    # And what it answered, as Claude Code logs an answer: what a trace reads a turn out of.
+    with transcript.open("a") as kept:
+        kept.write(json.dumps({
+            "type": "assistant", "sessionId": session, "cwd": os.getcwd(),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "requestId": str(uuid.uuid4()),
+            "message": {"id": str(uuid.uuid4()), "model": model, "role": "assistant",
+                        "content": [{"type": "text", "text": answered or " "}],
+                        "usage": {"input_tokens": 10, "output_tokens": TOKENS}}}) + "\n")
     out({"type": "assistant", "message": {"id": str(uuid.uuid4()), "model": model,
          "content": [{"type": "text", "text": answered or " "}],
          "usage": {"input_tokens": 10, "output_tokens": TOKENS}}})

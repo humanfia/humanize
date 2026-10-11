@@ -328,3 +328,36 @@ def test_the_panel_says_every_figure_in_words_and_within_its_edges(
             }"""
         )
         assert outside <= 1
+
+
+def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "remember papaya")
+        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
+        _start_chat(page, "and then this")
+        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
+
+        page.locator("[data-hmz=epic]", has_text="remember papaya").click()
+        page.locator(".graph-note").get_by_role("button", name="Read turns").click()
+        agent = page.locator("[data-hmz=graph-agent][data-role=assistant]")
+        expect(agent.locator(".capsule")).to_have_count(1)
+
+        agent.locator("[data-hmz=graph-session]").click()
+        expect(page.locator("[data-hmz=thread]")).to_contain_text(
+            "did: remember papaya"
+        )
+
+        page.get_by_role("tab", name="Aside").click()
+        aside = page.locator("[data-hmz=btw]")
+        aside.get_by_role("combobox").select_option("assistant/1")
+        aside.locator("textarea").fill("what was the word")
+        aside.locator("textarea").press("Enter")
+        expect(page.locator("[data-hmz=btw-log]")).to_contain_text(
+            "read-only side copy of the flow session"
+        )
