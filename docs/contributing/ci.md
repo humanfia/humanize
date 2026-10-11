@@ -38,6 +38,10 @@ run on Linux and macOS. `tests/system` is never run here: it drives real agents 
 test and spends real tokens, so it is yours to run when your change needs it. [Where a test
 goes](/contributing/#where-a-test-goes) says when.
 
+The `web` topic drives `hmz web`'s page in headless Chromium and in WebKit, the engine the
+macOS app's window draws it with: fetch both with `uv run playwright install chromium webkit`
+before running it.
+
 A new package under `src/hmz/` takes a row in `unit`'s matrix, and a new topic a row in
 `integration`'s. A file named for no topic in the matrix runs in no job.
 

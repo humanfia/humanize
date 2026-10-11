@@ -5,8 +5,8 @@ runs are not held apart, and answers on a thread of its own until the test is do
 is a client speaking HTTP to it from this machine, one connection a request -- let in with the
 key the address carries, or not -- and the stream of a run is read as a browser reads it, an
 event at a time. A page is the page itself, drawn by a real browser opened on the address --
-headless Chromium, as Playwright drives it -- in which anything the page throws or logs as an
-error fails the test.
+headless Chromium, or WebKit as the desktop app's window draws it, as Playwright drives them --
+in which anything the page throws or logs as an error fails the test.
 """
 
 from __future__ import annotations
@@ -36,6 +36,9 @@ if TYPE_CHECKING:
 #: How long anything here waits for the interface before failing the test.
 PATIENCE = 30.0
 
+#: The engines a page is drawn by: Chromium's, and WebKit's, which the macOS app's window is.
+ENGINES = ("chromium", "webkit")
+
 # Where Playwright keeps its browsers is under the home of whoever installed them, and a test
 # gives the stand-in a home of its own: the browsers are pinned to the real one before it does.
 os.environ.setdefault(
@@ -46,6 +49,10 @@ os.environ.setdefault(
         else Path.home() / ".cache" / "ms-playwright"
     ),
 )
+
+#: The home a browser runs in: the real one, since WebKit on macOS never loads a page from a
+#: home made in a temporary directory.
+_HOME = str(Path.home())
 
 
 @contextlib.contextmanager
@@ -66,12 +73,18 @@ def served() -> Generator[Site]:
 
 @contextlib.contextmanager
 def opened(
-    site: Site, *, width: int = 1280, height: int = 860, dark: bool = False
+    site: Site,
+    *,
+    engine: str = "chromium",
+    width: int = 1280,
+    height: int = 860,
+    dark: bool = False,
 ) -> Generator[Page]:
     """The page, in a browser let in by the address, until the block ends.
 
     Args:
       site: The interface it is opened on.
+      engine: One of `ENGINES`, the browser it is drawn by.
       width: How wide the window is: under 860, a phone's layout.
       height: How tall it is.
       dark: Whether the system the browser runs on asks for dark colours.
@@ -87,7 +100,8 @@ def opened(
     expect.set_options(timeout=PATIENCE * 1000)
 
     with sync_playwright() as driving:
-        browser = driving.chromium.launch()
+        kind = driving.webkit if engine == "webkit" else driving.chromium
+        browser = kind.launch(env={**os.environ, "HOME": _HOME})
         try:
             context = browser.new_context(
                 viewport={"width": width, "height": height},

@@ -16,7 +16,7 @@ import yaml
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import Browser, opened, served
+from tests.integration.doubles_web import ENGINES, Browser, opened, served
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -131,10 +131,11 @@ def test_a_flow_is_installed_updated_and_uninstalled_out_of_a_flowverse(
         assert browser.get("/api/flowverses/theirs").status == 404
 
 
+@pytest.mark.parametrize("engine", ENGINES)
 def test_the_flows_page_installs_out_of_a_flowverse_and_says_what_is_newer(
-    index: Path,
+    index: Path, engine: str
 ) -> None:
-    with served() as site, opened(site) as page:
+    with served() as site, opened(site, engine=engine) as page:
         page.get_by_role("link", name="Flows").click()
         page.get_by_role("tab", name="Flowverses").click()
         page.locator("[data-hmz=add-verse]").click()

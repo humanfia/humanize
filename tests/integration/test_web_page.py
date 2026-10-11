@@ -2,12 +2,14 @@
 
 Each test opens the page the way somebody does -- the printed address in a browser -- over runs
 held in the test's own process, with the stand-in `claude` the only coding agent on PATH, and
-does what they would: clicks, types and reads what is drawn.
+does what they would: clicks, types and reads what is drawn. Each does so in Chromium and in
+WebKit, which the macOS app's window is.
 """
 
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -15,15 +17,15 @@ from playwright.sync_api import expect
 
 import hmz.coganchor.models
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import opened, served
+from tests.integration.doubles_web import ENGINES, opened, served
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from playwright.sync_api import Page
 
 #: Every settings page, by the word its address ends in.
 _PAGES = ("general", "accounts", "fallback", "runtimes", "workspace", "usage")
+
+pytestmark = pytest.mark.parametrize("engine", ENGINES)
 
 
 @pytest.fixture
@@ -49,8 +51,10 @@ def _start_chat(page: Page, task: str) -> None:
     page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
 
 
-def test_a_new_epic_offers_each_role_the_models_its_cli_runs(project: Path) -> None:
-    with served() as site, opened(site) as page:
+def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
         _go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         role = page.locator("[data-role=assistant]")
@@ -73,7 +77,7 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(project: Path) -> N
 
 
 def test_a_model_no_cli_would_list_is_typed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str
 ) -> None:
     install(tmp_path, monkeypatch)
 
@@ -81,7 +85,7 @@ def test_a_model_no_cli_would_list_is_typed(
         raise OSError(f"{cli} is not answering")
 
     monkeypatch.setattr(hmz.coganchor.models, "ask", refused)
-    with served() as site, opened(site) as page:
+    with served() as site, opened(site, engine=engine) as page:
         _go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         role = page.locator("[data-role=assistant]")
@@ -96,9 +100,9 @@ def test_a_model_no_cli_would_list_is_typed(
 
 
 def test_an_epic_started_from_the_page_is_drawn_answered_read_and_stopped(
-    project: Path,
+    project: Path, engine: str
 ) -> None:
-    with served() as site, opened(site) as page:
+    with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "hello there")
 
         agent = page.locator("[data-hmz=graph-agent][data-role=assistant]")
@@ -129,8 +133,8 @@ def test_an_epic_started_from_the_page_is_drawn_answered_read_and_stopped(
         expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("■")
 
 
-def test_an_epic_is_found_by_its_task(project: Path) -> None:
-    with served() as site, opened(site) as page:
+def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
+    with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "find me later")
         page.get_by_role("button", name="Stop").click()
         page.get_by_role("button", name="Stop").click()
@@ -149,8 +153,10 @@ def test_an_epic_is_found_by_its_task(project: Path) -> None:
 
 
 @pytest.mark.parametrize("name", _PAGES)
-def test_every_settings_page_opens_and_reads(project: Path, name: str) -> None:
-    with served() as site, opened(site) as page:
+def test_every_settings_page_opens_and_reads(
+    project: Path, name: str, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
         _go(page, f"/settings/{name}")
         body = page.locator(f"[data-hmz=settings-{name}]")
         expect(body).to_be_visible()
@@ -159,8 +165,8 @@ def test_every_settings_page_opens_and_reads(project: Path, name: str) -> None:
         expect(page.locator(".settings-nav [aria-current=page]")).to_have_count(1)
 
 
-def test_the_colours_are_light_dark_or_adaptive(project: Path) -> None:
-    with served() as site, opened(site) as page:
+def test_the_colours_are_light_dark_or_adaptive(project: Path, engine: str) -> None:
+    with served() as site, opened(site, engine=engine) as page:
         page.locator("[data-hmz=machine-menu]").click()
         choices = page.locator("[role=menu] .choice-label")
         expect(choices).to_have_text(["Adaptive", "Light", "Dark", "Settings", "Usage"])
@@ -168,8 +174,10 @@ def test_the_colours_are_light_dark_or_adaptive(project: Path) -> None:
         expect(page.locator("html")).to_have_attribute("data-theme", "dark")
 
 
-def test_a_flow_is_opened_and_started_from_the_flows(project: Path) -> None:
-    with served() as site, opened(site) as page:
+def test_a_flow_is_opened_and_started_from_the_flows(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
         page.get_by_role("link", name="Flows").click()
         page.locator(".card[data-flow=chat]").click()
         expect(page.locator(".flow-detail h2")).to_have_text("chat")
@@ -177,8 +185,8 @@ def test_a_flow_is_opened_and_started_from_the_flows(project: Path) -> None:
         expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
 
 
-def test_on_a_phone_the_sidebar_is_a_drawer(project: Path) -> None:
-    with served() as site, opened(site, width=390, height=844) as page:
+def test_on_a_phone_the_sidebar_is_a_drawer(project: Path, engine: str) -> None:
+    with served() as site, opened(site, engine=engine, width=390, height=844) as page:
         sidebar = page.locator("[data-hmz=sidebar]")
         expect(sidebar).not_to_be_in_viewport()
         page.locator("[data-hmz=bar] .bar-side").click()
@@ -187,9 +195,9 @@ def test_on_a_phone_the_sidebar_is_a_drawer(project: Path) -> None:
         expect(sidebar).not_to_be_in_viewport()
 
 
-def test_every_label_is_a_word_or_a_phrase(project: Path) -> None:
+def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
     """A button, a tab, a menu item or a heading names a thing; it never says a sentence."""
-    with served() as site, opened(site) as page:
+    with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "label me")
         said: list[str] = []
         settings = (f"/settings/{one}" for one in _PAGES)
@@ -216,8 +224,8 @@ def test_every_label_is_a_word_or_a_phrase(project: Path) -> None:
         assert not long, f"labels said as sentences: {long}"
 
 
-def test_a_setup_is_saved_without_starting_an_epic(project: Path) -> None:
-    with served() as site, opened(site) as page:
+def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -> None:
+    with served() as site, opened(site, engine=engine) as page:
         _go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         role = page.locator("[data-role=assistant]")
@@ -236,8 +244,10 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path) -> None:
         expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
 
 
-def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(project: Path) -> None:
-    with served() as site, opened(site) as page:
+def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "log me")
         expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
 
@@ -263,3 +273,28 @@ def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(project: Path) -> N
         page.locator(".shape-switch").get_by_role("button", name="Graph").click()
         page.get_by_role("button", name="Stop").click()
         page.get_by_role("button", name="Stop").click()
+
+
+def test_an_ended_epic_is_exported_and_its_address_copied(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "keep me")
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopped")
+        )
+
+        with page.expect_download() as saving:
+            page.get_by_role("link", name="Export").click()
+        saved = saving.value
+        assert saved.suggested_filename.endswith(".tar.gz")
+        assert Path(saved.path()).read_bytes()[:2] == b"\x1f\x8b"
+
+        # WebKit lets a click write unasked, and knows no permission to write by.
+        writes = ["clipboard-write"] if engine == "chromium" else []
+        page.context.grant_permissions(["clipboard-read", *writes])
+        page.get_by_role("button", name="Copy link").click()
+        expect(page.get_by_role("button", name="Copied")).to_be_visible()
+        assert page.evaluate("navigator.clipboard.readText()") == page.url
