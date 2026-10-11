@@ -1,19 +1,22 @@
-/* The palette is NVIDIA's green for the one accent, and Hyacine's for everything else -- the pink
-   of her hair, the sky blue its ends fade into, the lavender of her dress and the gold she wears
-   -- so the chevron, the buttons, the links and every diagram on the site are one colour family.
-   Each diagram then adds one accent of its own from the pair below.
+/* The palette is NVIDIA's green and Hyacine's. The green is the mark and the large planes of the
+   page at the site's root -- the disc, the wedge -- and is only ever set beside cyan, never
+   beside pink. Everything else is Hyacine's pink and cyan, the two colours of her hair, used as
+   equals: cyan for what can be followed (links, a tip, what is happening now), pink for what is
+   pressed or picked out (a button, inline code, an important note, a selection). Her lavender
+   and gold come third, in the lanes, the roles and a warning. The page is a cool white, and a
+   deep teal-black at night.
 
    Every colour a component draws with is one of the tokens below, never a literal: a token is
    set once for light and once under `.dark`, so a diagram follows the theme switch live, and a
    canvas reads the same tokens through `motion/palette.ts`. The families:
 
-   - brand: `--vp-c-brand-*` (the green, deepened where it is text), the page's rose-tinted paper,
-     and the two accents and the warm one a diagram picks from;
-   - ink, paper and green: the drawing's ink, the sheet it is drawn on, and the one green that
-     marks the thing to look at;
+   - brand: `--vp-c-brand-*` (cyan for links, pink for buttons and hovers), the page's paper,
+     and the two accents (cyan, pink) and the warm one (gold) a diagram picks from;
+   - ink, paper and green: the drawing's ink, the sheet it is drawn on, and the green of the
+     mark and the home page's planes;
    - lanes: the colour an agent is known by, one per lane, in order;
-   - callouts and inline code: Hyacine's sky, lavender and gold, and the band of all five
-     (`--hmz-band`) across the top of every page;
+   - callouts and inline code, and the band of the green into cyan (`--hmz-band`) across the
+     top of every page;
    - outcomes: done, failed, out of budget -- mint, crimson and gold, the only ones on a diagram;
    - roles: what a role in a flow is -- maker, partner, checker, steward, program;
    - stage: the screen a feature scene plays on, its graph paper and its depth;
@@ -22,98 +25,98 @@
      terminal's own and so stay a terminal's. */
 
 :root {
-  --vp-c-brand-1: #4a7700;
-  --vp-c-brand-2: #5a8f00;
-  --vp-c-brand-3: #4a7700;
-  --vp-c-brand-soft: rgba(118, 185, 0, 0.16);
+  --vp-c-brand-1: #0b7080;
+  --vp-c-brand-2: #b83a72;
+  --vp-c-brand-3: #b83a72;
+  --vp-c-brand-soft: rgba(31, 179, 199, 0.14);
 
-  --vp-c-bg: #fdf9fb;
-  --vp-c-bg-alt: #f5edf0;
-  --vp-c-bg-soft: #f5edf0;
+  --vp-c-bg: #f4f8f9;
+  --vp-c-bg-alt: #e8f0f2;
+  --vp-c-bg-soft: #e8f0f2;
   --vp-c-bg-elv: #ffffff;
 
-  /* The callouts and the inline code in Hyacine's colours: a tip in her sky, an important note
-     in her lavender, a warning in her gold, code in lavender. */
-  --vp-c-tip-1: #14678f;
-  --vp-c-tip-2: #1a7aa8;
-  --vp-c-tip-3: #14678f;
-  --vp-c-tip-soft: rgba(42, 159, 212, 0.14);
-  --vp-c-important-1: #6a4fb8;
-  --vp-c-important-2: #7a5ad0;
-  --vp-c-important-3: #6a4fb8;
-  --vp-c-important-soft: rgba(138, 107, 209, 0.14);
-  --vp-c-warning-1: #83590c;
+  /* The callouts and the inline code: a tip in cyan, an important note and code in pink, a
+     warning in gold. */
+  --vp-c-tip-1: #0b7080;
+  --vp-c-tip-2: #0e8696;
+  --vp-c-tip-3: #0b7080;
+  --vp-c-tip-soft: rgba(31, 179, 199, 0.14);
+  --vp-c-important-1: #b83a72;
+  --vp-c-important-2: #c94a83;
+  --vp-c-important-3: #b83a72;
+  --vp-c-important-soft: rgba(236, 111, 163, 0.14);
+  --vp-c-warning-1: #80590c;
   --vp-c-warning-2: #9a6a12;
-  --vp-c-warning-3: #83590c;
-  --vp-c-warning-soft: rgba(214, 162, 58, 0.16);
-  --vp-code-color: #6a4fb8;
+  --vp-c-warning-3: #80590c;
+  --vp-c-warning-soft: rgba(217, 164, 64, 0.16);
+  --vp-code-color: #b83a72;
 
-  --vp-c-danger-1: #c92e4b;
-  --vp-c-danger-2: #b02640;
-  --vp-c-danger-3: #c92e4b;
-  --vp-c-danger-soft: rgba(201, 46, 75, 0.14);
+  --vp-c-danger-1: #cf3552;
+  --vp-c-danger-2: #b52d47;
+  --vp-c-danger-3: #cf3552;
+  --vp-c-danger-soft: rgba(207, 53, 82, 0.14);
 
-  --hmz-accent: #2a9fd4;
-  --hmz-accent-2: #8a6bd1;
-  --hmz-warm: #d6a23a;
+  --hmz-accent: #1fb3c7;
+  --hmz-accent-2: #ec6fa3;
+  --hmz-warm: #d9a440;
 
   /* The lane colours every diagram identifies an agent by: one per lane, in this order. */
-  --hmz-lane-1: #4a9bd8;
-  --hmz-lane-2: #1fa5b5;
-  --hmz-lane-3: #8a6bd1;
-  --hmz-lane-4: #d6a23a;
-  --hmz-lane-5: #e06a9a;
-  --hmz-lane-6: #8d879a;
+  --hmz-lane-1: #1fb3c7;
+  --hmz-lane-2: #ec6fa3;
+  --hmz-lane-3: #8b72d6;
+  --hmz-lane-4: #d9a440;
+  --hmz-lane-5: #4a8fd8;
+  --hmz-lane-6: #7f8d95;
 
-  --hmz-grid: rgba(138, 107, 209, 0.14);
+  --hmz-grid: rgba(31, 179, 199, 0.14);
   --hmz-panel-bg: var(--vp-c-bg-soft);
   --hmz-panel-border: var(--vp-c-divider);
 
-  /* The wordmark on the page at the site's root: the three colours above, in one sweep. */
-  --hmz-wordmark: linear-gradient(110deg, #e06a9a 0%, #8a6bd1 50%, #2a9fd4 100%);
+  /* The wordmark on the page at the site's root: the green into cyan, in one sweep. */
+  --hmz-wordmark: linear-gradient(110deg, #76b900 0%, #1fb3c7 100%);
 
   /* The stage a feature scene plays on (motion/HmzStage.vue): a lit screen, pale in light mode
      and night in dark, with ink, a dimmer ink, hairlines, a card fill and the falloff at its
      edges. `--hmz-glow` scales every halo, since light reads stronger on the dark stage. */
-  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #ffffff 0%, #f8f1f6 55%, #eee5f1 100%);
+  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #ffffff 0%, #f2f7f9 55%, #e4eef2 100%);
   --hmz-stage-deck: var(--vp-c-bg-soft);
-  --hmz-stage-ink: #221a33;
-  --hmz-stage-dim: #6b6080;
-  --hmz-stage-line: rgba(138, 107, 209, 0.2);
+  --hmz-stage-ink: #13232b;
+  --hmz-stage-dim: #586b74;
+  --hmz-stage-line: rgba(11, 112, 128, 0.2);
   --hmz-stage-card: rgba(255, 255, 255, 0.86);
-  --hmz-stage-vignette: rgba(160, 128, 180, 0.14);
+  --hmz-stage-vignette: rgba(90, 130, 145, 0.14);
   --hmz-glow: 0.55;
   /* Graph paper under a scene, the minor lines and every fifth; the light from above on the
      screen's top edge, and the shade its sunk edges fall into. */
-  --hmz-stage-grid: rgba(138, 107, 209, 0.05);
-  --hmz-stage-grid-major: rgba(138, 107, 209, 0.095);
+  --hmz-stage-grid: rgba(11, 112, 128, 0.05);
+  --hmz-stage-grid-major: rgba(11, 112, 128, 0.095);
   --hmz-stage-highlight: rgba(255, 255, 255, 0.95);
-  --hmz-stage-depth: rgba(34, 26, 51, 0.09);
+  --hmz-stage-depth: rgba(19, 35, 43, 0.09);
 
 
   /* How a run ends. */
-  --hmz-done: #2b8f66;
-  --hmz-fail: #c92e4b;
-  --hmz-budget: #c08a1e;
+  --hmz-done: #2a9468;
+  --hmz-fail: #cf3552;
+  --hmz-budget: #d9a440;
 
   /* What a role is. */
-  --hmz-role-maker: #3b7fd0;
-  --hmz-role-partner: #1597a8;
-  --hmz-role-checker: #7a5ad0;
-  --hmz-role-steward: #d9508c;
-  --hmz-role-program: #756e85;
+  --hmz-role-maker: #1fa3b6;
+  --hmz-role-partner: #8b72d6;
+  --hmz-role-checker: #e0609a;
+  --hmz-role-steward: #d9a440;
+  --hmz-role-program: #6b7a82;
 
   /* A label set as mathematics: an upright serif with a real italic, the face a formula is
      typeset in, from the reader's own fonts. */
   --hmz-math-font: 'Latin Modern Math', 'STIX Two Math', 'STIX Two Text', 'Cambria Math', Cambria, 'Times New Roman', serif;
 
   /* The terminal: paper-light here, as the page is. */
-  --hmz-term-bg: #fdf9fb;
-  --hmz-term-bar: #f3ebef;
-  --hmz-term-text: #221d28;
-  --hmz-term-dim: #6e6676;
-  --hmz-term-edge: rgba(27, 23, 32, 0.14);
-  --hmz-term-shadow: 0 6px 20px rgba(34, 26, 51, 0.1);
+  --hmz-term-bg: #fbfdfd;
+  --hmz-term-bar: #edf3f5;
+  --hmz-term-text: #172128;
+  --hmz-term-dim: #5d6a72;
+  --hmz-term-edge: rgba(20, 26, 31, 0.14);
+  --hmz-term-shadow: 0 6px 20px rgba(19, 35, 43, 0.1);
   --hmz-term-close: #ff5f57;
   --hmz-term-min: #febc2e;
   --hmz-term-max: #28c840;
@@ -136,80 +139,80 @@
   --hmz-term-13: #c055ad;
   --hmz-term-14: #1499a6;
   /* Bright white is a terminal's loudest word; on paper the loudest word is ink. */
-  --hmz-term-15: #1b1720;
+  --hmz-term-15: #141a1f;
 }
 
 .dark {
-  --vp-c-brand-1: #8fd11a;
-  --vp-c-brand-2: #76b900;
-  --vp-c-brand-3: #4a7700;
-  --vp-c-brand-soft: rgba(118, 185, 0, 0.18);
+  --vp-c-brand-1: #7fe4f1;
+  --vp-c-brand-2: #ffa8cf;
+  --vp-c-brand-3: #b83a72;
+  --vp-c-brand-soft: rgba(79, 216, 234, 0.16);
 
-  --vp-c-bg: #1c1a21;
-  --vp-c-bg-alt: #17151b;
-  --vp-c-bg-soft: #25222b;
-  --vp-c-bg-elv: #25222b;
+  --vp-c-bg: #0f1418;
+  --vp-c-bg-alt: #0a0e11;
+  --vp-c-bg-soft: #172026;
+  --vp-c-bg-elv: #172026;
 
-  --vp-c-tip-1: #9ad9f5;
-  --vp-c-tip-2: #6cc8f2;
-  --vp-c-tip-3: #1a7aa8;
-  --vp-c-tip-soft: rgba(108, 200, 242, 0.14);
-  --vp-c-important-1: #c9b6f5;
-  --vp-c-important-2: #b9a2f2;
-  --vp-c-important-3: #6a4fb8;
-  --vp-c-important-soft: rgba(185, 162, 242, 0.14);
-  --vp-c-warning-1: #f2c55c;
+  --vp-c-tip-1: #7fe4f1;
+  --vp-c-tip-2: #4fd8ea;
+  --vp-c-tip-3: #0b7080;
+  --vp-c-tip-soft: rgba(79, 216, 234, 0.14);
+  --vp-c-important-1: #ffa8cf;
+  --vp-c-important-2: #ff94c2;
+  --vp-c-important-3: #b83a72;
+  --vp-c-important-soft: rgba(255, 148, 194, 0.14);
+  --vp-c-warning-1: #f2c862;
   --vp-c-warning-2: #e0b04a;
   --vp-c-warning-3: #9a6a12;
-  --vp-c-warning-soft: rgba(242, 197, 92, 0.14);
-  --vp-code-color: #c9b6f5;
+  --vp-c-warning-soft: rgba(242, 200, 98, 0.14);
+  --vp-code-color: #ffa8cf;
 
-  --vp-c-danger-1: #ff7088;
+  --vp-c-danger-1: #ff6f88;
   --vp-c-danger-2: #ff8a9e;
-  --vp-c-danger-3: #c92e4b;
-  --vp-c-danger-soft: rgba(255, 112, 136, 0.16);
+  --vp-c-danger-3: #cf3552;
+  --vp-c-danger-soft: rgba(255, 111, 136, 0.16);
 
-  --hmz-accent: #6cc8f2;
-  --hmz-accent-2: #b9a2f2;
-  --hmz-warm: #f2c55c;
+  --hmz-accent: #4fd8ea;
+  --hmz-accent-2: #ff94c2;
+  --hmz-warm: #f2c862;
 
-  --hmz-lane-1: #86c3f2;
-  --hmz-lane-2: #5fd4e3;
-  --hmz-lane-3: #b9a2f2;
-  --hmz-lane-4: #f2c55c;
-  --hmz-lane-5: #ff8fbd;
-  --hmz-lane-6: #a49fb3;
+  --hmz-lane-1: #4fd8ea;
+  --hmz-lane-2: #ff94c2;
+  --hmz-lane-3: #b9a6f5;
+  --hmz-lane-4: #f2c862;
+  --hmz-lane-5: #86b8f2;
+  --hmz-lane-6: #94a3aa;
 
-  --hmz-grid: rgba(185, 162, 242, 0.12);
-  --hmz-wordmark: linear-gradient(110deg, #ff8fbd 0%, #b9a2f2 50%, #6cc8f2 100%);
+  --hmz-grid: rgba(79, 216, 234, 0.12);
+  --hmz-wordmark: linear-gradient(110deg, #76b900 0%, #4fd8ea 100%);
 
-  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #2a2140 0%, #191527 58%, #0f0c18 100%);
+  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #17303a 0%, #0f1c22 58%, #080e11 100%);
   --hmz-stage-deck: var(--vp-c-bg-soft);
-  --hmz-stage-ink: #f1e9f7;
-  --hmz-stage-dim: #a397b8;
-  --hmz-stage-line: rgba(185, 162, 242, 0.2);
-  --hmz-stage-card: rgba(40, 32, 58, 0.86);
+  --hmz-stage-ink: #e8f3f5;
+  --hmz-stage-dim: #93a9b1;
+  --hmz-stage-line: rgba(79, 216, 234, 0.2);
+  --hmz-stage-card: rgba(19, 36, 43, 0.86);
   --hmz-stage-vignette: rgba(0, 0, 0, 0.4);
   --hmz-glow: 1;
-  --hmz-stage-grid: rgba(185, 162, 242, 0.055);
-  --hmz-stage-grid-major: rgba(185, 162, 242, 0.1);
-  --hmz-stage-highlight: rgba(220, 200, 250, 0.12);
+  --hmz-stage-grid: rgba(79, 216, 234, 0.055);
+  --hmz-stage-grid-major: rgba(79, 216, 234, 0.1);
+  --hmz-stage-highlight: rgba(170, 235, 245, 0.12);
   --hmz-stage-depth: rgba(0, 0, 0, 0.35);
 
-  --hmz-done: #6fdba5;
-  --hmz-fail: #ff7088;
-  --hmz-budget: #f2c55c;
+  --hmz-done: #5fdca3;
+  --hmz-fail: #ff6f88;
+  --hmz-budget: #f2c862;
 
-  --hmz-role-maker: #86c3f2;
-  --hmz-role-partner: #5fd4e3;
-  --hmz-role-checker: #b9a2f2;
-  --hmz-role-steward: #ff8fbd;
-  --hmz-role-program: #a49fb3;
+  --hmz-role-maker: #4fd8ea;
+  --hmz-role-partner: #b9a6f5;
+  --hmz-role-checker: #ff94c2;
+  --hmz-role-steward: #f2c862;
+  --hmz-role-program: #94a3aa;
 
-  --hmz-term-bg: #18161d;
-  --hmz-term-bar: #221f29;
-  --hmz-term-text: #ece4ea;
-  --hmz-term-dim: #988e9c;
+  --hmz-term-bg: #0d1215;
+  --hmz-term-bar: #172026;
+  --hmz-term-text: #e3edf0;
+  --hmz-term-dim: #8a9ba2;
   --hmz-term-edge: var(--vp-c-divider);
   --hmz-term-shadow: none;
   --hmz-term-0: #282a36;
@@ -397,32 +400,38 @@
   max-width: 46rem;
 }
 
-/* The pair the humanize mark is drawn in, and the home page with it: ink and a rose-tinted
+/* The pair the humanize mark is drawn in, and the home page with it: ink and a cool white
    paper, which trade places in the dark, and one green. `--hmz-ink` is whatever is drawn on the
    page; `--hmz-paper` is the page under it. The rest are those at the strengths the page's
    construction lines, marks and planes are drawn at. */
 :root {
-  --hmz-ink: #1b1720;
-  --hmz-paper: #f5edf0;
+  --hmz-ink: #141a1f;
+  --hmz-paper: #f4f8f9;
   --hmz-green: #76b900;
   --hmz-green-ink: #4a7700;
   --hmz-green-soft: rgba(118, 185, 0, 0.16);
-  --hmz-con-line: rgba(27, 23, 32, 0.07);
-  --hmz-con-mark: rgba(27, 23, 32, 0.38);
-  --hmz-con-plane: rgba(138, 107, 209, 0.11);
-  /* The green and Hyacine's pink, lavender, sky and gold, as flat bands side by side. */
-  --hmz-band: linear-gradient(90deg, var(--hmz-green) 0 40%, var(--hmz-lane-5) 40% 55%, var(--hmz-accent-2) 55% 70%, var(--hmz-accent) 70% 85%, var(--hmz-warm) 85%);
+  --hmz-con-line: rgba(20, 26, 31, 0.07);
+  --hmz-con-mark: rgba(20, 26, 31, 0.38);
+  --hmz-con-plane: rgba(31, 179, 199, 0.1);
+  /* Hyacine's cyan at the strengths the home page uses it beside the green: a shape, text, a wash. */
+  --hmz-cyan: var(--hmz-accent);
+  --hmz-cyan-ink: #0b7080;
+  --hmz-cyan-soft: rgba(31, 179, 199, 0.18);
+  /* The green into Hyacine's cyan, as flat bands side by side. */
+  --hmz-band: linear-gradient(90deg, var(--hmz-green) 0 50%, var(--hmz-accent) 50%);
 }
 
 .dark {
-  --hmz-ink: #f1e9ee;
-  --hmz-paper: #1c1a21;
+  --hmz-ink: #e6eff1;
+  --hmz-paper: #0f1418;
   --hmz-green: #76b900;
   --hmz-green-ink: #8fd11a;
   --hmz-green-soft: rgba(118, 185, 0, 0.18);
-  --hmz-con-line: rgba(241, 233, 238, 0.07);
-  --hmz-con-mark: rgba(241, 233, 238, 0.4);
-  --hmz-con-plane: rgba(185, 162, 242, 0.08);
+  --hmz-con-line: rgba(230, 239, 241, 0.07);
+  --hmz-con-mark: rgba(230, 239, 241, 0.4);
+  --hmz-con-plane: rgba(79, 216, 234, 0.07);
+  --hmz-cyan-ink: #7fe4f1;
+  --hmz-cyan-soft: rgba(79, 216, 234, 0.18);
 }
 
 /* The hero sits on a ruled sheet with one plane laid across it on the diagonal, so the first
@@ -895,8 +904,8 @@
 }
 
 /* ---------------------------------------------------------------------------------------
-   Hyacine's colours where a reader sees them every day: a band across the top of every page,
-   and what is selected washed in her pink.
+   The green and Hyacine's colours where a reader sees them every day: a band across the top of
+   every page, and what is selected washed in her pink.
    --------------------------------------------------------------------------------------- */
 
 .VPNav::before {
@@ -912,5 +921,5 @@
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--hmz-lane-5) 30%, transparent);
+  background: color-mix(in srgb, var(--hmz-accent-2) 30%, transparent);
 }

@@ -3,10 +3,10 @@
   <!-- The prompt, `>_`, cut from flat planes: an ink chevron, and a green wedge rising on the
        one diagonal. -->
   <style>
-    .ink { fill: #1b1720; }
+    .ink { fill: #141a1f; }
     .green { fill: #76b900; }
     @media (prefers-color-scheme: dark) {
-      .ink { fill: #f1e9ee; }
+      .ink { fill: #e6eff1; }
     }
   </style>
   <polygon class="ink" points="12,16 32,16 62,50 32,84 12,84 42,50"/>

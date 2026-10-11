@@ -171,7 +171,7 @@ onUnmounted(() => {
   width: 10px;
   height: 10px;
   margin-top: 0.38em;
-  background: var(--hmz-green);
+  background: var(--hmz-cyan);
 }
 
 .wordmark {
@@ -215,7 +215,7 @@ onUnmounted(() => {
 .define strong {
   color: var(--vp-c-text-1);
   font-weight: 650;
-  box-shadow: inset 0 -0.32em 0 var(--hmz-green-soft);
+  box-shadow: inset 0 -0.32em 0 var(--hmz-cyan-soft);
 }
 
 .line {
@@ -239,17 +239,17 @@ onUnmounted(() => {
 }
 
 .line:hover {
-  box-shadow: 8px 8px 0 var(--hmz-green);
+  box-shadow: 8px 8px 0 var(--hmz-cyan);
   transform: translate(-2px, -2px);
 }
 
 .line:active {
-  box-shadow: 2px 2px 0 var(--hmz-green);
+  box-shadow: 2px 2px 0 var(--hmz-cyan);
   transform: translate(2px, 2px);
 }
 
 .prompt {
-  color: var(--hmz-green-ink);
+  color: var(--hmz-cyan-ink);
   font-weight: 700;
 }
 
@@ -276,7 +276,7 @@ onUnmounted(() => {
 }
 
 .copy.done {
-  background: var(--hmz-green);
+  background: var(--hmz-cyan);
   color: #fff;
 }
 
@@ -304,19 +304,19 @@ onUnmounted(() => {
     transform 0.25s;
 }
 
-/* On hover a green plane slides in on the diagonal behind the words. */
+/* On hover a cyan plane slides in on the diagonal behind the words. */
 .roles a::before {
   content: '';
   position: absolute;
   inset: -2px;
   z-index: -1;
-  background: var(--hmz-green-soft);
+  background: var(--hmz-cyan-soft);
   clip-path: polygon(0 100%, 0 100%, 0 100%);
   transition: clip-path 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .roles a:hover {
-  border-top-color: var(--hmz-green);
+  border-top-color: var(--hmz-cyan);
   transform: translateY(-2px);
 }
 
@@ -326,7 +326,7 @@ onUnmounted(() => {
 
 .roles .n {
   display: block;
-  color: var(--hmz-green-ink);
+  color: var(--hmz-cyan-ink);
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
   font-weight: 700;
@@ -377,7 +377,7 @@ onUnmounted(() => {
 }
 
 .cue:hover {
-  color: var(--hmz-green-ink);
+  color: var(--hmz-cyan-ink);
 }
 
 .chev {

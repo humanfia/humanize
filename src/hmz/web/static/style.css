@@ -1,49 +1,55 @@
-/* The web interface's look: humanize's own, the constructivist one humanfia.ai draws in --
-   ink on a rose-tinted paper with one green, NVIDIA's, hard edges and offset shadows cut like
-   paper, and everything else in Hyacine's colours: her pink, lavender, sky and gold as flat
-   planes and squares beside the green, sky blue for what is happening now, the lane colours an
-   agent is told apart by, and the three outcome colours -- laid out as a desktop
-   chat app lays itself out: a sidebar, a view, and a panel beside it. Every colour is a token
-   below, set once for light and once for dark, never a literal. The green is drawn as NVIDIA
-   draws it on either ground; where it is text on the light paper it is deepened to `--green-ink`. */
+/* The web interface's look: humanize's own, the constructivist one humanfia.ai draws in -- ink
+   on a cool white, hard edges and offset shadows cut like paper -- laid out as a desktop chat app
+   lays itself out: a sidebar, a view, and a panel beside it.
+
+   The colours are NVIDIA's green and Hyacine's. The green is the mark and the few large planes
+   that carry the page (the composer and its send, the bar under the home question), and is only
+   ever set beside cyan, never beside pink. Everything else is her pink and cyan, the two colours
+   of her hair, used as equals: cyan for where you are and what is live or can be followed (the
+   current page, now, links, focus, a hovered card), pink for what is picked out (the latest
+   handover, what you said, a pressed button's shadow, a chosen card, a selection). Her
+   lavender and gold come third, in the lanes and the budget. Every colour is a token below, set
+   once for light and once for dark, never a literal; a colour used as text has an `-ink` cut
+   deep enough to read on the paper. */
 
 :root {
   color-scheme: light;
-  --paper: #f5edf0;
-  --surface: #fbf6f8;
+  --paper: #f4f8f9;
+  --surface: #fbfdfd;
   --raised: #ffffff;
-  --side: #ede2e7;
-  --ink: #1b1720;
-  --ink-2: #4b4452;
-  --ink-3: #6c6472;
-  --on-ink: #f5edf0;
-  --on-green: #1b1720;
-  --line: rgba(27, 23, 32, 0.12);
-  --line-strong: rgba(27, 23, 32, 0.28);
-  --hover: rgba(138, 107, 209, 0.11);
-  --grid: rgba(27, 23, 32, 0.045);
-  --grid-major: rgba(27, 23, 32, 0.09);
-  --scrim: rgba(27, 23, 32, 0.45);
+  --side: #e8f0f2;
+  --ink: #141a1f;
+  --ink-2: #435058;
+  --ink-3: #5d6a72;
+  --on-ink: #f4f8f9;
+  --on-fill: #141a1f;
+  --line: rgba(20, 26, 31, 0.12);
+  --line-strong: rgba(20, 26, 31, 0.28);
+  --hover: rgba(31, 179, 199, 0.1);
+  --grid: rgba(20, 26, 31, 0.045);
+  --grid-major: rgba(20, 26, 31, 0.09);
+  --scrim: rgba(20, 26, 31, 0.45);
   --green: #76b900;
-  --green-ink: #4a7700;
-  --pink: #e06a9a;
-  --lavender: #8a6bd1;
-  --sky: #2a9fd4;
-  --gold: #d6a23a;
-  --live: var(--sky);
-  --live-ink: #14678f;
-  --live-soft: rgba(42, 159, 212, 0.16);
-  --link: #3b5fb5;
-  --done: #2b8f66;
-  --fail: #c92e4b;
-  --budget: #c08a1e;
-  --budget-ink: #83590c;
-  --lane-1: #4a9bd8;
-  --lane-2: #1fa5b5;
-  --lane-3: #8a6bd1;
-  --lane-4: #d6a23a;
-  --lane-5: #e06a9a;
-  --lane-6: #8d879a;
+  --pink: #ec6fa3;
+  --pink-ink: #b83a72;
+  --cyan: #1fb3c7;
+  --cyan-ink: #0b7080;
+  --lavender: #8b72d6;
+  --gold: #d9a440;
+  --live: var(--cyan);
+  --live-ink: var(--cyan-ink);
+  --live-soft: rgba(31, 179, 199, 0.16);
+  --link: var(--cyan-ink);
+  --done: #2a9468;
+  --fail: #cf3552;
+  --budget: var(--gold);
+  --budget-ink: #80590c;
+  --lane-1: #1fb3c7;
+  --lane-2: #ec6fa3;
+  --lane-3: #8b72d6;
+  --lane-4: #d9a440;
+  --lane-5: #4a8fd8;
+  --lane-6: #7f8d95;
   --shadow: 4px 4px 0 var(--ink);
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
@@ -54,41 +60,42 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --paper: #1c1a21;
-  --surface: #25222b;
-  --raised: #2d2934;
-  --side: #151319;
-  --ink: #f1e9ee;
-  --ink-2: #cbc0c8;
-  --ink-3: #9c919b;
-  --on-ink: #1b1720;
-  --on-green: #1b1720;
-  --line: rgba(241, 233, 238, 0.12);
-  --line-strong: rgba(241, 233, 238, 0.3);
-  --hover: rgba(185, 162, 242, 0.1);
-  --grid: rgba(241, 233, 238, 0.04);
-  --grid-major: rgba(241, 233, 238, 0.08);
+  --paper: #0f1418;
+  --surface: #172026;
+  --raised: #1d272e;
+  --side: #0a0e11;
+  --ink: #e6eff1;
+  --ink-2: #b3c3c8;
+  --ink-3: #82939a;
+  --on-ink: #0f1418;
+  --on-fill: #0f1418;
+  --line: rgba(230, 239, 241, 0.12);
+  --line-strong: rgba(230, 239, 241, 0.3);
+  --hover: rgba(79, 216, 234, 0.1);
+  --grid: rgba(230, 239, 241, 0.04);
+  --grid-major: rgba(230, 239, 241, 0.08);
   --scrim: rgba(0, 0, 0, 0.6);
   --green: #76b900;
-  --green-ink: #8fd11a;
-  --pink: #ff8fbd;
-  --lavender: #b9a2f2;
-  --sky: #6cc8f2;
-  --gold: #f2c55c;
-  --live: var(--sky);
-  --live-ink: #9ad9f5;
-  --live-soft: rgba(108, 200, 242, 0.16);
-  --link: #9db8f0;
-  --done: #6fdba5;
-  --fail: #ff7088;
-  --budget: #f2c55c;
-  --budget-ink: #f2c55c;
-  --lane-1: #86c3f2;
-  --lane-2: #5fd4e3;
-  --lane-3: #b9a2f2;
-  --lane-4: #f2c55c;
-  --lane-5: #ff8fbd;
-  --lane-6: #a49fb3;
+  --pink: #ff94c2;
+  --pink-ink: #ffa8cf;
+  --cyan: #4fd8ea;
+  --cyan-ink: #7fe4f1;
+  --lavender: #b9a6f5;
+  --gold: #f2c862;
+  --live: var(--cyan);
+  --live-ink: var(--cyan-ink);
+  --live-soft: rgba(79, 216, 234, 0.16);
+  --link: var(--cyan-ink);
+  --done: #5fdca3;
+  --fail: #ff6f88;
+  --budget: var(--gold);
+  --budget-ink: var(--gold);
+  --lane-1: #4fd8ea;
+  --lane-2: #ff94c2;
+  --lane-3: #b9a6f5;
+  --lane-4: #f2c862;
+  --lane-5: #86b8f2;
+  --lane-6: #94a3aa;
 }
 
 *,
@@ -222,12 +229,12 @@ code {
   border-right: 2px solid var(--ink);
 }
 
-/* Hyacine's four, a flat band across the top of the sidebar. */
+/* The green into Hyacine's cyan, a flat band across the top of the sidebar. */
 .sidebar::before {
   content: '';
   flex: none;
   height: 4px;
-  background: linear-gradient(90deg, var(--pink) 0 25%, var(--lavender) 25% 50%, var(--sky) 50% 75%, var(--gold) 75%);
+  background: linear-gradient(90deg, var(--green) 0 50%, var(--cyan) 50%);
 }
 
 .side-top {
@@ -280,7 +287,7 @@ code {
 .side-nav a[aria-current='page'] {
   background: var(--ink);
   color: var(--on-ink);
-  box-shadow: inset 4px 0 0 var(--green);
+  box-shadow: inset 4px 0 0 var(--cyan);
 }
 
 .side-badge {
@@ -365,7 +372,7 @@ code {
 .side-session[aria-current='page'] {
   background: var(--ink);
   color: var(--on-ink);
-  box-shadow: inset 4px 0 0 var(--green);
+  box-shadow: inset 4px 0 0 var(--cyan);
 }
 
 .side-run > a[aria-current='page'] .side-meta,
@@ -502,8 +509,8 @@ code {
   height: 30px;
   display: grid;
   place-items: center;
-  background: var(--green);
-  color: var(--on-green);
+  background: var(--cyan);
+  color: var(--on-fill);
   font-weight: 800;
   clip-path: polygon(0 0, 100% 0, 100% 72%, 72% 100%, 0 100%);
 }
@@ -579,7 +586,7 @@ code {
 .side-folder-name .icon {
   width: 14px;
   height: 14px;
-  color: var(--lavender);
+  color: var(--cyan-ink);
 }
 
 .side-folder.current .side-folder-name {
@@ -702,7 +709,7 @@ code {
   height: 20px;
   display: grid;
   place-items: center;
-  color: var(--green-ink);
+  color: var(--pink-ink);
 }
 
 .choice-text {
@@ -895,12 +902,12 @@ code {
 
 .btn:hover:not(:disabled) {
   transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 var(--green);
+  box-shadow: 4px 4px 0 var(--pink);
 }
 
 .btn:active:not(:disabled) {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--green);
+  box-shadow: 1px 1px 0 var(--pink);
 }
 
 .btn.primary {
@@ -1007,7 +1014,7 @@ textarea {
 input[type='checkbox'] {
   width: 16px;
   height: 16px;
-  accent-color: var(--green-ink);
+  accent-color: var(--cyan-ink);
 }
 
 .search {
@@ -1409,7 +1416,7 @@ pre.block {
 }
 
 .handovers li.latest {
-  color: var(--green-ink);
+  color: var(--pink-ink);
   font-weight: 700;
 }
 
@@ -1430,7 +1437,7 @@ pre.block {
 }
 
 .bars .bar:hover {
-  background: var(--green);
+  background: var(--cyan);
 }
 
 .bars .bar.none {
@@ -1455,7 +1462,7 @@ pre.block {
 .share > span {
   display: block;
   height: 100%;
-  background: var(--green);
+  background: var(--cyan);
 }
 
 /* ------------------------------------------------------------------ a new run */
@@ -1466,10 +1473,11 @@ pre.block {
   overflow-y: auto;
   display: grid;
   padding: 24px 20px 40px;
-  /* A poster behind the page: a sky disc in the corner and a lavender band on the diagonal. */
+  /* A poster behind the page, beside the green: a cyan disc in the corner and a fainter cyan band
+     on the diagonal. */
   background:
-    radial-gradient(circle at 86% 16%, color-mix(in srgb, var(--sky) 16%, transparent) 0 112px, transparent 113px),
-    linear-gradient(163.6deg, transparent 0 66%, color-mix(in srgb, var(--lavender) 12%, transparent) 66% 72%, transparent 72%);
+    radial-gradient(circle at 86% 16%, color-mix(in srgb, var(--cyan) 14%, transparent) 0 112px, transparent 113px),
+    linear-gradient(163.6deg, transparent 0 66%, color-mix(in srgb, var(--cyan) 9%, transparent) 66% 72%, transparent 72%);
 }
 
 .home-inner {
@@ -1497,15 +1505,14 @@ pre.block {
   letter-spacing: -0.035em;
 }
 
-/* The green, cut on the diagonal under what the page asks, with Hyacine's pink, lavender and
-   sky after it. */
+/* The green, cut on the diagonal under what the page asks, with Hyacine's cyan after it. */
 .greeting::after {
   content: '';
   display: block;
   width: 132px;
   height: 10px;
   margin-top: 12px;
-  background: linear-gradient(90deg, var(--green) 0 55%, var(--pink) 55% 70%, var(--lavender) 70% 85%, var(--sky) 85%);
+  background: linear-gradient(90deg, var(--green) 0 62%, var(--cyan) 62%);
   clip-path: polygon(0 0, 100% 0, 94% 100%, 0 100%);
 }
 
@@ -1551,20 +1558,17 @@ pre.block {
   color: var(--ink-3);
 }
 
-/* Each group of options marked with a square of its own, in Hyacine's colours in turn. */
+/* Each group of options marked with a square of its own, cyan and lavender in turn: they sit under
+   the composer's green, which takes cyan beside it and never pink. */
 .option-group h3::before {
   content: '';
   width: 8px;
   height: 8px;
-  background: var(--square, var(--pink));
+  background: var(--square, var(--cyan));
 }
 
-.option-group:nth-child(3n + 2) {
+.option-group:nth-child(2n) {
   --square: var(--lavender);
-}
-
-.option-group:nth-child(3n) {
-  --square: var(--gold);
 }
 
 .stack {
@@ -1686,7 +1690,7 @@ pre.block {
   padding: 0;
   border: 2px solid var(--ink);
   background: var(--green);
-  color: var(--on-green);
+  color: var(--on-fill);
   cursor: pointer;
 }
 
@@ -1915,12 +1919,12 @@ pre.block {
 }
 
 .edge.latest path {
-  stroke: var(--green);
+  stroke: var(--pink);
   stroke-width: 3;
 }
 
 .edge-head.latest {
-  fill: var(--green);
+  fill: var(--pink);
 }
 
 .edge rect {
@@ -1928,7 +1932,7 @@ pre.block {
 }
 
 .edge.latest rect {
-  fill: var(--green);
+  fill: var(--pink);
 }
 
 .edge text {
@@ -1937,7 +1941,7 @@ pre.block {
 }
 
 .edge.latest text {
-  fill: var(--on-green);
+  fill: var(--on-fill);
 }
 
 .node {
@@ -1971,7 +1975,7 @@ pre.block {
 }
 
 .node.focused {
-  box-shadow: 7px 7px 0 var(--green);
+  box-shadow: 7px 7px 0 var(--cyan);
 }
 
 .node.person {
@@ -1992,7 +1996,7 @@ pre.block {
 
 .node-head:hover .node-name {
   text-decoration: underline;
-  text-decoration-color: var(--green-ink);
+  text-decoration-color: var(--cyan-ink);
   text-decoration-thickness: 2px;
 }
 
@@ -2305,7 +2309,7 @@ table.spending tr.whole td {
   padding: 8px 12px;
   background: var(--raised);
   border: 2px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--green);
+  box-shadow: 3px 3px 0 var(--pink);
 }
 
 .said.tool,
@@ -2527,12 +2531,12 @@ details.said-more summary {
 
 .card:hover {
   transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0 var(--green);
+  box-shadow: 5px 5px 0 var(--cyan);
 }
 
 .card.chosen {
-  box-shadow: 5px 5px 0 var(--green);
-  outline: 2px solid var(--green);
+  box-shadow: 5px 5px 0 var(--pink);
+  outline: 2px solid var(--pink);
   outline-offset: -6px;
 }
 
@@ -2661,7 +2665,7 @@ details.said-more summary {
   flex-direction: column;
   background: var(--paper);
   border: 2px solid var(--ink);
-  box-shadow: 8px 8px 0 var(--green);
+  box-shadow: 8px 8px 0 var(--cyan);
 }
 
 .dialog > .error {
@@ -2817,7 +2821,7 @@ details.said-more summary {
 .settings-nav a[aria-current='page'] {
   background: var(--ink);
   color: var(--on-ink);
-  box-shadow: inset 4px 0 0 var(--green);
+  box-shadow: inset 4px 0 0 var(--cyan);
 }
 
 .settings-page {
@@ -2926,7 +2930,7 @@ details.said-more summary {
     max-height: 72vh;
     border-left: 0;
     border-top: 2px solid var(--ink);
-    box-shadow: 0 -6px 0 var(--green);
+    box-shadow: 0 -6px 0 var(--cyan);
   }
 
   .dock {

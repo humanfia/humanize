@@ -1,15 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <!-- The mark on a tile of its own, so it holds up on a tab of either colour. -->
+  <!-- The mark alone on a transparent ground, so a tab of either colour shows through: ink where
+       the system reads light, paper where it reads dark, and the green wedge on both. -->
   <style>
-    .tile { fill: #f5edf0; }
-    .ink { fill: #1b1720; }
+    .ink { fill: #141a1f; }
     .green { fill: #76b900; }
     @media (prefers-color-scheme: dark) {
-      .tile { fill: #1b1720; }
-      .ink { fill: #f1e9ee; }
+      .ink { fill: #e6eff1; }
     }
   </style>
-  <rect class="tile" width="100" height="100" rx="14"/>
   <polygon class="ink" points="10,14 31,14 63,50 31,86 10,86 42,50"/>
   <polygon class="green" points="60,86 96,86 96,62 60,73"/>
 </svg>

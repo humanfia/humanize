@@ -29,22 +29,22 @@ export interface Palette {
 
 export function usePalette(): Palette {
   const palette: Palette = {
-    lane: ['#4a9bd8', '#1fa5b5', '#8a6bd1', '#d6a23a', '#e06a9a', '#8d879a'],
-    accent: '#2a9fd4',
-    accent2: '#8a6bd1',
-    warm: '#d6a23a',
-    ink: '#221a33',
-    dim: '#6b6080',
-    danger: '#c92e4b',
+    lane: ['#1fb3c7', '#ec6fa3', '#8b72d6', '#d9a440', '#4a8fd8', '#7f8d95'],
+    accent: '#1fb3c7',
+    accent2: '#ec6fa3',
+    warm: '#d9a440',
+    ink: '#13232b',
+    dim: '#586b74',
+    danger: '#cf3552',
     dark: false,
-    line: 'rgba(138, 107, 209, 0.2)',
+    line: 'rgba(11, 112, 128, 0.2)',
     card: 'rgba(255, 255, 255, 0.86)',
-    grid: 'rgba(138, 107, 209, 0.07)',
-    done: '#2b8f66',
-    fail: '#c92e4b',
-    budget: '#c08a1e',
+    grid: 'rgba(11, 112, 128, 0.07)',
+    done: '#2a9468',
+    fail: '#cf3552',
+    budget: '#d9a440',
     green: '#76b900',
-    role: { maker: '#3b7fd0', partner: '#1597a8', checker: '#7a5ad0', steward: '#d9508c', program: '#756e85' },
+    role: { maker: '#1fa3b6', partner: '#8b72d6', checker: '#e0609a', steward: '#d9a440', program: '#6b7a82' },
   }
   let watch: MutationObserver | undefined
 

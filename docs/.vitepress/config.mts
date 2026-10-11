@@ -148,8 +148,8 @@ export default defineConfig({
     // links and to what a page names, and hands `head` to the template as it is.
     // The favicon draws the mark on a tile of its own and follows the viewer's light or dark.
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/humanize/favicon.svg' }],
-    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#f5edf0' }],
-    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#1c1a21' }],
+    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#f4f8f9' }],
+    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#0f1418' }],
   ],
 
   themeConfig: {
