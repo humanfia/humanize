@@ -12,7 +12,8 @@ nothing running behind it.
 humanize.app      ai.humanfia.humanize, macOS 11 or later, on Apple silicon and Intel
   runs            hmz web --no-open --attached --port <the port it had last, or 0>
   in              $HOME, with the environment a login shell gives this account
-  installs        uv tool install --force --refresh-package hmz hmz[<its extras>]==<its version>
+  installs        uv tool install --force --python '>=3.12' --refresh-package hmz
+                  hmz[<its extras>]==<its version>
                   with the first uv that answers `uv tool dir --bin` of $PATH, ~/.local/bin,
                   ~/.cargo/bin, /opt/homebrew/bin and its own, downloaded where none does
   runs hmz from   `uv tool dir --bin`; $HUMANIZE_HMZ alone where it is set, and in a

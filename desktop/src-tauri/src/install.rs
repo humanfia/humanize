@@ -43,6 +43,9 @@ const UV_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 /// an install compiles what it imports.
 const ASKING: Duration = Duration::from_secs(20);
 
+/// The Pythons hmz runs on: `requires-python` in pyproject.toml.
+const PYTHON: &str = ">=3.12";
+
 /// How much of what an install said is kept to show where it fails, from its end.
 const KEPT_LINES: usize = 12;
 
@@ -357,8 +360,12 @@ fn install(
     };
     let mut command = Command::new(uv);
     command
+        .args(["tool", "install", "--force"])
+        // A Python hmz runs on, downloaded where there is none: uv would take the first found,
+        // and a Mac's own is 3.9.
+        .args(["--python", PYTHON])
         // Asked of the index again: a release this new may be missing from what uv has cached.
-        .args(["tool", "install", "--force", "--refresh-package", "hmz"])
+        .args(["--refresh-package", "hmz"])
         .arg(&wanted)
         .current_dir(shell_env::home(env))
         .env_clear()
@@ -727,7 +734,8 @@ case "$1 $2" in
     fi
     echo "Downloading cpython-3.13.7-macos-aarch64-none (download) (17.6MiB)" >&2
     echo "Resolved 30 packages in 5ms" >&2
-    version="${6#*==}"
+    for wanted; do :; done
+    version="${wanted#*==}"
     [ "$FAKE" = wrong ] && version=9.9.9
     mkdir -p "$FAKE_BIN"
     printf '#!/bin/sh\n[ "$1" = --version ] && echo "hmz %s"\n[ "$1 $2" = "web --help" ] && echo --attached\nexit 0\n' "$version" > "$FAKE_BIN/hmz"
@@ -796,7 +804,7 @@ esac
         assert_eq!(chosen, Ok(Chosen::Ready(fake.hmz())));
         assert_eq!(
             fake.argv(),
-            "tool install --force --refresh-package hmz hmz==0.5.0rc1\n"
+            "tool install --force --python >=3.12 --refresh-package hmz hmz==0.5.0rc1\n"
         );
         assert!(told.iter().all(|p| !p.updating));
         let steps: Vec<Step> = told.iter().map(|p| p.step).collect();

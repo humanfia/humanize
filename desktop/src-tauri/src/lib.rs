@@ -170,6 +170,7 @@ fn start(app: AppHandle, how: How) {
                 // Too old to serve the app, and holding running epics: updated once they end,
                 // or once Update is pressed.
                 (Err(Failure::Outdated), Some(version)) => {
+                    log::info!("hmz {version} cannot serve the app; waiting for its epics");
                     let waiting = Status::Waiting(version);
                     shell.status.send_replace(waiting.clone());
                     while *shell.status.borrow() == waiting && install::busy(env) {
