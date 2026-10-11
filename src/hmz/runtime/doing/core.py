@@ -175,9 +175,9 @@ class Hmz:
           False for a backend that is not the harness the role names, or that cannot do
           what the role declares it must.
         """
-        from hmz.runtime.doing import installed
+        from hmz.runtime.flowing import serves
 
-        return installed.serves(backend, role)
+        return serves(backend, role)
 
     def ready_to_open(self, backend: str) -> bool:
         """Whether an installed backend may be chosen here without somebody choosing it.

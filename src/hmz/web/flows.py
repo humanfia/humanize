@@ -119,8 +119,6 @@ def _flow(asked: Asked) -> dict[str, Any]:
 
 
 def _backends(asked: Asked) -> dict[str, Any]:
-    from hmz.flows import EnvBackendKind
-
     hmz = asked.site.hmz
     accounts = hmz.accounts
 
@@ -150,7 +148,7 @@ def _backends(asked: Asked) -> dict[str, Any]:
             cli: [{"name": one.name, "efforts": list(one.efforts)} for one in found]
             for cli, found in hmz.installable().items()
         },
-        "envs": [kind.value for kind in EnvBackendKind],
+        "envs": hmz.runtimes.kinds(),
     }
 
 

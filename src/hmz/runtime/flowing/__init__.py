@@ -36,7 +36,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .declaring import AgentRole, Declaration, EnvRole, Grant
+    from .declaring import AgentRole, Declaration, EnvRole, Grant, serves
     from .engine import (
         Call,
         FlowImpl,
@@ -220,6 +220,7 @@ __all__ = [
     "run_fake",
     "run_flow",
     "running",
+    "serves",
     "within",
 ]
 
@@ -256,6 +257,7 @@ _WRITTEN = {
     "FlowStateImpl": "hmz.runtime.flowing.journaling",
     "Flowverse": "hmz.runtime.flowing.verses",
     "Grant": "hmz.runtime.flowing.declaring",
+    "serves": "hmz.runtime.flowing.declaring",
     "HARNESS_CAPABILITIES": "hmz.runtime.flowing.spi",
     "HookBridge": "hmz.runtime.flowing.spi",
     "HookTable": "hmz.runtime.flowing.spi",

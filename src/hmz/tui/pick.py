@@ -2015,7 +2015,7 @@ def serves(backend: str, role: AgentRole | None) -> bool:
       False for a CLI that is not the harness the role names, or that cannot do what the
       role declares it must; True otherwise.
     """
-    from hmz.runtime.doing.installed import serves as serving
+    from hmz.runtime.flowing import serves as serving
 
     return serving(backend, role)
 

@@ -57,6 +57,7 @@ __all__ = [
     "agent_roles",
     "checked_definition",
     "env_roles",
+    "serves",
 ]
 
 #: What a flow may be called: what a ref names it by after the colon, so nothing a ref
@@ -604,3 +605,30 @@ def _env_type(
     )
     _ENV_TYPES[declared] = known
     return known
+
+
+def serves(backend: str, role: AgentRole | None) -> bool:
+    """Whether one backend could fill an agent role, as a run of the flow would ask it.
+
+    Args:
+      backend: The backend.
+      role: What the flow declared of the role, or None for an agent that is no flow's --
+        either end of a fallback step, which a flow says nothing about.
+
+    Returns:
+      False for a backend that is not the harness the role names, or that cannot do what the
+      role declares it must; True otherwise.
+    """
+    if role is None:
+        return True
+    from hmz.flows import HarnessKind
+    from hmz.runtime import flowing
+
+    try:
+        harness = HarnessKind(backend)
+    except ValueError:
+        # Every backend humanize does not drive itself is driven over ACP.
+        harness = HarnessKind.ACP
+    if role.harness is not None and harness != role.harness:
+        return False
+    return role.capabilities <= flowing.HARNESS_CAPABILITIES[harness]

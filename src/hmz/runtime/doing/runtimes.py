@@ -80,6 +80,12 @@ class Runtimes:
     `fallback` -- other runtimes, each `<backend>:<name>` -- where it cannot hold one.
     """
 
+    def kinds(self) -> list[str]:
+        """Every backend an environment can be put on, as `-e` spells each, `local` first."""
+        from hmz.flows import EnvBackendKind
+
+        return [kind.value for kind in EnvBackendKind]
+
     def all(self, backend: str = "") -> list[Runtime]:
         """Every runtime, or one backend's: by backend, then by name."""
         from hmz.coganchor.machines import store
