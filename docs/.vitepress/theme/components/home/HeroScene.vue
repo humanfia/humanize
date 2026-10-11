@@ -3,7 +3,7 @@
 // the way a constructivist poster is -- a ruled sheet, one circle, and one diagonal that every
 // other piece is set against -- and then put to work.
 //
-// It is drawn on a 600 x 600 sheet. The diagonal is the top edge of the pink wedge, the `_`,
+// It is drawn on a 600 x 600 sheet. The diagonal is the top edge of the green wedge, the `_`,
 // carried right across the sheet: everything that moves later moves along it.
 //
 // - It builds once, on arrival: the sheet is ruled, the circle drawn, the chevron's two arms
@@ -107,7 +107,7 @@ onMounted(() => {
 
       // --- the work, after ----------------------------------------------------------------
       // A turn rides the diagonal up into the wedge; the wedge takes it with a flash and the
-      // counter under it ticks over. Three at a time, one of them pink.
+      // counter under it ticks over. Three at a time, one of them green.
       const from = { x: -10, y: lineY(-10) }
       const to = { x: A.x - 4, y: lineY(A.x - 4) }
       loop = gsap.timeline({ paused: true, repeat: -1 })
@@ -205,7 +205,7 @@ onUnmounted(() => {
       </g>
     </g>
 
-    <!-- The circle, and the ring a pink square turns on round it. -->
+    <!-- The circle, and the ring a green square turns on round it. -->
     <g class="s-disc">
       <circle class="ring-line" :cx="DISC.x" :cy="DISC.y" :r="DISC.r + 26" />
       <g class="spin">
@@ -229,7 +229,7 @@ onUnmounted(() => {
       <g class="s-upper"><polygon class="upper ink" :points="UPPER" /></g>
       <g class="s-lower"><polygon class="lower ink" :points="LOWER" /></g>
       <g class="s-wedge">
-        <polygon class="wedge pink" :points="WEDGE" />
+        <polygon class="wedge green" :points="WEDGE" />
         <polygon class="take" :points="WEDGE" />
       </g>
     </g>
@@ -294,11 +294,11 @@ onUnmounted(() => {
 }
 
 .orbit {
-  fill: var(--hmz-pink);
+  fill: var(--hmz-green);
 }
 
 .disc {
-  fill: var(--hmz-pink);
+  fill: var(--hmz-green);
 }
 
 .plane {
@@ -318,33 +318,33 @@ onUnmounted(() => {
 }
 
 .packet.hot {
-  fill: var(--hmz-pink);
+  fill: var(--hmz-green);
 }
 
 .ink {
   fill: var(--hmz-ink);
 }
 
-.pink {
-  fill: var(--hmz-pink);
+.green {
+  fill: var(--hmz-green);
 }
 
 .take {
   fill: none;
-  stroke: var(--hmz-pink);
+  stroke: var(--hmz-green);
   stroke-width: 0.6;
   opacity: 0;
 }
 
 .lock {
   fill: none;
-  stroke: var(--hmz-pink);
+  stroke: var(--hmz-green);
   stroke-width: 2;
   opacity: 0;
 }
 
 .spark {
-  stroke: var(--hmz-pink);
+  stroke: var(--hmz-green);
   stroke-width: 3;
 }
 
@@ -367,7 +367,7 @@ onUnmounted(() => {
 
 .note.angle,
 .note.count {
-  fill: var(--hmz-pink);
+  fill: var(--hmz-green-ink);
   font-weight: 700;
 }
 

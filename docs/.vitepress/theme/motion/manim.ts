@@ -9,7 +9,7 @@
 // drawing of their own (a ring round a thing, a flash along a path) add it to the SVG while the
 // scene is built and take it away again when the scene is rebuilt or leaves the page.
 //
-// Colours are taken as CSS -- `var(--hmz-pink)` -- so they follow the theme like the rest of
+// Colours are taken as CSS -- `var(--hmz-green)` -- so they follow the theme like the rest of
 // the drawing.
 import type { Fx } from './fx'
 import { motion, SplitText } from './gsap'
@@ -221,7 +221,7 @@ export function circumscribe(
     ring.setAttribute('rx', String(Math.min(8, pad)))
   }
   ring.setAttribute('fill', 'none')
-  ring.setAttribute('stroke', opts.color ?? 'var(--hmz-pink)')
+  ring.setAttribute('stroke', opts.color ?? 'var(--hmz-green)')
   ring.setAttribute('stroke-width', String(opts.width ?? 2))
   ring.setAttribute('stroke-linecap', 'round')
   ring.setAttribute('pointer-events', 'none')
@@ -250,7 +250,7 @@ export function passingFlash(
   copy.removeAttribute('class')
   copy.removeAttribute('id')
   copy.setAttribute('fill', 'none')
-  copy.setAttribute('stroke', opts.color ?? 'var(--hmz-pink)')
+  copy.setAttribute('stroke', opts.color ?? 'var(--hmz-green)')
   copy.setAttribute('stroke-width', String(opts.width ?? (parseFloat(getComputedStyle(path).strokeWidth) || 1.6) * 1.8))
   copy.setAttribute('stroke-linecap', 'round')
   copy.setAttribute('pointer-events', 'none')

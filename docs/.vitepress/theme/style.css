@@ -1,17 +1,19 @@
-/* The palette is Hyacine's -- the pink of her hair, the sky blue its ends fade into, the lavender
-   of her dress and the gold she wears -- rather than VitePress's default green, so the chevron,
-   the buttons, the links and every diagram on the site are one colour family. Each diagram then
-   adds one accent of its own from the pair below.
+/* The palette is NVIDIA's green for the one accent, and Hyacine's for everything else -- the pink
+   of her hair, the sky blue its ends fade into, the lavender of her dress and the gold she wears
+   -- so the chevron, the buttons, the links and every diagram on the site are one colour family.
+   Each diagram then adds one accent of its own from the pair below.
 
    Every colour a component draws with is one of the tokens below, never a literal: a token is
    set once for light and once under `.dark`, so a diagram follows the theme switch live, and a
    canvas reads the same tokens through `motion/palette.ts`. The families:
 
-   - brand: `--vp-c-brand-*` (the pink, deepened where it is text), the page's rose-tinted paper,
+   - brand: `--vp-c-brand-*` (the green, deepened where it is text), the page's rose-tinted paper,
      and the two accents and the warm one a diagram picks from;
-   - ink, paper and pink: the drawing's ink, the sheet it is drawn on, and the one pink that
+   - ink, paper and green: the drawing's ink, the sheet it is drawn on, and the one green that
      marks the thing to look at;
    - lanes: the colour an agent is known by, one per lane, in order;
+   - callouts and inline code: Hyacine's sky, lavender and gold, and the band of all five
+     (`--hmz-band`) across the top of every page;
    - outcomes: done, failed, out of budget -- mint, crimson and gold, the only ones on a diagram;
    - roles: what a role in a flow is -- maker, partner, checker, steward, program;
    - stage: the screen a feature scene plays on, its graph paper and its depth;
@@ -20,15 +22,31 @@
      terminal's own and so stay a terminal's. */
 
 :root {
-  --vp-c-brand-1: #b2386f;
-  --vp-c-brand-2: #c94680;
-  --vp-c-brand-3: #b2386f;
-  --vp-c-brand-soft: rgba(217, 80, 140, 0.14);
+  --vp-c-brand-1: #4a7700;
+  --vp-c-brand-2: #5a8f00;
+  --vp-c-brand-3: #4a7700;
+  --vp-c-brand-soft: rgba(118, 185, 0, 0.16);
 
   --vp-c-bg: #fdf9fb;
   --vp-c-bg-alt: #f5edf0;
   --vp-c-bg-soft: #f5edf0;
   --vp-c-bg-elv: #ffffff;
+
+  /* The callouts and the inline code in Hyacine's colours: a tip in her sky, an important note
+     in her lavender, a warning in her gold, code in lavender. */
+  --vp-c-tip-1: #14678f;
+  --vp-c-tip-2: #1a7aa8;
+  --vp-c-tip-3: #14678f;
+  --vp-c-tip-soft: rgba(42, 159, 212, 0.14);
+  --vp-c-important-1: #6a4fb8;
+  --vp-c-important-2: #7a5ad0;
+  --vp-c-important-3: #6a4fb8;
+  --vp-c-important-soft: rgba(138, 107, 209, 0.14);
+  --vp-c-warning-1: #83590c;
+  --vp-c-warning-2: #9a6a12;
+  --vp-c-warning-3: #83590c;
+  --vp-c-warning-soft: rgba(214, 162, 58, 0.16);
+  --vp-code-color: #6a4fb8;
 
   --vp-c-danger-1: #c92e4b;
   --vp-c-danger-2: #b02640;
@@ -122,15 +140,29 @@
 }
 
 .dark {
-  --vp-c-brand-1: #ff9fc8;
-  --vp-c-brand-2: #ff8fbd;
-  --vp-c-brand-3: #b2386f;
-  --vp-c-brand-soft: rgba(255, 143, 189, 0.16);
+  --vp-c-brand-1: #8fd11a;
+  --vp-c-brand-2: #76b900;
+  --vp-c-brand-3: #4a7700;
+  --vp-c-brand-soft: rgba(118, 185, 0, 0.18);
 
   --vp-c-bg: #1c1a21;
   --vp-c-bg-alt: #17151b;
   --vp-c-bg-soft: #25222b;
   --vp-c-bg-elv: #25222b;
+
+  --vp-c-tip-1: #9ad9f5;
+  --vp-c-tip-2: #6cc8f2;
+  --vp-c-tip-3: #1a7aa8;
+  --vp-c-tip-soft: rgba(108, 200, 242, 0.14);
+  --vp-c-important-1: #c9b6f5;
+  --vp-c-important-2: #b9a2f2;
+  --vp-c-important-3: #6a4fb8;
+  --vp-c-important-soft: rgba(185, 162, 242, 0.14);
+  --vp-c-warning-1: #f2c55c;
+  --vp-c-warning-2: #e0b04a;
+  --vp-c-warning-3: #9a6a12;
+  --vp-c-warning-soft: rgba(242, 197, 92, 0.14);
+  --vp-code-color: #c9b6f5;
 
   --vp-c-danger-1: #ff7088;
   --vp-c-danger-2: #ff8a9e;
@@ -268,11 +300,11 @@
 }
 
 /* Where humanize is going, set apart from what it does today: a rule down its side, the
-   figures in the pink. */
+   figures in the green. */
 .vp-doc .hmz-vision {
   margin: 24px 0;
   padding: 4px 0 4px 16px;
-  border-left: 3px solid var(--hmz-pink);
+  border-left: 3px solid var(--hmz-green);
   font-size: 15px;
   line-height: 1.6;
   color: var(--vp-c-text-2);
@@ -366,27 +398,31 @@
 }
 
 /* The pair the humanize mark is drawn in, and the home page with it: ink and a rose-tinted
-   paper, which trade places in the dark, and one pink. `--hmz-ink` is whatever is drawn on the
+   paper, which trade places in the dark, and one green. `--hmz-ink` is whatever is drawn on the
    page; `--hmz-paper` is the page under it. The rest are those at the strengths the page's
    construction lines, marks and planes are drawn at. */
 :root {
   --hmz-ink: #1b1720;
   --hmz-paper: #f5edf0;
-  --hmz-pink: #d9508c;
-  --hmz-pink-soft: rgba(217, 80, 140, 0.12);
+  --hmz-green: #76b900;
+  --hmz-green-ink: #4a7700;
+  --hmz-green-soft: rgba(118, 185, 0, 0.16);
   --hmz-con-line: rgba(27, 23, 32, 0.07);
   --hmz-con-mark: rgba(27, 23, 32, 0.38);
-  --hmz-con-plane: rgba(27, 23, 32, 0.06);
+  --hmz-con-plane: rgba(138, 107, 209, 0.11);
+  /* The green and Hyacine's pink, lavender, sky and gold, as flat bands side by side. */
+  --hmz-band: linear-gradient(90deg, var(--hmz-green) 0 40%, var(--hmz-lane-5) 40% 55%, var(--hmz-accent-2) 55% 70%, var(--hmz-accent) 70% 85%, var(--hmz-warm) 85%);
 }
 
 .dark {
   --hmz-ink: #f1e9ee;
   --hmz-paper: #1c1a21;
-  --hmz-pink: #ff8fbd;
-  --hmz-pink-soft: rgba(255, 143, 189, 0.16);
+  --hmz-green: #76b900;
+  --hmz-green-ink: #8fd11a;
+  --hmz-green-soft: rgba(118, 185, 0, 0.18);
   --hmz-con-line: rgba(241, 233, 238, 0.07);
   --hmz-con-mark: rgba(241, 233, 238, 0.4);
-  --hmz-con-plane: rgba(241, 233, 238, 0.055);
+  --hmz-con-plane: rgba(185, 162, 242, 0.08);
 }
 
 /* The hero sits on a ruled sheet with one plane laid across it on the diagonal, so the first
@@ -856,4 +892,25 @@
   .vp-doc .custom-block.details > summary {
     transition: none;
   }
+}
+
+/* ---------------------------------------------------------------------------------------
+   Hyacine's colours where a reader sees them every day: a band across the top of every page,
+   and what is selected washed in her pink.
+   --------------------------------------------------------------------------------------- */
+
+.VPNav::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 3px;
+  background: var(--hmz-band);
+  pointer-events: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--hmz-lane-5) 30%, transparent);
 }

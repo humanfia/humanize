@@ -21,8 +21,8 @@ export interface Palette {
   done: string
   fail: string
   budget: string
-  /** The pink: the one thing on the screen to look at. */
-  pink: string
+  /** NVIDIA's green: the one thing on the screen to look at. */
+  green: string
   /** What a role in a flow is. */
   role: { maker: string; partner: string; checker: string; steward: string; program: string }
 }
@@ -43,7 +43,7 @@ export function usePalette(): Palette {
     done: '#2b8f66',
     fail: '#c92e4b',
     budget: '#c08a1e',
-    pink: '#d9508c',
+    green: '#76b900',
     role: { maker: '#3b7fd0', partner: '#1597a8', checker: '#7a5ad0', steward: '#d9508c', program: '#756e85' },
   }
   let watch: MutationObserver | undefined
@@ -65,7 +65,7 @@ export function usePalette(): Palette {
     palette.done = get('--hmz-done')
     palette.fail = get('--hmz-fail')
     palette.budget = get('--hmz-budget')
-    palette.pink = get('--hmz-pink')
+    palette.green = get('--hmz-green')
     palette.role = {
       maker: get('--hmz-role-maker'),
       partner: get('--hmz-role-partner'),
@@ -86,7 +86,7 @@ export function usePalette(): Palette {
 }
 
 /**
- * A colour at an opacity, for a canvas: `withAlpha(palette.pink, 0.3)`. Takes the forms the
+ * A colour at an opacity, for a canvas: `withAlpha(palette.green, 0.3)`. Takes the forms the
  * tokens are written in -- `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()` and `rgba()` -- and
  * multiplies an alpha the colour already has. Anything else comes back as it is.
  */

@@ -1,17 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="humanize">
   <title>humanize</title>
-  <!-- The prompt, `>_`, cut from flat planes: an ink chevron, and a pink wedge rising on the
+  <!-- The prompt, `>_`, cut from flat planes: an ink chevron, and a green wedge rising on the
        one diagonal. Ink where the viewer reads light, paper where they read dark. The docs'
        nav takes the fixed pair, logo-light.svg and logo-dark.svg, since the site's own switch
        is not the viewer's. -->
   <style>
     .ink { fill: #1b1720; }
-    .pink { fill: #d9508c; }
+    .green { fill: #76b900; }
     @media (prefers-color-scheme: dark) {
       .ink { fill: #f1e9ee; }
-      .pink { fill: #ff8fbd; }
     }
   </style>
   <polygon class="ink" points="12,16 32,16 62,50 32,84 12,84 42,50"/>
-  <polygon class="pink" points="60,84 94,84 94,64 60,74"/>
+  <polygon class="green" points="60,84 94,84 94,64 60,74"/>
 </svg>

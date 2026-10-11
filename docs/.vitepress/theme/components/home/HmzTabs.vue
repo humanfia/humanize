@@ -14,7 +14,7 @@
 // Every panel is rendered and the ones not chosen are hidden, so the page reads whole before
 // any script runs. A link to an id inside a hidden panel -- a heading, say -- opens that panel.
 //
-// Choosing a tab moves a pink bar under the tab bar across to it, skewed on the way like a
+// Choosing a tab moves a green bar under the tab bar across to it, skewed on the way like a
 // plane in motion, and the panel coming in is wiped in on the diagonal. Under reduced motion
 // the bar jumps and the panel is simply there.
 import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue'
@@ -35,7 +35,7 @@ const chosen = ref(props.tabs[0]?.id ?? '')
 const root = ref<HTMLElement>()
 const bar = ref<HTMLElement>()
 
-// Where the pink bar is: under the chosen tab, measured, since the tabs are as wide as their words.
+// Where the green bar is: under the chosen tab, measured, since the tabs are as wide as their words.
 const ink = ref({ left: 0, width: 0 })
 const moving = ref(false)
 const entered = ref('')
@@ -191,14 +191,14 @@ onUnmounted(() => {
   color: var(--vp-c-text-1);
 }
 
-/* The chosen tab's mark: a pink bar along the foot of the tab bar, which slides to the tab
+/* The chosen tab's mark: a green bar along the foot of the tab bar, which slides to the tab
    chosen next and leans into the move while it travels. */
 .ink {
   position: absolute;
   left: 0;
   bottom: -2px;
   height: 4px;
-  background: var(--hmz-pink);
+  background: var(--hmz-green);
   transition:
     transform 0.45s cubic-bezier(0.7, 0, 0.2, 1),
     width 0.45s cubic-bezier(0.7, 0, 0.2, 1);

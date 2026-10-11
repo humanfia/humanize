@@ -171,7 +171,7 @@ onUnmounted(() => {
   width: 10px;
   height: 10px;
   margin-top: 0.38em;
-  background: var(--hmz-pink);
+  background: var(--hmz-green);
 }
 
 .wordmark {
@@ -187,13 +187,13 @@ onUnmounted(() => {
   letter-spacing: -0.045em;
 }
 
-/* The `_` of the mark, after the name: the pink wedge, blinking like the cursor it is. */
+/* The `_` of the mark, after the name: the green wedge, blinking like the cursor it is. */
 .cursor {
   flex: none;
   width: 0.62em;
   height: 0.2em;
   margin: 0 0 0.1em 0.08em;
-  background: var(--hmz-pink);
+  background: var(--hmz-green);
   clip-path: polygon(0 50%, 100% 0, 100% 100%, 0 100%);
   animation: hmz-blink 1.1s steps(1, end) 2s infinite;
 }
@@ -215,7 +215,7 @@ onUnmounted(() => {
 .define strong {
   color: var(--vp-c-text-1);
   font-weight: 650;
-  box-shadow: inset 0 -0.32em 0 var(--hmz-pink-soft);
+  box-shadow: inset 0 -0.32em 0 var(--hmz-green-soft);
 }
 
 .line {
@@ -239,17 +239,17 @@ onUnmounted(() => {
 }
 
 .line:hover {
-  box-shadow: 8px 8px 0 var(--hmz-pink);
+  box-shadow: 8px 8px 0 var(--hmz-green);
   transform: translate(-2px, -2px);
 }
 
 .line:active {
-  box-shadow: 2px 2px 0 var(--hmz-pink);
+  box-shadow: 2px 2px 0 var(--hmz-green);
   transform: translate(2px, 2px);
 }
 
 .prompt {
-  color: var(--hmz-pink);
+  color: var(--hmz-green-ink);
   font-weight: 700;
 }
 
@@ -276,7 +276,7 @@ onUnmounted(() => {
 }
 
 .copy.done {
-  background: var(--hmz-pink);
+  background: var(--hmz-green);
   color: #fff;
 }
 
@@ -304,19 +304,19 @@ onUnmounted(() => {
     transform 0.25s;
 }
 
-/* On hover a pink plane slides in on the diagonal behind the words. */
+/* On hover a green plane slides in on the diagonal behind the words. */
 .roles a::before {
   content: '';
   position: absolute;
   inset: -2px;
   z-index: -1;
-  background: var(--hmz-pink-soft);
+  background: var(--hmz-green-soft);
   clip-path: polygon(0 100%, 0 100%, 0 100%);
   transition: clip-path 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .roles a:hover {
-  border-top-color: var(--hmz-pink);
+  border-top-color: var(--hmz-green);
   transform: translateY(-2px);
 }
 
@@ -326,7 +326,7 @@ onUnmounted(() => {
 
 .roles .n {
   display: block;
-  color: var(--hmz-pink);
+  color: var(--hmz-green-ink);
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
   font-weight: 700;
@@ -377,7 +377,7 @@ onUnmounted(() => {
 }
 
 .cue:hover {
-  color: var(--hmz-pink);
+  color: var(--hmz-green-ink);
 }
 
 .chev {

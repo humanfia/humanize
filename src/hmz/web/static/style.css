@@ -1,9 +1,11 @@
-/* The web interface's look: humanize's own, the constructivist one humanfia.ai draws in, in
-   Hyacine's colours -- ink on a rose-tinted paper with one pink, hard edges and offset shadows
-   cut like paper, sky blue for what is happening now, the lane colours an agent is told apart
-   by, and the three outcome colours -- laid out as a desktop chat app lays itself out: a
-   sidebar, a view, and a panel beside it. Every colour is a token below, set once for light
-   and once for dark, never a literal. */
+/* The web interface's look: humanize's own, the constructivist one humanfia.ai draws in --
+   ink on a rose-tinted paper with one green, NVIDIA's, hard edges and offset shadows cut like
+   paper, and everything else in Hyacine's colours: her pink, lavender, sky and gold as flat
+   planes and squares beside the green, sky blue for what is happening now, the lane colours an
+   agent is told apart by, and the three outcome colours -- laid out as a desktop
+   chat app lays itself out: a sidebar, a view, and a panel beside it. Every colour is a token
+   below, set once for light and once for dark, never a literal. The green is drawn as NVIDIA
+   draws it on either ground; where it is text on the light paper it is deepened to `--green-ink`. */
 
 :root {
   color-scheme: light;
@@ -15,15 +17,20 @@
   --ink-2: #4b4452;
   --ink-3: #6c6472;
   --on-ink: #f5edf0;
-  --on-pink: #1b1720;
+  --on-green: #1b1720;
   --line: rgba(27, 23, 32, 0.12);
   --line-strong: rgba(27, 23, 32, 0.28);
-  --hover: rgba(27, 23, 32, 0.07);
+  --hover: rgba(138, 107, 209, 0.11);
   --grid: rgba(27, 23, 32, 0.045);
   --grid-major: rgba(27, 23, 32, 0.09);
   --scrim: rgba(27, 23, 32, 0.45);
-  --pink: #d9508c;
-  --live: #2a9fd4;
+  --green: #76b900;
+  --green-ink: #4a7700;
+  --pink: #e06a9a;
+  --lavender: #8a6bd1;
+  --sky: #2a9fd4;
+  --gold: #d6a23a;
+  --live: var(--sky);
   --live-ink: #14678f;
   --live-soft: rgba(42, 159, 212, 0.16);
   --link: #3b5fb5;
@@ -55,15 +62,20 @@
   --ink-2: #cbc0c8;
   --ink-3: #9c919b;
   --on-ink: #1b1720;
-  --on-pink: #1b1720;
+  --on-green: #1b1720;
   --line: rgba(241, 233, 238, 0.12);
   --line-strong: rgba(241, 233, 238, 0.3);
-  --hover: rgba(241, 233, 238, 0.07);
+  --hover: rgba(185, 162, 242, 0.1);
   --grid: rgba(241, 233, 238, 0.04);
   --grid-major: rgba(241, 233, 238, 0.08);
   --scrim: rgba(0, 0, 0, 0.6);
+  --green: #76b900;
+  --green-ink: #8fd11a;
   --pink: #ff8fbd;
-  --live: #6cc8f2;
+  --lavender: #b9a2f2;
+  --sky: #6cc8f2;
+  --gold: #f2c55c;
+  --live: var(--sky);
   --live-ink: #9ad9f5;
   --live-soft: rgba(108, 200, 242, 0.16);
   --link: #9db8f0;
@@ -83,6 +95,11 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* What is selected is washed in Hyacine's pink. */
+::selection {
+  background: color-mix(in srgb, var(--pink) 30%, transparent);
 }
 
 /* Hidden means hidden, whatever display a class gives the element. */
@@ -205,6 +222,14 @@ code {
   border-right: 2px solid var(--ink);
 }
 
+/* Hyacine's four, a flat band across the top of the sidebar. */
+.sidebar::before {
+  content: '';
+  flex: none;
+  height: 4px;
+  background: linear-gradient(90deg, var(--pink) 0 25%, var(--lavender) 25% 50%, var(--sky) 50% 75%, var(--gold) 75%);
+}
+
 .side-top {
   display: flex;
   align-items: center;
@@ -255,7 +280,7 @@ code {
 .side-nav a[aria-current='page'] {
   background: var(--ink);
   color: var(--on-ink);
-  box-shadow: inset 4px 0 0 var(--pink);
+  box-shadow: inset 4px 0 0 var(--green);
 }
 
 .side-nav kbd {
@@ -330,7 +355,7 @@ code {
 .side-session[aria-current='page'] {
   background: var(--ink);
   color: var(--on-ink);
-  box-shadow: inset 4px 0 0 var(--pink);
+  box-shadow: inset 4px 0 0 var(--green);
 }
 
 .side-run > a[aria-current='page'] .side-meta,
@@ -467,8 +492,8 @@ code {
   height: 30px;
   display: grid;
   place-items: center;
-  background: var(--pink);
-  color: var(--on-pink);
+  background: var(--green);
+  color: var(--on-green);
   font-weight: 800;
   clip-path: polygon(0 0, 100% 0, 100% 72%, 72% 100%, 0 100%);
 }
@@ -544,7 +569,7 @@ code {
 .side-folder-name .icon {
   width: 14px;
   height: 14px;
-  color: var(--pink);
+  color: var(--lavender);
 }
 
 .side-folder.current .side-folder-name {
@@ -667,7 +692,7 @@ code {
   height: 20px;
   display: grid;
   place-items: center;
-  color: var(--pink);
+  color: var(--green-ink);
 }
 
 .choice-text {
@@ -860,12 +885,12 @@ code {
 
 .btn:hover:not(:disabled) {
   transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 var(--pink);
+  box-shadow: 4px 4px 0 var(--green);
 }
 
 .btn:active:not(:disabled) {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--pink);
+  box-shadow: 1px 1px 0 var(--green);
 }
 
 .btn.primary {
@@ -972,7 +997,7 @@ textarea {
 input[type='checkbox'] {
   width: 16px;
   height: 16px;
-  accent-color: var(--pink);
+  accent-color: var(--green-ink);
 }
 
 .search {
@@ -1374,7 +1399,7 @@ pre.block {
 }
 
 .handovers li.latest {
-  color: var(--pink);
+  color: var(--green-ink);
   font-weight: 700;
 }
 
@@ -1395,7 +1420,7 @@ pre.block {
 }
 
 .bars .bar:hover {
-  background: var(--pink);
+  background: var(--green);
 }
 
 .bars .bar.none {
@@ -1420,7 +1445,7 @@ pre.block {
 .share > span {
   display: block;
   height: 100%;
-  background: var(--pink);
+  background: var(--green);
 }
 
 /* ------------------------------------------------------------------ a new run */
@@ -1431,6 +1456,10 @@ pre.block {
   overflow-y: auto;
   display: grid;
   padding: 24px 20px 40px;
+  /* A poster behind the page: a sky disc in the corner and a lavender band on the diagonal. */
+  background:
+    radial-gradient(circle at 86% 16%, color-mix(in srgb, var(--sky) 16%, transparent) 0 112px, transparent 113px),
+    linear-gradient(163.6deg, transparent 0 66%, color-mix(in srgb, var(--lavender) 12%, transparent) 66% 72%, transparent 72%);
 }
 
 .home-inner {
@@ -1458,15 +1487,16 @@ pre.block {
   letter-spacing: -0.035em;
 }
 
-/* The one pink, cut on the diagonal under what the page asks. */
+/* The green, cut on the diagonal under what the page asks, with Hyacine's pink, lavender and
+   sky after it. */
 .greeting::after {
   content: '';
   display: block;
-  width: 72px;
+  width: 132px;
   height: 10px;
   margin-top: 12px;
-  background: var(--pink);
-  clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%);
+  background: linear-gradient(90deg, var(--green) 0 55%, var(--pink) 55% 70%, var(--lavender) 70% 85%, var(--sky) 85%);
+  clip-path: polygon(0 0, 100% 0, 94% 100%, 0 100%);
 }
 
 .greeting-about {
@@ -1501,11 +1531,30 @@ pre.block {
 }
 
 .option-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font: 600 11px var(--mono);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--ink-3);
+}
+
+/* Each group of options marked with a square of its own, in Hyacine's colours in turn. */
+.option-group h3::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--square, var(--pink));
+}
+
+.option-group:nth-child(3n + 2) {
+  --square: var(--lavender);
+}
+
+.option-group:nth-child(3n) {
+  --square: var(--gold);
 }
 
 .stack {
@@ -1565,7 +1614,7 @@ pre.block {
 }
 
 .composer:focus-within {
-  box-shadow: 5px 5px 0 var(--pink);
+  box-shadow: 5px 5px 0 var(--green);
 }
 
 .composer textarea {
@@ -1626,8 +1675,8 @@ pre.block {
   place-items: center;
   padding: 0;
   border: 2px solid var(--ink);
-  background: var(--pink);
-  color: var(--on-pink);
+  background: var(--green);
+  color: var(--on-green);
   cursor: pointer;
 }
 
@@ -1856,12 +1905,12 @@ pre.block {
 }
 
 .edge.latest path {
-  stroke: var(--pink);
+  stroke: var(--green);
   stroke-width: 3;
 }
 
 .edge-head.latest {
-  fill: var(--pink);
+  fill: var(--green);
 }
 
 .edge rect {
@@ -1869,7 +1918,7 @@ pre.block {
 }
 
 .edge.latest rect {
-  fill: var(--pink);
+  fill: var(--green);
 }
 
 .edge text {
@@ -1878,7 +1927,7 @@ pre.block {
 }
 
 .edge.latest text {
-  fill: var(--on-pink);
+  fill: var(--on-green);
 }
 
 .node {
@@ -1912,7 +1961,7 @@ pre.block {
 }
 
 .node.focused {
-  box-shadow: 7px 7px 0 var(--pink);
+  box-shadow: 7px 7px 0 var(--green);
 }
 
 .node.person {
@@ -1933,7 +1982,7 @@ pre.block {
 
 .node-head:hover .node-name {
   text-decoration: underline;
-  text-decoration-color: var(--pink);
+  text-decoration-color: var(--green-ink);
   text-decoration-thickness: 2px;
 }
 
@@ -2150,7 +2199,7 @@ pre.block {
   padding: 8px 12px;
   background: var(--raised);
   border: 2px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--pink);
+  box-shadow: 3px 3px 0 var(--green);
 }
 
 .said.tool,
@@ -2372,12 +2421,12 @@ details.said-more summary {
 
 .card:hover {
   transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0 var(--pink);
+  box-shadow: 5px 5px 0 var(--green);
 }
 
 .card.chosen {
-  box-shadow: 5px 5px 0 var(--pink);
-  outline: 2px solid var(--pink);
+  box-shadow: 5px 5px 0 var(--green);
+  outline: 2px solid var(--green);
   outline-offset: -6px;
 }
 
@@ -2462,7 +2511,7 @@ details.said-more summary {
   flex-direction: column;
   background: var(--paper);
   border: 2px solid var(--ink);
-  box-shadow: 8px 8px 0 var(--pink);
+  box-shadow: 8px 8px 0 var(--green);
 }
 
 .dialog > .error {
@@ -2618,7 +2667,7 @@ details.said-more summary {
 .settings-nav a[aria-current='page'] {
   background: var(--ink);
   color: var(--on-ink);
-  box-shadow: inset 4px 0 0 var(--pink);
+  box-shadow: inset 4px 0 0 var(--green);
 }
 
 .settings-page {
@@ -2727,7 +2776,7 @@ details.said-more summary {
     max-height: 72vh;
     border-left: 0;
     border-top: 2px solid var(--ink);
-    box-shadow: 0 -6px 0 var(--pink);
+    box-shadow: 0 -6px 0 var(--green);
   }
 
   .dock {
