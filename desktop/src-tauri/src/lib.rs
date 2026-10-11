@@ -2,9 +2,11 @@
 //! The window opens on the app's own page at once -- a splash while `hmz web` starts, and what
 //! to do where it cannot -- and goes on to `hmz web`'s once it says where it listens.
 
+mod alert;
 mod menu;
 mod server;
 mod shell_env;
+mod update;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
@@ -310,6 +312,7 @@ pub fn run() {
         .setup(|app| {
             window(app.handle())?;
             start(app.handle().clone());
+            update::init(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -341,6 +344,7 @@ pub fn run() {
             if let Some(server) = lock(&app.state::<Shell>().server).take() {
                 server.stop();
             }
+            update::on_exit(app);
         }
         _ => {}
     });

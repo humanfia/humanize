@@ -45,6 +45,20 @@ The app is a window, not a second humanize. It runs the `hmz` you installed, as
   See [Leaving it running](/user/leaving).
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
   in the Finder.
+- **It updates itself.** See [Updates](#updates).
+
+## Updates {#updates}
+
+The app looks for a new release a few seconds after it opens, and every 6 hours after. It
+downloads one in the background, checks that it was signed by humanize's release, and then asks
+once, naming the version:
+
+- **Restart** installs it, and opens humanize again on it, `hmz web` stopped and started with it.
+- **Later** leaves it until you quit humanize, which installs it then.
+
+To look now, choose **humanize → Check for Updates…**: it offers the new release, or says
+humanize is up to date, or why it could not look. Only releases are offered, never a
+pre-release.
 
 ## The first time it opens {#the-first-time-it-opens}
 
@@ -64,7 +78,8 @@ Either is once: macOS remembers it, until you install the app again.
 ### Check it worked
 
 - The window shows the sidebar of your epics, as `hmz web` does in a browser.
-- **humanize → About humanize** names the version you downloaded.
+- **humanize → About humanize** names the version you downloaded, or the one it updated itself
+  to since.
 
 ## Troubleshooting
 

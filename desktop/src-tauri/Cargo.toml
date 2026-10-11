@@ -20,16 +20,22 @@ tauri = { version = "2", default-features = false, features = ["wry"] }
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
+# Its own TLS and the system's proxy, without the zip only Windows installs from.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-window-state = "2"
 libc = "0.2"
 log = "0.4"
+# The update's alerts: CFUserNotification, which never holds up a quit as a sheet would.
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFDate", "CFDictionary", "CFString", "CFURL", "CFUserNotification"] }
+semver = "1"
 serde = { version = "1", features = ["derive"] }
+# What generate_context! writes the updater's configuration out with.
+serde_json = "1"
 shared_child = "1"
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "time"] }
 url = "2"
 
 [dev-dependencies]
-serde_json = "1"
 tempfile = "3"
 
 [profile.release]

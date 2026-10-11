@@ -3,8 +3,8 @@
 The macOS app in `desktop/`: one window on the page `hmz web` serves, which it starts as its own
 child and stops as it quits. It is a frame around that page and nothing more: it draws nothing
 of humanize's but what to do while the page cannot be had, brings no Python and no `hmz` of its
-own, and is answerable only for starting the one installed here, showing its page, and leaving
-nothing running behind it.
+own, and is answerable only for starting the one installed here, showing its page, leaving
+nothing running behind it, and keeping itself up to date.
 
 ## API
 
@@ -16,6 +16,7 @@ humanize.app      ai.humanfia.humanize, macOS 11 or later, on Apple silicon and 
                   $UV_TOOL_BIN_DIR, /opt/homebrew/bin, /usr/local/bin, /usr/bin and /bin
   keeps           ~/Library/Application Support/ai.humanfia.humanize/port
                   ~/Library/Logs/ai.humanfia.humanize/humanize.log
+  updates from    https://github.com/humanfia/humanize/releases/latest/download/latest.json
 ```
 
 ```js
@@ -78,6 +79,24 @@ looked for while it is set.
   was handed: one ignored where the app was started would be ignored by `hmz web` too, and
   Quit would kill it rather than stop it.
 
+### Updating itself
+
+- MUST look for a newer release 5 seconds after it starts, so that the start is never slower
+  for it, and every 6 hours after by the wall clock, asleep or not, at `latest.json` of the latest release over HTTPS -- never a
+  pre-release's, so that a release is all it is offered -- and MUST take only a version newer
+  than its own, and a pre-release only where its own is one. A development build, `0.0.0`, MUST
+  never look.
+- MUST download what it finds in the background, and MUST take it only signed with the key
+  whose public half is in `tauri.conf.json`.
+- MUST then ask once, in an alert titled with the new version: `Restart` installs it and starts
+  the app again, through the quit that stops `hmz web`; `Later`, or a quit while it asks,
+  installs it as the app quits. The alert MUST NOT hold up a quit, and MUST go with the app.
+- MUST offer `Check for Updates…` in the app's menu, which looks at once and says what it
+  found -- the update, that it is up to date, or why it could not look -- or, once one is
+  downloaded, asks again. A look of its own MUST say nothing but to the log.
+- MUST NOT download where it could not install: run from its disk image, moved aside by
+  Gatekeeper, or where only an administrator could replace it.
+
 ### What it weighs
 
 - MUST be Rust and the system's web view, with no frontend framework, no bundler, and no
@@ -90,6 +109,10 @@ looked for while it is set.
 - MUST be built for every release as one disk image for both architectures,
   `humanize-<version>-macos-universal.dmg`, laid out to drag the app into Applications, attested
   as built by `publish.yml`, and attached to the GitHub release beside the wheel and the sdist.
+- MUST be built for every release as its update too, where the repository holds the updater's
+  key: `humanize-<version>-macos-universal.app.tar.gz`, signed with that key and attested, and
+  `latest.json` offering it to both architectures, both attached to the release. Where the key
+  is not held, the release MUST still be made, without them.
 - MUST be signed ad hoc where the repository holds no Apple Developer ID, and signed with it and
   notarized where it does.
 - MUST say its version only in `desktop/src-tauri/tauri.conf.json`, `0.0.0` on `main`, which a

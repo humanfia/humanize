@@ -40,7 +40,8 @@ rules as `main`. Three workflows do it:
    [PyPI](https://pypi.org/project/hmz/), and only then publishes the GitHub release with
    them attached, so the release never offers files PyPI refused. Beside them, on macOS, it
    builds [the macOS app](/user/desktop) as one disk image for Apple silicon and Intel,
-   `humanize-X.Y.Z-macos-universal.dmg`, attests it, and attaches it to the release too.
+   `humanize-X.Y.Z-macos-universal.dmg`, attests it, and attaches it to the release too, with
+   the app's update beside it: see [The app's updates](#the-apps-updates).
 
 `main` itself never says a released version: its `pyproject.toml` says `0.0.0`, and so does
 `tauri.conf.json`.
@@ -51,6 +52,28 @@ secrets `APPLE_CERTIFICATE` (the `.p12`, in base64), `APPLE_CERTIFICATE_PASSWORD
 `APPLE_SIGNING_IDENTITY`, `publish.yml` signs it with that instead, and with `APPLE_ID`,
 `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID` it notarizes it as well. Nothing
 else changes.
+
+### The app's updates {#the-apps-updates}
+
+An installed app [updates itself](/user/desktop#updates) from
+`releases/latest/download/latest.json`: the latest release's, and so never a pre-release's. For
+that, `publish.yml` builds the app's update as well, `humanize-X.Y.Z-macos-universal.app.tar.gz`,
+signs it with the updater's key, attests it, and writes `latest.json`, which names the version,
+links the release as its notes, and offers the update with its signature to both
+`darwin-aarch64` and `darwin-x86_64`. Both are attached to the release with the disk image.
+
+The key is held in the secrets `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; its public half is `plugins.updater.pubkey` in
+`tauri.conf.json`, and an app takes no update not signed with it. Where the secrets are not
+set, the release is made without the update, with a warning, and installed apps stay as they
+are.
+
+::: danger Back up the updater's key
+The key is `~/.tauri/humanize.key` on the Mac it was made on, with its password in
+`~/.tauri/humanize.key.password` beside it. Keep both in the maintainers' password manager. Losing
+the key means no installed app can be updated again: a new key's updates are refused by every
+app already out, whose users must download the disk image by hand once more.
+:::
 
 The version is checked before anything is opened:
 
@@ -140,11 +163,21 @@ OK: hmz-0.2.0b1-py3-none-any.whl
 Do the same for `pypi:hmz-0.2.0b1.tar.gz`. PyPI shows the same on the release's **Download
 files** page: each file names `publish.yml` on humanfia/humanize as its publisher.
 
-The disk image is attested by GitHub instead:
+The disk image is attested by GitHub instead, and so is the app's update:
 
 ```sh
 gh release download v0.2.0-beta.1 --repo humanfia/humanize --pattern '*.dmg'
 gh attestation verify humanize-0.2.0-beta.1-macos-universal.dmg --repo humanfia/humanize
+```
+
+Once a release that is not a pre-release is out, the installed apps are offered it:
+
+```sh
+curl -sL https://github.com/humanfia/humanize/releases/latest/download/latest.json | jq .version
+```
+
+```text
+"0.2.0"
 ```
 
 ## Variations
@@ -195,6 +228,7 @@ can no longer install it.
 | `File already exists` | PyPI has this version already | open the next version: PyPI never takes a version's files twice |
 | a failed `publish the release` | PyPI has the release, and the GitHub release is still a draft | `gh run rerun <run-id> --failed` |
 | a failed `desktop` | the disk image did not build, or did not sign or notarize. PyPI may have the release; the GitHub release is still a draft | fix what its log says, then `gh run rerun <run-id> --failed`; a fix that needs a commit goes to `main`, then the next version |
+| `No TAURI_SIGNING_PRIVATE_KEY` in `desktop` | the updater's secrets are not set. The release has no update, and installed apps are not offered it | set both secrets, then release the next version |
 
 ::: details For admins: guarding the `pypi` environment
 In **Settings → Environments → pypi**, add yourself and another maintainer as required

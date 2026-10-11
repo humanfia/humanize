@@ -1,8 +1,9 @@
 # Publishes a release: a push to a `release/X.Y` branch that merged its release pull request,
 # which release.yml opens. release-please tags it and drafts the GitHub release from
-# CHANGELOG.md; this builds the package and the macOS app's disk image, publishes the package to
-# PyPI, then publishes the GitHub release with both attached. Every other push to such a branch
-# does nothing.
+# CHANGELOG.md; this builds the package and the macOS app -- its disk image, and the signed
+# update the installed apps fetch through the release's `latest.json` -- publishes the package to
+# PyPI, then publishes the GitHub release with all of it attached. Every other push to such a
+# branch does nothing.
 # docs/contributing/releasing.md has the rest.
 #
 # PyPI trusts this file by its name and the `pypi` environment, through trusted publishing:
@@ -93,7 +94,8 @@ jobs:
 
   # The macOS app, one disk image for Apple silicon and Intel. Signed ad hoc, unless the
   # repository holds an Apple Developer ID in its `APPLE_*` secrets: then signed with it and
-  # notarized.
+  # notarized. Where it holds the updater's key in its `TAURI_SIGNING_*` secrets, the app's
+  # update as well, signed with that key, and the `latest.json` that offers it.
   desktop:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
@@ -129,7 +131,7 @@ jobs:
 
       # The version is the tag's. A pre-release's bundle version is its X.Y.Z alone: macOS
       # reads that as numbers.
-      - name: Build the disk image
+      - name: Build the disk image and the update
         env:
           TAG: ${{ needs.release-please.outputs.tag_name }}
           SECRET_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -138,25 +140,47 @@ jobs:
           SECRET_APPLE_ID: ${{ secrets.APPLE_ID }}
           SECRET_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SECRET_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          SECRET_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           # Only the ones set: the bundler reads an empty one as one given.
           for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID \
+            TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
             secret="SECRET_$name"
             if [[ -n "${!secret}" ]]; then export "$name=${!secret}"; fi
             unset "$secret"
           done
           version="${TAG#v}"
-          config="$(jq -nc --arg v "$version" --arg b "${version%%-*}" \
-            '{version: $v, bundle: {macOS: {bundleVersion: $b}}}')"
-          pnpm tauri build --target universal-apple-darwin --bundles dmg --config "$config"
+          # The update only where its key is held: the bundler refuses to make it unsigned.
+          updater="$([[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]] && echo true || echo false)"
+          config="$(jq -nc --arg v "$version" --arg b "${version%%-*}" --argjson u "$updater" \
+            '{version: $v, bundle: {createUpdaterArtifacts: $u, macOS: {bundleVersion: $b}}}')"
+          pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config "$config"
+          bundle=src-tauri/target/universal-apple-darwin/release/bundle
           mkdir -p ../dist
-          mv src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg \
-            "../dist/humanize-$version-macos-universal.dmg"
+          mv "$bundle"/dmg/*.dmg "../dist/humanize-$version-macos-universal.dmg"
+          if [[ "$updater" == false ]]; then
+            echo "::warning::No TAURI_SIGNING_PRIVATE_KEY: no update for the installed apps."
+            exit 0
+          fi
+          update="humanize-$version-macos-universal.app.tar.gz"
+          mv "$bundle/macos/humanize.app.tar.gz" "../dist/$update"
+          # What the installed apps read at releases/latest/download/latest.json: the release
+          # that is latest, never a pre-release, offers its update to both architectures,
+          # signed. The signature is the .sig's text, which the app checks against its pubkey.
+          release="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases"
+          jq -n --arg version "$version" --arg notes "$release/tag/$TAG" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg url "$release/download/$TAG/$update" \
+            --rawfile signature "$bundle/macos/humanize.app.tar.gz.sig" \
+            '{version: $version, notes: $notes, pub_date: $date,
+              platforms: ({url: $url, signature: ($signature | rtrimstr("\n"))} as $at
+                | {"darwin-aarch64": $at, "darwin-x86_64": $at})}' > ../dist/latest.json
 
+      # The disk image, and the update where there is one.
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: dist/*.dmg
+          subject-path: dist/humanize-*
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -184,7 +208,7 @@ jobs:
           name: dist
           path: dist/
 
-      # The disk image beside the wheel and the sdist.
+      # The disk image beside the wheel and the sdist, and the update with its latest.json.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: desktop
