@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The app's own page, which asks the app's own commands alone: they need no permission, and no page is granted any.",
+  "description": "The app's own page: its own commands need no permission, and it is granted only to drag and zoom the window.",
   "windows": ["main"],
-  "permissions": []
+  "permissions": ["core:window:allow-start-dragging", "core:window:allow-internal-toggle-maximize"]
 }

@@ -8,6 +8,7 @@ import { shut, stays } from '../app.js'
 import { nameOf, workspaces } from '../places.js'
 import { epicMenu } from '../sidebar.js'
 import { menuOn } from '../ui.js'
+import { dragged } from '../shell.js'
 import { ago, badge, flowName, empty, fill, h, headline, icon, iconButton, lasting, settled, when } from '../dom.js'
 
 /** How a run can have ended, in the order the filter offers them. */
@@ -42,7 +43,8 @@ export function mount(root, { query }) {
   root.setAttribute('aria-label', 'Search epics')
   fill(
     root,
-    h('div', { class: 'dialog-head' }, icon('search'), search, iconButton('close', 'Close', { onclick: shut })),
+    // The top row of a narrow window, which it fills.
+    dragged(h('div', { class: 'dialog-head' }, icon('search'), search, iconButton('close', 'Close', { onclick: shut }))),
     h('div', { class: 'dialog-filters' }, statuses, places, flows),
     body,
     foot,

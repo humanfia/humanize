@@ -43,6 +43,8 @@ The app is a window, not a second humanize. It runs the `hmz` you installed, as
   `hmz web` too. However the app ends, `hmz web` goes with it.
 - **Your epics outlive it**, as they outlive `hmz web`: quitting the app leaves an epic going.
   See [Leaving it running](/user/leaving).
+- **The page is the whole window**, up to its top edge, with the window's buttons over the
+  sidebar's top. Drag the window by any empty part of the top row, and double-click it to zoom.
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
   in the Finder.
 - **It updates itself.** See [Updates](#updates).

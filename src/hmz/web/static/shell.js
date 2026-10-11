@@ -7,6 +7,8 @@ import { h, icon, iconButton } from './dom.js'
 
 const app = () => document.querySelector('.app')
 const narrow = matchMedia('(max-width: 860px)')
+/** Whether the page is the macOS app's window, as theme.js found before the page was drawn. */
+const inApp = document.documentElement.dataset.shell === 'macos'
 
 /** Reads a choice this browser keeps, or the default where it keeps none or cannot. */
 export function kept(name, otherwise) {
@@ -48,15 +50,27 @@ export function settleSidebar() {
   document.querySelector('.scrim').hidden = true
 }
 
+/**
+ * A row along the top of the window, which in the macOS app's window moves it where it is
+ * dragged, and zooms it where it is double-clicked, by anything in it but what is clicked:
+ * `deep` for all it holds, `''` for itself alone, `'false'` for none of what it holds.
+ */
+export function dragged(el, how = 'deep') {
+  if (inApp) el.setAttribute('data-tauri-drag-region', how)
+  return el
+}
+
 /** The bar over a view: what it is, and what can be done to it. */
 export function bar({ title = '', sub = null, actions = [], lead = null } = {}) {
-  return h(
-    'header',
-    { class: 'bar', 'data-hmz': 'bar' },
-    iconButton('sidebar', 'Show sidebar', { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
-    lead,
-    h('div', { class: 'bar-title' }, title ? h('h1', {}, title) : null, sub ? h('div', { class: 'bar-sub' }, sub) : null),
-    h('div', { class: 'bar-actions' }, actions),
+  return dragged(
+    h(
+      'header',
+      { class: 'bar', 'data-hmz': 'bar' },
+      iconButton('sidebar', 'Show sidebar', { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
+      lead,
+      h('div', { class: 'bar-title' }, title ? h('h1', {}, title) : null, sub ? h('div', { class: 'bar-sub' }, sub) : null),
+      h('div', { class: 'bar-actions' }, actions),
+    ),
   )
 }
 
@@ -92,7 +106,8 @@ export function menu(anchor, items, { align = 'start', up = false, label }) {
   }
   anchor.addEventListener('click', () => {
     if (open) return close()
-    open = h('div', { class: ['popover', up && 'up', align === 'end' && 'end'], role: 'menu', 'aria-label': label }, items(close))
+    // Not what the window is dragged by, though it opens in a row that is.
+    open = dragged(h('div', { class: ['popover', up && 'up', align === 'end' && 'end'], role: 'menu', 'aria-label': label }, items(close)), 'false')
     anchor.after(open)
     anchor.setAttribute('aria-expanded', 'true')
     document.addEventListener('pointerdown', outside, true)

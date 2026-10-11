@@ -13,7 +13,7 @@ import { ago, badge, flowName, pathText, confirming, copier, empty, fill, h, hea
 import { ask } from '../held.js'
 import { live, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
-import { bar, keep, kept, sidePanel, tabbed } from '../shell.js'
+import { bar, dragged, keep, kept, sidePanel, tabbed } from '../shell.js'
 import { epicMenu } from '../sidebar.js'
 import { copy, menuOn } from '../ui.js'
 import { saidTraced, sayer } from '../transcript.js'
@@ -322,11 +322,13 @@ export function mount(root, { parts, query }) {
     region('panel-tabs', [tabs, tab], () => {
       fill(
         panel.body,
-        tabbed(tabs, tab, (key) => {
-          tab = key
-          for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
-          draw()
-        }),
+        dragged(
+          tabbed(tabs, tab, (key) => {
+            tab = key
+            for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
+            draw()
+          }),
+        ),
         h('div', { class: 'panel-pane' }),
       )
       for (const one of Object.keys(drawn)) if (one.startsWith('panel-') && one !== 'panel-tabs') drawn[one] = undefined

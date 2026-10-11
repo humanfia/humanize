@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "page",
+  "description": "hmz web's page, on whichever port of this machine the app started it, the window loading no other: granted only to drag and zoom the window by its top row, and none of the app's commands.",
+  "windows": ["main"],
+  "remote": { "urls": ["http://127.0.0.1:*"] },
+  "permissions": ["core:window:allow-start-dragging", "core:window:allow-internal-toggle-maximize"]
+}

@@ -153,5 +153,7 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST draw in humanize's own colours and type, light or dark as the browser asks or as chosen,
   MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
   to be reduced.
+- MUST draw its chrome around the window controls of the desktop app when it is shown in it,
+  and nothing else differently.
 - MUST make every view an address that can be kept and opened again, and MUST say, rather than
   hide, a refusal where it happened.
