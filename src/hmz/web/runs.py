@@ -1,16 +1,17 @@
-"""The runs of this workspace as their epics wrote them down: the list, one run, its trace.
+"""Every run on this machine as its epic wrote it down: the list, one run, its trace.
 
 What a page reads of a run that is over, or of the one going, as far as the epic says it:
 which flow, on what, with which agents, how it ended and what it spent, the tree of flows it
 called and the sessions it opened -- and, read back out of the logs those sessions kept, what
-each of them said and did. The run going now is also followed live (`held`); this is what is
-written down of it.
+each of them said and did -- of every workspace, since the daemon holds every workspace's runs.
+The run going in a workspace is also followed live (`held`); this is what is written down of it.
 """
 
 from __future__ import annotations
 
 import contextlib
 import datetime
+import functools
 import shutil
 import tempfile
 import threading
@@ -22,6 +23,7 @@ from .routing import Download, Refusal, routes
 if TYPE_CHECKING:
     from hmz.runtime.epic import Called, Ran
 
+    from .places import Places
     from .routing import Asked
 
 __all__ = ["ROUTES", "Runs"]
@@ -48,52 +50,88 @@ _TOLD = 240
 
 
 class Runs:
-    """The runs of one workspace, read off the disk and kept until they change there.
+    """The runs of every workspace, read off the disk and kept until they change there.
 
     Args:
-      hmz: humanize, for the workspace.
+      places: Every workspace, for humanize in the one a run was run in.
     """
 
-    def __init__(self, hmz: Any) -> None:
-        self._epics = hmz.epics
+    def __init__(self, places: Places) -> None:
+        self._places = places
         self._lock = threading.Lock()
         self._read: dict[Path, tuple[tuple[int, int], Ran | None]] = {}
         self._traced: dict[Path, tuple[tuple[int, int], list[dict[str, Any]]]] = {}
 
-    def all(self) -> list[Ran]:
-        """Every run of the workspace that reads as one, newest first."""
-        held = [one for at in reversed(self._epics.all()) if (one := self.read(at))]
-        with self._lock:
-            # What the disk no longer has is not kept either.
-            for gone in set(self._read) - {one.at for one in held}:
-                del self._read[gone]
+    def all(self, workspace: str = "") -> list[Ran]:
+        """Every run that reads as one, newest first: of every workspace, or of one.
+
+        Args:
+          workspace: Only the runs of this workspace, by its path, or "" for every one's.
+        """
+        wanted = _resolved(workspace) if workspace else ""
+        held = [
+            one
+            for at in reversed(_epics())
+            if (one := self.read(at))
+            and (not wanted or _resolved(one.workspace) == wanted)
+        ]
+        if not wanted:
+            with self._lock:
+                # What the disk no longer has is not kept either.
+                for gone in set(self._read) - {one.at for one in held}:
+                    del self._read[gone]
         return held
+
+    def workspaces(self) -> list[dict[str, Any]]:
+        """Every workspace there is to offer, with how many runs it has and when it last ran."""
+        runs = self.all()
+        running = self._places.running()
+        mine: dict[str, list[Ran]] = {}
+        for ran in runs:
+            mine.setdefault(_resolved(ran.workspace), []).append(ran)
+        return [
+            {
+                "path": where,
+                "name": Path(where).name or where,
+                "epics": len(mine.get(where, [])),
+                "last": mine[where][0].began if mine.get(where) else "",
+                "running": where in running,
+                "here": where == str(self._places.here),
+                "there": Path(where).is_dir(),
+            }
+            for where in self._places.known(list(mine))
+        ]
 
     def read(self, epic: Path) -> Ran | None:
         """One run, read again only where its record has changed since it was last read."""
+        from hmz.runtime.epic import read
+
         stamp = _stamp(epic)
         with self._lock:
             kept = self._read.get(epic)
         if kept is not None and kept[0] == stamp:
             return kept[1]
-        ran = self._epics.read(epic)
+        ran = read(epic)
         with self._lock:
             self._read[epic] = (stamp, ran)
         return ran
 
     def named(self, name: str) -> Ran:
-        """One run, by the name of its epic.
+        """One run, by the name of its epic, of whichever workspace it was run in.
 
         Raises:
-          Refusal: If this workspace has no run of that name.
+          Refusal: If no workspace has a run of that name.
         """
-        epic = self._epics.under() / name
-        if "/" in name or name.startswith(".") or not epic.is_dir():
-            raise Refusal(f"There is no run {name} here.", 404)
-        ran = self.read(epic)
-        if ran is None:
-            raise Refusal(f"There is no run {name} here.", 404)
-        return ran
+        if "/" in name or name.startswith(".") or not name:
+            raise Refusal(f"There is no epic {name}.", 404)
+        for epic in _epics():
+            if epic.name == name and (ran := self.read(epic)) is not None:
+                return ran
+        raise Refusal(f"There is no epic {name}.", 404)
+
+    def hmz(self, ran: Ran) -> Any:
+        """humanize, for the workspace a run was run in -- there still or not."""
+        return self._places.of(ran.workspace or str(self._places.here), made=True).hmz
 
     def traced(self, ran: Ran) -> list[dict[str, Any]]:
         """What each session of a run said and did, read back out of the logs it kept.
@@ -112,7 +150,7 @@ class Runs:
 
         # Gathered where nothing keeps it: reading a run must not leave a file in it.
         with tempfile.TemporaryDirectory(dir=machine()) as scratch:
-            _, document = self._epics.traced(
+            _, document = self.hmz(ran).epics.traced(
                 ran.at, output=Path(scratch) / "trace.json"
             )
         said = sessions_of(document)
@@ -131,38 +169,43 @@ class Runs:
 
         scratch = Path(tempfile.mkdtemp(dir=machine()))
         try:
-            at, _ = self._epics.bundled(ran.at, output=scratch)
+            at, _ = self.hmz(ran).epics.bundled(ran.at, output=scratch)
         except Exception:
             shutil.rmtree(scratch, ignore_errors=True)
             raise
         return Download(at, at.name, "application/gzip", gone=True)
 
 
-def held_by(runs: list[Ran], standing: dict[str, Any] | None) -> Ran | None:
-    """Which of the runs written down is the run the host is going with now, if any is.
+def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> set[Path]:
+    """Which of the runs written down are the runs the hosts are going with now.
 
-    The host says what it started and when, and the epic says what it was opened for and when
-    it was opened: the newest run of that flow, on that task, opened within a moment of that
-    start and not yet ended, is it.
+    A host says what it started and when -- or, asked from outside, which flow -- and the epic
+    says what it was opened for, where and when: the newest run of that flow, in that
+    workspace, on that task and opened within a moment of that start where those are said,
+    and not yet ended, is it.
 
     Args:
       runs: The runs, newest first.
-      standing: The `run` the host last said.
+      running: What each host says runs, by its workspace.
 
     Returns:
-      The run, or None where nothing is going.
+      Each run going, by its epic.
     """
-    if not standing or standing.get("state") not in ("running", "stopping"):
-        return None
-    started = float(standing.get("at") or 0.0)
-    for ran in runs:
-        if ran.ended or ran.flow != standing.get("flow"):
-            continue
-        if ran.task != standing.get("task"):
-            continue
-        if abs(_epoch(ran.began) - started) <= _SAME:
-            return ran
-    return None
+    held: set[Path] = set()
+    for workspace, standing in running.items():
+        started = float(standing.get("at") or 0.0)
+        for ran in runs:
+            if ran.ended or ran.flow != standing.get("flow"):
+                continue
+            if _resolved(ran.workspace) != workspace:
+                continue
+            if standing.get("task") and ran.task != standing.get("task"):
+                continue
+            if started and abs(_epoch(ran.began) - started) > _SAME:
+                continue
+            held.add(ran.at)
+            break
+    return held
 
 
 def row(ran: Ran, *, held: bool) -> dict[str, Any]:
@@ -170,6 +213,7 @@ def row(ran: Ran, *, held: bool) -> dict[str, Any]:
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
     return {
         "name": ran.name,
+        "workspace": _resolved(ran.workspace),
         "flow": ran.flow,
         "task": first[:_TOLD] + ("…" if len(first) > _TOLD else ""),
         "began": ran.began,
@@ -395,12 +439,12 @@ def _epoch(stamp: str) -> float:
 
 
 def _listed(asked: Asked) -> dict[str, Any]:
-    runs = asked.site.runs.all()
-    held = held_by(runs, asked.site.held.standing("run"))
+    runs = asked.site.runs.all(asked.query.get("workspace", ""))
+    held = held_by(runs, asked.site.places.running())
     status = asked.query.get("status", "")
     flow = asked.query.get("flow", "")
     wanted = asked.query.get("q", "").casefold()
-    rows = [row(ran, held=ran is held) for ran in runs]
+    rows = [row(ran, held=ran.at in held) for ran in runs]
     counts: dict[str, int] = {}
     for one in rows:
         counts[one["how"]] = counts.get(one["how"], 0) + 1
@@ -434,10 +478,11 @@ def _listed(asked: Asked) -> dict[str, Any]:
 def _one(asked: Asked) -> dict[str, Any]:
     runs = asked.site.runs
     ran = runs.named(asked.matched["name"])
-    held = held_by(runs.all(), asked.site.held.standing("run"))
-    picks_up = asked.site.hmz.epics.picks_up(ran.at)
-    return detail(ran, held=ran == held, picks_up=picks_up) | {
-        "calls": calls(asked.site.hmz.epics.tree(ran.at))
+    held = held_by(runs.all(ran.workspace), asked.site.places.running())
+    hmz = runs.hmz(ran)
+    picks_up = hmz.epics.picks_up(ran.at)
+    return detail(ran, held=ran.at in held, picks_up=picks_up) | {
+        "calls": calls(hmz.epics.tree(ran.at))
     }
 
 
@@ -457,7 +502,8 @@ def _usage(asked: Asked) -> dict[str, Any]:
     except ValueError as why:
         raise Refusal("days is a whole number.") from why
     now = datetime.datetime.now(datetime.UTC)
-    return {"days_back": days} | spending(asked.site.runs.all(), days, now)
+    runs = asked.site.runs.all(asked.query.get("workspace", ""))
+    return {"days_back": days} | spending(runs, days, now)
 
 
 #: What a page reads of the runs written down here.
@@ -468,3 +514,22 @@ ROUTES = routes(
     ("GET", "/api/runs/{name}/bundle", _bundle),
     ("GET", "/api/usage", _usage),
 )
+
+
+def _epics() -> list[Path]:
+    """Every epic of every workspace, oldest first: each is named for when it began."""
+    from hmz import home
+    from hmz.runtime.epic import JOURNAL
+
+    found: list[Path] = []
+    with contextlib.suppress(OSError):
+        for under in (home() / "epics").iterdir():
+            with contextlib.suppress(OSError):
+                found += [one for one in under.iterdir() if (one / JOURNAL).is_file()]
+    return sorted(found, key=lambda one: one.name)
+
+
+@functools.cache
+def _resolved(workspace: str) -> str:
+    """A workspace's path as one is compared with another: whole, with every link followed."""
+    return str(Path(workspace).expanduser().resolve()) if workspace else ""

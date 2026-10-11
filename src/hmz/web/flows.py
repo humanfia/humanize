@@ -2,7 +2,8 @@
 
 What a page needs to start a run: the flows on offer and where each came from, one flow's
 roles, params and budget as it declares them and as this workspace last set them up, and the
-backends installed here with the models each says it runs.
+backends installed here with the accounts each runs as and the models each says it runs
+as which.
 """
 
 from __future__ import annotations
@@ -38,7 +39,11 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
         flow = hmz.flows.declared(name)
     except Exception as why:
         raise Refusal(f"{name} cannot be set up: {why}", 404) from why
-    settings = hmz.settings
+    from hmz import daemon
+
+    # Afresh, as what a workspace remembers is written by its runs as well as by this.
+    settings = daemon.Hmz(hmz.workspace).settings
+    installed = sorted(hmz.installed())
     return {
         "name": name,
         "ref": flow.ref,
@@ -53,6 +58,8 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
                 "harness": str(role.harness or ""),
                 "permission": asdict(role.permission),
                 "skills": list(role.skills),
+                # The backends installed here that could fill it, in the order offered.
+                "clis": [cli for cli in installed if hmz.serves(cli, role)],
             }
             for role in flow.agents
         ],
@@ -81,8 +88,13 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
     }
 
 
+def _hmz(asked: Asked) -> Any:
+    """humanize, for the workspace a request names, or where the interface started."""
+    return asked.site.places.of(asked.query.get("workspace", "")).hmz
+
+
 def _flows(asked: Asked) -> dict[str, Any]:
-    hmz = asked.site.hmz
+    hmz = _hmz(asked)
     return {
         "flows": [
             {"whose": one.whose, "name": one.name, "about": one.about}
@@ -103,7 +115,7 @@ def _flows(asked: Asked) -> dict[str, Any]:
 
 
 def _flow(asked: Asked) -> dict[str, Any]:
-    hmz = asked.site.hmz
+    hmz = _hmz(asked)
     name = asked.query.get("name", "")
     if not name:
         raise Refusal("Say which flow, as name.")
@@ -115,17 +127,37 @@ def _flow(asked: Asked) -> dict[str, Any]:
 
 
 def _backends(asked: Asked) -> dict[str, Any]:
-    hmz = asked.site.hmz
+    hmz = _hmz(asked)
+    accounts = hmz.accounts
 
-    def said(found: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    def models(cli: str, name: str) -> list[dict[str, Any]]:
+        return [
+            {"name": one.name, "efforts": list(one.efforts)}
+            for one in accounts.models(cli, name)
+        ]
+
+    def held(cli: str) -> dict[str, Any]:
+        # This machine's own sign-in first, as `as local`, then every account made for it.
+        names = ["", *(one.name for one in accounts.all(cli))]
         return {
-            cli: [
-                {"name": model.name, "efforts": list(model.efforts)} for model in models
+            "accounts": [
+                {
+                    "name": name,
+                    "models": models(cli, name),
+                    "asked": accounts.asked(cli, name),
+                }
+                for name in names
             ]
-            for cli, models in found.items()
         }
 
-    return {"installed": said(hmz.installed()), "installable": said(hmz.installable())}
+    return {
+        "clis": {cli: held(cli) for cli in hmz.installed()},
+        "installable": {
+            cli: [{"name": one.name, "efforts": list(one.efforts)} for one in found]
+            for cli, found in hmz.installable().items()
+        },
+        "envs": hmz.runtimes.kinds(),
+    }
 
 
 #: What a page reads of the flows here and the agents that can run them.

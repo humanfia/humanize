@@ -10,6 +10,7 @@ way that is answers alone, and says where the others are made.
 
 from __future__ import annotations
 
+import subprocess
 from typing import TYPE_CHECKING, Any
 
 from .routing import Refusal, routes
@@ -137,7 +138,10 @@ def _models(asked: Asked) -> dict[str, Any]:
         raise Refusal(str(why)) from why
     if found is None:
         raise Refusal(f"{cli} has no account called {name or 'of this machine'}.", 404)
-    hmz.accounts.ask(cli, name)
+    try:
+        hmz.accounts.ask(cli, name)
+    except (ValueError, OSError, subprocess.TimeoutExpired) as why:
+        raise Refusal(f"{cli} would not say what it runs: {why}", 502) from why
     return listed(hmz)
 
 

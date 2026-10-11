@@ -2003,16 +2003,6 @@ def declared_of(flow: str) -> Declared | None:
     )
 
 
-def _harness(backend: str) -> str:
-    """Which harness a CLI is, as the flow API names it: its own name, or `acp`."""
-    from hmz.flows import HarnessKind
-
-    try:
-        return HarnessKind(backend).value
-    except ValueError:
-        return HarnessKind.ACP.value
-
-
 def serves(backend: str, role: AgentRole | None) -> bool:
     """Whether one CLI could fill an agent role, as a run of the flow would ask it.
 
@@ -2025,15 +2015,9 @@ def serves(backend: str, role: AgentRole | None) -> bool:
       False for a CLI that is not the harness the role names, or that cannot do what the
       role declares it must; True otherwise.
     """
-    if role is None:
-        return True
-    from hmz.flows import HarnessKind
-    from hmz.runtime.flowing import HARNESS_CAPABILITIES
+    from hmz.runtime.flowing import serves as serving
 
-    harness = HarnessKind(_harness(backend))
-    if role.harness is not None and harness != role.harness:
-        return False
-    return role.capabilities <= HARNESS_CAPABILITIES[harness]
+    return serving(backend, role)
 
 
 def opens_on(

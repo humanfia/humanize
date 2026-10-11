@@ -12,12 +12,16 @@ no file is named for is bound by the nearest one above it.
 def home() -> pathlib.Path: ...  # ~/.hmz
 def here() -> pathlib.Path: ...  # .hmz, relative to the directory being run in
 def machine() -> pathlib.Path: ...
+@contextlib.contextmanager
+def working_in(workspace: str | os.PathLike[str]) -> Generator[None]: ...  # `here` is under it
 ```
 
 - `home` MUST answer where humanize keeps what outlives one run of one flow, MUST be
   overridable per machine by `HUMANIZE_HOME`, and MUST NOT create the directory.
 - `here` MUST answer where humanize keeps what is one project's own, and MUST NOT create the
-  directory.
+  directory: of the directory being run in, or -- inside `working_in` -- of the workspace it
+  names, for that thread and whatever it calls alone, so that one process may serve every
+  workspace on a machine.
 - `machine` MUST answer where humanize keeps what is this machine's alone, and what it can
   make again -- a cache, a scratch copy, a fetched list -- which a cleaner of temporary files
   may take: one directory per user in the machine's temporary directory, never in `home`,
@@ -29,7 +33,7 @@ def machine() -> pathlib.Path: ...
   used -- and a move that fails MUST NOT be an error. `home` MUST NOT move anything where
   `HUMANIZE_HOME` is set, nor `here` a home: `~/.humanize`, which is `home`'s to move, or the
   directory `HUMANIZE_HOME` names.
-- The top of the package MUST expose `home`, `here` and `machine` and nothing else.
+- The top of the package MUST expose `home`, `here`, `machine` and `working_in` and nothing else.
 
 ## Packages
 

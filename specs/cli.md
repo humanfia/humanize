@@ -93,11 +93,12 @@ def tools(argv: list[str]) -> int: ...
   none is; with no terminal on both ends it MUST hold the runs in this process. `APART` MUST refuse
   holding for a whole machine, anything else that stops the runs being held MUST be said and then
   done without, and runs held by an older humanize MUST be said to be and left alone.
-- `hmz web` MUST serve the web interface until it is interrupted, holding the runs as the
-  terminal interface does -- apart where `APART` allows, in this process where it refuses --,
-  MUST print the address it listens at, key and all, on a line of its own, MUST open a browser
-  on it unless told `--no-open`, and MUST exit zero once interrupted and one, saying why, where
-  the runs or the port cannot be had or an older humanize holds the runs.
+- `hmz web` MUST serve the web interface until it is interrupted, of every workspace on this
+  machine wherever it is started -- that directory offered first for a new epic -- holding the
+  runs as the terminal interface does -- apart where `APART` allows, in this process where it
+  refuses --, MUST print the address it listens at, key and all, on a line of its own, MUST open
+  a browser on it unless told `--no-open`, and MUST exit zero once interrupted and one, saying
+  why, where the port cannot be had.
 - MUST settle whether escapes may be written in one place: `NO_COLOR` MUST win over everything, then
   `TERM=dumb`, then `FORCE_COLOR`, and otherwise whether a terminal is reading. `FORCE_COLOR` MUST NOT
   make a run believe somebody is watching it, and `rich` MUST NOT be reached until escapes are wanted.

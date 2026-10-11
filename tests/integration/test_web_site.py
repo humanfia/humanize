@@ -42,7 +42,7 @@ def test_a_browser_is_let_in_by_the_key_it_was_printed_and_nothing_else(
         assert "SameSite=Strict" in signed.headers["set-cookie"]
         held = browser.get("/api/held")
         assert held.status == 200
-        assert held.json()["workspace"] == str(project)
+        assert held.json()["here"] == str(project.resolve())
 
 
 def test_any_name_this_machine_is_reached_by_is_answered_but_only_with_the_key(

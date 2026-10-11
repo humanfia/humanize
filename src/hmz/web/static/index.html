@@ -12,9 +12,13 @@
   </head>
   <body>
     <a class="skip" href="#page">Skip to the page</a>
-    <header class="topbar" data-hmz="topbar"></header>
-    <main id="page" class="page" tabindex="-1" data-hmz="page">
-      <p class="loading" role="status">Opening humanize…</p>
-    </main>
+    <div class="app" data-hmz="app">
+      <aside class="sidebar" id="sidebar" aria-label="Epics" data-hmz="sidebar"></aside>
+      <div class="scrim" data-hmz="scrim" hidden></div>
+      <main id="page" class="main" tabindex="-1" data-hmz="page">
+        <p class="loading" role="status">Opening humanize…</p>
+      </main>
+    </div>
+    <div class="overlay" data-hmz="overlay" hidden></div>
   </body>
 </html>

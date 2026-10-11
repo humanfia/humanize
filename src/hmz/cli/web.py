@@ -1,8 +1,9 @@
-"""``hmz web`` -- this directory's runs, in a browser on this machine.
+"""``hmz web`` -- every workspace's runs on this machine, in a browser on it.
 
-The web interface is one more frontend of the runs a host holds here, as the terminal interface
-is: what this line does is serve it, say where, and open a browser on it, until it is
-interrupted. The runs go on without it, as they go on without a terminal.
+The web interface is one more frontend of the runs the daemon holds, as the terminal interface
+is -- of every workspace's, as the daemon holds every workspace's: what this line does is serve
+it, say where, and open a browser on it, until it is interrupted. The runs go on without it, as
+they go on without a terminal. Where it is started is only where a new epic is offered first.
 """
 
 from __future__ import annotations
@@ -59,8 +60,8 @@ def web(argv: list[str], *, apart: bool) -> int:
 
     parser = argparse.ArgumentParser(
         prog="hmz web",
-        description="Serve this directory's runs to a browser on this machine, until "
-        "interrupted. The runs carry on without it.",
+        description="Serve every workspace's epics on this machine to a browser on it, until "
+        "interrupted; a new epic is offered this directory first. The runs carry on without it.",
     )
     parser.add_argument(
         "--port",

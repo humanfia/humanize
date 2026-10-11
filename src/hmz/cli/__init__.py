@@ -544,7 +544,7 @@ INTERNAL = {
 #: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
-    "web": (_web, "open this directory's runs in a browser on this machine"),
+    "web": (_web, "open this machine's epics in a browser on it"),
     "internal": (_internal, "internal commands used by humanize; do not run directly"),
 }
 

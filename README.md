@@ -28,7 +28,7 @@ Open the terminal interface in a repository:
 hmz
 ```
 
-Or open the same runs in a browser on this machine:
+Or open every epic on this machine in a browser:
 
 ```sh
 hmz web

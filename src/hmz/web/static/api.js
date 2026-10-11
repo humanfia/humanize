@@ -85,7 +85,9 @@ export function refresh(url) {
 
 async function fetchNow(read) {
   clearTimeout(read.timer)
-  if (document.hidden) return
+  // A page nobody looks at reads nothing again until looked at -- but what it has never read
+  // it reads, so a page opened in a tab behind is drawn once it is looked at.
+  if (document.hidden && read.text !== undefined) return
   try {
     const response = await fetch(read.url, { headers: { Accept: 'application/json' } })
     const text = await response.text()
