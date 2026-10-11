@@ -9,7 +9,7 @@ import { copy, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.js'
 import { sessionsOf } from './epic.js'
 import { nameOf } from './places.js'
-import { choice, keep, kept, menu, section, settleSidebar, toggleSidebar } from './shell.js'
+import { choice, dragged, keep, kept, menu, section, settleSidebar, toggleSidebar } from './shell.js'
 
 /** How many epics a page of the list holds. */
 const PAGE = 60
@@ -53,11 +53,13 @@ export function mountSidebar(root, context, where) {
   )
   fill(
     root,
-    h(
-      'div',
-      { class: 'side-top' },
-      h('a', { class: 'brand', href: '#/new', 'aria-label': 'humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
-      iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
+    dragged(
+      h(
+        'div',
+        { class: 'side-top' },
+        h('a', { class: 'brand', href: '#/new', 'aria-label': 'humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
+        iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
+      ),
     ),
     h(
       'div',
@@ -69,6 +71,8 @@ export function mountSidebar(root, context, where) {
     h('div', { class: 'side-scroll' }, list, more),
     h('div', { class: 'side-foot' }, account),
   )
+  // The band across its top, above the row.
+  dragged(root, '')
   root.addEventListener('click', (event) => {
     if (event.target.closest('a[href]')) settleSidebar()
   })

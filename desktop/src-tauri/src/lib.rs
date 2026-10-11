@@ -5,6 +5,7 @@
 
 mod alert;
 mod child;
+mod chrome;
 mod install;
 mod menu;
 mod server;
@@ -38,7 +39,7 @@ const OWN: &str = "tauri://localhost/";
 
 /// The page's paper, `--paper` in hmz's style.css, light and dark: what the window is drawn in
 /// before a page is, so it never flashes white.
-const PAPER: (Color, Color) = (Color(0xf5, 0xed, 0xf0, 0xff), Color(0x1c, 0x1a, 0x21, 0xff));
+const PAPER: (Color, Color) = (Color(0xf4, 0xf8, 0xf9, 0xff), Color(0x0f, 0x14, 0x18, 0xff));
 
 /// How often an update waiting for epics to end looks whether they have.
 const WAITING: Duration = Duration::from_secs(2);
@@ -282,7 +283,9 @@ fn paper(theme: Theme) -> Color {
 fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let guarded = app.clone();
     let downloads = app.clone();
-    let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
+    let version = app.package_info().version.to_string();
+    let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()));
+    let window = chrome::dress(window, &version)
         .title("humanize")
         .inner_size(1280.0, 820.0)
         .min_inner_size(640.0, 480.0)
@@ -306,9 +309,10 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             let _ = window.set_title(&title);
         })
         // Up to its path alone: the first address `hmz web`'s page is opened on carries its key.
-        .on_page_load(|_, page| {
+        .on_page_load(|window, page| {
             if page.event() == PageLoadEvent::Finished {
                 log::info!("the window shows {}", &page.url()[..Position::BeforePath]);
+                chrome::tell(&window);
             }
         })
         .on_download(move |_, event| {
@@ -405,6 +409,7 @@ pub fn run() {
             WindowEvent::ThemeChanged(theme) => {
                 let _ = window.set_background_color(Some(paper(*theme)));
             }
+            WindowEvent::Resized(_) => chrome::resized(window),
             _ => {}
         })
         .build(tauri::generate_context!());

@@ -5,6 +5,7 @@
 
 import { shut } from '../app.js'
 import { fill, h, iconButton, problem } from '../dom.js'
+import { dragged } from '../shell.js'
 
 /** Every page, by the word in the address that opens it. */
 const PAGES = {
@@ -24,11 +25,14 @@ export function mount(root, { parts, query }) {
   root.setAttribute('aria-label', 'Settings')
   fill(
     root,
-    h(
-      'nav',
-      { class: 'settings-nav', 'aria-label': 'Settings pages' },
-      h('h2', {}, 'Settings'),
-      Object.entries(PAGES).map(([key, one]) => h('a', { href: `#/settings/${key}`, 'aria-current': key === name ? 'page' : null }, one.label)),
+    // The top row of a narrow window, which it fills.
+    dragged(
+      h(
+        'nav',
+        { class: 'settings-nav', 'aria-label': 'Settings pages' },
+        h('h2', {}, 'Settings'),
+        Object.entries(PAGES).map(([key, one]) => h('a', { href: `#/settings/${key}`, 'aria-current': key === name ? 'page' : null }, one.label)),
+      ),
     ),
     h(
       'div',

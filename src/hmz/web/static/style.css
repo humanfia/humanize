@@ -3333,3 +3333,34 @@ details.said-more summary {
     transition: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ the macOS app's window */
+
+/* There the page runs to the window's top edge, and the window's traffic lights stand over its
+   top left, centred on the top row: what is drawn first along it starts past them -- the
+   sidebar's top row, or the bar over the view where the sidebar is folded away or a drawer, or a
+   dialog that fills a narrow window -- and full screen, where they are gone, the page is drawn
+   as anywhere else. */
+:root[data-shell='macos']:not([data-fullscreen]) {
+  --lights: 80px;
+}
+
+:root[data-shell='macos']:not([data-fullscreen]) .side-top {
+  padding: 7px 10px 13px calc(var(--lights) + 6px);
+}
+
+:root[data-shell='macos']:not([data-fullscreen]) .side-folded .bar {
+  padding-left: var(--lights);
+}
+
+@media (max-width: 860px) {
+  :root[data-shell='macos']:not([data-fullscreen]) :is(header.bar, .settings-nav, .dialog-head) {
+    padding-left: var(--lights);
+  }
+}
+
+/* What the window is dragged by is not text to select. */
+[data-tauri-drag-region='deep'] {
+  -webkit-user-select: none;
+  user-select: none;
+}

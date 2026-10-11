@@ -12,6 +12,7 @@ running behind it, and keeping itself up to date.
 humanize.app      ai.humanfia.humanize, macOS 11 or later, on Apple silicon and Intel
   runs            hmz web --no-open --attached --port <the port it had last, or 0>
   in              $HOME, with the environment a login shell gives this account
+  says            WKWebView's user agent, then humanize-desktop/<version>
   installs        uv tool install --force --python '>=3.12' --refresh-package hmz
                   hmz[<its extras>]==<its version>
                   with the first uv that answers `uv tool dir --bin` of $PATH, ~/.local/bin,
@@ -105,11 +106,19 @@ either: it runs the first `hmz` it finds.
 - MUST put a download in `~/Downloads`, under the name the page gave it -- numbered where that
   is taken, never over another file -- and show it in the Finder once it is saved.
 - MUST keep its size and place from one launch to the next, and MUST keep its title the page's.
+- MUST draw no title bar of its own: the page runs to the window's top edge, with the traffic
+  lights over its top row, centred on it; the window MUST be dragged by any of that row that is
+  not clicked, and zoomed where it is double-clicked, on its own page and on `hmz web`'s.
+- MUST say it is the app in its user agent, so that the page draws its top row around the
+  traffic lights from its first frame, and MUST tell the page whether the window is full
+  screen, where they are gone.
 - MUST have the menus a Mac app has -- the app's, Edit, View, Window and Help -- with Edit's
   undo, cut, copy, paste and select all, which the web view needs to have them at all; View's
   Reload, Actual Size, Zoom In, Zoom Out and Full Screen; and the documentation under Help. It
   MUST NOT take a shortcut the page binds: Cmd+K, Cmd+Shift+O and Cmd+. are the page's.
-- MUST NOT put a script of its own into `hmz web`'s page, nor grant it any of the app's commands.
+- MUST NOT put a script of its own into `hmz web`'s page but what says whether the window is
+  full screen, nor grant it any of the app's commands, nor anything but to drag and zoom the
+  window.
 
 ### Leaving
 

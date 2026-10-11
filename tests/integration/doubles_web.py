@@ -79,6 +79,8 @@ def opened(
     width: int = 1280,
     height: int = 860,
     dark: bool = False,
+    user_agent: str | None = None,
+    init: str | None = None,
 ) -> Generator[Page]:
     """The page, in a browser let in by the address, until the block ends.
 
@@ -88,6 +90,8 @@ def opened(
       width: How wide the window is: under 860, a phone's layout.
       height: How tall it is.
       dark: Whether the system the browser runs on asks for dark colours.
+      user_agent: What the browser says it is, where not its own: as the macOS app's window.
+      init: A script run in the page before any of its own.
 
     Yields:
       The page, drawn and with its sidebar up.
@@ -106,8 +110,11 @@ def opened(
             context = browser.new_context(
                 viewport={"width": width, "height": height},
                 color_scheme="dark" if dark else "light",
+                user_agent=user_agent,
             )
             context.set_default_timeout(PATIENCE * 1000)
+            if init:
+                context.add_init_script(init)
             page = context.new_page()
             failed: list[str] = []
             page.on("pageerror", lambda error: failed.append(str(error)))

@@ -25,6 +25,12 @@ if TYPE_CHECKING:
 #: Every settings page, by the word its address ends in.
 _PAGES = ("general", "accounts", "fallback", "runtimes", "workspace", "usage")
 
+#: What the macOS app's window says it is: WKWebView, and the app.
+_APP = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
+    " (KHTML, like Gecko) humanize-desktop/0.0.0"
+)
+
 pytestmark = pytest.mark.parametrize("engine", ENGINES)
 
 
@@ -193,6 +199,63 @@ def test_on_a_phone_the_sidebar_is_a_drawer(project: Path, engine: str) -> None:
         expect(sidebar).to_be_in_viewport()
         page.get_by_role("link", name="Flows").click()
         expect(sidebar).not_to_be_in_viewport()
+
+
+def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
+    project: Path, engine: str
+) -> None:
+    """The app's window draws the page to its top edge, its traffic lights over the top left."""
+    # How far across they reach, at most.
+    lights = 76
+    clicked = "a, button, input, select, textarea, summary, [role=tab]"
+
+    def left(page: Page, selector: str) -> float:
+        box = page.locator(selector).first.bounding_box()
+        assert box
+        return box["x"]
+
+    with served() as site, opened(site, engine=engine) as page:
+        assert page.evaluate("document.documentElement.dataset.shell") is None
+        expect(page.locator("[data-tauri-drag-region]")).to_have_count(0)
+        assert left(page, ".brand") < lights
+
+    # Said before the page is drawn: by the time its body is, so it never moves.
+    at_body = (
+        "new MutationObserver((_, seen) => { if (document.body) {"
+        " window.shellAtBody = document.documentElement.dataset.shell; seen.disconnect() }"
+        " }).observe(document, { childList: true, subtree: true })"
+    )
+    with (
+        served() as site,
+        opened(site, engine=engine, user_agent=_APP, init=at_body) as page,
+    ):
+        assert page.evaluate("window.shellAtBody") == "macos"
+        assert left(page, ".brand") >= lights
+        for row in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
+            expect(page.locator(row)).to_have_attribute(
+                "data-tauri-drag-region", "deep"
+            )
+        expect(page.locator(f":is({clicked})[data-tauri-drag-region]")).to_have_count(0)
+        # A menu opened in a row is not what the window is dragged by.
+        page.locator("[data-hmz=machine-menu]").click()
+        expect(page.locator("[role=menu]")).to_have_attribute(
+            "data-tauri-drag-region", "false"
+        )
+        page.keyboard.press("Escape")
+
+        page.locator(".side-fold").click()
+        assert left(page, "[data-hmz=bar] .bar-side") >= lights
+        # Full screen, where they are gone, it is drawn as in a browser.
+        page.evaluate(
+            "document.documentElement.toggleAttribute('data-fullscreen', true)"
+        )
+        assert left(page, "[data-hmz=bar] .bar-side") < lights
+
+        page.set_viewport_size({"width": 700, "height": 800})
+        page.evaluate(
+            "document.documentElement.toggleAttribute('data-fullscreen', false)"
+        )
+        assert left(page, "[data-hmz=bar] .bar-side") >= lights
 
 
 def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:

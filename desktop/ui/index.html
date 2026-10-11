@@ -1,6 +1,7 @@
 <!doctype html>
 <!-- The app's own page: a splash while hmz is installed and hmz web starts, and what went wrong
-     where it cannot. -->
+     where it cannot. The window is dragged, and zoomed, by any of it but what is clicked or
+     selected. -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -9,7 +10,7 @@
     <link rel="stylesheet" href="ui.css" />
     <script src="ui.js" defer></script>
   </head>
-  <body>
+  <body data-tauri-drag-region="deep">
     <main data-state="starting">
       <svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
         <polygon class="ink" points="12,16 32,16 62,50 32,84 12,84 42,50" />
@@ -23,7 +24,7 @@
         <p id="step"></p>
         <p id="line"></p>
       </div>
-      <pre id="detail"></pre>
+      <pre id="detail" data-tauri-drag-region="false"></pre>
       <div class="actions">
         <button class="btn primary" id="retry" type="button">Retry</button>
         <button class="btn" id="keep" type="button">Continue</button>
