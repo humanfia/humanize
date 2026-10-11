@@ -1,13 +1,18 @@
-// Themes, as an editor keeps them: humanize's own Light and Dark, and any made in this browser on
-// one of them -- a name, the colours it changes and a picture for any of the page's large
-// planes, still or drawn moving -- chosen outright or under Auto, which follows the system with
-// the theme picked for its light and the one for its dark. Each is written out whole as a
-// `.hmztheme` file, which is read back in here or in any other browser.
+// Themes, as an editor keeps them: those humanize comes with, a light and a dark of each pair,
+// and any made in this browser on Light or Dark -- a name, the colours it changes and a picture
+// for any of the page's large planes, still or drawn moving -- chosen outright or under Auto,
+// which follows the system with the theme picked for its light and the one for its dark, a pair
+// at once or any two. Each is written out whole as a `.hmztheme` file, which is read back in
+// here or in any other browser.
 //
 // What a theme changes is kept beside the choice, for theme.js to paint before the page is
-// drawn; its pictures, too large for that, are kept in the browser's database and painted after.
+// drawn -- those humanize comes with as well, while they are chosen or paired; its pictures,
+// too large for that, are kept in the browser's database and painted after.
 
+import { OWN, PAIRS } from './presets.js'
 import { keep, kept } from './shell.js'
+
+export { OWN, PAIRS }
 
 /** The colours a theme sets, by what they are of, each by its token in style.css. */
 export const COLOURS = [
@@ -31,13 +36,12 @@ export const FITS = { cover: 'Cover', contain: 'Fit', tile: 'Tile' }
 /** What a picture may be: what a browser draws as an image, an SVG's animation included. */
 const PICTURE = /^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)(;[^,]*)?,/
 
-/** humanize's own, which are never changed. */
-export const OWN = [
-  { id: 'light', name: 'Light', base: 'light', colors: {}, images: {} },
-  { id: 'dark', name: 'Dark', base: 'dark', colors: {}, images: {} },
-]
+/** A theme as a menu or a list names it: its name, and whether it is light or dark. */
+export function label(one) {
+  return `${one.name} · ${one.base === 'dark' ? 'Dark' : 'Light'}`
+}
 
-/** Every theme: humanize's own, then those made here. */
+/** Every theme: those humanize comes with, then those made here. */
 export function themes() {
   return [...OWN, ...made()]
 }
@@ -75,6 +79,32 @@ export function choose(id) {
 export function pair(scheme, id) {
   keep(`hmz-theme-${scheme}`, id === scheme ? null : id)
   paint()
+}
+
+/** The pair Auto shows, where its light and its dark are one pair's two. */
+export function pairing() {
+  const { light, dark } = paired()
+  const [one, other] = [theme(light), theme(dark)]
+  return one.pair && one.pair === other.pair && one.base === 'light' && other.base === 'dark' ? one.pair : null
+}
+
+/** Shows a pair under Auto: its light where the system is light, its dark where it is dark. */
+export function usePair(key) {
+  const [light, dark] = OWN.filter((one) => one.pair === key)
+  keep('hmz-theme-light', light.id === 'light' ? null : light.id)
+  keep('hmz-theme-dark', dark.id === 'dark' ? null : dark.id)
+  choose('auto')
+}
+
+/**
+ * Keeps those humanize comes with that are chosen or paired beside the themes made here, for
+ * theme.js, which cannot read this file before the page is drawn, to paint them.
+ */
+function hand() {
+  const { light, dark } = paired()
+  const used = new Set([chosen(), light, dark])
+  const said = JSON.stringify(OWN.filter((one) => used.has(one.id) && Object.keys(one.colors).length))
+  if (kept('hmz-painted', '[]') !== said) keep('hmz-painted', said)
 }
 
 /** Keeps a theme made here, new or changed. */
@@ -123,6 +153,7 @@ function unique(name) {
  */
 let painting = 0
 export async function paint(shown) {
+  hand()
   const mine = ++painting
   const one = window.hmzPaint(shown)
   const root = document.documentElement

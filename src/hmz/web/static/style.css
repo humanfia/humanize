@@ -28,8 +28,8 @@
   --line: rgba(20, 26, 31, 0.12);
   --line-strong: rgba(20, 26, 31, 0.28);
   --hover: rgba(31, 179, 199, 0.1);
-  --grid: rgba(20, 26, 31, 0.045);
-  --grid-major: rgba(20, 26, 31, 0.09);
+  --grid: color-mix(in srgb, var(--ink) 4.5%, transparent);
+  --grid-major: color-mix(in srgb, var(--ink) 9%, transparent);
   --scrim: rgba(20, 26, 31, 0.45);
   --green: #76b900;
   --pink: #ec6fa3;
@@ -40,7 +40,7 @@
   --gold: #d9a440;
   --live: var(--cyan);
   --live-ink: var(--cyan-ink);
-  --live-soft: rgba(31, 179, 199, 0.16);
+  --live-soft: color-mix(in srgb, var(--cyan) 16%, transparent);
   --link: var(--cyan-ink);
   --done: #2a9468;
   --fail: #cf3552;
@@ -74,8 +74,8 @@
   --line: rgba(230, 239, 241, 0.12);
   --line-strong: rgba(230, 239, 241, 0.3);
   --hover: rgba(79, 216, 234, 0.1);
-  --grid: rgba(230, 239, 241, 0.04);
-  --grid-major: rgba(230, 239, 241, 0.08);
+  --grid: color-mix(in srgb, var(--ink) 4%, transparent);
+  --grid-major: color-mix(in srgb, var(--ink) 8%, transparent);
   --scrim: rgba(0, 0, 0, 0.6);
   --green: #76b900;
   --pink: #ff94c2;
@@ -86,7 +86,7 @@
   --gold: #f2c862;
   --live: var(--cyan);
   --live-ink: var(--cyan-ink);
-  --live-soft: rgba(79, 216, 234, 0.16);
+  --live-soft: color-mix(in srgb, var(--cyan) 16%, transparent);
   --link: var(--cyan-ink);
   --done: #5fdca3;
   --fail: #ff6f88;
@@ -3396,6 +3396,23 @@ details.said-more summary {
 .theme-row.chosen {
   border-color: var(--cyan);
   box-shadow: 3px 3px 0 var(--cyan);
+}
+
+.theme-swatch-button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  outline-offset: 2px;
+}
+
+.theme-swatch-button.chosen .theme-swatch {
+  box-shadow: 3px 3px 0 var(--cyan);
+}
+
+.theme-swatch-button:hover .theme-swatch {
+  transform: translate(-1px, -1px);
 }
 
 .theme-name {

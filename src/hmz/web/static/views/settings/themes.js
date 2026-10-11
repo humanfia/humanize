@@ -1,9 +1,11 @@
-// How the page looks: the theme Auto shows for the system's light and the one for its dark,
-// every theme there is -- used, copied, written out as a `.hmztheme` file or read in from one --
-// and one made here opened to be changed: its name, what it is made on, each of its colours and
-// a picture behind any of the large planes, shown on the page as it is changed and kept at once.
+// How the page looks: the pair -- or any two themes -- Auto follows the system with, every pair
+// humanize comes with and every theme made here -- used, copied, written out as a `.hmztheme`
+// file or read in from one -- and one made here opened to be changed: its name, what it is made
+// on, each of its colours and a picture behind any of the large planes, shown on the page as it
+// is changed and kept at once.
 
 import { confirming, fill, h, iconButton, problem } from '../../dom.js'
+import { choice, menu } from '../../shell.js'
 import { menuOn, toast } from '../../ui.js'
 import * as look from '../../themes.js'
 
@@ -20,8 +22,24 @@ function shown() {
 }
 
 function list(holder) {
+  const auto = () => look.chosen() === 'auto'
+  // The pair Auto follows the system with, set at once; or its light and its dark apart.
+  const pairs = () => {
+    const now = look.pairing()
+    const select = h(
+      'select',
+      { 'aria-label': 'Auto pair', 'data-hmz': 'auto-pair' },
+      now ? null : h('option', { value: '', selected: true, disabled: true }, 'Custom'),
+      look.PAIRS.map((one) => h('option', { value: one.key, selected: now === one.key }, one.name)),
+    )
+    select.addEventListener('change', () => {
+      look.usePair(select.value)
+      redraw()
+    })
+    return select
+  }
   const pick = (scheme) => {
-    const select = h('select', { 'aria-label': `Auto ${scheme}`, 'data-hmz': `auto-${scheme}` }, look.themes().map((one) => h('option', { value: one.id, selected: look.paired()[scheme] === one.id }, one.name)))
+    const select = h('select', { 'aria-label': `Auto ${scheme}`, 'data-hmz': `auto-${scheme}` }, look.themes().map((one) => h('option', { value: one.id, selected: look.paired()[scheme] === one.id }, look.label(one))))
     select.addEventListener('change', () => {
       look.pair(scheme, select.value)
       redraw()
@@ -45,14 +63,50 @@ function list(holder) {
     const one = await look.create(from, name)
     location.hash = `/settings/themes/${one.id}`
   }
+  const use = (one) => {
+    look.choose(one.id)
+    redraw()
+  }
+  // What can be done to one theme humanize comes with or one made here.
+  const offered = (one) => [
+    { head: look.label(one) },
+    { label: 'Use', glyph: 'check', act: () => use(one) },
+    look.OWN.includes(one) ? null : { label: 'Edit', glyph: 'new', href: `#/settings/themes/${one.id}` },
+    { label: 'Duplicate', glyph: 'copy', act: () => fresh(one, `${one.name} copy`) },
+    { label: 'Export', glyph: 'download', act: () => look.exported(one) },
+  ]
+  // A button opening a choice of the pair's light or dark, for something done to one of them.
+  const either = (label, two, act) => {
+    const button = h('button', { class: 'btn quiet small', type: 'button', 'aria-label': label }, label)
+    const holding = h('span', { class: 'menu-holder' }, button)
+    menu(button, (close) => two.map((one) => choice({ label: one.base === 'dark' ? 'Dark' : 'Light', act: () => act(one), close })), { label, align: 'end' })
+    return holding
+  }
+  const pairRow = (pair) => {
+    const two = look.OWN.filter((one) => one.pair === pair.key)
+    const on = auto() && look.pairing() === pair.key
+    const node = h(
+      'div',
+      { class: ['theme-row', on && 'chosen'], 'data-hmz': 'pair', 'data-key': pair.key },
+      two.map((one) =>
+        menuOn(
+          h('button', { class: ['theme-swatch-button', look.chosen() === one.id && 'chosen'], type: 'button', title: `Use ${look.label(one)}`, 'aria-label': `Use ${look.label(one)}`, onclick: () => use(one) }, swatch(one)),
+          () => offered(one),
+        ),
+      ),
+      h('div', { class: 'theme-name' }, h('b', {}, pair.name), h('span', { class: 'dim' }, pair.heir || 'humanize', on ? ' · In use' : '')),
+      h(
+        'div',
+        { class: 'row' },
+        h('button', { class: 'btn small', type: 'button', disabled: on, onclick: () => (look.usePair(pair.key), redraw()) }, 'Use pair'),
+        either('Duplicate', two, (one) => fresh(one, `${pair.name} copy`)),
+        either('Export', two, (one) => look.exported(one)),
+      ),
+    )
+    return menuOn(node, () => [{ head: pair.name }, { label: 'Use pair', glyph: 'check', act: () => (look.usePair(pair.key), redraw()) }])
+  }
   const row = (one) => {
-    const mine = !look.OWN.includes(one)
     const on = look.chosen() === one.id
-    const edit = `#/settings/themes/${one.id}`
-    const use = () => {
-      look.choose(one.id)
-      redraw()
-    }
     const node = h(
       'div',
       { class: ['theme-row', on && 'chosen'], 'data-hmz': 'theme', 'data-id': one.id },
@@ -61,22 +115,17 @@ function list(holder) {
       h(
         'div',
         { class: 'row' },
-        h('button', { class: 'btn small', type: 'button', disabled: on, onclick: use }, 'Use'),
-        mine ? h('a', { class: 'btn quiet small', href: edit }, 'Edit') : null,
+        h('button', { class: 'btn small', type: 'button', disabled: on, onclick: () => use(one) }, 'Use'),
+        h('a', { class: 'btn quiet small', href: `#/settings/themes/${one.id}` }, 'Edit'),
         h('button', { class: 'btn quiet small', type: 'button', onclick: () => fresh(one, `${one.name} copy`) }, 'Duplicate'),
         h('button', { class: 'btn quiet small', type: 'button', onclick: () => look.exported(one) }, 'Export'),
-        mine ? confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', small: true, act: () => look.remove(one.id).then(redraw) }) : null,
+        confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', small: true, act: () => look.remove(one.id).then(redraw) }),
       ),
     )
-    return menuOn(node, () => [
-      { head: one.name },
-      { label: 'Use', glyph: 'check', act: use },
-      mine ? { label: 'Edit', glyph: 'new', href: edit } : null,
-      { label: 'Duplicate', glyph: 'copy', act: () => fresh(one, `${one.name} copy`) },
-      { label: 'Export', glyph: 'download', act: () => look.exported(one) },
-    ])
+    return menuOn(node, () => offered(one))
   }
-  const redraw = () =>
+  const redraw = () => {
+    const mine = look.themes().filter((one) => !look.OWN.includes(one))
     fill(
       holder,
       h(
@@ -86,23 +135,26 @@ function list(holder) {
         h(
           'div',
           { class: 'form' },
+          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Pair'), pairs(), h('span', { class: 'hint' }, 'A light and a dark at once, or each below.')),
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Light'), pick('light')),
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Dark'), pick('dark'), h('span', { class: 'hint' }, 'Under Auto, the page follows the system with these.')),
-          h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', disabled: look.chosen() === 'auto', onclick: () => (look.choose('auto'), redraw()) }, look.chosen() === 'auto' ? 'In use' : 'Use Auto')),
+          h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', disabled: auto(), onclick: () => (look.choose('auto'), redraw()) }, auto() ? 'In use' : 'Use Auto')),
         ),
       ),
+      h('section', { class: 'panel', 'data-hmz': 'pairs' }, h('header', {}, h('h2', {}, 'Presets')), h('div', { class: 'theme-list' }, look.PAIRS.map(pairRow))),
       h(
         'section',
         { class: 'panel', 'data-hmz': 'themes' },
         h(
           'header',
           {},
-          h('h2', {}, 'Themes'),
+          h('h2', {}, 'Yours'),
           h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => fresh(shown(), 'New theme') }, 'New'), h('button', { class: 'btn quiet small', type: 'button', onclick: () => file.click() }, 'Import'), file),
         ),
-        h('div', { class: 'theme-list' }, look.themes().map(row)),
+        mine.length ? h('div', { class: 'theme-list' }, mine.map(row)) : h('p', { class: 'dim' }, 'None yet: make one, duplicate a preset or import a file.'),
       ),
     )
+  }
   redraw()
 }
 

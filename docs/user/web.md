@@ -66,8 +66,8 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar names this machine and says how many epics are going on it;
-its menu picks the [theme](#themes) -- **Auto**, which follows your system, or any theme -- and
-opens **Themes**, **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
+its menu picks the [theme](#themes) -- **Auto**, which follows your system, and the pair it
+follows it with -- and opens **Themes**, **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
@@ -191,9 +191,30 @@ offered as `(at a terminal)` and made from `/settings` in `hmz`.
 
 ### Themes {#themes}
 
-The page is drawn in a theme: **Light** and **Dark**, humanize's own, or one you make. **Auto**,
-the default, follows your system: under **Settings → Themes → Auto** pick the theme it shows when
-the system is light and the one when it is dark -- any two themes, your own included.
+The page is drawn in a theme. humanize comes with **presets**, each a pair of a light theme and a
+dark one: its own, **Humanize Green**, and one for every Chrysos Heir of Amphoreus in
+*Honkai: Star Rail*, in their colours and named for their Primum Mobile and the colour they are
+most:
+
+| Pair | Heir | Primum Mobile |
+| --- | --- | --- |
+| **Temperate Gold** | Aglaea | Temperance |
+| **Concordant Scarlet** | Tribbie | Concord |
+| **Restrained Crimson** | Mydei | Restraint |
+| **Critical Teal** | Anaxa | Critique |
+| **Desirous Indigo** | Cipher | Desire |
+| **Peaceful Lilac** | Castorice | Peace |
+| **Hateful Silver** | Phainon | Hatred |
+| **Devoted Pink** | Hyacine | Devotion |
+| **Self-Negating Plum** | Hysilens | Self-Negation |
+| **Dominant Azure** | Cerydra | Dominance |
+| **Surviving Jade** | Dan Heng • Permansor Terrae | Survival |
+| **Lamenting Orchid** | Cyrene | Lament |
+
+**Auto**, the default, follows your system with a pair: pick one from the machine menu's
+**Pairs**, or under **Settings → Themes → Auto** pick a **Pair** -- or any theme for the
+system's **Light** and any for its **Dark**, your own included. Click a preset's light or dark
+swatch to use that one theme whatever the system is.
 
 **New** makes a theme from the one showing, **Duplicate** from any; **Edit** opens one of yours:
 

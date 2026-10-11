@@ -153,11 +153,13 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST let every path on this machine be browsed for, a directory at a time, as well as
   written; and every agent, place and runtime be set up a part at a time, as the terminal
   interface's forms set them up, never spelled whole.
-- MUST draw in humanize's own type and in a theme: humanize's own Light or Dark, or one made in
-  the browser on either -- any of its colours, and a picture, still or moving, behind any of the
+- MUST draw in humanize's own type and in a theme: one of the pairs it comes with -- a light and
+  a dark of humanize's own, Humanize Green, and of every Chrysos Heir of Honkai: Star Rail, in
+  their colours and named for their Primum Mobile and their colour -- or one made in the browser
+  on Light or Dark -- any of its colours, and a picture, still or moving, behind any of the
   page's large planes -- chosen, or under Auto the one picked for the browser's light and the one
-  for its dark; MUST let a theme be written out whole as a `.hmztheme` file and read back in, and
-  MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
+  for its dark, a pair at once or any two; MUST let a theme be written out whole as a
+  `.hmztheme` file and read back in, and MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
   to be reduced.
 - MUST draw its chrome around the window controls of the desktop app when it is shown in it,
   and nothing else differently.

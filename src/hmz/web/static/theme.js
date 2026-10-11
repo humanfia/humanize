@@ -1,8 +1,8 @@
 // The theme, set before the page is drawn so it never flashes another: the one chosen here, or
 // under Auto, where none was chosen, the one picked for the system's light or the one for its
-// dark. A theme is Light or Dark, humanize's own, or one made in this browser on either of them,
-// kept with the colours it changes of it; its pictures, kept apart, follow in themes.js, which
-// paints with what is here. And whether the page is the macOS app's window, which says so in its
+// dark. A theme is one humanize comes with or one made in this browser, on Light or Dark, kept
+// with the colours it changes of it; its pictures, kept apart, follow in themes.js, which paints
+// with what is here. And whether the page is the macOS app's window, which says so in its
 // user agent: there the page draws its top row around the window's traffic lights.
 (() => {
   const read = (name) => {
@@ -14,9 +14,11 @@
   }
   /** Paints the theme given, or the one chosen, and says which it painted. */
   window.hmzPaint = (shown) => {
+    // Those made here, and those humanize comes with that are chosen or paired, as themes.js
+    // keeps them for this.
     let made = []
     try {
-      made = JSON.parse(read('hmz-themes') || '[]')
+      made = [...JSON.parse(read('hmz-themes') || '[]'), ...JSON.parse(read('hmz-painted') || '[]')]
     } catch {
       // Unreadable is as good as none: humanize's own are left.
     }

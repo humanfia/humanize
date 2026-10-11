@@ -171,18 +171,6 @@ def test_every_settings_page_opens_and_reads(
         expect(page.locator(".settings-nav [aria-current=page]")).to_have_count(1)
 
 
-def test_the_colours_are_a_theme_or_auto(project: Path, engine: str) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        page.locator("[data-hmz=machine-menu]").click()
-        choices = page.locator("[role=menu] .choice-label")
-        expect(choices).to_have_text(
-            ["Auto", "Light", "Dark", "Themes", "Settings", "Usage"]
-        )
-        expect(page.locator("[role=menu] .choice-about")).to_have_text("Light · Dark")
-        page.get_by_role("menuitem", name="Dark", exact=True).click()
-        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
-
-
 #: A picture that moves: a disc drawn sliding to and fro, as an SVG animates itself.
 _MOVING = (
     b'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">'
@@ -209,12 +197,65 @@ def _painted(page: Page, token: str, said: str) -> None:
     raise AssertionError(f"{token} is {_paints(page, token)!r}, not {said!r}")
 
 
+#: Every pair of themes humanize comes with: its own, then one for each Chrysos Heir, named
+#: for their Primum Mobile and their colour.
+_PAIRS = [
+    "Humanize Green",
+    "Temperate Gold",
+    "Concordant Scarlet",
+    "Restrained Crimson",
+    "Critical Teal",
+    "Desirous Indigo",
+    "Peaceful Lilac",
+    "Hateful Silver",
+    "Devoted Pink",
+    "Self-Negating Plum",
+    "Dominant Azure",
+    "Surviving Jade",
+    "Lamenting Orchid",
+]
+
+
+def test_the_colours_are_a_pair_under_auto_or_a_theme(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        page.locator("[data-hmz=machine-menu]").click()
+        choices = page.locator("[role=menu] .choice-label")
+        expect(choices).to_have_text(["Auto", "Themes", *_PAIRS, "Settings", "Usage"])
+        expect(page.locator("[role=menu] .choice-about")).to_have_text("Humanize Green")
+        page.get_by_role("menuitem", name="Peaceful Lilac").click()
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        _painted(page, "--paper", "#f7f2f7")
+        page.emulate_media(color_scheme="dark")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        _painted(page, "--paper", "#151019")
+        # Opened again, the pair is painted before the page is drawn.
+        again = page.context.new_page()
+        again.emulate_media(color_scheme="dark")
+        again.goto(site.address)
+        assert _paints(again, "--paper") == "#151019"
+        again.close()
+
+        # One theme of a pair, chosen outright, holds whatever the system is.
+        _go(page, "/settings/themes")
+        expect(page.locator("[data-hmz=pair]")).to_have_count(len(_PAIRS))
+        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("peaceful-lilac")
+        page.get_by_role("button", name="Use Devoted Pink · Light").click()
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        _painted(page, "--paper", "#fdf6f5")
+        page.locator("[data-hmz=auto-pair]").select_option(label="Critical Teal")
+        _painted(page, "--paper", "#0f1518")
+        page.locator("[data-hmz=auto-light]").select_option(label="Hateful Silver · Light")
+        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("")
+
+
 def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=theme] b")).to_have_text(["Light", "Dark"])
+        expect(page.locator("[data-hmz=theme]")).to_have_count(0)
         page.get_by_role("button", name="New", exact=True).click()
         editor = page.locator("[data-hmz=theme-editor]")
         expect(editor).to_be_visible()
@@ -257,7 +298,7 @@ def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
             }
         )
         expect(night).to_have_count(1)
-        page.locator("[data-hmz=auto-dark]").select_option(label="Night")
+        page.locator("[data-hmz=auto-dark]").select_option(label="Night · Dark")
         page.emulate_media(color_scheme="dark")
         expect(page.locator("html")).to_have_attribute("data-theme", "dark")
         _painted(page, "--paper", "#102030")
@@ -283,7 +324,7 @@ def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> No
             {"name": "x.hmztheme", "mimeType": "application/json", "buffer": b"{}"}
         )
         expect(page.locator(".toast")).to_have_text("This is not a theme file")
-        expect(page.locator("[data-hmz=theme]")).to_have_count(2)
+        expect(page.locator("[data-hmz=theme]")).to_have_count(0)
 
 
 def test_a_newer_release_is_offered_under_the_machine(
@@ -303,10 +344,10 @@ def test_a_newer_release_is_offered_under_the_machine(
         expect(page.locator("[data-hmz=newer]")).to_be_visible()
         page.locator("[data-hmz=machine-menu]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Auto", "Light", "Dark", "Themes", "Update", "Settings", "Usage"]
+            ["Auto", "Themes", *_PAIRS, "Update", "Settings", "Usage"]
         )
         expect(page.locator("[role=menu] .choice-about")).to_have_text(
-            ["Light · Dark", "hmz 99.0.0"]
+            ["Humanize Green", "hmz 99.0.0"]
         )
 
 
