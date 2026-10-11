@@ -518,6 +518,80 @@ code {
   background: var(--fail);
 }
 
+/* A workspace, as a folder of its epics. */
+.side-group + .side-group {
+  margin-top: 6px;
+}
+
+.side-folder {
+  display: flex;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.side-folder-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  font: 600 11px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
+
+.side-folder-name .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--red);
+}
+
+.side-folder.current .side-folder-name {
+  color: var(--ink);
+}
+
+.side-add {
+  width: 26px;
+  height: 26px;
+  opacity: 0;
+}
+
+.side-folder:hover .side-add,
+.side-add:focus-visible {
+  opacity: 1;
+}
+
+.side-group > ul,
+.side-group > .side-quiet {
+  margin-left: 8px !important;
+}
+
+.pickers {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.flow-picker .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.workdir-open {
+  min-width: 320px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.workdir-open input {
+  width: 100%;
+}
+
 /* ------------------------------------------------------------------ menus */
 
 .menu-holder {

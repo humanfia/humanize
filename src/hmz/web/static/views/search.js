@@ -5,6 +5,7 @@
 
 import { address, poll } from '../api.js'
 import { shut, stays } from '../app.js'
+import { nameOf, workspaces } from '../places.js'
 import { ago, badge, flowName, empty, fill, h, headline, icon, iconButton, lasting, settled, when } from '../dom.js'
 
 /** How a run can have ended, in the order the filter offers them. */
@@ -17,12 +18,22 @@ export function mount(root, { query }) {
   const chosen = {
     status: query.get('status') || '',
     flow: query.get('flow') || '',
+    workspace: query.get('workspace') || '',
     q: query.get('q') || '',
     offset: Number(query.get('offset') || 0),
   }
   const search = h('input', { class: 'dialog-search', type: 'search', placeholder: 'Search epics by task or flow', value: chosen.q, 'aria-label': 'Find', autofocus: true })
   const statuses = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How the epic went' })
   const flows = h('select', { 'aria-label': 'Flow' })
+  const places = h('select', { 'aria-label': 'Workdir', 'data-hmz': 'search-workspace' }, h('option', { value: '' }, 'All workdirs'))
+  workspaces().then((answer) => {
+    fill(places, h('option', { value: '' }, 'All workdirs'), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === chosen.workspace, title: one.path }, one.name)))
+  }, () => {})
+  places.addEventListener('change', () => {
+    chosen.workspace = places.value
+    chosen.offset = 0
+    watch()
+  })
   const body = h('div', { class: 'dialog-body', 'data-hmz': 'found' }, h('p', { class: 'loading', role: 'status' }, 'Reading the epics…'))
   const foot = h('div', { class: 'dialog-foot', role: 'status' })
   root.classList.add('dialog-search-box')
@@ -30,7 +41,7 @@ export function mount(root, { query }) {
   fill(
     root,
     h('div', { class: 'dialog-head' }, icon('search'), search, iconButton('close', 'Close', { onclick: shut })),
-    h('div', { class: 'dialog-filters' }, statuses, flows),
+    h('div', { class: 'dialog-filters' }, statuses, places, flows),
     body,
     foot,
   )
@@ -38,8 +49,8 @@ export function mount(root, { query }) {
   let stop = () => {}
   const watch = () => {
     stop()
-    stays({ status: chosen.status, flow: chosen.flow, q: chosen.q, offset: chosen.offset || '' })
-    stop = poll(address('/api/runs', { status: chosen.status, flow: chosen.flow, q: chosen.q, offset: chosen.offset, limit: PAGE }), 5000, draw)
+    stays({ status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset || '' })
+    stop = poll(address('/api/runs', { status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset, limit: PAGE }), 5000, draw)
   }
   const again = settled(() => {
     chosen.offset = 0
@@ -97,6 +108,7 @@ export function mount(root, { query }) {
               h(
                 'span',
                 { class: 'result-meta' },
+                h('span', { class: 'mono', title: run.workspace }, nameOf(run.workspace)),
                 h('span', { class: 'mono', title: run.flow }, flowName(run.flow)),
                 run.agents.map((one) => h('span', { class: 'chip', title: one.runs }, one.role, h('span', { class: 'dim' }, one.runs.split(':')[0]))),
                 h('span', { class: 'mono' }, run.spent ? `${run.spent.money || '—'} · ${run.spent.tokens} out` : '—'),

@@ -244,6 +244,7 @@ const ICONS = {
   sun: ['M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M12 2v2', 'M12 20v2', 'M4.9 4.9l1.4 1.4', 'M17.7 17.7l1.4 1.4', 'M2 12h2', 'M20 12h2', 'M4.9 19.1l1.4-1.4', 'M17.7 6.3l1.4-1.4'],
   agent: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4 21a8 8 0 0 1 16 0'],
   thread: ['M4 5h16v11H8l-4 4Z'],
+  folder: ['M3 6h6l2 2h10v11H3Z'],
 }
 
 /** An icon, drawn in the colour of the text around it and said by nothing: its button says it. */

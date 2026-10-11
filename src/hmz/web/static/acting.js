@@ -9,7 +9,7 @@ import { chipSelect, composer } from './composer.js'
 import { line } from './transcript.js'
 
 /** One question the run is waiting on a person for, answerable here unless another holds it. */
-export function question(one, me, clients) {
+export function question(workspace, one, me, clients) {
   const named = Object.fromEntries((clients || []).map((client) => [client.client, client.name || client.client]))
   const holder = h('div', { class: 'question', 'data-hmz': 'question' }, h('div', { class: 'kicker' }, `${one.role || 'the flow'} asks`), h('div', { class: 'body' }, one.text))
   if (one.owner && one.owner !== me) {
@@ -17,7 +17,7 @@ export function question(one, me, clients) {
     return holder
   }
   const options = (one.options || []).map((option, index) =>
-    acting(option, () => ask('answer', { question: one.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
+    acting(option, () => ask(workspace, 'answer', { question: one.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
   )
   const typed = h('input', { type: 'text', placeholder: 'Answer', 'aria-label': 'Answer' })
   const form = h('form', { class: 'row' }, typed, h('button', { class: 'btn small primary', type: 'submit' }, 'Answer'))
@@ -26,7 +26,7 @@ export function question(one, me, clients) {
     if (!typed.value.trim()) return
     form.querySelector('.error')?.remove()
     try {
-      await ask('answer', { question: one.question, text: typed.value })
+      await ask(workspace, 'answer', { question: one.question, text: typed.value })
       typed.value = ''
     } catch (error) {
       form.append(problem(error))
@@ -43,12 +43,12 @@ export function question(one, me, clients) {
  * who there is to say it to as that changes, so that a line being typed outlives every drawing
  * of the page around it.
  */
-export function saying(session = '') {
+export function saying(workspace, session = '') {
   const to = h('select', { 'aria-label': 'Say it to' })
   const box = composer({
     placeholder: session ? `Message ${session}` : 'Message the epic',
     label: 'What to say',
-    submit: (text) => ask('say', { text, to: session || to.value }),
+    submit: (text) => ask(workspace, 'say', { text, to: session || to.value }),
     tools: session ? [] : [chipSelect('To', to)],
   })
   box.node.dataset.hmz = 'say'
@@ -70,7 +70,7 @@ export function saying(session = '') {
 }
 
 /** The run's board: a handful of named lines the run and you both write and neither waits on. */
-export function board(items) {
+export function board(workspace, items) {
   const lines = h('div', { class: 'board', 'data-hmz': 'board' })
   for (const one of items) {
     const value = h('div', {}, one.value, one.about ? h('div', { class: 'dim' }, one.about) : null, h('div', { class: 'dim mono' }, [one.by, one.whose].filter(Boolean).join(' · ')))
@@ -81,7 +81,7 @@ export function board(items) {
       form.addEventListener('submit', async (event) => {
         event.preventDefault()
         try {
-          await ask('board', { key: one.key, value: field.value })
+          await ask(workspace, 'board', { key: one.key, value: field.value })
         } catch (error) {
           form.append(problem(error))
         }
@@ -99,7 +99,7 @@ export function board(items) {
           'span',
           { class: 'row' },
           edit,
-          confirming({ label: 'Remove', ask: '', yes: 'Remove', no: 'Keep', small: true, act: () => ask('board', { key: one.key, value: '' }) }),
+          confirming({ label: 'Remove', ask: '', yes: 'Remove', no: 'Keep', small: true, act: () => ask(workspace, 'board', { key: one.key, value: '' }) }),
         ),
       ),
     )
@@ -112,7 +112,7 @@ export function board(items) {
     if (!key.value.trim() || !value.value.trim()) return
     adding.querySelector('.error')?.remove()
     try {
-      await ask('board', { key: key.value.trim(), value: value.value })
+      await ask(workspace, 'board', { key: key.value.trim(), value: value.value })
       key.value = value.value = ''
     } catch (error) {
       adding.append(problem(error))
@@ -122,7 +122,7 @@ export function board(items) {
 }
 
 /** The roles a person fills: who holds each, and whether anybody is there for it. */
-export function outworlders(roles, { claims, away, me, clients }) {
+export function outworlders(workspace, roles, { claims, away, me, clients }) {
   const named = Object.fromEntries((clients || []).map((client) => [client.client, client.name || client.client]))
   const everybody = Boolean(away && away.all)
   const rows = roles.map((role) => {
@@ -135,12 +135,12 @@ export function outworlders(roles, { claims, away, me, clients }) {
       h('b', { class: 'mono' }, role),
       h('span', { class: 'dim' }, holder ? (holding ? 'You' : named[holder] || holder) : 'Anyone'),
       holding
-        ? acting('Release', () => ask('release', { role }), { kind: 'btn small quiet' })
-        : acting(holder ? 'Take over' : 'Claim', () => ask('claim', { role, take: Boolean(holder) }), { kind: 'btn small' }),
-      acting(absent ? 'Back' : 'Away', () => ask('afk', { on: !absent, role }), { kind: 'btn small quiet' }),
+        ? acting('Release', () => ask(workspace, 'release', { role }), { kind: 'btn small quiet' })
+        : acting(holder ? 'Take over' : 'Claim', () => ask(workspace, 'claim', { role, take: Boolean(holder) }), { kind: 'btn small' }),
+      acting(absent ? 'Back' : 'Away', () => ask(workspace, 'afk', { on: !absent, role }), { kind: 'btn small quiet' }),
     )
   })
-  const all = acting(everybody ? 'Back for all' : 'Away for all', () => ask('afk', { on: !everybody }), { kind: 'btn small quiet' })
+  const all = acting(everybody ? 'Back for all' : 'Away for all', () => ask(workspace, 'afk', { on: !everybody }), { kind: 'btn small quiet' })
   return [rows, h('p', { class: 'dim' }, 'Away, a question a person is asked is answered at once with nothing, and the epic carries on.'), all]
 }
 
@@ -152,7 +152,7 @@ export function outworlders(roles, { claims, away, me, clients }) {
  * page opened again reads them back; made once for a page and moved from one drawing of it to
  * the next, so that what is being typed outlives a redraw.
  */
-export function asides() {
+export function asides(workspace) {
   const to = h('select', { 'aria-label': 'Ask it of' }, h('option', { value: '' }, 'btw agent'))
   const leave = h('button', { class: 'btn quiet small', type: 'button', hidden: true }, 'Close')
   const log = h('div', { class: 'thread aside-log', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
@@ -168,7 +168,7 @@ export function asides() {
     submit: async (question) => {
       asked(question.trim(), to.value)
       try {
-        answered(await post('/api/btw', { question: question.trim(), to: to.value }))
+        answered(await post('/api/btw', { question: question.trim(), to: to.value, workspace }))
         leave.hidden = false
       } finally {
         log.scrollTop = log.scrollHeight
@@ -176,7 +176,7 @@ export function asides() {
     },
   })
   box.node.dataset.hmz = 'btw'
-  get('/api/btw').then(({ open, said }) => {
+  get(`/api/btw?workspace=${encodeURIComponent(workspace)}`).then(({ open, said }) => {
     for (const one of said) {
       asked(one.question, one.to)
       answered(one)
@@ -185,7 +185,7 @@ export function asides() {
   }, () => {})
   leave.addEventListener('click', async () => {
     try {
-      await post('/api/btw/leave', {})
+      await post('/api/btw/leave', { workspace })
       log.append(line('ends', 'btw: closed'))
       leave.hidden = true
     } catch (error) {

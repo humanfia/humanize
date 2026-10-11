@@ -190,11 +190,14 @@ class Browser:
             connection.close()
 
     @contextlib.contextmanager
-    def follows(self, last: str = "") -> Generator[Callable[[], tuple[str, str, Any]]]:
+    def follows(
+        self, last: str = "", *, workspace: str = ""
+    ) -> Generator[Callable[[], tuple[str, str, Any]]]:
         """Listens to the runs' stream, as the page does, from where it last heard.
 
         Args:
           last: The id of the last event it heard, or "" for the start.
+          workspace: Whose runs, or "" for those of where the interface was started.
 
         Yields:
           What gives the next event: its id, what it is, and what it carries.
@@ -205,7 +208,10 @@ class Browser:
         headers = {"Host": self._host(), "Cookie": self.cookie}
         if last:
             headers["Last-Event-ID"] = last
-        connection.request("GET", "/api/held/stream", headers=headers)
+        query = (
+            f"?{urllib.parse.urlencode({'workspace': workspace})}" if workspace else ""
+        )
+        connection.request("GET", f"/api/held/stream{query}", headers=headers)
         stream = connection.getresponse()
 
         def next_event() -> tuple[str, str, Any]:

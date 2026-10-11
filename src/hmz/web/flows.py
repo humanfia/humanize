@@ -39,7 +39,10 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
         flow = hmz.flows.declared(name)
     except Exception as why:
         raise Refusal(f"{name} cannot be set up: {why}", 404) from why
-    settings = hmz.settings
+    from hmz import daemon
+
+    # Afresh, as what a workspace remembers is written by its runs as well as by this.
+    settings = daemon.Hmz(hmz.workspace).settings
     installed = sorted(hmz.installed())
     return {
         "name": name,
@@ -85,8 +88,13 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
     }
 
 
+def _hmz(asked: Asked) -> Any:
+    """humanize, for the workspace a request names, or where the interface started."""
+    return asked.site.places.of(asked.query.get("workspace", "")).hmz
+
+
 def _flows(asked: Asked) -> dict[str, Any]:
-    hmz = asked.site.hmz
+    hmz = _hmz(asked)
     return {
         "flows": [
             {"whose": one.whose, "name": one.name, "about": one.about}
@@ -107,7 +115,7 @@ def _flows(asked: Asked) -> dict[str, Any]:
 
 
 def _flow(asked: Asked) -> dict[str, Any]:
-    hmz = asked.site.hmz
+    hmz = _hmz(asked)
     name = asked.query.get("name", "")
     if not name:
         raise Refusal("Say which flow, as name.")
@@ -119,7 +127,7 @@ def _flow(asked: Asked) -> dict[str, Any]:
 
 
 def _backends(asked: Asked) -> dict[str, Any]:
-    hmz = asked.site.hmz
+    hmz = _hmz(asked)
     accounts = hmz.accounts
 
     def models(cli: str, name: str) -> list[dict[str, Any]]:

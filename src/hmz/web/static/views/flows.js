@@ -5,10 +5,18 @@
 import { get, poll } from '../api.js'
 import { stays } from '../app.js'
 import { empty, fill, h, icon, permitted, problem } from '../dom.js'
+import { workspacePicker } from '../places.js'
 import { bar } from '../shell.js'
 
 export function mount(root, { query }) {
   let chosen = query.get('flow') || ''
+  // A workspace's flows: its own and yours, and the flowverses installed.
+  let workspace = query.get('workspace') || ''
+  const place = workspacePicker(workspace, (path) => {
+    workspace = path
+    chosen = ''
+    watch()
+  })
   const list = h('div', { class: 'gallery', 'data-hmz': 'flows' }, h('p', { class: 'loading', role: 'status' }, 'Reading the flows…'))
   const shown = h('section', { class: 'flow-detail', 'aria-live': 'polite', hidden: true })
   fill(
@@ -16,12 +24,24 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'view' },
-      bar({ title: 'Flows' }),
+      bar({ title: 'Flows', actions: [place.node] }),
       h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, shown, list)),
     ),
   )
 
-  const stop = poll('/api/flows', 30000, (data, error) => {
+  let stop = () => {}
+  const watch = () => {
+    stop()
+    stays({ workspace, flow: chosen })
+    stop = poll(`/api/flows?workspace=${encodeURIComponent(workspace)}`, 30000, drawn)
+    if (chosen) show(chosen)
+    else {
+      shown.hidden = false
+      fill(shown, empty('Pick a flow.', ' What it declares is shown here.'))
+    }
+  }
+
+  function drawn(data, error) {
     if (!data) {
       fill(list, error ? problem(error) : h('p', { class: 'loading' }, 'Reading the flows…'))
       return
@@ -53,11 +73,11 @@ export function mount(root, { query }) {
         ),
       ),
     )
-  })
+  }
 
   async function show(name) {
     chosen = name
-    stays({ flow: name })
+    stays({ workspace, flow: name })
     for (const card of list.querySelectorAll('.card')) {
       card.classList.toggle('chosen', card.dataset.flow === name)
       card.setAttribute('aria-pressed', String(card.dataset.flow === name))
@@ -66,7 +86,7 @@ export function mount(root, { query }) {
     fill(shown, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let flow
     try {
-      flow = await get(`/api/flow?name=${encodeURIComponent(name)}`)
+      flow = await get(`/api/flow?name=${encodeURIComponent(name)}&workspace=${encodeURIComponent(workspace)}`)
     } catch (error) {
       if (chosen === name) fill(shown, problem(error))
       return
@@ -80,7 +100,7 @@ export function mount(root, { query }) {
         'header',
         {},
         h('div', {}, h('div', { class: 'kicker' }, 'flow'), h('h2', {}, flow.name)),
-        h('a', { class: 'btn primary', href: `#/new?flow=${encodeURIComponent(flow.name)}` }, icon('new'), 'New epic'),
+        h('a', { class: 'btn primary', href: `#/new?flow=${encodeURIComponent(flow.name)}&workspace=${encodeURIComponent(workspace)}` }, icon('new'), 'New epic'),
       ),
       flow.description ? h('p', { class: 'prose' }, flow.description) : null,
       h(
@@ -100,10 +120,6 @@ export function mount(root, { query }) {
     )
   }
 
-  if (chosen) show(chosen)
-  else {
-    shown.hidden = false
-    fill(shown, empty('Pick a flow.', ' What it declares is shown here.'))
-  }
-  return stop
+  watch()
+  return () => stop()
 }

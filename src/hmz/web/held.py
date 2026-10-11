@@ -1,6 +1,6 @@
-"""The runs held for this workspace, as the web interface follows them and acts on them.
+"""The runs held for a workspace, as the web interface follows them and acts on them.
 
-One link to the host of the workspace's runs, as every frontend holds one: what it tells is
+One link to the host of a workspace's runs, as every frontend holds one: what it tells is
 kept here -- the records of the runs it has told of, in order, how each thing stands now, and
 the figures worked out of them -- and handed to every page that listens, from wherever that
 page last heard. What a page asks of the runs goes back down the same link, and what the runs
@@ -627,35 +627,54 @@ def _figures(following: Any) -> dict[str, Any]:
 
 
 def _held(asked: Asked) -> dict[str, Any]:
+    import socket
+
     from hmz.coganchor import __version__
 
-    held = asked.site.held
+    places = asked.site.places
     return {
-        "workspace": str(asked.site.hmz.workspace),
+        "machine": socket.gethostname().split(".")[0],
+        "here": str(places.here),
         "version": __version__,
-        "me": held.me,
-        "gone": held.gone,
-        "run": held.standing("run"),
+        "running": places.running(),
     }
 
 
+def _workspace(asked: Asked) -> str:
+    """The workspace a request is about: its `workspace`, as a query or in what it sent."""
+    said = (
+        asked.body["workspace"]
+        if "workspace" in asked.body
+        else asked.query.get("workspace", "")
+    )
+    if not isinstance(said, str):
+        raise Refusal("Say the workspace as a path.")
+    return said
+
+
 def _streams(asked: Asked) -> Stream:
-    return asked.site.held.stream()
+    return asked.site.places.stream(_workspace(asked))
 
 
 def _acts(asked: Asked) -> dict[str, Any]:
-    return asked.site.held.asks(asked.matched["do"], asked.body)
+    said = {name: value for name, value in asked.body.items() if name != "workspace"}
+    workspace = _workspace(asked)
+    if asked.matched["do"] == "start":
+        # Somewhere an epic was started is somewhere to offer the next.
+        asked.site.places.of(workspace).hmz.settings.keeps()
+    return asked.site.places.held(workspace).asks(asked.matched["do"], said)
 
 
-#: What a page reads of the runs held here and asks of them.
 def _btw(asked: Asked) -> dict[str, Any]:
-    site = asked.site
+    places = asked.site.places
+    workspace = _workspace(asked)
+    place = places.of(workspace)
     question = " ".join(asked.text("question").split())
-    return site.held.btw(
+    return places.held(workspace).btw(
         question,
         asked.text("to", required=False),
-        workspace=str(site.hmz.workspace),
-        source=functools.partial(_source, site.hmz),
+        workspace=str(place.workspace),
+        source=functools.partial(_source, place.hmz),
     )
 
 
@@ -686,14 +705,18 @@ def _source(
 
 
 def _asides(asked: Asked) -> dict[str, Any]:
-    return asked.site.held.asides()
+    # Read of the runs this follows, never reaching runs it does not: nothing was asked there.
+    held = asked.site.places.attached(_workspace(asked))
+    return held.asides() if held is not None else {"open": [], "said": []}
 
 
 def _unbtw(asked: Asked) -> dict[str, Any]:
     target = asked.body.get("to")
     if target is not None and not isinstance(target, str):
         raise Refusal("Say to as the conversation asked, or nothing for every one.")
-    asked.site.held.unbtw(target)
+    held = asked.site.places.attached(_workspace(asked))
+    if held is not None:
+        held.unbtw(target)
     return {"ok": True}
 
 

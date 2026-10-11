@@ -1,5 +1,5 @@
-// The page itself, laid out as Codex and Claude lay theirs out: the sidebar of runs on the left,
-// and whichever view the address names beside it -- a new run, a run's graph, one session's
+// The page itself, laid out as Codex and Claude lay theirs out: the sidebar of every workspace's
+// epics on the left, and whichever view the address names beside it -- a new epic, its graph, one session's
 // thread, the flows -- with finding a run and the settings opened over it as dialogs. Routed
 // by the address's fragment, so that every view of the page is an address that can be kept,
 // shared or opened again, and the server serves one page for all of them.
@@ -177,7 +177,7 @@ window.addEventListener('hashchange', route)
 
 get('/api/held')
   .then((context) => {
-    document.title = `humanize · ${context.workspace.split('/').filter(Boolean).pop() || context.workspace}`
+    document.title = `humanize · ${context.machine}`
     mountSidebar(document.getElementById('sidebar'), context, where)
     route()
   })

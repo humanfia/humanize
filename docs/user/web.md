@@ -1,13 +1,14 @@
 # In a browser (`hmz web`)
 
-`hmz web` opens this directory's runs in a browser on this machine: the run going as it happens,
-every run written down here, starting a run, what the runs spent, and what humanize remembers.
-It is one more window onto the run `hmz` shows, not a copy of it. Start a run in the terminal and
-answer it in the browser, or the other way round.
+`hmz web` opens every epic on this machine in a browser on it -- of every directory, as the
+[daemon](/features/daemon) holds every directory's runs: each epic going as it happens, every
+epic written down, starting one in any directory, what they spent, and what humanize remembers.
+It is one more window onto the runs `hmz` shows, not a copy of them. Start an epic in the
+terminal and answer it in the browser, or the other way round.
 
 ::: info At a glance
-- **You will** watch, steer and start runs from a browser, read a run written down, and see what
-  the runs here spent.
+- **You will** watch, steer and start epics in any directory from a browser, read an epic
+  written down, and see what they spent.
 - **Use it when** a picture of a run reads better than a transcript: its agents and who handed
   to whom, each session's turns laid out over time, a week's spend by flow.
 - **You need** humanize installed as in [Installation](/user/installation), and a browser on the
@@ -31,17 +32,18 @@ hmz web: http://127.0.0.1:43017/?key=Xq1rB0…
 
 ## How it works
 
-`hmz web` is a frontend of this directory's runs, as every `hmz` opened here is. It reaches the
-same run through the same [host](/features/daemon), so what one window does, every other window
-sees: a line said in the browser is in the terminal's transcript marked `· by browser`, and a
+`hmz web` is a frontend of every directory's runs, where `hmz` is a frontend of one. It reaches
+a directory's runs through the same [host](/features/daemon) as `hmz` opened there, so what one
+window does, every other window sees: a line said in the browser is in the terminal's transcript marked `· by browser`, and a
 question answered in the terminal stops waiting in the browser.
 
 That has three consequences:
 
 - **The run does not live in the page.** Closing the tab, or stopping `hmz web`, leaves the run
   going, as closing a terminal does. See [Leaving it running](/user/leaving).
-- **One run per directory.** `hmz web` serves the directory it was started in. Another project
-  needs an `hmz web` of its own, on another port.
+- **One page for the machine.** Start `hmz web` anywhere: it serves every directory, and the one
+  it was started in is only the one a new epic is offered first. A directory is reached only
+  while the page shows it or acts on it, so a host with nothing to do still goes.
 - **It only listens on this machine.** The address is `127.0.0.1` (`localhost` works too, over
   IPv4 or IPv6), and it carries a key made
   afresh each time `hmz web` starts. Opening the address hands your browser that key as a
@@ -55,15 +57,15 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then every epic of this directory, newest first under the day it began: how it ended, or `live` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions |
-| **New epic** | A box for the task, the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first: how each ended, or `live` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
+| **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it while the epic goes |
-| **Flows** | A card for each flow on offer here, and what one declares | Start one |
-| **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its agents, what it spent and how long it took | Find epics by how they went, by flow, or by a word of their task |
+| **Flows** | A card for each flow on offer in the directory picked, and what one declares | Start one |
+| **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task |
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
-The foot of the sidebar names this directory and says whether an epic is going, `live · <flow>`;
+The foot of the sidebar names this machine and says how many epics are going on it;
 its menu switches between your system's colours, light and dark, and opens **Settings** and
 **Usage**. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
@@ -130,9 +132,11 @@ spent, and how long it took, with how much of that was spent working.
 
 ### Starting an epic {#starting-an-epic}
 
-**New epic** opens on the flow this directory last ran; pick another at the top. Type the task
-and press <kbd>Enter</kbd>. **Options** holds what the flow is set up with, as this directory
-last set it up:
+**New epic** opens on the directory `hmz web` started in, or the folder whose **+** was pressed,
+and on the flow that directory last ran; pick another of either at the top. **Open folder…**
+takes any directory by its path, completed as you type, and keeps it in the sidebar. Type the
+task and press <kbd>Enter</kbd>. **Options** holds what the flow is set up with, as that
+directory last set it up:
 
 - **Agents.** Per role: the **CLI** (installed ones that can fill it), the **Account** it runs
   as (**Local** is this machine's own sign-in; **Add account…** opens Settings), the **Model**
@@ -154,8 +158,8 @@ The same pages as [`/settings`](/user/settings), in the same order, and what the
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, copy it to another CLI, remove it, or make one |
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
-| **Workspace** | What this directory was last set up with, and forgetting it |
-| **Usage** | What the epics here spent, by day and by flow, looking back 7, 30, 90 or 365 days |
+| **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
+| **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
 
 An account is never shown by its values: a page lists the names of the variables it sets, and
 nothing else. A way in that runs a CLI's own sign-in, such as `login`, needs a terminal: it is
@@ -243,19 +247,20 @@ running `hmz web` printed, key and all.
 
 ### `hmz: the web interface cannot be served: … Address already in use`
 
-Something already listens on that port: another `hmz web`, perhaps for another directory. Pick
-another `--port`, or leave it out.
+Something already listens on that port: another `hmz web`, perhaps. Pick another `--port`, or
+leave it out.
 
-### `hmz: the runs … are held by an older humanize`
+### `the runs … are held by an older humanize`
 
-An older humanize holds this directory's runs, or this machine's. Stop them with that version, as
-the message says, then start `hmz web` again.
+An older humanize holds that directory's runs, or this machine's: the page says so where it
+asks for them, and serves every other directory. Stop them with that version, as the message
+says.
 
 ### The sidebar says why the host let it go
 
 The host holding the runs went: it was closed, or it let this window go. The page reaches the
 runs again by itself a moment later, starting a host where none is, and the foot of the sidebar
-says `no epic going` or `live` again once it has.
+says `idle` or how many are `live` again once it has.
 
 ### A way in is marked `(at a terminal)`
 

@@ -8,8 +8,8 @@ import '../.vitepress/theme/components/ref-cli/ref.css'
 
 # Web reference
 
-The web interface `hmz web` serves: a workspace's runs drawn in a browser on the same machine,
-as one more [frontend](/reference/daemon#hosting) of the runs a host holds there. Its command
+The web interface `hmz web` serves: every workspace's runs on a machine, drawn in a browser on
+it, as one more [frontend](/reference/daemon#hosting) of the runs each workspace's host holds. Its command
 line, how a browser is let in, what is refused, the page's addresses, every route the page
 calls, and the stream it follows. Package `hmz.web`. Notation:
 [Conventions](/reference/#conventions). The task-by-task guide is
@@ -44,20 +44,27 @@ hmz web: http://127.0.0.1:<port>/?key=<key>
 
 | Condition | Runs |
 | --- | --- |
-| `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | Held in this process; `hmz web` stopping closes them. |
-| anything else | Held by this workspace's host process, found or started through [`hmz.daemon.attach`](/reference/daemon#module), tried **3** times **0.5 s** apart. They outlive `hmz web`. |
+| `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | Held in this process, a host per workspace; `hmz web` stopping closes them. |
+| anything else | Held by each workspace's host process, found or started through [`hmz.daemon.attach`](/reference/daemon#module), tried **3** times **0.5 s** apart. They outlive `hmz web`. |
 
-`hmz web` attaches as one frontend, named `browser` (`#2`, `#3`… beside another of that name),
-of `kind` `web`. Whenever the host lets it go, it attaches again **2 s** later, for as long as it
-is served; a page following the stream is then told to [start over](#stream).
+`hmz web` serves every workspace wherever it is started; the directory it started in is only the
+one a new epic is offered first. It attaches to a workspace's host as one frontend, named
+`browser` (`#2`, `#3`… beside another of that name), of `kind` `web`, only while a page follows
+that workspace or asks its runs something, and lets go **60 s** after the last of that once its
+runs are idle -- so that a host with nothing to do goes, as it would with nobody reading. What
+runs where it holds no link it asks of the daemon every **5 s**, which starts nothing. Whenever a
+followed host lets it go, it attaches again **2 s** later; a page following the stream is then
+told to [start over](#stream).
 
 ### Exit statuses {#exit-statuses}
 
 | Status | stderr | When |
 | --- | --- | --- |
 | `0` | — | Interrupted (`SIGINT`) after it was serving. |
-| `1` | `hmz: the runs in <dir> are held by an older humanize (pid <n>); stop it with that version` (or `on this machine`) | An older humanize holds the runs. |
-| `1` | `hmz: the web interface cannot be served: <OSError>` | The runs could not be reached, or the port could not be listened on. |
+| `1` | `hmz: the web interface cannot be served: <OSError>` | The port could not be listened on. |
+
+A workspace whose runs an older humanize holds, or whose runs cannot be reached, is refused where
+a page asks for them -- `409` or `503`, saying why -- and every other workspace is served.
 | `2` | argparse's usage error | The line was wrong. |
 
 ## Letting a browser in {#sign-in}
@@ -116,7 +123,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 
 | Address | View |
 | --- | --- |
-| `#/new[?flow=&resume=<name>]` | A new epic: the flow picked, or the epic named picked up. The page opens here. |
+| `#/new[?workspace=&flow=&resume=<name>]` | A new epic: in the workspace picked (where `hmz web` started by default), the flow picked, or the epic named picked up. The page opens here. |
 | `#/live` | The epic going; its address becomes `#/epics/<name>` once it is written down. |
 | `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
@@ -138,9 +145,9 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/held` | | `workspace`, `version`, `me` (this frontend's client id), `gone` (why the runs let it go, or `""`), `run` (the latest [`run` snapshot](/reference/daemon#snapshots), or `null`) |
-| `GET /api/held/stream` | `Last-Event-ID` header, or `?last=` | [The stream](#stream) |
-| `POST /api/held/start` | `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile` (bool); `resume` (bool, or an epic) | The host's answer: `run` |
+| `GET /api/held` | | `machine` (this machine's name), `here` (where `hmz web` started), `version`, `running` (`{workspace: run}`: the [`run` snapshot](/reference/daemon#snapshots) of each workspace whose epic is going, or what its host's `status` says of it) |
+| `GET /api/held/stream` | `?workspace=`; `Last-Event-ID` header, or `?last=` | [The stream](#stream) of that workspace's runs, attaching to them |
+| `POST /api/held/start` | `workspace`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile` (bool); `resume` (bool, or an epic) | The host's answer: `run` |
 | `POST /api/held/say` | `text`; `to` (`""`, a role, `<role>/<n>`, or `outworlder:<role>`, routed as [`say` routes it](/reference/daemon#say-routing)) | The host's answer |
 | `POST /api/held/answer` | `question`, `text` | The host's answer |
 | `POST /api/held/stop`, `/force` | | The host's answer |
@@ -148,9 +155,15 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 | `POST /api/held/claim` | `role`; `take` (bool) | The host's answer |
 | `POST /api/held/release` | `role` | The host's answer |
 | `POST /api/held/board` | `key`; `value` (`""` removes the line) | The host's answer |
-| `GET /api/btw` | | `open` (the conversations a side one is open on, `""` the btw agent's) and `said` (each question answered since, oldest first, as `POST` answers it; the last **200**) |
-| `POST /api/btw` | `question`; `to` (`""` the btw agent, or `<role>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
-| `POST /api/btw/leave` | `to`, or nothing for every side conversation | `{"ok": true}` |
+| `GET /api/btw` | `?workspace=` | `open` (the conversations a side one is open on, `""` the btw agent's) and `said` (each question answered since, oldest first, as `POST` answers it; the last **200**) |
+| `POST /api/btw` | `workspace`; `question`; `to` (`""` the btw agent, or `<role>/<n>`) | `to`, `question`, `answer`, and `asked`: `[{to, question}]`, each session the btw agent asked on the way |
+| `POST /api/btw/leave` | `workspace`; `to`, or nothing for every side conversation | `{"ok": true}` |
+
+Every request about one workspace's runs names it as `workspace` -- in the query of a `GET`, in
+the body of a `POST` -- a whole path, `~` and all; with none it is the one `hmz web` started in.
+A path that is not a directory is refused `404`, one that is not whole `400`. A workspace is
+attached to only while a page follows its stream or asks its runs something, and let go of once
+nothing has for **60 s** and its runs are idle.
 
 Each `POST /api/held/<do>` is the [request](/reference/daemon#requests) of that name, sent down
 this frontend's link as given. A side question is asked as [`/btw`](/reference/tui#btw-command)
@@ -161,11 +174,11 @@ asks one, through the same side conversations: a second question to one still an
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/runs` | `status`, `flow`, `q` (in its task, flow or name), `offset` (`0`), `limit` (`50`, at most `200`) | `runs` (rows, newest first), `total`, `offset`, `limit`, `counts` (`{how: n}` over every run), `flows` |
-| `GET /api/runs/<name>` | | The row, and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile`, `picks_up` (whether it can be picked up), `calls` (the tree of flows it called) |
+| `GET /api/runs` | `workspace` (only its runs; every workspace's without), `status`, `flow`, `q` (in its task, flow or name), `offset` (`0`), `limit` (`50`, at most `200`) | `runs` (rows, newest first), `total`, `offset`, `limit`, `counts` (`{how: n}` over every run), `flows` |
+| `GET /api/runs/<name>` | | Of whichever workspace it ran in: the row (`workspace` among it), and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile`, `picks_up` (whether it can be picked up), `calls` (the tree of flows it called) |
 | `GET /api/runs/<name>/trace` | | `sessions`: each with its `key`, `agent` and `actions` (`category`, `name`, `at`, `start`, `seconds`, `args`), read out of the run's logs as [tracing](/reference/tracing) reads them; the last **4** of runs that have ended kept, until the run's journal changes |
 | `GET /api/runs/<name>/bundle` | | The run's [export](/reference/tracing), as a download |
-| `GET /api/usage` | `days` (`30`; 1 to 365) | `days` (per UTC day, oldest first), `flows` (costliest first), `ended` (`{how: n}`), `whole`: each with `runs`, `cost`, `output_tokens`, `seconds`, and `money`, `tokens`, `worked` as the terminal interface says them |
+| `GET /api/usage` | `days` (`30`; 1 to 365); `workspace` (only its runs) | `days` (per UTC day, oldest first), `flows` (costliest first), `ended` (`{how: n}`), `whole`: each with `runs`, `cost`, `output_tokens`, `seconds`, and `money`, `tokens`, `worked` as the terminal interface says them |
 
 A row is `name`, `flow`, `task` (its first line, cut at 240 characters), `began`, `ended`,
 `how` (as the run ended; `running` for the run going, `unfinished` for one that never said),
@@ -177,18 +190,21 @@ going) and `spent`: what its budget counted as it ended, or `null`. A run of no 
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/flows` | | `flows` (`[{whose, name, about}]`), `flow` (the one this workspace opens on), `running` (the flows going, `[{ref, name, depth, since, task}]`) |
-| `GET /api/flow` | `name` | What it declares: `ref`, `description`, `resumable`, `resumes`, `agents` (`name`, `required`, `auto`, `harness`, `permission`, `skills`, and `clis`: the CLIs installed here that can fill it), `envs`, `params` (its JSON schema), and `remembered` (what this workspace last set it up with). `404` for a name that is not one of `GET /api/flows`' -- a path or a repository is never loaded -- and for one that will not load. |
+| `GET /api/flows` | `workspace` | `flows` (`[{whose, name, about}]`), `flow` (the one that workspace opens on), `running` (the flows going, `[{ref, name, depth, since, task}]`) |
+| `GET /api/flow` | `name`; `workspace` | What it declares: `ref`, `description`, `resumable`, `resumes`, `agents` (`name`, `required`, `auto`, `harness`, `permission`, `skills`, and `clis`: the CLIs installed here that can fill it), `envs`, `params` (its JSON schema), and `remembered` (what that workspace last set it up with). `404` for a name that is not one of `GET /api/flows`' -- a path or a repository is never loaded -- and for one that will not load. |
 | `GET /api/backends` | | `clis`: each CLI installed here, `{cli: {accounts: [{name, models: [{name, efforts}], asked}]}}`, this machine's own account first as `""`; `installable`: `{cli: [{name, efforts}]}`; `envs`: every backend `-e` takes |
+| `GET /api/workspaces` | | `here`, and `workspaces`: each `path`, `name`, `epics` (how many), `last` (when the latest began), `running`, `here`, `there` (whether the directory is still there) -- where `hmz web` started first, then those going, then where epics ran, newest first, then those only written down in the settings |
+| `POST /api/workspaces` | `workspace` | Writes it down in the settings: `kept` (its whole path), and as `GET` |
+| `POST /api/workspaces/forget` | `workspace` | Forgets what it was set up with, which stops it being offered where no epic ran there; as `GET` |
 | `GET /api/paths` | `typed` (query): a path being written, `~` and all | `paths`: the directories it could become, spelled as typed, each ending in `/`, at most 50 |
 
 ### Settings {#api-settings}
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/settings` | | `workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (set up here) |
+| `GET /api/settings` | `workspace` | `workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (set up here) |
 | `POST /api/settings` | any of `btw` (text), `details`, `reports` (bool) | As `GET` |
-| `POST /api/settings/forget` | | `forgot` (whether there was anything), and as `GET` |
+| `POST /api/settings/forget` | `workspace` | `forgot` (whether there was anything), and as `GET` |
 | `GET /api/accounts` | | `accounts` (`cli`, `name`, `way`, `sets`, `made`, `models`, `asked`, `serves`) and `backends` (each CLI's `ways`: `name`, `about`, `terminal`, `asks`) |
 | `POST /api/accounts` | `cli`, `name`, `way`; `answers` (`{variable: value}`) | As `GET`. A way whose `terminal` is true is refused: it runs the CLI's own sign-in. |
 | `POST /api/accounts/remove` | `cli`, `name` | As `GET` |

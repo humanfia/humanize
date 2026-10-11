@@ -1,9 +1,10 @@
 # `web`
 
-The web interface `hmz web` serves: a workspace's runs drawn in a browser on this machine. It is
-one more frontend of the runs a host holds there, beside every terminal interface opened on
-them; it runs flows and reads them back, defines no flows, drives no agents and keeps no store
-of its own.
+The web interface `hmz web` serves: every workspace's runs on this machine, drawn in a browser on
+it. Where the terminal interface is about the directory it is opened in, this is about the
+machine, as the daemon is: one more frontend of the runs each workspace's host holds, beside
+every terminal interface opened on them. It runs flows and reads them back, defines no flows,
+drives no agents and keeps no store of its own.
 
 ## API
 
@@ -14,7 +15,7 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]: ...
 def serve(
     *,
     port: int = 0,  # 0 for any free one
-    apart: bool = True,  # the runs held by this workspace's host, or in this process
+    apart: bool = True,  # the runs held by each workspace's host, or in this process
     shown: Callable[[str], object] = print,  # told the address once it listens
     opened: Callable[[str], object] | None = None,  # opens the address in a browser
 ) -> None: ...
@@ -58,10 +59,17 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 
 ### One frontend of the runs
 
-- MUST attach through `daemon` as every frontend does -- to the host holding this workspace's
+- MUST serve every workspace of this machine wherever it is started: each an epic was run in,
+  each written down in humanize's settings, and any a page opens by its path, which is then
+  written down there -- the one it was started in offered first -- and MUST NOT take a path
+  that is not a directory as one.
+- MUST attach through `daemon` as every frontend does -- to the host holding a workspace's
   runs, starting one where none is, or to runs held in its own process where they are not held
-  apart -- refusing runs held by an older humanize, and MUST attach again whenever the runs let
-  it go, for as long as it is served.
+  apart -- only while a page follows that workspace's runs or acts on them, refusing runs held
+  by an older humanize, MUST attach again whenever the runs let it go while it is followed, and
+  MUST let go of a link no page has used for a while whose runs are idle, so that a host goes as
+  it would with nobody reading; what runs where it holds no link MUST be asked of the daemon,
+  which starts nothing.
 - MUST ask for everything a page does to a run through its link -- starting and picking up,
   saying, answering, stopping and forcing, away, claiming and releasing, the board, side
   questions -- and MUST refuse a field a request does not take or a value of another kind
@@ -76,13 +84,15 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   NOT let a side question reach the run.
 - MUST bound what it keeps of the runs' records, and what a page keeps, by count and by size.
 - MUST read the runs written down, the flows on offer, what was spent and what humanize
-  remembers through `runtime`'s one object, as the terminal interface reads them.
+  remembers through `runtime`'s one object, as the terminal interface reads them -- of the
+  workspace a request names, the runs written down of every workspace or of one, and accounts,
+  fallback and runtimes once for the machine.
 
 ### The page
 
-- MUST offer the runs of this directory newest first -- how each ended or that it is going,
-  its task, flow and agents, what it spent and how long it took -- found by how it went, by
-  flow and by its task, a page at a time.
+- MUST offer every workspace as a folder of its runs, newest first -- how each ended or that it
+  is going, its task, flow and agents, what it spent and how long it took -- found by how it
+  went, by workspace, by flow and by its task, a page at a time.
 - MUST draw the run going as it happens: its sessions as lanes of turns over time, what each
   said as the terminal interface's transcript says it, its agents and who handed to whom, what
   it has spent against its budget, the questions it waits on a person for, the people it has
@@ -92,17 +102,19 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
-- MUST start a run as this directory last set its flow up -- its agents, environments, params,
-  budget and profiling -- and pick a run up as that run was started.
+- MUST start a run in the workspace picked -- any it serves, or one opened by its path,
+  completed as it is typed -- as that workspace last set its flow up -- its agents,
+  environments, params, budget and profiling -- and pick a run up, in its own workspace, as
+  that run was started.
 - MUST set an agent up as the terminal interface does, a step at a time: a CLI installed here
   that can fill the role, the account it runs as -- this machine's own or one made, and a way to
   make one -- a model known runnable as that account, asking the CLI where none is known yet and
   taking one typed where it cannot say, and an effort that model takes; and an environment by
   its backend, a runtime of it saved or made there, and its directory, completed as it is typed
   where it is on this machine. Each MUST come to what `-a` or `-e` spells.
-- MUST offer the flows on offer and what each declares, what the runs here spent by day and by
-  flow, and the pages `/settings` has: general, accounts, fallback, runtimes and this
-  workspace. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
+- MUST offer the flows on offer in a workspace and what each declares, what the runs spent by
+  day and by flow -- of every workspace or of one -- and the pages `/settings` has: general,
+  accounts, fallback, runtimes and the workspace, for any workspace it serves. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
   run.
 - MUST name what it draws -- a button, a tab, a menu's choice, a heading, a field -- by a word
   or a short phrase, never a sentence, and MUST call a run of a flow an epic.

@@ -19,8 +19,10 @@ import { saidTraced, sayer } from '../transcript.js'
 /** The most lines of a run going drawn at once: past it, the oldest go. */
 const LINES = 3000
 
-export function mount(root, { parts }) {
+export function mount(root, { parts, query }) {
   let name = parts[0] === 'live' ? '' : parts[1]
+  /** Where the epic going is looked for, for an epic not named. */
+  const wanted = query.get('workspace') || ''
   let mode = modeOf(parts)
   const panel = sidePanel('the epic')
   const head = h('div', { class: 'bar-holder' })
@@ -29,10 +31,12 @@ export function mount(root, { parts }) {
   fill(root, h('div', { class: 'view view-epic' }, h('div', { class: 'work' }, head, main, dock), panel.node))
 
   const drawn_ = graph({ open: (role) => go(`/epics/${encodeURIComponent(name)}/agents/${encodeURIComponent(role)}`) })
-  const say = saying()
+  // What is said to the epic, and asked beside it, once it is known which workspace it is of.
+  let say = null
   let sayTo = null
   let sayToKey = ''
-  const btw = asides()
+  let btw = null
+  const workspace = () => (seen && seen.workspace) || wanted
   /** The card of each question waiting, kept while it waits as it was asked of whom it was. */
   const cards = new Map()
   let seen = null
@@ -80,8 +84,12 @@ export function mount(root, { parts }) {
       name = detail.name
       history.replaceState(null, '', `#/epics/${encodeURIComponent(name)}`)
       stop()
-      stop = watch(name, told)
+      stop = watch(name, detail.workspace, told)
       return
+    }
+    if (!say) {
+      say = saying(detail.workspace)
+      btw = asides(detail.workspace)
     }
     const run = going && going.started ? going : null
     const model = run ? live(held, run, detail) : written(detail, traced)
@@ -101,8 +109,8 @@ export function mount(root, { parts }) {
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
     region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state], () => {
       const actions = []
-      if (going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask('stop') }))
-      else if (going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask('force') }))
+      if (going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(workspace(), 'stop') }))
+      else if (going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(workspace(), 'force') }))
       if (!going && detail.picks_up) actions.push(h('a', { class: 'btn', href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, icon('resume'), 'Resume'))
       if (!going) actions.push(h('a', { class: 'icon-btn', href: `/api/runs/${encodeURIComponent(detail.name)}/bundle`, download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
       actions.push(copier('Copy link', () => location.href))
@@ -236,7 +244,7 @@ export function mount(root, { parts }) {
       const kept = new Set()
       const shown = pending.map((one) => {
         const key = JSON.stringify([one.question, one.owner || '', me, one.text, one.options])
-        if (!cards.has(key)) cards.set(key, question(one, me, clients))
+        if (!cards.has(key)) cards.set(key, question(workspace(), one, me, clients))
         kept.add(key)
         return cards.get(key)
       })
@@ -251,7 +259,7 @@ export function mount(root, { parts }) {
       const people = run.started.outworlders || []
       region('dock-offers', [roles, sessions, working, people], () => say.offers(roles, sessions, working, people))
       if (mode.session && sayToKey !== mode.session) {
-        sayTo = saying(mode.session)
+        sayTo = saying(workspace(), mode.session)
         sayToKey = mode.session
       }
     }
@@ -298,11 +306,11 @@ export function mount(root, { parts }) {
         fill(pane, h('p', { class: 'dim' }, 'Side questions never reach the epic.'), btw.node)
       })
     } else if (tab === 'board') {
-      region('panel-board', [items], () => fill(pane, board(items || [])))
+      region('panel-board', [items], () => fill(pane, board(workspace(), items || [])))
     } else if (tab === 'people') {
       const clients = standing.clients && standing.clients.clients
       region('panel-people', [people, standing.claims, standing.away, held().me, clients], () =>
-        fill(pane, outworlders(people, { claims: (standing.claims && standing.claims.claims) || {}, away: standing.away, me: held().me, clients })),
+        fill(pane, outworlders(workspace(), people, { claims: (standing.claims && standing.claims.claims) || {}, away: standing.away, me: held().me, clients })),
       )
     }
   }
@@ -378,7 +386,7 @@ export function mount(root, { parts }) {
   }
 
   let stop = () => {}
-  stop = watch(name, told)
+  stop = watch(name, wanted, told)
   // The clocks a run going is drawn with move on their own between records.
   const ticking = setInterval(() => {
     if (seen && seen.going && seen.going.live) draw()

@@ -10,12 +10,19 @@ import { composer } from '../composer.js'
 import { fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
+import { workspacePicker, workspaces } from '../places.js'
 import { bar, choice, menu, section } from '../shell.js'
 
 export function mount(root, { query }) {
   const resume = query.get('resume') || ''
   const picker = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'flow-picker' }, h('span', {}, 'flow'), h('b', {}, '…'), icon('down'))
   const pickerHolder = h('div', { class: 'menu-holder' }, picker)
+  // Where the epic runs: the workspace the address names, or the one an epic picked up ran in.
+  let workspace = query.get('workspace') || ''
+  const place = workspacePicker(workspace, (path) => {
+    workspace = path
+    load(query.get('flow') || '')
+  })
   const greeting = h('h2', { class: 'greeting' }, resume ? 'Resume epic' : 'What should the agents do?')
   const about = h('p', { class: 'greeting-about' })
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
@@ -40,7 +47,7 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'view view-new' },
-      bar({ lead: pickerHolder }),
+      bar({ lead: h('div', { class: 'pickers' }, place.node, pickerHolder) }),
       h('div', { class: 'home' }, h('div', { class: 'home-inner' }, h('div', { class: 'home-mark', 'aria-hidden': 'true' }, h('img', { src: '/mark.svg', alt: '' })), greeting, about, resumed, box.node, options)),
     ),
   )
@@ -69,28 +76,44 @@ export function mount(root, { query }) {
     { label: 'Flows' },
   )
 
-  Promise.all([get('/api/flows'), readBackends(), get('/api/runtimes'), resume ? get(`/api/runs/${encodeURIComponent(resume)}`) : null])
-    .then(([found, installed, saved, ran]) => {
+  /** Which workspace was read last: one read after another was picked draws nothing. */
+  let loading = ''
+
+  /** Reads what a workspace offers -- its flows, and the one it last set up -- and opens one. */
+  async function load(flow) {
+    const mine = (loading = workspace || 'here')
+    fill(box.said)
+    try {
+      const ran = resume ? await get(`/api/runs/${encodeURIComponent(resume)}`) : null
+      if (ran && !workspace) {
+        workspace = ran.workspace
+        place.set(workspace)
+      }
+      if (!workspace) workspace = (await workspaces()).here
+      const [found, installed, saved] = await Promise.all([get(`/api/flows?workspace=${encodeURIComponent(workspace)}`), readBackends(workspace), get('/api/runtimes')])
+      if (mine !== loading) return
       flows = found.flows
       backends = installed
       runtimes = saved.runtimes
-      run = ran
-      // A flow the address names that is not on offer here opens the one this directory last set up.
-      const asked = flows.some((one) => one.name === query.get('flow')) ? query.get('flow') : ''
+      // A flow the address names that is not on offer there opens the one it last set up.
+      const asked = flows.some((one) => one.name === flow) ? flow : ''
       const wanted = (ran && ran.flow) || asked || found.flow || (flows[0] && flows[0].name) || ''
       if (!wanted) fill(options, problem('No flow is on offer here.'))
       else choose(wanted, ran)
-    })
-    .catch((error) => fill(box.said, problem(error)))
+    } catch (error) {
+      if (mine === loading) fill(box.said, problem(error))
+    }
+  }
+  load(query.get('flow') || '')
 
   async function choose(name, ran) {
     choosing = name
     run = ran
-    stays({ flow: name, resume: ran ? ran.name : '' })
+    stays({ workspace, flow: name, resume: ran ? ran.name : '' })
     fill(picker.querySelector('b'), name)
     let read
     try {
-      read = await get(`/api/flow?name=${encodeURIComponent(name)}`)
+      read = await get(`/api/flow?name=${encodeURIComponent(name)}&workspace=${encodeURIComponent(workspace)}`)
     } catch (error) {
       if (choosing === name) fill(box.said, problem(error))
       return
@@ -186,13 +209,13 @@ export function mount(root, { query }) {
       optionsChip.setAttribute('aria-expanded', 'true')
       throw error
     }
-    await ask('start', { flow: picked.name, task, ...read, resume: run ? run.at : false })
-    go('/live')
+    await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false })
+    go(`/live?workspace=${encodeURIComponent(workspace)}`)
   }
 
   // Back from making an account or a runtime, the pickers offer it.
   const back = () => {
-    if (!location.hash.startsWith('#/settings')) readBackends().catch(() => {})
+    if (!location.hash.startsWith('#/settings')) readBackends(workspace).catch(() => {})
   }
   window.addEventListener('hashchange', back)
   return () => {

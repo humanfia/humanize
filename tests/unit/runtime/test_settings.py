@@ -354,3 +354,19 @@ def test_a_file_with_nothing_to_respell_is_not_written_on_reading(
     Settings(tmp_path)
 
     assert held.writes == 0
+
+
+def test_a_workspace_kept_is_offered_until_it_is_forgotten(
+    held: doubles.Store, tmp_path: Path
+) -> None:
+    one, other = tmp_path / "one", tmp_path / "other"
+    one.mkdir()
+    other.mkdir()
+    Settings(one).remember("ralph", {})
+    Settings(other).keeps()
+    Settings(other).keeps()
+
+    assert Settings().workspaces() == [str(one.resolve()), str(other.resolve())]
+    assert Settings(other).flow == ""
+    assert Settings(other).forget() is True
+    assert Settings().workspaces() == [str(one.resolve())]

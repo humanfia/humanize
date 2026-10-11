@@ -5,20 +5,30 @@
 import { address, poll } from '../../api.js'
 import { stays } from '../../app.js'
 import { badge, fill, flowName, h, problem } from '../../dom.js'
+import { workspaces } from '../../places.js'
 
 /** How far back the page can look, in days. */
 const RANGES = [7, 30, 90, 365]
 
 export function draw(holder, query) {
   let days = Number(query.get('days')) || 30
+  let workspace = query.get('workspace') || ''
+  const places = h('select', { 'aria-label': 'Workdir' }, h('option', { value: '' }, 'All workdirs'))
+  workspaces().then((answer) => {
+    fill(places, h('option', { value: '' }, 'All workdirs'), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace, title: one.path }, one.name)))
+  }, () => {})
+  places.addEventListener('change', () => {
+    workspace = places.value
+    watch()
+  })
   const range = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How far back' })
   const body = h('div', { 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, 'Reading what the epics spent…'))
-  fill(holder, h('div', { class: 'row' }, h('span', { class: 'dim' }, 'Range'), range), body)
+  fill(holder, h('div', { class: 'row' }, h('span', { class: 'dim' }, 'Range'), range, places), body)
 
   let stop = () => {}
   const watch = () => {
     stop()
-    stays({ days })
+    stays({ days, workspace })
     fill(
       range,
       RANGES.map((one) => {
@@ -30,7 +40,7 @@ export function draw(holder, query) {
         return button
       }),
     )
-    stop = poll(address('/api/usage', { days }), 30000, (data, error) => draw(data, error))
+    stop = poll(address('/api/usage', { days, workspace }), 30000, (data, error) => draw(data, error))
   }
 
   function draw(data, error) {

@@ -24,6 +24,8 @@ class _Ran:
     flow: str = "ralph"
     task: str = "fix it"
     began: str = "2026-10-08T10:00:00+00:00"
+    workspace: str = "/work/one"
+    at: str = ""
     ended: str = ""
     how: str = ""
     spent: dict[str, Any] | None = None
@@ -75,7 +77,8 @@ def test_spending_counts_each_day_and_flow_and_how_each_run_ended() -> None:
         ({"state": "running", "flow": "ralph", "task": "fix it", "at": 600.0}, None),
         ({"state": "running", "flow": "ralph", "task": "other", "at": 0.0}, None),
         ({"state": "running", "flow": "goal", "task": "fix it", "at": 0.0}, None),
-        ({"state": "idle", "flow": "ralph", "task": "fix it", "at": 0.0}, None),
+        # Asked of the daemon, a host says which flow and nothing of the task or when.
+        ({"state": "running", "flow": "ralph"}, 1),
         (None, None),
     ],
 )
@@ -84,13 +87,18 @@ def test_the_run_going_is_the_one_opened_for_it_as_it_started(
 ) -> None:
     began = datetime.datetime.fromtimestamp(0, datetime.UTC).isoformat()
     runs = _runs(
-        _Ran(began=began, ended=began, how="done"),  # over, so not the one going
-        _Ran(began=began),
+        _Ran(
+            began=began, ended=began, how="done", at="over"
+        ),  # over, so not the one going
+        _Ran(began=began, at="going"),
+        # The same flow on the same task, going in another workspace: that one's, not this.
+        _Ran(began=began, at="elsewhere", workspace="/work/two"),
     )
+    running = {} if standing is None else {"/work/one": standing}
 
-    held = held_by(runs, standing)
+    held = held_by(runs, running)
 
-    assert held is (runs[found] if found is not None else None)
+    assert held == ({runs[found].at} if found is not None else set())
 
 
 def test_a_trace_is_read_as_each_sessions_actions_in_the_order_they_happened() -> None:

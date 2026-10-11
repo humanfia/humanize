@@ -145,6 +145,22 @@ class Settings:
         self._write(change)
         return any(found)
 
+    def workspaces(self) -> list[str]:
+        """Every workspace something is written down for, by its path, in the order written.
+
+        Read off the file as it was read: what a frontend that is not about one workspace -- a
+        web interface serving the machine -- offers as somewhere a flow can be run.
+        """
+        return [str(one) for one in self._workspaces(self._held)]
+
+    def keeps(self) -> None:
+        """Writes this workspace down as one to offer, with nothing set up in it yet."""
+
+        def change(held: dict[str, Any]) -> None:
+            self._mine(held)
+
+        self._write(change)
+
     def agents(self, flow: str) -> dict[str, Runs]:
         """What each agent role of one flow was last given here.
 

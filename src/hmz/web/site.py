@@ -34,13 +34,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from . import accounts, fallbacks, flows, held, paths, runs, runtimes, settings
+from . import accounts, fallbacks, flows, held, paths, places, runs, runtimes, settings
 from .routing import Asked, Download, Refusal, Route, Stream
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from .held import Held
+    from .places import Places
     from .runs import Runs
 
 __all__ = ["Site"]
@@ -55,6 +55,7 @@ ROUTES: tuple[Route, ...] = (
     *fallbacks.ROUTES,
     *runtimes.ROUTES,
     *paths.ROUTES,
+    *places.ROUTES,
 )
 
 #: How many ports any would do for are tried before one free on both loopbacks is given up on.
@@ -101,15 +102,14 @@ class Site(ThreadingHTTPServer):
 
     Args:
       port: The port to listen on, or 0 for any free one on both.
-      hmz: humanize, for the workspace the runs are of.
-      held: The runs held for that workspace, as this interface follows them.
-      runs: The runs written down there.
+      places: Every workspace on this machine, and the runs held for each as this follows them.
+      runs: The runs written down, of every workspace.
     """
 
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, port: int, *, hmz: Any, held: Held, runs: Runs) -> None:
+    def __init__(self, port: int, *, places: Places, runs: Runs) -> None:
         self._beside: _Beside | None = None
         for left in reversed(range(_PORTS)):
             super().__init__(("127.0.0.1", port), _Handler)
@@ -122,8 +122,8 @@ class Site(ThreadingHTTPServer):
                 # next one picked may be free on both.
                 if port or not left:
                     raise
-        self.hmz = hmz
-        self.held = held
+        self.places = places
+        self.hmz: Any = places.hmz
         self.runs = runs
         #: Set as the server stops, which is what ends every stream it is sending.
         self.going = threading.Event()

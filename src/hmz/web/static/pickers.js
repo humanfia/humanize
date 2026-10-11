@@ -14,9 +14,12 @@ const asking = new Map()
 /** Why asking a CLI as an account failed, so that it is said rather than asked again. */
 const failed = new Map()
 
-/** Reads the CLIs installed here again, and tells every picker. */
-export async function readBackends() {
-  backends = await get('/api/backends')
+/** Reads the CLIs installed again -- as a workspace runs them -- and tells every picker. */
+let reading = ''
+
+export async function readBackends(workspace = reading) {
+  reading = workspace
+  backends = await get(`/api/backends?workspace=${encodeURIComponent(workspace)}`)
   for (const one of told) one()
   return backends
 }

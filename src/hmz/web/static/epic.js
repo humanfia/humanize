@@ -12,16 +12,32 @@ import { lane, lasting } from './dom.js'
 import { current, follow } from './held.js'
 
 /**
- * Follows one epic, or -- named "" -- the one going: what it wrote down, read again every so
- * often, and the records of the run going where it is that run.
+ * Follows one epic, or -- named "" -- the one going in a workspace: what it wrote down, read
+ * again every so often, and the records of its workspace's runs while it is the one going
+ * there -- and after, for as long as they are still of it. An epic written down long ago reaches
+ * no runs at all.
  *
- * @param {string} name The epic, or "" for the run going.
- * @param {(seen: {detail: object|null, error: Error|null, held: object|null, going: object|null, none: boolean}) => void} told
+ * @param {string} name The epic, or "" for the one going.
+ * @param {string} workspace Where to look for the one going, for an epic not named.
+ * @param {(seen: {detail: object|null, error: Error|null, held: object|null, going: object|null, none: boolean, workspace: string}) => void} told
  * @returns {() => void} What stops following.
  */
-export function watch(name, told) {
-  const seen = { detail: null, error: null, held: null, going: null, none: false }
+export function watch(name, workspace, told) {
+  const seen = { detail: null, error: null, held: null, going: null, none: false, workspace }
+  let unfollow = null
+  let following = false
   const tell = () => {
+    if (seen.detail) seen.workspace = seen.detail.workspace
+    // The runs of its workspace are followed once it is the one going there, or not named.
+    if (!following && seen.workspace && (!name || (seen.detail && seen.detail.held))) {
+      // Marked first: following tells what it holds at once, which comes back through here.
+      following = true
+      unfollow = follow(seen.workspace, (state) => {
+        seen.held = state
+        tell()
+      })
+      return
+    }
     const run = seen.held ? going(seen.held) : null
     // The records of the epic going are this one's while it goes, and still once it has ended,
     // for as long as the records held are of it rather than of one started since.
@@ -37,8 +53,8 @@ export function watch(name, told) {
       tell()
     })
   } else {
-    // The run going has an epic as soon as it starts; it is named once the list says which.
-    stop = poll('/api/runs?status=running&limit=1', 2000, (data) => {
+    // The epic going has its record as soon as it starts; it is named once the list says which.
+    stop = poll(`/api/runs?status=running&limit=1&workspace=${encodeURIComponent(workspace)}`, 2000, (data) => {
       const one = data && data.runs[0]
       seen.none = Boolean(data) && !one
       if (one && (!seen.detail || seen.detail.name !== one.name)) {
@@ -50,13 +66,9 @@ export function watch(name, told) {
       tell()
     })
   }
-  const unfollow = follow((state) => {
-    seen.held = state
-    tell()
-  })
   return () => {
     stop()
-    unfollow()
+    if (unfollow) unfollow()
   }
 }
 

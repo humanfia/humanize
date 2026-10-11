@@ -159,7 +159,7 @@ def test_every_settings_page_opens_and_reads(project: Path, name: str) -> None:
 
 def test_the_colours_are_light_dark_or_adaptive(project: Path) -> None:
     with served() as site, opened(site) as page:
-        page.locator("[data-hmz=workspace-menu]").click()
+        page.locator("[data-hmz=machine-menu]").click()
         choices = page.locator("[role=menu] .choice-label")
         expect(choices).to_have_text(["Adaptive", "Light", "Dark", "Settings", "Usage"])
         page.get_by_role("menuitem", name="Dark").click()
