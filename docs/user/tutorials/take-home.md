@@ -124,6 +124,15 @@ every turn opens a fresh **session**, a conversation with the model that has see
 before. What passes from one turn to the next is the repository and `NOTES.md`, not a
 transcript.
 
+::: info Why "flame chase"
+The name comes from Amphoreus (翁法罗斯), a world in *Honkai: Star Rail*. There the Chrysos
+Heirs (黄金裔) set out on the Flame-Chase Journey (逐火之旅) to take the Coreflames back from
+the Titans and re-create the world (再创世). The world goes round again and again, an eternal
+recurrence (永劫回归), and each time the Heirs take up the journey anew. In `flame_chase` the
+chasers take up the task in turn, each turn starts afresh, what one leaves in the repository is
+where the next begins, and the loop does not stop itself.
+:::
+
 <HmzFlow flow="flame_chase" />
 
 Start it. Pick the tab for the backends you have:

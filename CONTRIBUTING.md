@@ -55,7 +55,7 @@ something. For example, `fix(tui): keep the cursor on the row it was on`.
 - **Types:** `feat`, `fix`, `docs`, `perf`, `refactor`, `test`, `ci`, `build`, `chore`,
   `style`, `revert`.
 - **Scope:** the package or the docs section it changes, such as `agents`, `tui`, `flows` or
-  `contributing`. Optional.
+  `contributing`, or `desktop` for the macOS app. Optional.
 
 CI checks the title, and fails `ci-ok` until it is one; edit the title and it checks again.
 Commits follow the same form: see

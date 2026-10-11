@@ -477,7 +477,7 @@ function reading(mode) {
  */
 function spendingOf(figures) {
   const kinds = (figures.reckoning || []).map((one) => one.kind)
-  const named = (kind) => kind || 'unsorted'
+  const named = (kind) => (kind ? kind.replace(/_/g, ' ') : 'unsorted')
   return [
     h(
       'div',
@@ -502,9 +502,14 @@ function spendingOf(figures) {
 /** Where each session of an epic works, and where its harness was put, as each opened. */
 function placesOf(detail, run) {
   if (run) {
-    return run.records.filter((one) => one.type === 'opened' && !one.person && (one.env || one.harness)).map((one) => [one.key, one.env || '', one.harness || ''])
+    return run.records.filter((one) => one.type === 'opened' && !one.person && (one.env || one.harness)).map((one) => [one.key, placed(one.env), one.harness || ''])
   }
   return sessionsOf(detail).filter((one) => one.harness).map((one) => [one.key, '', one.harness]).concat(detail.used.map((one) => [one.split('=')[0], one.split('=').slice(1).join('='), '']))
+}
+
+/** Where a session works, on one line as the terminal interface's monitor says it under the session: its role, then its kind, target and workdir. */
+function placed(env) {
+  return env ? [env.role, env.kind, env.target, env.workdir].filter(Boolean).join(' · ') : ''
 }
 
 /** The agents as a list rather than a graph: the working first, then in the flow's order. */

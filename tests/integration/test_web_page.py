@@ -300,6 +300,36 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         assert page.evaluate("navigator.clipboard.readText()") == page.url
 
 
+@pytest.mark.parametrize(("width", "dark"), [(1280, False), (390, True)])
+def test_the_panel_says_every_figure_in_words_and_within_its_edges(
+    project: Path, engine: str, width: int, dark: bool
+) -> None:
+    with served() as site, opened(site, engine=engine, width=width, dark=dark) as page:
+        _start_chat(page, "fit me")
+        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        if width < 860:
+            page.locator("[data-hmz=bar] .panel-toggle").click()
+        inspector = page.locator("[data-hmz=inspector]")
+        expect(inspector.locator("[data-hmz=environments]")).to_contain_text(
+            "assistant/1 workspace · local"
+        )
+        expect(inspector.locator("[data-hmz=spending]")).to_contain_text("cache write")
+        assert not re.search(
+            r"\[object |\bundefined\b|\bNaN\b|\bnull\b", inspector.inner_text()
+        )
+        # Its last column inside the panel, as drawn or once scrolled to.
+        outside = page.evaluate(
+            """() => {
+              const wrap = document.querySelector('[data-hmz=spending]').parentElement
+              wrap.scrollLeft = wrap.scrollWidth
+              const last = wrap.querySelector('th:last-child').getBoundingClientRect()
+              const panel = document.querySelector('[data-hmz=inspector]').getBoundingClientRect()
+              return last.right - Math.min(wrap.getBoundingClientRect().right, panel.right)
+            }"""
+        )
+        assert outside <= 1
+
+
 def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
     project: Path, engine: str
 ) -> None:

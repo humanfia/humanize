@@ -13,15 +13,16 @@ the one check a branch rule needs.
 
 ## How it works
 
-`title`, `lint`, `package` and the tests start together. The tests are two matrices, each a job per part
-and per system, so no job waits on another and each stays short:
+`title`, `lint`, `package`, the tests and `desktop` start together. The tests are two matrices,
+each a job per part and per system, so no job waits on another and each stays short:
 
 ```text
 title ─────────────────────────────────────────┐
 lint ──────────────────────────────────────────┤
 package ───────────────────────────────────────┤
 unit         8 packages × Linux, macOS ────────┼─▶ ci-ok
-integration  6 topics   × Linux, macOS ────────┘
+integration  6 topics   × Linux, macOS ────────┤
+desktop      the macOS app, on macOS ──────────┘
 ```
 
 | Job | Checks | Run it yourself |
@@ -31,9 +32,10 @@ integration  6 topics   × Linux, macOS ────────┘
 | `lint` | Every pre-commit hook: `ruff`, `pyright` strict, `actionlint` and `zizmor` over `.github/`, and the file hygiene | `uv run pre-commit run --all-files` |
 | `unit (<os>, <package>)` | `tests/unit/<package>`, for each of `cli`, `coganchor`, `daemon`, `flows`, `runtime`, `sdk`, `tui` and `web` | `uv run pytest tests/unit/<package>` |
 | `integration (<os>, <topic>)` | `tests/integration/test_<topic>_*.py`, for each of `core`, `agents`, `tui`, `daemon`, `anchor` and `web` | `uv run pytest tests/integration/test_<topic>_*.py` |
+| `desktop` | [The macOS app](/contributing/#the-macos-app) in `desktop/`: `cargo fmt --check`, `cargo clippy` with warnings as errors, `cargo test`, and the app built unoptimised, without the disk image | the commands in [The macOS app](/contributing/#the-macos-app) |
 | `ci-ok` | Every job above passed, or `title` was skipped | |
 
-Every job runs on Python 3.12, from the environment `uv.lock` pins with every extra; the tests
+Every job but `desktop` runs on Python 3.12, from the environment `uv.lock` pins with every extra; the tests
 run on Linux and macOS. `tests/system` is never run here: it drives real agents for minutes a
 test and spends real tokens, so it is yours to run when your change needs it. [Where a test
 goes](/contributing/#where-a-test-goes) says when.
@@ -96,7 +98,7 @@ None of them reports to `ci-ok`.
 | --- | --- | --- |
 | `build-docs.yml` | a pull request or a push to `main` that changed `docs/` | Builds the site, checks every `#fragment` resolves and every word is legible on a phone, and on `main` deploys it: [Working on these docs](/contributing/docs) |
 | `release.yml` | a maintainer, by hand on `main`, with a version | Checks it, cuts `release/X.Y` from `main` for a new line, and has release-please open the release pull request against it: [Releasing](/contributing/releasing) |
-| `publish.yml` | a push to a `release/*` branch | Once a release pull request merges, tags it, builds the wheel and sdist, publishes them to PyPI, then publishes the GitHub release: [Releasing](/contributing/releasing) |
+| `publish.yml` | a push to a `release/*` branch | Once a release pull request merges, tags it, builds the wheel and sdist and the macOS app's disk image, publishes the package to PyPI, then publishes the GitHub release with all three: [Releasing](/contributing/releasing) |
 
 ## Next steps
 

@@ -273,6 +273,7 @@ export default defineConfig({
             { text: 'Stopping', link: '/user/stopping' },
             { text: 'Leaving it running', link: '/user/leaving' },
             { text: 'In a browser (hmz web)', link: '/user/web' },
+            { text: 'The macOS app', link: '/user/desktop' },
             { text: 'The mission board', link: '/user/board' },
           ],
         },

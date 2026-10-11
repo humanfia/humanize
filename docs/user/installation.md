@@ -67,6 +67,11 @@ Each one gives you the `hmz` command, from [PyPI](https://pypi.org/project/hmz/)
 `pipx` put it in an environment of its own, on your `PATH` from every directory. `pip` installs
 into whichever environment is active, so `hmz` is there only while that environment is.
 
+::: tip On a Mac, an app as well
+[The macOS app](/user/desktop) opens `hmz web` in a window of its own, from the Dock. It runs the
+`hmz` you install here, so install that first.
+:::
+
 ### Three backends need an extra {#the-two-backends-that-are-extras}
 
 Skip this unless you want DeepSeek Harness, Kimi Code or litellm. Each needs a Python package in

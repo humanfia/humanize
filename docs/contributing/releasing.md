@@ -28,7 +28,8 @@ rules as `main`. Three workflows do it:
 1. **`release.yml`**, run by hand on `main` with the version, checks it, finds `release/X.Y`,
    and has [release-please](https://github.com/googleapis/release-please) open the release
    pull request against it. For a new `X.Y` it first cuts `release/X.Y` from `main`. The pull
-   request bumps `version` in `pyproject.toml` and `uv.lock`, and adds the release's section
+   request bumps `version` in `pyproject.toml`, `uv.lock` and the macOS app's `tauri.conf.json`,
+   and adds the release's section
    to `CHANGELOG.md`, written from the pull request titles since the last release of that line,
    or, for a new line, since the line before it was cut.
 2. **`ci.yml`** runs on the release pull request, started by `release.yml`: a pull request a
@@ -37,9 +38,19 @@ rules as `main`. Three workflows do it:
    tags the merge commit `vX.Y.Z`, builds a wheel and an sdist, runs `twine check --strict`
    (which fails if PyPI could not render `README.md`), publishes both to
    [PyPI](https://pypi.org/project/hmz/), and only then publishes the GitHub release with
-   them attached, so the release never offers files PyPI refused.
+   them attached, so the release never offers files PyPI refused. Beside them, on macOS, it
+   builds [the macOS app](/user/desktop) as one disk image for Apple silicon and Intel,
+   `humanize-X.Y.Z-macos-universal.dmg`, attests it, and attaches it to the release too.
 
-`main` itself never says a released version: its `pyproject.toml` says `0.0.0`.
+`main` itself never says a released version: its `pyproject.toml` says `0.0.0`, and so does
+`tauri.conf.json`.
+
+The disk image is signed ad hoc, which is why [its guide](/user/desktop#the-first-time-it-opens)
+says how to open it the first time. Once the repository holds an Apple Developer ID in the
+secrets `APPLE_CERTIFICATE` (the `.p12`, in base64), `APPLE_CERTIFICATE_PASSWORD` and
+`APPLE_SIGNING_IDENTITY`, `publish.yml` signs it with that instead, and with `APPLE_ID`,
+`APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID` it notarizes it as well. Nothing
+else changes.
 
 The version is checked before anything is opened:
 
@@ -104,7 +115,7 @@ The run takes a few minutes. Follow it with:
 gh run watch "$(gh run list --workflow publish.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
 ```
 
-Once its four jobs are green, the release is on
+Once its five jobs are green, the release is on
 [GitHub Releases](https://github.com/humanfia/humanize/releases). Then install it from PyPI:
 
 ```sh
@@ -128,6 +139,13 @@ OK: hmz-0.2.0b1-py3-none-any.whl
 
 Do the same for `pypi:hmz-0.2.0b1.tar.gz`. PyPI shows the same on the release's **Download
 files** page: each file names `publish.yml` on humanfia/humanize as its publisher.
+
+The disk image is attested by GitHub instead:
+
+```sh
+gh release download v0.2.0-beta.1 --repo humanfia/humanize --pattern '*.dmg'
+gh attestation verify humanize-0.2.0-beta.1-macos-universal.dmg --repo humanfia/humanize
+```
 
 ## Variations
 
@@ -176,6 +194,7 @@ can no longer install it.
 | `invalid-publisher` in `publish to PyPI` | PyPI's trusted publisher does not describe this workflow | on PyPI, the publisher must name owner `humanfia`, repository `humanize`, workflow `publish.yml` and environment `pypi`; then `gh run rerun <run-id> --failed` |
 | `File already exists` | PyPI has this version already | open the next version: PyPI never takes a version's files twice |
 | a failed `publish the release` | PyPI has the release, and the GitHub release is still a draft | `gh run rerun <run-id> --failed` |
+| a failed `desktop` | the disk image did not build, or did not sign or notarize. PyPI may have the release; the GitHub release is still a draft | fix what its log says, then `gh run rerun <run-id> --failed`; a fix that needs a commit goes to `main`, then the next version |
 
 ::: details For admins: guarding the `pypi` environment
 In **Settings → Environments → pypi**, add yourself and another maintainer as required

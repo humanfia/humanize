@@ -48,7 +48,36 @@ updates:
     commit-message:
       prefix: chore
 
-  # The documentation site, which is the one part of this repository that is not Python.
+  # The macOS app: its crates, and the Tauri CLI that bundles it.
+  - package-ecosystem: cargo
+    directory: /desktop/src-tauri
+    labels: []
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      desktop:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+      include: scope
+
+  - package-ecosystem: npm
+    directory: /desktop
+    labels: []
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      desktop:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+      include: scope
+
+  # The documentation site.
   - package-ecosystem: npm
     directory: /docs
     labels: []
