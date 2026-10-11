@@ -51,11 +51,18 @@ def _stops(tmp_path: Path, stop: Callable[[subprocess.Popen[str]], object]) -> N
             assert time.monotonic() < waited, "no page forwarding a browser was written"
             time.sleep(0.05)
         stop(started)
-        _, errors = started.communicate(timeout=PATIENCE)
+        # Waited on rather than communicated with, which would close stdin itself -- a stop
+        # of its own beside the one being tested -- and fails on one closed already.
+        started.wait(timeout=PATIENCE)
+        assert started.stderr is not None
+        errors = started.stderr.read()
     finally:
         if started.poll() is None:
             started.kill()
-            started.communicate()
+            started.wait()
+        for held in (started.stdin, started.stdout, started.stderr):
+            if held is not None:
+                held.close()
     assert started.returncode == 0, errors
     assert "Traceback" not in errors
     assert not page.exists()
