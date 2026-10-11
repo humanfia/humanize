@@ -67,9 +67,11 @@ Each one gives you the `hmz` command, from [PyPI](https://pypi.org/project/hmz/)
 `pipx` put it in an environment of its own, on your `PATH` from every directory. `pip` installs
 into whichever environment is active, so `hmz` is there only while that environment is.
 
-::: tip On a Mac, an app as well
-[The macOS app](/user/desktop) opens `hmz web` in a window of its own, from the Dock. It runs the
-`hmz` you install here, so install that first.
+::: tip On a Mac, the app installs it for you
+[The macOS app](/user/desktop) opens `hmz web` in a window of its own, from the Dock, and
+installs `hmz` itself with `uv tool`, downloading uv where you have none: open it, and there is
+nothing to run here. It keeps `hmz` at its own version, so with the app, update the app rather
+than `hmz`.
 :::
 
 ### Three backends need an extra {#the-two-backends-that-are-extras}
@@ -356,6 +358,10 @@ pip install --upgrade hmz
 
 Each moves humanize to the newest release. `uv tool upgrade` keeps the extras it was installed
 with; `pipx` and `pip` install again, so name an extra again: `pip install --upgrade 'hmz[all]'`.
+
+With [the macOS app](/user/desktop), update the app instead: it puts the `uv tool` `hmz` back at
+its own version the next time it opens with no epics running, older or newer, keeping its
+extras.
 
 What changed is in each release's notes, on
 [GitHub Releases](https://github.com/humanfia/humanize/releases).

@@ -83,14 +83,18 @@ runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 `desktop/` is [the macOS app](/user/desktop): a window on `hmz web`'s page, in Rust with
 [Tauri](https://tauri.app/), held to
 [its spec](https://github.com/humanfia/humanize/blob/main/specs/desktop.md). Working on it
-takes a Mac, [Rust](https://rustup.rs/), Node and pnpm. `pnpm dev` opens it against the `hmz`
-on your `PATH`; `HUMANIZE_HMZ` names another, such as this checkout's:
+takes a Mac, [Rust](https://rustup.rs/), Node and pnpm. Built from `main`, its version is
+`0.0.0`, and it installs nothing: `pnpm dev` opens it against the `hmz` on your `PATH`, and
+`HUMANIZE_HMZ` names another, such as this checkout's:
 
 ```sh
 cd desktop
 pnpm install
 HUMANIZE_HMZ="$PWD/../.venv/bin/hmz" pnpm dev
 ```
+
+To try how a release installs `hmz`, build it with the version of a release on PyPI whose
+`hmz web` takes `--attached`: `pnpm tauri build --bundles app --config '{"version":"<it>"}'`.
 
 Before you push a change to it, run what CI's `desktop` job runs:
 

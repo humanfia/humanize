@@ -1,5 +1,5 @@
-//! `hmz web`, as the app's child: finding the `hmz` installed here, starting it, reading where
-//! it listens, telling when it stops on its own, and stopping it.
+//! `hmz web`, as the app's child: starting it, reading where it listens, telling when it stops
+//! on its own, and stopping it.
 
 use std::ffi::OsStr;
 use std::fmt;
@@ -23,7 +23,7 @@ use crate::lock;
 use crate::shell_env::Env;
 
 /// Names the `hmz` to run, ahead of everything else: for development and tests.
-const OVERRIDE: &str = "HUMANIZE_HMZ";
+pub const OVERRIDE: &str = "HUMANIZE_HMZ";
 
 /// How long `hmz web` may take to say where it listens. A first start may build a cache.
 const STARTING: Duration = Duration::from_secs(30);
@@ -40,8 +40,6 @@ const SAID: &str = "hmz web: ";
 /// Why `hmz web` did not start.
 #[derive(Debug, PartialEq)]
 pub enum Failure {
-    /// No `hmz` here.
-    Missing,
     /// An `hmz` older than this app, which does not take `web --attached`.
     Outdated,
     /// Anything else, as it said it.
@@ -148,7 +146,8 @@ impl Stderr {
     }
 }
 
-/// The `hmz` to run: the one `HUMANIZE_HMZ` names, or the first on `PATH`.
+/// The `hmz` found where nothing installs one: the one `HUMANIZE_HMZ` names, or the first on
+/// `PATH`.
 pub fn find(env: &Env) -> Option<PathBuf> {
     candidates(env).into_iter().find(|path| runnable(path))
 }
@@ -170,23 +169,22 @@ fn candidates(env: &Env) -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
-fn runnable(path: &Path) -> bool {
+pub fn runnable(path: &Path) -> bool {
     fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
 }
 
 /// Starts `hmz web` on the port it had last, kept in `port_file` so that what its page keeps in
 /// the browser, which is kept by origin, is there again; on any port where that one is taken.
-pub fn start(env: &Env, home: &Path, port_file: &Path) -> Result<Server, Failure> {
-    let hmz = find(env).ok_or(Failure::Missing)?;
+pub fn start(env: &Env, hmz: &Path, home: &Path, port_file: &Path) -> Result<Server, Failure> {
     let last = fs::read_to_string(port_file)
         .ok()
         .and_then(|port| port.trim().parse().ok())
         .unwrap_or(0);
     log::info!("starting {} web on port {last}", hmz.display());
-    let server = match spawn(&hmz, env, home, last) {
+    let server = match spawn(hmz, env, home, last) {
         Err(Early { code, stderr }) if retries(last, code, &stderr) => {
             log::info!("port {last} is taken; asking for any");
-            spawn(&hmz, env, home, 0)
+            spawn(hmz, env, home, 0)
         }
         started => started,
     }
@@ -391,6 +389,10 @@ mod tests {
             Self { home, env }
         }
 
+        fn hmz(&self) -> PathBuf {
+            self.home.path().join("hmz")
+        }
+
         fn port_file(&self) -> PathBuf {
             self.home.path().join("data/port")
         }
@@ -401,7 +403,7 @@ mod tests {
 
         fn start(&self) -> Result<Server, Failure> {
             logging();
-            start(&self.env, self.home.path(), &self.port_file())
+            start(&self.env, &self.hmz(), self.home.path(), &self.port_file())
         }
     }
 
@@ -557,10 +559,15 @@ exec cat > /dev/null
     #[test]
     fn says_why_it_did_not_start() {
         let fake = Fake::new("ok");
-        let mut env = fake.env.clone();
-        env.insert(OVERRIDE.into(), "/nonexistent/hmz".into());
-        let missing = start(&env, fake.home.path(), &fake.port_file());
-        assert_eq!(missing.err(), Some(Failure::Missing));
+        let missing = start(
+            &fake.env,
+            Path::new("/nonexistent/hmz"),
+            fake.home.path(),
+            &fake.port_file(),
+        );
+        assert!(
+            matches!(missing.err(), Some(Failure::Failed(said)) if said.contains("could not be run"))
+        );
         assert_eq!(Fake::new("old").start().err(), Some(Failure::Outdated));
         let older = Early {
             code: Some(2),

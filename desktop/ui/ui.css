@@ -99,33 +99,69 @@ p {
   }
 }
 
-main[data-state='starting'] :is(h1, #lead, .command, pre, .actions),
+main[data-state='starting'] :is(h1, #lead, .progress, pre, .actions),
 main:not([data-state='starting']) .starting,
-main:is([data-state='failed'], [data-state='stopped']) .command,
-main:is([data-state='missing'], [data-state='outdated']) pre,
-pre:empty {
-  display: none;
+main:not([data-state='installing']) .progress,
+main[data-state='installing'] .actions,
+#lead:empty,
+pre:empty,
+[hidden] {
+  display: none !important;
 }
 
-.command {
+/* An install: a bar that only says it is going, the step, and the last line uv said. */
+.progress {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 6px 6px 6px 14px;
-  border: 2px solid var(--ink);
-  background: var(--raised);
-  box-shadow: 4px 4px 0 var(--ink);
+  width: min(380px, 100%);
 }
 
-code,
+.bar {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  background: var(--line-strong);
+}
+
+.bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  background: var(--green);
+  animation: slide 1.4s ease-in-out infinite;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+#step {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+#line {
+  width: 100%;
+  min-height: 1.5em;
+  overflow: hidden;
+  color: var(--ink-3);
+  font: 12px/1.5 var(--mono);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 pre {
   font-family: var(--mono);
   -webkit-user-select: text;
   user-select: text;
-}
-
-code {
-  font-size: 13px;
 }
 
 pre {
@@ -195,6 +231,12 @@ pre {
   .starting {
     animation: none;
     opacity: 1;
+  }
+
+  .bar span {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
   }
 
   .btn {

@@ -27,9 +27,15 @@ serde = { version = "1", features = ["derive"] }
 shared_child = "1"
 tokio = { version = "1", features = ["sync"] }
 url = "2"
+# Installing hmz: uv's release fetched over rustls, trusting what the keychain trusts, checked
+# and unpacked; and a daemon's note read.
+flate2 = "1"
+serde_json = "1"
+sha2 = "0.10"
+tar = { version = "0.4", default-features = false }
+ureq = { version = "3", default-features = false, features = ["rustls", "platform-verifier"] }
 
 [dev-dependencies]
-serde_json = "1"
 tempfile = "3"
 
 [profile.release]

@@ -1,5 +1,6 @@
 <!doctype html>
-<!-- The app's own page: a splash while `hmz web` starts, and what to do where it cannot. -->
+<!-- The app's own page: a splash while hmz is installed and hmz web starts, and what went wrong
+     where it cannot. -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -17,14 +18,17 @@
       <p class="starting" role="status">Starting</p>
       <h1 id="title"></h1>
       <p id="lead"></p>
-      <div class="command" id="command">
-        <code id="line"></code>
-        <button class="btn quiet" id="copy" type="button">Copy</button>
+      <div class="progress" role="status">
+        <div class="bar"><span></span></div>
+        <p id="step"></p>
+        <p id="line"></p>
       </div>
       <pre id="detail"></pre>
       <div class="actions">
         <button class="btn primary" id="retry" type="button">Retry</button>
-        <a class="btn quiet" href="https://docs.humanfia.ai/humanize/">Documentation</a>
+        <button class="btn" id="keep" type="button">Continue</button>
+        <button class="btn" id="update" type="button">Update now</button>
+        <a class="btn quiet" id="docs" href="https://docs.humanfia.ai/humanize/user/desktop#troubleshooting">Documentation</a>
       </div>
     </main>
   </body>

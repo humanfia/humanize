@@ -7,31 +7,40 @@ opens and stops it when you quit.
 ::: info At a glance
 - **You will** have humanize in your Dock and Applications, opening on every epic on this Mac.
 - **Use it when** you would rather open an app than run `hmz web` and keep its terminal.
-- **You need** macOS 11 or newer, on Apple silicon or Intel, and `hmz` installed as in
-  [Installation](/user/installation): the app runs it, and brings none of its own.
+- **You need** macOS 11 or newer, on Apple silicon or Intel, and a connection the first time:
+  the app installs `hmz` itself.
 :::
 
 ## Try it
 
-1. Install `hmz`, if you have not:
-
-   ```sh
-   uv tool install hmz
-   ```
-
-2. Download `humanize-<version>-macos-universal.dmg` from the
+1. Download `humanize-<version>-macos-universal.dmg` from the
    [latest release](https://github.com/humanfia/humanize/releases/latest).
-3. Open it, and drag **humanize** onto **Applications**.
-4. Open humanize from Applications. The first time, macOS stops it: see
+2. Open it, and drag **humanize** onto **Applications**.
+3. Open humanize from Applications. The first time, macOS stops it: see
    [The first time it opens](#the-first-time-it-opens).
 
-It shows its mark while `hmz web` starts, then the page, with the sidebar of your epics.
+The first time, it says **Installing humanize**, with each step, while it installs `hmz`; from
+then on it shows its mark while `hmz web` starts, then the page, with the sidebar of your epics.
 
 ## How it works
 
-The app is a window, not a second humanize. It runs the `hmz` you installed, as
-`hmz web --no-open --attached`, and shows the page it serves, so the app is always as new as your
-`hmz`: `uv tool upgrade hmz` upgrades both.
+The app is a window, not a second humanize. It runs `hmz` as
+`hmz web --no-open --attached` and shows the page it serves.
+
+- **It installs `hmz` for you, at its own version.** humanize 0.5.0 runs `hmz` 0.5.0, since both
+  come from the same release. Where there is none, or one of another version, it runs
+  `uv tool install --force hmz==<its version>`, keeping any extras you installed with, and says
+  **Installing humanize** or **Updating humanize** while it does. That is the same
+  `~/.local/bin/hmz` a terminal finds, so the `hmz` you type is the app's version too; another
+  `hmz` on your `PATH`, from pipx or pip, is left alone and not used.
+- **It brings uv only where you have none.** It uses yours -- on your `PATH`, or in
+  `~/.local/bin`, `~/.cargo/bin` or `/opt/homebrew/bin` -- and otherwise downloads uv, checked
+  against a checksum it carries, to
+  `~/Library/Application Support/ai.humanfia.humanize/uv/uv`. uv gets Python where it needs to.
+  Your shell profile is never touched.
+- **It never updates under running epics.** While epics are running, the `hmz` there keeps
+  running them and the app opens it as it is; it updates on a later launch, once they have
+  ended. See [`Update waiting`](#update-waiting).
 
 - **It starts in your home directory**, with the environment your login shell gives you, so
   `hmz` and the coding agent CLIs are found as a terminal finds them, and your home is the
@@ -68,22 +77,26 @@ Either is once: macOS remembers it, until you install the app again.
 
 ## Troubleshooting
 
-### `Install humanize`
+### `Install failed` or `Update failed`
 
-The app found no `hmz`. It looks in your login shell's `PATH`, then in `~/.local/bin`,
-`$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin` and `/usr/local/bin`. Install it with **Copy** and a
-terminal, then press **Retry**:
+uv could not install `hmz`: most often you are offline, or a proxy is in the way. The window
+shows what uv said; press **Retry** once you are connected. Where an `hmz` of another version is
+already installed and can serve the app, **Continue** opens it as it is, and the app tries again
+next time. uv takes the proxy and index your login shell sets (`HTTPS_PROXY`, `UV_INDEX_URL`).
+
+### `Update waiting` {#update-waiting}
+
+Epics are running in an `hmz` too old for the app to open, and updating it now could stop them.
+The app waits, and updates as soon as they have ended. **Update now** updates at once, if you
+would rather not wait.
+
+### Using an `hmz` of your own
+
+To have the app run another `hmz` -- a checkout you are working on, say -- name it in
+`HUMANIZE_HMZ` and open the app from that shell. It then installs nothing:
 
 ```sh
-uv tool install hmz
-```
-
-### `Update humanize`
-
-The `hmz` it found is older than the app. Upgrade it, then press **Retry**:
-
-```sh
-uv tool upgrade hmz
+HUMANIZE_HMZ=~/src/humanize/.venv/bin/hmz /Applications/humanize.app/Contents/MacOS/humanize
 ```
 
 ### `Failed` or `Stopped`
@@ -112,7 +125,7 @@ port and window, what the page remembers, and its log:
 rm -rf ~/Library/{Application\ Support,WebKit,Caches,Logs}/ai.humanfia.humanize
 ```
 
-`hmz`, and your epics, stay as they are.
+`hmz`, and your epics, stay as they are; `uv tool uninstall hmz` removes `hmz` too.
 
 ## Next steps
 

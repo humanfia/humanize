@@ -1,62 +1,97 @@
-// Draws where `hmz web` stands, as the app tells it: a splash while it starts, then -- where it
-// does not -- what to do about it. Once it runs, the app takes the window to its page instead.
+// Draws where the app stands, as it tells it: a splash while it starts, how an install of hmz
+// goes, and -- where hmz web does not start -- why. Once it runs, the app takes the window to its
+// page instead.
 
 // What @tauri-apps/api's `invoke` calls, with no bundle of it put into every page, `hmz web`'s too.
-const invoke = (command) => window.__TAURI_INTERNALS__.invoke(command)
+const invoke = (command, args) => window.__TAURI_INTERNALS__.invoke(command, args)
 
+const STEPS = { uv: 'Getting uv', python: 'Getting Python', hmz: 'Installing hmz' }
+
+// Each state the app tells, as drawn: its heading, what it says, and which buttons it offers.
 const STATES = {
-  missing: {
-    title: 'Install humanize',
-    lead: 'This app opens the humanize installed on this Mac. Install it in a terminal, then retry.',
-    line: 'uv tool install hmz',
-    action: 'Retry',
-  },
-  outdated: {
-    title: 'Update humanize',
-    lead: 'This app needs a newer humanize. Update it in a terminal, then retry.',
-    line: 'uv tool upgrade hmz',
-    action: 'Retry',
-  },
-  failed: { title: 'Failed', lead: 'hmz web exited before it started.', action: 'Retry' },
-  stopped: { title: 'Stopped', lead: 'hmz web exited.', action: 'Restart' },
+  installing: ({ updating, step, line }) => ({
+    title: updating ? 'Updating humanize' : 'Installing humanize',
+    step: STEPS[step],
+    line,
+  }),
+  waiting: (version) => ({
+    title: 'Update waiting',
+    lead: `Epics are running in humanize${version ? ` ${version}` : ''}, which this app cannot open. It updates once they end; updating now may stop them.`,
+    buttons: ['update', 'docs'],
+  }),
+  'install-failed': ({ updating, said, keep }) => ({
+    title: updating ? 'Update failed' : 'Install failed',
+    lead: keep
+      ? 'Check the connection and retry, or continue with the humanize installed.'
+      : 'Check the connection, then retry.',
+    detail: said,
+    buttons: ['retry', keep && 'keep', 'docs'],
+  }),
+  missing: () => ({
+    title: 'Not found',
+    lead: 'This build installs no humanize. Install hmz, or name one in HUMANIZE_HMZ, then retry.',
+    buttons: ['retry', 'docs'],
+  }),
+  outdated: () => ({
+    title: 'Outdated',
+    lead: 'This hmz does not take hmz web --attached. Update it, then retry.',
+    buttons: ['retry', 'docs'],
+  }),
+  failed: (said) => ({
+    title: 'Failed',
+    lead: 'hmz web exited before it started.',
+    detail: said,
+    buttons: ['retry', 'docs'],
+  }),
+  stopped: (said) => ({
+    title: 'Stopped',
+    lead: 'hmz web exited.',
+    detail: said,
+    buttons: ['retry', 'docs'],
+    retry: 'Restart',
+  }),
 }
 
 const $ = (id) => document.getElementById(id)
 const main = document.querySelector('main')
+const BUTTONS = ['retry', 'keep', 'update', 'docs']
 
 function draw({ state, detail }) {
-  const shown = STATES[state]
+  const shown = STATES[state]?.(detail)
   main.dataset.state = shown ? state : 'starting'
   if (!shown) return
   $('title').textContent = shown.title
-  $('lead').textContent = shown.lead
+  $('lead').textContent = shown.lead ?? ''
+  $('step').textContent = shown.step ?? ''
   $('line').textContent = shown.line ?? ''
-  $('detail').textContent = detail ?? ''
-  $('retry').textContent = shown.action
-  $('retry').focus()
+  $('detail').textContent = shown.detail ?? ''
+  $('retry').textContent = shown.retry ?? 'Retry'
+  for (const button of BUTTONS) $(button).hidden = !shown.buttons?.includes(button)
+  const first = BUTTONS.find((button) => !$(button).hidden)
+  if (first && !main.contains(document.activeElement)) $(first).focus()
 }
 
-async function settle() {
-  draw({ state: 'starting' })
-  draw(await invoke('status'))
-}
+// Each status as it changes, until hmz web runs. A newer follow takes over from an older one.
+let following = 0
 
-$('retry').addEventListener('click', async () => {
-  draw({ state: 'starting' })
-  await invoke('retry')
-  await settle()
-})
-
-$('copy').addEventListener('click', async () => {
-  const copy = $('copy')
-  try {
-    await navigator.clipboard.writeText($('line').textContent)
-    copy.textContent = 'Copied'
-  } catch {
-    // Selected instead, for Cmd+C.
-    getSelection().selectAllChildren($('line'))
+async function follow() {
+  const mine = ++following
+  let after = null
+  for (;;) {
+    const status = await invoke('status', { after })
+    if (mine !== following) return
+    draw(status)
+    if (status.state === 'running') return
+    after = status
   }
-  setTimeout(() => (copy.textContent = 'Copy'), 1500)
-})
+}
 
-settle()
+for (const command of ['retry', 'keep', 'update']) {
+  $(command).addEventListener('click', async () => {
+    draw({ state: 'starting' })
+    await invoke(command)
+    follow()
+  })
+}
+
+follow()

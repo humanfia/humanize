@@ -1,7 +1,9 @@
 //! humanize for macOS: one window on the page `hmz web` serves, started as the app's child.
-//! The window opens on the app's own page at once -- a splash while `hmz web` starts, and what
-//! to do where it cannot -- and goes on to `hmz web`'s once it says where it listens.
+//! The window opens on the app's own page at once -- a splash while `hmz` is installed and
+//! `hmz web` starts, and what went wrong where it cannot -- and goes on to `hmz web`'s once it
+//! says where it listens.
 
+mod install;
 mod menu;
 mod server;
 mod shell_env;
@@ -9,8 +11,9 @@ mod shell_env;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::thread;
+use std::time::Duration;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent};
 use tauri::window::Color;
 use tauri::{
@@ -21,6 +24,7 @@ use tauri_plugin_window_state::StateFlags;
 use tokio::sync::watch;
 use url::{Position, Url};
 
+use install::{Chosen, How};
 use server::{Failure, Server};
 
 /// The one window's label.
@@ -33,12 +37,21 @@ const OWN: &str = "tauri://localhost/";
 /// before a page is, so it never flashes white.
 const PAPER: (Color, Color) = (Color(0xf5, 0xed, 0xf0, 0xff), Color(0x1c, 0x1a, 0x21, 0xff));
 
+/// How often an update waiting for epics to end looks whether they have.
+const WAITING: Duration = Duration::from_secs(2);
+
 /// Where `hmz web` stands, as the app's own page draws it.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(tag = "state", content = "detail", rename_all = "lowercase")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "detail", rename_all = "kebab-case")]
 enum Status {
     Starting,
+    Installing(install::Progress),
+    /// An `hmz` of this version, too old to serve the app, holds running epics: it is updated
+    /// once they end.
+    Waiting(String),
+    InstallFailed(install::Failed),
     Running,
+    /// No `hmz`, where nothing installs one.
     Missing,
     Outdated,
     /// It exited before it said where it listens, saying this.
@@ -50,7 +63,6 @@ enum Status {
 impl From<Failure> for Status {
     fn from(failure: Failure) -> Self {
         match failure {
-            Failure::Missing => Status::Missing,
             Failure::Outdated => Status::Outdated,
             Failure::Failed(said) => Status::Failed(said),
         }
@@ -69,40 +81,107 @@ struct Shell {
     downloads: Mutex<Vec<(String, PathBuf)>>,
 }
 
-/// Where `hmz web` stands, once it is anything but starting.
+/// Where `hmz web` stands, once it is anything but starting, and other than the page drew last.
 #[tauri::command]
-async fn status(shell: State<'_, Shell>) -> Result<Status, ()> {
+async fn status(after: Option<Status>, shell: State<'_, Shell>) -> Result<Status, ()> {
     let mut status = shell.status.subscribe();
-    let settled = status.wait_for(|status| *status != Status::Starting).await;
+    let settled = status
+        .wait_for(|status| *status != Status::Starting && Some(status) != after.as_ref())
+        .await;
     Ok(settled
         .map(|status| status.clone())
         .unwrap_or(Status::Starting))
 }
 
-/// Starts `hmz web` again, where it is not starting or running already.
+/// Starts again where it stopped short: installing `hmz`, then `hmz web`.
 #[tauri::command]
 fn retry(app: AppHandle, shell: State<'_, Shell>) {
+    again(app, &shell, How::Usual, |status| {
+        matches!(
+            status,
+            Status::InstallFailed(_)
+                | Status::Missing
+                | Status::Outdated
+                | Status::Failed(_)
+                | Status::Stopped(_)
+        )
+    });
+}
+
+/// Starts `hmz web` with the `hmz` there, where installing the app's own failed.
+#[tauri::command]
+fn keep(app: AppHandle, shell: State<'_, Shell>) {
+    again(
+        app,
+        &shell,
+        How::Keep,
+        |status| matches!(status, Status::InstallFailed(failed) if failed.keep),
+    );
+}
+
+/// Updates `hmz` without waiting for the epics it holds to end: told to the thread waiting.
+#[tauri::command]
+fn update(shell: State<'_, Shell>) {
+    shell.status.send_if_modified(|status| {
+        let waiting = matches!(status, Status::Waiting(_));
+        if waiting {
+            *status = Status::Starting;
+        }
+        waiting
+    });
+}
+
+/// Starts as asked, where what it stands at is one it may start from.
+fn again(app: AppHandle, shell: &Shell, how: How, from: impl Fn(&Status) -> bool) {
     let again = shell.status.send_if_modified(|status| {
-        let again = !matches!(status, Status::Starting | Status::Running);
+        let again = from(status);
         if again {
             *status = Status::Starting;
         }
         again
     });
     if again {
-        start(app);
+        start(app, how);
     }
 }
 
-/// Starts `hmz web` in the background, and shows its page or why it did not start.
-fn start(app: AppHandle) {
+/// Installs `hmz` where it must, starts `hmz web` in the background, and shows its page or
+/// why it did not start.
+fn start(app: AppHandle, how: How) {
     thread::spawn(move || {
         let shell = app.state::<Shell>();
         let env = shell.env.get_or_init(shell_env::login);
         // Home, where a new epic is offered first.
         let home = shell_env::home(env);
-        let port_file = app.path().app_data_dir().unwrap_or_default().join("port");
-        match server::start(env, &home, &port_file) {
+        let data = app.path().app_data_dir().unwrap_or_default();
+        let version = app.package_info().version.to_string();
+        let tell = |progress| {
+            shell.status.send_replace(Status::Installing(progress));
+        };
+        let mut how = how;
+        let started = loop {
+            let (hmz, held) = match install::choose(env, &data, &version, how, &tell) {
+                Ok(Chosen::Ready(hmz)) => (hmz, None),
+                Ok(Chosen::Held(hmz, version)) => (hmz, Some(version)),
+                Ok(Chosen::Missing) => break Err(Status::Missing),
+                Err(failed) => break Err(Status::InstallFailed(failed)),
+            };
+            match (server::start(env, &hmz, &home, &data.join("port")), held) {
+                // Too old to serve the app, and holding running epics: updated once they end,
+                // or once Update is pressed.
+                (Err(Failure::Outdated), Some(version)) => {
+                    let waiting = Status::Waiting(version);
+                    shell.status.send_replace(waiting.clone());
+                    while *shell.status.borrow() == waiting && install::busy(env) {
+                        thread::sleep(WAITING);
+                    }
+                    shell.status.send_replace(Status::Starting);
+                    how = How::Now;
+                }
+                (started, _) => break started.map_err(Status::from),
+            }
+        };
+        match started {
             Ok(server) => {
                 let server = Arc::new(server);
                 *lock(&shell.server) = Some(server.clone());
@@ -119,9 +198,9 @@ fn start(app: AppHandle) {
                 }
             }
             // The window is on the app's own page already: it opens on it, and only it retries.
-            Err(failure) => {
-                log::warn!("hmz web did not start: {failure:?}");
-                shell.status.send_replace(failure.into());
+            Err(status) => {
+                log::warn!("hmz web did not start: {status:?}");
+                shell.status.send_replace(status);
             }
         }
     });
@@ -306,10 +385,10 @@ pub fn run() {
         })
         .menu(menu::build)
         .on_menu_event(menu::handle)
-        .invoke_handler(tauri::generate_handler![status, retry])
+        .invoke_handler(tauri::generate_handler![status, retry, keep, update])
         .setup(|app| {
             window(app.handle())?;
-            start(app.handle().clone());
+            start(app.handle().clone(), How::Usual);
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -338,6 +417,7 @@ pub fn run() {
             ..
         } => reveal(app),
         RunEvent::Exit => {
+            install::stop();
             if let Some(server) = lock(&app.state::<Shell>().server).take() {
                 server.stop();
             }
@@ -416,6 +496,20 @@ mod tests {
     fn says_its_status_as_the_page_reads_it() {
         let json = |status| serde_json::to_string(&status).unwrap();
         assert_eq!(json(Status::Missing), r#"{"state":"missing"}"#);
+        let failed = Status::InstallFailed(install::Failed {
+            updating: true,
+            said: "offline".into(),
+            keep: false,
+        });
+        assert_eq!(
+            json(failed.clone()),
+            r#"{"state":"install-failed","detail":{"updating":true,"said":"offline","keep":false}}"#
+        );
+        // As the page hands back what it drew last.
+        assert_eq!(
+            serde_json::from_str::<Status>(&json(failed.clone())).unwrap(),
+            failed
+        );
         assert_eq!(
             json(Status::Failed("no".into())),
             r#"{"state":"failed","detail":"no"}"#

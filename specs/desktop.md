@@ -2,8 +2,8 @@
 
 The macOS app in `desktop/`: one window on the page `hmz web` serves, which it starts as its own
 child and stops as it quits. It is a frame around that page and nothing more: it draws nothing
-of humanize's but what to do while the page cannot be had, brings no Python and no `hmz` of its
-own, and is answerable only for starting the one installed here, showing its page, and leaving
+of humanize's but how it is getting there and what went wrong, and is answerable only for
+having the `hmz` of its own release installed, starting it, showing its page, and leaving
 nothing running behind it.
 
 ## API
@@ -12,21 +12,33 @@ nothing running behind it.
 humanize.app      ai.humanfia.humanize, macOS 11 or later, on Apple silicon and Intel
   runs            hmz web --no-open --attached --port <the port it had last, or 0>
   in              $HOME, with the environment a login shell gives this account
-  finds hmz in    $HUMANIZE_HMZ alone where it is set, else $PATH, then ~/.local/bin,
-                  $UV_TOOL_BIN_DIR, /opt/homebrew/bin, /usr/local/bin, /usr/bin and /bin
+  installs        uv tool install --force --refresh-package hmz hmz[<its extras>]==<its version>
+                  with the first uv that answers `uv tool dir --bin` of $PATH, ~/.local/bin,
+                  ~/.cargo/bin, /opt/homebrew/bin and its own, downloaded where none does
+  runs hmz from   `uv tool dir --bin`; $HUMANIZE_HMZ alone where it is set, and in a
+                  development build, $PATH, then ~/.local/bin, $UV_TOOL_BIN_DIR,
+                  /opt/homebrew/bin, /usr/local/bin, /usr/bin and /bin
   keeps           ~/Library/Application Support/ai.humanfia.humanize/port
+                  ~/Library/Application Support/ai.humanfia.humanize/uv/uv
                   ~/Library/Logs/ai.humanfia.humanize/humanize.log
 ```
 
 ```js
 // What its own page asks of it.
-invoke('status')  // once hmz web is not starting: {state: 'running' | 'missing' | 'outdated'},
-                  // or {state: 'failed' | 'stopped', detail: what it said on stderr}
-invoke('retry')   // starts it again, where it is not starting or running
+invoke('status', {after})  // once it is not starting, and not `after`, the status drawn last:
+  // {state: 'running' | 'missing' | 'outdated'}
+  // {state: 'installing', detail: {updating, step: 'uv' | 'python' | 'hmz', line}}
+  // {state: 'waiting', detail: the version of the hmz holding running epics}
+  // {state: 'install-failed', detail: {updating, said, keep: whether Continue can be offered}}
+  // {state: 'failed' | 'stopped', detail: what it said on stderr}
+invoke('retry')   // starts again, where it failed, stopped or found no hmz
+invoke('keep')    // starts the hmz there, where installing its own failed and `keep` was said
+invoke('update')  // installs its own now, where it is waiting
 ```
 
-`HUMANIZE_HMZ` is for development and tests: it names the `hmz` to run, and nothing else is
-looked for while it is set.
+`HUMANIZE_HMZ` is for development and tests: it names the `hmz` to run, nothing else is looked
+for while it is set, and nothing is installed. A development build, `0.0.0`, installs nothing
+either: it runs the first `hmz` it finds.
 
 ## Requirements
 
@@ -46,11 +58,41 @@ looked for while it is set.
 - MUST open the window on the address `hmz web` prints once it prints it, within 30 seconds, as
   a top-level page and never a frame, and MUST NOT write that address's key anywhere: a log
   names the origin alone.
-- MUST say, in words and never a sentence for a heading or a button: `Install humanize` with
-  `uv tool install hmz` to copy, the documentation and Retry, where no `hmz` is found; `Update
-  humanize` with `uv tool upgrade hmz` where it refuses `web` or `--attached`; and what it said on
-  stderr with Retry where it exits before it listens for any other reason.
+- MUST say, in words and never a sentence for a heading or a button, what went wrong: what
+  `hmz web` said on stderr with Retry where it exits before it listens; and, where nothing is
+  installed, `Not found` where no `hmz` is found and `Outdated` where it refuses `web` or
+  `--attached`, with Retry. It MUST offer the documentation wherever something went wrong, and
+  MUST NOT ask anybody to run a command.
 - MUST show what it said and offer Restart where `hmz web` exits on its own once it listens.
+
+### Installing `hmz`
+
+- A release MUST run `hmz` of its own version and no other -- `0.5.0-rc.1` runs `0.5.0rc1` --
+  as `uv tool` installs it for this account, the `hmz` a terminal finds in `~/.local/bin`; it
+  MUST ignore any other `hmz` on `PATH`.
+- MUST tell the version there by what `hmz --version` says, and MUST NOT install anything where
+  it is the app's: then all it adds to a launch MUST be that and `uv tool dir --bin`.
+- MUST install it where there is none, and replace one of any other version, older or newer,
+  with `uv tool install --force`, keeping the extras it was installed with; MUST check that what
+  it installed says the app's version; and MUST say how that goes while it does, as `Installing
+  humanize` or `Updating humanize`, the step -- `Getting uv`, `Getting Python`, `Installing hmz`
+  -- and the last line uv said.
+- MUST use the user's uv where one answers `uv tool dir --bin`; where none does, MUST download
+  the uv release pinned in the app for this Mac's architecture from astral-sh/uv's GitHub
+  release over HTTPS, through the login shell's proxy and trusting what macOS trusts, saying how
+  much has come; MUST refuse it unless its sha256 is the one pinned beside it; and MUST keep it
+  in its own data directory alone, written whole and then moved into place. It MUST NOT touch a
+  shell profile.
+- MUST NOT replace an `hmz` while this machine's daemon is running -- the epics it holds would
+  have their files taken from under them -- telling so by the process `daemon.json` names in
+  `humanize-<uid>` of the temporary directory. It MUST run the `hmz` there instead while they
+  run, and install its own on a later launch once the daemon has gone, which it does once its
+  hosts hold nothing running and nobody reading. Where the `hmz` there is too old to serve it,
+  MUST say `Update waiting` with its version, look again every 2 seconds and install its own
+  once the daemon has gone, and offer `Update now` for the user to install it at once.
+- Where an install fails, MUST say `Install failed` or `Update failed` with what uv said, Retry
+  and the documentation, and `Continue` with the `hmz` there where it takes `web --attached`.
+- MUST stop an install in flight as it quits.
 
 ### The window
 
