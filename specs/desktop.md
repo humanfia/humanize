@@ -74,6 +74,9 @@ looked for while it is set.
 - Quitting MUST interrupt `hmz web` as Ctrl+C would, kill it if it has not stopped within 3
   seconds, and reap it, so that no process of the app's outlives it; and MUST hold `hmz web`'s
   standard input open while it runs, so that `--attached` stops it however the app ends.
+- MUST start `hmz web` with SIGINT, SIGTERM and SIGHUP as they are by default, whatever the app
+  was handed: one ignored where the app was started would be ignored by `hmz web` too, and
+  Quit would kill it rather than stop it.
 
 ### What it weighs
 

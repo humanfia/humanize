@@ -6,6 +6,7 @@ use std::fmt;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{ChildStderr, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -227,18 +228,30 @@ impl Early {
 
 fn spawn(hmz: &Path, env: &Env, home: &Path, port: u16) -> Result<Server, Early> {
     let early = |stderr: String| Early { code: None, stderr };
-    let child = SharedChild::spawn(
-        Command::new(hmz)
-            .args(["web", "--no-open", "--attached", "--port"])
-            .arg(port.to_string())
-            .current_dir(home)
-            .env_clear()
-            .envs(env)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped()),
-    )
-    .map_err(|why| early(format!("{} could not be run: {why}", hmz.display())))?;
+    let mut command = Command::new(hmz);
+    command
+        .args(["web", "--no-open", "--attached", "--port"])
+        .arg(port.to_string())
+        .current_dir(home)
+        .env_clear()
+        .envs(env)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    // The signals that stop it, as they are by default: a signal ignored is ignored in a child
+    // too, and `hmz web` keeps one it was handed ignored -- so an app started where Ctrl+C is
+    // ignored, as from a script's background job, would have Quit kill it rather than stop it.
+    // SAFETY: `signal` is async-signal-safe, which is all that may run between fork and exec.
+    unsafe {
+        command.pre_exec(|| {
+            for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+                libc::signal(signal, libc::SIG_DFL);
+            }
+            Ok(())
+        });
+    }
+    let child = SharedChild::spawn(&mut command)
+        .map_err(|why| early(format!("{} could not be run: {why}", hmz.display())))?;
     let (Some(stdin), Some(stdout), Some(stderr)) =
         (child.take_stdin(), child.take_stdout(), child.take_stderr())
     else {
@@ -418,6 +431,11 @@ if [ "$FAKE" = crash ]; then
   echo "Traceback: boom" >&2
   exit 3
 fi
+# Stopped by Ctrl+C alone, cleanly -- which a shell handed SIGINT ignored cannot trap.
+if [ "$FAKE" = trapping ]; then
+  trap 'exit 0' INT
+  while :; do sleep 0.05; done
+fi
 # --attached: until stdin closes.
 exec cat > /dev/null
 "#;
@@ -555,6 +573,17 @@ exec cat > /dev/null
                 "hmz: these runs are held by an older humanize".into()
             ))
         );
+    }
+
+    #[test]
+    fn interrupts_it_where_the_app_was_started_ignoring_ctrl_c() {
+        // As from a script's background job, which hands on SIGINT ignored.
+        let was = unsafe { libc::signal(libc::SIGINT, libc::SIG_IGN) };
+        let server = Fake::new("trapping").start();
+        unsafe { libc::signal(libc::SIGINT, was) };
+        let server = server.unwrap();
+        let status = ended(&server.child).unwrap();
+        assert_eq!(status.code(), Some(0), "{status}");
     }
 
     #[test]
