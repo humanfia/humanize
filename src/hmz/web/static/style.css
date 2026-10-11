@@ -1,33 +1,33 @@
-/* The web interface's look: humanize's own -- ink on paper with one red, teal for what is
-   happening now, the lane colours an agent is told apart by, and the three outcome colours.
-   Every colour is a token below, set once for light and once for dark, never a literal. */
+/* The web interface's look: humanize's own, in Hyacine's colours -- ink on a rose-tinted paper
+   with one pink, sky blue for what is happening now, the lane colours an agent is told apart by,
+   and the three outcome colours. Every colour is a token below, set once for light and once for
+   dark, never a literal. */
 
 :root {
   color-scheme: light;
-  --paper: #f4efe6;
-  --surface: #fbf8f2;
+  --paper: #f5edf0;
+  --surface: #fbf6f8;
   --raised: #ffffff;
-  --ink: #16161a;
-  --ink-2: #45454d;
-  --ink-3: #6b6b73;
-  --line: rgba(22, 22, 26, 0.12);
-  --line-strong: rgba(22, 22, 26, 0.28);
-  --red: #d6331f;
-  --red-soft: rgba(214, 51, 31, 0.12);
-  --live: #14b8a6;
-  --live-ink: #0f766e;
-  --live-soft: rgba(20, 184, 166, 0.14);
-  --link: #2a6ea6;
-  --done: #16a34a;
-  --fail: #dc2626;
-  --budget: #ca8a04;
-  --budget-ink: #8a5a00;
-  --lane-1: #4a90d9;
-  --lane-2: #14b8a6;
-  --lane-3: #a855f7;
-  --lane-4: #e0803a;
-  --lane-5: #d94a6a;
-  --lane-6: #8b93a7;
+  --ink: #1b1720;
+  --ink-2: #4b4452;
+  --ink-3: #6c6472;
+  --line: rgba(27, 23, 32, 0.12);
+  --line-strong: rgba(27, 23, 32, 0.28);
+  --pink: #d9508c;
+  --live: #2a9fd4;
+  --live-ink: #14678f;
+  --live-soft: rgba(42, 159, 212, 0.14);
+  --link: #3b5fb5;
+  --done: #2b8f66;
+  --fail: #c92e4b;
+  --budget: #c08a1e;
+  --budget-ink: #83590c;
+  --lane-1: #4a9bd8;
+  --lane-2: #1fa5b5;
+  --lane-3: #8a6bd1;
+  --lane-4: #d6a23a;
+  --lane-5: #e06a9a;
+  --lane-6: #8d879a;
   --shadow: 3px 3px 0 var(--ink);
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
@@ -35,30 +35,29 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --paper: #1b1b1f;
-  --surface: #222227;
-  --raised: #2a2a30;
-  --ink: #ece6da;
-  --ink-2: #c4beb3;
-  --ink-3: #959086;
-  --line: rgba(236, 230, 218, 0.12);
-  --line-strong: rgba(236, 230, 218, 0.3);
-  --red: #ff5a43;
-  --red-soft: rgba(255, 90, 67, 0.16);
-  --live: #2dd4bf;
-  --live-ink: #5eead4;
-  --live-soft: rgba(45, 212, 191, 0.14);
-  --link: #8cb8de;
-  --done: #4ade80;
-  --fail: #f87171;
-  --budget: #facc15;
-  --budget-ink: #facc15;
-  --lane-1: #6aa9e9;
-  --lane-2: #2dd4bf;
-  --lane-3: #c084fc;
-  --lane-4: #f0a05a;
-  --lane-5: #f2708c;
-  --lane-6: #9aa3b8;
+  --paper: #1c1a21;
+  --surface: #25222b;
+  --raised: #2d2934;
+  --ink: #f1e9ee;
+  --ink-2: #cbc0c8;
+  --ink-3: #9c919b;
+  --line: rgba(241, 233, 238, 0.12);
+  --line-strong: rgba(241, 233, 238, 0.3);
+  --pink: #ff8fbd;
+  --live: #6cc8f2;
+  --live-ink: #9ad9f5;
+  --live-soft: rgba(108, 200, 242, 0.14);
+  --link: #9db8f0;
+  --done: #6fdba5;
+  --fail: #ff7088;
+  --budget: #f2c55c;
+  --budget-ink: #f2c55c;
+  --lane-1: #86c3f2;
+  --lane-2: #5fd4e3;
+  --lane-3: #b9a2f2;
+  --lane-4: #f2c55c;
+  --lane-5: #ff8fbd;
+  --lane-6: #a49fb3;
 }
 
 *,
@@ -183,7 +182,7 @@ code {
 
 .nav a[aria-current='page'] {
   color: var(--ink);
-  box-shadow: inset 0 -3px 0 var(--red);
+  box-shadow: inset 0 -3px 0 var(--pink);
   border-radius: 0;
 }
 
@@ -349,7 +348,7 @@ code {
   margin: 8px 0;
   padding: 8px 12px;
   border-left: 3px solid var(--fail);
-  background: var(--red-soft);
+  background: color-mix(in srgb, var(--fail) 12%, transparent);
   border-radius: 4px;
   color: var(--ink);
 }
@@ -382,12 +381,12 @@ code {
 
 .btn:hover:not(:disabled) {
   transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 var(--red);
+  box-shadow: 4px 4px 0 var(--pink);
 }
 
 .btn:active:not(:disabled) {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--red);
+  box-shadow: 1px 1px 0 var(--pink);
 }
 
 .btn.primary {
@@ -851,7 +850,7 @@ pre.block {
 
 .lanes .name[aria-pressed='true'] {
   text-decoration: underline;
-  text-decoration-color: var(--red);
+  text-decoration-color: var(--pink);
   text-decoration-thickness: 2px;
 }
 
@@ -997,7 +996,7 @@ pre.block {
 .tabs button[aria-selected='true'],
 .tabs a[aria-current='page'] {
   color: var(--ink);
-  border-bottom-color: var(--lane, var(--red));
+  border-bottom-color: var(--lane, var(--pink));
 }
 
 /* What answered, and what did not, said in a line rather than set apart. */
@@ -1043,7 +1042,7 @@ pre.block {
 }
 
 .said.you .g {
-  color: var(--red);
+  color: var(--pink);
 }
 
 .said.tool .g,
@@ -1143,7 +1142,7 @@ details.said-more summary {
 }
 
 .bars .bar:hover {
-  background: var(--red);
+  background: var(--pink);
 }
 
 .bars .bar.none {
@@ -1169,7 +1168,7 @@ details.said-more summary {
 .share > span {
   display: block;
   height: 100%;
-  background: var(--red);
+  background: var(--pink);
 }
 
 .sr-only {

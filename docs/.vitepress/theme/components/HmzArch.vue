@@ -61,7 +61,7 @@ const BANDS: Band[] = [
   {
     name: 'Flows',
     owns: 'what the work is: which agents take turns, what each is asked, and when it stops',
-    tone: 'var(--hmz-red)',
+    tone: 'var(--hmz-pink)',
     groups: [
       {
         label: 'in humanize',
@@ -293,7 +293,7 @@ onUnmounted(() => context?.revert())
 .rail-fill {
   position: absolute;
   inset: 0;
-  background: var(--hmz-red);
+  background: var(--hmz-pink);
   transform: scaleY(0);
   transform-origin: 50% 0%;
 }
@@ -526,14 +526,14 @@ header p {
   border-right: 5px solid transparent;
 }
 
-/* The pulse: a red square down the arrow, one band after the other. */
+/* The pulse: a pink square down the arrow, one band after the other. */
 .pulse {
   position: absolute;
   top: 0;
   left: -3px;
   width: 8px;
   height: 8px;
-  background: var(--hmz-red);
+  background: var(--hmz-pink);
   opacity: 0;
   animation: hmz-pulse var(--beat) linear infinite;
   animation-delay: calc(var(--k) * var(--beat) / 4);

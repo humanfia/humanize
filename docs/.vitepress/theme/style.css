@@ -1,92 +1,101 @@
-/* The palette comes from the logo -- #608ab1 -- rather than from VitePress's default green,
-   so the chevron, the buttons, the links and every diagram on the site are one colour family.
-   Each diagram then adds one accent of its own from the pair below.
+/* The palette is Hyacine's -- the pink of her hair, the sky blue its ends fade into, the lavender
+   of her dress and the gold she wears -- rather than VitePress's default green, so the chevron,
+   the buttons, the links and every diagram on the site are one colour family. Each diagram then
+   adds one accent of its own from the pair below.
 
    Every colour a component draws with is one of the tokens below, never a literal: a token is
    set once for light and once under `.dark`, so a diagram follows the theme switch live, and a
    canvas reads the same tokens through `motion/palette.ts`. The families:
 
-   - brand: `--vp-c-brand-*`, and the two accents and the warm one a diagram picks from;
-   - ink, paper and red: the constructivist three -- the drawing's black, the sheet it is drawn
-     on, and the one red that marks the thing to look at;
+   - brand: `--vp-c-brand-*` (the pink, deepened where it is text), the page's rose-tinted paper,
+     and the two accents and the warm one a diagram picks from;
+   - ink, paper and pink: the drawing's ink, the sheet it is drawn on, and the one pink that
+     marks the thing to look at;
    - lanes: the colour an agent is known by, one per lane, in order;
-   - outcomes: done, failed, out of budget -- the only greens, reds and ambers on a diagram;
+   - outcomes: done, failed, out of budget -- mint, crimson and gold, the only ones on a diagram;
    - roles: what a role in a flow is -- maker, partner, checker, steward, program;
    - stage: the screen a feature scene plays on, its graph paper and its depth;
    - math: the face a label set as a formula is drawn in (`.hmz-math`);
-   - terminal: the window a terminal is drawn in, and its 16 ANSI colours. */
+   - terminal: the window a terminal is drawn in, and its 16 ANSI colours, which are a
+     terminal's own and so stay a terminal's. */
 
 :root {
-  --vp-c-brand-1: #2a6ea6;
-  --vp-c-brand-2: #3d84bd;
-  --vp-c-brand-3: #608ab1;
-  --vp-c-brand-soft: rgba(96, 138, 177, 0.16);
+  --vp-c-brand-1: #b2386f;
+  --vp-c-brand-2: #c94680;
+  --vp-c-brand-3: #b2386f;
+  --vp-c-brand-soft: rgba(217, 80, 140, 0.14);
 
-  --hmz-accent: #14b8a6;
-  --hmz-accent-2: #a855f7;
-  --hmz-warm: #e0803a;
+  --vp-c-bg: #fdf9fb;
+  --vp-c-bg-alt: #f5edf0;
+  --vp-c-bg-soft: #f5edf0;
+  --vp-c-bg-elv: #ffffff;
+
+  --vp-c-danger-1: #c92e4b;
+  --vp-c-danger-2: #b02640;
+  --vp-c-danger-3: #c92e4b;
+  --vp-c-danger-soft: rgba(201, 46, 75, 0.14);
+
+  --hmz-accent: #2a9fd4;
+  --hmz-accent-2: #8a6bd1;
+  --hmz-warm: #d6a23a;
 
   /* The lane colours every diagram identifies an agent by: one per lane, in this order. */
-  --hmz-lane-1: #4a90d9;
-  --hmz-lane-2: #14b8a6;
-  --hmz-lane-3: #a855f7;
-  --hmz-lane-4: #e0803a;
-  --hmz-lane-5: #d94a6a;
-  --hmz-lane-6: #8b93a7;
+  --hmz-lane-1: #4a9bd8;
+  --hmz-lane-2: #1fa5b5;
+  --hmz-lane-3: #8a6bd1;
+  --hmz-lane-4: #d6a23a;
+  --hmz-lane-5: #e06a9a;
+  --hmz-lane-6: #8d879a;
 
-  --hmz-grid: rgba(96, 138, 177, 0.16);
+  --hmz-grid: rgba(138, 107, 209, 0.14);
   --hmz-panel-bg: var(--vp-c-bg-soft);
   --hmz-panel-border: var(--vp-c-divider);
 
   /* The wordmark on the page at the site's root: the three colours above, in one sweep. */
-  --hmz-wordmark: linear-gradient(110deg, #608ab1 0%, #2a9d8f 45%, #7c6cf0 100%);
+  --hmz-wordmark: linear-gradient(110deg, #e06a9a 0%, #8a6bd1 50%, #2a9fd4 100%);
 
   /* The stage a feature scene plays on (motion/HmzStage.vue): a lit screen, pale in light mode
      and night in dark, with ink, a dimmer ink, hairlines, a card fill and the falloff at its
      edges. `--hmz-glow` scales every halo, since light reads stronger on the dark stage. */
-  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #ffffff 0%, #f1f5fa 55%, #e4ecf5 100%);
+  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #ffffff 0%, #f8f1f6 55%, #eee5f1 100%);
   --hmz-stage-deck: var(--vp-c-bg-soft);
-  --hmz-stage-ink: #13233a;
-  --hmz-stage-dim: #5d6f86;
-  --hmz-stage-line: rgba(42, 110, 166, 0.2);
+  --hmz-stage-ink: #221a33;
+  --hmz-stage-dim: #6b6080;
+  --hmz-stage-line: rgba(138, 107, 209, 0.2);
   --hmz-stage-card: rgba(255, 255, 255, 0.86);
-  --hmz-stage-vignette: rgba(120, 146, 176, 0.14);
+  --hmz-stage-vignette: rgba(160, 128, 180, 0.14);
   --hmz-glow: 0.55;
   /* Graph paper under a scene, the minor lines and every fifth; the light from above on the
      screen's top edge, and the shade its sunk edges fall into. */
-  --hmz-stage-grid: rgba(42, 110, 166, 0.05);
-  --hmz-stage-grid-major: rgba(42, 110, 166, 0.095);
+  --hmz-stage-grid: rgba(138, 107, 209, 0.05);
+  --hmz-stage-grid-major: rgba(138, 107, 209, 0.095);
   --hmz-stage-highlight: rgba(255, 255, 255, 0.95);
-  --hmz-stage-depth: rgba(19, 35, 58, 0.09);
+  --hmz-stage-depth: rgba(34, 26, 51, 0.09);
 
-  /* The constructivist three. */
-  --hmz-ink: #16161a;
-  --hmz-paper: #f6f2ea;
-  --hmz-red: #d6331f;
 
   /* How a run ends. */
-  --hmz-done: #16a34a;
-  --hmz-fail: #dc2626;
-  --hmz-budget: #ca8a04;
+  --hmz-done: #2b8f66;
+  --hmz-fail: #c92e4b;
+  --hmz-budget: #c08a1e;
 
   /* What a role is. */
-  --hmz-role-maker: #2f7fe0;
-  --hmz-role-partner: #0891b2;
-  --hmz-role-checker: #7c3aed;
-  --hmz-role-steward: #db2777;
-  --hmz-role-program: #64748b;
+  --hmz-role-maker: #3b7fd0;
+  --hmz-role-partner: #1597a8;
+  --hmz-role-checker: #7a5ad0;
+  --hmz-role-steward: #d9508c;
+  --hmz-role-program: #756e85;
 
   /* A label set as mathematics: an upright serif with a real italic, the face a formula is
      typeset in, from the reader's own fonts. */
   --hmz-math-font: 'Latin Modern Math', 'STIX Two Math', 'STIX Two Text', 'Cambria Math', Cambria, 'Times New Roman', serif;
 
   /* The terminal: paper-light here, as the page is. */
-  --hmz-term-bg: #fbfaf7;
-  --hmz-term-bar: #efece6;
-  --hmz-term-text: #1f2329;
-  --hmz-term-dim: #6b7079;
-  --hmz-term-edge: rgba(22, 22, 26, 0.14);
-  --hmz-term-shadow: 0 6px 20px rgba(19, 35, 58, 0.1);
+  --hmz-term-bg: #fdf9fb;
+  --hmz-term-bar: #f3ebef;
+  --hmz-term-text: #221d28;
+  --hmz-term-dim: #6e6676;
+  --hmz-term-edge: rgba(27, 23, 32, 0.14);
+  --hmz-term-shadow: 0 6px 20px rgba(34, 26, 51, 0.1);
   --hmz-term-close: #ff5f57;
   --hmz-term-min: #febc2e;
   --hmz-term-max: #28c840;
@@ -109,60 +118,66 @@
   --hmz-term-13: #c055ad;
   --hmz-term-14: #1499a6;
   /* Bright white is a terminal's loudest word; on paper the loudest word is ink. */
-  --hmz-term-15: #16161a;
+  --hmz-term-15: #1b1720;
 }
 
 .dark {
-  --vp-c-brand-1: #8cb8de;
-  --vp-c-brand-2: #6f9fcb;
-  --vp-c-brand-3: #4f7ba3;
-  --vp-c-brand-soft: rgba(140, 184, 222, 0.16);
+  --vp-c-brand-1: #ff9fc8;
+  --vp-c-brand-2: #ff8fbd;
+  --vp-c-brand-3: #b2386f;
+  --vp-c-brand-soft: rgba(255, 143, 189, 0.16);
 
-  --hmz-accent: #2dd4bf;
-  --hmz-accent-2: #c084fc;
-  --hmz-warm: #f0a05a;
+  --vp-c-bg: #1c1a21;
+  --vp-c-bg-alt: #17151b;
+  --vp-c-bg-soft: #25222b;
+  --vp-c-bg-elv: #25222b;
 
-  --hmz-lane-1: #6aa9e9;
-  --hmz-lane-2: #2dd4bf;
-  --hmz-lane-3: #c084fc;
-  --hmz-lane-4: #f0a05a;
-  --hmz-lane-5: #f2708c;
-  --hmz-lane-6: #9aa3b8;
+  --vp-c-danger-1: #ff7088;
+  --vp-c-danger-2: #ff8a9e;
+  --vp-c-danger-3: #c92e4b;
+  --vp-c-danger-soft: rgba(255, 112, 136, 0.16);
 
-  --hmz-grid: rgba(140, 184, 222, 0.14);
-  --hmz-wordmark: linear-gradient(110deg, #8cb8de 0%, #2dd4bf 45%, #c084fc 100%);
+  --hmz-accent: #6cc8f2;
+  --hmz-accent-2: #b9a2f2;
+  --hmz-warm: #f2c55c;
 
-  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #17223b 0%, #0d1426 58%, #080c18 100%);
+  --hmz-lane-1: #86c3f2;
+  --hmz-lane-2: #5fd4e3;
+  --hmz-lane-3: #b9a2f2;
+  --hmz-lane-4: #f2c55c;
+  --hmz-lane-5: #ff8fbd;
+  --hmz-lane-6: #a49fb3;
+
+  --hmz-grid: rgba(185, 162, 242, 0.12);
+  --hmz-wordmark: linear-gradient(110deg, #ff8fbd 0%, #b9a2f2 50%, #6cc8f2 100%);
+
+  --hmz-stage-bg: radial-gradient(130% 100% at 50% 0%, #2a2140 0%, #191527 58%, #0f0c18 100%);
   --hmz-stage-deck: var(--vp-c-bg-soft);
-  --hmz-stage-ink: #e7eef9;
-  --hmz-stage-dim: #8d9bb5;
-  --hmz-stage-line: rgba(140, 184, 222, 0.2);
-  --hmz-stage-card: rgba(22, 32, 56, 0.86);
+  --hmz-stage-ink: #f1e9f7;
+  --hmz-stage-dim: #a397b8;
+  --hmz-stage-line: rgba(185, 162, 242, 0.2);
+  --hmz-stage-card: rgba(40, 32, 58, 0.86);
   --hmz-stage-vignette: rgba(0, 0, 0, 0.4);
   --hmz-glow: 1;
-  --hmz-stage-grid: rgba(140, 184, 222, 0.055);
-  --hmz-stage-grid-major: rgba(140, 184, 222, 0.1);
-  --hmz-stage-highlight: rgba(170, 200, 240, 0.12);
+  --hmz-stage-grid: rgba(185, 162, 242, 0.055);
+  --hmz-stage-grid-major: rgba(185, 162, 242, 0.1);
+  --hmz-stage-highlight: rgba(220, 200, 250, 0.12);
   --hmz-stage-depth: rgba(0, 0, 0, 0.35);
 
-  --hmz-ink: #ece6da;
-  --hmz-paper: #16161a;
-  --hmz-red: #ff5a43;
+  --hmz-done: #6fdba5;
+  --hmz-fail: #ff7088;
+  --hmz-budget: #f2c55c;
 
-  --hmz-done: #4ade80;
-  --hmz-fail: #f87171;
-  --hmz-budget: #facc15;
+  --hmz-role-maker: #86c3f2;
+  --hmz-role-partner: #5fd4e3;
+  --hmz-role-checker: #b9a2f2;
+  --hmz-role-steward: #ff8fbd;
+  --hmz-role-program: #a49fb3;
 
-  --hmz-role-maker: #60a5fa;
-  --hmz-role-partner: #22d3ee;
-  --hmz-role-checker: #a78bfa;
-  --hmz-role-steward: #f472b6;
-  --hmz-role-program: #94a3b8;
-
-  --hmz-term-bg: #16171d;
-  --hmz-term-bar: #202129;
-  --hmz-term-text: #e2e4ea;
-  --hmz-term-dim: #8b8e9c;
+  --hmz-term-bg: #18161d;
+  --hmz-term-bar: #221f29;
+  --hmz-term-text: #ece4ea;
+  --hmz-term-dim: #988e9c;
   --hmz-term-edge: var(--vp-c-divider);
   --hmz-term-shadow: none;
   --hmz-term-0: #282a36;
@@ -253,11 +268,11 @@
 }
 
 /* Where humanize is going, set apart from what it does today: a rule down its side, the
-   figures in the constructivist red. */
+   figures in the pink. */
 .vp-doc .hmz-vision {
   margin: 24px 0;
   padding: 4px 0 4px 16px;
-  border-left: 3px solid var(--hmz-red);
+  border-left: 3px solid var(--hmz-pink);
   font-size: 15px;
   line-height: 1.6;
   color: var(--vp-c-text-2);
@@ -350,28 +365,28 @@
   max-width: 46rem;
 }
 
-/* The constructivist pair the humanize mark is drawn in, and the home page with it: ink and
-   paper, which trade places in the dark, and one red. `--hmz-ink` is whatever is drawn on the
+/* The pair the humanize mark is drawn in, and the home page with it: ink and a rose-tinted
+   paper, which trade places in the dark, and one pink. `--hmz-ink` is whatever is drawn on the
    page; `--hmz-paper` is the page under it. The rest are those at the strengths the page's
    construction lines, marks and planes are drawn at. */
 :root {
-  --hmz-ink: #16161a;
-  --hmz-paper: #f4efe6;
-  --hmz-red: #d6331f;
-  --hmz-red-soft: rgba(214, 51, 31, 0.12);
-  --hmz-con-line: rgba(22, 22, 26, 0.07);
-  --hmz-con-mark: rgba(22, 22, 26, 0.38);
-  --hmz-con-plane: rgba(22, 22, 26, 0.06);
+  --hmz-ink: #1b1720;
+  --hmz-paper: #f5edf0;
+  --hmz-pink: #d9508c;
+  --hmz-pink-soft: rgba(217, 80, 140, 0.12);
+  --hmz-con-line: rgba(27, 23, 32, 0.07);
+  --hmz-con-mark: rgba(27, 23, 32, 0.38);
+  --hmz-con-plane: rgba(27, 23, 32, 0.06);
 }
 
 .dark {
-  --hmz-ink: #ece6da;
-  --hmz-paper: #1b1b1f;
-  --hmz-red: #ff5a43;
-  --hmz-red-soft: rgba(255, 90, 67, 0.16);
-  --hmz-con-line: rgba(236, 230, 218, 0.07);
-  --hmz-con-mark: rgba(236, 230, 218, 0.4);
-  --hmz-con-plane: rgba(236, 230, 218, 0.055);
+  --hmz-ink: #f1e9ee;
+  --hmz-paper: #1c1a21;
+  --hmz-pink: #ff8fbd;
+  --hmz-pink-soft: rgba(255, 143, 189, 0.16);
+  --hmz-con-line: rgba(241, 233, 238, 0.07);
+  --hmz-con-mark: rgba(241, 233, 238, 0.4);
+  --hmz-con-plane: rgba(241, 233, 238, 0.055);
 }
 
 /* The hero sits on a ruled sheet with one plane laid across it on the diagonal, so the first

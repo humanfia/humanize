@@ -21,30 +21,30 @@ export interface Palette {
   done: string
   fail: string
   budget: string
-  /** The constructivist red: the one thing on the screen to look at. */
-  red: string
+  /** The pink: the one thing on the screen to look at. */
+  pink: string
   /** What a role in a flow is. */
   role: { maker: string; partner: string; checker: string; steward: string; program: string }
 }
 
 export function usePalette(): Palette {
   const palette: Palette = {
-    lane: ['#4a90d9', '#14b8a6', '#a855f7', '#e0803a', '#d94a6a', '#8b93a7'],
-    accent: '#14b8a6',
-    accent2: '#a855f7',
-    warm: '#e0803a',
-    ink: '#13233a',
-    dim: '#5d6f86',
-    danger: '#d94a6a',
+    lane: ['#4a9bd8', '#1fa5b5', '#8a6bd1', '#d6a23a', '#e06a9a', '#8d879a'],
+    accent: '#2a9fd4',
+    accent2: '#8a6bd1',
+    warm: '#d6a23a',
+    ink: '#221a33',
+    dim: '#6b6080',
+    danger: '#c92e4b',
     dark: false,
-    line: 'rgba(42, 110, 166, 0.2)',
+    line: 'rgba(138, 107, 209, 0.2)',
     card: 'rgba(255, 255, 255, 0.86)',
-    grid: 'rgba(42, 110, 166, 0.07)',
-    done: '#16a34a',
-    fail: '#dc2626',
-    budget: '#ca8a04',
-    red: '#d6331f',
-    role: { maker: '#2f7fe0', partner: '#0891b2', checker: '#7c3aed', steward: '#db2777', program: '#64748b' },
+    grid: 'rgba(138, 107, 209, 0.07)',
+    done: '#2b8f66',
+    fail: '#c92e4b',
+    budget: '#c08a1e',
+    pink: '#d9508c',
+    role: { maker: '#3b7fd0', partner: '#1597a8', checker: '#7a5ad0', steward: '#d9508c', program: '#756e85' },
   }
   let watch: MutationObserver | undefined
 
@@ -65,7 +65,7 @@ export function usePalette(): Palette {
     palette.done = get('--hmz-done')
     palette.fail = get('--hmz-fail')
     palette.budget = get('--hmz-budget')
-    palette.red = get('--hmz-red')
+    palette.pink = get('--hmz-pink')
     palette.role = {
       maker: get('--hmz-role-maker'),
       partner: get('--hmz-role-partner'),
@@ -86,7 +86,7 @@ export function usePalette(): Palette {
 }
 
 /**
- * A colour at an opacity, for a canvas: `withAlpha(palette.red, 0.3)`. Takes the forms the
+ * A colour at an opacity, for a canvas: `withAlpha(palette.pink, 0.3)`. Takes the forms the
  * tokens are written in -- `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()` and `rgba()` -- and
  * multiplies an alpha the colour already has. Anything else comes back as it is.
  */

@@ -361,7 +361,7 @@ svg {
 .miss-text {
   font-size: 13px;
   font-weight: 700;
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .done-bg {

@@ -191,7 +191,7 @@ function rest(event: PointerEvent) {
                   <text class="a" x="78" y="55" text-anchor="middle">yes</text>
                 </g>
               </template>
-              <!-- two limits filling at their own pace; the first to its end turns red -->
+              <!-- two limits filling at their own pace; the first to its end turns pink -->
               <template v-else-if="card.slug === 'allowances'">
                 <circle class="gauge-track" cx="80" cy="36" r="26" />
                 <circle class="gauge" cx="80" cy="36" r="26" pathLength="100" transform="rotate(-90 80 36)" />

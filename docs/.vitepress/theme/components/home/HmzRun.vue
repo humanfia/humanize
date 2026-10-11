@@ -154,7 +154,7 @@ const scene = useScene({
     const one = (sel: string) => q(sel)[0]
     const root = one('.world')
     const ink = () => cssVar(root, '--hmz-ink')
-    const red = () => cssVar(root, '--hmz-red')
+    const pink = () => cssVar(root, '--hmz-pink')
     const cam = rig(tl, { w: l.w, h: l.h, world: root, far: one('.far'), fx: () => fx, start: l.shots.open })
     const tile = (i: number) => l.session.tile(i)
     const slot = (i: number) => l.roles[i].slot
@@ -176,7 +176,7 @@ const scene = useScene({
       const s = slot(i)
       const from = l.command ? { x: l.command.x + (i ? 360 : 140) - s.x, y: l.command.y - s.y - 4 } : { x: 60, y: -40 }
       tl.fromTo(one(`.chip-${i}`), { autoAlpha: 0, x: from.x, y: from.y, scale: 0.9 }, { autoAlpha: 1, x: 0, y: 0, scale: 1, duration: 0.7, ease: 'cine' }, t)
-      cam.flare(centre(s), i ? red : ink, t + 0.7, 16, 70)
+      cam.flare(centre(s), i ? pink : ink, t + 0.7, 16, 70)
       tl.fromTo(one(`.slot-${i}`), { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.2 }, t + 0.65)
     })
 
@@ -197,7 +197,7 @@ const scene = useScene({
     cam.shot(l.shots.read, T2, 1.3)
     tl.fromTo(one('.fresh-0'), { autoAlpha: 0, scale: 1.4, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: 'back.out(2)' }, T2 + 0.4)
     tl.to(one('.read-line'), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, T2 + 0.7)
-    cam.beam(centre(l.env), centre(l.reviewer), red, T2 + 0.8, { duration: 0.8, bend: -0.25, burst: 12 })
+    cam.beam(centre(l.env), centre(l.reviewer), pink, T2 + 0.8, { duration: 0.8, bend: -0.25, burst: 12 })
     tl.fromTo(one('.card-0'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.5 }, T2 + 1.5)
     tl.fromTo(at('.card-0 .field'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, stagger: 0.3 }, T2 + 1.7)
 
@@ -208,7 +208,7 @@ const scene = useScene({
     cam.shot(l.shots.again, T3, 1.3)
     tl.to(one('.loop-line'), { drawSVG: '100%', duration: 0.9, ease: 'cine' }, T3 + 0.2)
     tl.fromTo(one('.loop-label'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, T3 + 0.6)
-    fly(tl, one('.note-packet'), one('.loop-line') as SVGPathElement, T3 + 0.3, { duration: 0.9, fx: () => fx, color: red() })
+    fly(tl, one('.note-packet'), one('.loop-line') as SVGPathElement, T3 + 0.3, { duration: 0.9, fx: () => fx, color: pink() })
     tl.fromTo(one('.tile-1'), { autoAlpha: 0, scale: 0.6, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: 'back.out(2.5)' }, T3 + 1.15)
     tl.fromTo(one('.rail-pulse'), { autoAlpha: 0.9, scaleX: 0, transformOrigin: '0% 50%' }, { autoAlpha: 0, scaleX: 1, duration: 0.9, ease: 'power2.out' }, T3 + 1.2)
     fly(tl, one('.packet-2'), one('.drop-2') as SVGPathElement, T3 + 1.5, { duration: 0.7, fx: () => fx, color: ink() })
@@ -217,7 +217,7 @@ const scene = useScene({
     tl.to(one('.card-0'), { autoAlpha: 0, x: 18, duration: 0.4, ease: 'cine.in' }, T3 + 2.6)
     tl.to(one('.fresh-0'), { autoAlpha: 0, duration: 0.2 }, T3 + 2.6)
     tl.fromTo(one('.fresh-1'), { autoAlpha: 0, scale: 1.4, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: 'back.out(2)' }, T3 + 2.9)
-    cam.beam(centre(l.env), centre(l.reviewer), red, T3 + 3.1, { duration: 0.7, bend: -0.25, burst: 12 })
+    cam.beam(centre(l.env), centre(l.reviewer), pink, T3 + 3.1, { duration: 0.7, bend: -0.25, burst: 12 })
 
     // 4 · done: the stamp, the end, and the run's trace drawn turn by turn.
     const T4 = T3 + 3.9
@@ -225,7 +225,7 @@ const scene = useScene({
     tl.fromTo(one('.card-1'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.5 }, T4)
     tl.fromTo(at('.card-1 .field'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, stagger: 0.25 }, T4 + 0.2)
     tl.fromTo(one('.stamp'), { autoAlpha: 0, scale: 2.2, rotation: -24, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, rotation: -12, duration: 0.45, ease: 'back.out(1.6)' }, T4 + 0.8)
-    cam.flare(centre(l.reviewer), red, T4 + 1.05, 30, 130)
+    cam.flare(centre(l.reviewer), pink, T4 + 1.05, 30, 130)
     cam.shot(l.shots.home, T4 + 1.2, 1.5)
     tl.to(one('.axis'), { drawSVG: '100%', duration: 0.8, ease: 'cine' }, T4 + 1.6)
     at('.bar').forEach((bar, i) => {
@@ -387,7 +387,7 @@ svg {
 }
 
 .rev-bar {
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .kicker {
@@ -422,7 +422,7 @@ svg {
 }
 
 .chip.hot rect {
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .chip text {
@@ -442,7 +442,7 @@ svg {
 }
 
 .rail-pulse {
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
   opacity: 0;
 }
 
@@ -465,11 +465,11 @@ svg {
 }
 
 .tile-1 rect {
-  stroke: var(--hmz-red);
+  stroke: var(--hmz-pink);
 }
 
 .glow {
-  fill: var(--hmz-red-soft);
+  fill: var(--hmz-pink-soft);
   opacity: 0;
 }
 
@@ -486,7 +486,7 @@ svg {
 }
 
 .diff.del {
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .diff.add {
@@ -495,14 +495,14 @@ svg {
 
 .fresh rect {
   fill: none;
-  stroke: var(--hmz-red);
+  stroke: var(--hmz-pink);
   stroke-dasharray: 3 2;
 }
 
 .fresh text {
   font-size: 11px;
   font-weight: 600;
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .field {
@@ -516,7 +516,7 @@ svg {
 }
 
 .no {
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
   font-weight: 700;
 }
 
@@ -527,7 +527,7 @@ svg {
 
 .stamp rect {
   fill: none;
-  stroke: var(--hmz-red);
+  stroke: var(--hmz-pink);
   stroke-width: 2.5;
 }
 
@@ -536,25 +536,25 @@ svg {
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.18em;
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .read-line {
-  stroke: var(--hmz-red);
+  stroke: var(--hmz-pink);
   stroke-width: 1.5;
   stroke-dasharray: 4 3;
 }
 
 .loop-line {
   fill: none;
-  stroke: var(--hmz-red);
+  stroke: var(--hmz-pink);
   stroke-width: 2;
 }
 
 .loop-label {
   font-size: 11px;
   font-weight: 700;
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .drop,
@@ -570,7 +570,7 @@ svg {
 }
 
 .note-packet {
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .axis {
@@ -583,7 +583,7 @@ svg {
 }
 
 .bar.reviewer {
-  fill: var(--hmz-red);
+  fill: var(--hmz-pink);
 }
 
 .bar-word {

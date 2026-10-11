@@ -89,7 +89,7 @@ export function createFx(canvas: HTMLCanvasElement, width: number, height: numbe
 
   const dark = () => document.documentElement.classList.contains('dark')
 
-  // A canvas cannot read `var(--hmz-red)`: a colour given that way is looked up as it is used.
+  // A canvas cannot read `var(--hmz-pink)`: a colour given that way is looked up as it is used.
   const paint = (color: string) => {
     const name = /^var\((--[\w-]+)\)$/.exec(color.trim())?.[1]
     return name ? getComputedStyle(canvas).getPropertyValue(name).trim() || color : color
