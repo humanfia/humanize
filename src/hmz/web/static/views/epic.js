@@ -91,7 +91,7 @@ export function mount(root, { parts, query }) {
     }
     if (!say) {
       say = saying(detail.workspace)
-      btw = asides(detail.workspace)
+      btw = asides(detail.workspace, detail.name)
     }
     const run = going && going.started ? going : null
     const model = run ? live(held, run, detail) : written(detail, traced)
@@ -334,8 +334,10 @@ export function mount(root, { parts, query }) {
       )
     } else if (tab === 'aside') {
       const opened = model.agents.flatMap((one) => one.sessions.map((session) => session.key))
-      region('panel-aside', [run ? opened : []], () => {
-        btw.sessions(run ? opened : [])
+      // Every session of the epic: one the runs still hold asked as it is, an earlier epic's
+      // carried on from where that epic kept it.
+      region('panel-aside', [opened], () => {
+        btw.sessions(opened)
         fill(pane, h('p', { class: 'dim' }, 'Side questions never reach the epic.'), btw.node)
       })
     } else if (tab === 'board') {

@@ -39,14 +39,16 @@ import functools
 import itertools
 import json
 import os
+import shutil
+import tempfile
 import threading
 import time
 import weakref
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
-    from pathlib import Path
 
     from hmz.coganchor.agents import AgentBase, Board, Event, Question, SessionBase
     from hmz.runtime.doing.core import Hmz
@@ -205,13 +207,25 @@ def _placed(where: Placement | None) -> dict[str, Any] | None:
     }
 
 
+#: Where each side conversation carried on from an earlier run keeps what it was carried on
+#: with, by the conversation: taken away as it is closed.
+_SCRATCH: dict[int, Path] = {}
+
+
+def _closed(one: SessionBase) -> None:
+    """Closes one side conversation, and takes away what it was carried on with, if anything."""
+    with contextlib.suppress(Exception):
+        one.close()
+    if (scratch := _SCRATCH.pop(id(one), None)) is not None:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
 def _closed_all(sessions: list[SessionBase]) -> None:
     """Closes side conversations, off whatever thread let go of them."""
 
     def closes() -> None:
         for one in sessions:
-            with contextlib.suppress(Exception):
-                one.close()
+            _closed(one)
 
     if sessions:
         threading.Thread(target=closes, daemon=True, name="humanize-asides").start()
@@ -1726,6 +1740,18 @@ class Host:
         if found is not None:
             agent, session = found
             opened, forked = _side_of(agent, session, key, fork=bool(said.get("fork")))
+        elif runs and said.get("recall"):
+            # A session of an earlier run, carried on from where that run kept it.
+            made = _made(runs)
+            if made is None:
+                return _no(f"{runs} is not an agent that can be made here")
+            opened, forked = _recalled(
+                made,
+                str(said["recall"]),
+                str(said.get("kept") or ""),
+                str(said.get("cwd") or self._hmz.workspace),
+                fork=bool(said.get("fork")),
+            )
         elif runs:
             made = _made(runs)
             if made is None:
@@ -1766,8 +1792,7 @@ class Host:
             if aside is None or aside.client != frontend.client:
                 return _no(f"no aside {side} is open")
             del self._asides[side]
-        with contextlib.suppress(Exception):
-            aside.session.close()
+        _closed(aside.session)
         return _ok()
 
 
@@ -1822,6 +1847,45 @@ def _read_only(source: AgentBase, name: str) -> AgentBase:
     # answer onto the stdout of whatever is holding the run.
     clone.watch(lambda _agent, _session, _event: None)
     return clone
+
+
+def _recalled(
+    agent: AgentBase, ident: str, kept: str, cwd: str, *, fork: bool
+) -> tuple[SessionBase, bool]:
+    """A side conversation about a session an earlier run kept: a fork of it where it can be.
+
+    The conversation is brought in where nothing else is kept -- a directory of the side
+    conversation's own, taken away as it is closed -- so that neither the earlier run nor the
+    CLI's own home is written into. Where it cannot be forked, or was not kept, a fresh copy of
+    its agent is opened instead, to be told what it is about.
+
+    Args:
+      agent: The agent the session was of.
+      ident: What its CLI called the conversation.
+      kept: Where the earlier run kept it, laid out as the CLI lays out its home.
+      cwd: The directory it worked in.
+      fork: Whether a fork carrying its history is asked for.
+
+    Returns:
+      The conversation, and whether it is a fork carrying the history.
+    """
+    from hmz import machine
+
+    scratch = Path(tempfile.mkdtemp(prefix="aside-", dir=machine()))
+    agent.keeps = scratch
+    held: SessionBase | None = None
+    try:
+        held = agent.recall(ident, kept, cwd) if fork and kept else None
+    except (NotImplementedError, RuntimeError, OSError):
+        held = None
+    if held is not None:
+        opened, forked = _side_of(agent, held, f"recall-{ident[:8]}", fork=True)
+        with contextlib.suppress(Exception):
+            held.close()
+    else:
+        opened, forked = _read_only(agent, f"btw-{ident[:8]}").new(cwd), False
+    _SCRATCH[id(opened)] = scratch
+    return opened, forked
 
 
 def _side_of(

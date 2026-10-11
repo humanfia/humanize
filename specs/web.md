@@ -79,7 +79,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   server-sent events a page resumes from the last one it heard; a page that heard another
   link's records MUST be told to start over.
 - MUST ask a side question as `/btw` does, through `runtime/watching`'s `Btw`, of the btw agent
-  or of one conversation's side copy, MUST keep which are open and what was said in them for a
+  or of one conversation's side copy -- of any epic's, one the runs hold no more carried on from
+  where that epic kept it and told that epic rather than the run going -- MUST keep which are open and what was said in them for a
   page opened again, MUST close what it opened when the run it was about is replaced, and MUST
   NOT let a side question reach the run.
 - MUST bound what it keeps of the runs' records, and what a page keeps, by count and by size.

@@ -79,7 +79,8 @@ class Btw:
     def __init__(self, target: str, *, aside: Callable[..., Mapping[str, Any]],
                  unaside: Callable[[str], object], sessions: Callable[[], Sequence[str]],
                  source: Callable[[], dict[str, str] | None],
-                 asking: Callable[[str, str], object] | None = None) -> None: ...
+                 asking: Callable[[str, str], object] | None = None,
+                 opening: Mapping[str, Any] | None = None) -> None: ...  # an earlier run's
     def ask(self, question: str, snapshot: FlowSnapshot) -> str: ...
     def close(self, *, unasking: bool = True) -> None: ...
 ```

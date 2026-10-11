@@ -461,3 +461,39 @@ def test_the_btw_agent_is_the_one_settings_name_or_the_flows_first(
     expected: dict[str, str] | None,
 ) -> None:
     assert btw.opened_as(chosen, roles, sessions) == expected
+
+
+#: How a session an earlier run kept is opened: its agent, its conversation, where it is.
+_EARLIER = {"runs": "claude/opus", "recall": "abc", "kept": "/epics/x/sessions/claude"}
+
+
+def _earlier(runs: _Runs) -> btw.Btw:
+    return btw.Btw(
+        "earlier/builder/1",
+        aside=runs.aside,
+        unaside=runs.closed.append,
+        sessions=list,
+        source=lambda: None,
+        opening=_EARLIER,
+    )
+
+
+def test_a_session_an_earlier_run_kept_is_asked_as_a_fork_of_it() -> None:
+    runs = _Runs({"claude/opus fork": ["it said papaya"]})
+
+    answer = _earlier(runs).ask("what was the word", _snapshot())
+
+    assert answer == "it said papaya"
+    assert runs.opened == [{**_EARLIER, "fork": True}]
+
+
+def test_an_earlier_session_whose_fork_will_not_answer_is_asked_of_a_fresh_copy() -> (
+    None
+):
+    runs = _Runs({"claude/opus": ["from the copy"]}, forks=False)
+
+    answer = _earlier(runs).ask("what now", _snapshot())
+
+    assert answer == "from the copy"
+    assert runs.opened == [{**_EARLIER, "fork": True}, {"runs": "claude/opus"}]
+    assert runs.closed == ["s1"]

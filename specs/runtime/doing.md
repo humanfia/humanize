@@ -343,4 +343,8 @@ class Fallbacks:
 - One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST
   close every conversation of a stopping run under whatever turn is open, and say how many.
 - An aside MUST be read-only, carry no skills, say nothing to the run, answer only the frontend
-  that opened it, and be closed when that frontend goes or another run starts.
+  that opened it, and be closed when that frontend goes or another run starts. One about a
+  session an earlier run kept MUST be a fork carried on from where that run kept it, where its
+  CLI forks, and a fresh copy of its agent otherwise; MUST write nothing where that run keeps its
+  sessions nor into the CLI's own home; and MUST take away what it was carried on with as it is
+  closed.
