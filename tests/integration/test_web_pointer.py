@@ -117,6 +117,8 @@ def test_a_folder_is_browsed_for_a_step_at_a_time(project: Path, engine: str) ->
 def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _go(page, "/settings/runtimes")
+        # Read whole -- what is saved and what the SSH config names -- before anything is typed.
+        expect(page.locator("[data-hmz=import-runtimes] button")).to_be_visible()
         page.locator("#runtime-name").fill("box")
         page.locator("#runtime-host").fill("box.example")
         page.get_by_role("button", name="Browse for Identity file").click()
@@ -137,8 +139,12 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
             ["self", "local"]
         )
         affinity.get_by_label("Value").select_option("local")
-        page.get_by_role("button", name="Add", exact=True).last.click()
-        expect(page.locator("[data-hmz=runtime]")).to_have_count(1)
+        page.locator("[data-hmz=write-runtime] .row > .confirm > .btn.primary").click()
+        listed = page.locator("[data-hmz=runtime]")
+        refused = page.locator("[data-hmz=write-runtime] .error")
+        expect(listed.or_(refused)).to_be_visible()
+        assert not refused.count(), refused.inner_text()
+        expect(listed).to_have_count(1)
 
         browser = Browser(site)
         browser.signs_in()
