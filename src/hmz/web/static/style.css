@@ -794,12 +794,19 @@ code {
   display: flex;
   align-items: center;
   gap: 4px 10px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   overflow: hidden;
   white-space: nowrap;
   font-size: 12.5px;
   color: var(--ink-3);
   margin-top: 1px;
+}
+
+/* What does not fit beside the rest goes under it, and what does not fit across is cut short. */
+.bar-sub > * {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bar-actions {
@@ -1306,6 +1313,16 @@ p + .panel {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+/* A column past the edge is scrolled to on a bar that shows, as an overlaid one does not until
+   it is scrolled. */
+.table-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
 }
 
 table {
@@ -2254,7 +2271,13 @@ table.spending {
 
 table.spending td,
 table.spending th {
-  padding: 4px 6px;
+  padding: 4px;
+}
+
+/* Narrow as the panel is: a kind's name breaks between its words. */
+table.spending th {
+  white-space: normal;
+  letter-spacing: 0.04em;
 }
 
 table.spending tr.whole td {
@@ -2468,6 +2491,7 @@ details.said-more summary {
 
 .links li {
   padding: 2px 0;
+  overflow-wrap: anywhere;
 }
 
 .aside {

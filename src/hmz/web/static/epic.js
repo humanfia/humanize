@@ -212,7 +212,8 @@ export function written(detail, traced) {
       spec: specs[role] || '',
       working: false,
       status: traced ? `${count} turn${count === 1 ? '' : 's'}` : `${mine.length} session${mine.length === 1 ? '' : 's'}`,
-      turns: traced ? count : null,
+      // Its status says them already.
+      turns: null,
       tokens: '',
       under: [],
       sessions: mine.map((one) => ({ key: one.key, about: [one.backend, one.provider].filter(Boolean).join('@'), working: false, turns: turns.get(one.traced) || [] })),
