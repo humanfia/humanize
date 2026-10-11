@@ -6,7 +6,6 @@ use std::fmt;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::os::unix::fs::PermissionsExt;
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{ChildStderr, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,10 +14,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use shared_child::SharedChild;
-use shared_child::unix::SharedChildExt;
 use url::Url;
 
+use crate::child::{self, Child, STOPPING};
 use crate::lock;
 use crate::shell_env::Env;
 
@@ -27,9 +25,6 @@ pub const OVERRIDE: &str = "HUMANIZE_HMZ";
 
 /// How long `hmz web` may take to say where it listens. A first start may build a cache.
 const STARTING: Duration = Duration::from_secs(30);
-
-/// How long `hmz web` may take to stop once interrupted, before it is killed.
-const STOPPING: Duration = Duration::from_secs(3);
 
 /// How much of what `hmz web` says on stderr is kept to show, from its end.
 const KEPT: usize = 16 * 1024;
@@ -82,7 +77,7 @@ impl fmt::Debug for Address {
 /// `hmz web`, running.
 pub struct Server {
     pub address: Address,
-    child: SharedChild,
+    child: Child,
     /// Held open: `--attached` stops `hmz web` once it closes, so it goes however the app ends.
     _stdin: ChildStdin,
     stderr: Stderr,
@@ -105,7 +100,7 @@ impl Server {
     /// Interrupts `hmz web`, as Ctrl+C would, and kills it if it has not stopped in time.
     pub fn stop(&self) {
         self.stopping.store(true, Ordering::SeqCst);
-        log::info!("hmz web stopped: {}", how(ended(&self.child)));
+        log::info!("hmz web stopped: {}", how(child::ended(&self.child)));
     }
 }
 
@@ -236,24 +231,13 @@ fn spawn(hmz: &Path, env: &Env, home: &Path, port: u16) -> Result<Server, Early>
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    // The signals that stop it, as they are by default: a signal ignored is ignored in a child
-    // too, and `hmz web` keeps one it was handed ignored -- so an app started where Ctrl+C is
-    // ignored, as from a script's background job, would have Quit kill it rather than stop it.
-    // SAFETY: `signal` is async-signal-safe, which is all that may run between fork and exec.
-    unsafe {
-        command.pre_exec(|| {
-            for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
-                libc::signal(signal, libc::SIG_DFL);
-            }
-            Ok(())
-        });
-    }
-    let child = SharedChild::spawn(&mut command)
+    // Kept from the first: quitting while it starts stops it too.
+    let child = child::spawn(&mut command)
         .map_err(|why| early(format!("{} could not be run: {why}", hmz.display())))?;
     let (Some(stdin), Some(stdout), Some(stderr)) =
         (child.take_stdin(), child.take_stdout(), child.take_stderr())
     else {
-        ended(&child);
+        child::ended(&child);
         return Err(early("hmz web could not be read".into()));
     };
     let stderr = Stderr::read(stderr);
@@ -286,8 +270,8 @@ fn spawn(hmz: &Path, env: &Env, home: &Path, port: u16) -> Result<Server, Early>
                     .wait_timeout(STOPPING)
                     .ok()
                     .flatten()
-                    .or_else(|| ended(&child)),
-                RecvTimeoutError::Timeout => ended(&child),
+                    .or_else(|| child::ended(&child)),
+                RecvTimeoutError::Timeout => child::ended(&child),
             };
             let mut said = stderr.said(status);
             if why == RecvTimeoutError::Timeout {
@@ -302,21 +286,6 @@ fn spawn(hmz: &Path, env: &Env, home: &Path, port: u16) -> Result<Server, Early>
             })
         }
     }
-}
-
-/// Interrupts a child, as Ctrl+C would, and kills it if it has not stopped in time. Reaped
-/// either way.
-fn ended(child: &SharedChild) -> Option<ExitStatus> {
-    let _ = child.send_signal(libc::SIGINT);
-    if let Ok(Some(status)) = child.wait_timeout(STOPPING) {
-        return Some(status);
-    }
-    log::warn!(
-        "hmz web did not stop in {} s; killing it",
-        STOPPING.as_secs()
-    );
-    let _ = child.kill();
-    child.wait().ok()
 }
 
 /// How a child exited, for the log.
@@ -425,6 +394,9 @@ case "$FAKE" in
       echo "hmz: the web interface cannot be served: [Errno 48] Address already in use" >&2
       exit 1
     fi ;;
+  slow)
+    echo $$ > "$HOME/pid"
+    exec sleep 60 ;;
 esac
 [ "$port" = 0 ] && port=4321
 echo "hmz web: http://127.0.0.1:$port/?key=s3cret"
@@ -589,7 +561,7 @@ exec cat > /dev/null
         let server = Fake::new("trapping").start();
         unsafe { libc::signal(libc::SIGINT, was) };
         let server = server.unwrap();
-        let status = ended(&server.child).unwrap();
+        let status = child::ended(&server.child).unwrap();
         assert_eq!(status.code(), Some(0), "{status}");
     }
 
@@ -601,5 +573,22 @@ exec cat > /dev/null
         assert!(gone(&server));
         // Nothing is left to stop.
         server.stop();
+    }
+
+    #[test]
+    fn quitting_while_it_starts_stops_it() {
+        if child::tests::apart("server::tests::quitting_while_it_starts_stops_it") {
+            return;
+        }
+        let fake = Fake::new("slow");
+        let pid = fake.home.path().join("pid");
+        let starting = thread::spawn(move || (fake.start().err(), fake));
+        let pid = child::tests::written(&pid);
+        let began = Instant::now();
+        child::quit();
+        let (failed, _fake) = starting.join().unwrap();
+        assert!(began.elapsed() < STOPPING, "{:?}", began.elapsed());
+        assert!(matches!(failed, Some(Failure::Failed(_))), "{failed:?}");
+        assert!(child::tests::gone(pid));
     }
 }

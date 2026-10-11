@@ -8,15 +8,13 @@ use std::io::{BufRead, BufReader, Read};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use shared_child::SharedChild;
 
-use crate::lock;
+use crate::child;
 use crate::server;
 use crate::shell_env::{self, Env};
 
@@ -48,9 +46,6 @@ const PYTHON: &str = ">=3.12";
 
 /// How much of what an install said is kept to show where it fails, from its end.
 const KEPT_LINES: usize = 12;
-
-/// The install in flight, to stop as the app quits.
-static INSTALLING: Mutex<Option<Arc<SharedChild>>> = Mutex::new(None);
 
 /// What is being done, as the app's own page shows it.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -193,14 +188,6 @@ pub fn choose(
     }
 }
 
-/// Stops the install in flight, if there is one.
-pub fn stop() {
-    if let Some(child) = lock(&INSTALLING).take() {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-}
-
 /// The PEP 440 version of the app's SemVer one, as PyPI has the same release: `0.5.0-rc.1` is
 /// `0.5.0rc1`. None for a development build's `0.0.0`, and for what is no release.
 pub fn pep440(semver: &str) -> Option<String> {
@@ -295,7 +282,7 @@ fn asked<const N: usize>(program: &Path, args: [&str; N], env: &Env) -> Option<S
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
-    let child = SharedChild::spawn(&mut command).ok()?;
+    let child = child::spawn(&mut command).ok()?;
     let mut stdout = child.take_stdout()?;
     // Read as it is written, so a long answer cannot fill the pipe and stall it.
     let reading = std::thread::spawn(move || {
@@ -373,16 +360,10 @@ fn install(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
-    // Held while it is spawned, so that a quit in between waits for it and then stops it.
-    let child = {
-        let mut installing = lock(&INSTALLING);
-        let child = Arc::new(
-            SharedChild::spawn(&mut command)
-                .map_err(|why| format!("{} could not be run: {why}", uv.display()))?,
-        );
-        *installing = Some(child.clone());
-        child
-    };
+    // Interrupted as the app quits, which uv takes as Ctrl+C: what it installs is put in place
+    // whole or not at all.
+    let child = child::spawn(&mut command)
+        .map_err(|why| format!("{} could not be run: {why}", uv.display()))?;
     let mut kept: Vec<String> = Vec::new();
     if let Some(stderr) = child.take_stderr() {
         for line in BufReader::new(stderr).lines().map_while(Result::ok) {
@@ -399,7 +380,6 @@ fn install(
         }
     }
     let status = child.wait();
-    lock(&INSTALLING).take();
     let said = kept.join("\n");
     match status {
         Ok(status) if status.success() => {}
@@ -565,6 +545,7 @@ pub fn unpack(archive: &[u8], sha256: &str, dir: &Path) -> Result<PathBuf, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lock;
     use std::sync::Mutex as Lock;
 
     #[test]
@@ -728,6 +709,10 @@ case "$1 $2" in
   "tool dir") echo "$FAKE_BIN" ;;
   "tool install")
     echo "$@" >> "$FAKE_BIN/../argv"
+    if [ "$FAKE" = slow ]; then
+      echo $$ > "$FAKE_BIN/../pid"
+      exec sleep 60
+    fi
     if [ "$FAKE" = offline ]; then
       echo "error: Failed to fetch: https://pypi.org/simple/hmz/" >&2
       exit 2
@@ -872,6 +857,27 @@ esac
             .0
             .unwrap_err();
         assert!(failed.said.contains("9.9.9"), "{}", failed.said);
+    }
+
+    #[test]
+    fn quitting_while_it_installs_stops_uv_and_starts_nothing_after() {
+        if child::tests::apart(
+            "install::tests::quitting_while_it_installs_stops_uv_and_starts_nothing_after",
+        ) {
+            return;
+        }
+        let fake = Fake::new("slow");
+        let pid = fake.dir.path().join("tools/pid");
+        let installing = std::thread::spawn(move || (fake.choose("0.5.0", How::Usual).0, fake));
+        let pid = child::tests::written(&pid);
+        let began = std::time::Instant::now();
+        child::quit();
+        let (chosen, fake) = installing.join().unwrap();
+        assert!(began.elapsed() < child::STOPPING);
+        assert!(chosen.is_err());
+        assert!(child::tests::gone(pid));
+        assert_eq!(fake.argv().lines().count(), 1);
+        assert!(!fake.hmz().exists());
     }
 
     #[test]

@@ -10,6 +10,7 @@ import { stays } from '../app.js'
 import { acting, confirming, empty, fill, h, icon, permitted, problem } from '../dom.js'
 import { workspacePicker } from '../places.js'
 import { bar, tabbed } from '../shell.js'
+import { copy, menuOn, toast } from '../ui.js'
 
 export function mount(root, { query }) {
   let tab = query.get('tab') === 'verses' ? 'verses' : 'installed'
@@ -134,7 +135,16 @@ export function mount(root, { query }) {
                 one.about ? h('span', { class: 'card-about' }, one.about) : null,
               )
               card.addEventListener('click', () => show(one.name))
-              return card
+              const newEpic = `#/new?flow=${encodeURIComponent(one.name)}&workspace=${encodeURIComponent(workspace)}`
+              return menuOn(card, () => [
+                { head: one.name },
+                { label: 'New epic', glyph: 'new', href: newEpic },
+                { label: 'Show', glyph: 'open', act: () => show(one.name) },
+                '-',
+                updates[one.name] ? { label: `Update to ${updates[one.name].to}`, glyph: 'download', act: () => change('/api/flowverses/install', { flow: one.name, version: updates[one.name].to }).catch((error) => toast(error.message)) } : null,
+                one.name.startsWith('@local/') ? null : { label: 'Copy here', glyph: 'copy', act: () => change('/api/flows/fork', { flow: one.name, workspace }).catch((error) => toast(error.message)) },
+                { label: 'Copy name', glyph: 'copy', act: () => copy(one.name, 'Name copied') },
+              ])
             }),
           ),
         ),
@@ -216,7 +226,12 @@ export function mount(root, { query }) {
             h('span', { class: 'card-about' }, one.url || 'local', one.installed ? ` · ${one.installed} installed` : ''),
           )
           card.addEventListener('click', () => openVerse(one.name))
-          return card
+          return menuOn(card, () => [
+            { head: one.url || one.name },
+            { label: 'Open', glyph: 'open', act: () => openVerse(one.name) },
+            !one.fixed || one.name === 'official' ? { label: 'Fetch', glyph: 'resume', act: () => change('/api/flowverses/fetch', { name: one.name }).catch((error) => toast(error.message)) } : null,
+            one.url ? { label: 'Copy URL', glyph: 'copy', act: () => copy(one.url, 'URL copied') } : null,
+          ])
         }),
         h('button', { class: 'card card-add', type: 'button', 'data-hmz': 'add-verse', onclick: () => {
           verse = ''

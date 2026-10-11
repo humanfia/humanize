@@ -5,6 +5,7 @@
 
 import { get, post } from './api.js'
 import { fill, h, iconButton } from './dom.js'
+import { pathPicker } from './paths.js'
 
 /** The CLIs here, each with its accounts and the models each runs, shared by every picker. */
 let backends = null
@@ -57,6 +58,12 @@ export function spelled({ cli, account, model, effort }) {
   return `${cli}${account ? `@${account}` : ''}/${model}${effort && effort !== 'auto' ? `:${effort}` : ''}`
 }
 
+/** A place a turn goes to, `CLI[@ACCOUNT]/MODEL`, picked a step at a time from every CLI here. */
+export function placePicker(kept, label, changed = () => {}) {
+  const role = { name: label, get clis() { return backends ? Object.keys(backends.clis) : [] } }
+  return agentPicker(role, kept, changed, { effort: false })
+}
+
 /**
  * The agent filling one role.
  *
@@ -64,7 +71,7 @@ export function spelled({ cli, account, model, effort }) {
  * @param {string} kept What fills it now, as `-a` spells it.
  * @param {() => void} changed Told whenever the choice changes.
  */
-export function agentPicker(role, kept, changed) {
+export function agentPicker(role, kept, changed, { effort: withEffort = true } = {}) {
   const chosen = parted(kept)
   const cli = h('select', { 'aria-label': `CLI for ${role.name}`, 'data-hmz': 'pick-cli' })
   const account = h('select', { 'aria-label': `Account for ${role.name}`, 'data-hmz': 'pick-account' })
@@ -74,7 +81,8 @@ export function agentPicker(role, kept, changed) {
   const typed = h('input', { type: 'text', placeholder: 'Model', 'aria-label': `Model name for ${role.name}`, 'data-hmz': 'pick-model-typed', hidden: true })
   const again = iconButton('resume', 'Refresh models', { class: 'small' })
   const said = h('span', { class: 'hint', 'aria-live': 'polite' })
-  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field('Account', account), field('Model', model, typed), field('Effort', effort), again, said)
+  // A place a turn goes to is a CLI, an account and a model: no effort is part of it.
+  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field('Account', account), field('Model', model, typed), withEffort ? field('Effort', effort) : null, again, said)
 
   const accountsOf = (name) => (backends && backends.clis[name] ? backends.clis[name].accounts : [])
   let typing = false
@@ -171,7 +179,7 @@ export function agentPicker(role, kept, changed) {
   draw()
   return {
     node,
-    value: () => spelled(chosen),
+    value: () => spelled(withEffort ? chosen : { ...chosen, effort: '' }),
     leave: () => told.delete(draw),
   }
 }
@@ -205,9 +213,13 @@ export function envPicker(role, kept, offered, runtimes) {
   const backend = h('select', { 'aria-label': `Backend for ${role.name}`, 'data-hmz': 'pick-backend' })
   const machine = h('select', { 'aria-label': `Runtime for ${role.name}`, 'data-hmz': 'pick-runtime' })
   const host = h('input', { type: 'text', placeholder: 'user@host', 'aria-label': `Host for ${role.name}`, hidden: true })
-  const dirs = h('datalist', { id: `dirs-${role.name}` })
-  const dir = h('input', { type: 'text', list: dirs.id, value: chosen.workdir, placeholder: '~/project', 'aria-label': `Directory for ${role.name}`, 'data-hmz': 'pick-dir' })
-  const node = h('div', { class: 'picker', 'data-hmz': 'env-picker' }, field('Backend', backend), field('Runtime', machine, host), field('Directory', dir), dirs)
+  // A directory on this machine is browsed for; one on another machine is written.
+  const here = pathPicker({ value: chosen.workdir, label: `Directory for ${role.name}`, placeholder: '~/project', changed: (to) => (chosen.workdir = to) })
+  here.input.dataset.hmz = 'pick-dir'
+  const there = h('input', { type: 'text', value: chosen.workdir, placeholder: '/srv/project', 'aria-label': `Directory for ${role.name} there`, 'data-hmz': 'pick-dir-there' })
+  there.addEventListener('input', () => (chosen.workdir = there.value.trim()))
+  const dir = h('span', { class: 'dir-holder' }, here.node, there)
+  const node = h('div', { class: 'picker', 'data-hmz': 'env-picker' }, field('Backend', backend), field('Runtime', machine, host), h('div', { class: 'field' }, h('span', { class: 'label' }, 'Directory'), dir))
 
   function draw() {
     fill(backend, offered.envs.map((one) => h('option', { value: one, selected: one === chosen.backend }, one)))
@@ -226,7 +238,9 @@ export function envPicker(role, kept, offered, runtimes) {
     host.hidden = !typedHost
     host.value = typedHost ? chosen.provider.slice(1, -1) : ''
     const saved = mine.find((one) => one.name === chosen.provider)
-    dir.placeholder = saved && saved.workdir ? saved.workdir : local ? '~/project' : '/srv/project'
+    here.node.hidden = !local
+    there.hidden = local
+    there.placeholder = saved && saved.workdir ? saved.workdir : '/srv/project'
   }
 
   backend.addEventListener('change', () => {
@@ -245,21 +259,6 @@ export function envPicker(role, kept, offered, runtimes) {
   })
   host.addEventListener('input', () => {
     chosen.provider = `[${host.value.trim()}]`
-  })
-  // A directory on this machine is completed as it is typed, as a shell completes one.
-  let typed = null
-  dir.addEventListener('input', () => {
-    chosen.workdir = dir.value.trim()
-    if (chosen.backend !== 'local') return
-    clearTimeout(typed)
-    typed = setTimeout(async () => {
-      try {
-        const { paths } = await get(`/api/paths?typed=${encodeURIComponent(dir.value)}`)
-        fill(dirs, paths.map((one) => h('option', { value: one })))
-      } catch {
-        fill(dirs)
-      }
-    }, 150)
   })
   draw()
   return { node, value: () => where(chosen) }

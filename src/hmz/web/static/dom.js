@@ -245,6 +245,11 @@ const ICONS = {
   agent: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4 21a8 8 0 0 1 16 0'],
   thread: ['M4 5h16v11H8l-4 4Z'],
   folder: ['M3 6h6l2 2h10v11H3Z'],
+  file: ['M6 3h8l4 4v14H6Z', 'M14 3v4h4'],
+  up: ['M12 19V5', 'm5 12 7-7 7 7'],
+  home: ['M3 11l9-8 9 8', 'M5 10v10h14V10'],
+  copy: ['M9 9h11v11H9Z', 'M5 15H4V4h11v1'],
+  open: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v6H4V6h6'],
 }
 
 /** An icon, drawn in the colour of the text around it and said by nothing: its button says it. */
@@ -272,4 +277,9 @@ export function headline(task) {
 export function flowName(flow) {
   const said = String(flow || '')
   return /^[./~]|^git\+/.test(said) ? said.replace(/[/#]+$/, '').split(/[/#]/).pop() : said
+}
+
+/** A path on one line, its end kept and its start cut where there is no room for all of it. */
+export function pathText(path) {
+  return h('span', { class: 'path', title: path, 'data-path': path }, h('bdi', { dir: 'ltr' }, path))
 }

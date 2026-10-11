@@ -3,8 +3,8 @@
 The macOS app in `desktop/`: one window on the page `hmz web` serves, which it starts as its own
 child and stops as it quits. It is a frame around that page and nothing more: it draws nothing
 of humanize's but how it is getting there and what went wrong, and is answerable only for
-having the `hmz` of its own release installed, starting it, showing its page, and leaving
-nothing running behind it.
+having the `hmz` of its own release installed, starting it, showing its page, leaving nothing
+running behind it, and keeping itself up to date.
 
 ## API
 
@@ -22,6 +22,7 @@ humanize.app      ai.humanfia.humanize, macOS 11 or later, on Apple silicon and 
   keeps           ~/Library/Application Support/ai.humanfia.humanize/port
                   ~/Library/Application Support/ai.humanfia.humanize/uv/uv
                   ~/Library/Logs/ai.humanfia.humanize/humanize.log
+  updates from    https://github.com/humanfia/humanize/releases/latest/download/latest.json
 ```
 
 ```js
@@ -32,9 +33,9 @@ invoke('status', {after})  // once it is not starting, and not `after`, the stat
   // {state: 'waiting', detail: the version of the hmz holding running epics}
   // {state: 'install-failed', detail: {updating, said, keep: whether Continue can be offered}}
   // {state: 'failed' | 'stopped', detail: what it said on stderr}
-invoke('retry')   // starts again, where it failed, stopped or found no hmz
-invoke('keep')    // starts the hmz there, where installing its own failed and `keep` was said
-invoke('update')  // installs its own now, where it is waiting
+invoke('retry')       // starts again, where it failed, stopped or found no hmz
+invoke('keep')        // starts the hmz there, where installing its own failed and `keep` was said
+invoke('update_now')  // installs its own now, where it is waiting
 ```
 
 `HUMANIZE_HMZ` is for development and tests: it names the `hmz` to run, nothing else is looked
@@ -93,7 +94,8 @@ either: it runs the first `hmz` it finds.
   once the daemon has gone, and offer `Update now` for the user to install it at once.
 - Where an install fails, MUST say `Install failed` or `Update failed` with what uv said, Retry
   and the documentation, and `Continue` with the `hmz` there where it takes `web --attached`.
-- MUST stop an install in flight as it quits.
+- MUST leave no uv and no install half-written however it ends: the uv it downloads is put in
+  place whole or not at all, and uv's own install is.
 
 ### The window
 
@@ -114,12 +116,33 @@ either: it runs the first `hmz` it finds.
 - Closing the window MUST only hide it, with the app and `hmz web` left running; the Dock icon,
   or opening the app again, MUST bring it back. A second copy of the app MUST NOT start: it MUST
   bring the first one's window forward and exit.
-- Quitting MUST interrupt `hmz web` as Ctrl+C would, kill it if it has not stopped within 3
-  seconds, and reap it, so that no process of the app's outlives it; and MUST hold `hmz web`'s
-  standard input open while it runs, so that `--attached` stops it however the app ends.
-- MUST start `hmz web` with SIGINT, SIGTERM and SIGHUP as they are by default, whatever the app
-  was handed: one ignored where the app was started would be ignored by `hmz web` too, and
+- Quitting MUST interrupt every process the app started and has not seen end -- `hmz web`,
+  whether it listens yet or not, uv installing, an `hmz` or a uv asked its version or
+  directory -- as Ctrl+C would, kill each that has not stopped within 3 seconds, and reap it, so
+  that no process of the app's outlives it, and MUST start none from then on; and MUST hold
+  `hmz web`'s standard input open while it runs, so that `--attached` stops it however the
+  app ends.
+- MUST start every process with SIGINT, SIGTERM and SIGHUP as they are by default, whatever the
+  app was handed: one ignored where the app was started would be ignored by `hmz web` too, and
   Quit would kill it rather than stop it.
+
+### Updating itself
+
+- MUST look for a newer release 5 seconds after it starts, so that the start is never slower
+  for it, and every 6 hours after by the wall clock, asleep or not, at `latest.json` of the latest release over HTTPS -- never a
+  pre-release's, so that a release is all it is offered -- and MUST take only a version newer
+  than its own, and a pre-release only where its own is one. A development build, `0.0.0`, MUST
+  never look.
+- MUST download what it finds in the background, and MUST take it only signed with the key
+  whose public half is in `tauri.conf.json`.
+- MUST then ask once, in an alert titled with the new version: `Restart` installs it and starts
+  the app again, through the quit that stops `hmz web`; `Later`, or a quit while it asks,
+  installs it as the app quits. The alert MUST NOT hold up a quit, and MUST go with the app.
+- MUST offer `Check for Updates…` in the app's menu, which looks at once and says what it
+  found -- the update, that it is up to date, or why it could not look -- or, once one is
+  downloaded, asks again. A look of its own MUST say nothing but to the log.
+- MUST NOT download where it could not install: run from its disk image, moved aside by
+  Gatekeeper, or where only an administrator could replace it.
 
 ### What it weighs
 
@@ -133,6 +156,10 @@ either: it runs the first `hmz` it finds.
 - MUST be built for every release as one disk image for both architectures,
   `humanize-<version>-macos-universal.dmg`, laid out to drag the app into Applications, attested
   as built by `publish.yml`, and attached to the GitHub release beside the wheel and the sdist.
+- MUST be built for every release as its update too, where the repository holds the updater's
+  key: `humanize-<version>-macos-universal.app.tar.gz`, signed with that key and attested, and
+  `latest.json` offering it to both architectures, both attached to the release. Where the key
+  is not held, the release MUST still be made, without them.
 - MUST be signed ad hoc where the repository holds no Apple Developer ID, and signed with it and
   notarized where it does.
 - MUST say its version only in `desktop/src-tauri/tauri.conf.json`, `0.0.0` on `main`, which a

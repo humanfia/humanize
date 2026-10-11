@@ -3,10 +3,13 @@
 //! `hmz web` starts, and what went wrong where it cannot -- and goes on to `hmz web`'s once it
 //! says where it listens.
 
+mod alert;
+mod child;
 mod install;
 mod menu;
 mod server;
 mod shell_env;
+mod update;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
@@ -121,7 +124,7 @@ fn keep(app: AppHandle, shell: State<'_, Shell>) {
 
 /// Updates `hmz` without waiting for the epics it holds to end: told to the thread waiting.
 #[tauri::command]
-fn update(shell: State<'_, Shell>) {
+fn update_now(shell: State<'_, Shell>) {
     shell.status.send_if_modified(|status| {
         let waiting = matches!(status, Status::Waiting(_));
         if waiting {
@@ -386,10 +389,11 @@ pub fn run() {
         })
         .menu(menu::build)
         .on_menu_event(menu::handle)
-        .invoke_handler(tauri::generate_handler![status, retry, keep, update])
+        .invoke_handler(tauri::generate_handler![status, retry, keep, update_now])
         .setup(|app| {
             window(app.handle())?;
             start(app.handle().clone(), How::Usual);
+            update::init(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -418,10 +422,12 @@ pub fn run() {
             ..
         } => reveal(app),
         RunEvent::Exit => {
-            install::stop();
             if let Some(server) = lock(&app.state::<Shell>().server).take() {
                 server.stop();
             }
+            // Whatever starting had got to: an install, a version asked, `hmz web` starting.
+            child::quit();
+            update::on_exit(app);
         }
         _ => {}
     });

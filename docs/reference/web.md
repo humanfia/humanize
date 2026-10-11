@@ -215,6 +215,7 @@ going) and `spent`: what its budget counted as it ended, or `null`. A run of no 
 | `POST /api/flowverses/install` | `flow`; `version` (`""` for the newest that is not a prerelease) | Installs, updates or switches it, with what it needs; `said`, and as `GET` |
 | `POST /api/flowverses/uninstall` | `flow` | `said`, and as `GET`. Installing, uninstalling and removing are refused `409` while an epic runs on the machine |
 | `POST /api/flows/fork` | `flow`; `workspace` | Copies it whole into that workspace's own flows: `said`, `at` |
+| `GET /api/files` | `at` (a directory, `~` and all; `~` without), `files` (`1` to list files beside directories), `hidden` (`1` to list what starts with a dot) | `at` as written from `~`, `whole`, `up` (the one above, or `""`), `entries` (`name`, `dir`, directories first, at most **500**), `more`. `404` for one that cannot be read |
 | `GET /api/paths` | `typed` (query): a path being written, `~` and all | `paths`: the directories it could become, spelled as typed, each ending in `/`, at most 50 |
 
 ### Settings {#api-settings}

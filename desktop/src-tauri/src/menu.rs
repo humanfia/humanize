@@ -53,6 +53,14 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
                 true,
                 &[
                     &PredefinedMenuItem::about(app, Some("About humanize"), Some(about))?,
+                    // Off in a development build, which is never updated.
+                    &MenuItem::with_id(
+                        app,
+                        "check-for-updates",
+                        "Check for Updates…",
+                        crate::update::checks(&app.package_info().version),
+                        None::<&str>,
+                    )?,
                     &separator()?,
                     &PredefinedMenuItem::hide(app, None)?,
                     &PredefinedMenuItem::hide_others(app, None)?,
@@ -115,6 +123,10 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         "actual-size" => zoom(|_| 1.0),
         "zoom-in" => zoom(|zoom| zoom * ZOOM_STEP),
         "zoom-out" => zoom(|zoom| zoom / ZOOM_STEP),
+        "check-for-updates" => {
+            crate::update::check(app, crate::update::By::Hand);
+            Ok(())
+        }
         "docs" => {
             crate::browse(DOCS);
             Ok(())

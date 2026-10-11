@@ -3,11 +3,17 @@
 
 import { get, post } from '../../api.js'
 import { acting, fill, h, problem } from '../../dom.js'
+import { agentPicker, readBackends } from '../../pickers.js'
 
 export function draw(holder) {
   const shown = (settings) => {
     const details = h('input', { type: 'checkbox', checked: settings.details })
-    const btw = h('input', { type: 'text', value: settings.btw, placeholder: 'First agent of the flow', 'aria-label': 'The agent a side question goes to', size: '32' })
+    // Who a side question goes to: the flow's first agent, or one picked as an agent is picked.
+    const whom = h('select', { 'aria-label': 'Who btw asks', 'data-hmz': 'btw-whom' }, h('option', { value: 'first', selected: !settings.btw }, 'First agent of the flow'), h('option', { value: 'chosen', selected: Boolean(settings.btw) }, 'Chosen agent'))
+    if (picker) picker.leave()
+    picker = agentPicker({ name: 'btw', get clis() { return backends ? Object.keys(backends.clis) : [] } }, settings.btw, () => {})
+    picker.node.hidden = !settings.btw
+    whom.addEventListener('change', () => (picker.node.hidden = whom.value !== 'chosen'))
     const reports = h(
       'select',
       { 'aria-label': 'Report humanize’s own failures' },
@@ -18,9 +24,10 @@ export function draw(holder) {
     const save = acting(
       'Save',
       async () => {
-        const said = { btw: btw.value.trim(), details: details.checked }
+        const said = { btw: whom.value === 'chosen' ? picker.value() : '', details: details.checked }
         if (reports.value) said.reports = reports.value === 'yes'
-        shown(await post('/api/settings', said))
+        // Saved where it stands: the button says so, rather than the form being drawn again over it.
+        await post('/api/settings', said)
       },
       { kind: 'btn primary', busy: 'Saving…', done: 'Saved' },
     )
@@ -33,14 +40,19 @@ export function draw(holder) {
           'div',
           { class: 'form' },
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Details'), h('label', { class: 'check' }, details, 'Tool calls and thinking')),
-          h('div', { class: 'field' }, h('span', { class: 'label' }, 'btw agent'), btw, h('span', { class: 'hint' }, 'Who a side question about an epic is asked of, as -a spells an agent. Empty asks the flow’s first agent.')),
+          h('div', { class: 'field', 'data-hmz': 'btw-agent' }, h('span', { class: 'label' }, 'btw agent'), whom, picker.node, h('span', { class: 'hint' }, 'Who a side question about a whole epic is asked of.')),
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Error reports'), reports, h('span', { class: 'hint' }, 'Whether humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
           h('div', { class: 'row' }, save),
         ),
       ),
     )
   }
-  get('/api/settings')
-    .then(shown)
+  let picker = null
+  let backends = null
+  Promise.all([get('/api/settings'), readBackends()])
+    .then(([settings, read]) => {
+      backends = read
+      shown(settings)
+    })
     .catch((error) => fill(holder, problem(error)))
 }

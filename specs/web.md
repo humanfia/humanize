@@ -142,6 +142,14 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   run.
 - MUST name what it draws -- a button, a tab, a menu's choice, a heading, a field -- by a word
   or a short phrase, never a sentence, and MUST call a run of a flow an epic.
+- MUST answer a right click as a desktop app does: with what can be done to the thing under it,
+  in a menu of its own, and with the browser's own menu only where there is text to read or to
+  write; and MUST NOT let what names the page's own parts be selected as text.
+- MUST say in full, on hover and at once, whatever it cuts short -- a path above all -- and
+  offer to copy what is worth copying.
+- MUST let every path on this machine be browsed for, a directory at a time, as well as
+  written; and every agent, place and runtime be set up a part at a time, as the terminal
+  interface's forms set them up, never spelled whole.
 - MUST draw in humanize's own colours and type, light or dark as the browser asks or as chosen,
   MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
   to be reduced.

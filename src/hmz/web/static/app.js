@@ -8,6 +8,7 @@ import { get } from './api.js'
 import { fill, h, problem } from './dom.js'
 import { applyTheme, mountSidebar } from './sidebar.js'
 import { kept, toggleSidebar } from './shell.js'
+import './ui.js'
 
 /** Every view, by the first part of the address that names it. */
 const VIEWS = {
@@ -103,7 +104,15 @@ async function view(mine, parts, query, key) {
   }
 }
 
+/** Which dialog is open, as the address named it: one asked for again is left as it is. */
+let opened = ''
+
 async function open(mine, load, parts, query) {
+  // The same dialog, asked for again -- the address said once more, or a view under it putting
+  // its own query in -- is not drawn again over whatever is being typed into it.
+  const asked = parts.join('/')
+  if (asked === opened && !overlay.hidden) return
+  opened = asked
   if (closing) closing()
   closing = null
   const dialog = h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'data-hmz': `dialog-${parts[0]}` })
@@ -123,6 +132,7 @@ async function open(mine, load, parts, query) {
 }
 
 function close() {
+  opened = ''
   if (closing) closing()
   closing = null
   if (overlay.hidden) return

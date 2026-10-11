@@ -9,11 +9,13 @@
 import { asides, board, outworlders, question, saying } from '../acting.js'
 import { get } from '../api.js'
 import { go } from '../app.js'
-import { ago, badge, flowName, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
+import { ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { ask } from '../held.js'
 import { live, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, keep, kept, sidePanel, tabbed } from '../shell.js'
+import { epicMenu } from '../sidebar.js'
+import { copy, menuOn } from '../ui.js'
 import { saidTraced, sayer } from '../transcript.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
@@ -130,6 +132,9 @@ export function mount(root, { parts, query }) {
         ? h('span', { class: 'crumbs' }, h('a', { href: base }, headline(detail.task)), h('span', { 'aria-hidden': 'true' }, ' / '), h('span', { class: 'mono' }, where))
         : headline(detail.task)
       fill(head, bar({ title, sub, actions }))
+      const named = head.querySelector('.bar-title')
+      named.title = detail.task
+      menuOn(named, () => epicMenu({ ...detail, task: detail.task, held: going }))
     })
     // What moves on its own is said again in place, never drawing over a question being asked.
     const clock = head.querySelector('[data-hmz=clock]')
@@ -533,6 +538,11 @@ function listOf(model, epic, focus) {
   )
 }
 
+/** A path, cut to one line, said in full on hover and copied from its menu. */
+function pathed(path) {
+  return menuOn(pathText(path), () => [{ head: path }, { label: 'Copy path', glyph: 'copy', act: () => copy(path, 'Path copied') }])
+}
+
 function section(title, ...kids) {
   return h('section', { class: 'side-section' }, h('h3', {}, title), kids)
 }
@@ -579,9 +589,9 @@ function facts(detail) {
     h('dt', {}, 'epic'),
     h('dd', { class: 'mono' }, detail.name),
     h('dt', {}, 'written to'),
-    h('dd', { class: 'mono' }, detail.at),
+    h('dd', {}, pathed(detail.at)),
     h('dt', {}, 'workdir'),
-    h('dd', { class: 'mono' }, detail.workspace),
+    h('dd', {}, pathed(detail.workspace)),
     h('dt', {}, 'agents'),
     h('dd', {}, detail.agents.length ? detail.agents.map((one) => h('div', { class: 'mono' }, `${one.role}=${one.runs}`)) : '—'),
     h('dt', {}, 'envs'),

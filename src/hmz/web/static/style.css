@@ -294,8 +294,8 @@ code {
   margin-left: auto;
   min-width: 18px;
   padding: 0 5px;
-  background: var(--red);
-  color: var(--on-red);
+  background: var(--pink);
+  color: var(--on-fill);
   font: 700 10.5px/18px var(--mono);
   text-align: center;
 }
@@ -728,6 +728,297 @@ code {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.chain-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--line);
+}
+
+.chain-row > .picker {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A box ticked beside what it says: said as words, not as a field's name. */
+.field > label.check {
+  font: 14px var(--sans);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.field > .row > input {
+  flex: 1;
+}
+
+/* A list a row at a time, or names and their values. */
+.field.wide {
+  grid-column: 1 / -1;
+}
+
+.list-editor {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.list-rows {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.list-row > input,
+.list-row > select {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-rows:empty {
+  display: none;
+}
+
+/* A path picked as a file dialog picks one. */
+.path-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.path-picker > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.path-browse {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-strong);
+}
+
+.path-panel {
+  position: fixed;
+  z-index: 75;
+  width: min(440px, 92vw);
+  max-width: none;
+  max-height: min(60vh, 460px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  right: 0;
+  left: auto;
+}
+
+.path-head,
+.path-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.path-foot {
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.path-foot .path-at {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.crumbs-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  min-width: 0;
+  font: 12px var(--mono);
+}
+
+.crumb {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
+.crumb + .crumb::before {
+  content: '/';
+  margin-right: 4px;
+  color: var(--ink-3);
+}
+
+.crumb:last-child {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.path-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.path-list > .dim {
+  padding: 8px;
+  margin: 0;
+}
+
+.path-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.path-entry span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-entry .icon {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-3);
+}
+
+.path-entry.dir .icon:first-child {
+  color: var(--cyan, var(--link));
+}
+
+.path-entry:hover,
+.path-entry:focus-visible {
+  background: var(--hover);
+}
+
+/* A path on one line: its end kept, which is what tells one from the next, its start cut. */
+.path {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+  font-family: var(--mono);
+}
+
+/* What is right-clicked opens its own menu, where the pointer is. */
+.popover.context {
+  position: fixed;
+  top: auto;
+  z-index: 70;
+  min-width: 220px;
+}
+
+.context-head {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11.5px;
+  user-select: text;
+}
+
+.choice.danger,
+.choice.danger .choice-mark {
+  color: var(--fail);
+}
+
+.choice:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* What is cut short, said in full on hover, at once. */
+.tip {
+  position: fixed;
+  z-index: 80;
+  max-width: min(520px, 90vw);
+  padding: 5px 8px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font: 12px/1.4 var(--mono);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  box-shadow: 3px 3px 0 var(--pink);
+}
+
+.toast {
+  position: fixed;
+  z-index: 80;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font: 600 13px var(--sans);
+  box-shadow: 3px 3px 0 var(--pink);
+}
+
+/* The page's own parts are not text to select; what it says is. */
+.sidebar,
+.bar,
+.tabs,
+.segmented,
+button,
+.chip,
+.card,
+.node,
+.zoom,
+.frame-label,
+.composer-bar,
+.settings-nav,
+.dialog-head,
+.side-section h3,
+.field > .label,
+.field > label,
+.kicker,
+.badge,
+.popover {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.selectable,
+.thread,
+.prose,
+pre,
+code,
+dd,
+.bar-sub .mono,
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* ------------------------------------------------------------------ a view and its bar */
@@ -2113,7 +2404,7 @@ pre.block {
   width: 7px;
   height: 7px;
   margin-left: 4px;
-  background: var(--red);
+  background: var(--pink);
   vertical-align: middle;
 }
 
@@ -2121,7 +2412,7 @@ pre.block {
   content: '';
   width: 8px;
   height: 8px;
-  background: var(--red);
+  background: var(--pink);
 }
 
 .node-log {
@@ -2130,7 +2421,7 @@ pre.block {
 }
 
 .node-log .session-key {
-  color: var(--red);
+  color: var(--pink);
   font-weight: 700;
 }
 
@@ -2244,7 +2535,7 @@ pre.block {
 }
 
 .list-agent.focused {
-  box-shadow: 5px 5px 0 var(--red);
+  box-shadow: 5px 5px 0 var(--pink);
 }
 
 .list-head {
@@ -2649,9 +2940,9 @@ details.said-more summary {
 }
 
 .node-tag.fresh {
-  color: var(--on-red);
-  background: var(--red);
-  border-color: var(--red);
+  color: var(--on-fill);
+  background: var(--pink);
+  border-color: var(--pink);
 }
 
 .card-add {
@@ -2661,7 +2952,7 @@ details.said-more summary {
 }
 
 .card-add .card-mark {
-  background: var(--red);
+  background: var(--pink);
 }
 
 .releases {
@@ -2691,6 +2982,8 @@ details.said-more summary {
   inset: 0;
   z-index: 50;
   display: grid;
+  /* One column no wider than the screen, however wide what is in it would like to be. */
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   align-items: start;
   padding: 9vh 16px 16px;

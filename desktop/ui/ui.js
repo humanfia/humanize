@@ -17,7 +17,7 @@ const STATES = {
   waiting: (version) => ({
     title: 'Update waiting',
     lead: `Epics are running in humanize${version ? ` ${version}` : ''}, which this app cannot open. It updates once they end; updating now may stop them.`,
-    buttons: ['update', 'docs'],
+    buttons: ['update_now', 'docs'],
   }),
   'install-failed': ({ updating, said, keep }) => ({
     title: updating ? 'Update failed' : 'Install failed',
@@ -54,7 +54,7 @@ const STATES = {
 
 const $ = (id) => document.getElementById(id)
 const main = document.querySelector('main')
-const BUTTONS = ['retry', 'keep', 'update', 'docs']
+const BUTTONS = ['retry', 'keep', 'update_now', 'docs']
 
 function draw({ state, detail }) {
   const shown = STATES[state]?.(detail)
@@ -86,7 +86,7 @@ async function follow() {
   }
 }
 
-for (const command of ['retry', 'keep', 'update']) {
+for (const command of ['retry', 'keep', 'update_now']) {
   $(command).addEventListener('click', async () => {
     draw({ state: 'starting' })
     await invoke(command)

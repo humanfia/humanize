@@ -3,7 +3,9 @@
 // its agents, and each agent into the sessions it opened. Under them, the machine, how many
 // epics are going on it, and a menu of the colours, the settings and what the epics spent.
 
-import { address, get, poll } from './api.js'
+import { address, get, poll, post, refresh } from './api.js'
+import { ask } from './held.js'
+import { copy, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.js'
 import { sessionsOf } from './epic.js'
 import { nameOf } from './places.js'
@@ -133,16 +135,31 @@ export function mountSidebar(root, context, where) {
           keep('hmz-shut', JSON.stringify([...shut].slice(-60)))
           draw()
         })
-        return h(
-          'section',
-          { class: 'side-group', 'data-hmz': 'workspace', 'data-path': group.path },
-          h(
+        const folder = h(
             'div',
             { class: ['side-folder', chosen === group.path && 'current'] },
             toggle,
             h('span', { class: 'side-folder-name', title: group.path }, icon('folder'), h('span', { class: 'side-label' }, nameOf(group.path))),
             iconButton('plus', `New epic in ${nameOf(group.path)}`, { class: 'side-add', onclick: () => (location.hash = `/new?workspace=${encodeURIComponent(group.path)}`) }),
-          ),
+          )
+        const where = encodeURIComponent(group.path)
+        menuOn(folder, () => [
+          { head: group.path },
+          { label: 'New epic here', glyph: 'new', href: `#/new?workspace=${where}` },
+          { label: 'Flows here', glyph: 'flows', href: `#/flows?workspace=${where}` },
+          { label: 'Search here', glyph: 'search', href: `#/search?workspace=${where}` },
+          '-',
+          { label: 'Copy path', glyph: 'copy', act: () => copy(group.path, 'Path copied') },
+          { label: open ? 'Collapse' : 'Expand', glyph: 'chevron', act: () => toggle.click() },
+          '-',
+          { label: 'Settings', glyph: 'gear', href: `#/settings/workspace?workspace=${where}` },
+          { label: 'Usage', glyph: 'chart', href: `#/settings/usage?workspace=${where}` },
+          group.runs.length ? null : { label: 'Forget', danger: true, act: () => forget(group.path) },
+        ])
+        return h(
+          'section',
+          { class: 'side-group', 'data-hmz': 'workspace', 'data-path': group.path },
+          folder,
           open ? (group.runs.length ? h('ul', { role: 'list' }, group.runs.map((run) => item(run, here, parts))) : h('p', { class: 'side-quiet nested' }, 'No epics')) : null,
         )
       }),
@@ -187,6 +204,7 @@ export function mountSidebar(root, context, where) {
         h('span', { class: 'side-meta' }, run.held ? h('span', { class: 'pill-live' }, 'live') : ago(run.began)),
       ),
     )
+    menuOn(row, () => epicMenu(run))
     return h('li', { class: 'side-item', 'data-epic': run.name }, row, shown ? tree(run, here, parts) : null)
   }
 
@@ -217,19 +235,31 @@ export function mountSidebar(root, context, where) {
       h(
         'li',
         {},
-        h('a', { class: ['side-agent', logged && 'current'], href: `${base}/logs`, 'aria-current': logged ? 'page' : null, 'data-hmz': 'log' }, icon('thread'), h('span', { class: 'side-label' }, 'Log')),
+        menuOn(h('a', { class: ['side-agent', logged && 'current'], href: `${base}/logs`, 'aria-current': logged ? 'page' : null, 'data-hmz': 'log' }, icon('thread'), h('span', { class: 'side-label' }, 'Log')), () => [
+          { label: 'Open', glyph: 'open', href: `${base}/logs` },
+          { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/logs`, 'Link copied') },
+        ]),
       ),
       agents.map((agent) => {
         const at = run.name === here && parts[2] === 'agents' && parts[3] === agent.role
         return h(
           'li',
           {},
-          h(
-            'a',
-            { class: ['side-agent', at && 'current'], href: `${base}/agents/${encodeURIComponent(agent.role)}`, 'aria-current': at ? 'page' : null, title: agent.runs, 'data-hmz': 'agent' },
-            icon('agent'),
-            h('span', { class: 'side-label' }, agent.role),
-            h('span', { class: 'side-meta mono' }, agent.runs.split('/')[0]),
+          menuOn(
+            h(
+              'a',
+              { class: ['side-agent', at && 'current'], href: `${base}/agents/${encodeURIComponent(agent.role)}`, 'aria-current': at ? 'page' : null, title: agent.runs, 'data-hmz': 'agent' },
+              icon('agent'),
+              h('span', { class: 'side-label' }, agent.role),
+              h('span', { class: 'side-meta mono' }, agent.runs.split('/')[0]),
+            ),
+            () => [
+              { head: agent.runs },
+              { label: 'Show on graph', glyph: 'flows', href: `${base}/agents/${encodeURIComponent(agent.role)}` },
+              { label: 'Open log', glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.role)}` },
+              '-',
+              { label: 'Copy agent', glyph: 'copy', act: () => copy(agent.runs, 'Agent copied') },
+            ],
           ),
           agent.sessions.length
             ? h(
@@ -240,11 +270,19 @@ export function mountSidebar(root, context, where) {
                   return h(
                     'li',
                     {},
-                    h(
-                      'a',
-                      { class: ['side-session', on && 'current'], href: `${base}/sessions/${encodeURIComponent(session.key)}`, 'aria-current': on ? 'page' : null, 'data-hmz': 'session' },
-                      h('span', { class: 'side-mark', 'aria-hidden': 'true' }, '○'),
-                      h('span', { class: 'side-label mono' }, session.key),
+                    menuOn(
+                      h(
+                        'a',
+                        { class: ['side-session', on && 'current'], href: `${base}/sessions/${encodeURIComponent(session.key)}`, 'aria-current': on ? 'page' : null, title: session.ident ? `${session.key} · ${session.backend} ${session.ident}` : session.key, 'data-hmz': 'session' },
+                        h('span', { class: 'side-mark', 'aria-hidden': 'true' }, '○'),
+                        h('span', { class: 'side-label mono' }, session.key),
+                      ),
+                      () => [
+                        { head: session.ident ? `${session.backend} ${session.ident}` : session.key },
+                        { label: 'Open', glyph: 'open', href: `${base}/sessions/${encodeURIComponent(session.key)}` },
+                        { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/sessions/${encodeURIComponent(session.key)}`, 'Link copied') },
+                        session.ident ? { label: 'Copy session ID', glyph: 'copy', act: () => copy(session.ident, 'Session ID copied') } : null,
+                      ],
                     ),
                   )
                 }),
@@ -257,6 +295,34 @@ export function mountSidebar(root, context, where) {
 
   watch()
   window.addEventListener('hashchange', () => data && draw())
+}
+
+/** What can be done to one epic, from wherever it is listed. */
+export function epicMenu(run) {
+  const base = `#/epics/${encodeURIComponent(run.name)}`
+  const resumes = run.resumable && !run.held && run.how !== 'done'
+  return [
+    { head: run.task.split('\n')[0] },
+    { label: 'Open', glyph: 'open', href: base },
+    { label: 'Open log', glyph: 'thread', href: `${base}/logs` },
+    resumes ? { label: 'Resume', glyph: 'resume', href: `#/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}` } : null,
+    { label: 'New epic like it', glyph: 'new', href: `#/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}` },
+    '-',
+    { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
+    { label: 'Copy task', glyph: 'copy', act: () => copy(run.task, 'Task copied') },
+    { label: 'Copy name', glyph: 'copy', act: () => copy(run.name, 'Name copied') },
+    run.held ? null : { label: 'Export', glyph: 'download', act: () => (location.href = `/api/runs/${encodeURIComponent(run.name)}/bundle`) },
+    run.held ? '-' : null,
+    run.held ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask(run.workspace, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
+  ]
+}
+
+/** Forgets a workspace nothing ran in, which takes it out of the list. */
+function forget(path) {
+  post('/api/workspaces/forget', { workspace: path }).then(() => {
+    refresh('/api/workspaces')
+    toast('Forgotten')
+  }, (error) => toast(error.message))
 }
 
 function tone(how) {

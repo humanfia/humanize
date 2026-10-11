@@ -2,7 +2,7 @@
 // forgetting all of it -- which also stops it being offered, where no epic ran there.
 
 import { get, post } from '../../api.js'
-import { confirming, fill, h, problem } from '../../dom.js'
+import { confirming, fill, h, pathText, problem } from '../../dom.js'
 import { workspaces } from '../../places.js'
 
 export function draw(holder, query) {
@@ -25,7 +25,7 @@ export function draw(holder, query) {
           'dl',
           { class: 'facts' },
           h('dt', {}, 'directory'),
-          h('dd', { class: 'mono' }, settings.workspace),
+          h('dd', {}, pathText(settings.workspace)),
           h('dt', {}, 'default flow'),
           h('dd', {}, settings.flow || 'none'),
           h('dt', {}, 'configured'),

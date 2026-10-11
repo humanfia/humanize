@@ -4,6 +4,7 @@
 // written down.
 
 import { h, lasting } from './dom.js'
+import { copy, menuOn } from './ui.js'
 
 /** How much of a long line is shown before the rest is folded away. */
 const SHORT = 600
@@ -33,12 +34,24 @@ export function line(kind, body, { who = '', folded = false } = {}) {
     folded || text.length > SHORT
       ? h('details', { class: 'said-more' }, h('summary', {}, text.slice(0, 140).replace(/\s+/g, ' ') + (text.length > 140 ? '…' : '')), h('div', {}, text))
       : text
-  return h(
+  const said = h(
     'div',
     { class: ['said', kind], 'data-hmz': 'said' },
     h('span', { class: 'g', 'aria-hidden': 'true' }, GLYPHS[kind] || '·'),
     h('div', { class: 'body' }, who ? h('div', { class: 'who' }, who) : null, shown),
   )
+  // A line copied whole, or the whole thread: what selecting it would take a drag to get.
+  return menuOn(said, () => [
+    { label: 'Copy', glyph: 'copy', act: () => copy(text, 'Copied') },
+    { label: 'Copy thread', glyph: 'copy', act: () => copy(threadOf(said), 'Thread copied') },
+  ])
+}
+
+/** A thread as text: each line, whose it is where it says, one after another. */
+function threadOf(one) {
+  const thread = one.closest('.thread')
+  if (!thread) return one.innerText
+  return [...thread.querySelectorAll(':scope > .said')].map((line) => line.querySelector('.body').innerText.trim()).join('\n\n')
 }
 
 /**
