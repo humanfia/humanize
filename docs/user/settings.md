@@ -52,15 +52,13 @@ const turn = [
       [
         '[dim]── actor[/]',
         '',
-        '[dim]  ⎿  round 3[/][n]1[/]',
-        '',
         '[dim]● actor is working[/]',
         '',
-        '[g]●[/] Read[dim](tests/test_pay.py)[/][n]2[/]',
+        '[g]●[/] Read[dim](tests/test_pay.py)[/][n]1[/]',
         '[g]●[/] Grep[dim](def charge)[/]',
         '[g]●[/] Read[dim](src/pay.py)[/]',
         '',
-        '[dim i]The retry runs before the lock is taken. A second call can get in there.[/][n]3[/]',
+        '[dim i]The retry runs before the lock is taken. A second call can get in there.[/][n]2[/]',
         '',
         '[g]●[/] Edit[dim](src/pay.py)[/]',
         '[g]●[/] Bash[dim](pytest -q tests/test_pay.py)[/]',
@@ -69,7 +67,7 @@ const turn = [
         '',
         '[dim]✻ Worked for 74s · actor[/]',
       ],
-      '[m]details[/][n]4[/] · ',
+      '[m]details[/][n]3[/] · ',
     ),
     caption:
       'Every tool call and every line of thinking, and <code>details</code> in front of the status line.',
@@ -323,10 +321,9 @@ Here is one turn of [`rlar`](https://humanfia.ai/flows/rlar)'s actor, both ways:
 
 With details on, look for:
 
-1. **What the flow prints**, such as `⎿  round 3`, dim and indented.
-2. **Every tool call**, with what it was called on in dim.
-3. **The thinking**, in dim italics, where the backend reports it.
-4. **`details`** at the front of the status line, for as long as it is on.
+1. **Every tool call**, with what it was called on in dim.
+2. **The thinking**, in dim italics, where the backend reports it.
+3. **`details`** at the front of the status line, for as long as it is on.
 
 Turning it on shows what arrives from then on. What scrolled past while it was off stays
 hidden, but the run's [trace](/user/tracing) has all of it.
@@ -492,16 +489,13 @@ goes back to the prompt.
 - An account belongs to one CLI. What signs in to Claude Code is not what signs in to codex, so
   the list only offers that CLI's accounts.
 
-An agent never quietly runs as you instead. An account that is not there fails every turn of
-that agent, naming it, and a bare `@` is refused before anything runs:
+An agent never quietly runs as you instead. An account that is not there is refused before
+anything runs, naming it, and so is a bare `@`:
 
 ```console
 $ hmz exec -f ralph_loop -p budget.duration=1h \
     -a agent=claude@gone/claude-opus-5-5:max "…"
-round 1
-round 1 failed: agent: no claude provider called 'gone'
-…
-stopping: 3 rounds in a row answered with nothing
+hmz exec: error: ralph_loop: 'agent' names no claude account called 'gone'; make it on the accounts page of /settings
 ```
 
 ### The ways in

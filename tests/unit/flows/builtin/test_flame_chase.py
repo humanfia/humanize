@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.flows import CostExceeded, HarnessDropped, HarnessKilled
+from hmz.flows import CostExceeded, HarnessRefused
 from tests.unit.flows import doubles_flows as doubles
 
 if TYPE_CHECKING:
@@ -41,18 +41,15 @@ async def test_the_chasers_take_turns_each_in_a_fresh_session(chase: Any) -> Non
 
     assert doubles.prompts(first) == ["the task"] * 2
     assert doubles.prompts(second) == ["the task"] * 2
-    assert first.spawn.await_count == 2
-    assert second.spawn.await_count == 2
     assert len(set(map(id, doubles.sessions(first) + doubles.sessions(second)))) == 4
-    # Three turns done: the first round whole, and the first chaser's half of the next.
-    assert state == {"turn": 1, "rounds": 1}
+    assert state == {"turn": 1}
 
 
-async def test_a_failed_turn_passes_to_the_other(chase: Any) -> None:
-    first = doubles.agent(HarnessDropped("cut"), CostExceeded("spent"))
-    second = doubles.agent("took it")
+async def test_a_failed_turn_ends_the_run(chase: Any) -> None:
+    first = doubles.agent(HarnessRefused("signed out"))
+    second = doubles.agent()
 
-    with pytest.raises(CostExceeded):
+    with pytest.raises(HarnessRefused, match="signed out"):
         await doubles.call(
             chase.flame_chase,
             "t",
@@ -61,50 +58,21 @@ async def test_a_failed_turn_passes_to_the_other(chase: Any) -> None:
             second_chaser=second,
         )
 
-    assert second.run.await_count == 1
-
-
-async def test_three_failures_in_a_row_end_it_with_the_last(chase: Any) -> None:
-    first = doubles.agent(HarnessDropped("1"), HarnessKilled("3"))
-    second = doubles.agent(HarnessDropped("2"))
-
-    with pytest.raises(HarnessKilled, match="3"):
-        await doubles.call(
-            chase.flame_chase,
-            "t",
-            ctx=doubles.context({}),
-            first_chaser=first,
-            second_chaser=second,
-        )
-
-
-async def test_a_success_resets_the_failures(chase: Any) -> None:
-    first = doubles.agent(HarnessDropped("1"), HarnessDropped("3"), CostExceeded("x"))
-    second = doubles.agent("fine", HarnessDropped("4"))
-
-    with pytest.raises(CostExceeded):
-        await doubles.call(
-            chase.flame_chase,
-            "t",
-            ctx=doubles.context({}),
-            first_chaser=first,
-            second_chaser=second,
-        )
+    second.run.assert_not_awaited()
 
 
 async def test_a_resumed_run_picks_up_with_whoever_was_next(chase: Any) -> None:
-    first = doubles.agent(CostExceeded("spent"))
-    second = doubles.agent("went")
-    state: dict[str, Any] = {"turn": 1, "rounds": 4}
+    first = doubles.agent()
+    second = doubles.agent(CostExceeded("spent"))
 
     with pytest.raises(CostExceeded):
         await doubles.call(
             chase.flame_chase,
             "t",
-            ctx=doubles.context(state),
+            ctx=doubles.context({"turn": 1}),
             first_chaser=first,
             second_chaser=second,
         )
 
-    assert second.run.await_count == 1
-    assert state == {"turn": 0, "rounds": 5}
+    first.run.assert_not_awaited()
+    second.run.assert_awaited_once()

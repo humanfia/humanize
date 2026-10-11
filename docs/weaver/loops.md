@@ -49,16 +49,17 @@ while True:
 | --- | --- |
 | a check of yours | `return` when your code says the work is done |
 | a round limit | `for` over a `range`, or a counter |
-| a stall | the agent answering with nothing, round after round |
+| a failed turn | a `HarnessError` the loop does not catch |
 | the run's budget | always there: the turn that finds it spent raises `BudgetExceeded` |
 
 **What a failed turn does.** `run` raises `HarnessError` when the CLI could not take the turn:
-it died mid-turn, the provider throttled it, the connection broke. Uncaught, that ends the run.
-A loop meant to go on for hours catches it and carries on.
+it died mid-turn, the provider throttled it, the connection broke. humanize has retried it, or
+moved along its [fallback](/user/settings#fallback) chain, before it gets that far. Uncaught,
+that ends the run, as it does in the built-in loops. A loop of yours may catch it and carry on.
 
 A fourth choice matters once a loop runs long: whether a stopped run can be **picked up**.
 `@flow(…, resumable=True)` hands the flow `ctx.state`, a dictionary saved as it is written, so
-a resumed run counts on from where it stopped.
+a resumed run goes on from what it kept.
 
 ## Example: a loop with a finish line
 
@@ -301,28 +302,20 @@ up, which tests what `ctx.state` keeps.
 
 ## Read a real one: `ralph_loop`
 
-This is `ralph_loop` as humanize ships it, trimmed of its module and class docstrings and its
-lint comments. It has no finish line of its own: it runs until the agent has nothing more to
-say, or the budget is spent.
+This is `ralph_loop` as humanize ships it, trimmed of its module and class docstrings. The
+built-in loops are each the plainest form of their idea, meant to be read and copied: it has no
+finish line, no count and no state of its own, and runs until the budget is spent.
 
 ```python
-import asyncio
-
 from hmz.flows import (
     Agent,
     AgentCollection,
     EnvCollection,
     FlowContext,
     FlowParams,
-    HarnessError,
-    HarnessNotInstalled,
-    HarnessSandboxed,
     LocalEnv,
     flow,
 )
-
-STALLED = 3
-PAUSE = 5.0
 
 
 class Agents(AgentCollection):
@@ -333,64 +326,55 @@ class Envs(EnvCollection):
     workspace: LocalEnv
 
 
-@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
+@flow(agents=Agents, envs=Envs, params=FlowParams)
 async def ralph_loop(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
     """The task again and again, a fresh session every round."""
-    state = ctx.state
-    assert state is not None
     agent = agents["agent"]
-    stalled = 0
     while True:  # ①
-        state["rounds"] = rounds = (state["rounds"] if "rounds" in state else 0) + 1  # ②
-        print(f"round {rounds}")
-        session = await agent.spawn()
-        try:
-            answered = await agent.run(task, session=session, env=envs["workspace"])
-        except (HarnessNotInstalled, HarnessSandboxed):
-            raise  # ③
-        except HarnessError as error:
-            print(f"round {rounds} failed: {error}")
-            answered = ""
-        stalled = 0 if answered else stalled + 1  # ④
-        if stalled >= STALLED:
-            print(f"stopping: {stalled} rounds in a row answered with nothing")
-            return
-        await asyncio.sleep(PAUSE)  # ⑤
+        session = await agent.spawn()  # ②
+        await agent.run(task, session=session, env=envs["workspace"])  # ③
 ```
 
 1. **`while True`** has no round limit: the budget is the limit. Run it with a budget you
    would be content to spend in full.
-2. **The round count** lives in `ctx.state`, as in `checklist`, so `--resume` counts on.
-3. **A failed turn is a round answered with nothing**, rather than a skipped one, so a CLI that
-   fails every time counts towards the stall. A CLI that cannot be started in the workspace at
-   all -- not installed there, or unable to hold its sandbox -- ends the run instead: a
-   session's CLI starts at its first turn, so that is where it says so, and no round would
-   start it.
-4. **Three empty rounds in a row end it.** `run` returns what the agent said, and an agent with
-   nothing left to say, or a CLI failing every time, is a loop with nothing more to do.
-5. **`asyncio.sleep(PAUSE)`** waits five seconds between rounds, which gives a throttled
-   provider room and you a moment to steer.
+2. **`spawn` inside the loop**, so every round is a stranger to the last. What one round leaves
+   the next is the repository and nothing else.
+3. **Nothing is caught.** A turn that fails has already been retried, or moved along its
+   [fallback](/user/settings#fallback) chain, as the kind of failure calls for, so what reaches
+   the flow is a failure nothing recovered, and it ends the run.
+
+It is not `resumable`: the repository is all a Ralph loop keeps, so running it again is
+carrying it on.
 
 ## Variations
 
 **One conversation instead of fresh ones.** Move `spawn` above the loop, as in the diff at the
 top. The agent then remembers every round, which helps when a round builds on what the last one
-learned, and costs more as the conversation grows.
+learned, and costs more as the conversation grows. [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph)
+also keeps the session itself in `ctx.state` after every round, so `--resume` carries the
+conversation on from the last round that finished:
+
+```python
+session = state["session"] if "session" in state else await agent.spawn()
+while True:
+    await agent.run(task, session=session, env=envs["workspace"])
+    state["session"] = session
+```
 
 **Two agents taking turns.** [`flame_chase`](https://humanfia.ai/flows/flame-chase) alternates two agents on the
 same task. The heart of it is whose turn it is, kept in `ctx.state` so a resumed run goes on
-with the right one. Abridged:
+with the right one:
 
 ```python
 chasers = (agents["first_chaser"], agents["second_chaser"])
-at = (state["turn"] if "turn" in state else 0) % len(chasers)
+turn = state["turn"] if "turn" in state else 0
 while True:
-    session = await chasers[at].spawn()
-    await chasers[at].run(task, session=session, env=envs["workspace"])
-    at = (at + 1) % len(chasers)
-    state["turn"] = at
+    chaser = chasers[turn]
+    session = await chaser.spawn()
+    await chaser.run(task, session=session, env=envs["workspace"])
+    state["turn"] = turn = (turn + 1) % len(chasers)
 ```
 
 **Start from a built-in loop.** Copy one into your project with **Copy here** in `/flow`, and
@@ -415,8 +399,9 @@ catches it spins on without end.
 - **A counter in a local variable restarts at zero** when the run is picked up. Keep whatever
   must survive a stop in `ctx.state`.
 - **`ctx.state` is `None`** unless the flow says `resumable=True`.
-- **State takes JSON only.** A set, a pydantic model or a session raises `StateNotSerializable`
-  when written. Store a list, a dict of plain values, or `model.model_dump()`.
+- **State takes JSON only.** A set or a pydantic model raises `StateNotSerializable` when
+  written. Store a list, a dict of plain values, or `model.model_dump()`. A session is the one
+  exception: it is [kept as its conversation](/reference/flows#sessions-in-state).
 - **Trust your check, not the agent.** An agent can tick a box it did not finish. Put what you
   can in code: the exit status of the suite is harder to talk round than a checkbox.
 

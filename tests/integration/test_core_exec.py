@@ -110,7 +110,7 @@ def test_a_spent_duration_ends_a_loop_as_an_ordinary_stop(project: Path) -> None
     )
 
     assert ran.returncode == 0, ran.stderr
-    assert "round 1" in ran.stdout
+    assert "did: work" in ran.stdout
     assert "hmz exec: stopped --" in ran.stderr
     assert "duration" in ran.stderr
     assert "Traceback" not in ran.stderr
@@ -135,7 +135,6 @@ def test_output_tokens_spent_cut_off_the_turn_that_spends_them(tmp_path: Path) -
 
     assert ran.returncode == 0, ran.stderr
     assert f"wrote {TOKENS} of {TOKENS - 1} output tokens" in ran.stderr
-    assert "round 2" not in ran.stdout
     assert len(started(tmp_path)) == 1
 
 

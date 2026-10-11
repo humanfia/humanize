@@ -4,7 +4,8 @@
 // so a run stopped mid-round still has the last round it finished, and the copies it made are
 // kept. A run picking it up is a new run: it names the run it carries on, starts the flow's
 // code from the top (so a fix made in between is what runs), opens new sessions -- the
-// conversation does not come back -- and has a budget of its own. A simulation: the rounds and
+// conversation comes back only where the flow kept its session in its state, which this loop
+// does not -- and has a budget of its own. A simulation: the rounds and
 // the spend are invented.
 import { computed, ref, useId } from 'vue'
 

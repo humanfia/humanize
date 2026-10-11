@@ -132,34 +132,31 @@ hmz exec -f ralph_loop \
 ```
 
 Points 1 to 4 below are the four parts of that line. What it drew is next, shortened (`…`),
-with the model's thinking aloud left out, and ⑤ to ⑨ marked on it:
+with the model's thinking aloud left out, and ⑤ to ⑧ marked on it:
 
 ```text
-round 1                                                                        ⑤
 ● agent is working
 ● I'll read the test file and the calc.py file to see what needs fixing.
 …
-● Read(/home/me/calc/test_calc.py)                                             ⑥
+● Read(/home/me/calc/test_calc.py)                                             ⑤
 ● Read(/home/me/calc/calc.py)
 ● The issue is simple: `add()` is using subtraction instead of addition. I'll fix it.
 ● Edit(/home/me/calc/calc.py)
 ● Bash(cd /home/me/calc && python -m pytest test_calc.py -v)
 ● Done. Changed line 2 of calc.py from `return a - b` to `return a + b`. Test passes.
-✻ input 50 · output 762 · cache_read 120.6k · cache_write 8.5k · $0.03 · claude-haiku-4-5-20251001 · agent   ⑦
+✻ input 50 · output 762 · cache_read 120.6k · cache_write 8.5k · $0.03 · claude-haiku-4-5-20251001 · agent   ⑥
 ✻ Worked for 11s · agent
-round 2
 ● agent is working
 …
 ● The test already passes! The `add()` function in calc.py is working correctly.
 ✻ input 26 · output 643 · cache_read 62.7k · cache_write 848 · $0.01 · claude-haiku-4-5-20251001 · agent
 ✻ Worked for 9s · agent
-round 3
-hmz exec: stopped -- ralph_loop:ralph_loop: its budget's cost is spent             ⑧
+hmz exec: stopped -- ralph_loop:ralph_loop: its budget's cost is spent             ⑦
 ```
 
 ```console
 $ echo $?
-0                                                                              ⑨
+0                                                                              ⑧
 ```
 
 ### What each part means
@@ -173,15 +170,16 @@ $ echo $?
    you leave running, as the tip above says.
 4. **`"$(cat TASK.md)"`** is the task, read from the file by your shell. The quotes keep it one
    argument, however many lines it has.
-5. **`round 1`** is the flow's own line, not an agent's. What the flow prints goes to stdout.
-6. **`● Read(…)`**, **`● Edit(…)`**, **`● Bash(…)`**: each tool the agent reached for, as it
+5. **`● Read(…)`**, **`● Edit(…)`**, **`● Bash(…)`**: each tool the agent reached for, as it
    reached for it. Lines in dim italic between them, cut here, are the model thinking aloud.
-7. **`✻ input 50 · output 762 · … · $0.03`** closes each turn: the tokens it spent by kind,
+6. **`✻ input 50 · output 762 · … · $0.03`** closes each turn: the tokens it spent by kind,
    what they come to at list price, the model and the role. See [Cost and rate](/user/tally).
-8. **`hmz exec: stopped -- … its budget's cost is spent`** is the budget ending the run. The
-   turn under way when it filled was let finish; `graceful=false` would have cut it off.
-9. **Exit status `0`.** A budget reached is how a loop ends, not a failure. Round 2 found
-   nothing left to do, which a Ralph loop does not notice: that is what the budget is for.
+7. **`hmz exec: stopped -- … its budget's cost is spent`** is the budget ending the run. The
+   turn under way when it filled was let finish; `graceful=false` would have cut it off. The
+   loop prints nothing of its own, so each round shows only as its turn: a new
+   `● agent is working`.
+8. **Exit status `0`.** A budget reached is how a loop ends, not a failure. The second round
+   found nothing left to do, which a Ralph loop does not notice: that is what the budget is for.
 
 ### Check that it worked
 
@@ -261,7 +259,8 @@ fi
 
 `--json` writes the run to stdout as [NDJSON](https://github.com/ndjson/ndjson-spec): one
 object per thing an agent says, flushed as it is said. Nothing else reaches stdout: the flow's
-own lines, such as `round 1`, move to stderr with the rest, so the stream always parses.
+own lines, such as the review `rlar` ends on, move to stderr with the rest, so the stream
+always parses.
 
 ```sh
 hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "say hello" \
@@ -326,13 +325,17 @@ execution](/user/remote-execution).
 
 <kbd>ctrl+c</kbd> stops the run: the turn under way ends and its work stays where it got to.
 [`/epics`](/user/tracing#what-a-run-writes-down) lists the run as stopped. A flow that can be
-[picked up](/user/resuming), such as `ralph_loop`, carries on from there when you run the same
-line with `--resume`: a Ralph loop stopped in round 12 starts again at round 13.
+[picked up](/user/resuming), such as `stateful_ralph`, carries on from there when you run the
+same line with `--resume`: its next round carries on the conversation it kept after the last
+round that finished.
 
 ```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=2h \
+hmz exec -f stateful_ralph -a agent=claude/claude-opus-5:high -p budget.duration=2h \
     --resume "$(cat TASK.md)"
 ```
+
+A Ralph loop keeps nothing but your files, so `ralph_loop` cannot be picked up: running the
+same line again, without `--resume`, carries it on.
 
 ### When nobody answers
 
@@ -361,8 +364,9 @@ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 \
   [in CI](/user/ci#a-flow-from-a-flowverse).
 - **A `cost` limit that never stops the run.** The model has no price, and the line said so
   before the first turn. Add `duration` or `output_tokens`.
-- **The CLI is not signed in.** Nothing catches it before the run: each turn fails, and a loop
-  goes on past failed turns. Run the line by hand once and read what it prints.
+- **The CLI is not signed in.** Nothing catches it before the run: the first turn fails, and
+  the run ends with what the CLI said, exit status `1`. Run the line by hand once and read what
+  it prints.
 - **A script that waits for ever on `chat`.** It will not: with nobody at a prompt, `chat`
   answers once and returns.
 

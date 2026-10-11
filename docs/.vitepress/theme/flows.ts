@@ -132,7 +132,7 @@ export const SCENES: Record<string, Scene> = {
       { id: 'r4', role: 'agent', at: 3, label: 'the task', session: 'new' },
     ],
     loop: { from: 'r4', to: 'r1', said: 'nothing carries over but the repository' },
-    ends: [BUDGET, { is: 'fail', said: '3 rounds in a row answer nothing' }],
+    ends: [BUDGET, { is: 'fail', said: 'a turn fails' }],
     caption:
       'Every round starts from the task and from whatever the round before it left in the working directory — never from what it said.',
   },
@@ -148,7 +148,7 @@ export const SCENES: Record<string, Scene> = {
       { id: 's4', role: 'agent', at: 3, label: 'the task, again', session: 'held' },
     ],
     loop: { from: 's4', to: 's2', said: 'the same conversation, one round longer' },
-    ends: [BUDGET, { is: 'fail', said: '3 rounds in a row answer nothing' }],
+    ends: [BUDGET, { is: 'fail', said: 'a turn fails' }],
     caption:
       'One session is one conversation, so its context grows with every round — the thread thickens — and that is the other limit a long run of this reaches.',
   },
@@ -164,9 +164,9 @@ export const SCENES: Record<string, Scene> = {
       { id: 'c4', role: 'agent', at: 3, label: '“continue”', session: 'held' },
     ],
     loop: { from: 'c4', to: 'c2', said: 'until the budget is spent' },
-    ends: [BUDGET, { is: 'fail', said: '3 failed turns in a row' }],
+    ends: [BUDGET, { is: 'fail', said: 'a turn fails' }],
     caption:
-      'Until a turn answers, the task is sent again rather than “continue”: the word means something only to a session that heard the task.',
+      'The task is sent once, and every turn after it is “continue”: the word means something only to a session that heard the task.',
   },
 
   goal: {
@@ -204,9 +204,9 @@ export const SCENES: Record<string, Scene> = {
       { id: 'f4', role: 'two', at: 3, label: 'the task', session: 'new' },
     ],
     loop: { from: 'f4', to: 'f1', said: 'a round is a turn each' },
-    ends: [BUDGET, { is: 'fail', said: '3 failed turns in a row' }],
+    ends: [BUDGET, { is: 'fail', said: 'a turn fails' }],
     caption:
-      'Neither is told what the other said. What passes between them is the working directory — and a failed turn passes to the other chaser too.',
+      'Neither is told what the other said. What passes between them is the working directory, and nothing else.',
   },
 
   ralph_loop_agent_cleanup: {
@@ -319,7 +319,7 @@ export const SCENES: Record<string, Scene> = {
     loop: { from: 'v2', to: 'a2', said: 'while the review says there is more to do' },
     ends: [
       { is: 'done', said: 'the reviewer says done' },
-      { is: 'fail', said: '3 failures in a row' },
+      { is: 'fail', said: 'a turn fails' },
       BUDGET,
     ],
     caption:

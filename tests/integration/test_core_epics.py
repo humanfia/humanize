@@ -31,9 +31,11 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _loop(*more: str) -> None:
     ran = hmz_exec(
         "-f",
-        "ralph_loop",
+        "flame_chase",
         "-a",
-        f"agent={AGENT}",
+        f"first_chaser={AGENT}",
+        "-a",
+        f"second_chaser={AGENT}",
         "-p",
         "budget.duration=2s",
         *more,
@@ -42,13 +44,13 @@ def _loop(*more: str) -> None:
     assert ran.returncode == 0, ran.stderr
 
 
-def test_resume_carries_on_counting_the_rounds_of_the_newest_run(project: Path) -> None:
+def test_resume_carries_on_from_what_the_newest_run_kept(project: Path) -> None:
     epics = Hmz(project).epics
     _loop()
     (first,) = epics.all()
     assert epics.picks_up(first)
-    assert epics.state(first) == {"rounds": 1}
-    assert epics.resumed("ralph_loop") == first
+    assert set(epics.state(first)) == {"turn"}
+    assert epics.resumed("flame_chase") == first
 
     _loop("--resume")
 
@@ -57,7 +59,7 @@ def test_resume_carries_on_counting_the_rounds_of_the_newest_run(project: Path) 
     ran = epics.read(second)
     assert ran is not None
     assert ran.picked_up == first.name
-    assert epics.state(second) == {"rounds": 2}
+    assert set(epics.state(second)) == {"turn"}
 
 
 def test_resume_of_a_flow_that_cannot_be_picked_up_is_refused(

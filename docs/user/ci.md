@@ -322,9 +322,9 @@ A `2` fails the job in seconds rather than after forty minutes.
 
 ## Pitfalls
 
-- **Every turn fails, and the step is still green.** The CLI is not signed in. Nothing catches
-  that before the run, and a loop such as Ralph loop goes on past failed turns and can still
-  exit 0. Read the log of the first run by hand.
+- **The first turn fails, and the step goes red with status 1.** The CLI is not signed in.
+  Nothing catches that before the run, and a turn that fails ends the run with what the CLI
+  said. Read the log of the first run by hand.
 - **`nobody lists a price for …, so cost=… cannot stop what it spends`.** The model is not on
   the price list, or the runner could not fetch the list (no network, or `HUMANIZE_PRICES=off`),
   so the `cost` limit never fills. Keep a `duration` or `output_tokens` limit beside it, as the

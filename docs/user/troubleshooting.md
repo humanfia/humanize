@@ -283,7 +283,7 @@ For the runtime itself, write `self`.
 
 **Verify.** It saves.
 
-### `ralph_loop has no run to resume here: none saved any progress` {#ralph-loop-has-no-run-here-to-pick-up-none-got-as-far-as-writing-anything-down}
+### `stateful_ralph has no run to resume here: none saved any progress` {#ralph-loop-has-no-run-here-to-pick-up-none-got-as-far-as-writing-anything-down}
 
 **Symptom.** A `--resume` line is refused.
 

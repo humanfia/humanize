@@ -1,12 +1,12 @@
 <script setup lang="ts">
-// Picking a run up, from where the user sits. A loop counts its rounds and its flow saves the
-// count the moment it changes, so whichever way the run stops -- ctrl+c, a spent budget, the
+// Picking a run up, from where the user sits. A loop of your own -- `nightly`, as "Make a flow
+// resumable" on the page writes it -- counts its rounds and saves the count the moment it changes, so whichever way the run stops -- ctrl+c, a spent budget, the
 // machine switched off -- the saved record is left behind. `/resume` at the prompt (or
 // `hmz exec --resume` in a script) looks through the runs kept for this directory and takes the
 // last one of a flow that can be picked up. What it starts is a new run, with an id, sessions,
 // a trace and an `/epics` row of its own, beginning from the record: it counts on from 40 to
-// 41. The flow's kept state and its temporary copies carry over; the agents' conversations and
-// what the budget had spent do not. A simulation: the run names and rounds are invented.
+// 41. The flow's kept state and its temporary copies carry over; the agents' conversations
+// (nightly keeps no session in its state) and what the budget had spent do not. A simulation: the run names and rounds are invented.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -31,14 +31,14 @@ const SECOND = [41, 42]
 const CAUSES = ['ctrl+c', 'budget spent', 'machine off']
 const RUNS = [
   { name: 'chat · 11:02', note: "can't be picked up" },
-  { name: 'ralph_loop · 09:12', note: 'resumable' },
-  { name: 'ralph_loop · 08:40', note: 'resumable' },
+  { name: 'nightly · 09:12', note: 'resumable' },
+  { name: 'nightly · 08:40', note: 'resumable' },
 ]
 const OWN = ['sessions', 'trace', '/epics row']
 const CARRY = [
   { name: 'kept state', note: 'round: 40', yes: true },
   { name: 'temp copies', note: 'where they were', yes: true },
-  { name: 'conversations', note: 'fresh sessions', yes: false },
+  { name: 'conversations', note: 'none kept: fresh', yes: false },
   { name: 'budget spent', note: 'counted from zero', yes: false },
 ]
 
@@ -273,7 +273,7 @@ const own = (i: number) => ({ x: L.value.own.xs[i], w: L.value.own.w })
     :beats="BEATS"
     sim
     mobile-ratio="6 / 13"
-    label="A run of ralph_loop counts its rounds, 37, 38, 39, 40, and its flow saves the count in a record each time it changes. The run is stopped: by ctrl+c, by a spent budget, or by the machine being switched off. Whichever it was, the saved record stays behind, holding round: 40. At the prompt, /resume (or hmz exec --resume from a script) looks through the runs kept for this directory: it skips a chat run, which cannot be picked up, and takes the last run of a flow that can. What it starts is a new run, with its own id, sessions, trace and /epics row, which begins from the record and counts on to round 41, then 42. What carries over: the flow's kept state and its temporary copies. What does not: the agents' conversations, which start in fresh sessions, and what the budget had spent, which is counted from zero."
+    label="A run of nightly, a loop of your own, counts its rounds, 37, 38, 39, 40, and its flow saves the count in a record each time it changes. The run is stopped: by ctrl+c, by a spent budget, or by the machine being switched off. Whichever it was, the saved record stays behind, holding round: 40. At the prompt, /resume (or hmz exec --resume from a script) looks through the runs kept for this directory: it skips a chat run, which cannot be picked up, and takes the last run of a flow that can. What it starts is a new run, with its own id, sessions, trace and /epics row, which begins from the record and counts on to round 41, then 42. What carries over: the flow's kept state and its temporary copies. What does not: the agents' conversations, which start in fresh sessions since nightly keeps none in its state, and what the budget had spent, which is counted from zero."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
@@ -288,7 +288,7 @@ const own = (i: number) => ({ x: L.value.own.xs[i], w: L.value.own.w })
         <g class="run-a">
           <g class="run-a-in">
             <rect class="card" :x="L.runA.x" :y="L.runA.y" :width="L.runA.w" :height="L.runA.h" rx="10" />
-            <text class="run-head" :x="L.runA.x + 12" :y="L.runA.y + 20">run 0912Z · ralph_loop</text>
+            <text class="run-head" :x="L.runA.x + 12" :y="L.runA.y + 20">run 0912Z · nightly</text>
             <text class="round-word" :x="L.runA.x + 12" :y="L.runA.y + 54">round</text>
             <g class="count-a-g"><text class="count count-a" :x="L.runA.x + 56" :y="L.runA.y + 56">36</text></g>
             <g v-for="(n, i) in FIRST" :key="n" class="rbox" :class="`rbox-a-${i}`">
@@ -356,7 +356,7 @@ const own = (i: number) => ({ x: L.value.own.xs[i], w: L.value.own.w })
         <!-- The new run. -->
         <g class="run-b">
           <rect class="card card-b" :x="L.runB.x" :y="L.runB.y" :width="L.runB.w" :height="L.runB.h" rx="10" />
-          <text class="run-head" :x="L.runB.x + 12" :y="L.runB.y + 20">run 1104Z · ralph_loop</text>
+          <text class="run-head" :x="L.runB.x + 12" :y="L.runB.y + 20">run 1104Z · nightly</text>
           <text class="round-word" :x="L.runB.x + 12" :y="L.runB.y + 54">round</text>
           <g class="count-b-g"><text class="count count-b" :x="L.runB.x + 56" :y="L.runB.y + 56">–</text></g>
           <rect class="new-bg" :x="L.runB.x + L.runB.w - 70" :y="L.runB.y + 38" width="60" height="20" rx="10" />

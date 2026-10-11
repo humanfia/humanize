@@ -63,9 +63,8 @@ const LOOPS: Loop[] = [
     lanes: [{ role: 0, label: 'agent · new session each round', kept: false }],
     events: [
       { lane: 0, text: 'task', fresh: true, code: 'await agent.run(task, session=await agent.spawn())' },
-      { lane: -1, text: 'pause', code: 'await asyncio.sleep(PAUSE)' },
       { lane: 0, text: 'task', fresh: true, code: 'await agent.run(task, session=await agent.spawn())' },
-      { lane: -1, text: 'pause', code: 'await asyncio.sleep(PAUSE)' },
+      { lane: 0, text: 'task', fresh: true, code: 'await agent.run(task, session=await agent.spawn())' },
       { lane: 0, text: 'task', fresh: true, code: 'await agent.run(task, session=await agent.spawn())' },
     ],
     split: 2,
@@ -79,9 +78,9 @@ const LOOPS: Loop[] = [
     events: [
       { lane: -1, text: 'opens', code: 's = await agent.spawn()  # once' },
       { lane: 0, text: 'task', code: 'await agent.run(task, session=s)' },
-      { lane: -1, text: 'pause', code: 'await asyncio.sleep(PAUSE)' },
+      { lane: -1, text: 'keeps', code: 'state["session"] = s  # --resume carries it on' },
       { lane: 0, text: 'task', code: 'await agent.run(task, session=s)' },
-      { lane: -1, text: 'pause', code: 'await asyncio.sleep(PAUSE)' },
+      { lane: -1, text: 'keeps', code: 'state["session"] = s' },
       { lane: 0, text: 'task', code: 'await agent.run(task, session=s)' },
     ],
     split: 3,
@@ -101,7 +100,7 @@ const LOOPS: Loop[] = [
     events: [
       { lane: 0, text: 'builds', code: 'await actor.run(prompt, session=s)' },
       { lane: 1, text: 'reviews', fresh: true, field: 'done: no', code: 'r = await reviewer.run(..., output_schema=Review)' },
-      { lane: -1, text: 'notes →', code: 'prompt = r.notes  # r.done is False' },
+      { lane: -1, text: 'notes →', code: 'state["notes"] = prompt = r.notes  # r.done is False' },
       { lane: 0, text: 'fixes', code: 'await actor.run(prompt, session=s)' },
       { lane: 1, text: 'reviews', fresh: true, field: 'done: yes', code: 'r = await reviewer.run(..., output_schema=Review)' },
       { lane: -1, text: 'ends', code: 'if r.done: return r.notes' },

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 import pydantic
 import pytest
 
-from hmz.flows import CostExceeded, HarnessDropped, HarnessKilled, OutputSchemaError
+from hmz.flows import CostExceeded, OutputSchemaError
 from tests.unit.flows import doubles_flows as doubles
 
 if TYPE_CHECKING:
@@ -129,13 +129,13 @@ async def test_each_round_not_done_is_kept_for_a_resume(rlar: Any) -> None:
             rlar.rlar, "t", ctx=doubles.context(state), actor=actor, reviewer=reviewer
         )
 
-    assert state == {"rounds": 2, "notes": "still more"}
+    assert state == {"notes": "still more"}
 
 
 async def test_a_resumed_run_hands_the_actor_the_last_review(rlar: Any) -> None:
     actor = doubles.agent("picked up")
     reviewer = doubles.agent(review(rlar, "all good", done=True))
-    state: dict[str, Any] = {"rounds": 3, "notes": "the docs are missing"}
+    state: dict[str, Any] = {"notes": "the docs are missing"}
 
     await doubles.call(
         rlar.rlar,
@@ -151,57 +151,14 @@ async def test_a_resumed_run_hands_the_actor_the_last_review(rlar: Any) -> None:
     assert state == {}
 
 
-async def test_a_turn_with_nothing_is_not_reviewed_and_is_taken_again(
-    rlar: Any,
-) -> None:
-    actor = doubles.agent("", "went", CostExceeded("spent"))
-    reviewer = doubles.agent(review(rlar, ""))
+async def test_a_failed_turn_ends_the_run(rlar: Any) -> None:
+    actor = doubles.agent("go")
+    reviewer = doubles.agent(OutputSchemaError("out of shape"))
     state: dict[str, Any] = {}
 
-    with pytest.raises(CostExceeded):
+    with pytest.raises(OutputSchemaError, match="out of shape"):
         await doubles.call(
             rlar.rlar, "t", ctx=doubles.context(state), actor=actor, reviewer=reviewer
         )
 
-    reviewer.run.assert_awaited_once()
-    # A review with no notes leaves the actor on what it had.
-    assert doubles.prompts(actor) == ["t", "t", "t"]
-    assert state == {"rounds": 1, "notes": ""}
-
-
-async def test_a_failed_review_is_taken_again_next_round(rlar: Any) -> None:
-    actor = doubles.agent("go", "go again")
-    reviewer = doubles.agent(
-        OutputSchemaError("out of shape"), review(rlar, "ok", done=True)
-    )
-    state: dict[str, Any] = {}
-
-    finished = await doubles.call(
-        rlar.rlar, "t", ctx=doubles.context(state), actor=actor, reviewer=reviewer
-    )
-
-    assert finished == "ok"
-    assert doubles.prompts(actor) == ["t", "t"]
-
-
-async def test_three_failures_in_a_row_end_it_with_the_last(rlar: Any) -> None:
-    actor = doubles.agent(HarnessDropped("1"), "went", HarnessKilled("3"))
-    reviewer = doubles.agent(HarnessDropped("2"))
-
-    with pytest.raises(HarnessKilled, match="3"):
-        await doubles.call(
-            rlar.rlar, "t", ctx=doubles.context({}), actor=actor, reviewer=reviewer
-        )
-
-
-async def test_a_review_that_comes_back_resets_the_failures(rlar: Any) -> None:
-    actor = doubles.agent(
-        HarnessDropped("1"), "went", HarnessDropped("2"), HarnessDropped("3"), "went"
-    )
-    reviewer = doubles.agent(review(rlar, "more"), review(rlar, "done", done=True))
-
-    finished = await doubles.call(
-        rlar.rlar, "t", ctx=doubles.context({}), actor=actor, reviewer=reviewer
-    )
-
-    assert finished == "done"
+    assert state == {}

@@ -319,9 +319,10 @@ Read the last few entries of `NOTES.md`. If the agents keep trying the same idea
 `TASK.md` as tried, commit, and start again. Raising the effort to `:max` helps once the easy
 wins are gone; see [Efforts](/user/efforts).
 
-### It stopped on its own after three failed turns
+### It stopped on its own after a failed turn
 
-Three failed turns in a row end `flame_chase` with the last failure, which the run prints.
+A turn that fails ends `flame_chase` with that failure, which the run prints. humanize has
+already retried it, or moved along its [fallback](/user/settings#fallback) chain, by then.
 It is often an account out of quota or signed out. See
 [Troubleshooting](/user/troubleshooting), then pick the run up as in
 [Next steps](#next-steps).
