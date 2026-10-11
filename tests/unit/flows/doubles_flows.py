@@ -52,9 +52,7 @@ def builtin(monkeypatch: pytest.MonkeyPatch, name: str) -> Any:
     monkeypatch.setitem(sys.modules, qualified, None)
     monkeypatch.setattr(hmz.flows.builtin, name, None, raising=False)
     del sys.modules[qualified]
-    module = importlib.import_module(qualified)
-    monkeypatch.setattr(module, "PAUSE", 0, raising=False)
-    return module
+    return importlib.import_module(qualified)
 
 
 def agent(*turns: str | BaseException) -> mock.Mock:

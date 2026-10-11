@@ -56,7 +56,6 @@ budget. Open the run in `/epics`:
   It stopped with 1 agent in 3 sessions.                                        ③
 
   ╭──────────────────────────────────────────────────────────────────────────╮
-  │ resume run                resume the flow from this run                  │
   │ export run                the entire run as an archive, with its trace   │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
@@ -162,7 +161,7 @@ $ ls -l issues/20260930T054014.242Z-bdae4a.epic.tar.gz
 -rw------- 1 nvidia nvidia 58848 Sep 30 05:40 issues/20260930T054014.242Z-bdae4a.epic.tar.gz
 ```
 
-This one is a resumed run of `ralph_loop` that was profiled, so it has both
+This one is a resumed run of `stateful_ralph` that was profiled, so it has both
 `resume.jsonl` and `profile.jsonl`. Unpacked, its manifest reads, in part:
 
 ```json
@@ -172,7 +171,7 @@ This one is a resumed run of `ralph_loop` that was profiled, so it has both
   "machine": "Linux-6.8.0-139-generic-x86_64-with-glibc2.39",
   "epic": "20260930T054014.242Z-bdae4a",
   "run": {
-    "flow": "ralph_loop",
+    "flow": "stateful_ralph",
     "task": "Make the tests in test_slug.py pass. Change slug.py only.",
     "began": "2026-09-30T05:40:14.439Z",
     "ended": "2026-09-30T05:40:33.576Z",

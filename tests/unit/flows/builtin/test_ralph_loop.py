@@ -6,12 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.flows import (
-    CostExceeded,
-    HarnessDropped,
-    HarnessNotInstalled,
-    HarnessSandboxed,
-)
+from hmz.flows import CostExceeded, HarnessRefused
 from tests.unit.flows import doubles_flows as doubles
 
 if TYPE_CHECKING:
@@ -24,75 +19,32 @@ def ralph(engine: mock.Mock, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     return doubles.builtin(monkeypatch, "ralph_loop")
 
 
-def test_ralph_loop_is_resumable_and_needs_one_agent(ralph: Any) -> None:
+def test_ralph_loop_keeps_nothing_and_needs_one_agent(ralph: Any) -> None:
     declared = ralph.ralph_loop.declared
-    assert declared["resumable"] is True
+    assert declared["resumable"] is False
     assert declared["agents"].__required_keys__ == {"agent"}
     assert declared["envs"].__required_keys__ == {"workspace"}
 
 
 async def test_each_round_is_a_fresh_session_given_the_task(ralph: Any) -> None:
-    agent = doubles.agent("one", "two", CostExceeded("spent"))
-    state: dict[str, Any] = {}
+    agent = doubles.agent("one", "", CostExceeded("spent"))
 
     with pytest.raises(CostExceeded):
         await doubles.call(
-            ralph.ralph_loop, "fix it", ctx=doubles.context(state), agent=agent
+            ralph.ralph_loop, "fix it", ctx=doubles.context(), agent=agent
         )
 
     assert doubles.prompts(agent) == ["fix it"] * 3
     assert len(set(map(id, doubles.sessions(agent)))) == 3
-    assert state == {"rounds": 3}
+    assert {one.kwargs["env"] for one in agent.run.await_args_list} == {
+        doubles.WORKSPACE
+    }
 
 
-async def test_it_stops_after_three_rounds_in_a_row_with_nothing(
-    ralph: Any, capsys: pytest.CaptureFixture[str]
-) -> None:
-    agent = doubles.agent("", "said", "", "", "")
-    state: dict[str, Any] = {}
+async def test_a_failed_turn_ends_the_run(ralph: Any) -> None:
+    agent = doubles.agent("ok", HarnessRefused("signed out"))
 
-    assert (
-        await doubles.call(
-            ralph.ralph_loop, "t", ctx=doubles.context(state), agent=agent
-        )
-        is None
-    )
+    with pytest.raises(HarnessRefused, match="signed out"):
+        await doubles.call(ralph.ralph_loop, "t", ctx=doubles.context(), agent=agent)
 
-    assert agent.run.await_count == 5
-    assert state == {"rounds": 5}
-    out = capsys.readouterr().out
-    assert "round 5\n" in out
-    assert "stopping: 3 rounds in a row answered with nothing" in out
-
-
-async def test_a_failed_round_counts_as_nothing(
-    ralph: Any, capsys: pytest.CaptureFixture[str]
-) -> None:
-    agent = doubles.agent(HarnessDropped("cut off"), "", HarnessDropped("again"))
-
-    await doubles.call(ralph.ralph_loop, "t", ctx=doubles.context({}), agent=agent)
-
-    assert agent.run.await_count == 3
-    assert "round 1 failed: cut off" in capsys.readouterr().out
-
-
-@pytest.mark.parametrize("error", [HarnessNotInstalled, HarnessSandboxed])
-async def test_a_cli_that_cannot_start_ends_the_run(
-    ralph: Any, error: type[Exception]
-) -> None:
-    agent = doubles.agent("ok", error("cannot start"))
-
-    with pytest.raises(error, match="cannot start"):
-        await doubles.call(ralph.ralph_loop, "t", ctx=doubles.context({}), agent=agent)
-
-
-async def test_a_resumed_run_carries_on_counting(ralph: Any) -> None:
-    agent = doubles.agent(CostExceeded("spent"))
-    state: dict[str, Any] = {"rounds": 7}
-
-    with pytest.raises(CostExceeded):
-        await doubles.call(
-            ralph.ralph_loop, "t", ctx=doubles.context(state), agent=agent
-        )
-
-    assert state == {"rounds": 8}
+    assert agent.run.await_count == 2

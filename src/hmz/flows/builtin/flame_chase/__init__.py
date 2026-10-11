@@ -3,13 +3,10 @@
     hmz exec -f flame_chase -a first_chaser=claude/claude-opus-5:high \
         -a second_chaser=codex/gpt-5.6-sol:high -p budget.cost=10 "the task"
 
-Each turn is a fresh session, so the two share nothing but the repository, and a turn that
-fails passes to the other chaser. The budget ends it: the turn that finds it spent raises the
-budget's `BudgetExceeded`, and `--resume` picks up with whichever chaser was next. Three
-failed turns in a row end it with the last failure.
+Each turn is a fresh session, so the two share nothing but the repository. The budget ends it
+-- the turn that finds it spent raises the budget's `BudgetExceeded` -- and a turn that fails
+ends it with that failure. Whose turn is next is kept, so `--resume` picks up with that chaser.
 """
-
-import asyncio
 
 from hmz.flows import (
     Agent,
@@ -17,13 +14,9 @@ from hmz.flows import (
     EnvCollection,
     FlowContext,
     FlowParams,
-    HarnessError,
     LocalEnv,
     flow,
 )
-
-FAILED = 3
-PAUSE = 5.0
 
 
 class Agents(AgentCollection):
@@ -47,21 +40,9 @@ async def flame_chase(
     state = ctx.state
     assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
     chasers = (agents["first_chaser"], agents["second_chaser"])
-    at = (state["turn"] if "turn" in state else 0) % len(chasers)
-    failed = 0
+    turn = state["turn"] if "turn" in state else 0
     while True:
-        chaser = chasers[at]
+        chaser = chasers[turn]
         session = await chaser.spawn()
-        try:
-            await chaser.run(task, session=session, env=envs["workspace"])
-        except HarnessError:
-            failed += 1
-            if failed >= FAILED:
-                raise
-        else:
-            failed = 0
-        at = (at + 1) % len(chasers)
-        state["turn"] = at
-        if at == 0:
-            state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
-        await asyncio.sleep(PAUSE)
+        await chaser.run(task, session=session, env=envs["workspace"])
+        state["turn"] = turn = (turn + 1) % len(chasers)

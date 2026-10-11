@@ -7,12 +7,9 @@ Each round's reviewer is told the task and what the actor said as it ended its t
 the repository: what the actor said is its own account, held to what the files show, and is
 itself the deliverable of a task that asks for an answer rather than a change.
 
-It ends when the reviewer says the task is done, or when the budget is spent; `--resume`
-hands a fresh actor the last review to pick up from. A turn that fails, or a review out of
-shape, is taken again next round; three failures in a row end it with the last one.
+It ends when the reviewer says the task is done, or when the budget is spent; a turn that fails
+ends it with that failure. `--resume` hands a fresh actor the last review to pick up from.
 """
-
-import asyncio
 
 from pydantic import BaseModel, Field
 
@@ -22,14 +19,9 @@ from hmz.flows import (
     EnvCollection,
     FlowContext,
     FlowParams,
-    FlowState,
-    HarnessError,
     LocalEnv,
     flow,
 )
-
-FAILED = 3
-PAUSE = 5.0
 
 
 class Reviewer(Agent):
@@ -119,44 +111,19 @@ async def rlar(
     working = await actor.spawn()
     notes: str = state["notes"] if "notes" in state else ""
     prompt = PICKED_UP.format(task=task, notes=notes) if notes else task
-    failed = 0
     while True:
-        try:
-            worked = await actor.run(prompt, session=working, env=workspace)
-        except HarnessError:
-            failed += 1
-            if failed >= FAILED:
-                raise
-            worked = ""
-        if worked:
-            reading = await reviewer.spawn()
-            try:
-                review = await reviewer.run(
-                    REVIEW_PROMPT + task + SAID.format(said=worked),
-                    session=reading,
-                    env=workspace,
-                    output_schema=Review,
-                )
-            except HarnessError:
-                failed += 1
-                if failed >= FAILED:
-                    raise
-                review = None
-            else:
-                failed = 0
-            if review is not None and review.done:
-                print(review.notes)
-                _forget(state)
-                return review.notes
-            if review is not None and review.notes:
-                prompt = notes = review.notes
-            state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
-            state["notes"] = notes
-        await asyncio.sleep(PAUSE)
-
-
-def _forget(state: FlowState) -> None:
-    """Drops what a run that finished kept, so the next one starts on the task alone."""
-    for key in ("notes", "rounds"):
-        if key in state:
-            del state[key]
+        said = await actor.run(prompt, session=working, env=workspace)
+        reading = await reviewer.spawn()
+        review = await reviewer.run(
+            REVIEW_PROMPT + task + SAID.format(said=said),
+            session=reading,
+            env=workspace,
+            output_schema=Review,
+        )
+        if review.done:
+            # Over: the next run here starts on its task alone, not on this one's last review.
+            if "notes" in state:
+                del state["notes"]
+            print(review.notes)
+            return review.notes
+        state["notes"] = prompt = review.notes

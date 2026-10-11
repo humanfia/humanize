@@ -7,7 +7,7 @@ import PickUp from '../.vitepress/theme/components/user-resuming/PickUp.vue'
 Carry a loop on from where its last run stopped, instead of starting it over. Use this after
 <kbd>ctrl+c</kbd>, after a budget ran out before the work was done, or after the machine went
 down mid-run. By the end of this page you will have stopped a loop, picked it up both at the
-prompt and from a script, and checked that it went on counting where it left off.
+prompt and from a script, and checked that its conversation went on where it left off.
 
 ## Try it
 
@@ -18,7 +18,7 @@ prompt and from a script, and checked that it went on counting where it left off
 ```
 
 ```sh [hmz exec]
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=2h \
+hmz exec -f stateful_ralph -a agent=claude/claude-opus-5:high -p budget.duration=2h \
     --resume "$(cat TASK.md)"
 ```
 
@@ -27,25 +27,27 @@ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=2h 
 At the prompt, `/resume` first says which run it carries on, then the flow starts again:
 
 ```text
-resuming 20260930T053826.667Z-55bb87: running ralph_loop from saved state
+resuming 20260930T053826.667Z-55bb87: running stateful_ralph from saved state
 ```
 
 ## Before you start
 
 - A flow that can be picked up. Most of the official loops can,
-  [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) and [`rlar`](https://humanfia.ai/flows/rlar) among them; each flow's page says
-  whether it can. [`chat`](https://humanfia.ai/flows/chat) cannot.
+  [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) and [`rlar`](https://humanfia.ai/flows/rlar) among them; each flow's page says
+  whether it can. [`chat`](https://humanfia.ai/flows/chat) cannot, and neither can
+  [`ralph_loop`](https://humanfia.ai/flows/ralph-loop), which keeps nothing but the repository:
+  running it again is carrying it on.
 - An earlier run of that flow, **in this directory**, that got far enough to save something.
   Runs are kept per directory, so start `hmz` or `hmz exec` where the first run started.
 - Nothing running here now. [Stop](/user/stopping) a running flow first.
 
 ## What picking up means
 
-A flow that can be picked up keeps a small record of where its loop has got to, such as the
-number of the round it is on, and saves it every time it changes. A run that stops for any
-reason — <kbd>ctrl+c</kbd>, a spent budget, a crash, a machine switched off — leaves that
-record behind. Picking the run up starts the flow again **with that record**, so the loop
-carries on counting instead of starting from nothing.
+A flow that can be picked up keeps a small record of where its loop has got to, such as whose
+turn is next, the last review, or the session it works in, and saves it every time it changes.
+A run that stops for any reason — <kbd>ctrl+c</kbd>, a spent budget, a crash, a machine
+switched off — leaves that record behind. Picking the run up starts the flow again **with that
+record**, so the loop carries on from there instead of starting from nothing.
 
 <PickUp />
 
@@ -55,9 +57,10 @@ Three things are worth knowing before you rely on it:
   run of its own, with its own sessions, its own trace and its own row in
   [`/epics`](/user/tracing#what-a-run-writes-down). A week of stops and starts reads as one run
   per stretch.
-- **The agents start fresh conversations.** What carries over is what the flow chose to keep,
-  and the files the agents already changed in your project. An agent's conversation is not
-  continued.
+- **The agents' conversations carry over only where the flow kept them.** What carries over
+  is what the flow chose to keep, and the files the agents already changed in your project. A
+  flow that kept a session in its record, as `stateful_ralph` does, has that conversation
+  carried on from where it was kept; every other turn opens a fresh one.
 - **Budgets do not carry over.** What the earlier run spent is not counted against the new one.
 
 There are three ways in:
@@ -74,14 +77,14 @@ is picked up on the same places, spelled as `-e` takes them: `local/srv/x`, `doc
 `swarm/srv/x`, `apple-container/srv/x`, `ssh@[host]/…` -- the `@local` ones only while no
 runtime of theirs is saved as `local`, and an ssh host only while none is saved by its name.
 
-## Example: stop a Ralph loop on its budget, then carry it on
+## Example: stop a loop on its budget, then carry it on
 
-A tiny project with two failing tests, and a [Ralph loop](https://humanfia.ai/flows/ralph-loop) that tries the
-task again in a fresh session every round. The budget is deliberately small so the run stops
-by itself.
+A tiny project with two failing tests, and [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph),
+which sends the task again every round in one session, and keeps that session in its record
+after every round. The budget is deliberately small so the run stops by itself.
 
 ```sh
-hmz exec -f ralph_loop \
+hmz exec -f stateful_ralph \
     -a agent=claude/claude-haiku-4-5-20251001:low \
     -p budget.output_tokens=1500 \
     "$(cat TASK.md)"
@@ -90,8 +93,7 @@ hmz exec -f ralph_loop \
 The run, as it appeared at the terminal (the agents' thinking trimmed):
 
 ```text
-round 1                                                                ①
-● agent is working
+● agent is working                                                     ①
 ● Read(…/app2/test_slug.py)
 ● Read(…/app2/slug.py)
 ● Edit(…/app2/slug.py)
@@ -99,51 +101,46 @@ round 1                                                                ①
 ● Done! Both tests now pass. …
 ✻ input 50 · output 1.0k · cache_read 127.5k · cache_write 1.8k · $0.02 · claude-haiku-4-5-20251001 · agent
 ✻ Worked for 14s · agent
-round 2
 ● agent is working
-…
+● Bash(cd …/app2 && python -m pytest test_slug.py -v)
+● Both tests still pass; slug.py needs no further change. …
 ✻ input 26 · output 810 · cache_read 62.8k · cache_write 1.2k · $0.01 · claude-haiku-4-5-20251001 · agent
 ✻ Worked for 11s · agent
-round 3                                                                ②
-hmz exec: stopped -- ralph_loop:ralph_loop: its budget's output tokens are spent   ③
+hmz exec: stopped -- stateful_ralph:stateful_ralph: its budget's output tokens are spent   ②
 ```
 
 `echo $?` prints `0`. Now run the same line again with `--resume` and a fresh budget:
 
 ```sh
-hmz exec -f ralph_loop \
+hmz exec -f stateful_ralph \
     -a agent=claude/claude-haiku-4-5-20251001:low \
     -p budget.output_tokens=800 \
-    --resume "$(cat TASK.md)"                                          # ④
+    --resume "$(cat TASK.md)"                                          # ③
 ```
 
 ```text
-round 4                                                                ⑤
-● agent is working
-● Read(…/app2/test_slug.py)
-● Read(…/app2/slug.py)
+● agent is working                                                     ④
 ● Bash(cd …/app2 && python -m pytest test_slug.py -v)
+● As in the last two rounds, both tests pass and slug.py is done. …
 ✻ input 34 · output 1.0k · cache_read 84.2k · cache_write 1.5k · $0.02 · claude-haiku-4-5-20251001 · agent
 ✻ Worked for 13s · agent
-round 5
-hmz exec: stopped -- ralph_loop:ralph_loop: its budget's output tokens are spent
+hmz exec: stopped -- stateful_ralph:stateful_ralph: its budget's output tokens are spent
 ```
 
 ### What each part means
 
-1. **`round 1`** is printed by the flow itself, and the number is what the flow saves. Every
-   round opens a fresh session, which is what a Ralph loop is.
-2. **`round 3` with no turn after it.** The flow had counted round 3 and saved it when the
-   budget stopped the run, before the agent started working. The count is saved the moment it
-   is set, so it survives however the run ends.
-3. **`hmz exec: stopped -- …`** names the limit that was reached, on stderr. A budget stopping
-   a loop is the ordinary way for a loop to end, so the exit status is still `0`.
-4. **`--resume`** asks for the newest run of `ralph_loop` in this directory that saved
+1. **`● agent is working`** opens each round: the task again, in the same session.
+   `stateful_ralph` prints nothing of its own. After each round it saves the session in its
+   record, which keeps the conversation as it stands then.
+2. **`hmz exec: stopped -- …`** names the limit that was reached, on stderr. The budget was
+   found spent as the third round was to start, before the agent began working. A budget
+   stopping a loop is the ordinary way for a loop to end, so the exit status is still `0`.
+3. **`--resume`** asks for the newest run of `stateful_ralph` in this directory that saved
    something. The rest of the line is read as usual: the `-a` and `-p` here are what the
    carried-on run uses, so this is where you change the model or give it more room.
-5. **`round 4`**: the loop carried on from the count it had saved, not from 1. The agent
-   found the tests already passing, because the files it fixed in round 1 are still in your
-   project.
+4. **The agent remembers.** The first round of the new run carries on the conversation the
+   flow kept after round 2, so the agent knows what the earlier rounds did. The files it fixed
+   in round 1 are still in your project too.
 
 ## Example: pick it up at the prompt
 
@@ -152,7 +149,7 @@ only while there is a run here to carry on and nothing is running:
 
 ```text
 ❯ /resume
-resuming 20260930T053826.667Z-55bb87: running ralph_loop from saved state      ①
+resuming 20260930T053826.667Z-55bb87: running stateful_ralph from saved state  ①
 ── agent
 ● agent is working
                                           agent · claude/claude-haiku-4-5-20251001:low · ● 1   ②
@@ -174,7 +171,7 @@ To carry on an **older** run than the last, open `/epics`. Runs you can pick up 
 Press <kbd>enter</kbd> on one and choose **resume run**:
 
 ```text
-  hmz › /epics › 2026-09-30 05:38 · ralph_loop
+  hmz › /epics › 2026-09-30 05:38 · stateful_ralph
   …/epics/-tmp-hmzdocs-C-app/20260930T053826.667Z-55bb87
   It stopped with 1 agent in 1 session.
 
@@ -192,22 +189,22 @@ cannot, the line under the list says `<flow> is not resumable, so this run canno
 
 ## Check that it worked
 
-- **The count went on.** A Ralph loop's first line after `--resume` or `/resume` is the round
-  after the one it had reached, as `round 4` above.
+- **The conversation went on.** The first answer after `--resume` or `/resume` knows what the
+  rounds before the stop did, as in ④ above.
 - **A new row in `/epics`.** The carried-on run is listed above the one it came from, with its
   own session count:
 
   ```text
   ╭──────────────────────────────────────────────────────────────────────────╮
-  │ 2026-09-30 05:40 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 1 session · stopped ·      │
-  │                               resumable                                  │
-  │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 1 session · stopped ·      │
-  │                               resumable                                  │
-  │ 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 3 sessions · stopped ·     │
-  │                               resumable                                  │
+  │ 2026-09-30 05:40 · stateful_ralph Make the tests in test_slug.py pass.   │
+  │                                   Change slug.py only. · 1 session ·     │
+  │                                   stopped · resumable                    │
+  │ 2026-09-30 05:38 · stateful_ralph Make the tests in test_slug.py pass.   │
+  │                                   Change slug.py only. · 1 session ·     │
+  │                                   stopped · resumable                    │
+  │ 2026-09-30 05:37 · stateful_ralph Make the tests in test_slug.py pass.   │
+  │                                   Change slug.py only. · 1 session ·     │
+  │                                   stopped · resumable                    │
   ╰──────────────────────────────────────────────────────────────────────────╯
   ```
 
@@ -218,17 +215,19 @@ cannot, the line under the list says `<flow> is not resumable, so this run canno
 
 | | Picked up? |
 | --- | --- |
-| What the flow kept, such as the round it had reached | Yes. The flow saves as it goes, so a run that was killed keeps it too. |
+| What the flow kept, such as whose turn was next | Yes. The flow saves as it goes, so a run that was killed keeps it too. |
 | Flows it called | Where they are called again the same way: the same flow, task, agents, environments and params. From the first call that differs, flows start afresh. |
 | Temporary copies and scratch directories | Yes, where they were. |
-| The agents' conversations | No. Each carried-on turn opens a fresh session. |
+| The agents' conversations | Only a session the flow kept in its record, carried on from where it was kept. Every other turn opens a fresh session. |
 | What the budget had spent | No. `--resume` runs under the new line's `-p budget.…`. `/resume` runs under the old run's budget, counted from zero. |
 
 ## Variations
 
 - **Change the agents while you carry on.** On a `--resume` line, `-a`, `-e` and `-p` may all
   differ from the first run. The flow at the top always picks up, so changing them does not
-  start it over; leaving `--resume` off does.
+  start it over; leaving `--resume` off does. A kept session is carried on only by the same
+  CLI: give its role another, and its first turn is
+  [refused](/reference/flows#sessions-in-state).
 - **Give a longer leash.** Pick up an overnight loop that ran out of money with
   `-p budget.duration=8h,budget.cost=40 --resume`.
 - **Start over on purpose.** Run the line without `--resume`. At the prompt, choose the flow
@@ -254,10 +253,10 @@ From a script, `--resume` with nothing to carry on is refused before any agent s
 exit status 2:
 
 ```console
-$ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --resume "hi"
-hmz exec: error: chat does not support resuming, so there is no run to resume
 $ hmz exec -f ralph_loop -a agent=claude/claude-haiku-4-5-20251001:low -p budget.cost=1 --resume "…"
-hmz exec: error: ralph_loop has no run to resume here: none saved any progress
+hmz exec: error: ralph_loop does not support resuming, so there is no run to resume
+$ hmz exec -f stateful_ralph -a agent=claude/claude-haiku-4-5-20251001:low -p budget.cost=1 --resume "…"
+hmz exec: error: stateful_ralph has no run to resume here: none saved any progress
 ```
 
 The second one also appears in a directory where the flow never ran: check that you are in
@@ -283,7 +282,8 @@ async def nightly(
 ```
 
 - A turn run with no `env`, as here, works in the workspace, the directory hmz ran in.
-- Store only what JSON can hold. Anything else raises `StateNotSerializable` where it is set.
+- Store only what JSON can hold, or a [session](/reference/flows#sessions-in-state), which
+  keeps its conversation. Anything else raises `StateNotSerializable` where it is set.
 - Changing a value inside the state, such as appending to a list, is not saved. Set the key
   again: `state["seen"] = [*state["seen"], path]`.
 - `ctx.resumed` says whether this call picked up an earlier one.

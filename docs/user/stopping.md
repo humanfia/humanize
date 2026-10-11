@@ -135,8 +135,7 @@ What to look at, by number:
   ```text
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ 2026-09-30 05:36 · ralph_loop Run the test suite until it is green. Do   │
-  │                               not commit. · 4 sessions · stopped ·       │
-  │                               resumable                                  │
+  │                               not commit. · 4 sessions · stopped         │
   │ …                                                                        │
   ╰──────────────────────────────────────────────────────────────────────────╯
   ```
@@ -208,14 +207,17 @@ the question is not there.
 ## After a stop
 
 **Pick the run up** with `/resume`, or with the same `hmz exec` line plus `--resume`. This
-works for a flow that says it can be picked up. It carries on with the same flow, agents and
-task, from where the stop left it:
+works for a flow that says it can be picked up, such as `stateful_ralph`. It carries on with
+the same flow, agents and task, from where the stop left it:
 
 ```text
 ❯ /resume
-resuming 20260930T054202.927Z-a5d31a: running ralph_loop from saved state
+resuming 20260930T054202.927Z-a5d31a: running stateful_ralph from saved state
 ● agent is working
 ```
+
+`ralph_loop` cannot be picked up: it keeps nothing but your files, so starting it again with
+the same task carries it on.
 
 See [Picking a run up](/user/resuming).
 

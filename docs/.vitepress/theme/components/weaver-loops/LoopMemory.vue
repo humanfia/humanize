@@ -4,12 +4,12 @@
 // in it the session's history: `ralph_loop` spawns inside the loop, so every round is a new
 // session holding only this round's turn (it knows the task and the repository), while
 // `stateful_ralph` spawns before it, so one session's history grows a turn a round. Below,
-// `ralph_loop` round by round: a turn that raises `HarnessError` is caught and counted as one
-// answered with nothing; the run is stopped and picked up with `--resume`, and since
-// `resumable=True` keeps the count in `ctx.state` it goes on at round 4 (the local `stalled`
-// starts again at 0); three rounds in a row answered with nothing (`STALLED = 3`) end it with
-// the flow's own "stopping: …" line. Drawn from src/hmz/flows/builtin/ralph_loop and
-// stateful_ralph, and docs/weaver/loops.md. The answers are simulated.
+// `stateful_ralph` round by round: after every round it writes the session into
+// `ctx.state["session"]`, which keeps the conversation as it stands then; the run is stopped
+// and picked up with `--resume`, and since `resumable=True` the session read back carries on
+// round 3's conversation at round 4; a turn that raises `HarnessError` is not caught, so it
+// ends the run. Drawn from src/hmz/flows/builtin/ralph_loop and stateful_ralph, and
+// docs/weaver/loops.md. The answers are simulated.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -24,9 +24,9 @@ const BEATS = [
   'Where spawn sits: inside, or before',
   'A fresh session a round, or one that grows',
   'Four things end a loop',
-  'A failed turn: catch HarnessError, go on',
-  'resumable=True: ctx.state counts on',
-  'Three empty rounds in a row: a stall',
+  'Each round, the session is kept in ctx.state',
+  'resumable=True: --resume carries it on',
+  'A failed turn, uncaught, ends the run',
 ]
 
 type Tok = [cls: '' | 'kw' | 'fn', text: string]
@@ -67,28 +67,29 @@ const ROUNDS = 4
 const ENDERS = [
   { code: 'return', why: 'a check of yours' },
   { code: 'for … in range(…)', why: 'a round limit' },
-  { code: 'stalled >= STALLED', why: '3 empty rounds in a row' },
+  { code: 'HarnessError', why: 'a failed turn, uncaught' },
   { code: 'BudgetExceeded', why: 'the run’s budget, spent' },
 ]
 
-/** ralph_loop, round by round: what each said, and `stalled` after it. */
-type Said = 'said' | 'empty' | 'failed'
-const RUN: { n: number; said: Said; stalled: number }[] = [
-  { n: 1, said: 'said', stalled: 0 },
-  { n: 2, said: 'failed', stalled: 1 },
-  { n: 3, said: 'said', stalled: 0 },
-  { n: 4, said: 'empty', stalled: 1 },
-  { n: 5, said: 'empty', stalled: 2 },
-  { n: 6, said: 'empty', stalled: 3 },
+/** stateful_ralph, round by round: what each said, and the round whose conversation
+ *  `ctx.state["session"]` holds after it (0 for none written). */
+type Said = 'said' | 'failed'
+const RUN: { n: number; said: Said; kept: number }[] = [
+  { n: 1, said: 'said', kept: 1 },
+  { n: 2, said: 'said', kept: 2 },
+  { n: 3, said: 'said', kept: 3 },
+  { n: 4, said: 'said', kept: 4 },
+  { n: 5, said: 'failed', kept: 0 },
 ]
-const GLYPH: Record<Said, string> = { said: '"…"', empty: '""', failed: '✕' }
+const GLYPH: Record<Said, string> = { said: '"…"', failed: '✕' }
+const KEPT = (n: number) => (n > 0 ? `r${Math.round(n)}` : '—')
 /** The stop falls after this many rounds. */
 const STOP_AFTER = 3
 
 const NOTES: [string, string][] = [
-  ['round 2 failed: HarnessError —', 'caught, and counted as answered with nothing'],
-  ['stopped; --resume finds ctx.state at 3,', 'so the count goes on at round 4'],
-  ['stopping: 3 rounds in a row', 'answered with nothing'],
+  ['state["session"] = session —', 'the conversation kept as it stands after the round'],
+  ['stopped; --resume reads ctx.state["session"],', 'so round 4 carries on round 3’s conversation'],
+  ['round 5 failed: HarnessError,', 'uncaught, so the run ends with it'],
 ]
 
 interface Layout {
@@ -207,8 +208,8 @@ const scene = useScene({
     const warm = () => palette.warm
 
     tl.set(one('.world'), { autoAlpha: 1 }, 0)
-    tl.set(at('.panel, .code-line, .knows, .spark, .block, .rlabel, .ender, .strip-head, .state, .rowlabel, .cell, .stalled, .stop, .note, .ender-hot'), { opacity: 0 }, 0)
-    tl.set(at('.thread, .catch'), { drawSVG: '0%' }, 0)
+    tl.set(at('.panel, .code-line, .knows, .spark, .block, .rlabel, .ender, .strip-head, .state, .rowlabel, .cell, .kept, .stop, .note, .ender-hot'), { opacity: 0 }, 0)
+    tl.set(at('.thread, .carry'), { drawSVG: '0%' }, 0)
     tl.set(at('.spawn-bar'), { scaleX: 0, transformOrigin: '0% 50%' }, 0)
     tl.set(at('.block'), { scaleY: 0, transformOrigin: '50% 100%' }, 0)
 
@@ -262,29 +263,33 @@ const scene = useScene({
     tl.to(at('.strip-head, .state, .rowlabel'), { opacity: 1, duration: 0.6, stagger: 0.1 }, B2 + 2)
     const counter = one('.count')
     const cells = at('.cell')
-    const stalls = at('.stalled')
+    const kept = at('.kept')
     const round = (i: number, when: number) => {
       const r = RUN[i]
-      count(tl, counter, r.n - 1, r.n, when, { duration: 0.3 })
-      tl.fromTo(at('.state-glow'), { opacity: 0.9 }, { opacity: 0, duration: 0.8 }, when)
-      cam.beam({ x: l.state.x + l.state.w - 8, y: l.state.y + 12 }, { x: cellMid(r.n), y: l.cellsY }, lane1, when, { duration: 0.6, bend: -0.2 })
-      tl.to(cells[i], { opacity: 1, duration: 0.3 }, when + 0.55)
-      tl.fromTo(at('.cell-in')[i], { y: -6 }, { y: 0, duration: 0.5, ease: 'back.out(2)' }, when + 0.55)
-      if (r.said === 'failed') cam.flare({ x: cellMid(r.n), y: l.cellsY + 30 }, danger, when + 0.8, 24, 90)
-      tl.to(stalls[i], { opacity: 1, duration: 0.3 }, when + 0.9)
+      tl.to(cells[i], { opacity: 1, duration: 0.3 }, when)
+      tl.fromTo(at('.cell-in')[i], { y: -6 }, { y: 0, duration: 0.5, ease: 'back.out(2)' }, when)
+      if (r.said === 'failed') {
+        cam.flare({ x: cellMid(r.n), y: l.cellsY + 30 }, danger, when + 0.3, 24, 90)
+        tl.to(kept[i], { opacity: 1, duration: 0.3 }, when + 0.4)
+        return
+      }
+      // The round done, the session is written into the state, as it stands now.
+      cam.beam({ x: cellMid(r.n), y: l.cellsY }, { x: l.state.x + l.state.w - 8, y: l.state.y + 12 }, lane1, when + 0.4, { duration: 0.6, bend: -0.2 })
+      count(tl, counter, r.n - 1, r.kept, when + 0.9, { duration: 0.3, format: KEPT })
+      tl.fromTo(at('.state-glow'), { opacity: 0.9 }, { opacity: 0, duration: 0.8 }, when + 0.9)
+      tl.to(kept[i], { opacity: 1, duration: 0.3 }, when + 0.9)
     }
     round(0, B2 + 2.6)
 
-    // 3 · round 2's turn fails: HarnessError, caught, and the loop goes on.
+    // 3 · round by round, the session is kept in ctx.state.
     const B3 = B2 + 4.2
     tl.addLabel('beat-3', B3)
     round(1, B3)
     const notes = at('.note')
     tl.to(notes[0], { opacity: 1, duration: 0.5 }, B3 + 1)
-    tl.to(at('.catch'), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, B3 + 1.4)
     round(2, B3 + 2)
 
-    // 4 · stopped, and picked up: the count is in ctx.state, so it goes on.
+    // 4 · stopped, and picked up: the session read back carries round 3's conversation on.
     const B4 = B3 + 3.8
     tl.addLabel('beat-4', B4)
     tl.to(notes[0], { opacity: 0, duration: 0.4 }, B4)
@@ -292,16 +297,16 @@ const scene = useScene({
     cam.flare({ x: stopX.value + l.sw / 2, y: l.cellsY + 12 }, danger, B4 + 0.3, 22, 90)
     tl.fromTo(at('.state-glow'), { opacity: 1 }, { opacity: 0.2, duration: 1.2 }, B4 + 0.5)
     tl.to(notes[1], { opacity: 1, duration: 0.5 }, B4 + 0.8)
+    tl.to(at('.carry'), { drawSVG: '100%', duration: 0.7, ease: 'cine' }, B4 + 1.4)
     round(3, B4 + 2)
 
-    // 5 · three rounds in a row answered with nothing: the stall ends it.
+    // 5 · round 5's turn fails: HarnessError, uncaught, and the run ends with it.
     const B5 = B4 + 3.4
     tl.addLabel('beat-5', B5)
     round(4, B5)
-    round(5, B5 + 1.2)
-    tl.to(notes[1], { opacity: 0, duration: 0.4 }, B5 + 2.2)
-    tl.to(notes[2], { opacity: 1, duration: 0.5 }, B5 + 2.5)
-    cam.beam({ x: cellMid(6), y: l.cellsY }, { x: l.enders[2].x + l.ew / 2, y: l.enders[2].y + 34 }, ok, B5 + 2.3, { duration: 0.8, bend: 0.25, burst: 22 })
+    tl.to(notes[1], { opacity: 0, duration: 0.4 }, B5 + 1.2)
+    tl.to(notes[2], { opacity: 1, duration: 0.5 }, B5 + 1.5)
+    cam.beam({ x: cellMid(5), y: l.cellsY }, { x: l.enders[2].x + l.ew / 2, y: l.enders[2].y + 34 }, ok, B5 + 2.3, { duration: 0.8, bend: 0.25, burst: 22 })
     tl.to(at('.ender-hot'), { opacity: 1, duration: 0.4 }, B5 + 3)
     cam.shot(l.whole, B5 + 3.2, 1.6)
 
@@ -319,7 +324,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="9 / 16"
-    label="How a loop works. Side by side, ralph_loop puts spawn inside the loop and stateful_ralph puts it before. Over four rounds, ralph_loop opens a new session every round, whose history holds only that round's turn, so each round knows the task and the repository; stateful_ralph keeps one session whose history grows by a turn every round. Four things end a loop: a check of yours that returns, a round limit, a stall where the agent answers with nothing round after round, and the run's budget, which raises BudgetExceeded. Then ralph_loop round by round: round 2's turn raises HarnessError, which the loop catches and counts as answered with nothing; after round 3 the run is stopped, and resumed with --resume, and because the flow is resumable the round count in ctx.state goes on at round 4; rounds 4, 5 and 6 answer with nothing, and the third in a row ends the loop with stopping: 3 rounds in a row answered with nothing."
+    label="How a loop works. Side by side, ralph_loop puts spawn inside the loop and stateful_ralph puts it before. Over four rounds, ralph_loop opens a new session every round, whose history holds only that round's turn, so each round knows the task and the repository; stateful_ralph keeps one session whose history grows by a turn every round. Four things end a loop: a check of yours that returns, a round limit, a failed turn the loop does not catch, which raises HarnessError, and the run's budget, which raises BudgetExceeded. Then stateful_ralph round by round: after each round it writes the session into ctx.state, keeping the conversation as it stands then; after round 3 the run is stopped, and resumed with --resume, and because the flow is resumable the session read back from ctx.state carries round 3's conversation on at round 4; round 5's turn fails with HarnessError, which the flow does not catch, so the run ends with it."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="world">
@@ -362,25 +367,25 @@ const scene = useScene({
           </g>
         </g>
 
-        <!-- ralph_loop, round by round -->
-        <text class="strip-head" :x="L.state.x" :y="L.stripY">ralph_loop, round by round</text>
+        <!-- stateful_ralph, round by round -->
+        <text class="strip-head" :x="L.state.x" :y="L.stripY">stateful_ralph, round by round</text>
         <text class="strip-head strip-flag" :x="L.w - 14" :y="L.stripY" text-anchor="end">@flow(…, resumable=True)</text>
         <g class="state">
           <rect class="state-box" :x="L.state.x" :y="L.state.y" :width="L.state.w" :height="L.state.h" rx="8" />
           <rect class="state-glow" :x="L.state.x" :y="L.state.y" :width="L.state.w" :height="L.state.h" rx="8" opacity="0" />
           <template v-if="!narrow">
             <text class="state-name" :x="L.state.x + 10" :y="L.state.y + 17">ctx.state</text>
-            <text class="state-key" :x="L.state.x + 10" :y="L.state.y + 34">["rounds"]</text>
-            <text class="count" :x="L.state.x + 10" :y="L.state.y + 64">0</text>
+            <text class="state-key" :x="L.state.x + 10" :y="L.state.y + 34">["session"]</text>
+            <text class="count" :x="L.state.x + 10" :y="L.state.y + 64">—</text>
           </template>
           <template v-else>
-            <text class="state-name" :x="L.state.x + 10" :y="L.state.y + 19">ctx.state["rounds"]</text>
-            <text class="count count-n" :x="L.state.x + L.state.w - 12" :y="L.state.y + 22" text-anchor="end">0</text>
+            <text class="state-name" :x="L.state.x + 10" :y="L.state.y + 19">ctx.state["session"]</text>
+            <text class="count count-n" :x="L.state.x + L.state.w - 12" :y="L.state.y + 22" text-anchor="end">—</text>
           </template>
         </g>
         <text class="rowlabel" :x="L.rowsX" :y="L.cellsY + 16">round</text>
         <text class="rowlabel" :x="L.rowsX" :y="L.cellsY + 33">said</text>
-        <text class="rowlabel" :x="L.rowsX" :y="L.cellsY + CELL_H + 16">stalled</text>
+        <text class="rowlabel" :x="L.rowsX" :y="L.cellsY + CELL_H + 16">kept</text>
         <g v-for="(r, i) in RUN" :key="r.n" class="cell">
           <g class="cell-in">
             <rect class="cell-box" :class="r.said" :x="cellX(r.n)" :y="L.cellsY" :width="L.cw" :height="CELL_H" rx="6" />
@@ -388,8 +393,8 @@ const scene = useScene({
             <text class="cell-said" :class="r.said" :x="cellMid(r.n)" :y="L.cellsY + 33" text-anchor="middle">{{ GLYPH[r.said] }}</text>
           </g>
         </g>
-        <text v-for="r in RUN" :key="`st${r.n}`" class="stalled" :class="{ hot: r.stalled === 3 }" :x="cellMid(r.n)" :y="L.cellsY + CELL_H + 16" text-anchor="middle">{{ r.stalled }}</text>
-        <path class="catch" :d="`M${cellMid(2)} ${L.cellsY - 2} C${cellMid(2) + 8} ${L.cellsY - 14} ${cellMid(3) - 8} ${L.cellsY - 14} ${cellMid(3)} ${L.cellsY - 2}`" />
+        <text v-for="r in RUN" :key="`kp${r.n}`" class="kept" :class="{ hot: r.said === 'failed' }" :x="cellMid(r.n)" :y="L.cellsY + CELL_H + 16" text-anchor="middle">{{ KEPT(r.kept) }}</text>
+        <path class="carry" :d="`M${cellMid(3)} ${L.cellsY - 2} C${cellMid(3) + 12} ${L.cellsY - 18} ${cellMid(4) - 12} ${L.cellsY - 18} ${cellMid(4)} ${L.cellsY - 2}`" />
         <g class="stop">
           <line class="stop-line" :x1="stopX + L.sw / 2" :x2="stopX + L.sw / 2" :y1="L.cellsY - 4" :y2="L.cellsY + CELL_H + 4" />
           <text class="stop-word" :x="stopX + L.sw / 2" :y="L.cellsY + 16" text-anchor="middle">stop</text>
@@ -585,11 +590,6 @@ svg {
   stroke-opacity: 1;
 }
 
-.cell-box.empty {
-  stroke: var(--hmz-stage-dim);
-  stroke-dasharray: 3 3;
-}
-
 .cell-n {
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
@@ -604,29 +604,25 @@ svg {
   fill: var(--hmz-accent);
 }
 
-.cell-said.empty {
-  fill: var(--hmz-stage-dim);
-}
-
 .cell-said.failed {
   fill: var(--vp-c-danger-1);
 }
 
-.stalled {
+.kept {
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
   font-weight: 600;
-  fill: var(--hmz-stage-dim);
+  fill: var(--hmz-lane-1);
 }
 
-.stalled.hot {
-  fill: var(--hmz-accent);
+.kept.hot {
+  fill: var(--vp-c-danger-1);
   font-weight: 800;
 }
 
-.catch {
+.carry {
   fill: none;
-  stroke: var(--vp-c-danger-1);
+  stroke: var(--hmz-lane-1);
   stroke-width: 1.5;
   stroke-linecap: round;
 }

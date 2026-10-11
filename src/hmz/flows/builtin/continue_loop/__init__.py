@@ -2,14 +2,10 @@
 
     hmz exec -f continue_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 "the task"
 
-One session for the whole run. A turn that answered moves the prompt on to "continue"; one
-that answered nothing, or failed, is sent again. The budget ends it: the turn that finds it
-spent raises the budget's `BudgetExceeded`, which is how the run ends, and `--resume` carries
-on counting rounds under a fresh one. Three failed turns in a row end it with the last
-failure.
+One session for the whole run: the task as its first turn, and "continue" as every turn after
+it. The budget ends it -- the turn that finds it spent raises the budget's `BudgetExceeded` --
+and a turn that fails ends it with that failure.
 """
-
-import asyncio
 
 from hmz.flows import (
     Agent,
@@ -17,13 +13,9 @@ from hmz.flows import (
     EnvCollection,
     FlowContext,
     FlowParams,
-    HarnessError,
     LocalEnv,
     flow,
 )
-
-FAILED = 3
-PAUSE = 5.0
 
 
 class Agents(AgentCollection):
@@ -38,28 +30,13 @@ class Envs(EnvCollection):
     workspace: LocalEnv
 
 
-@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
+@flow(agents=Agents, envs=Envs, params=FlowParams)
 async def continue_loop(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
     """Send the task once, then keep nudging "continue" until the budget is spent."""
-    state = ctx.state
-    assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
-    agent = agents["agent"]
+    agent, workspace = agents["agent"], envs["workspace"]
     session = await agent.spawn()
-    prompt = task
-    failed = 0
+    await agent.run(task, session=session, env=workspace)
     while True:
-        state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
-        try:
-            answered = await agent.run(prompt, session=session, env=envs["workspace"])
-        except HarnessError:
-            failed += 1
-            if failed >= FAILED:
-                raise
-            answered = ""
-        else:
-            failed = 0
-        if answered:
-            prompt = "continue"
-        await asyncio.sleep(PAUSE)
+        await agent.run("continue", session=session, env=workspace)

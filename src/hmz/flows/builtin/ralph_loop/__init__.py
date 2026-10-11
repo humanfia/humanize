@@ -2,14 +2,12 @@
 
     hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 "the task"
 
-A turn that fails counts as one answered with nothing, but a CLI that cannot be started where
-the workspace is -- not installed there, or unable to hold its sandbox -- ends the run, since no
-round would start it. It stops after three rounds in a row answered with nothing, or when the
-budget is spent -- the turn that finds it spent raises the budget's `BudgetExceeded` --
-and `--resume` carries on counting rounds.
+The task again and again, each round in a session of its own: what one round leaves the next
+is the repository and nothing else. The budget ends it -- the turn that finds it spent raises
+the budget's `BudgetExceeded` -- and a turn that fails ends it with that failure, a turn that
+could be taken again having been taken again before it got here. There is nothing to pick up:
+the repository is all a Ralph loop keeps, so running it again is carrying it on.
 """
-
-import asyncio
 
 from hmz.flows import (
     Agent,
@@ -17,15 +15,9 @@ from hmz.flows import (
     EnvCollection,
     FlowContext,
     FlowParams,
-    HarnessError,
-    HarnessNotInstalled,
-    HarnessSandboxed,
     LocalEnv,
     flow,
 )
-
-STALLED = 3
-PAUSE = 5.0
 
 
 class Agents(AgentCollection):
@@ -40,28 +32,12 @@ class Envs(EnvCollection):
     workspace: LocalEnv
 
 
-@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
+@flow(agents=Agents, envs=Envs, params=FlowParams)
 async def ralph_loop(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
     """The task again and again, a fresh session every round."""
-    state = ctx.state
-    assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
     agent = agents["agent"]
-    stalled = 0
     while True:
-        state["rounds"] = rounds = (state["rounds"] if "rounds" in state else 0) + 1
-        print(f"round {rounds}")
         session = await agent.spawn()
-        try:
-            answered = await agent.run(task, session=session, env=envs["workspace"])
-        except (HarnessNotInstalled, HarnessSandboxed):
-            raise
-        except HarnessError as error:
-            print(f"round {rounds} failed: {error}")
-            answered = ""
-        stalled = 0 if answered else stalled + 1
-        if stalled >= STALLED:
-            print(f"stopping: {stalled} rounds in a row answered with nothing")
-            return
-        await asyncio.sleep(PAUSE)
+        await agent.run(task, session=session, env=envs["workspace"])

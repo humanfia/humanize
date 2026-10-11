@@ -1662,9 +1662,9 @@ role.
 | Flow | Agent roles | Roles need | Resumable | Budget | Grant |
 | --- | --- | --- | :-: | --- | --- |
 | [`chat`](https://humanfia.ai/flows/chat) | `assistant`, `human: Outworlder` | | | `Budget(cost=math.inf)` unless one is given | every mixin the harness serves |
-| [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | `agent` | | ✓ | required | what each role declares |
+| [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | `agent` | | | required | what each role declares |
 | [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) | `agent` | | ✓ | required | what each role declares |
-| [`continue_loop`](https://humanfia.ai/flows/continue-loop) | `agent` | | ✓ | required | what each role declares |
+| [`continue_loop`](https://humanfia.ai/flows/continue-loop) | `agent` | | | required | what each role declares |
 | [`goal`](https://humanfia.ai/flows/goal) | `worker` | `GoalCommandAgentMixin` | | required | what each role declares |
 | [`flame_chase`](https://humanfia.ai/flows/flame-chase) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
 | [`rlar`](https://humanfia.ai/flows/rlar) | `actor`, `reviewer` | | ✓ | required | what each role declares |
@@ -1672,6 +1672,12 @@ role.
 `chat` opens one session and takes one turn per line the outworlder says; under `hmz exec`
 (outworlder away) it takes the task as its one turn and returns. The first turn's failure ends
 the run; later failures are reported and the conversation continues.
+
+The loops are each the plainest form of their idea, written to be read and copied. Each runs
+until its budget is spent (`rlar` also until its reviewer says done), and a turn that fails
+ends the run with that failure; none prints, pauses or counts rounds. What a resumable one
+keeps in its state is what its next turn needs: `stateful_ralph` its [session](#sessions-in-state),
+`flame_chase` whose turn is next (`turn`), `rlar` the last review (`notes`, removed when done).
 
 ### The official flowverse {#the-official-flowverse}
 

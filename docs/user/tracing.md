@@ -58,11 +58,9 @@ session of Claude Code. Its `/epics` list:
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 1 session · stopped ·      │
-  │                               resumable                                  │
+  │                               slug.py only. · 1 session · stopped        │
   │ 2026-09-30 05:37 · ralph_loop Make the tests in test_slug.py pass. Change│
-  │                               slug.py only. · 3 sessions · stopped ·     │  ①
-  │                               resumable                                  │
+  │                               slug.py only. · 3 sessions · stopped       │  ①
   ╰──────────────────────────────────────────────────────────────────────────╯
 
   Search…                                                                       ②
