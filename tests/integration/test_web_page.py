@@ -101,9 +101,10 @@ def test_an_epic_started_from_the_page_is_drawn_answered_read_and_stopped(
     with served() as site, opened(site) as page:
         _start_chat(page, "hello there")
 
-        expect(
-            page.locator("[data-hmz=graph-agent][data-role=assistant]")
-        ).to_be_visible()
+        agent = page.locator("[data-hmz=graph-agent][data-role=assistant]")
+        expect(agent).to_be_visible()
+        # What the agent said is unread until its session is read.
+        expect(agent.locator("[data-hmz=graph-session] .unread")).to_have_count(1)
         expect(page.locator("[data-hmz=epic] .pill-live")).to_be_visible()
         waiting = page.locator("[data-hmz=waiting] [data-hmz=question]")
         expect(waiting).to_be_visible()
@@ -119,6 +120,7 @@ def test_an_epic_started_from_the_page_is_drawn_answered_read_and_stopped(
         )
 
         page.locator("[data-hmz=bar] .crumbs a").click()
+        expect(agent.locator("[data-hmz=graph-session] .unread")).to_have_count(0)
         page.get_by_role("button", name="Stop").click()
         page.get_by_role("button", name="Stop").click()
         expect(page.locator("[data-hmz=bar] .badge")).to_have_text(

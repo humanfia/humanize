@@ -11,7 +11,7 @@ import { get } from '../api.js'
 import { go } from '../app.js'
 import { ago, badge, flowName, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { ask } from '../held.js'
-import { live, sessionsOf, took, watch, written } from '../epic.js'
+import { live, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, keep, kept, sidePanel, tabbed } from '../shell.js'
 import { saidTraced, sayer } from '../transcript.js'
@@ -233,6 +233,8 @@ export function mount(root, { parts, query }) {
         box.firstElementChild.remove()
         cut.hidden = false
       }
+      // Read here is read: a session's thread drawn is its lines seen.
+      if (mode.session) markRead(detail.name, mode.session, run.records)
       if (!box.childElementCount) box.append(h('p', { class: 'dim thread-empty' }, 'Nothing said yet.'))
       else if (added) box.querySelector(':scope > .thread-empty')?.remove()
       if (added && stuck) scroller.scrollTop = scroller.scrollHeight

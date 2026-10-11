@@ -113,6 +113,22 @@ export function turnsOf(records, offset) {
   return [...held.values()]
 }
 
+/** The last line read of each session of an epic, by epic and then session, in this tab. */
+const reads = new Map()
+
+/** Marks a session of an epic read as far as its records go now. */
+export function read(epic, key, records) {
+  const last = records.reduce((most, one) => (one.type === 'event' && one.session === key ? Math.max(most, one.seq) : most), 0)
+  if (!reads.has(epic)) reads.set(epic, new Map())
+  reads.get(epic).set(key, last)
+}
+
+/** Whether a session of an epic said anything since it was last read here. */
+function unread(epic, key, records) {
+  const was = (reads.get(epic) && reads.get(epic).get(key)) || 0
+  return records.some((one) => one.type === 'event' && one.session === key && one.kind === 'text' && one.seq > was)
+}
+
 /** The sessions of a run written down, each named as the run going named it. */
 export function sessionsOf(detail) {
   const counted = {}
@@ -124,6 +140,7 @@ export function sessionsOf(detail) {
 
 /** What each agent of the run going is, and the rest of what its graph is drawn from. */
 export function live(held, run, detail) {
+  const epic = detail ? detail.name : ''
   const { started, records, offset } = run
   const figures = held.figures
   const sessions = turnsOf(records, offset)
@@ -154,7 +171,7 @@ export function live(held, run, detail) {
       under: figure ? figure.under : [],
       sessions: sessions
         .filter((one) => one.role === role)
-        .map((one) => ({ key: one.key, about: [one.cli, one.model].filter(Boolean).join(' · '), working: working.has(one.key) || one.turns.some((turn) => turn.end === null), turns: one.turns })),
+        .map((one) => ({ key: one.key, about: [one.cli, one.model].filter(Boolean).join(' · '), working: working.has(one.key) || one.turns.some((turn) => turn.end === null), turns: one.turns, unread: unread(epic, one.key, records) })),
     }
   })
   return {

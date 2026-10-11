@@ -2018,6 +2018,22 @@ pre.block {
   color: var(--ink-2);
 }
 
+.unread {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 4px;
+  background: var(--red);
+  vertical-align: middle;
+}
+
+.node.has-unread .node-name::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--red);
+}
+
 .node-log {
   grid-template-columns: 50px minmax(0, 1fr);
   font-size: 11.5px;

@@ -97,6 +97,8 @@ async function view(mine, parts, query, key) {
     const made = module.mount(page, { parts: named, query })
     mounted = typeof made === 'function' ? { load, leave: made } : { load, leave: () => {}, ...made }
   } catch (error) {
+    // Said where it happened, and to the console, where whoever is debugging the page looks.
+    console.error(error)
     fill(page, h('div', { class: 'view' }, problem(`This view failed to open: ${error.message}`)))
   }
 }
@@ -114,6 +116,7 @@ async function open(mine, load, parts, query) {
     closing = module.mount(dialog, { parts, query }) || null
     dialog.querySelector('[autofocus], input, button, a')?.focus()
   } catch (error) {
+    console.error(error)
     fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), h('div', { class: 'dialog' }, problem(error)))
     overlay.hidden = false
   }
