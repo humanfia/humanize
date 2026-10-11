@@ -219,15 +219,16 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         expect(page.locator("[data-tauri-drag-region]")).to_have_count(0)
         assert left(page, ".brand") < lights
 
-    with served() as site, opened(site, engine=engine, user_agent=_APP) as page:
-        # Said before the page is drawn: by the time its body is, so it never moves.
-        page.add_init_script(
-            "new MutationObserver((_, seen) => { if (document.body) {"
-            " window.shellAtBody = document.documentElement.dataset.shell; seen.disconnect() }"
-            " }).observe(document, { childList: true, subtree: true })"
-        )
-        page.reload()
-        page.wait_for_selector("[data-hmz=sidebar] .brand")
+    # Said before the page is drawn: by the time its body is, so it never moves.
+    at_body = (
+        "new MutationObserver((_, seen) => { if (document.body) {"
+        " window.shellAtBody = document.documentElement.dataset.shell; seen.disconnect() }"
+        " }).observe(document, { childList: true, subtree: true })"
+    )
+    with (
+        served() as site,
+        opened(site, engine=engine, user_agent=_APP, init=at_body) as page,
+    ):
         assert page.evaluate("window.shellAtBody") == "macos"
         assert left(page, ".brand") >= lights
         for row in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
