@@ -6,8 +6,9 @@
 
 import { get } from './api.js'
 import { fill, h, problem } from './dom.js'
-import { applyTheme, mountSidebar } from './sidebar.js'
+import { mountSidebar } from './sidebar.js'
 import { kept, toggleSidebar } from './shell.js'
+import { paint } from './themes.js'
 import './ui.js'
 
 /** Every view, by the first part of the address that names it. */
@@ -161,8 +162,8 @@ document.addEventListener('keydown', (event) => {
 document.querySelector('.scrim').addEventListener('click', () => toggleSidebar(false))
 if (kept('hmz-sidebar', '') === 'folded') document.querySelector('.app').classList.add('side-folded')
 
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme)
-window.addEventListener('storage', (event) => event.key === 'hmz-theme' && applyTheme())
+// The chosen theme's pictures, after its colours, which theme.js painted before the page was.
+paint()
 
 window.addEventListener('hmz:out', () => {
   if (out) return

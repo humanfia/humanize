@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 #: Every settings page, by the word its address ends in.
-_PAGES = ("general", "accounts", "fallback", "runtimes", "workspace", "usage")
+_PAGES = ("general", "themes", "accounts", "fallback", "runtimes", "workspace", "usage")
 
 #: What the macOS app's window says it is: WKWebView, and the app.
 _APP = (
@@ -171,13 +171,119 @@ def test_every_settings_page_opens_and_reads(
         expect(page.locator(".settings-nav [aria-current=page]")).to_have_count(1)
 
 
-def test_the_colours_are_light_dark_or_adaptive(project: Path, engine: str) -> None:
+def test_the_colours_are_a_theme_or_auto(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         page.locator("[data-hmz=machine-menu]").click()
         choices = page.locator("[role=menu] .choice-label")
-        expect(choices).to_have_text(["Adaptive", "Light", "Dark", "Settings", "Usage"])
-        page.get_by_role("menuitem", name="Dark").click()
+        expect(choices).to_have_text(
+            ["Auto", "Light", "Dark", "Themes", "Settings", "Usage"]
+        )
+        expect(page.locator("[role=menu] .choice-about")).to_have_text("Light · Dark")
+        page.get_by_role("menuitem", name="Dark", exact=True).click()
         expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+
+
+#: A picture that moves: a disc drawn sliding to and fro, as an SVG animates itself.
+_MOVING = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">'
+    b'<circle cx="10" cy="20" r="8" fill="#ec6fa3">'
+    b'<animate attributeName="cx" values="10;30;10" dur="2s" repeatCount="indefinite"/>'
+    b"</circle></svg>"
+)
+
+
+def _paints(page: Page, token: str) -> str:
+    return page.evaluate(
+        "(token) => getComputedStyle(document.documentElement)"
+        ".getPropertyValue(token).trim()",
+        token,
+    )
+
+
+def _painted(page: Page, token: str, said: str) -> None:
+    """Waits for the page to paint a token with what says `said`: the page lets no string run."""
+    for _ in range(100):
+        if said in _paints(page, token):
+            return
+        page.wait_for_timeout(100)
+    raise AssertionError(f"{token} is {_paints(page, token)!r}, not {said!r}")
+
+
+def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _go(page, "/settings/themes")
+        expect(page.locator("[data-hmz=theme] b")).to_have_text(["Light", "Dark"])
+        page.get_by_role("button", name="New", exact=True).click()
+        editor = page.locator("[data-hmz=theme-editor]")
+        expect(editor).to_be_visible()
+        page.locator("[data-hmz=theme-name]").fill("Night")
+        page.locator("[data-hmz=theme-base]").select_option("dark")
+        # Shown on the page as it is changed, while it is edited.
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        page.locator("[data-hmz=colour-paper]").fill("#102030")
+        page.locator("[data-hmz=colour-control]").fill("not a colour")
+        expect(page.locator("[data-hmz=colour-control]")).to_have_attribute(
+            "aria-invalid", "true"
+        )
+        assert _paints(page, "--paper") == "#102030"
+        page.locator("[data-hmz=picture-page]").set_input_files(
+            {"name": "moving.svg", "mimeType": "image/svg+xml", "buffer": _MOVING}
+        )
+        expect(page.locator("[data-hmz=plane-page] .theme-thumb")).not_to_have_class(
+            re.compile("none")
+        )
+        assert _paints(page, "--page-image").startswith('url("data:image/svg+xml')
+
+        # Left, the page is drawn in the theme chosen again.
+        page.get_by_role("link", name="Done").click()
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        night = page.locator("[data-hmz=theme]", has_text="Night")
+        with page.expect_download() as saving:
+            night.get_by_role("button", name="Export").click()
+        saved = saving.value
+        assert saved.suggested_filename == "Night.hmztheme"
+        written = Path(saved.path()).read_text()
+        night.get_by_role("button", name="Delete").click()
+        night.get_by_role("button", name="Delete").click()
+        expect(night).to_have_count(0)
+
+        page.locator("[data-hmz=theme-file]").set_input_files(
+            {
+                "name": "Night.hmztheme",
+                "mimeType": "application/json",
+                "buffer": written.encode(),
+            }
+        )
+        expect(night).to_have_count(1)
+        page.locator("[data-hmz=auto-dark]").select_option(label="Night")
+        page.emulate_media(color_scheme="dark")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        _painted(page, "--paper", "#102030")
+        _painted(page, "--page-image", "data:image/svg+xml")
+        # Where motion is asked to be reduced, the picture is held as it is first drawn.
+        page.emulate_media(reduced_motion="reduce")
+        _painted(page, "--page-image", "data:image/png")
+        page.emulate_media(color_scheme="light")
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        # Opened again, it is painted before the page is drawn.
+        again = page.context.new_page()
+        again.emulate_media(color_scheme="dark")
+        again.goto(site.address)
+        assert again.evaluate("document.documentElement.dataset.theme") == "dark"
+        assert _paints(again, "--paper") == "#102030"
+        again.close()
+
+
+def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _go(page, "/settings/themes")
+        page.locator("[data-hmz=theme-file]").set_input_files(
+            {"name": "x.hmztheme", "mimeType": "application/json", "buffer": b"{}"}
+        )
+        expect(page.locator(".toast")).to_have_text("This is not a theme file")
+        expect(page.locator("[data-hmz=theme]")).to_have_count(2)
 
 
 def test_a_newer_release_is_offered_under_the_machine(
@@ -197,9 +303,11 @@ def test_a_newer_release_is_offered_under_the_machine(
         expect(page.locator("[data-hmz=newer]")).to_be_visible()
         page.locator("[data-hmz=machine-menu]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Adaptive", "Light", "Dark", "Update", "Settings", "Usage"]
+            ["Auto", "Light", "Dark", "Themes", "Update", "Settings", "Usage"]
         )
-        expect(page.locator("[role=menu] .choice-about")).to_have_text("hmz 99.0.0")
+        expect(page.locator("[role=menu] .choice-about")).to_have_text(
+            ["Light · Dark", "hmz 99.0.0"]
+        )
 
 
 def test_a_flow_is_opened_and_started_from_the_flows(

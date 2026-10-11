@@ -66,8 +66,8 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar names this machine and says how many epics are going on it;
-its menu switches between your system's colours, light and dark, and opens **Settings** and
-**Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
+its menu picks the [theme](#themes) -- **Auto**, which follows your system, or any theme -- and
+opens **Themes**, **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
@@ -178,6 +178,7 @@ The same pages as [`/settings`](/user/settings), in the same order, and what the
 | Page | What is there |
 | --- | --- |
 | **General** | Whether a turn's working is shown, the [`/btw` agent](/user/btw), and [error reports](/user/reporting) |
+| **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
@@ -187,6 +188,47 @@ The same pages as [`/settings`](/user/settings), in the same order, and what the
 An account is never shown by its values: a page lists the names of the variables it sets, and
 nothing else. A way in that runs a CLI's own sign-in, such as `login`, needs a terminal: it is
 offered as `(at a terminal)` and made from `/settings` in `hmz`.
+
+### Themes {#themes}
+
+The page is drawn in a theme: **Light** and **Dark**, humanize's own, or one you make. **Auto**,
+the default, follows your system: under **Settings → Themes → Auto** pick the theme it shows when
+the system is light and the one when it is dark -- any two themes, your own included.
+
+**New** makes a theme from the one showing, **Duplicate** from any; **Edit** opens one of yours:
+
+- **Name**, and the **Base** it is made on, Light or Dark, whose colour any you leave blank is.
+- Every colour, by what it colours: **Backgrounds** (page, sidebar, surface, raised),
+  **Text**, **Controls** (button, its text, primary button, its text, field, edge), **Lines**,
+  **Accents** and the **Graph**'s lanes. Pick one or type any CSS colour, such as
+  `#102030` or `rgba(255, 255, 255, 0.1)`; × gives back the base's.
+- **Pictures** behind the **Page**, **Sidebar**, **Panel** and **Dialog**: a PNG, JPEG, GIF,
+  WebP, AVIF or SVG -- an animated SVG moves -- each to **Cover**, **Fit** or **Tile** its plane.
+  Where your system asks for reduced motion, a moving picture is held still.
+
+The page shows a theme as you change it, and keeps every change at once. **Export** saves a
+theme, pictures and all, as a `.hmztheme` file; **Import** reads one back, here or in any other
+browser. Themes are kept by the browser, as the rest of what the page remembers is, so another
+browser -- or [the app](/user/desktop) -- has its own until you import them there.
+
+A `.hmztheme` file is JSON:
+
+```json
+{
+  "hmztheme": 1,
+  "name": "Night",
+  "base": "dark",
+  "colors": { "paper": "#102030", "primary": "#ec6fa3" },
+  "images": { "page": { "fit": "cover", "data": "data:image/svg+xml;base64,…" } }
+}
+```
+
+`colors` is keyed by the page's colour tokens (`paper`, `side`, `surface`, `raised`, `ink`,
+`ink-2`, `ink-3`, `on-ink`, `on-fill`, `link`, `control`, `control-ink`, `primary`,
+`on-primary`, `field`, `edge`, `line`, `line-strong`, `hover`, `scrim`, `green`, `cyan`,
+`cyan-ink`, `pink`, `pink-ink`, `lavender`, `gold`, `done`, `fail`, `lane-1` to `lane-6`), and
+`images` by plane (`page`, `sidebar`, `panel`, `dialog`). Importing keeps what a theme can hold
+and drops the rest: an unknown token, a value that is not a colour, a picture that is not an image.
 
 ## Example: start an epic in the browser, answer it in the terminal
 

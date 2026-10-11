@@ -1,7 +1,8 @@
 // What humanize remembers, as ChatGPT keeps its settings: a dialog over the page with its pages
 // down the side, in the order the terminal interface's `/settings` lists them -- what is true
 // wherever humanize runs, who its agents are and what takes over when one fails, where their
-// work goes, this one directory -- and last what the runs here spent.
+// work goes, this one directory -- and last what the runs here spent; and, after what is true
+// wherever humanize runs, how this browser draws the page.
 
 import { shut } from '../app.js'
 import { fill, h, iconButton, problem } from '../dom.js'
@@ -10,6 +11,7 @@ import { dragged } from '../shell.js'
 /** Every page, by the word in the address that opens it. */
 const PAGES = {
   general: { label: 'General', about: 'Display, side questions and reporting', load: () => import('./settings/general.js') },
+  themes: { label: 'Themes', about: 'Colours and pictures of this browser’s page', load: () => import('./settings/themes.js') },
   accounts: { label: 'Accounts', about: 'Credentials agents run as', load: () => import('./settings/accounts.js') },
   fallback: { label: 'Fallback', about: 'Where a failed turn goes next', load: () => import('./settings/fallback.js') },
   runtimes: { label: 'Runtimes', about: 'Machines environments run on', load: () => import('./settings/runtimes.js') },
@@ -46,7 +48,7 @@ export function mount(root, { parts, query }) {
   page
     .load()
     .then((module) => {
-      if (!gone) leaving = module.draw(body, query) || null
+      if (!gone) leaving = module.draw(body, query, parts) || null
     })
     .catch((error) => fill(body, problem(error)))
   return () => {

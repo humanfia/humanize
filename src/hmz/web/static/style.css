@@ -10,9 +10,11 @@
    handover, what you said, a pressed button's shadow, a chosen card, a selection). Her
    lavender and gold come third, in the lanes and the budget. Every colour is a token below, set
    once for light and once for dark, never a literal; a colour used as text has an `-ink` cut
-   deep enough to read on the paper. */
+   deep enough to read on the paper. A theme made in the page sets any of them over these, on the
+   root, and a picture behind any of the large planes as `--<plane>-image`. */
 
-:root {
+:root,
+[data-theme='light'] {
   color-scheme: light;
   --paper: #f4f8f9;
   --surface: #fbfdfd;
@@ -58,7 +60,7 @@
   --column: 780px;
 }
 
-:root[data-theme='dark'] {
+[data-theme='dark'] {
   color-scheme: dark;
   --paper: #0f1418;
   --surface: #172026;
@@ -96,6 +98,18 @@
   --lane-4: #f2c862;
   --lane-5: #86b8f2;
   --lane-6: #94a3aa;
+}
+
+/* The controls, in the paper's colours unless a theme says otherwise: worked out wherever a
+   theme is, so that a theme's swatches show what its controls are drawn in. */
+:root,
+[data-theme] {
+  --control: var(--raised);
+  --control-ink: var(--ink);
+  --primary: var(--ink);
+  --on-primary: var(--on-ink);
+  --field: var(--raised);
+  --edge: var(--ink);
 }
 
 *,
@@ -1181,13 +1195,13 @@ textarea {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border: 2px solid var(--ink);
+  border: 2px solid var(--edge);
   border-radius: 0;
-  background: var(--raised);
-  color: var(--ink);
+  background: var(--control);
+  color: var(--control-ink);
   font: 600 13px var(--sans);
   cursor: pointer;
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: 3px 3px 0 var(--edge);
   text-decoration: none;
   white-space: nowrap;
   transition: transform 0.12s, box-shadow 0.12s;
@@ -1209,8 +1223,8 @@ textarea {
 }
 
 .btn.primary {
-  background: var(--ink);
-  color: var(--on-ink);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .btn.danger {
@@ -1255,7 +1269,7 @@ textarea {
 
 .segmented {
   display: inline-flex;
-  border: 2px solid var(--ink);
+  border: 2px solid var(--edge);
   overflow: hidden;
   flex-wrap: wrap;
 }
@@ -1263,7 +1277,7 @@ textarea {
 .segmented button {
   border: 0;
   border-right: 1px solid var(--line-strong);
-  background: var(--raised);
+  background: var(--control);
   color: var(--ink-2);
   padding: 4px 10px;
   font: 600 12.5px var(--sans);
@@ -1275,8 +1289,8 @@ textarea {
 }
 
 .segmented button[aria-pressed='true'] {
-  background: var(--ink);
-  color: var(--on-ink);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .segmented .count {
@@ -1290,7 +1304,7 @@ select,
 textarea {
   font: 13.5px var(--sans);
   color: var(--ink);
-  background: var(--raised);
+  background: var(--field);
   border: 1px solid var(--line-strong);
   border-radius: 0;
   padding: 6px 8px;
@@ -1319,7 +1333,7 @@ select {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--ink);
+  border-color: var(--edge);
 }
 
 textarea {
@@ -3357,6 +3371,157 @@ details.said-more summary {
   :root[data-shell='macos']:not([data-fullscreen]) :is(header.bar, .settings-nav, .dialog-head) {
     padding-left: var(--lights);
   }
+}
+
+/* ------------------------------------------------------------------ themes */
+
+.panel > header > .row {
+  margin-left: auto;
+}
+
+.theme-list {
+  display: grid;
+  gap: 8px;
+}
+
+.theme-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px;
+  border: 1px solid var(--line);
+}
+
+.theme-row.chosen {
+  border-color: var(--cyan);
+  box-shadow: 3px 3px 0 var(--cyan);
+}
+
+.theme-name {
+  flex: 1;
+  min-width: 120px;
+  display: grid;
+}
+
+/* A theme drawn small, in its own colours: a strip of its sidebar, its text on its page, and
+   its accents. */
+.theme-swatch {
+  position: relative;
+  flex: none;
+  width: 96px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  overflow: hidden;
+  background: var(--paper) center / cover no-repeat;
+  border: 2px solid var(--ink);
+  color: var(--ink);
+}
+
+.theme-swatch-side {
+  align-self: stretch;
+  width: 22px;
+  background: var(--side);
+  border-right: 1px solid var(--line-strong);
+}
+
+.theme-swatch-text {
+  font-weight: 700;
+}
+
+.theme-swatch-dots {
+  display: grid;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.theme-swatch-dots i {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--ink);
+}
+
+.theme-colours > .panel {
+  margin-top: 16px;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 12px 16px;
+}
+
+.theme-colour {
+  display: grid;
+  gap: 4px;
+}
+
+.theme-colour-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-colour-row input[type='text'] {
+  flex: 1;
+  width: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.theme-colour-row input[type='color'] {
+  flex: none;
+  width: 34px;
+  height: 30px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--fail);
+}
+
+.theme-thumb {
+  width: 56px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface) center / cover no-repeat;
+}
+
+.theme-thumb.none {
+  background-image: linear-gradient(135deg, transparent 0 48%, var(--line-strong) 48% 52%, transparent 52%);
+}
+
+/* A theme's pictures, each behind its plane: covering it, fitted in it or tiled over it. */
+.main {
+  background: var(--page-image, none) center / var(--page-size, cover) var(--page-repeat, no-repeat);
+}
+
+.sidebar,
+.inspector,
+.dialog {
+  background-position: center;
+}
+
+.sidebar {
+  background-image: var(--sidebar-image, none);
+  background-size: var(--sidebar-size, cover);
+  background-repeat: var(--sidebar-repeat, no-repeat);
+}
+
+.inspector {
+  background-image: var(--panel-image, none);
+  background-size: var(--panel-size, cover);
+  background-repeat: var(--panel-repeat, no-repeat);
+}
+
+.dialog {
+  background-image: var(--dialog-image, none);
+  background-size: var(--dialog-size, cover);
+  background-repeat: var(--dialog-repeat, no-repeat);
 }
 
 /* What the window is dragged by is not text to select. */

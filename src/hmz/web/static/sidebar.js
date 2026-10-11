@@ -10,6 +10,7 @@ import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.
 import { sessionsOf } from './epic.js'
 import { nameOf } from './places.js'
 import { choice, dragged, keep, kept, menu, section, settleSidebar, toggleSidebar } from './shell.js'
+import { choose, chosen, paired, theme, themes } from './themes.js'
 
 /** How many epics a page of the list holds. */
 const PAGE = 60
@@ -46,7 +47,9 @@ export function mountSidebar(root, context, where) {
     account,
     (close) => [
       section('Theme'),
-      ['system', 'light', 'dark'].map((one) => choice({ label: { system: 'Adaptive', light: 'Light', dark: 'Dark' }[one], chosen: themeChosen() === one, act: () => setTheme(one), close })),
+      choice({ label: 'Auto', about: Object.values(paired()).map((id) => theme(id).name).join(' · '), chosen: chosen() === 'auto', act: () => choose('auto'), close }),
+      themes().map((one) => choice({ label: one.name, chosen: chosen() === one.id, act: () => choose(one.id), close })),
+      choice({ label: 'Themes', glyph: 'sliders', href: '#/settings/themes', close }),
       h('hr'),
       context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
@@ -334,19 +337,4 @@ function forget(path) {
 
 function tone(how) {
   return { stopping: 'running', budget: 'stopped', refused: 'failed', crashed: 'failed' }[how] || how
-}
-
-export function themeChosen() {
-  return kept('hmz-theme', null) || 'system'
-}
-
-export function setTheme(chosen) {
-  keep('hmz-theme', chosen === 'system' ? null : chosen)
-  applyTheme()
-}
-
-export function applyTheme() {
-  const chosen = themeChosen()
-  const dark = chosen === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches : chosen === 'dark'
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
 }

@@ -46,7 +46,8 @@ The app is a window, not a second humanize. It runs `hmz` as
   `hmz` and the coding agent CLIs are found as a terminal finds them, and your home is the
   directory a new epic is offered first.
 - **It keeps its port.** `hmz web` listens on the port it had last time, so the page opens as
-  you left it.
+  you left it, in the [theme](/user/web#themes) you chose. A theme made in a browser is brought
+  into the app by exporting it there and importing it here.
 - **Closing the window is not quitting.** The app stays in the Dock and `hmz web` keeps serving;
   click the Dock icon to bring the window back. Quit with <kbd>cmd+q</kbd>, which stops
   `hmz web` too. However the app ends, `hmz web` goes with it.
