@@ -446,13 +446,14 @@ class _Handler(BaseHTTPRequestHandler):
 
         The name is said, percent-encoded, in `X-Hmz-Filename`.
         """
-        name = urllib.parse.unquote(self.headers.get(_FILENAME, ""))
+        name = os.path.basename(urllib.parse.unquote(self.headers.get(_FILENAME, "")))  # noqa: PTH119
         # Its last part, and nothing that would put it anywhere but straight in `scratch`.
-        at = os.path.normpath(os.path.join(scratch, os.path.basename(name)))  # noqa: PTH118, PTH119
+        at = os.path.normpath(os.path.join(scratch, name))  # noqa: PTH118
         if (
-            os.path.dirname(at) != str(scratch)  # noqa: PTH120
+            not at.startswith(f"{scratch}{os.sep}")
+            or os.sep in at.removeprefix(f"{scratch}{os.sep}")
             or "\0" in at
-            or len(os.path.basename(at).encode()) > _NAMED  # noqa: PTH119
+            or len(name.encode()) > _NAMED
         ):
             raise Refusal(f"Say the file's name in {_FILENAME}.", 400)
         left = self._length(_LARGEST_FILE)
