@@ -106,9 +106,10 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "move me")
-        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: move me")
+        page.locator("[data-hmz=bar] .crumbs a").click()
         agent = page.locator("[data-hmz=graph-agent][data-role=assistant]")
-        expect(agent.locator("[data-hmz=graph-session] .unread")).to_have_count(1)
+        expect(agent.locator("[data-hmz=graph-session]")).to_be_visible()
         canvas = page.locator("[data-hmz=graph]").bounding_box()
         drawn = agent.bounding_box()
         assert canvas
