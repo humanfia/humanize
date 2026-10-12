@@ -32,6 +32,7 @@ from hmz.web import listening
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    import pytest
     from playwright.sync_api import Page
 
     from hmz.web.site import Site
@@ -314,6 +315,41 @@ def until(
         if wanted(event, data):
             return ident, data
     raise AssertionError(f"the stream never said {what}")
+
+
+def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """An epic run here and backed up to `t`, then this machine made one that has not got it.
+
+    Another machine is a home of its own, sharing the workspace and the repository: what it
+    has is a target `t` in its settings and nothing else.
+
+    Returns:
+      The epic's name.
+    """
+    import subprocess
+
+    import yaml
+
+    from hmz import home
+    from hmz.runtime.epic import every
+    from tests.integration.doubles_core import AGENT, hmz_exec
+
+    bare = tmp_path / "epics.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    target = {"name": "t", "url": str(bare), "policies": ["end"]}
+
+    def targets() -> None:
+        home().mkdir(parents=True, exist_ok=True)
+        said = {"backup": {"targets": [target], "defaults": []}}
+        (home() / "settings.yaml").write_text(yaml.safe_dump(said))
+
+    targets()
+    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi")
+    assert ran.returncode == 0, ran.stderr
+    (name,) = [one.name for one in every()]
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))
+    targets()
+    return name
 
 
 def elsewhere(archive: Path, workspace: str, to: Path) -> Path:

@@ -12,7 +12,7 @@ import pytest
 from hmz import home
 from hmz.runtime import backing
 from tests.integration.doubles_core import AGENT, hmz_exec, install
-from tests.integration.doubles_web import Browser, served
+from tests.integration.doubles_web import Browser, backed_up_elsewhere, served
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -328,3 +328,41 @@ def test_the_backup_saved_for_a_flow_is_what_it_opens_on(project: Path) -> None:
         assert saved.json()["remembered"]["backup"] == ["t"]
         browser.post("/api/flows/setup", setup | {"backup": []})
         assert browser.get("/api/flow?name=chat").json()["remembered"]["backup"] == []
+
+
+def test_an_epic_backed_up_elsewhere_is_listed_downloaded_and_read(
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    name = backed_up_elsewhere(tmp_path, monkeypatch)
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        assert browser.get("/api/runs").json()["runs"] == []
+
+        listed = browser.get("/api/backups/t/epics")
+
+        assert listed.status == 200, listed.body
+        (held,) = listed.json()["epics"]
+        assert (held["epic"], held["flow"], held["task"], held["how"]) == (
+            name,
+            "chat",
+            "hi",
+            "done",
+        )
+        assert held["here"] is False
+        assert held["workspace"] == str(project.resolve())
+        pulled = browser.post("/api/backups/t/pull", {"key": held["key"]})
+        assert pulled.status == 200, pulled.body
+        assert pulled.json() == {"name": name}
+        read = browser.get(f"/api/runs/{name}").json()
+        assert (read["task"], read["foreign"]) == ("hi", "")
+        assert browser.get("/api/backups/t/epics").json()["epics"][0]["here"] is True
+
+        again = browser.post("/api/backups/t/pull", {"key": held["key"]})
+        assert again.status == 400
+        assert "already here" in again.json()["error"]
+        assert browser.get("/api/backups/x/epics").status == 400
+        assert browser.post("/api/backups/t/pull", {"key": "../x/y"}).status == 400
+        lost = {"name": "lost", "url": str(tmp_path / "nowhere.git")}
+        browser.post("/api/settings", {"backup": {"targets": [lost]}})
+        assert browser.get("/api/backups/lost/epics").status == 502

@@ -21,7 +21,14 @@ from playwright.sync_api import expect
 
 import hmz.coganchor.models
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, elsewhere, go, opened, served
+from tests.integration.doubles_web import (
+    ENGINES,
+    backed_up_elsewhere,
+    elsewhere,
+    go,
+    opened,
+    served,
+)
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -377,7 +384,7 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
         # A theme is chosen only in Settings: the machine's menu offers none.
         page.locator("[data-hmz=machine-menu]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Import", "Settings", "Usage"]
+            ["Import", "Settings", "Usage", "Download"]
         )
         page.keyboard.press("Escape")
         go(page, "/settings/themes")
@@ -551,7 +558,7 @@ def test_a_newer_release_is_offered_under_the_machine(
         expect(page.locator("[data-hmz=newer]")).to_be_visible()
         page.locator("[data-hmz=machine-menu]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Update", "Import", "Settings", "Usage"]
+            ["Update", "Import", "Settings", "Usage", "Download"]
         )
         expect(page.locator("[role=menu] .choice-about")).to_have_text(["hmz 99.0.0"])
 
@@ -794,6 +801,29 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
             check=True,
         )
         assert re.fullmatch(r"Back up epic \S+ \(manual\)\n", log.stdout)
+
+
+def test_an_epic_backed_up_elsewhere_is_downloaded_and_opened(
+    project: Path, engine: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    name = backed_up_elsewhere(tmp_path, monkeypatch)
+    with served() as site, opened(site, engine=engine) as page:
+        page.locator("[data-hmz=machine-menu]").click()
+        page.get_by_role("menuitem", name="Download").click()
+
+        stored = page.locator(f"[data-hmz=stored-epic][data-epic='{name}']")
+        expect(stored).to_contain_text("hi")
+        # The one target there is is the only one to pick.
+        expect(page.locator("[data-hmz=download-target]")).to_be_hidden()
+        stored.get_by_role("button", name="Download").click()
+
+        page.wait_for_url(re.compile(rf".*#/epics/{re.escape(name)}"))
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(re.compile("done"))
+        expect(page.locator("[data-hmz=epic]")).to_have_count(1)
+
+        go(page, "/download")
+        expect(stored).to_contain_text("Here")
+        expect(stored.get_by_role("link", name="Open")).to_be_visible()
 
 
 @pytest.mark.parametrize(("width", "dark"), [(1280, False), (390, True)])

@@ -122,6 +122,10 @@ same path, on the commit it was on. An epic you already have -- one this machine
 still keeps, or one downloaded before -- is refused. Without `--to`, every target is looked in;
 where two machines' epics share a name, name it as `<machine>/<workspace>/<epic>`.
 
+In [`hmz web`](/user/web), **Download** in the machine's menu lists what a
+target holds by machine and then by directory, the ones already here marked **Here**; pick the
+target where there is more than one. **Download** on an epic brings it here and opens it.
+
 From Python, `Hmz().backups.listed("lab")` lists them and
 `Hmz().backups.pulled("lab", key)` downloads one; `listed` fetches first, so call it off any
 thread a screen is drawn on.

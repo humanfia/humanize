@@ -50,6 +50,7 @@ export function mountSidebar(root, context, where) {
       choice({ label: 'Import', glyph: 'file', act: pick, close }),
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
       choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
+      choice({ label: 'Download', glyph: 'download', href: '#/download', close }),
     ],
     { up: true, label: 'Machine' },
   )

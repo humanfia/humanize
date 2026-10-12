@@ -23,6 +23,7 @@ const VIEWS = {
 /** Every dialog, opened over the view the page was on. */
 const DIALOGS = {
   search: () => import('./views/search.js'),
+  download: () => import('./views/download.js'),
   settings: () => import('./views/settings.js'),
 }
 

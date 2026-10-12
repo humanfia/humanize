@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any, cast
 from .routing import Download, Made, Refusal, Route, routes
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hmz.runtime.epic import Called, Ran
 
     from .places import Places
@@ -633,10 +635,49 @@ def _backup(asked: Asked) -> dict[str, Any]:
         # Queued, never waited on: how it went is read back off the epic as it is polled.
         queued = runs.hmz(ran).backups.push(ran, cast("list[str] | None", to))
     except ValueError as why:
-        raise Refusal(f"{str(why)[:1].upper()}{str(why)[1:]}.") from why
+        raise Refusal(_reason(str(why))) from why
     if not queued:
         raise Refusal("There is no backup target: add one in Settings.", 409)
     return {"queued": list(queued)}
+
+
+def _stored(asked: Asked) -> dict[str, Any]:
+    target = asked.matched["target"]
+    hmz = asked.site.hmz
+    # Fetched afresh, which can take a while: on this request's own thread, holding up no other.
+    held = _fetched(hmz, target, lambda: hmz.backups.listed(target))
+    # Here is an epic of that name run in that workspace, as a download would land it.
+    here = {(_resolved(one.workspace), one.name) for one in asked.site.runs.all()}
+    return {
+        "epics": [
+            one._asdict() | {"here": (_resolved(one.workspace), one.epic) in here}
+            for one in reversed(held)
+        ]
+    }
+
+
+def _pull(asked: Asked) -> dict[str, Any]:
+    target = asked.matched["target"]
+    key = asked.text("key")
+    hmz = asked.site.hmz
+    at = _fetched(hmz, target, lambda: hmz.backups.pulled(target, key))
+    return {"name": at.name}
+
+
+def _fetched[T](hmz: Any, target: str, fetch: Callable[[], T]) -> T:
+    """What a backup target answered, or a refusal saying why not, with nothing signed in."""
+    try:
+        return fetch()
+    except ValueError as why:
+        raise Refusal(_reason(hmz.verses.plain(str(why)))) from why
+    except OSError as why:
+        said = hmz.verses.plain(str(why))
+        raise Refusal(_reason(f"{target}: {said}"), 502) from why
+
+
+def _reason(why: str) -> str:
+    """A reason as a refusal says it: a sentence."""
+    return f"{why[:1].upper()}{why[1:]}."
 
 
 def _import(asked: Asked) -> Made:
@@ -670,6 +711,8 @@ ROUTES = (
         ("GET", "/api/runs/{name}/bundle", _bundle),
         ("POST", "/api/runs/{name}/backup", _backup),
         ("GET", "/api/usage", _usage),
+        ("GET", "/api/backups/{target}/epics", _stored),
+        ("POST", "/api/backups/{target}/pull", _pull),
     ),
     Route("POST", "/api/runs/import", _import, file=BUNDLE),
 )

@@ -66,7 +66,8 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar names this machine and says how many epics are going on it;
-its menu opens **Import**, **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
+its menu opens **Import**, **Settings**, **Usage** and **Download**, which downloads an epic out of a
+[backup target](/user/backups#downloading-an-epic). Where a newer humanize is out, the machine is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
