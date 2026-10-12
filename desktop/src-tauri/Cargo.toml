@@ -27,6 +27,11 @@ libc = "0.2"
 log = "0.4"
 # The update's alerts: CFUserNotification, which never holds up a quit as a sheet would.
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFDate", "CFDictionary", "CFString", "CFURL", "CFUserNotification"] }
+# Notifications the page asks for: UNUserNotificationCenter, and a delegate told of a click.
+block2 = { version = "0.6", default-features = false, features = ["std"] }
+objc2 = { version = "0.6", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSError", "NSObject", "NSString"] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationTrigger", "UNUserNotificationCenter"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 # What generate_context! writes the updater's configuration out with.

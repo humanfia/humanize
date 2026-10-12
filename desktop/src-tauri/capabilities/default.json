@@ -1,7 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The app's own page: its own commands need no permission, and it is granted only to drag and zoom the window.",
+  "description": "The app's own page: granted its own commands, which say and change how hmz web starts, and to drag and zoom the window.",
   "windows": ["main"],
-  "permissions": ["core:window:allow-start-dragging", "core:window:allow-internal-toggle-maximize"]
+  "permissions": [
+    "allow-status",
+    "allow-retry",
+    "allow-keep",
+    "allow-update-now",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize"
+  ]
 }

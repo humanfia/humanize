@@ -58,6 +58,19 @@ The app is a window, not a second humanize. It runs `hmz` as
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
   in the Finder.
 - **It updates itself.** See [Updates](#updates).
+- **It notifies you as a Mac app does.** When an epic ends, a flow asks you something, or a chat
+  turn is done while you are not looking at the window, the page's notification shows in the
+  corner of the screen and in Notification Center. See [Notifications](#notifications).
+
+## Notifications {#notifications}
+
+The page's [notifications](/user/web#notifications) come from the app itself, so they
+look and stay as any Mac app's do. The first one asks whether humanize may send them: choose
+**Allow**. To change that later, open **System Settings → Notifications → humanize**.
+
+Clicking one brings the window forward, on what it is about: the epic that ended, or the daemon
+whose flow asked. Which kinds you are told of is set on the page, in **Settings →
+Notifications**.
 
 ## Opening a `.hmzepic` {#opening-a-hmzepic}
 
