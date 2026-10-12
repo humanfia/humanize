@@ -74,20 +74,68 @@ export function bar({ title = '', sub = null, actions = [], lead = null } = {}) 
   )
 }
 
+/** Room kept between a popup and the window's edge, and between it and what opened it. */
+const EDGE = 8
+const GAP = 6
+
 /**
- * A menu under the button that opens it: a list of choices, each with what it is about and a
+ * Puts a popup by what opened it, against the window rather than whatever holds it -- a dialog
+ * or a list that scrolls would cut it off -- as a desktop app puts a menu: on the side asked for
+ * where it fits, on the other where that has more room, no taller than the room it has, and
+ * moved in from an edge rather than past it.
+ *
+ * @param {HTMLElement} pop The popup, shown.
+ * @param {Element} anchor What opened it.
+ * @param {{align?: 'start'|'end', up?: boolean, span?: boolean}} how Which edge of it the popup
+ *   lines up with, whether it would rather open over it, and whether it is as wide as it.
+ */
+export function place(pop, anchor, { align = 'start', up = false, span = false } = {}) {
+  const box = anchor.getBoundingClientRect()
+  if (span) pop.style.width = `${box.width}px`
+  pop.style.removeProperty('--room')
+  const room = { below: innerHeight - box.bottom - GAP - EDGE, above: box.top - GAP - EDGE }
+  const [first, second] = up ? ['above', 'below'] : ['below', 'above']
+  const side = pop.offsetHeight <= room[first] || room[first] >= room[second] ? first : second
+  pop.style.setProperty('--room', `${Math.max(room[side], 80)}px`)
+  const { offsetWidth: wide, offsetHeight: tall } = pop
+  pop.style.top = `${side === 'below' ? box.bottom + GAP : Math.max(EDGE, box.top - GAP - tall)}px`
+  const left = align === 'end' ? box.right - wide : box.left
+  pop.style.left = `${Math.max(EDGE, Math.min(left, innerWidth - wide - EDGE))}px`
+}
+
+/** Places a popup and keeps it by what opened it as the page scrolls, the window is sized or the popup grows; says how to stop. */
+export function follow(pop, anchor, how) {
+  const again = (event) => {
+    if (!event || !(event.target instanceof Node) || !pop.contains(event.target)) place(pop, anchor, how)
+  }
+  again()
+  const grown = new ResizeObserver(() => again())
+  grown.observe(pop)
+  addEventListener('scroll', again, true)
+  addEventListener('resize', again)
+  return () => {
+    grown.disconnect()
+    removeEventListener('scroll', again, true)
+    removeEventListener('resize', again)
+  }
+}
+
+/**
+ * A menu by the button that opens it: a list of choices, each with what it is about and a
  * mark on the one chosen, closed by a choice, a click elsewhere or Escape.
  *
  * @param {HTMLElement} anchor What it opens under.
  * @param {() => Node[]} items What it holds, made each time it opens.
- * @param {{align?: 'start'|'end', up?: boolean, label: string}} where
+ * @param {{align?: 'start'|'end', up?: boolean, span?: boolean, label: string}} where See `place`.
  */
-export function menu(anchor, items, { align = 'start', up = false, label }) {
+export function menu(anchor, items, { align = 'start', up = false, span = false, label }) {
   let open = null
+  let unfollow = () => {}
   anchor.setAttribute('aria-haspopup', 'menu')
   anchor.setAttribute('aria-expanded', 'false')
   const close = () => {
     if (!open) return
+    unfollow()
     open.remove()
     open = null
     anchor.setAttribute('aria-expanded', 'false')
@@ -107,8 +155,9 @@ export function menu(anchor, items, { align = 'start', up = false, label }) {
   anchor.addEventListener('click', () => {
     if (open) return close()
     // Not what the window is dragged by, though it opens in a row that is.
-    open = dragged(h('div', { class: ['popover', up && 'up', align === 'end' && 'end'], role: 'menu', 'aria-label': label }, items(close)), 'false')
+    open = dragged(h('div', { class: 'popover', role: 'menu', 'aria-label': label }, items(close)), 'false')
     anchor.after(open)
+    unfollow = follow(open, anchor, { align, up, span })
     anchor.setAttribute('aria-expanded', 'true')
     document.addEventListener('pointerdown', outside, true)
     document.addEventListener('keydown', escape, true)

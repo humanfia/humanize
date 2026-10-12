@@ -36,6 +36,7 @@ from typing import (
 
 from hmz.coganchor.backends import AUTO
 
+from .clis import Cli, Shelf
 from .codenames import codename
 from .config import PERMISSIONS, UNSAID, Unfenced, Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
@@ -57,6 +58,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import MachineConfig
     from hmz.coganchor.providers import Provider
+    from hmz.coganchor.tailing import Tail
 
     from .allowance import Ledger
     from .config import AgentConfig, Budget
@@ -85,6 +87,12 @@ class Journal(Protocol):
 #: account. For a machine that will not hand a tracee over, and for a suite of stand-ins that
 #: must not need one.
 KEEPING = "HUMANIZE_SESSIONS"
+
+
+def _unkept() -> bool:
+    """Whether this process was told to keep no session of its own (:data:`KEEPING`)."""
+    return os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no")
+
 
 #: What a directory of a CLI's kept sessions holds copies of conversations under, beside the
 #: sessions themselves: a name no CLI keeps anything under, and never part of a conversation.
@@ -496,6 +504,12 @@ class SessionBase(ABC):
     #: offering it -- a tool the model never sees is a flow that does not do what it says.
     takes_tools: ClassVar[bool] = False
 
+    #: Whether this backend has a shell whose PATH a command line of the flow's can be put
+    #: on (:meth:`shelves`). True for every one of these that runs commands; False for one
+    #: with nothing to run them in, whose sessions refuse a command line rather than shelve
+    #: one the model can never reach.
+    takes_clis: ClassVar[bool] = True
+
     #: Whether a turn of this backend can be talked to while it is running, rather than only
     #: between turns. A session that can takes a later word into the turn already under way,
     #: which is what :meth:`interject` does; one that cannot was handed the whole prompt up
@@ -555,6 +569,9 @@ class SessionBase(ABC):
         #: toolbox so that a session can say what it is offering without asking the agent
         #: what everything else is offering too.
         self._tools: tuple[Tool, ...] = ()
+        #: The flow's own command lines this conversation is putting on the agent's PATH, held
+        #: here as well as on the agent's shelf for the reason its tools are.
+        self._clis: tuple[Cli, ...] = ()
         #: And which of them are actually down in the workspace now, or None while none are.
         #: The two differ for exactly as long as it takes the next turn to start, which is
         #: where what was asked for is put where the backend reads it.
@@ -621,6 +638,10 @@ class SessionBase(ABC):
         #: already up -- so a session that has moved account starts another rather than
         #: speaking to the one it has. Read and written on the thread taking the turn.
         self._as: str | None = None
+        #: Where the agent's shelf was when that was started (:meth:`Shelf.where`): "" for
+        #: one started before anything was ever shelved, which has none of the flow's command
+        #: lines on its PATH and is started again once there are some.
+        self._pathed = ""
         #: The shape the turn now running was asked to answer in, or None for one asked for
         #: nothing in particular. Written under the lock that serializes the turns and read
         #: by whatever builds the call, since a command line and a process's own arguments
@@ -637,6 +658,8 @@ class SessionBase(ABC):
         #: a round and drops it closes none of them, and a callback still in front of the
         #: model after the round that wrote it is one the flow can no longer see the point of.
         self._unoffering: Callable[[], None] | None = None
+        #: And what takes back what it shelved, for the same reason and in the same way.
+        self._unshelving: Callable[[], None] | None = None
         #: Whether a turn of this session is running now. Read by `close`, which is what a stop
         #: reaches and so is called from another thread while a turn is under way: what the
         #: turn is working by is not taken away underneath it.
@@ -777,6 +800,41 @@ class SessionBase(ABC):
             # its number can be handed to another one.
             self._unoffering = weakref.finalize(self, box.offers, id(self), ())
         box.offers(id(self), self._tools)
+
+    @property
+    def clis(self) -> tuple[Cli, ...]:
+        """The flow's own command lines this conversation is putting on the agent's PATH."""
+        return self._clis
+
+    def shelves(self, clis: Iterable[Cli] | None) -> None:
+        """Says which command lines of the flow's the agent may run, from the next turn on.
+
+        A command line is a program on the agent's PATH whose every run -- `--help` and usage
+        errors included -- is answered here, by a parser built from what each command takes
+        and by the flow's own function for the command run. The model finds it the way it
+        finds any program, and running it is that function running in this process.
+
+        Said on the conversation for the reason :meth:`offers` is, and what the CLI is
+        actually given is the agent's, so two conversations shelving a command line of one
+        name are shelving one.
+
+        Args:
+          clis: The command lines, or None to take back whatever this conversation was
+            shelving.
+
+        Raises:
+          NotImplementedError: If this backend has no shell to run one in.
+        """
+        if clis and not type(self).takes_clis:
+            raise NotImplementedError(
+                f"{self._agent.backend} has no shell to run a command line of a flow's own in"
+            )
+        self._clis = () if clis is None else tuple(clis)
+        shelf = self._agent.shelf
+        if self._clis and self._unshelving is None:
+            # Registered the first time anything is said, for the reason `offers` says.
+            self._unshelving = weakref.finalize(self, shelf.shelves, id(self), ())
+        shelf.shelves(id(self), self._clis)
 
     @property
     def id(self) -> str:
@@ -1885,7 +1943,10 @@ class SessionBase(ABC):
           callbacks in front of it moving to a backend that takes none.
         """
         offered = self._agent.toolbox.offered()
-        return not offered or type(self._moving_to(stood_in)).takes_tools
+        moved = type(self._moving_to(stood_in))
+        return (not offered or moved.takes_tools) and (
+            self._agent.shelf.empty() or moved.takes_clis
+        )
 
     def _instead(
         self,
@@ -1936,6 +1997,8 @@ class SessionBase(ABC):
         # too. Nothing at all where nothing is offered, and a turn with any in front of it is
         # only ever moved somewhere they can go.
         session.offers(self._agent.toolbox.offered())
+        # And its command lines, for the same reason.
+        session.shelves(self._agent.shelf.shelved())
         session._mounts()
         yield from session._falling_back(prompt, schema=schema)
 
@@ -2135,6 +2198,10 @@ class SessionBase(ABC):
             if (held := self._agent.allowance) is not None:
                 held.over()
         self._shut()
+        if self._id is not None:
+            # What the CLI logged on another machine, copied whole now that it is done --
+            # waited for, unless this is a stop arriving under a turn, which must not wait.
+            self._agent._closes(self._id, wait=not self._working)
         # And whatever this conversation was offering the agent: a callback that outlived the
         # conversation offering it would be one the flow can no longer see the point of.
         # Calling the finalizer is what takes them back, so that a session closed by hand and
@@ -2148,6 +2215,12 @@ class SessionBase(ABC):
             # lines above would otherwise be an entry with nothing left to take it back.
             # Offering after this has returned is offering afresh, which registers its own.
             self._agent.toolbox.offers(id(self), ())
+        # And whatever it was shelving, the same way.
+        if self._unshelving is not None:
+            self._unshelving()
+            self._unshelving = None
+            self._clis = ()
+            self._agent.shelf.shelves(id(self), ())
         if self._moved_to is not None:
             # And the conversation this one moved to, which is this conversation carried on
             # somewhere else: it ends when this one does.
@@ -2215,7 +2288,10 @@ class SessionBase(ABC):
           Whether to let go of it before this turn. False for a session holding nothing yet,
           and for one whose agent has not moved.
         """
-        return self._as is not None and self._as != self._agent.node().name
+        return self._as is not None and (
+            self._as != self._agent.node().name
+            or self._pathed != self._agent.shelf.where()
+        )
 
     @property
     def cwd(self) -> str:
@@ -2379,6 +2455,9 @@ class SessionBase(ABC):
                 )
             self._id = session_id
             self._agent._opens(session_id)
+            if self._agent._tail is not None:
+                # And let go of, for a session nobody closes, rather than copied for ever.
+                weakref.finalize(self, self._agent._closes, session_id, wait=False)
             if self._agent.epic is not None:
                 # The run is the only thing that knows this session was one of its own: the
                 # backend logs it under this id and never says whose it was. Nor which
@@ -2521,6 +2600,8 @@ class SessionBase(ABC):
         made._budget = self._budget
         if self._tools:
             made.offers(self._tools)
+        if self._clis:
+            made.shelves(self._clis)
         return made
 
     def _bring(self, cwd: str) -> None:
@@ -3267,6 +3348,9 @@ class StreamSessionBase(SessionBase):
         # Read early, the same fallback makes it start again once for nothing, which is a
         # turn's cost rather than a run's.
         account = self._agent.node().name
+        # And where the shelf was, for the same reason: a process started without it on its
+        # PATH is started again once it is there (:meth:`elsewhere`).
+        pathed = self._agent.shelf.where()
         argv = self._agent.spawned(argv, self.cwd)
         started = subprocess.Popen(
             argv,
@@ -3286,7 +3370,7 @@ class StreamSessionBase(SessionBase):
         assert started.stderr is not None  # noqa: S101
         # Which account it was started as, so that an agent that falls back is an agent whose
         # next turn starts another process rather than speaking to this one.
-        self._as = account
+        self._as, self._pathed = account, pathed
         with self._writing:
             # A new process owes nothing for what was said to the one before it. Left standing,
             # that count is an answer this session would wait for and never be given.
@@ -3871,6 +3955,12 @@ class AgentBase(ABC):
         self._loads: tuple[Loaded, ...] = ()
         # The machine this agent's turns land on, once the first of them has brought it up.
         self._anchor: AnchorConfig | None = None
+        # What copies its sessions here from that machine, for a CLI that keeps them there,
+        # and whether that has been settled.
+        self._tail: Tail | None = None
+        self._tailed = False
+        # Where its native turns say they moved the CLI's home to, once one is to.
+        self._told: Path | None = None
         #: Which account its turns run as: the one it was configured with, or the one this
         #: machine is signed into. Looked up once, when the first turn needs it, and held
         #: from then on -- an account taken away while a flow is running is not a reason for
@@ -3892,6 +3982,11 @@ class AgentBase(ABC):
         # What is serving them goes when the agent does, and at exit for one held to the end:
         # a socket nothing is behind is a socket nothing can answer on.
         weakref.finalize(self, self._toolbox.close)
+        #: The flow's own command lines this agent's conversations are shelving, and the
+        #: directory and socket that put them on its PATH. Nothing is made until something
+        #: is shelved.
+        self._shelf = Shelf()
+        weakref.finalize(self, self._shelf.close)
         #: The scratch directory a fenced agent's processes are given as their `TMPDIR`, made
         #: the first time a fenced turn is spawned and taken away with the agent. One per
         #: agent rather than per process, so that what a turn leaves there -- a build's
@@ -3912,6 +4007,15 @@ class AgentBase(ABC):
         always were.
         """
         return self._toolbox
+
+    @property
+    def shelf(self) -> Shelf:
+        """The flow's own command lines this agent's conversations are shelving, as one list.
+
+        Nothing is made until one of them shelves something: an agent whose flow hands it no
+        command lines has no directory, no socket and nothing added to its PATH.
+        """
+        return self._shelf
 
     def runs_on(self, machine: MachineConfig | None) -> None:
         """Puts this agent's turns on the machine the flow said they land on.
@@ -4294,9 +4398,14 @@ class AgentBase(ABC):
                     self._scratch = tempfile.mkdtemp(prefix="hmz-fence-")
                     weakref.finalize(self, _swept, self._scratch)
                 tmp = self._scratch
+        # And the flow's command lines, once there are any: the scripts on the PATH and the
+        # socket they reach this process on, which are this agent's own.
+        shelf = self._shelf.where()
         return replace(
             fence.granting(
-                read=[one.at for one in self._loads], write=writes, hosts=hosts
+                read=[*(one.at for one in self._loads), *([shelf] if shelf else [])],
+                write=writes,
+                hosts=hosts,
             ),
             tmp=tmp,
         )
@@ -4823,18 +4932,19 @@ class AgentBase(ABC):
 
         Returns:
           This backend's directory in :attr:`keeps` where its turns keep their sessions there,
-          and the CLI's own home where they cannot: an agent no run drives, a process told
-          `HUMANIZE_SESSIONS=off`, a machine that cannot supervise a turn, and a turn the
-          target's own CLI takes. For a backend nothing is written down about, its directory
-          in :attr:`keeps`, or None where there is none and nothing says where its CLI keeps
-          them.
+          or where what they log on another machine is copied to -- the target's own CLI, and
+          one under a harness on a machine of its own -- and the CLI's own home where neither
+          is so: an agent no run drives, a process told `HUMANIZE_SESSIONS=off`, and a machine
+          that cannot supervise a turn. For a backend nothing is written down about, its
+          directory in :attr:`keeps`, or None where there is none and nothing says where its
+          CLI keeps them.
         """
         from hmz.coganchor.backends import named
 
         profile = named(self.backend)
         if profile is None:
             return None if self.keeps is None else self.keeps / self.backend
-        if (keeps := self.keeps) is not None and self._keeping():
+        if (keeps := self.keeps) is not None and (self._keeping() or self._tailing()):
             return keeps / profile.name
         try:
             environment = self._environ()
@@ -4859,7 +4969,7 @@ class AgentBase(ABC):
         profile = named(self.backend)
         if profile is None or not profile.sessions or self.keeps is None:
             return False
-        if os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no"):
+        if _unkept():
             return False
         if profile.told:
             return True
@@ -4874,6 +4984,84 @@ class AgentBase(ABC):
         # A CLI that runs on the target, or under a harness on another machine, keeps its
         # sessions on that machine: nothing of this one's is there to keep them in.
         return not self._anchor.native and not elsewhere(self._anchor)
+
+    def _tailing(self) -> bool:
+        """Whether this agent's sessions are logged on another machine and copied here.
+
+        Returns:
+          True for a backend that logs its sessions, on an agent a run drives, whose CLI is
+          the target's own or runs under a harness on another machine, that machine being one
+          a command can be started on -- unless this process was told to keep none.
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.tailing import road
+
+        profile = named(self.backend)
+        if profile is None or not profile.logs or self.keeps is None:
+            return False
+        if _unkept():
+            return False
+        return self._anchor is not None and road(self._anchor) is not None
+
+    def _tails(self) -> Tail | None:
+        """What copies this agent's sessions here, made the first time one is opened.
+
+        Returns:
+          It, or None for an agent whose sessions are not copied (:meth:`_tailing`). A native
+          one whose account projects the CLI's home follows each turn's private directory on
+          the target, as the turn tells it (:meth:`_telling`), and what is left there is
+          brought back as the turn ends (:meth:`_bringing`).
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.serve.sessions import (
+            HOST_SPECIFIC_ENV,
+            HOST_SPECIFIC_PREFIXES,
+        )
+        from hmz.coganchor.tailing import Tail, road
+
+        with self._holding:
+            if self._tailed or not self._tailing():
+                return self._tail
+            anchor, profile, keeps = self._anchor, named(self.backend), self.keeps
+            way = None if anchor is None else road(anchor)
+            if anchor is None or profile is None or keeps is None or way is None:
+                return None  # what `_tailing` has just said is not so
+            home, told = "", None
+            variable = profile.home_var
+            if anchor.native and not (
+                variable in HOST_SPECIFIC_ENV
+                or variable.startswith(HOST_SPECIFIC_PREFIXES)
+            ):
+                # What this machine's environment says crosses to the target's own CLI, and
+                # is where it keeps its home there; a harness elsewhere is given none of it.
+                # An account that is not there is the next turn's to say.
+                with contextlib.suppress(ValueError):
+                    if variable in dict(self._projecting(self.provider)):
+                        told = self._telling()
+                    home = (self._environ() or os.environ).get(variable, "")
+            # Settled, as a turn keeping them there settles it: copies go on landing here.
+            self._keeps, self._said, self._settled = keeps, True, True
+            self._tail = Tail(way, profile, keeps / profile.name, home, told)
+            self._tailed = True
+            return self._tail
+
+    def _telling(self) -> Path:
+        """Where each native turn says where it projected the CLI's home to, for as long as it runs.
+
+        Returns:
+          A directory of this agent's own that only this user may enter, taken away with the
+          agent.
+        """
+        import shutil
+        import tempfile
+        from pathlib import Path
+
+        with self._holding:
+            if self._told is None:
+                made = tempfile.mkdtemp(prefix="hmz-homes-")
+                weakref.finalize(self, shutil.rmtree, made, ignore_errors=True)
+                self._told = Path(made)
+            return self._told
 
     def _keeping_swaps(self) -> tuple[tuple[str, str], ...]:
         """The paths this agent's sessions are kept at, and where its turn keeps them instead.
@@ -4904,11 +5092,13 @@ class AgentBase(ABC):
         comes to: every one of these CLIs reads such a thing out of a variable of its own.
 
         Returns:
-          The variables to add, which is nothing at all for an agent running as its CLI does.
+          The variables to add, which is nothing at all for an agent running as its CLI does
+          -- and a `PATH` with the flow's command lines first, once there have been any.
         """
         from hmz.coganchor import providers
 
-        return providers.environ(self.provider)
+        added = providers.environ(self.provider)
+        return {**added, **self._shelf.environ(added)}
 
     def hushed(self) -> frozenset[str]:
         """The variables a turn of this agent is run without, whoever left them lying about.
@@ -5113,7 +5303,8 @@ class AgentBase(ABC):
         is offering any: the socket it carries lines to is in *this* process, so the program
         that carries them has to run here. Everything a CLI spawns under an anchor goes to the
         target unless it is named, and a bridge started there would find no socket and no
-        humanize.
+        humanize. So, once the flow has shelved any command lines, is the shelf: the scripts
+        on the agent's PATH, the socket beside them and the Python they start, all kept here.
 
         Under an anchor driving the target's own CLI it is three other things, each of which a
         mirror and a tracer would otherwise have done: the variables a provider's account must
@@ -5137,7 +5328,7 @@ class AgentBase(ABC):
             from hmz.coganchor.transport import Target
 
             if (
-                not self._toolbox.empty()
+                not (self._toolbox.empty() and self._shelf.empty())
                 and Target.parse(anchor.target).scheme != "local"
             ):
                 # Refused rather than dropped. The bridge is a program on this machine that
@@ -5148,22 +5339,65 @@ class AgentBase(ABC):
                 # here, so the bridge, the socket and humanize are all where they always were.
                 raise ValueError(
                     f"{self.backend}: a turn driven on {anchor.target} cannot be offered "
-                    "the flow's own callbacks -- the bridge that carries them is a program "
-                    "on this machine, and the CLI that would start it is on that one"
+                    "the flow's own callbacks or command lines -- the bridge that carries "
+                    "them is a program on this machine, and the CLI that would start it is "
+                    "on that one"
                 )
+            projects = self._projecting(provider)
+            brings = self._bringing(projects)
             return replace(
                 anchor,
                 hushes=tuple(sorted(self.hushed())),
-                projects=self._projecting(provider),
+                projects=projects,
                 carries=carried(self.backend, self._loads),
                 installs=installing(self.backend),
+                brings=brings,
+                tells=str(self._telling()) if brings else "",
             )
-        if self._toolbox.empty():
+        import sys
+
+        execs, paths = list(anchor.local_execs), list(anchor.local_paths)
+        if not self._toolbox.empty():
+            execs.append(self._toolbox.command()[0])
+        if shelf := self._shelf.where():
+            # The scripts and the socket are this machine's, and so is what a script runs.
+            execs += [shelf, sys.executable]
+            paths.append(shelf)
+        execs, paths = list(dict.fromkeys(execs)), list(dict.fromkeys(paths))
+        if (tuple(execs), tuple(paths)) == (anchor.local_execs, anchor.local_paths):
             return anchor
-        held = self._toolbox.command()[0]
-        if held in anchor.local_execs:
-            return anchor
-        return replace(anchor, local_execs=(*anchor.local_execs, held))
+        return replace(anchor, local_execs=tuple(execs), local_paths=tuple(paths))
+
+    def _bringing(
+        self, projects: Sequence[tuple[str, str]]
+    ) -> tuple[tuple[str, str], ...]:
+        """What a native turn brings back of a home its account moved, before it goes.
+
+        A provider whose credentials are under the backend's own home projects that home into
+        the turn's private directory on the target, so the CLI keeps its sessions there too --
+        and that directory is taken away as the turn ends, before anything copying from the
+        target's own home could find them.
+
+        Args:
+          projects: What the turn projects, as :meth:`_projecting` said.
+
+        Returns:
+          One `(VARIABLE/PATH, the CLI's directory in kept)` per directory the backend logs a
+          session under -- never a file every session shares, which the turn's own home holds
+          only this turn's part of -- for a turn projecting its home whose sessions are copied
+          here; nothing otherwise.
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.tailing import roots
+
+        profile = named(self.backend)
+        if profile is None or profile.home_var not in dict(projects):
+            return ()
+        tail = self._tails()
+        kept = self.kept()
+        if tail is None or kept is None:
+            return ()
+        return tuple((f"{profile.home_var}/{one}", str(kept)) for one in roots(profile))
 
     def _projecting(self, provider: Provider | None) -> tuple[tuple[str, str], ...]:
         """The credential files this turn's account keeps, and what to call each on the target.
@@ -5339,6 +5573,19 @@ class AgentBase(ABC):
         """
         with self._holding:
             self._opened.append(session)
+        if (tail := self._tails()) is not None:
+            tail.follow(session)
+
+    def _closes(self, session: str, *, wait: bool = True) -> None:
+        """Copies the whole of a session it logged on another machine here, as it closes.
+
+        Args:
+          session: The backend's id for it.
+          wait: Whether to wait for the copy, which a session closed under a turn still
+            running, or let go of without closing, leaves to a thread instead.
+        """
+        if self._tail is not None:
+            self._tail.forget(session, wait=wait)
 
     def _heard(self, event: Event, session: SessionBase | None = None) -> None:
         """Tells everyone watching what a turn of this agent just said.

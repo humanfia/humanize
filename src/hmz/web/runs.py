@@ -16,7 +16,7 @@ import shutil
 import tempfile
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .routing import Download, Refusal, routes
 
@@ -70,10 +70,12 @@ class Runs:
         Args:
           workspace: Only the runs of this workspace, by its path, or "" for every one's.
         """
+        from hmz.runtime.epic import every
+
         wanted = _resolved(workspace) if workspace else ""
         held = [
             one
-            for at in reversed(_epics())
+            for at in reversed(every())
             if (one := self.read(at))
             and (not wanted or _resolved(one.workspace) == wanted)
         ]
@@ -124,9 +126,11 @@ class Runs:
         Raises:
           Refusal: If no workspace has a run of that name.
         """
+        from hmz.runtime.epic import every
+
         if "/" in name or name.startswith(".") or not name:
             raise Refusal(f"There is no epic {name}.", 404)
-        for epic in _epics():
+        for epic in every():
             if epic.name == name and (ran := self.read(epic)) is not None:
                 return ran
         raise Refusal(f"There is no epic {name}.", 404)
@@ -219,7 +223,7 @@ class Runs:
         except Exception:
             shutil.rmtree(scratch, ignore_errors=True)
             raise
-        return Download(at, at.name, "application/gzip", gone=True)
+        return Download(at, at.name, "application/vnd.hmz.epic+gzip", gone=True)
 
 
 def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> set[Path]:
@@ -270,6 +274,8 @@ def row(ran: Ran, *, held: bool) -> dict[str, Any]:
         "resumable": ran.resumable,
         "spent": labelled(ran.spent),
         "held": held,
+        "backup": list(ran.backup),
+        "backed": ran.backed,
     }
 
 
@@ -556,6 +562,25 @@ def _bundle(asked: Asked) -> Download:
     return runs.bundled(runs.named(asked.matched["name"]))
 
 
+def _backup(asked: Asked) -> dict[str, Any]:
+    runs = asked.site.runs
+    ran = runs.named(asked.matched["name"])
+    to: object = asked.body.get("to")
+    if to is not None and not (
+        isinstance(to, list)
+        and all(isinstance(one, str) for one in cast("list[Any]", to))
+    ):
+        raise Refusal("to is a list of backup target names.")
+    try:
+        # Queued, never waited on: how it went is read back off the epic as it is polled.
+        queued = runs.hmz(ran).backups.push(ran, cast("list[str] | None", to))
+    except ValueError as why:
+        raise Refusal(f"{str(why)[:1].upper()}{str(why)[1:]}.") from why
+    if not queued:
+        raise Refusal("There is no backup target: add one in Settings.", 409)
+    return {"queued": list(queued)}
+
+
 def _usage(asked: Asked) -> dict[str, Any]:
     try:
         days = min(365, max(1, int(asked.query.get("days", "30"))))
@@ -574,21 +599,9 @@ ROUTES = routes(
     ("GET", "/api/runs/{name}/timeline", _timeline),
     ("GET", "/api/runs/{name}/timeline/span/{id}", _span),
     ("GET", "/api/runs/{name}/bundle", _bundle),
+    ("POST", "/api/runs/{name}/backup", _backup),
     ("GET", "/api/usage", _usage),
 )
-
-
-def _epics() -> list[Path]:
-    """Every epic of every workspace, oldest first: each is named for when it began."""
-    from hmz import home
-    from hmz.runtime.epic import JOURNAL
-
-    found: list[Path] = []
-    with contextlib.suppress(OSError):
-        for under in (home() / "epics").iterdir():
-            with contextlib.suppress(OSError):
-                found += [one for one in under.iterdir() if (one / JOURNAL).is_file()]
-    return sorted(found, key=lambda one: one.name)
 
 
 @functools.cache

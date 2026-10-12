@@ -19,7 +19,7 @@ archive goes.
 When it is done, the line under the list, and the transcript, say where it went:
 
 ```text
-/tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
+/tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.hmzepic · 162 kB · 3 sessions, 53 slices
 ```
 
 ## Before you start
@@ -72,7 +72,7 @@ exported. <kbd>esc</kbd> goes back to the run without exporting anything.
 A moment later the list of runs is back, with a line under it:
 
 ```text
-   /tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
+   /tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.hmzepic · 162 kB · 3 sessions, 53 slices
    ④                                                                      ⑤       ⑥
 ```
 
@@ -118,7 +118,8 @@ A file the run never wrote is left out: `resume.jsonl` only for a flow that
 - humanize's version, Python's, and the machine's;
 - the flow, the task, and how the run ended;
 - each agent's CLI, model, effort and account (by name only);
-- the workspace, and the git commit it is on when you export;
+- the workspace, and the git commit it is on when you export, or, for a run you imported, the
+  commit its archive said;
 - for each CLI, the version it reports and the SHA-256 of the program that took the turns.
   These CLIs change weekly, and a bug is a bug in one build.
 
@@ -147,18 +148,19 @@ or group, and the file is readable by you alone.
 
 ## Check that it worked
 
-It is a plain `.tar.gz`. List it, and read the manifest before you send it:
+It is a gzipped tar under an extension of its own, `.hmzepic`. List it, and read the
+manifest before you send it:
 
 ```console
-$ tar tzf issues/20260930T054014.242Z-bdae4a.epic.tar.gz
+$ tar tzf issues/20260930T054014.242Z-bdae4a.hmzepic
 20260930T054014.242Z-bdae4a/epic.jsonl
 20260930T054014.242Z-bdae4a/resume.jsonl
 20260930T054014.242Z-bdae4a/profile.jsonl
 20260930T054014.242Z-bdae4a/traces/export.trace.json
 20260930T054014.242Z-bdae4a/sessions/agent-claude@local-42733b7e-…/projects/-tmp-hmzdocs-C-app/42733b7e-….jsonl
 20260930T054014.242Z-bdae4a/manifest.json
-$ ls -l issues/20260930T054014.242Z-bdae4a.epic.tar.gz
--rw------- 1 nvidia nvidia 58848 Sep 30 05:40 issues/20260930T054014.242Z-bdae4a.epic.tar.gz
+$ ls -l issues/20260930T054014.242Z-bdae4a.hmzepic
+-rw------- 1 nvidia nvidia 58848 Sep 30 05:40 issues/20260930T054014.242Z-bdae4a.hmzepic
 ```
 
 This one is a resumed run of `stateful_ralph` that was profiled, so it has both
@@ -246,12 +248,33 @@ from hmz.sdk import Hmz
 runs = Hmz().epics
 epic = runs.all()[-1]                                # the newest run here
 runs.traced(epic)                                    # gather the trace into the run
-runs.bundled(epic, output="/tmp/for-the-issue.tar.gz")
+runs.bundled(epic, output="/tmp/for-the-issue.hmzepic")
 ```
 
 `output` is required, and may be a file or a directory. See
 [SDK reference](/reference/sdk).
 :::
+
+### Importing a run
+
+Somebody sent you a `.hmzepic`? Read it back in, and it is a run like any other:
+
+```python
+from hmz.sdk import Hmz
+
+epic = Hmz().epics.imported("~/Downloads/20260930T054014.242Z-bdae4a.hmzepic")
+```
+
+It lands under the directory the run was started in, as it was there, so `/epics` lists it
+once you start `hmz` in that directory. A file not ending `.hmzepic`, one holding anything but
+the one run, and a run you already have are refused.
+
+Credentials stay `[redacted]`: what was struck out on the way out is not coming back.
+
+A run can be [picked up](/user/resuming) here only when the directory it was started in is
+here at the same path, and, when that is a git repository and the archive says which commit it
+was on, has that commit. Otherwise it reads back but does not resume, and resuming it says
+why.
 
 ## If it goes wrong
 

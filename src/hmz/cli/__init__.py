@@ -3,12 +3,12 @@
     hmz
     hmz exec -f ralph_loop -a coder=claude/MODEL:high -p budget.cost=5 "$(cat TASK.md)"
 
-A few commands anybody types -- running a flow, serving the web interface, and moving
-humanize itself to its newest release -- and everything else humanize keeps is walked at the
-prompt: a listing with a noun in it for every store would be a second interface to learn, and
-the one with the sheets in it is the interface.
+A few commands anybody types -- running a flow, serving the web interface, backing an epic up
+to git repositories, and moving humanize itself to its newest release -- and everything else
+humanize keeps is walked at the prompt: a listing with a noun in it for every store would be a
+second interface to learn, and the one with the sheets in it is the interface.
 
-The other command in the listing is `hmz internal`, which is the five lines humanize spawns
+The other command in the listing is `hmz internal`, which is the six lines humanize spawns
 for itself gathered under one name. They are listed rather than hidden because a command
 nobody can discover is a command nobody can debug, and a listing that leaves out half of what
 a program runs says something untrue about it. What they are is said instead of concealed:
@@ -21,10 +21,11 @@ on that: `hmz exec` must not pay for the terminal interface it is not opening, a
 coganchor is the only layer present and the architecture is whatever the target happens to be.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
-one of them costs nothing for the others -- which is what `web.py`, `update.py`, and `anchor.py`,
-`cred.py`, `fence.py`, `hook.py` and `tools.py`, the five under `hmz internal`, are. `exec` has
-none: the line it takes is read by :func:`hmz.runtime.runner.read_line`, since the terminal
-interface starts a flow from the same parts.
+one of them costs nothing for the others -- which is what `web.py`, `update.py`, `backup.py`,
+and `anchor.py`, `cli.py`, `cred.py`, `fence.py`, `hook.py` and `tools.py`, the six under
+`hmz internal`, are. `exec` has none: the line it takes is read by
+:func:`hmz.runtime.runner.read_line`, since the terminal interface starts a flow from the same
+parts.
 
 :mod:`hmz.cli.output` is the one module every command may reach: who is reading -- somebody at
 a terminal, or a program -- is one question rather than one per command, and it costs nothing
@@ -41,7 +42,9 @@ if TYPE_CHECKING:
     from argparse import ArgumentParser
     from collections.abc import Generator, MutableMapping
 
-    from hmz.runtime import Run
+    from hmz.runtime import Hmz, Run
+
+    from .output import Out
 
 __all__ = ["APART", "COMMANDS", "INTERNAL", "main", "many", "opens"]
 
@@ -49,6 +52,9 @@ __all__ = ["APART", "COMMANDS", "INTERNAL", "main", "many", "opens"]
 #: would rather they went with the window. `off`, `0` or `no`; anything else is silence, and
 #: silence is runs held by a host wherever there is a terminal on both ends.
 APART = "HUMANIZE_DAEMON"
+
+#: How long `hmz exec` waits for its epic's backups once the run is over.
+_BACKING = 60.0
 
 
 def many(count: int | str, thing: str) -> str:
@@ -150,6 +156,7 @@ def _executes(argv: list[str]) -> int:
                 budget=line.budget,
                 profile=line.profile,
                 resume=line.resume,
+                backup=line.backup,
             )
         except Refused as error:
             # A flow that is not there, or one given other roles than it declares, is a
@@ -197,9 +204,31 @@ def _executes(argv: list[str]) -> int:
             # humanize finding out that it happened.
             telemetry.crash(why, doing="hmz exec")
             raise
+        finally:
+            _backed_up(hmz, out)
     if ended:
         raise SystemExit(128 + ended[0])
     return 0
+
+
+def _backed_up(hmz: Hmz, out: Out) -> None:
+    """Lets the epic's backups finish once the run has said how it went, for so long.
+
+    The process is all that is backing them up, so going at once would drop them; waiting for
+    ever on a remote that does not answer would hold a line up that is done.
+
+    Args:
+      hmz: What the run was run through.
+      out: Where to say that it is waiting, and what it left.
+    """
+    if hmz.backups.wait(0):
+        return
+    out.aside("hmz exec: backing the epic up")
+    if not hmz.backups.wait(_BACKING):
+        out.aside(
+            f"hmz exec: a backup took longer than {_BACKING:.0f}s and was left; "
+            "`hmz backup EPIC` sends it again"
+        )
 
 
 @contextlib.contextmanager
@@ -319,6 +348,20 @@ def _tools(argv: list[str]) -> int:
     return tools(argv)
 
 
+def _cli(argv: list[str]) -> int:
+    """Carries one run of a flow's own command line to the flow whose function answers it.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      What the flow said the program exits with, or one for a flow that is no longer there.
+    """
+    from .cli import cli
+
+    return cli(argv)
+
+
 def _hook(argv: list[str]) -> int:
     """Carries one call of a coding agent's own hook table to the flow whose moment it is.
 
@@ -361,6 +404,20 @@ def _update(argv: list[str]) -> int:
     return update(argv)
 
 
+def _backup(argv: list[str]) -> int:
+    """Backs one epic up to git repositories now, and says how it went.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero where every target took it; one where one did not.
+    """
+    from .backup import backup
+
+    return backup(argv)
+
+
 def _internal(argv: list[str]) -> int:
     """Routes to whichever of the lines humanize spawns for itself was named.
 
@@ -368,7 +425,7 @@ def _internal(argv: list[str]) -> int:
     it knows is handed the rest of the line untouched, so that `hmz internal anchor --help` is
     answered by the anchor's own parser rather than eaten by this one, and reaching one of
     them loads no module of any other. Anything else -- a name nobody has, or nothing at all
-    -- is answered by a parser built here, which lists the five and exits.
+    -- is answered by a parser built here, which lists the six and exits.
 
     Args:
       argv: What followed `internal`, beginning with the name of one of them.
@@ -380,7 +437,7 @@ def _internal(argv: list[str]) -> int:
         import argparse
 
         # Its own parser rather than a subparser of the one at the top: the top-level help
-        # names the commands and not what they take, so this is where the five are written
+        # names the commands and not what they take, so this is where the six are written
         # out, and it is reached only when somebody asks about them.
         parser = argparse.ArgumentParser(
             prog="hmz internal",
@@ -535,7 +592,9 @@ def _at_a_terminal() -> bool:
 #: renders one for every turn whose work lands on another machine, and the zipapp
 #: bootstrapped onto a target answers it by running `hmz internal anchor serve`. A fenced turn
 #: is the fifth, and the same shape as the first: the wall around a CLI is put up by the
-#: process it walls in, and the one serving its proxy has to stay outside it. All five are
+#: process it walls in, and the one serving its proxy has to stay outside it. A flow's own
+#: command line is the sixth: a shell runs a program by finding a file on its PATH, so the
+#: file is a script that starts a program carrying the run back to the flow. All six are
 #: a command line because there is no other way to start a process, and none of them is a line
 #: anybody types -- which is a reason to keep them together under one name and behind one
 #: sentence saying so, and not a reason to keep them out of the listing. A command that is not
@@ -544,23 +603,26 @@ def _at_a_terminal() -> bool:
 #: whose program was not there, a target that answered nothing.
 INTERNAL = {
     "anchor": (_anchor, "run an agent turn on another machine"),
+    "cli": (_cli, "relay agent runs of a flow's command line to the flow"),
     "cred": (_cred, "run a program with credentials from an account"),
     "fence": (_fence, "run a program held to what its flow permits"),
     "hook": (_hook, "relay agent hooks to a flow"),
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Three are for
-#: anybody: running a flow in a directory, serving the web interface, and moving humanize
-#: itself to its newest release -- everything else humanize keeps is walked at the prompt
+#: Each command, as what carries it out and the line a listing shows it as. Four are for
+#: anybody: running a flow in a directory, serving the web interface, moving humanize itself
+#: to its newest release, and backing an epic up from a script -- everything else humanize
+#: keeps is walked at the prompt
 #: rather than typed, a run already held here included, which `hmz` with no command opens.
-#: The last is the door onto :data:`INTERNAL` -- one entry rather than five, so that what a
+#: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
 #: person may type stays short while what humanize runs stays something they can read. There
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
     "update": (_update, "update hmz to its newest release"),
+    "backup": (_backup, "back an epic up to git repositories now"),
     "internal": (_internal, "internal commands used by humanize; do not run directly"),
 }
 

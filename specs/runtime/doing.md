@@ -31,6 +31,8 @@ class Hmz:
     def fallbacks(self) -> Fallbacks: ...
     @property
     def epics(self) -> Epics: ...
+    @property
+    def backups(self) -> Backups: ...
     def backends(self) -> tuple[Profile, ...]: ...
     def installed(self) -> dict[str, tuple[Model, ...]]: ...  # what each here last said it runs
     def installable(self) -> dict[str, tuple[Model, ...]]: ...  # its program here, its extra not
@@ -47,6 +49,7 @@ class Hmz:
         budget: Budget | Mapping[str, Any] | None = None,
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
+        backup: Iterable[str] | None = None,  # the targets; None for the defaults
     ) -> Runner: ...
     def run(
         self,
@@ -60,6 +63,7 @@ class Hmz:
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
+        backup: Iterable[str] | None = None,
     ) -> Run: ...
     def exec(self, argv: list[str]) -> Any: ...
     def host(self) -> Host: ...
@@ -85,7 +89,8 @@ class Run:
     def __init__(
         self, runner: Runner, task: str, *, outworlder: OutworlderDriver | None = None
     ) -> None: ...
-    flow: str; ref: str; task: str; declaration: Declaration; budget: Budget; profile: bool
+    flow: str; ref: str; chats: bool; task: str; declaration: Declaration; budget: Budget
+    profile: bool; backup: tuple[str, ...]
     usage: Usage; epic: Path | None; running: bool; raised: BaseException | None
     result: Any  # properties
     @property
@@ -105,6 +110,7 @@ class Epics:
     def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None: ...
     def under(self) -> Path: ...
     def all(self) -> list[Path]: ...
+    def every(self) -> list[Path]: ...  # of every workspace on this machine
     def read(self, epic: Path) -> Ran | None: ...
     def tree(self, epic: Path) -> tuple[Called, ...]: ...
     def sessions(self, epic: Path) -> list[Session]: ...
@@ -112,6 +118,7 @@ class Epics:
     def state(self, epic: Path, flow: str = "") -> dict[str, Any]: ...
     def resumed(self, flow: str) -> Path | None: ...
     def picks_up(self, epic: Path) -> bool: ...
+    def foreign(self, epic: Path) -> str: ...
     def traced(
         self,
         epic: Path,
@@ -128,6 +135,7 @@ class Epics:
         output: str | os.PathLike[str],
         transcript: str | None = None,
     ) -> tuple[Path, dict[str, Any]]: ...
+    def imported(self, archive: str | os.PathLike[str]) -> Path: ...
     def trace(
         self,
         *,
@@ -139,6 +147,16 @@ class Epics:
         profile: str | os.PathLike[str] | None = None,
         kept: Iterable[str | os.PathLike[str]] | None = None,
     ) -> dict[str, Any]: ...
+
+# backups.py -- the git repositories epics are backed up to. Settings keep them, and
+# `hmz.runtime.backing` backs an epic up; SPEC.md carries the contract.
+class Backups:
+    def targets(self) -> tuple[Target, ...]: ...
+    def defaults(self) -> tuple[str, ...]: ...
+    def push(self, ran: Ran | Path, names: Iterable[str] | None = None) -> tuple[str, ...]: ...
+    def state(self, ran: Ran | Path) -> dict[str, dict[str, Any]]: ...  # at, ok, error, why
+    def where(self, ran: Ran | Path) -> str: ...
+    def wait(self, seconds: float | None = None) -> bool: ...
 
 # flows.py -- the flows there are, and the places they come from. What each of these answers
 # is `hmz.runtime.flowing`'s to say, and flowing.md carries the contract.
@@ -303,6 +321,9 @@ class Fallbacks:
   their extra, and which may be fallen back on without anybody choosing it -- never litellm, and
   DeepSeek Harness only once its local account is set up -- MUST be answered here once, for
   every way in.
+- Backing an epic up by hand MUST go to the targets named, else those it was started with,
+  else the defaults, MUST be refused for a target settings has none of, and MUST return at once
+  saying where it went; how it went MUST be read off the epic as it is now.
 - A trace of one run MUST be gathered here rather than by whoever asked for it, by the ids the
   run wrote down rather than the directory it ran in, MUST land with the run unless a path was
   named, and one asked for without a workspace MUST stay without one. It MUST read the sessions
@@ -335,15 +356,21 @@ class Fallbacks:
   answer refused with who gave it.
 - A question MUST stay asked with nobody attached, MUST be offered to everybody when its
   claimant goes rather than asked again, and MUST be taken back when its run stops or ends or its
-  role goes away.
+  role goes away. One asked while exactly one conversation has a turn open MUST name that
+  conversation, so that a frontend can put it in that conversation's transcript.
 - Away MUST be per role, and MUST outlive the frontend that said it. A frontend MUST NOT say it
   is away for a role somebody else holds, and saying it is away for everything MUST leave those
   roles as they were.
 - A line said to a run MUST go into the turn open on the view it was said on -- a conversation,
   a role's newest, or the first working -- one at a time per agent until the agent says it has
-  it; said while no turn is open it MUST go into whichever turn starts next for it, and one the
+  it; said while no turn is open it MUST go into whichever turn starts next for it -- unless the
+  run is `chat`'s and waiting to be told what to say next, which a line said to its agent or
+  conversation with no turn open MUST answer, going into no turn a second time; every other
+  flow's MUST wait for that turn -- and one the
   agent refuses MUST go back to the head of the queue. A turn that ends holding one, and a run
   that stops or ends with any waiting, MUST say so. Claims MUST NOT gate what is said to agents.
+- A run MUST be started with the backup targets its frontend chose, or the defaults where
+  it chose none, and how it was started MUST say which.
 - One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST
   close every conversation of a stopping run under whatever turn is open, and say how many.
 - An aside MUST be read-only, carry no skills, say nothing to the run, answer only the frontend

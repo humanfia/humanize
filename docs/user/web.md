@@ -59,8 +59,8 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | --- | --- | --- |
 | **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first: how each ended, or `live` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
 | **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
-| **An epic** | Its graph: who handed to whom | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
-| **A session** | Its thread, as the terminal draws it | Say a line into it while the epic goes |
+| **An epic** | Its graph: who handed to whom -- a `chat` opens on its conversation instead | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
+| **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: every place flows come from, and every release each index lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
 | **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task |
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
@@ -116,12 +116,14 @@ The panel beside it (the button at the top right shows and hides it) holds:
 And under the graph, while it goes:
 
 - **Waiting for you.** A question the epic put to a person, with its offered answers as buttons
-  and a field for your own. A question another window holds says whose it is. See
+  and a field for your own. A question another window holds says whose it is. A `chat` waiting
+  for your next line puts nothing here, and what its agent asks is asked in its conversation. See
   [Questions](/user/questions).
 - **Say something.** <kbd>Enter</kbd> sends a line to the epic as a line typed in `hmz` goes
   (`the next turn`), to a role, to one session (marked `working` while it has a turn open), or
   to a person the flow has; <kbd>Shift</kbd>+<kbd>Enter</kbd> starts a new line. In a session's
-  thread it goes into that session. See [Talking to a running turn](/user/steering).
+  thread it goes into that session, or answers what that session's open turn asks. See
+  [Talking to a running turn](/user/steering).
 - **Stop.** Asks first, then stops the epic for everybody reading it. While it unwinds,
   **Force** closes every session under its turn. See [Stopping](/user/stopping).
 
@@ -129,6 +131,11 @@ And under the graph, while it goes:
 
 A session opens as its thread, drawn as the terminal draws it: an agent's words on a dot, your
 lines set apart on the right, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
+
+A `chat` reads as a chat app's conversation, and is where one started from the page opens: your
+task, then each reply and each line you typed under it, on the right. The box under it is how
+you answer -- between turns it is your next turn, and while the agent asks something mid-turn
+it answers that, the answers it offers buttons at the end of the conversation.
 
 **Log**, first under an epic in the sidebar, is the transcript every agent and person appears
 on; each node's **log** row is that agent's across its sessions, and a person's node opens what
@@ -148,6 +155,9 @@ spent, and how long it took, with how much of that was spent working.
   reads its thread the same way.
 - **Export** (the arrow at the top) downloads the epic as one archive, struck of credentials.
   See [Exporting a run](/user/export).
+- **Upload** (the up arrow at the top, or in the epic's menu) backs it up now to the targets it
+  was started with, else the defaults, and says which at once; hover it for how its last
+  backup to each target went. See [Backing epics up](/user/backups).
 - **Pick it up** opens a new epic on it, where its flow can be picked up. See
   [Picking a run up](/user/resuming).
 
@@ -166,9 +176,11 @@ directory last set it up:
   the model.
 - **Environments.** Per role: the **Backend**, the **Runtime** of it (or **Add runtime…**, or
   for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
-- **Parameters**, the **Budget**, and **Profile**. **Save** keeps all of it for that directory
+- **Parameters**, the **Budget**, **Backup** -- the [targets](/user/backups) the epic is backed
+  up to, the defaults ticked each time -- and **Profile**. **Save** keeps the rest for that directory
   without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set. Every flow but `chat`
-needs at least one limit. The page goes to the epic once it starts.
+needs at least one limit. The page goes to the epic once it starts -- a `chat` to its
+conversation.
 
 ### Settings
 
@@ -181,6 +193,7 @@ The same pages as [`/settings`](/user/settings), in the same order, and what the
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
+| **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one. A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
 | **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
 
@@ -201,9 +214,12 @@ with a pair: under **Auto** pick a **Pair** -- or any theme for the system's **L
 for its **Dark**, your own included. Click a preset's light or dark
 swatch to use that one theme whatever the system is.
 
-**New** makes a theme from the one showing, **Duplicate** from any; **Edit** opens one of yours:
+**New** makes a theme from the one showing, and **New pair** a pair of your own -- a light theme
+and a dark one, which Auto can follow your system with as it does a preset -- from the pair
+showing. **Duplicate** copies any theme, or a whole pair. **Edit** opens one of yours:
 
 - **Name**, and the **Base** it is made on, Light or Dark, whose colour any you leave blank is.
+  In a pair, the name is both themes', and **Side** switches between its light and its dark.
 - Every colour, by what it colours: **Backgrounds** (page, sidebar, surface, raised),
   **Text**, **Controls** (button, its text, primary button, its text, field, edge), **Lines**,
   **Accents** and the **Graph**'s lanes. Pick one or type any CSS colour, such as
@@ -213,8 +229,8 @@ swatch to use that one theme whatever the system is.
   Where your system asks for reduced motion, a moving picture is held still.
 
 The page shows a theme as you change it, and keeps every change at once. **Export** saves a
-theme, pictures and all, as a `.hmztheme` file; **Import** reads one back, here or in any other
-browser. Themes are kept by the browser, as the rest of what the page remembers is, so another
+theme, or a pair with both its themes, pictures and all, as a `.hmztheme` file; **Import** reads
+one back, here or in any other browser. Themes are kept by the browser, as the rest of what the page remembers is, so another
 browser -- or [the app](/user/desktop) -- has its own until you import them there.
 
 A `.hmztheme` file is JSON:
@@ -226,6 +242,17 @@ A `.hmztheme` file is JSON:
   "base": "dark",
   "colors": { "paper": "#102030", "primary": "#ec6fa3" },
   "images": { "page": { "fit": "cover", "data": "data:image/svg+xml;base64,…" } }
+}
+```
+
+A pair holds both its themes, each with its `colors` and `images`, in place of a `base`:
+
+```json
+{
+  "hmztheme": 1,
+  "name": "Dusk",
+  "light": { "colors": { "paper": "#fff8e0" }, "images": {} },
+  "dark": { "colors": { "paper": "#201008" }, "images": {} }
 }
 ```
 
@@ -242,12 +269,12 @@ Start `hmz web` in a project, and open **New epic**:
 
 1. Pick `chat` at the top. Open **Options** and give `assistant` an agent such as
    `claude/claude-haiku-4-5:high`. Type a task and press <kbd>Enter</kbd>. The page goes to
-   the epic.
-2. When the agent has answered, **Waiting for you** shows the question `chat` puts to you.
-3. In a terminal in the same directory, run `hmz`. It opens on the same run, with the same
-   question waiting.
-4. Answer it in the terminal. In the browser, the question goes, and the answer is in the
-   assistant's session.
+   the conversation, `assistant/1`.
+2. When the agent has answered, `chat` waits for your next line, typed in the box under it.
+3. In a terminal in the same directory, run `hmz`. It opens on the same run, waiting for you
+   to say what next.
+4. Answer it in the terminal. In the browser, your answer is a line of yours in the
+   conversation, and the agent's reply follows it.
 5. Press **Stop** in the browser, then **Stop it**. The terminal says
    `— browser is stopping the flow —`.
 

@@ -22,6 +22,12 @@ end of this page you will have found a run, exported its trace and read it.
 
 <HmzCast name="epics" alt="/epics listing two runs, going into the newest, and exporting it: the archive's path, its size, and 1 session, 10 slices, 3 programs" />
 
+To read a run without leaving the terminal, choose **Exomyth** instead of **export run**: every
+session is a row of bars under the session that started it. <kbd>w</kbd> <kbd>s</kbd> zoom,
+<kbd>a</kbd> <kbd>d</kbd> pan, <kbd>←</kbd> <kbd>→</kbd> step from span to span, <kbd>enter</kbd>
+shows the one under the cursor whole, and <kbd>tab</kbd> turns it into a flame of where the time
+went. Every key is in [Exomyth](/reference/tui#exomyth).
+
 ## Before you start
 
 - A run of a flow in this directory. `/epics` lists the runs of the directory `hmz` was
@@ -53,8 +59,8 @@ session of Claude Code. Its `/epics` list:
 
 ```text
   hmz › Epics
-  Every run of a flow in this directory, newest first: task, status, and
-  session count.
+  Every epic in this directory, newest first: task, status, and session
+  count.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ 2026-09-30 05:38 · ralph_loop Make the tests in test_slug.py pass. Change│
@@ -72,7 +78,7 @@ session of Claude Code. Its `/epics` list:
 ([Exporting a run](/user/export)):
 
 ```text
-   /tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.epic.tar.gz · 162 kB · 3 sessions, 53 slices
+   /tmp/hmzdocs-C/app/issues/20260930T053725.504Z-a3d685.hmzepic · 162 kB · 3 sessions, 53 slices
                                                                                     ③           ④
 ```
 
@@ -164,7 +170,7 @@ A trace of a profiled run shows each program as a process of its own, on the sam
 sessions, and its summary counts them. The same Ralph loop, resumed once profiling was on:
 
 ```text
-/tmp/hmzdocs-C/app/issues/20260930T054014.242Z-bdae4a.epic.tar.gz · 59 kB · 1 session, 13 slices, 7 programs
+/tmp/hmzdocs-C/app/issues/20260930T054014.242Z-bdae4a.hmzepic · 59 kB · 1 session, 13 slices, 7 programs
 ```
 
 <TraceMock profiled />

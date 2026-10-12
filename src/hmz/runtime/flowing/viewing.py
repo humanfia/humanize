@@ -44,6 +44,7 @@ import asyncio
 import contextlib
 import contextvars
 import dataclasses
+import inspect
 import logging
 import threading
 import time
@@ -60,6 +61,7 @@ from hmz.flows import (
     CapabilityNotGranted,
     DurationExceeded,
     EnvBackendKind,
+    FakeTool,
     FilesEnvMixin,
     GitEnvMixin,
     GitWorktreeEnvMixin,
@@ -274,6 +276,7 @@ class AgentView:
     #: What the flow API's protocol declares; a view's own is its `grant`.
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
+    _tools: ClassVar[tuple[FakeTool, ...]] = ()
 
     __slots__ = ("_driver", "_grant", "_line", "_node", "_role")
 
@@ -318,7 +321,7 @@ class AgentView:
 
     @property
     def grant(self) -> Grant:
-        """What this view lets the flow do: its capabilities, permission and skills."""
+        """What this view lets the flow do: its capabilities, permission, skills and tools."""
         return self._grant
 
     @property
@@ -354,7 +357,7 @@ class AgentView:
                     f"{self._role}: {', '.join(sorted(wider))} is not among the skills "
                     "this agent was granted"
                 )
-        narrowed = Grant.of(grant.capabilities, permission, skills)
+        narrowed = Grant.of(grant.capabilities, permission, skills, grant.tools)
         cls = type(self)
         view = cls.__new__(cls)
         view._driver = self._driver
@@ -424,16 +427,21 @@ class AgentView:
         line = self._lined()
         if run.dropped:
             run.drain()
-        carry_on = session._carry_on
+        # Each only where there is one, so that a driver written before there could be
+        # opens every other session as it did.
+        extra: dict[str, Any] = {}
+        if session._carry_on is not None:
+            extra["carry_on"] = session._carry_on
+        tools = self._offered()
+        if tools:
+            extra["tools"] = tools
         handle = await self._driver.open(
             placement,
             permission=self._grant.permission,
             skills=self._brought(),
             hooks=line.hooks,
             fork_of=None if parent is None else parent._handle,
-            # Only where there is one, so that a driver written before there could be opens
-            # every other session as it did.
-            **({} if carry_on is None else {"carry_on": carry_on}),
+            **extra,
         )
         if parent is not None:
             try:
@@ -590,6 +598,25 @@ class AgentView:
         if found is None:
             return ()
         return tuple(skill for said in names for skill in found.get(said, ()))
+
+    def _offered(self) -> tuple[FakeTool, ...]:
+        """The flow's tools this agent's sessions offer, each made to run as its flow."""
+        node = self._node
+
+        def bound(tool: FakeTool) -> FakeTool:
+            fn = tool.call
+
+            async def call(*given: Any) -> object:
+                token = CALLING.set(node)
+                try:
+                    said = fn(*given)
+                    return await said if inspect.isawaitable(said) else said
+                finally:
+                    CALLING.reset(token)
+
+            return dataclasses.replace(tool, call=call)
+
+        return tuple(bound(one) for one in self._grant.tools)
 
     def _own(self, session: Session) -> SessionView:
         """The session, if it is one of this agent's; SessionError otherwise."""
@@ -1363,6 +1390,7 @@ class OutworlderView:
 
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
+    _tools: ClassVar[tuple[FakeTool, ...]] = ()
 
     __slots__ = ("_asker", "_line", "_node", "_role", "_source")
 

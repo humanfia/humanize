@@ -32,6 +32,7 @@ class Meter:
 class SessionBase(ABC):
     shapes: ClassVar[bool] = False
     takes_tools: ClassVar[bool] = False
+    takes_clis: ClassVar[bool] = True
     steers: ClassVar[bool] = False
     narrates: ClassVar[bool] = False
     def __init__(self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None) -> None: ...
@@ -47,6 +48,8 @@ class SessionBase(ABC):
     def skills(self) -> tuple[str, ...]: ...
     @property
     def tools(self) -> tuple[Tool, ...]: ...
+    @property
+    def clis(self) -> tuple[Cli, ...]: ...
     @property
     def effort(self) -> str: ...
     @effort.setter
@@ -76,6 +79,7 @@ class SessionBase(ABC):
     def close(self) -> None: ...
     def loads(self, skills: Iterable[str] | None) -> None: ...
     def offers(self, tools: Iterable[Tool] | None) -> None: ...
+    def shelves(self, clis: Iterable[Cli] | None) -> None: ...
     def spent(self) -> Usage: ...
     def rate(self, over: float = WINDOW) -> Usage: ...
     def juice(self, over: float = WINDOW) -> float: ...
@@ -126,6 +130,8 @@ class AgentBase(ABC):
     def provider(self) -> Provider | None: ...
     @property
     def toolbox(self) -> Toolbox: ...
+    @property
+    def shelf(self) -> Shelf: ...
     @property
     def hooks(self) -> Hooks: ...
     @property
@@ -574,6 +580,29 @@ class Toolbox:
 
 def serve(line: str, offered: Callable[[], tuple[Tool, ...]]) -> dict[str, Any] | None: ...
 
+# clis.py -- command lines the flow wrote, put on the PATH of a backend with a shell
+@dataclass(frozen=True, slots=True)
+class Command:
+    name: str
+    about: str
+    call: Callable[..., Any]
+    takes: type[BaseModel] | None = None
+
+@dataclass(frozen=True, slots=True)
+class Cli:
+    name: str
+    about: str
+    commands: tuple[Command, ...]
+    def run(self, argv: Sequence[str]) -> tuple[int, str, str]: ...  # status, stdout, stderr
+
+class Shelf:
+    def shelves(self, whose: int, clis: Iterable[Cli]) -> None: ...
+    def shelved(self) -> tuple[Cli, ...]: ...
+    def empty(self) -> bool: ...
+    def where(self) -> str: ...
+    def environ(self, environ: Mapping[str, str] | None = None) -> dict[str, str]: ...
+    def close(self) -> None: ...
+
 # watchdog.py -- a context manager round a blocking read
 class Watchdog:
     def __init__(
@@ -760,11 +789,20 @@ class BackendAgent(AgentBase):
 - Every session of an agent a run drives MUST be kept in `keeps` -- its run's -- and nothing of it
   in the CLI's own home: answered by the turn's supervisor, or told to the CLI where its driver
   tells it where. `keeps` MUST be settled by the first process that keeps one there, and MUST
-  refuse to move afterwards. A session MUST stay where the CLI keeps it only for an agent no run
-  drives, whose `keeps` is None and for which humanize MUST keep nothing of its own, a turn taken
-  on another machine -- the target's own CLI, or a harness elsewhere -- a machine that cannot
-  supervise one, and a process told `KEEPING=off`; and `kept` MUST answer where it is, laid out as
-  the CLI's home is, or None for a backend nothing says the home of and no `keeps`.
+  refuse to move afterwards. A turn taken on another machine -- the target's own CLI, or a harness
+  elsewhere -- MUST keep its session in that CLI's home there, and every file the backend logs it
+  to MUST be copied into `keeps` from the moment the backend names it: a log of lines a whole line
+  at a time every few seconds, and every log whole as the session closes or is let go of, on a
+  thread of its own that never holds up a turn, its streams or a stop, and says a failed copy once
+  without raising; a native turn whose provider projects the CLI's home into its private
+  directory MUST say where that landed, the copying MUST follow it there, and the turn MUST bring
+  every directory of it the backend logs sessions under back into `keeps` as it ends, before
+  that home is removed -- never a file every session shares. A session MUST stay
+  where the CLI keeps it, with nothing copied, only for an
+  agent no run drives, whose `keeps` is None and for which humanize MUST keep nothing of its own,
+  a machine that cannot supervise one or that no command is started on, and a process told
+  `KEEPING=off`; and `kept` MUST answer where it is or its copy is, laid out as the CLI's home is,
+  or None for a backend nothing says the home of and no `keeps`.
 - `pursue` MUST be the backend's own goal feature, followed across every turn it takes, and MUST
   raise `NotImplementedError` where there is none rather than asking in the prompt.
 - `loads` MUST take hold from the next turn, a session told nothing MUST carry every skill the flow
@@ -795,7 +833,10 @@ class BackendAgent(AgentBase):
   MUST be refused (`Unhooked`) where the hook is hung; a refusal MUST stop the thing only where the
   backend asks first, and MUST be readable as a report where it does not.
 - Tools the flow wrote MUST be offered only to a backend that takes them and MUST NOT require the
-  caller to run a server of its own; skills MUST reach a session by being mounted where that
+  caller to run a server of its own; command lines the flow wrote MUST be put on the PATH of every
+  process of an agent with a shell and refused elsewhere, MUST answer `--help`, a usage error and
+  a run as a real program would (argparse built from each command's model; `2` for usage), and
+  MUST restart a held process started before any was shelved; skills MUST reach a session by being mounted where that
   backend reads them, settled as a turn opens rather than moved under a running turn.
 - The board MUST never hold up a reader or a writer, MUST refuse a write by the side a line is not,
   MUST keep what a line is for across a change of value, MUST say when a line moves, and MUST
