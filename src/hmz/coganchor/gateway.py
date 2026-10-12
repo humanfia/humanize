@@ -111,6 +111,13 @@ _TAIL = 20
 #: key alone -- so a gateway that answers is this one, and not another on a port it let go of.
 _READY_AT = "/v1/models"
 
+#: What a way speaking OpenAI's API is called by, as every backend's own gateway way is, and
+#: what its URL ends in: OpenAI's SDKs, and every CLI built on one, take a base URL with the
+#: API's version in it and add only the operation -- where Anthropic's add `/v1/messages` to a
+#: URL without one themselves.
+_OPENAI = "openai-"
+_VERSIONED = "/v1"
+
 #: What asks it, past any proxy the environment names.
 _DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -276,19 +283,20 @@ def spoken(profile: backends.Profile, url: str, key: str) -> dict[str, str]:
 
     Returns:
       The variables of the way :attr:`~hmz.coganchor.backends.Profile.routes` names, the one
-      that says where to go answered with the gateway and its secret with the key, what has
-      an answer that is usually right answered with that, and what the way sets. Nothing for
-      a backend that names no such way.
+      that says where to go answered with the gateway -- at `/v1` for a way speaking OpenAI's
+      API -- and its secret with the key, what has an answer that is usually right answered
+      with that, and what the way sets. Nothing for a backend that names no such way.
     """
     way = _routes(profile)
     if way is None:
         return {}
+    where = f"{url}{_VERSIONED}" if way.name.startswith(_OPENAI) else url
     held: dict[str, str] = {}
     for asked in way.asks:
         if asked.secret:
             held[asked.env] = key
         elif asked.env == profile.endpoint or asked.env.endswith(("_URL", "_BASE")):
-            held[asked.env] = url
+            held[asked.env] = where
         elif asked.fixed:
             held[asked.env] = asked.fixed
     return held | dict(way.sets)

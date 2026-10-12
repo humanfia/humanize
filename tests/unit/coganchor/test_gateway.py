@@ -149,6 +149,30 @@ def test_claude_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
     assert argued(_claude(), env) == ()
 
 
+@pytest.mark.parametrize(
+    ("backend", "fixed"),
+    [
+        ("opencode", {"OPENCODE_GATEWAY_NPM": "@ai-sdk/openai-compatible"}),
+        ("mimo", {"MIMO_GATEWAY_API": "@ai-sdk/openai-compatible"}),
+        ("pi", {"PI_GATEWAY_API": "openai-completions"}),
+    ],
+)
+def test_a_cli_speaking_openais_api_is_pointed_at_the_gateways_v1(
+    backend: str, fixed: dict[str, str]
+) -> None:
+    profile = backends.named(backend)
+    assert profile is not None
+    assert profile.routes == "openai-gateway"
+
+    env = spoken(profile, "http://127.0.0.1:4000", "sk-master")
+
+    assert env[profile.endpoint] == "http://127.0.0.1:4000/v1"
+    assert "sk-master" in env.values()
+    assert fixed.items() <= env.items()
+    # The model is the turn's, which the driver says: nothing here names one.
+    assert not any(name.endswith("_MODEL") for name in env)
+
+
 def test_a_backend_naming_no_way_to_a_gateway_is_pointed_nowhere() -> None:
     codex = backends.named("codex")
     assert codex is not None

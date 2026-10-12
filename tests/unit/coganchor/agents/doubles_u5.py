@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.agents.event import Event
+    from hmz.coganchor.providers import Provider
 
 #: A process id no kernel hands out, so that a signal sent to one of these reaches nobody.
 UNREAL_PID = 1 << 30
@@ -214,3 +215,41 @@ def heard(agent: AgentBase) -> list[Event]:
 def option(argv: list[str], flag: str) -> str | None:
     """The value a command line gives one of its flags, or None where it has no such flag."""
     return argv[argv.index(flag) + 1] if flag in argv else None
+
+
+class Gateway:
+    """A LiteLLM gateway that starts nothing: where it would be, and whether it is up."""
+
+    def __init__(self, provider: Provider) -> None:
+        self.account = provider
+        self.port = 4321
+        self.url = "http://127.0.0.1:4321"
+        self.key = "sk-master"
+        self.running = True
+
+    def stop(self) -> None:
+        self.running = False
+
+
+def routing(monkeypatch: pytest.MonkeyPatch, cli: str) -> None:
+    """Makes `gw` an account of `cli`'s a local LiteLLM gateway holds, and pretends the gateway.
+
+    The account is an OpenAI key, which is in the environment as well as in the account: what
+    a turn may be handed neither way.
+    """
+    from hmz.coganchor import gateway, providers
+    from hmz.coganchor.providers import Provider
+
+    account = Provider(
+        cli=cli,
+        name="gw",
+        way="litellm-openai-key",
+        env={"OPENAI_API_KEY": "upstream-secret"},
+    )
+
+    def find(backend: str, name: str) -> Provider | None:
+        return account if name == "gw" else Provider(backend, name, way="")
+
+    monkeypatch.setattr(providers, "find", find)
+    monkeypatch.setattr(gateway, "Gateway", Gateway)
+    monkeypatch.setenv("OPENAI_API_KEY", "lying-about")

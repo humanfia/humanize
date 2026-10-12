@@ -2572,6 +2572,9 @@ PROFILES = (
         # against the one provider the driver declares for it, under whatever id the turn
         # names -- so what that gateway serves is what a turn of it may name, bare.
         endpoint="PI_GATEWAY_URL",
+        # And the OpenAI one is how the local LiteLLM gateway is spoken to: pi speaks Chat
+        # Completions to it, as a provider of its own the driver declares for the turn.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -3300,6 +3303,9 @@ PROFILES = (
         # whose ids a turn names bare and the driver spells `gateway/<id>` -- so what that
         # endpoint lists is what a turn of the account may name.
         endpoint="OPENCODE_GATEWAY_URL",
+        # And the OpenAI one is how the local LiteLLM gateway is spoken to: opencode speaks
+        # Chat Completions to it, as that same provider of its config.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -3570,6 +3576,9 @@ PROFILES = (
         # configuration a gateway way sets -- which is the driver's to spell, so what this
         # endpoint lists is what a turn may name.
         endpoint="MIMO_GATEWAY_URL",
+        # And the OpenAI one is how the local LiteLLM gateway is spoken to, as it is for
+        # opencode.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",

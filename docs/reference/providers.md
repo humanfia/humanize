@@ -684,7 +684,9 @@ one provider there and appends `--provider <name>` to the turn:
 - With `--provider`, pi takes any model id, bare or `<name>/`-prefixed, as an id of that
   provider, listed or not.
 - A symlinked `models.json` is written through the link.
-- Entries are never removed: changing an account's URL, model or protocol adds another.
+- Entries are never removed: changing an account's URL, model or protocol adds another. The
+  one exception is an account [through LiteLLM](#through-litellm), whose `PI_GATEWAY_MODEL` is
+  the turn's model and whose entries, at the gateway's port, `agent.stop()` removes.
 - A gateway turn of an anchored agent raises `ValueError` before it starts: its pi reads
   the target's `models.json`, which is not written.
 
@@ -731,6 +733,9 @@ account's on the other.
 | Backend | Ways (`backends.routed`) | The CLI is pointed at the gateway by (`Profile.routes`) |
 | --- | --- | --- |
 | `claude` | `litellm-openai-key`, `litellm-anthropic-key`, `litellm-gemini-key`, `litellm-xai-key`, `litellm-openrouter-key`, `litellm-deepseek-key`, `litellm-groq-key`, `litellm-mistral-key`, `litellm-openai-gateway`, `litellm-anthropic-gateway`, `litellm-bedrock`, `litellm-vertex`, `litellm-azure` | `anthropic-gateway`: `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` |
+| `opencode` | the same | `openai-gateway`: `OPENCODE_GATEWAY_URL`, `OPENCODE_GATEWAY_KEY`, `OPENCODE_GATEWAY_NPM` (`@ai-sdk/openai-compatible`), `OPENCODE_CONFIG_CONTENT`; `OPENCODE_GATEWAY_MODEL` is the turn's model |
+| `mimo` | the same | `openai-gateway`: `MIMO_GATEWAY_URL`, `MIMO_GATEWAY_KEY`, `MIMO_GATEWAY_API` (`@ai-sdk/openai-compatible`), `MIMOCODE_CONFIG_CONTENT`; `MIMO_GATEWAY_MODEL` is the turn's model |
+| `pi` | the same | `openai-gateway`: `PI_GATEWAY_URL`, `PI_GATEWAY_KEY`, `PI_GATEWAY_API` (`openai-completions`); the `models.json` provider ([gateways](#gateways)) lists the turn's model |
 
 Each `litellm-<way>` asks and sets what `litellm`'s own `<way>` does ([Ways by
 backend](#ways-by-backend)), and is offered only while the gateway can be started here
@@ -741,16 +746,16 @@ backend](#ways-by-backend)), and is offered only while the gateway can be starte
 | Started | by `agent.gateway`, the first time a turn needs it: `python -m litellm.proxy.proxy_cli --config FILE --host 127.0.0.1 --port PORT`, with this interpreter, on a free port, waited for at `/v1/models` under its own key, past any proxy, for up to 120 s. One per agent; started again for another account or once it has gone. |
 | Configured | `gateway.configured(provider, key)`: a model list of `PREFIX/*` and `*`, both sent to `PREFIX/*` with the account's credentials (`gateway.credentials`), `drop_params`, and Anthropic messages sent to an OpenAI-shaped provider as chat completions. `PREFIX` is `gateway.prefix`: the vendor of a key way, `bedrock`, `vertex_ai` or `azure`, or a gateway account's `LITELLM_GATEWAY_API`. |
 | Held | the configuration is a file `0600` in a directory `0700` of its own, removed with the gateway; the master key is `sk-` and 32 random bytes. Neither is on a command line; a failure to start says the proxy's last lines with every secret struck out. |
-| The turn | `agent.environment()` is the `routes` way answered by the gateway (`gateway.spoken`): its URL variable the gateway's `http://127.0.0.1:PORT`, its secret the master key, plus what that way sets, and `127.0.0.1` and `localhost` added to `NO_PROXY`; its `args`, filled in, are appended (`gateway.argued`). `claude` is also given the agent's model as every model it reaches for on its own (`ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_`, `_OPUS_`, `ANTHROPIC_SMALL_FAST_MODEL`). `agent.hushed()` is `hushes()` and everything the account sets, so none of it reaches the CLI. |
+| The turn | `agent.environment()` is the `routes` way answered by the gateway (`gateway.spoken`): its URL variable the gateway's `http://127.0.0.1:PORT` (with `/v1` after it for an `openai-` way, whose SDKs add only the operation), its secret the master key, plus what that way sets, and `127.0.0.1` and `localhost` added to `NO_PROXY`; its `args`, filled in, are appended (`gateway.argued`). `claude` is also given the agent's model as every model it reaches for on its own (`ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_`, `_OPUS_`, `ANTHROPIC_SMALL_FAST_MODEL`). `agent.hushed()` is `hushes()` and everything the account sets, so none of it reaches the CLI. |
 | Fenced | `agent.fenced()` adds `127.0.0.1:PORT` to the hosts. `providers.composed` adds none of the account's variables, so the account's own endpoint opens no host for the CLI. |
 | Anchored | supervised with the harness here: the gateway runs here, its variables are kept here (`private`), and with `net` `remote` `127.0.0.1:PORT` is kept local (`net_allow`). Driven natively, or with the harness elsewhere, the CLI is not on this machine, and the agent is refused the account (`Unserved`) where it is configured. |
-| Stopped | by `agent.stop()`, and when the agent or the gateway is collected: `SIGTERM` to its process group, `SIGKILL` after 5 s, and every child. |
+| Stopped | by `agent.stop()`, and when the agent or the gateway is collected: `SIGTERM` to its process group, `SIGKILL` after 5 s, and every child. `pi`'s `agent.stop()` also removes every `humanize-` provider at `127.0.0.1:PORT` from `models.json`. |
 | Models | `models.ask(cli, account)` reads what is behind the gateway, never the CLI: a gateway account's endpoint, asked as `litellm`'s are, or `litellm`'s own catalogue narrowed to `PREFIX/`. A model that reasons takes the CLI's whole ladder. A bare id is sent to `PREFIX/id`. |
 
 A turn of the `litellm` backend itself is sent with the same mapping (`gateway.spelled`,
 `gateway.credentials`): a bare id under any account is sent to that account's provider.
 
-<small>Defined in [`src/hmz/coganchor/gateway.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/gateway.py), [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`routed`, `upstream`, `Profile.routes`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`gateway`), [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py) (`routed`).</small>
+<small>Defined in [`src/hmz/coganchor/gateway.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/gateway.py), [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`routed`, `upstream`, `Profile.routes`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`gateway`), [`src/hmz/coganchor/agents/pi.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/pi.py) (`PiAgent.stop`), [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py) (`routed`).</small>
 
 ## One account, several CLIs
 
