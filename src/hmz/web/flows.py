@@ -84,6 +84,7 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
             "params": settings.params(name),
             "budget": settings.budget(name),
             "profile": settings.profile(name),
+            "backup": settings.backup(name),
         },
     }
 
@@ -91,9 +92,10 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
 def remembered(hmz: Any, said: dict[str, Any]) -> None:
     """Writes down what a workspace is set up to run a flow with, as `/flow` saves it.
 
-    What a new epic there opens on from then on: its agents, environments, params, budget and
-    whether it is profiled. Refused, as the terminal interface refuses to save it, where a role
-    names no agent or -- for every flow but chat -- nothing says what it may spend.
+    What a new epic there opens on from then on: its agents, environments, params, budget,
+    whether it is profiled and the backup targets it goes to. Refused, as the terminal
+    interface refuses to save it, where a role names no agent or -- for every flow but chat
+    -- nothing says what it may spend.
 
     Args:
       hmz: humanize, for the workspace.
@@ -132,6 +134,16 @@ def remembered(hmz: Any, said: dict[str, Any]) -> None:
         raise Refusal(f"{flow} needs at least one limit on what it may spend.")
     envs: object = said.get("envs")
     params: object = said.get("params")
+    backup: object = said.get("backup")
+    if backup is not None and not (
+        isinstance(backup, list)
+        and all(isinstance(one, str) for one in cast("list[object]", backup))
+    ):
+        raise Refusal("backup is a list of backup target names.")
+    chosen = cast("list[str]", backup or [])
+    known = {one.name for one in hmz.backups.targets()}
+    if missing := [one for one in chosen if one not in known]:
+        raise Refusal(f"There is no backup target named {', '.join(missing)}.")
     daemon_settings(hmz).remember(
         flow,
         agents,
@@ -139,6 +151,7 @@ def remembered(hmz: Any, said: dict[str, Any]) -> None:
         cast("dict[str, Any]", params) if isinstance(params, dict) else None,
         cast("dict[str, Any]", budget) if isinstance(budget, dict) else {},
         profile=said.get("profile") is True,
+        backup=cast("list[str] | None", backup),
     )
 
 

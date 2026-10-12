@@ -143,6 +143,7 @@ class Grant:
     capabilities: frozenset[type]
     permission: Permission
     skills: tuple[str, ...]
+    tools: tuple[FakeTool, ...]
 @dataclass(frozen=True, slots=True, eq=False)
 class AgentRole:
     name: str
@@ -153,6 +154,7 @@ class AgentRole:
     capabilities: frozenset[type]
     permission: Permission
     skills: tuple[str, ...]
+    tools: tuple[FakeTool, ...]
     grant: Grant
 @dataclass(frozen=True, slots=True, eq=False)
 class EnvRole:
@@ -218,7 +220,7 @@ def pinned(url: str, rev: str | None) -> Path: ...  # machine()/pinned/<url>/<co
 # fakes.py -- in-memory drivers, for testing a flow
 class FakeAgentDriver: ...  # (harness, *, reply, model, effort, provider, capabilities,
                             #  cost, output_tokens, seconds, forks, names_late)
-class FakeSession: ...  # until_steered, tool, ask, notify, subagent
+class FakeSession: ...  # until_steered, tool, use, ask, notify, subagent
 class FakeEnvDriver: ...  # (files, *, workdir, backend, provider, capabilities, cpu_count,
                           #  memory, gpu_count, gpu_memory, run, refs, repo)
 class FakeOutworlder: ...  # (reply, *, away)
@@ -376,7 +378,7 @@ def under() -> Path: ...  # machine()/skills
   resolve. `NotRequired`, `Required`, `ReadOnly` and `Annotated` MUST be read through, and
   `__extra_items__` MUST NOT be relied on.
 - A role's type MUST be read once per type: its capabilities (a mixin's bases with it), its
-  `_permission` and `_skills` for an agent, its resources and `_image` for an environment, the
+  `_permission`, `_skills` and `_tools` for an agent, its resources and `_image` for an environment, the
   harness a
   harness protocol names, and whether the runtime fills it -- an `Outworlder`, a `LocalEnv`.
   A type no agent or environment can be MUST raise `FlowDefinitionError`.
@@ -414,6 +416,9 @@ def under() -> Path: ...  # machine()/skills
   nothing by itself. Only a flow marked with `full_view` MUST be granted its harness's all.
 - `derive` MUST only narrow: a permission the grant covers, skills the grant names. An agent
   derived from another MUST share its hooks and its sessions.
+- A role's `_tools` MUST be offered by every session of its agent, and a call of one MUST run
+  its function on the run's loop as the flow the agent belongs to; what it raises MUST be
+  answered to the agent as the tool failing, and MUST NOT fail the turn.
 - A hook MUST be called with the context of the flow the agent belongs to and the session the
   moment arrived in, and MUST run as that flow. What it raises MUST fail the turn it arrived
   in. A callee's hooks MUST NOT be heard by its caller's sessions, nor the other way round.
@@ -660,7 +665,8 @@ def under() -> Path: ...  # machine()/skills
 - The machine MUST be asked whether it has the CLI down the road a native turn takes, one
   question at a time, and a run stopped while it asks MUST take the asking down with it; where
   the harness went -- `local`, `self`, or `<backend>:<name>` -- MUST be written down with each
-  session whose work is elsewhere.
+  session whose work is elsewhere, and a session under `self` or `<backend>:<name>` MUST be kept
+  in the epic as the copy the runtime spec says, before its machine is closed.
 
 ### Fakes
 

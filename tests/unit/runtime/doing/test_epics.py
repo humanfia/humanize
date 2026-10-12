@@ -11,7 +11,7 @@ import pytest
 
 from hmz.runtime import Epics, exporting
 from hmz.runtime.epic import RESUME, SESSIONS, TRACES, Epic
-from hmz.runtime.tracing import collector, profile
+from hmz.runtime.tracing import collector, profile, timeline
 
 if TYPE_CHECKING:
     from tests.unit.runtime.doubles_u12 import Stands
@@ -66,6 +66,19 @@ def test_the_runs_of_a_workspace_are_read_back(workspace: Path) -> None:
     assert epics.state(second, "official/other") == {}
 
 
+def test_every_run_on_this_machine_is_read_back_oldest_first(
+    workspace: Path, tmp_path: Path
+) -> None:
+    assert Epics().every() == []
+    first = _run(workspace)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    second = _run(elsewhere)
+
+    assert Epics(workspace).every() == [first, second]
+    assert Epics(workspace).all() == [first]
+
+
 def test_a_workspace_nobody_named_is_this_directory(
     workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -100,6 +113,32 @@ def test_a_trace_of_a_run_is_of_that_runs_sessions_and_kept_with_it(
         "profile": run / profile.PROFILE,
         "kept": [run / SESSIONS],
     }
+
+
+def test_a_timeline_of_a_run_is_laid_out_of_what_its_trace_is_gathered_from(
+    workspace: Path, stand: Stands
+) -> None:
+    gathered = stand(collector, "gather", ["session"])
+    laid = stand(timeline, "build", "laid out")
+    run = _run(workspace)
+
+    said: Any = Epics(workspace).timeline(run)
+
+    assert said == "laid out"
+    ((args, kwargs),) = gathered.calls
+    assert args == (None,)
+    assert kwargs == {
+        "sessions": ["s1", "s2", "s3"],
+        "agents": {"builder": ["s1", "s2"], "reviewer": ["s3"]},
+        "kept": [run / SESSIONS],
+    }
+    ((args, kwargs),) = laid.calls
+    assert args == (["session"],)
+    assert kwargs["ran"] == Epics(workspace).read(run)
+    assert kwargs["calls"] == ()
+    assert kwargs["profiled"] == []
+    # Written nowhere: a timeline is drawn and thrown away.
+    assert not (run / TRACES).exists()
 
 
 def test_a_trace_goes_where_it_is_told(
@@ -182,6 +221,24 @@ def test_a_run_is_bundled_by_the_exporter(workspace: Path, stand: Stands) -> Non
 
     assert said == ("where", {"m": 1})
     assert bundled.calls == [((run, "out"), {"transcript": "screen"})]
+
+
+def test_a_bundle_is_imported_by_the_exporter(workspace: Path, stand: Stands) -> None:
+    unbundled = stand(exporting, "unbundle", Path("where"))
+
+    assert Epics(workspace).imported("x.hmzepic") == Path("where")
+    assert unbundled.calls == [(("x.hmzepic",), {})]
+
+
+def test_a_run_imported_from_a_workspace_not_here_is_foreign(workspace: Path) -> None:
+    run = _run(workspace, resumable=True)
+    (run / RESUME).write_text('{"t": "call", "id": 1}\n')
+    with (run / "epic.jsonl").open("a") as stream:
+        stream.write('{"event": "imported", "from": "x.hmzepic"}\n')
+    workspace.rename(workspace.with_name("gone"))
+
+    assert "not on this machine" in Epics(workspace).foreign(run)
+    assert Epics(workspace).picks_up(run) is False
 
 
 def test_a_journal_nobody_wrote_cannot_be_picked_up(workspace: Path) -> None:

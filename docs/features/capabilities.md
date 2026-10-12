@@ -69,7 +69,7 @@ Python, for the weaver: whoever writes the flow.
 | **Answers as typed data.** A pydantic model back, not a paragraph. | [Answers in a shape](/weaver/shapes)<br><small>[Answers as typed data](/features/shapes)</small> |
 | **The agent decides it is done.** A goal it keeps at until it judges it met. | [Goals](/weaver/goals)<br><small>[The agent decides it is done](/features/goals)</small> |
 | **React to each moment.** Your code before a tool, on a prompt, as a turn stops. | [Hooks](/weaver/hooks)<br><small>[React to each moment of a turn](/features/hooks)</small> |
-| **Tools that call the flow.** The agent reaches the flow mid-turn; the flow's code answers. | [The agent asking the flow](/weaver/tools) |
+| **Tools that call the flow.** The agent calls a tool of the flow's, or asks it, mid-turn; the flow's code answers. | [The agent asking the flow](/weaver/tools) |
 | **Ask the person.** A question to whoever is at the prompt, as one of the flow's agents. | [The person as an agent](/weaver/human-agent)<br><small>[When a flow asks you](/features/human)</small> |
 | **Cap a single turn.** Stop one turn at a time, money or token limit. | [Flows reference](/reference/flows)<br><small>[Cap a single turn](/features/budgets)</small> |
 | **Call another flow.** Another flow as a step, under what is left of your budget. | [A flow that calls a flow](/weaver/calling-flows) |

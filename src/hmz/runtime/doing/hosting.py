@@ -45,7 +45,7 @@ import threading
 import time
 import weakref
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -280,6 +280,7 @@ class _Question:
     text: str
     options: tuple[str, ...]
     mode: str
+    key: str = ""
     state: str = "pending"
     answer: str = ""
 
@@ -749,6 +750,7 @@ class Host:
                     "text": one.text,
                     "options": list(one.options),
                     "mode": one.mode,
+                    "key": one.key,
                     "owner": self._claims.get(one.role),
                 }
                 for one in self._questions
@@ -883,6 +885,11 @@ class Host:
         envs: Mapping[str, Any] = said.get("envs") or {}
         params = said.get("params")
         resume = said.get("resume") or False
+        backup = said.get("backup")
+        if backup is not None and not (
+            isinstance(backup, list) and all(isinstance(one, str) for one in backup)  # pyright: ignore[reportUnknownVariableType]
+        ):
+            return _no("backup is a list of backup target names")
         with self._lock:
             if self._closed:
                 return _no("this host has closed")
@@ -904,6 +911,7 @@ class Host:
                 budget=said.get("budget"),
                 profile=bool(said.get("profile")),
                 resume=resume,
+                backup=cast("list[str] | None", backup),
                 # Whoever is outside the run is every frontend here: asked on a thread of
                 # the run's own, and away while `/afk` says so.
                 outworlder=open_outworlder(
@@ -925,6 +933,7 @@ class Host:
                 "params": dict(params) if isinstance(params, dict) else {},  # pyright: ignore[reportUnknownArgumentType]
                 "budget": _json(run.budget),
                 "profile": run.profile,
+                "backup": list(run.backup),
                 "resume": str(resume) if resume else "",
                 "began": time.monotonic(),
                 "at": time.time(),
@@ -1510,7 +1519,10 @@ class Host:
             current = self._current
             if current is None or not self._live(number, role):
                 return None
-            mode = "ask" if question.options or len(current.working) else "listen"
+            working = list(current.working)
+            mode = "ask" if question.options or working else "listen"
+            # The conversation whose turn it stopped, where only one has a turn open to be it.
+            key = current.numbered.get(working[0], "") if len(working) == 1 else ""
             asked = _Question(
                 f"q{next(self._asking)}",
                 number,
@@ -1518,6 +1530,7 @@ class Host:
                 question.text,
                 tuple(question.options),
                 mode,
+                key,
             )
             self._questions.append(asked)
             self._record(
@@ -1529,6 +1542,7 @@ class Host:
                     "text": asked.text,
                     "options": list(asked.options),
                     "mode": mode,
+                    "key": key,
                 }
             )
             self._snap_pending()
@@ -1548,7 +1562,10 @@ class Host:
                         "away" if self._away_of.get(role, self._away_all) else "over",
                     )
                     return None
-                if mode == "listen" and (line := self._line_for(role)) is not None:
+                if (
+                    mode == "listen"
+                    and (line := self._line_for(current, role)) is not None
+                ):
                     self._queue.remove(line)
                     self._answers(asked, line.text, line.by, line.client)
                     self._snap_waiting()
@@ -1557,14 +1574,27 @@ class Host:
                 # that has gone are noticed however they came about.
                 self._spoke.wait(_TICK)
 
-    def _line_for(self, role: str) -> _Line | None:
-        """The oldest line waiting that answers what a role asks, where one does."""
-        wanted = ("", f"{_OUTWORLDER}{role}")
+    def _line_for(self, current: _Run, role: str) -> _Line | None:
+        """The oldest line waiting that answers what a role asks, where one does.
+
+        One said to the run at large or to the role does. And in `chat`, whose every question
+        between turns is what to say next, so does one said by name to its agent or its
+        conversation with no turn open to take it, which would otherwise wait for a turn that
+        only this answer starts. Under the lock.
+        """
+        named: set[str] = set()
+        if current.run.chats:
+            named = {agent.id for agent in current.agents}
+            named |= set(current.numbered.values())
         return next(
             (
                 one
                 for one in self._queue
-                if one.to in wanted and self._may(one.client, role)
+                if (
+                    one.to in ("", f"{_OUTWORLDER}{role}")
+                    or (one.to in named and self._target(current, one.to) is None)
+                )
+                and self._may(one.client, role)
             ),
             None,
         )
