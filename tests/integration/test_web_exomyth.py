@@ -19,7 +19,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import AGENT, install
-from tests.integration.doubles_web import ENGINES, Browser, opened, served, until
+from tests.integration.doubles_web import ENGINES, Browser, go, opened, served, until
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -125,7 +125,7 @@ def _lengthened(site: Site, tmp_path: Path, name: str, calls: int) -> None:
 
 def _exomyth(page: Page, name: str) -> None:
     """Opens an epic's Exomyth and waits for its timeline to be drawn."""
-    page.evaluate("(to) => { location.hash = to }", f"/epics/{name}/exomyth")
+    go(page, f"/epics/{name}/exomyth")
     page.wait_for_function("() => window.__exomyth && window.__exomyth.model()")
 
 
@@ -150,7 +150,7 @@ def test_an_epic_is_drawn_as_its_processes_moved_over_and_read(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         name = _chatted(site, "draw me")
-        page.evaluate("(to) => { location.hash = to }", f"/epics/{name}")
+        go(page, f"/epics/{name}")
         page.locator("[data-hmz=exomyth-open]").click()
         page.wait_for_function("() => window.__exomyth && window.__exomyth.model()")
         assert page.url.endswith(f"#/epics/{name}/exomyth")
