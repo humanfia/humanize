@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from typing import Any
 
     from hmz.runtime.epic import Called, Ran, Session
+    from hmz.runtime.tracing.timeline import Timeline
 
 __all__ = ["Epics"]
 
@@ -123,9 +124,7 @@ class Epics:
         """
         import datetime
 
-        from hmz import home
-        from hmz.runtime.epic import SESSIONS, TRACES
-        from hmz.runtime.epic import where as kept_in
+        from hmz.runtime.epic import TRACES
         from hmz.runtime.tracing.profile import PROFILE
 
         agents = self.opened(epic)
@@ -134,16 +133,6 @@ class Epics:
             stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
             where = epic / TRACES / f"{stamp}.trace.json"
         where.parent.mkdir(parents=True, exist_ok=True)
-        # Where the run kept its sessions: its own directory for them, and wherever else one
-        # of them says it was kept by humanize -- an agent that had kept sessions in another
-        # run before this one was handed it goes on keeping them there. Not a CLI's own home,
-        # which is read whatever is said here.
-        kept = {epic / SESSIONS} | {
-            at.parent
-            for one in self.sessions(epic)
-            if (at := kept_in(epic, one)).name == one.backend
-            and at.is_relative_to(home())
-        }
         # No workspace at all: the ids are exactly this run's, wherever they were logged.
         document = Epics().trace(
             sessions=[ident for ids in agents.values() for ident in ids],
@@ -152,9 +141,60 @@ class Epics:
             start=start,
             end=end,
             profile=epic / PROFILE,
-            kept=sorted(kept),
+            kept=self._kept(epic),
         )
         return where, document
+
+    def timeline(self, epic: Path) -> Timeline:
+        """Lays one run out as an Exomyth timeline: its sessions, its flows and its programs.
+
+        Gathered from exactly what a trace of the run is gathered from, and written nowhere:
+        a timeline is drawn and thrown away, where a trace is a file somebody keeps.
+
+        Args:
+          epic: The run, by the directory it is written in.
+
+        Returns:
+          The document a viewer draws, and what each of its slices carried, by id.
+        """
+        from hmz.runtime.tracing import collector, profile, timeline
+
+        agents = self.opened(epic)
+        # No workspace at all: the ids are exactly this run's, wherever they were logged.
+        sessions = collector.gather(
+            None,
+            sessions=[ident for ids in agents.values() for ident in ids],
+            agents=agents or None,
+            kept=self._kept(epic),
+        )
+        return timeline.build(
+            sessions,
+            ran=self.read(epic),
+            calls=self.tree(epic),
+            profiled=profile.read(epic / profile.PROFILE),
+        )
+
+    def _kept(self, epic: Path) -> list[Path]:
+        """Where one run kept its sessions, which is where a trace of it reads them.
+
+        Its own directory for them, and wherever else one of them says it was kept by
+        humanize -- an agent that had kept sessions in another run before this one was handed
+        it goes on keeping them there. Not a CLI's own home, which is read whatever is said
+        here.
+        """
+        from hmz import home
+        from hmz.runtime.epic import SESSIONS
+        from hmz.runtime.epic import where as kept_in
+
+        return sorted(
+            {epic / SESSIONS}
+            | {
+                at.parent
+                for one in self.sessions(epic)
+                if (at := kept_in(epic, one)).name == one.backend
+                and at.is_relative_to(home())
+            }
+        )
 
     def bundled(
         self,

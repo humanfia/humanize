@@ -191,6 +191,38 @@ def test_an_epic_written_down_is_read_back_out_of_the_logs_it_kept(
         assert "did: the first one" in said
 
 
+def test_an_epic_written_down_is_laid_out_as_a_timeline_and_each_span_read_whole(
+    project: Path,
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        _chatted(browser, "the first one")
+
+        (ran,) = browser.get("/api/runs").json()["runs"]
+        timeline = browser.get(f"/api/runs/{ran['name']}/timeline").json()
+        assert timeline["epic"] == ran["name"]
+        assert timeline["live"] is False
+        strings = timeline["strings"]
+        flow, session = timeline["processes"]
+        assert (flow["kind"], strings[flow["name"]]) == ("flow", "chat")
+        assert (session["kind"], session["parent"]) == ("session", 0)
+        assert strings[session["role"]] == "assistant"
+        track = timeline["tracks"][session["tracks"][0]]
+        cats = [strings[one] for one in track["spans"]["cat"]]
+        assert cats[:2] == ["session", "turn"]
+        assert track["spans"]["depth"][:2] == [0, 1]
+
+        turn = track["first"] + 1
+        at = f"/api/runs/{ran['name']}/timeline/span/{turn}"
+        said = browser.get(f"{at}?layout={timeline['layout']}").json()
+        assert (said["cat"], said["args"]["prompt"]) == ("turn", "the first one")
+        assert browser.get(f"{at}?layout=moved").status == 409
+        for missing in (str(timeline["summary"]["spans"]), "nope"):
+            gone = browser.get(f"/api/runs/{ran['name']}/timeline/span/{missing}")
+            assert gone.status == 404
+
+
 def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_history(
     tmp_path: Path, project: Path
 ) -> None:

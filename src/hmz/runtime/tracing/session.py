@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import json
 from typing import TYPE_CHECKING, Any, cast
 
@@ -107,6 +108,11 @@ def records(path: pathlib.Path) -> Iterator[dict[str, Any]]:
             continue
         if isinstance(record, dict):
             yield record
+
+
+def stamp(at: float) -> str:
+    """Formats an epoch second value as an ISO 8601 UTC timestamp."""
+    return datetime.datetime.fromtimestamp(at, datetime.UTC).isoformat()
 
 
 def summarize(text: str, limit: int = 96) -> str:
