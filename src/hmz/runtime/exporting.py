@@ -62,6 +62,7 @@ from hmz.runtime.epic import (
     SESSIONS,
     TRACES,
     logs,
+    note,
     read,
     records,
     sessions,
@@ -416,9 +417,7 @@ def unbundle(archive: str | os.PathLike[str]) -> Path:
                 reading.extractall(beside, members=members, filter="data")
                 epic = beside / name
                 _settle(epic, beside)
-                said = {"event": "imported", "at": _now(), "from": source.name}
-                with (epic / JOURNAL).open("a", encoding="utf-8") as stream:
-                    stream.write(json.dumps(said | {"head": head}) + "\n")
+                note(epic, "imported", **{"from": source.name, "head": head})
                 try:
                     epic.rename(kept / name)
                 except OSError as why:
@@ -934,7 +933,9 @@ def _manifest(
         mine = version("hmz")
     except PackageNotFoundError:  # pragma: no cover -- an install that is not one
         mine = ""
-    workspace = Path(ran.workspace) if ran.workspace else epic
+    head = _pinned(epic)
+    if head is None:
+        head = _head(Path(ran.workspace) if ran.workspace else epic)
     named = sorted(
         {one.backend for one in ran.agents} | {one.backend for one in ran.sessions}
     )
@@ -952,7 +953,7 @@ def _manifest(
             "how": ran.how or "left unfinished",
             "resumable": ran.resumable,
         },
-        "workspace": {"at": ran.workspace, "head": _head(workspace)},
+        "workspace": {"at": ran.workspace, "head": head},
         "agents": [
             {
                 "agent": one.agent,
@@ -974,6 +975,27 @@ def _manifest(
         "held": [*held, MANIFEST],
         "redacted": list(STRUCK),
     }
+
+
+def _pinned(epic: Path) -> str | None:
+    """The commit an imported run was said to be on, off its last import; None for one not.
+
+    Its workspace here is another checkout, if it is here at all, so what that is on now is
+    not what the run was on.
+    """
+    with contextlib.suppress(OSError):
+        lines = (epic / JOURNAL).read_text(encoding="utf-8", errors="replace")
+        for line in reversed(lines.splitlines()):
+            try:
+                said = json.loads(line)
+            except ValueError:
+                continue
+            if (
+                isinstance(said, dict)
+                and cast("dict[str, Any]", said).get("event") == "imported"
+            ):
+                return str(cast("dict[str, Any]", said).get("head") or "")
+    return None
 
 
 def _head(workspace: Path) -> str:

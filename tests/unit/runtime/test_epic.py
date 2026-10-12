@@ -496,7 +496,7 @@ def test_where_a_run_is_backed_up_and_how_it_went_read_back(workspace: Path) -> 
     assert ran.backed["lab"]["at"]
 
 
-def test_an_imported_run_reads_back_only_the_backups_made_since(
+def test_an_imported_run_reads_back_only_its_backups_here(
     workspace: Path,
 ) -> None:
     with Epic("ralph", "fix it", workspace, backup=["lab"]) as one:
@@ -506,6 +506,7 @@ def test_an_imported_run_reads_back_only_the_backups_made_since(
 
     ran = epic.read(one.path)
     assert ran is not None
+    assert ran.backup == ()
     assert ran.backed == {}
 
     epic.note(one.path, epic.BACKED, to="home", ok=True, error="", why="manual")

@@ -118,7 +118,8 @@ A file the run never wrote is left out: `resume.jsonl` only for a flow that
 - humanize's version, Python's, and the machine's;
 - the flow, the task, and how the run ended;
 - each agent's CLI, model, effort and account (by name only);
-- the workspace, and the git commit it is on when you export;
+- the workspace, and the git commit it is on when you export, or, for a run you imported, the
+  commit its archive said;
 - for each CLI, the version it reports and the SHA-256 of the program that took the turns.
   These CLIs change weekly, and a bug is a bug in one build.
 

@@ -440,6 +440,17 @@ def test_a_run_whose_commit_the_repository_has_not_got_cannot_be_picked_up(
     assert not picks_up(back)
 
 
+def test_an_imported_run_exported_again_says_the_commit_it_was_on(
+    world: World, ran: Path, tmp_path: Path
+) -> None:
+    back = unbundle(_away(ran, tmp_path))
+    world.head = "def456"
+
+    _, manifest = bundle(back, tmp_path / "again.hmzepic")
+
+    assert manifest["workspace"]["head"] == "abc123"
+
+
 def test_a_run_not_imported_is_foreign_to_nothing(world: World, ran: Path) -> None:
     assert foreign(ran) == ""
     assert world.ran == []

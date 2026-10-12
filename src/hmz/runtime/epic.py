@@ -1259,7 +1259,8 @@ def read(epic: Path) -> Ran | None:
     spelled = str if began.get("spelling") == SPELLING else _respelled
     params = began.get("params")
     budget = began.get("budget")
-    backup = began.get("backup")
+    # One imported was given another machine's targets, which are nothing to back up to here.
+    backup = None if _here(events) else began.get("backup")
     return Ran(
         at=epic,
         flow=str(began.get("flow") or ""),
