@@ -61,7 +61,7 @@ from hmz.runtime.epic import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping, Sequence
+    from collections.abc import Callable, Iterator, Mapping, Sequence
 
     from hmz.runtime.epic import Called, Ran, Session
 
@@ -75,6 +75,7 @@ __all__ = [
     "logged",
     "plain",
     "sized",
+    "unpacked",
 ]
 
 #: What a bundle is called, which says which run it is of rather than when it was written: a
@@ -233,14 +234,6 @@ def bundle(
         raise ValueError(f"{epic} is not a run")
     landed = _lands(epic, at)
     landed.parent.mkdir(parents=True, exist_ok=True)
-    struck = _struck(ran)
-    # What each session was logged to, found once. The manifest says what the archive
-    # holds, and a second look would let it name a file the archive has not got: a log
-    # rolls over while this runs, and an absence that means that reads exactly like an
-    # absence that means the bundle lost it.
-    behind = logged(epic)
-    found = {one.name: dict(behind.get(one.name, {})) for one in ran.sessions}
-    held: list[str] = []
     # Written whole under a name of its own and moved into place: an archive read while it
     # is being written is one nothing can open, and two exports of one run at once would
     # otherwise be two gzip streams into one file. The mode this makes it with is the one it
@@ -253,40 +246,122 @@ def bundle(
     beside = Path(temporary)
     try:
         with tarfile.open(beside, "w:gz") as writing:
-            for name, source in _files(epic):
-                if _copies(writing, f"{epic.name}/{name}", source, struck):
-                    held.append(name)
-            for one in ran.sessions:
-                kept: dict[str, Path] = {}
-                for name, source in found[one.name].items():
-                    under = f"{SESSIONS}/{one.name}/{name}"
-                    if _copies(writing, f"{epic.name}/{under}", source, struck):
-                        kept[name] = source
-                        held.append(under)
-                found[one.name] = kept
-            if transcript is not None:
-                _puts(
-                    writing,
-                    f"{epic.name}/{TRANSCRIPT}",
-                    plain(transcript, struck).encode("utf-8"),
-                )
-                held.append(TRANSCRIPT)
-            # Through the same scrubbing as everything else. It holds what the run was asked
-            # to do, which is a line somebody typed and may hold whatever they had in hand --
-            # and it is the file whoever opens the archive reads first.
-            said = plain(
-                json.dumps(
-                    _manifest(epic, ran, _sessions(ran, found), held),
-                    ensure_ascii=False,
-                    indent=2,
+            said = _writes(
+                epic,
+                ran,
+                transcript,
+                lambda name, source, struck: _copies(
+                    writing, f"{epic.name}/{name}", source, struck
                 ),
-                struck,
+                lambda name, data: _puts(writing, f"{epic.name}/{name}", data),
             )
-            _puts(writing, f"{epic.name}/{MANIFEST}", said.encode("utf-8"))
         beside.replace(landed)
     finally:
         beside.unlink(missing_ok=True)
     return landed, cast("dict[str, Any]", json.loads(said))
+
+
+def unpacked(epic: Path, into: Path) -> dict[str, Any]:
+    """Writes what a bundle of one run holds as files under a directory, not as an archive.
+
+    The same files, struck of credentials the same way, laid out as a bundle lays them out
+    under the run's own name -- which is what a backup commits, so that a repository of runs
+    reads file by file rather than as a pile of archives nothing can diff.
+
+    Args:
+      epic: The run, by the directory it is written in.
+      into: The directory to write it into, made where it is not there.
+
+    Returns:
+      The manifest, as it was written there.
+
+    Raises:
+      ValueError: For a directory holding no run.
+      OSError: Where what is under `into` cannot be written.
+    """
+    ran = read(epic)
+    if ran is None:
+        raise ValueError(f"{epic} is not a run")
+
+    def copies(name: str, source: Path, struck: Sequence[str]) -> bool:
+        to = into / name
+        to.parent.mkdir(parents=True, exist_ok=True)
+        # A line at a time, for the reason an archive is: a nine-hour run's log is big. One
+        # that goes while it is read is left out, as an archive leaves it.
+        try:
+            with (
+                source.open("r", encoding="utf-8", errors="replace") as reading,
+                to.open("w", encoding="utf-8") as writing,
+            ):
+                for line in reading:
+                    writing.write(plain(line, struck))
+        except OSError:
+            to.unlink(missing_ok=True)
+            return False
+        return True
+
+    def puts(name: str, data: bytes) -> None:
+        (into / name).parent.mkdir(parents=True, exist_ok=True)
+        (into / name).write_bytes(data)
+
+    return cast("dict[str, Any]", json.loads(_writes(epic, ran, None, copies, puts)))
+
+
+def _writes(
+    epic: Path,
+    ran: Ran,
+    transcript: str | None,
+    copies: Callable[[str, Path, Sequence[str]], bool],
+    puts: Callable[[str, bytes], None],
+) -> str:
+    """Hands over everything a bundle of one run holds, file by file, and its manifest.
+
+    Args:
+      epic: The run, by the directory it is written in.
+      ran: What it was, already read.
+      transcript: A screen that went with it, or None.
+      copies: What puts a file of the run's in, by the name it goes under, scrubbed of the
+        values given as well as the patterns; it says whether it went in.
+      puts: What puts something this made itself in, by name.
+
+    Returns:
+      The manifest, as it was written.
+    """
+    struck = _struck(ran)
+    # What each session was logged to, found once. The manifest says what the bundle
+    # holds, and a second look would let it name a file the bundle has not got: a log
+    # rolls over while this runs, and an absence that means that reads exactly like an
+    # absence that means the bundle lost it.
+    behind = logged(epic)
+    found = {one.name: dict(behind.get(one.name, {})) for one in ran.sessions}
+    held: list[str] = []
+    for name, source in _files(epic):
+        if copies(name, source, struck):
+            held.append(name)
+    for one in ran.sessions:
+        kept: dict[str, Path] = {}
+        for name, source in found[one.name].items():
+            under = f"{SESSIONS}/{one.name}/{name}"
+            if copies(under, source, struck):
+                kept[name] = source
+                held.append(under)
+        found[one.name] = kept
+    if transcript is not None:
+        puts(TRANSCRIPT, plain(transcript, struck).encode("utf-8"))
+        held.append(TRANSCRIPT)
+    # Through the same scrubbing as everything else. It holds what the run was asked to do,
+    # which is a line somebody typed and may hold whatever they had in hand -- and it is the
+    # file whoever opens the bundle reads first.
+    said = plain(
+        json.dumps(
+            _manifest(epic, ran, _sessions(ran, found), held),
+            ensure_ascii=False,
+            indent=2,
+        ),
+        struck,
+    )
+    puts(MANIFEST, said.encode("utf-8"))
+    return said
 
 
 def logged(epic: Path) -> dict[str, dict[str, Path]]:

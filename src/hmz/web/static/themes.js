@@ -1,9 +1,9 @@
 // Themes, as an editor keeps them: those humanize comes with, a light and a dark of each pair,
-// and any made in this browser on Light or Dark -- a name, the colours it changes and a picture
-// for any of the page's large planes, still or drawn moving -- chosen outright or under Auto,
-// which follows the system with the theme picked for its light and the one for its dark, a pair
-// at once or any two. Each is written out whole as a `.hmztheme` file, which is read back in
-// here or in any other browser.
+// and any made in this browser on Light or Dark, alone or as a pair of its own -- a name, the
+// colours it changes and a picture for any of the page's large planes, still or drawn moving --
+// chosen outright or under Auto, which follows the system with the theme picked for its light
+// and the one for its dark, a pair at once or any two. A theme, or a pair with both its themes,
+// is written out whole as a `.hmztheme` file, which is read back in here or in any other browser.
 //
 // What a theme changes is kept beside the choice, for theme.js to paint before the page is
 // drawn -- those humanize comes with as well, while they are chosen or paired; its pictures,
@@ -81,6 +81,20 @@ export function pair(scheme, id) {
   paint()
 }
 
+/** Every pair: those humanize comes with, then those made here, each by its key and its name. */
+export function pairs() {
+  const mine = new Map()
+  for (const one of made()) if (one.pair && !mine.has(one.pair)) mine.set(one.pair, { key: one.pair, name: one.name, mine: true })
+  return [...PAIRS, ...[...mine.values()].filter((one) => members(one.key).length === 2)]
+}
+
+/** A pair's light and dark, in that order. */
+export function members(key) {
+  return themes()
+    .filter((one) => one.pair === key)
+    .sort((a, b) => (a.base === 'light' ? -1 : 1) - (b.base === 'light' ? -1 : 1))
+}
+
 /** The pair Auto shows, where its light and its dark are one pair's two. */
 export function pairing() {
   const { light, dark } = paired()
@@ -90,7 +104,7 @@ export function pairing() {
 
 /** Shows a pair under Auto: its light where the system is light, its dark where it is dark. */
 export function usePair(key) {
-  const [light, dark] = OWN.filter((one) => one.pair === key)
+  const [light, dark] = members(key)
   keep('hmz-theme-light', light.id === 'light' ? null : light.id)
   keep('hmz-theme-dark', dark.id === 'dark' ? null : dark.id)
   choose('auto')
@@ -125,9 +139,32 @@ export async function remove(id) {
   paint()
 }
 
-/** A new theme, on the one given or on the base named: its colours and pictures copied. */
-export async function create(from, name) {
-  const one = { id: `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: unique(name), base: from.base, colors: { ...from.colors }, images: {} }
+/** A new id, for a theme or a pair made here. */
+function fresh(kind) {
+  return `${kind}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+/** Gives a pair made here a name: both its themes have it. */
+export function rename(key, name) {
+  for (const one of made()) if (one.pair === key) save({ ...one, name })
+}
+
+/** Forgets a pair made here: both its themes. */
+export async function removePair(key) {
+  for (const one of members(key)) await remove(one.id)
+}
+
+/** A new pair, of the light and the dark given: their colours and pictures copied. */
+export async function createPair(light, dark, name) {
+  const key = fresh('p')
+  const said = unique(name)
+  return [await create(light, said, key), await create(dark, said, key)]
+}
+
+/** A new theme, on the one given or on the base named: its colours and pictures copied, in a pair where one is given. */
+export async function create(from, name, pair = null) {
+  const one = { id: fresh('t'), name: pair ? name : unique(name), base: from.base, colors: { ...from.colors }, images: {} }
+  if (pair) one.pair = pair
   for (const [area, set] of Object.entries(from.images || {})) {
     const data = await picture(from.id, area)
     if (data) {
@@ -249,29 +286,40 @@ export function isColour(said) {
   return typeof said === 'string' && said.trim() !== '' && CSS.supports('color', said.trim())
 }
 
-/** A theme written out whole, as a `.hmztheme` file holds it. */
-export async function written(one) {
+/** What a theme sets, with its pictures, as a `.hmztheme` file holds it. */
+async function look(one) {
   const images = {}
   for (const [area, how] of Object.entries(one.images || {})) {
     const data = await picture(one.id, area)
     if (data) images[area] = { fit: how.fit || 'cover', data }
   }
-  return { hmztheme: 1, name: one.name, base: one.base, colors: { ...one.colors }, images }
+  return { colors: { ...one.colors }, images }
 }
 
-/** Saves a theme as a `.hmztheme` file, as the browser saves a download. */
-export async function exported(one) {
-  const blob = new Blob([JSON.stringify(await written(one), null, 2)], { type: 'application/json' })
+/** A theme written out whole -- or, given a pair's key, the pair with both its themes. */
+export async function written(it) {
+  if (typeof it !== 'string') return { hmztheme: 1, name: it.name, base: it.base, ...(await look(it)) }
+  const [light, dark] = members(it)
+  return { hmztheme: 1, name: light.name, light: await look(light), dark: await look(dark) }
+}
+
+/** Saves a theme, or a pair by its key, as a `.hmztheme` file, as the browser saves a download. */
+export async function exported(it) {
+  const said = await written(it)
+  const blob = new Blob([JSON.stringify(said, null, 2)], { type: 'application/json' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `${one.name.replace(/[^\p{L}\p{N}._ -]+/gu, '').trim() || 'theme'}.hmztheme`
+  link.download = `${said.name.replace(/[^\p{L}\p{N}._ -]+/gu, '').trim() || 'theme'}.hmztheme`
   document.body.append(link)
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(link.href), 60000)
 }
 
-/** Makes a theme of a `.hmztheme` file's text, keeping what it says that a theme can hold. */
+/**
+ * Makes a theme of a `.hmztheme` file's text -- or, where it holds a light and a dark, a pair
+ * of both -- keeping what it says that a theme can hold. Says the themes made.
+ */
 export async function imported(text) {
   let said
   try {
@@ -279,16 +327,24 @@ export async function imported(text) {
   } catch {
     throw new Error('This is not a theme file')
   }
-  if (!said || said.hmztheme !== 1 || typeof said.name !== 'string' || !['light', 'dark'].includes(said.base)) throw new Error('This is not a theme file')
-  const colors = {}
-  for (const [token, value] of Object.entries(said.colors || {})) if (TOKENS.has(token) && isColour(value)) colors[token] = value.trim()
-  const one = await create({ id: '', base: said.base, colors, images: {} }, said.name.trim().slice(0, 60) || 'Imported')
-  for (const [area] of AREAS) {
-    const it = said.images?.[area]
-    if (!it || typeof it.data !== 'string' || !PICTURE.test(it.data)) continue
-    await picture(one.id, area, it.data)
-    one.images[area] = { fit: it.fit in FITS ? it.fit : 'cover' }
+  const both = said && typeof said.light === 'object' && typeof said.dark === 'object' && said.light && said.dark
+  if (!said || said.hmztheme !== 1 || typeof said.name !== 'string' || !(both || ['light', 'dark'].includes(said.base))) throw new Error('This is not a theme file')
+  const name = said.name.trim().slice(0, 60) || 'Imported'
+  const key = both ? fresh('p') : null
+  const named = both ? unique(name) : name
+  const made = []
+  for (const [base, it] of both ? [['light', said.light], ['dark', said.dark]] : [[said.base, said]]) {
+    const colors = {}
+    for (const [token, value] of Object.entries(it.colors || {})) if (TOKENS.has(token) && isColour(value)) colors[token] = value.trim()
+    const one = await create({ id: '', base, colors, images: {} }, named, key)
+    for (const [area] of AREAS) {
+      const image = it.images?.[area]
+      if (!image || typeof image.data !== 'string' || !PICTURE.test(image.data)) continue
+      await picture(one.id, area, image.data)
+      one.images[area] = { fit: image.fit in FITS ? image.fit : 'cover' }
+    }
+    save(one)
+    made.push(one)
   }
-  save(one)
-  return one
+  return made
 }

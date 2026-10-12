@@ -89,6 +89,7 @@ class Line(NamedTuple):
       profile: Whether to profile the programs the run's agents start, as well as trace them.
       resume: Whether to pick up the newest run of the flow here that can be.
       as_json: Whether a program is reading the run rather than a person.
+      backup: The backup targets the epic goes to, by name, or None for the defaults.
     """
 
     flow: str
@@ -100,6 +101,7 @@ class Line(NamedTuple):
     profile: bool = False
     resume: bool = False
     as_json: bool = False
+    backup: tuple[str, ...] | None = None
 
 
 def read_line(argv: list[str]) -> Line:
@@ -180,10 +182,22 @@ def read_line(argv: list[str]) -> Line:
         "to read",
     )
     parser.add_argument(
+        "--backup",
+        action="append",
+        metavar="NAME",
+        help="a backup target in settings to back the epic up to, repeatable; none "
+        "for no backup; the default targets when not given",
+    )
+    parser.add_argument(
         "task",
         help="what the flow is to do, after -- if it starts with a dash",
     )
     args = parser.parse_args(argv)
+    backup: list[str] | None = args.backup
+    if backup is not None and "none" in backup:
+        if set(backup) != {"none"}:
+            parser.error("--backup none backs up nowhere, so it names no target beside")
+        backup = []
 
     from hmz.runtime.flowing.specs import (
         SpecError,
@@ -204,6 +218,7 @@ def read_line(argv: list[str]) -> Line:
             profile=args.profile,
             resume=args.resume,
             as_json=args.as_json,
+            backup=None if backup is None else tuple(backup),
         )
     except SpecError as bad:
         parser.error(str(bad))
@@ -228,6 +243,7 @@ class Runner:
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
+        backup: Iterable[str] | None = None,
     ) -> None:
         """Loads the flow and checks what it is given against what it declares.
 
@@ -249,13 +265,16 @@ class Runner:
           resume: Whether to pick up the newest run of this flow in the workspace that can
             be picked up, or the epic to pick up.
           workspace: Where the run happens, defaulting to this directory.
+          backup: The backup targets in settings the epic goes to, by name, or None for
+            the defaults settings names.
 
         Raises:
           Refused: For a flow that cannot be loaded; a role given that it does not declare,
             that the runtime fills, or that is given twice; a required role left out; an
             agent that is not the harness its role names or cannot do what its role asks; a
-            spec a driver cannot be made for; params the flow does not take; no budget; and a
-            run to pick up that is not there or of a flow that cannot be picked up.
+            spec a driver cannot be made for; params the flow does not take; no budget; a
+            run to pick up that is not there or of a flow that cannot be picked up; and a
+            backup target settings has none of.
         """
         from hmz.flows import Budget, FlowException
         from hmz.runtime.flowing import privileged, resolved
@@ -287,6 +306,12 @@ class Runner:
         self._budget = budget if isinstance(budget, Budget) else _budget(budget)
         self._profile = profile
         self._picked_up = self._picks_up(resume)
+        from .backing import chosen
+
+        try:
+            self._backup = chosen(backup)
+        except ValueError as why:
+            raise Refused(str(why)) from why
         # Made last, once everything that could refuse the run has had its say: a driver
         # starts nothing as it is made, and none is made for a run that is refused.
         #: The runtimes the agents' harnesses go to where the runtime their work is on has
@@ -525,6 +550,11 @@ class Runner:
         return self._budget
 
     @property
+    def backup(self) -> tuple[str, ...]:
+        """The backup targets the epic goes to, by name."""
+        return self._backup
+
+    @property
     def profile(self) -> bool:
         """Whether the run profiles the programs its agents start, as well as tracing them."""
         return self._profile
@@ -658,6 +688,7 @@ class Runner:
         )
         from hmz.runtime.flowing import local_env, open_outworlder, run_flow
 
+        from .backing import Keeping
         from .epic import Epic
 
         local: EnvDriver | None = None
@@ -694,8 +725,12 @@ class Runner:
             resumable=impl.resumable,
             picked_up=self._picked_up,
             profile=self._profile,
+            backup=self._backup,
         )
-        recorder = Recorder(epic, opened)
+        # Backed up as its targets' policies say, each on a thread of its own: as a session
+        # closes, every so often while it runs, and once it has ended.
+        keeping = Keeping(epic.path, self._backup)
+        recorder = Recorder(epic, opened, keeping.closed)
         self._recorder = recorder
         _GOING.add(self)
         try:
@@ -735,7 +770,11 @@ class Runner:
                     )
         finally:
             _GOING.discard(self)
-            await asyncio.shield(self._closed(local))
+            try:
+                await asyncio.shield(self._closed(local))
+            finally:
+                # Once it says how it ended, and what it made has been let go of.
+                keeping.ended()
 
     async def _settled(self, noticed: Callable[[str], None] | None) -> None:
         """Probes every environment, each given as an `-e` falling back where it is not held.
@@ -852,12 +891,18 @@ class Recorder:
         tells a run refused before it started from one that failed.
     """
 
-    def __init__(self, epic: Epic, opened: Opened | None = None) -> None:
-        """Holds the epic to write into, and what to tell of each session opened."""
+    def __init__(
+        self,
+        epic: Epic,
+        opened: Opened | None = None,
+        shut: Callable[[], None] | None = None,
+    ) -> None:
+        """Holds the epic to write into, and what to tell as each session opens and closes."""
         import threading
 
         self._epic = epic
         self._opened = opened
+        self._shut = shut
         self._records: dict[int, Epic] = {}
         self._lock = threading.Lock()
         self._live: dict[int, SessionHandle] = {}
@@ -935,6 +980,8 @@ class Recorder:
         """A session closed, and is let go of: what it spent is already the run's."""
         with self._lock:
             self._live.pop(id(session), None)
+        if self._shut is not None:
+            self._shut()
 
     @property
     def sessions(self) -> tuple[SessionHandle, ...]:
