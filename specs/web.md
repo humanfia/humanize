@@ -111,17 +111,31 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   is typing while what it is about stands.
 - MUST offer the transcripts the terminal interface keeps: one per session, one per agent
   across its sessions, one per person of what they are asked and answer, and one they all
-  appear on -- a line said in one going to whose it is.
+  appear on -- a line said in one going to whose it is, and answering instead what that
+  session's open turn asks.
+- MUST open a chat started from it on its conversation, read as a chat app reads one: the task
+  and every answer as the person's lines among the agent's, a line typed under it the next
+  turn, what to say next never drawn as a question, and what the agent asks mid-turn asked at
+  the end of the conversation with its answers there to pick.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
+- MUST offer `Upload` on every epic, which backs it up now to the targets it was started with,
+  else the defaults, answering at once with the targets it was queued for -- never waiting on a
+  push -- and MUST say how its last backup to each target went, as it is read again.
+- MUST serve a run's Exomyth timeline as `runtime/tracing` lays it out, and each span of it whole
+  by its id, refusing an id it does not have as not found. A run that has ended MUST be laid
+  out once until its record changes, the last few kept; a run still going MUST be laid out
+  again on every request, answered with the tag that says whether the page has it already. A
+  span's id MUST be read in the last timeline laid out of that run, and one asked for with a
+  `layout` that is not that timeline's MUST be refused as a conflict.
 - MUST let a flow be set up in a workspace and saved without starting it, refused where a role
   has no agent or -- for every flow but chat -- nothing says what it may spend, and MUST save
   it as it is started.
 - MUST start a run in the workspace picked -- any it serves, or one opened by its path,
   completed as it is typed -- as that workspace last set its flow up -- its agents,
-  environments, params, budget and profiling -- and pick a run up, in its own workspace, as
-  that run was started.
+  environments, params, budget, profiling and backup targets -- backed up to the default targets
+  where it set none and none others are picked, and pick a run up, in its own workspace, as that run was started.
 - MUST set an agent up as the terminal interface does, a step at a time: a CLI installed here
   that can fill the role, the account it runs as -- this machine's own or one made, and a way to
   make one -- a model known runnable as that account, asking the CLI where none is known yet and
@@ -140,8 +154,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   an epic runs on the machine.
 - MUST offer what the runs spent by day and by flow -- of every workspace or of one -- and the
   pages `/settings` has: general, accounts -- correcting an account with what is left blank
-  kept, never a value shown -- fallback, runtimes and the workspace, for any workspace it
-  serves. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
+  kept, never a value shown -- fallback, runtimes, backup -- every target, its policies and
+  whether it is a default, a URL never shown with anything signed into it -- and the workspace,
+  for any workspace it serves. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
   run.
 - MUST name what it draws -- a button, a tab, a menu's choice, a heading, a field -- by a word
   or a short phrase, never a sentence, and MUST call a run of a flow an epic.
@@ -155,12 +170,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   interface's forms set them up, never spelled whole.
 - MUST draw in humanize's own type and in a theme: one of the pairs it comes with -- a light and
   a dark of humanize's own, Humanize Green, and of twelve more, each named for a mood and its
-  colour -- or one made in the browser
-  on Light or Dark -- any of its colours, and a picture, still or moving, behind any of the
+  colour -- or one made in the browser on Light or Dark, alone or with a light and a dark as a
+  pair of its own -- any of its colours, and a picture, still or moving, behind any of the
   page's large planes -- chosen, or under Auto the one picked for the browser's light and the one
-  for its dark, a pair at once or any two; MUST let a theme be written out whole as a
-  `.hmztheme` file and read back in, and MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
-  to be reduced.
+  for its dark, a pair at once or any two; MUST let a theme, or a pair with both its themes, be
+  written out whole as a `.hmztheme` file and read back in, and MUST be usable on a screen as
+  narrow as a phone's, and MUST hold still where motion is asked to be reduced.
 - MUST let a theme be chosen only in Settings, never from the sidebar's menu, in the browser
   and the desktop app alike.
 - MUST draw its chrome around the window controls of the desktop app when it is shown in it,

@@ -99,8 +99,8 @@ class Btw:
   not, never reading a missing price as nothing; MUST say what went on each kind of token over
   the whole run, marking a figure as a floor where an agent's CLI does not count that kind; and
   MUST divide a turn that named two models by what each took rather than drop it.
-- MUST read what a session spends off the log its CLI keeps as the turn goes, and read it once
-  more as the run ends; a run stopped and unwinding behind the next MUST be counted until it
+- MUST read what a session spends off the log its CLI keeps as the turn goes -- the epic's copy
+  of it, for a CLI on another machine -- and read it once more as the run ends; a run stopped and unwinding behind the next MUST be counted until it
   ends, against its agents alone and never against the conversations of the run in front.
 - `lasting` MUST say a clock as every frontend says it: seconds under a minute, minutes and
   seconds under an hour, hours and minutes above.

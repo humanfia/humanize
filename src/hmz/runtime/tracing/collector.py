@@ -139,6 +139,66 @@ def collect(
         ValueError: If start or end cannot be read as a time, or a named
             session is empty.
     """
+    collected, root, names, window = _gathered(
+        workspace, sessions=sessions, agents=agents, start=start, end=end, kept=kept
+    )
+    ran = list(_profiled(profile, window))
+    document = chrome.build(collected, root, names, ran)
+    if output is not None:
+        destination = pathlib.Path(output)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            json.dumps(document, ensure_ascii=False), encoding="utf-8"
+        )
+    return document
+
+
+def gather(
+    workspace: str | os.PathLike[str] | None = None,
+    *,
+    sessions: str | Iterable[str] | None = None,
+    agents: Mapping[str, Iterable[str]] | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    kept: Iterable[str | os.PathLike[str]] | None = None,
+) -> list[Session]:
+    """Reads the sessions a trace would be drawn from, without drawing it.
+
+    Selected and named exactly as :func:`collect` selects and names them, which is what a
+    document drawn some other way -- an Exomyth timeline -- is drawn from.
+
+    Args:
+        workspace: As :func:`collect` takes it.
+        sessions: As :func:`collect` takes them.
+        agents: As :func:`collect` takes them.
+        start: As :func:`collect` takes it.
+        end: As :func:`collect` takes it.
+        kept: As :func:`collect` takes them.
+
+    Returns:
+        Every session read, each named after the agent it ran on.
+
+    Raises:
+        ValueError: If start or end cannot be read as a time, or a named
+            session is empty.
+    """
+    return _gathered(
+        workspace, sessions=sessions, agents=agents, start=start, end=end, kept=kept
+    )[0]
+
+
+def _gathered(
+    workspace: str | os.PathLike[str] | None,
+    *,
+    sessions: str | Iterable[str] | None,
+    agents: Mapping[str, Iterable[str]] | None,
+    start: str | None,
+    end: str | None,
+    kept: Iterable[str | os.PathLike[str]] | None,
+) -> tuple[
+    list[Session], pathlib.Path | None, tuple[str, ...] | None, tuple[float, float]
+]:
+    """The sessions asked for, the workspace and ids they were narrowed to, and the window."""
     bounds: list[float] = []
     for text, default in ((start, -math.inf), (end, math.inf)):
         if not text:
@@ -203,12 +263,4 @@ def collect(
         )
         item.agent = " · ".join(str(part) for part in parts if part)
 
-    ran = list(_profiled(profile, window))
-    document = chrome.build(collected, root, names, ran)
-    if output is not None:
-        destination = pathlib.Path(output)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(
-            json.dumps(document, ensure_ascii=False), encoding="utf-8"
-        )
-    return document
+    return collected, root, names, window

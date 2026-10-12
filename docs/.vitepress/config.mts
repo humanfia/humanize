@@ -314,6 +314,7 @@ export default defineConfig({
           items: [
             { text: 'Picking a run up', link: '/user/resuming' },
             { text: 'Exporting a run', link: '/user/export' },
+            { text: 'Backing epics up', link: '/user/backups' },
             { text: 'Tracing', link: '/user/tracing' },
           ],
         },

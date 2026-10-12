@@ -8,6 +8,8 @@ it drives the real CLI. It answers a prompt as a model would be asked to:
 - `fail: <words>` fails the turn saying the words;
 - `/goal <words>` answers `goal met: <words>`;
 - `silent` answers nothing;
+- `tool: <name> <json>` starts the MCP server its `--mcp-config` names, lists its tools and
+  calls `<name>` with the JSON, answering `tools: <names>; said: <what the tool said>`;
 - a turn asked for a JSON schema answers `{"done": true, "notes": "reviewed"}`;
 - asked what it runs, before any session, it runs `claude-haiku-4-5` and `claude-opus-4-1`;
 - every prompt and every answer is logged to its transcript as Claude Code logs them, with when;
@@ -103,9 +105,34 @@ with (home / "standin.log").open("a") as log:
 spent = {"in": 0, "out": 0}
 
 
+def tool(said):
+    import subprocess
+
+    name, _, given = said.partition(" ")
+    (server,) = json.loads(flags["--mcp-config"])["mcpServers"].values()
+    bridge = subprocess.Popen([server["command"], *server["args"]], text=True,
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    def ask(number, method, params):
+        bridge.stdin.write(json.dumps({"jsonrpc": "2.0", "id": number, "method": method,
+                                       "params": params}) + "\n")
+        bridge.stdin.flush()
+        return json.loads(bridge.stdout.readline())["result"]
+
+    ask(1, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}})
+    listed = ask(2, "tools/list", {})["tools"]
+    called = ask(3, "tools/call", {"name": name, "arguments": json.loads(given or "{}")})
+    bridge.stdin.close()
+    bridge.wait()
+    names = ",".join(one["name"] for one in listed)
+    return f"tools: {names}; said: {called['content'][0]['text']}"
+
+
 def answer(said):
     if said.startswith("fail: "):
         return None
+    if said.startswith("tool: "):
+        return tool(said[len("tool: "):])
     if said.startswith("/goal "):
         return "goal met: " + said[len("/goal "):]
     if said == "silent":

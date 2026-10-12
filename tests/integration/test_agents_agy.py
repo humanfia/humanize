@@ -3,11 +3,15 @@
 The stand-in is an `agy --print` answering in the events of one turn -- an `init`, a
 `step_update` per step, and a `result` -- or, given `--input-format stream-json`, the same for
 each message on a stdin held open. Like the real one it insists on hearing the effort exactly
-once: from the model's name, or from `--effort`, never both and never neither.
+once: from the model's name, or from `--effort`, never both and never neither. And like the
+real one it reads a plugin's `mcp_config.json` out of every directory it is given with
+`--add-dir`: a prompt `call <tool>` starts that server, lists its tools and calls the one named,
+answering with what it said.
 """
 
 from __future__ import annotations
 
+import tempfile
 from typing import TYPE_CHECKING
 
 import pytest
@@ -16,6 +20,8 @@ from hmz.coganchor.agents import (
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
     Failed,
+    Tool,
+    Unserved,
 )
 from tests.integration.doubles_agents import Standins, kinds, standins
 
@@ -25,6 +31,7 @@ if TYPE_CHECKING:
 CONFIG = AntigravityCLIAgentConfig(model="gemini-stand-in", effort="high")
 
 AGY = r"""
+import subprocess
 import time
 
 talk = flags.get("--conversation", "conv-agy")
@@ -41,8 +48,33 @@ def step(index, state, kind, **rest):
          "step_index": index, "state": state, "step_type": kind, **rest}})
 
 
+def called(name):
+    added = [value for flag, value in zip(argv, argv[1:]) if flag == "--add-dir"]
+    for root in added:
+        for found in pathlib.Path(root).glob(".agents/plugins/*/mcp_config.json"):
+            for server in json.loads(found.read_text())["mcpServers"].values():
+                spoken = subprocess.Popen([server["command"], *server["args"]],
+                                          stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                          text=True)
+                asked = [{"method": "initialize", "params": {}},
+                         {"method": "tools/list"},
+                         {"method": "tools/call", "params": {"name": name, "arguments": {}}}]
+                answers = []
+                for index, one in enumerate(asked):
+                    spoken.stdin.write(json.dumps({"jsonrpc": "2.0", "id": index, **one}) + "\n")
+                    spoken.stdin.flush()
+                    answers.append(json.loads(spoken.stdout.readline())["result"])
+                spoken.stdin.close()
+                spoken.wait()
+                if any(tool["name"] == name for tool in answers[1]["tools"]):
+                    return answers[2]["content"][0]["text"]
+    return "no tool " + name
+
+
 def turn(said):
     note(said)
+    if said.startswith("call "):
+        said = called(said.removeprefix("call "))
     if said == "crash":
         print("agy: something broke", file=sys.stderr, flush=True)
         sys.exit(3)
@@ -133,3 +165,40 @@ def test_a_hung_turn_is_ended_by_the_watchdog(
 
     with pytest.raises(Failed):
         AntigravityCLIAgent(CONFIG).new()("hang")
+
+
+def test_a_tool_the_flow_offers_is_called_through_a_plugin_of_humanizes(
+    agy: Standins,
+) -> None:
+    asked: list[str] = []
+    session = AntigravityCLIAgent(CONFIG).new()
+
+    def secret() -> str:
+        asked.append("secret")
+        return "zanzibar-417"
+
+    session.offers([Tool("secret", "Says the secret word.", secret)])
+
+    assert session("call secret") == "zanzibar-417"
+    assert asked == ["secret"]
+    session.offers(None)
+    assert session("call secret") == "no tool secret"
+    first, second = agy.calls()
+    assert first.pid != second.pid
+
+
+def test_tools_carried_where_agy_would_run_its_commands_are_refused(
+    agy: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = AntigravityCLIAgent(CONFIG)
+    # Served first, so that its socket is not under the temporary directory moved below.
+    agent.toolbox.address()
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "a"))
+    session = agent.new(tmp_path / "b")
+    session.offers([Tool("secret", "Says the secret word.", lambda: "")])
+
+    with pytest.raises(Unserved, match="first of its directories"):
+        session("call secret")
+    assert agy.calls() == []

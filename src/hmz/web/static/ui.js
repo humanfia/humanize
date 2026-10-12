@@ -13,7 +13,7 @@ const menus = new WeakMap()
  *
  * @param {Element} el The thing.
  * @param {() => (Item|null|false|'-')[]} items What it offers, as `{label, glyph, act, href,
- *   danger}`, a `'-'` between groups, or a `{head}` saying what the menu is about.
+ *   danger, title}`, a `'-'` between groups, or a `{head}` saying what the menu is about.
  * @returns {Element} The thing.
  */
 export function menuOn(el, items) {
@@ -69,7 +69,7 @@ function open(items, x, y) {
       continue
     }
     const kids = [h('span', { class: 'choice-mark', 'aria-hidden': 'true' }, one.glyph ? icon(one.glyph) : null), h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, one.label))]
-    const item = one.href ? h('a', { class: ['choice', one.danger && 'danger'], role: 'menuitem', href: one.href }, kids) : h('button', { class: ['choice', one.danger && 'danger'], type: 'button', role: 'menuitem', disabled: one.disabled }, kids)
+    const item = one.href ? h('a', { class: ['choice', one.danger && 'danger'], role: 'menuitem', href: one.href, title: one.title || null }, kids) : h('button', { class: ['choice', one.danger && 'danger'], type: 'button', role: 'menuitem', disabled: one.disabled, title: one.title || null }, kids)
     item.addEventListener('click', () => {
       close()
       if (one.act) one.act()
@@ -78,10 +78,12 @@ function open(items, x, y) {
   }
   if (menu.lastChild && menu.lastChild.tagName === 'HR') menu.lastChild.remove()
   document.body.append(menu)
-  // Kept on the screen, as a desktop app's menu is: flipped back from an edge it would cross.
+  // Kept on the screen, as a desktop app's menu is: flipped back from an edge it would cross,
+  // and no taller than the window, where it scrolls.
+  menu.style.setProperty('--room', `${innerHeight - 8}px`)
   const { width, height } = menu.getBoundingClientRect()
   menu.style.left = `${Math.max(4, Math.min(x, innerWidth - width - 4))}px`
-  menu.style.top = `${Math.max(4, y + height > innerHeight - 4 ? y - height : y)}px`
+  menu.style.top = `${Math.max(4, Math.min(y + height > innerHeight - 4 ? y - height : y, innerHeight - height - 4))}px`
   opened = menu
   menu.querySelector('button, a')?.focus()
 }
@@ -165,7 +167,7 @@ document.addEventListener('mouseover', (event) => {
   while (at && at !== document.body) {
     text = said(at)
     if (text) break
-    if (at.matches('.side-label, .bar-title h1, .result-task, .card-about, .node-spec, .chip, .crumbs, .side-folder-name, .path, .path-entry span, .choice-about') && cut(at)) {
+    if (at.matches('.side-label, .bar-title h1, [data-hmz=flow-picker] b, .result-task, .card-about, .node-spec, .chip, .crumbs, .side-folder-name, .path, .path-entry span, .choice-about') && cut(at)) {
       text = at.textContent.trim()
       break
     }

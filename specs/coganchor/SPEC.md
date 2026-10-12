@@ -556,11 +556,18 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   token MUST be projected only while no other turn is using it, and no turn MUST use it while it
   is out -- either refused rather than made to wait -- and what the CLI refreshed it to MUST be
   written back over the original before it is removed, unless the original changed meanwhile,
-  which MUST be said rather than written over.
+  which MUST be said rather than written over. What a turn wrote at a path `brings` names inside
+  a projected directory MUST be brought back here before that directory is removed, within a
+  short bounded wait and never raising, and nothing else of it MUST be; where each projected
+  directory landed MUST be in a file of the turn's own in the directory `tells` names on this
+  machine from before the CLI starts until the turn is over.
 - A native session MUST refuse a turn asking for the flow's own callbacks and MUST ask nothing of
   this machine's kernel; the skills a flow carries MUST be put into the target's workspace for the
   turn and taken out again, writing over nothing and removing only what was made; and its sessions
-  MUST stay where the target's CLI keeps them.
+  MUST stay where the target's CLI keeps them, copied here as `agents` says.
+- What a CLI on another machine logs MUST be read down the road a turn there takes, one short
+  command at a time -- what the session logged and how long, then what was appended since --
+  putting nothing on that machine and holding nothing open between the two.
 - A ticket MUST be unguessable, MUST be the whole of what authenticates a peer, and MUST pair only
   the two halves that presented the same one; exactly one connection MUST carry a session and both
   halves MUST agree on which; nothing of it MUST reach a half before it has been told how the
@@ -603,7 +610,8 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 - Everything `/settings` sets but an account MUST be kept in the one file `settings.where`
   names, `settings.yaml` in humanize's home, and in no file of its own: the chains a failed turn
   falls back along under `fallbacks`, the CLIs added by hand under `clis` and the runtimes under
-  `runtimes`, beside what `runtime` keeps there. Every write MUST make its own change to the file as it is under a lock
+  `runtimes`, beside what `runtime` keeps there -- the git repositories epics are backed up to
+  among it, under `backup`. Every write MUST make its own change to the file as it is under a lock
   every writer takes, leaving every other part as it found it, MUST put the file in place whole,
   MUST leave a new one this user's alone and one already there the mode it has, and MUST NOT
   write over one that cannot be read.
