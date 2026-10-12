@@ -1,0 +1,30 @@
+# The pull request's title is a Conventional Commit: squashing writes it to the branch as the
+# commit's, and a release's notes are those titles. Apart from ci.yml so that editing the title
+# runs this alone. A branch rule on `main` needs `title`, and in the merge queue it is skipped,
+# which passes: each pull request's title was checked before it queued.
+
+name: title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

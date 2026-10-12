@@ -5,7 +5,7 @@ Three trees, one rule each:
 - `tests/unit/<package>/` -- one directory per `hmz` top-level package. Only the public names
   of what is tested; every other `hmz` package mocked. No subprocess, socket or network.
 - `tests/integration/test_<topic>_*.py` -- packages wired together against fakes this repo
-  writes. CI runs one job per topic.
+  writes. CI runs each topic alone.
 - `tests/system/` -- real agents on real tasks. Never in CI; see `AGENTS.md`.
 
 The autouse fixtures below keep a test out of the home, the daemon, the network and the

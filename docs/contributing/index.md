@@ -70,11 +70,11 @@ runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 
 | | Your machine | CI |
 | --- | --- | --- |
-| the pre-commit hooks | ✓ | ✓ `lint`, every push and pull request |
-| `tests/unit/` | ✓ | ✓ a job per package, on Linux and macOS |
-| `tests/integration/` | ✓ | ✓ a job per topic, on Linux and macOS |
+| the pre-commit hooks | ✓ | ✓ `static`, every push and pull request |
+| `tests/unit/` | ✓ | ✓ each package alone, on Linux and macOS |
+| `tests/integration/` | ✓ | ✓ each topic alone, on Linux and macOS |
 | `tests/system/` | ✓ by hand, a file at a time, when your change needs it | never |
-| [the macOS app](#the-macos-app) | ✓ on a Mac, when you change `desktop/` | ✓ `desktop`, on macOS |
+| [the macOS app](#the-macos-app) | ✓ on a Mac, when you change `desktop/` | ✓ `desktop`, on macOS, when `desktop/` changed |
 
 [CI](/contributing/ci) has every job, and how to read a run.
 

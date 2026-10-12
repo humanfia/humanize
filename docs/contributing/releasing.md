@@ -18,8 +18,8 @@ never replaced: one that turns out broken is yanked, and the next one fixes it.
 
 **`main` is where changes land, and never what is released.** Every change reaches it as a
 pull request, squashed into one commit titled with the pull request's title, through the merge
-queue once `ci-ok` is green on it as `main` will be. `ci-ok` holds the title to Conventional
-Commits and builds the package.
+queue once `ci-ok` is green on it as `main` will be. `title` holds the title to Conventional
+Commits, and `ci-ok` builds the package.
 
 **Every release comes from a `release/X.Y` branch**, pre-releases included: `0.2.0-alpha.1`,
 `0.2.0-rc.1`, `0.2.0` and `0.2.1` all come from `release/0.2`. The branch is held to the same
@@ -197,7 +197,7 @@ Then open the next version of that line, `0.2.1` or `0.2.0-beta.2`, as in Step 2
 **Changing your mind.** Close the release pull request and delete its branch: nothing was
 released. A `release/X.Y` cut for it stays, and the next version of that line comes from it.
 
-**A check of the package before a release.** CI's `package` job builds every pull request. The
+**A check of the package before a release.** CI's `static` job builds it on every pull request. The
 same on your machine, into `dist/`, which git ignores:
 
 ```sh

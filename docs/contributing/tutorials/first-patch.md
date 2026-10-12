@@ -127,13 +127,14 @@ gh pr create --fill
 Without push access, run `gh repo fork --remote` first and push to your fork. `gh pr create`
 opens the pull request across it either way.
 
-CI then runs `ci.yml`, the same jobs for every pull request:
+CI then runs `title.yml`, whose `title` checks the pull request's title, and `ci.yml`, the
+same jobs for every pull request:
 
 | | |
 | --- | --- |
-| `lint` | Every pre-commit hook over every file, as in Step 4 |
-| `unit (<os>, <package>)` | `tests/unit/<package>`, a job per package, on Linux and macOS |
-| `integration (<os>, <topic>)` | `tests/integration/test_<topic>_*.py`, a job per topic, on Linux and macOS |
+| `static` | Every pre-commit hook over every file, as in Step 4, and the package built |
+| `tests (<os>)` | `tests/unit/<package>` a package at a time, then `tests/integration/test_<topic>_*.py` a topic at a time but `web`, on Linux and macOS |
+| `web (<os>)` | `tests/integration/test_web_*.py`, on Linux and macOS |
 | `ci-ok` | Green when every job above passed |
 
 A change to `docs/` also runs `build-docs` from `build-docs.yml`.

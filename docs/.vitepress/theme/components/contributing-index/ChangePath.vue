@@ -4,9 +4,9 @@
 // CI runs on every push and pull request.
 //
 // Drawn from docs/contributing/index.md (set up, the checks, where a test goes) and
-// docs/contributing/ci.md with .github/workflows/ci.yml: `lint` runs every pre-commit hook;
-// `unit` runs one job per package of src/hmz and `integration` one job per topic, each on
-// Linux and macOS with Python 3.12; `ci-ok` is green when they all passed. tests/system is
+// docs/contributing/ci.md with .github/workflows/ci.yml: `static` runs every pre-commit hook;
+// the tests run each package of src/hmz alone and each integration topic alone, on Linux and
+// macOS with Python 3.12; `ci-ok` is green when they all passed. tests/system is
 // never in CI.
 import { computed, ref } from 'vue'
 
@@ -21,9 +21,9 @@ const BEATS = [
   'Clone, then uv sync: Python and all, pinned',
   'Hooks in, an edit, and the fast loop',
   'Before you push: every hook, unit and integration',
-  'A push or a pull request: lint first',
-  'Unit: a job per package, on Linux and macOS',
-  'Integration: a job per topic, then ci-ok',
+  'A push or a pull request: static first',
+  'Unit: each package alone, on Linux and macOS',
+  'Integration: each topic alone, then ci-ok',
 ]
 
 const STOPS = ['clone', 'uv sync', 'hooks', 'edit', 'fast loop', 'before push', 'push', 'CI']
@@ -54,7 +54,7 @@ const TIERS = [
   { dir: 'system/', say: ['real agents,', 'real tasks'], you: true },
 ]
 
-/** The two matrices of ci.yml: a column each, a row per job, a cell per system. */
+/** The tests ci.yml runs: a column each, a row per package or topic, a cell per system. */
 const COLUMNS = [
   { name: 'unit', by: 'per package', rows: ['cli', 'coganchor', 'daemon', 'flows', 'runtime', 'sdk', 'tui'] },
   { name: 'integration', by: 'per topic', rows: ['core', 'agents', 'tui', 'daemon', 'anchor'] },
@@ -126,11 +126,11 @@ const rowY = (i: number) => L.value.ci.y + 96 + i * 16
 const okY = computed(() => L.value.ci.y + 218)
 const colW = computed(() => (L.value.ci.w - 12) / 2)
 const colX = (c: number) => L.value.ci.x + 12 + c * colW.value
-/** The left of a job's cell for one system: two cells at the right of its column. */
+/** The left of a row's cell for one system: two cells at the right of its column. */
 const cellX = (c: number, os: number) => colX(c) + colW.value - 40 + os * 17
-/** The two check rows: `lint` before the tests, `ci-ok` after them. */
+/** The two check rows: `static` before the tests, `ci-ok` after them. */
 const ROWS = computed(() => [
-  { cls: 'lint', name: 'lint', when: 'every hook', y: lintY.value },
+  { cls: 'lint', name: 'static', when: 'every hook', y: lintY.value },
   { cls: 'ok', name: 'ci-ok', when: 'all of them passed', y: okY.value },
 ])
 
@@ -189,14 +189,14 @@ const scene = useScene({
       tl.fromTo(at('.term-line')[i], { opacity: 0 }, { opacity: 1, duration: 0.35, immediateRender: false }, when)
       return when + 0.35
     }
-    /** A check row lit: `lint` or `ci-ok`. */
+    /** A check row lit: `static` or `ci-ok`. */
     const check = (sel: string, y: number, when: number) => {
       tl.to(at(`${sel} .check`), { opacity: 1, duration: 0.3 }, when)
       tl.to(at(`${sel} .check-off .check-name`), { opacity: 0, duration: 0.3 }, when)
       tl.fromTo(at(`${sel} .check-dot`), { scale: 0.3, transformOrigin: '50% 50%' }, { scale: 1, duration: 0.4, ease: 'back.out(3)', immediateRender: false }, when)
       cam.flare({ x: l.ci.x + 16, y: y - 4 }, ok, when, 8, 50)
     }
-    /** Every job of one column, on both systems at once, each as it finishes. */
+    /** Every row of one column, on both systems at once, each as it finishes. */
     const column = (c: number, when: number) => {
       tl.to(at(`.col-${c} .col-cap`), { opacity: 1, duration: 0.35 }, when)
       COLUMNS[c].rows.forEach((_, r) =>
@@ -261,7 +261,7 @@ const scene = useScene({
     cam.flare({ x: tierX(2) + tierW.value / 2, y: tierTop.value + 30 }, warm, t10 + 1.5, 12, 60)
     tl.fromTo(one('.you-hot'), { opacity: 0 }, { opacity: 1, duration: 0.3, yoyo: true, repeat: 3, immediateRender: false }, t10 + 1.5)
 
-    // 3 · the push, and `lint`: every pre-commit hook, before any test.
+    // 3 · the push, and `static`: every pre-commit hook, before any test.
     const T3 = T2 + 5
     tl.addLabel('beat-3', T3)
     stop(6, T3)
@@ -271,12 +271,12 @@ const scene = useScene({
     cam.beam(termOut(12), { x: l.ci.x + 12, y: l.ci.y + 14 }, lane1, t12 + 0.2, { duration: 0.7, bend: -0.2 })
     check('.lint', lintY.value, t12 + 1.2)
 
-    // 4 · `unit`: a job per package, on Linux and macOS.
+    // 4 · `unit`: each package alone, on Linux and macOS.
     const T4 = T3 + 3
     tl.addLabel('beat-4', T4)
     column(0, T4)
 
-    // 5 · `integration`: a job per topic; then `ci-ok`, the one check to wait for.
+    // 5 · `integration`: each topic alone; then `ci-ok`, the one check to wait for.
     const T5 = T4 + 2.2
     tl.addLabel('beat-5', T5)
     column(1, T5)
@@ -305,7 +305,7 @@ const statusW = Math.round(STATUS.length * 6.6 + 16)
     :beats="BEATS"
     sim
     mobile-ratio="9 / 17"
-    label="A change's way from a clone to main. git clone; uv sync makes .venv exactly as uv.lock pins it, Python included; uv run pre-commit install checks each commit with the hooks CI runs. You edit, a change and its tests in one commit, and run the fast loop, one package's unit tests: uv run pytest tests/unit/flows, seconds. Before you push: uv run pre-commit run --all-files, seconds, and uv run pytest, unit and integration, minutes. Tests sit in three directories: unit tests one package alone, the rest mocked; integration wires packages together against fakes this repository wrote; system runs real agents on real tasks, 5 to 30 minutes each, and is yours to run when your change needs it, never in CI. Then git push. On every push and pull request ci.yml runs lint, every pre-commit hook; then unit, one job per package, and integration, one job per topic, each on Linux and macOS with Python 3.12; and reports ci-ok when they all passed."
+    label="A change's way from a clone to main. git clone; uv sync makes .venv exactly as uv.lock pins it, Python included; uv run pre-commit install checks each commit with the hooks CI runs. You edit, a change and its tests in one commit, and run the fast loop, one package's unit tests: uv run pytest tests/unit/flows, seconds. Before you push: uv run pre-commit run --all-files, seconds, and uv run pytest, unit and integration, minutes. Tests sit in three directories: unit tests one package alone, the rest mocked; integration wires packages together against fakes this repository wrote; system runs real agents on real tasks, 5 to 30 minutes each, and is yours to run when your change needs it, never in CI. Then git push. On every push and pull request ci.yml runs static, every pre-commit hook; then the unit tests, each package alone, and the integration tests, each topic alone, on Linux and macOS with Python 3.12; and reports ci-ok when they all passed."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

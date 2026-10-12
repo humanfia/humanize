@@ -57,7 +57,7 @@ something. For example, `fix(tui): keep the cursor on the row it was on`.
 - **Scope:** the package or the docs section it changes, such as `agents`, `tui`, `flows` or
   `contributing`, or `desktop` for the macOS app. Optional.
 
-CI checks the title, and fails `ci-ok` until it is one; edit the title and it checks again.
+The `title` check fails until it is one; edit the title and it checks again.
 Commits follow the same form: see
 [Commits](https://docs.humanfia.ai/humanize/contributing/#commits).
 
