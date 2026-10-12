@@ -59,6 +59,7 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
 
     from hmz.coganchor import releases
 
+    from .notices import Notices
     from .places import Places
     from .runs import Runs
     from .site import Site
@@ -67,7 +68,8 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
     with contextlib.ExitStack() as held_open:
         places = Places(Path.cwd(), apart=apart)
         held_open.callback(places.close)
-        site = Site(port, places=places, runs=Runs(places))
+        notices = Notices(places.statuses)
+        site = Site(port, places=places, runs=Runs(places), notices=notices)
         # What each index lists now, fetched once in the background as the interface starts.
         fetches(places.hmz)
         # And which release of humanize is the newest, where what is kept has got old.
@@ -75,6 +77,10 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
         held_open.callback(site.server_close)
         # Set first as the block ends, which is what ends every stream being sent.
         held_open.callback(site.going.set)
+        # And before it, what ends the notices' streams at once rather than once they wake.
+        held_open.callback(notices.close)
+        # What stands as it starts to answer is where the notices start from.
+        notices.start()
         yield site
 
 

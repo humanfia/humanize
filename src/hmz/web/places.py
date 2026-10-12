@@ -249,18 +249,43 @@ class Places:
             if self._apart:
                 self._asks_the_daemon()
 
-    def _asks_the_daemon(self) -> None:
-        """What the daemon says runs in each workspace no link here follows."""
-        running: dict[str, dict[str, Any]] = {}
+    def statuses(self) -> dict[str, dict[str, Any]]:
+        """How the runs of every workspace held on this machine stand, attaching to none.
+
+        Apart, what each host the daemon holds says of itself; otherwise, what the runs held
+        in this process say, of each workspace a page has reached.
+
+        Returns:
+          Each host's status, by the whole path of its workspace.
+        """
+        said: dict[str, dict[str, Any]] = {}
+        if not self._apart:
+            with self._lock:
+                hosts = [
+                    (str(one.workspace), one.hosting)
+                    for one in self._places.values()
+                    if one.hosting is not None
+                ]
+            for workspace, hosting in hosts:
+                with contextlib.suppress(Exception):
+                    said[workspace] = hosting.status()
+            return said
         with contextlib.suppress(Exception):
             for one in self._daemon.daemons():
                 with contextlib.suppress(Exception):
-                    status = one.status()
-                    running[str(Path(one.workspace).resolve())] = {
-                        "state": status.get("state") or "idle",
-                        "run": status.get("run") or 0,
-                        "flow": status.get("flow") or "",
-                    }
+                    said[str(Path(one.workspace).resolve())] = one.status()
+        return said
+
+    def _asks_the_daemon(self) -> None:
+        """What the daemon says runs in each workspace no link here follows."""
+        running = {
+            workspace: {
+                "state": status.get("state") or "idle",
+                "run": status.get("run") or 0,
+                "flow": status.get("flow") or "",
+            }
+            for workspace, status in self.statuses().items()
+        }
         with self._lock:
             self._running = running
 

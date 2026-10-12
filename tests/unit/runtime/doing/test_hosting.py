@@ -1039,6 +1039,57 @@ def test_a_question_is_put_to_everybody_and_answered_by_number(
     run.released.set()
 
 
+def test_the_status_says_the_questions_waited_on_and_how_the_last_run_ended(
+    host: Host, where: Workspace, outworlders: Outworlders, tmp_path: Path
+) -> None:
+    alice = Told(host, "alice")
+    where.next_run = FakeRun(epic=tmp_path / "20260101-ralph")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    said = host.status()
+    assert (said["epic"], said["task"], said["pending"], said["ended"]) == (
+        "20260101-ralph",
+        "fix it",
+        [],
+        None,
+    )
+
+    asking = Asking()(outworlders.ask, Question("which?", ("red", "blue")))
+    asked = alice.told("asked", run=1)
+
+    assert host.status()["pending"] == [
+        {
+            "question": asked["question"],
+            "role": "outworlder",
+            "text": "which?",
+            "mode": "ask",
+        }
+    ]
+    alice.asks("answer", question=asked["question"], text="1")
+    assert asking.done.wait(PATIENCE)
+    run.raises = BudgetExceeded("spent")
+    run.released.set()
+    alice.told("ended", run=1)
+    said = host.status()
+    assert said["pending"] == []
+    ended = said["ended"]
+    assert (
+        ended["how"],
+        ended["epic"],
+        ended["run"],
+        ended["flow"],
+        ended["task"],
+    ) == (
+        "budget",
+        "20260101-ralph",
+        1,
+        "ralph",
+        "fix it",
+    )
+    assert "spent" in ended["why"]
+    assert ended["at"] > 0
+
+
 def test_a_question_of_a_claimed_role_is_its_claimants(
     host: Host, where: Workspace, outworlders: Outworlders
 ) -> None:
