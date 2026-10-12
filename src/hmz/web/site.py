@@ -42,6 +42,7 @@ from . import (
     fallbacks,
     flows,
     held,
+    notices,
     paths,
     places,
     runs,
@@ -54,6 +55,7 @@ from .routing import Asked, Download, Made, Refusal, Route, Stream
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+    from .notices import Notices
     from .places import Places
     from .runs import Runs
 
@@ -71,6 +73,7 @@ ROUTES: tuple[Route, ...] = (
     *paths.ROUTES,
     *places.ROUTES,
     *verses.ROUTES,
+    *notices.ROUTES,
 )
 
 #: How many ports any would do for are tried before one free on both loopbacks is given up on.
@@ -131,12 +134,15 @@ class Site(ThreadingHTTPServer):
       port: The port to listen on, or 0 for any free one on both.
       places: Every workspace on this machine, and the runs held for each as this follows them.
       runs: The runs written down, of every workspace.
+      notices: What happened to the runs worth telling somebody about.
     """
 
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, port: int, *, places: Places, runs: Runs) -> None:
+    def __init__(
+        self, port: int, *, places: Places, runs: Runs, notices: Notices
+    ) -> None:
         self._beside: _Beside | None = None
         for left in reversed(range(_PORTS)):
             super().__init__(("127.0.0.1", port), _Handler)
@@ -152,6 +158,7 @@ class Site(ThreadingHTTPServer):
         self.places = places
         self.hmz: Any = places.hmz
         self.runs = runs
+        self.notices = notices
         #: Set as the server stops, which is what ends every stream it is sending.
         self.going = threading.Event()
         self._key = secrets.token_urlsafe(32)

@@ -277,6 +277,30 @@ Every `error` but the last is the runtime's own sentence, e.g.
 
 An account is listed by the names of the variables it sets (`sets`), never by a value.
 
+### Notices {#api-notices}
+
+What happened to this machine's runs worth telling somebody about. They are worked out of each
+workspace's host [`status`](/reference/daemon#status), asked every **2 s** without attaching to
+any host, so a host goes as it would with nobody reading. Anything already standing when
+`hmz web` starts is not news.
+
+| Method and path | Takes | Answers |
+| --- | --- | --- |
+| `GET /api/notices` | `after` (an `id`; `0`, the default, for every one kept) | `notices` (those kept after it, oldest first; the last **200**), `last` (the newest `id`, `0` for none); `400` where `after` is not a whole number |
+| `GET /api/notices/stream` | `Last-Event-ID` header, or `?last=` | `text/event-stream`: each `notice` event's `id` is its `id` and its data the notice, from after the one named (without one, from now on), then each as it comes; `: quiet` after **15 s** of nothing |
+
+A notice is `id` (a whole number, larger than any before it, on this machine too after
+`hmz web` starts again), `kind`, `workspace`, `epic`, `flow`, `task`, `role`, `text` and `at`
+(Unix seconds):
+
+| `kind` | When | `role`, `text` |
+| --- | --- | --- |
+| `done` | An epic ended done | `""`, `""` |
+| `failed` | An epic ended failed, crashed, refused or over its budget | `""`, why |
+| `stopped` | An epic was stopped | `""`, `""` |
+| `asked` | A flow asks a person a question (mode `ask`) | The role asking, the question |
+| `listening` | A flow waits for what to say next: a chat between turns (mode `listen`) | The role asking, what it asks |
+
 ## The stream {#stream}
 
 `GET /api/held/stream` answers `text/event-stream`, starting with `retry: 2000`. Each event is

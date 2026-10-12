@@ -247,6 +247,9 @@ the daemon answers it ([Routing](#routing)). `Daemon.asked(said)` sends one with
 | `state` | string | `running`, `stopping` or `idle`. |
 | `run` | int | The run going, else the one stopping, else the last; `0` for none. |
 | `flow` | string | That run's flow, or `""`. |
+| `epic`, `task` | string | That run's epic (its directory's name, `""` before it has one) and task, or `""`. |
+| `pending` | list | `[{question, role, text, mode}]`: the questions waited on, as the [`pending` snapshot](#snapshots) says them. |
+| `ended` | object \| null | How the last run to end here ended: `how` (`done`, `stopped`, `refused`, `budget`, `failed` or `crashed`), `why`, `epic`, `at` (Unix seconds), `run`, `flow`, `task`; `null` before one has. |
 | `budget`, `usage` | object \| null | As JSON, for the run going; `null` while stopping or idle. An infinite cost is the JSON string `"Infinity"`. |
 | `flows` † | list[string] | Canonical refs of the flow calls in progress. |
 | `calls` † | list | `[{ref, name, depth, seconds, id, parent}]`, oldest-started first across every run in the process; `seconds` rounded to 0.001; `parent` the index of the calling entry, or `null`. |

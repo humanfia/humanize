@@ -182,6 +182,12 @@ def _json(model: Any) -> Any:
     return json.loads(model.model_dump_json())
 
 
+def _epic_of(shown: _Run | None) -> str:
+    """The name of the epic a run is written into, or "" before it has one."""
+    epic = shown.run.epic if shown is not None else None
+    return epic.name if epic is not None else ""
+
+
 def _spoken(given: Mapping[str, Any]) -> dict[str, str]:
     """What each role was given, as the words `-a` or `-e` would spell it."""
     return {
@@ -347,6 +353,8 @@ class Host:
         self._current: _Run | None = None
         self._stopping: _Run | None = None
         self._last: _Run | None = None
+        #: How the last run to end here ended, for whoever asks from outside the runs.
+        self._ended: dict[str, Any] | None = None
         self._runs = 0
         self._starting = False
         self._questions: list[_Question] = []
@@ -569,14 +577,25 @@ class Host:
 
         Returns:
           How many frontends are attached and who, the state and number of the run, the
-          flow, what it may spend and has spent -- both None with nothing running -- and the
-          flows running, as refs and as calls.
+          flow, its epic and task, what it may spend and has spent -- both None with nothing
+          running -- the questions it waits on, how the last run to end ended, and the flows
+          running, as refs and as calls.
         """
         with self._lock:
             running = self._current
             shown = running or self._stopping or self._last
             clients = self._clients_of()
             state = self._state()
+            pending = [
+                {
+                    "question": one.id,
+                    "role": one.role,
+                    "text": one.text,
+                    "mode": one.mode,
+                }
+                for one in self._questions
+            ]
+            ended = dict(self._ended) if self._ended is not None else None
         calls = self._calls(now=time.monotonic())
         return {
             "attached": len(clients),
@@ -584,6 +603,10 @@ class Host:
             "state": state,
             "run": shown.number if shown is not None else 0,
             "flow": shown.run.flow if shown is not None else "",
+            "epic": _epic_of(shown),
+            "task": shown.started.get("task", "") if shown is not None else "",
+            "pending": pending,
+            "ended": ended,
             "budget": _json(running.run.budget) if running is not None else None,
             "usage": _json(running.run.usage) if running is not None else None,
             "flows": [one["ref"] for one in calls],
@@ -1030,6 +1053,15 @@ class Host:
                 # arrive is the one it ended for.
                 if not self._frontends and not current.stopped_by:
                     self._keeps = True
+            self._ended = {
+                "how": how,
+                "why": why,
+                "epic": _epic_of(current),
+                "at": time.time(),
+                "run": current.number,
+                "flow": current.run.flow,
+                "task": current.started.get("task", ""),
+            }
             self._record(
                 {
                     "type": "ended",
