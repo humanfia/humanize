@@ -15,7 +15,15 @@ import pytest
 from hmz.coganchor import backends, providers
 from hmz.runtime import exporting
 from hmz.runtime.epic import RESUME, SESSIONS, TRACES, Drove, Epic
-from hmz.runtime.exporting import MANIFEST, REDACTED, TRANSCRIPT, bundle, plain, sized
+from hmz.runtime.exporting import (
+    MANIFEST,
+    REDACTED,
+    TRANSCRIPT,
+    bundle,
+    plain,
+    sized,
+    unpacked,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -236,6 +244,32 @@ def test_a_whole_run_goes_in_one_archive(
     }
     assert manifest["held"][-1] == MANIFEST
     assert manifest["redacted"] == list(exporting.STRUCK)
+
+
+def test_unpacked_lays_out_what_a_bundle_holds_as_files(
+    world: World, ran: Path, tmp_path: Path
+) -> None:
+    world.accounts = [Account({"KEY": "SECRETVALUE-123"})]
+
+    manifest = unpacked(ran, tmp_path / "out")
+
+    held = {
+        str(one.relative_to(tmp_path / "out"))
+        for one in (tmp_path / "out").rglob("*")
+        if one.is_file()
+    }
+    _, bundled = bundle(ran, tmp_path / "b.tar.gz")
+    assert held == set(bundled["held"])
+    assert manifest["held"] == bundled["held"]
+    log = tmp_path / "out" / SESSIONS / "builder-claude@work-s1/projects/p/s1.jsonl"
+    assert "SECRETVALUE-123" not in log.read_text()
+    assert '"input_tokens": 9' in log.read_text()
+    assert "sk-ant-" not in (tmp_path / "out" / "epic.jsonl").read_text()
+
+
+def test_unpacking_a_directory_holding_no_run_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="is not a run"):
+        unpacked(tmp_path, tmp_path / "out")
 
 
 def test_a_transcript_handed_in_goes_in_scrubbed(
