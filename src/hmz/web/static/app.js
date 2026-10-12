@@ -33,6 +33,8 @@ let closing = null
 let out = false
 /** Which routing is the latest: one overtaken while its view was loading draws nothing. */
 let routed = 0
+/** How many routings are still drawing. */
+let drawing = 0
 /** The address of the view under a dialog, which closing the dialog goes back to. */
 let behind = ''
 /** What the view drawn was drawn for, so a dialog opened over it leaves it standing. */
@@ -59,6 +61,11 @@ export function stays(query) {
   history.replaceState(null, '', `#/${parts.map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`)
 }
 
+/** Whether the address names a dialog, over the view drawn: what that view does is not to say. */
+export function covered() {
+  return Boolean(DIALOGS[where().parts[0]])
+}
+
 /** Closes the dialog open, going back to the view under it. */
 export function shut() {
   go(behind || '/new')
@@ -67,6 +74,18 @@ export function shut() {
 async function route() {
   if (out) return
   const mine = ++routed
+  // Busy until every address asked for is drawn: the view left stands until then, and is not
+  // what the address names.
+  drawing++
+  page.setAttribute('aria-busy', 'true')
+  try {
+    await routing(mine)
+  } finally {
+    if (--drawing === 0) page.removeAttribute('aria-busy')
+  }
+}
+
+async function routing(mine) {
   const { parts, query } = where()
   const dialog = DIALOGS[parts[0]]
   if (dialog) {
@@ -168,6 +187,7 @@ paint()
 window.addEventListener('hmz:out', () => {
   if (out) return
   out = true
+  page.removeAttribute('aria-busy')
   if (mounted) mounted.leave()
   close()
   fill(
