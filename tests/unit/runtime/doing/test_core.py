@@ -163,6 +163,7 @@ def test_a_runner_is_made_in_this_workspace(making: Making, tmp_path: Path) -> N
         "profile": True,
         "resume": True,
         "workspace": tmp_path,
+        "backup": None,
     }
 
 
@@ -179,6 +180,7 @@ def test_a_runner_of_no_workspace_named_runs_wherever_humanize_is(
         "profile": False,
         "resume": False,
         "workspace": None,
+        "backup": None,
     }
 
 

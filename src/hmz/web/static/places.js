@@ -5,7 +5,7 @@
 import { get, post } from './api.js'
 import { fill, h, icon } from './dom.js'
 import { pathPicker } from './paths.js'
-import { choice, dragged, menu, section } from './shell.js'
+import { choice, dragged, follow, menu, section } from './shell.js'
 
 let known = null
 
@@ -33,12 +33,12 @@ export function nameOf(path) {
  */
 export function workspacePicker(chosen, changed) {
   const said = h('b', {}, '…')
-  const button = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', title: chosen }, icon('folder'), said, icon('down'))
+  const button = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', 'data-tip': chosen }, icon('folder'), said, icon('down'))
   const folder = pathPicker({ label: 'Folder', placeholder: '~/project' })
   const typed = folder.input
   typed.dataset.hmz = 'workspace-path'
   const problem_ = h('span', { class: 'hint' })
-  const opening = dragged(h('form', { class: 'popover workdir-open', hidden: true }, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Folder'), folder.node), h('div', { class: 'row' }, h('button', { class: 'btn small primary', type: 'submit' }, 'Open'), h('button', { class: 'btn small quiet', type: 'button', onclick: () => (opening.hidden = true) }, 'Cancel')), problem_), 'false')
+  const opening = dragged(h('form', { class: 'popover workdir-open', hidden: true }, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Folder'), folder.node), h('div', { class: 'row' }, h('button', { class: 'btn small primary', type: 'submit' }, 'Open'), h('button', { class: 'btn small quiet', type: 'button', onclick: () => shut() }, 'Cancel')), problem_), 'false')
   const node = h('div', { class: 'menu-holder' }, button, opening)
   let list = []
   let path = chosen
@@ -46,7 +46,7 @@ export function workspacePicker(chosen, changed) {
   function set(to) {
     path = to
     said.textContent = nameOf(to)
-    button.title = to
+    button.dataset.tip = to
   }
 
   menu(
@@ -66,15 +66,23 @@ export function workspacePicker(chosen, changed) {
     changed(to)
   }
 
+  // Kept by the button while it is open, as a menu is.
+  let unfollow = () => {}
+  function shut() {
+    unfollow()
+    opening.hidden = true
+  }
+
   function open() {
     opening.hidden = false
+    unfollow = follow(opening, button, {})
     problem_.textContent = ''
     typed.value = ''
     typed.focus()
   }
 
   typed.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') opening.hidden = true
+    if (event.key === 'Escape') shut()
   })
   opening.addEventListener('submit', async (event) => {
     event.preventDefault()
@@ -82,7 +90,7 @@ export function workspacePicker(chosen, changed) {
       const answer = await post('/api/workspaces', { workspace: typed.value.trim() })
       known = Promise.resolve(answer)
       list = answer.workspaces
-      opening.hidden = true
+      shut()
       pick(answer.kept)
     } catch (error) {
       problem_.textContent = error.message

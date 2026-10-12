@@ -44,6 +44,7 @@ from hmz.flows import (
     HOOK_TYPES,
     AskUserHookAgentMixin,
     BashEnvMixin,
+    FakeToolAgentMixin,
     FilesEnvMixin,
     GitEnvMixin,
     GitWorktreeEnvMixin,
@@ -68,6 +69,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.machines import MachineConfig
     from hmz.flows import (
         EnvBackendKind,
+        FakeTool,
         HarnessKind,
         HookResult,
         Permission,
@@ -104,6 +106,7 @@ log = logging.getLogger(__name__)
 #: :class:`AgentDriver` can list.
 AGENT_CAPABILITIES: frozenset[type] = frozenset(
     {
+        FakeToolAgentMixin,
         GoalCommandAgentMixin,
         LoopCommandAgentMixin,
         SteeringAgentMixin,
@@ -669,6 +672,7 @@ class AgentDriver(Protocol):
         hooks: HookTable,
         fork_of: SessionHandle | None = None,
         carry_on: Kept | None = None,
+        tools: tuple[FakeTool, ...] = (),
     ) -> SessionHandle:
         """Opens a session.
 
@@ -683,6 +687,9 @@ class AgentDriver(Protocol):
           carry_on: A conversation a session kept, by :meth:`SessionHandle.keep` in this
             run or an earlier one, to carry on from as a fork of it, or None; never given
             with `fork_of`, and given only where it is not None.
+          tools: The flow's tools its every turn offers the agent, each `call` a coroutine
+            function that runs the flow's own as the flow, on the engine's loop; given only
+            where there are any, and only to a driver listing `FakeToolAgentMixin`.
 
         Returns:
           The session.

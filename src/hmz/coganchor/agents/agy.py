@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+import tempfile
 import threading
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
+
+    from .tools import Toolbox
 
 #: What the CLI is installed as. The tarball calls the file `antigravity` and the installer
 #: puts it down under this name, which is what a command line reaches for.
@@ -425,6 +428,40 @@ def _native(
     return snapshot(paths)
 
 
+#: Where a plugin of humanize's sits under the directory it is carried in: a customization root's
+#: `plugins/<name>/`, which agy reads in every workspace directory it is given.
+_PLUGIN = Path(".agents", "plugins", "humanize")
+
+
+def _plug(root: Path, toolbox: Toolbox) -> None:
+    """Puts the flow's callbacks where agy finds an MCP server: a plugin of humanize's own.
+
+    agy takes no MCP server on its command line, and the two files it does read one out of are
+    the user's own -- `~/.gemini/config/mcp_config.json` and a workspace's `.agents/` -- which a
+    driver does not write. What it also reads is a plugin, `plugins/<name>/mcp_config.json`
+    under any customization root, and every directory added with `--add-dir` is one: so the
+    plugin is written into a directory of this session's own and that directory is added to the
+    turn. Checked against agy 1.3.2 on 2026-10-12, which started the server, listed its tools
+    (`server/discover`, `initialize`, `tools/list`) and had the model reach for one as
+    `CallMcpTool` -- denied at the default rung, as print mode denies every tool it would have
+    asked about, and allowed at the rungs that skip asking. A file already saying what it is to
+    say is left alone, so that a turn changing nothing rewrites nothing.
+
+    Args:
+      root: The directory added to the turn.
+      toolbox: The agent's callbacks, whose bridge the plugin names.
+    """
+    plugin = root / _PLUGIN
+    plugin.mkdir(parents=True, exist_ok=True)
+    for name, said in (
+        ("plugin.json", {"name": "humanize"}),
+        ("mcp_config.json", toolbox.config()),
+    ):
+        text = json.dumps(said)
+        if not (plugin / name).is_file() or (plugin / name).read_text("utf-8") != text:
+            (plugin / name).write_text(text, encoding="utf-8")
+
+
 class AntigravityCLISession(StreamSessionBase):
     """An Antigravity conversation, resumed by the id its first turn reported.
 
@@ -439,6 +476,9 @@ class AntigravityCLISession(StreamSessionBase):
     #: `--json-schema` is a setting of the run: the answer comes back under `structured_output`
     #: rather than being asked for in the prompt.
     shapes: ClassVar[bool] = True
+
+    #: The flow's callbacks reach it as a plugin of humanize's (:func:`_plug`).
+    takes_tools: ClassVar[bool] = True
 
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
@@ -463,6 +503,8 @@ class AntigravityCLISession(StreamSessionBase):
         self._announced: str | None = None
         self._launched: tuple[object, ...] | None = None
         self._requested: tuple[object, ...] = ()
+        #: The directory the flow's callbacks are carried in, made the first time any are.
+        self._plugged: tempfile.TemporaryDirectory[str] | None = None
 
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
@@ -510,7 +552,10 @@ class AntigravityCLISession(StreamSessionBase):
             self._agent.config,
             self.effort,
             self._carrying(),
-            self._tools,
+            # Names rather than the tools, as Claude's driver compares them: agy reads what a
+            # server has when it starts it, so a different set is a process to start again --
+            # as is a toolbox served again, whose bridge names another socket.
+            self._offered(),
             environment,
             provider,
             native if native is not None else object(),
@@ -588,7 +633,10 @@ class AntigravityCLISession(StreamSessionBase):
         if (defined := _defined(config)) is not None:
             _agents(_home(self._environ() or dict(os.environ), self._agent.node().args))
             argv += ["--agent", defined]
-        if config.add_workspace or self._agent.anchor is not None:
+        offered = bool(self._agent.toolbox.offered())
+        # Pinned too where tools are carried: the plugin's directory is a workspace of agy's
+        # and must not be the only one there is (:meth:`_plugin`).
+        if config.add_workspace or self._agent.anchor is not None or offered:
             # Project selection can replace the CLI's initial cwd with a scratch directory.
             # Keep this session's workspace explicit, beside any provider-supplied roots --
             # and as the CLI will find it, which for an anchored turn is the mirror rather
@@ -597,6 +645,8 @@ class AntigravityCLISession(StreamSessionBase):
             # reach the target, and a turn left to find a project of its own would be one
             # whose edits land nowhere anybody is watching.
             argv += ["--add-dir", self._workspace()]
+        if offered:
+            argv += ["--add-dir", self._plugin()]
         if config.sandbox:
             argv.append("--sandbox")
         if config.disable_slash_commands:
@@ -608,6 +658,41 @@ class AntigravityCLISession(StreamSessionBase):
         # Its flags are Go's, which take the next word whatever it starts with, so a prompt
         # opening with a dash is still a prompt.
         return [*argv, "--print", prompt], None
+
+    def _offered(self) -> tuple[object, ...]:
+        """What the flow's callbacks are for the process: their names, and where they are."""
+        toolbox = self._agent.toolbox
+        names = tuple(sorted(one.name for one in toolbox.offered()))
+        return (names, toolbox.address()) if names else ()
+
+    def _plugin(self) -> str:
+        """The directory carrying the flow's callbacks, as it is added to the turn.
+
+        agy runs the agent's commands in the first of its workspace directories by name, so
+        this one has to sort after the session's: it is a directory of its own under the
+        temporary directory, named to sort after the rest of what is there.
+
+        Returns:
+          Its path.
+
+        Raises:
+          Unserved: If it would still sort first, which is a turn whose commands would run in
+            it rather than in the session's directory.
+        """
+        if self._plugged is None:
+            self._plugged = tempfile.TemporaryDirectory(
+                prefix="~humanize-agy-", ignore_cleanup_errors=True
+            )
+        root = Path(self._plugged.name).resolve()
+        _plug(root, self._agent.toolbox)
+        working = Path(self._workspace())
+        # Both as said and as resolved: which of the two agy sorts is its own business.
+        if any(str(root) < str(one) for one in (working, working.resolve())):
+            raise Unserved(
+                f"{_COMMAND} cannot be offered tools in {working}: it runs commands in the "
+                f"first of its directories by name, which would be {root} rather than it"
+            )
+        return str(root)
 
     def _reads(self, line: str, *, error: bool) -> Iterator[Event]:
         """Reads one line Antigravity CLI wrote, as the things it says the agent did.

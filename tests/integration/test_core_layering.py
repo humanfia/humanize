@@ -57,9 +57,16 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.epic",
         "hmz.runtime.tracing",
     },
+    # An epic backed up to git repositories as a bundle lays it out, behind everything else.
+    "hmz.runtime.backing": {
+        "hmz.runtime.epic",
+        "hmz.runtime.exporting",
+        "hmz.runtime.settings",
+    },
     "hmz.runtime.runner": {
         "hmz.coganchor",
         "hmz.flows",
+        "hmz.runtime.backing",
         "hmz.runtime.epic",
         "hmz.runtime.flowing",
         "hmz.runtime.kept",
@@ -78,6 +85,7 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.runtime.doing": {
         "hmz.coganchor",
         "hmz.flows",
+        "hmz.runtime.backing",
         "hmz.runtime.epic",
         "hmz.runtime.exporting",
         "hmz.runtime.flowing",

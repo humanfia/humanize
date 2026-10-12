@@ -72,6 +72,10 @@ _UNWINDING = 20.0
 #: How often a process being waited on is looked at.
 _TICK = 0.1
 
+#: How long a host process that is done is given to finish backing its epics up before it
+#: goes: within what a stop waits for it, so that a stop is never taken for one that failed.
+_BACKING = 15.0
+
 #: How many times a frontend reaches for the host of its workspace before it gives up holding
 #: runs apart from itself, and how long it waits between: a host found on its way out -- the
 #: last frontend on it has just gone -- is found gone the next time, and one started in its
@@ -558,6 +562,8 @@ def _hosts_in(
     with contextlib.suppress(OSError, ValueError):
         signal.signal(signal.SIGTERM, closes)
     serves(held, workspace, telling)
+    # A backup of the last epic still going is let finish, for so long: nothing waits on it.
+    hmz.backups.wait(_BACKING)
 
 
 def _waits(reading: int, seconds: float) -> None:
