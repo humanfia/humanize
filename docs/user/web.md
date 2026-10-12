@@ -259,6 +259,8 @@ The same pages as [`/settings`](/user/settings), in the same order, and what the
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one. A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
 | **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
+| **Daemons** | **Local**, always there, and every SSH daemon with its state (up, connecting, installing, failed or idle): add or **Edit** one a part at a time (name, host, user, port, identity file, proxy jump, SSH options), **Import** hosts from your SSH config, **Connect** or **Remove** one, asked first |
+| **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Chat turns**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept on this machine, never per daemon |
 
 An account is never shown by its values: a page lists the names of the variables it sets, and
 nothing else. A way in that runs a CLI's own sign-in, such as `login`, needs a terminal: it is

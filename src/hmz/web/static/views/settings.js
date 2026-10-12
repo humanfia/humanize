@@ -18,6 +18,8 @@ const PAGES = {
   backup: { label: 'Backup', about: 'Git repositories epics go to', load: () => import('./settings/backup.js') },
   workspace: { label: 'Workspace', about: 'This directory’s saved setup', load: () => import('./settings/workspace.js') },
   usage: { label: 'Usage', about: 'Spending by day and flow', load: () => import('./settings/usage.js') },
+  daemons: { label: 'Daemons', about: 'Machines this page can show', load: () => import('./settings/daemons.js') },
+  notifications: { label: 'Notifications', about: 'What is told, of every daemon', load: () => import('./settings/notifications.js') },
 }
 
 export function mount(root, { parts, query }) {

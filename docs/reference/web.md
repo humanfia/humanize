@@ -143,7 +143,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/flows?tab=verses[&verse=]` | The flowverses, one opened. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
 | `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |
-| `#/settings/<page>[?days=]` | A dialog: `general`, `themes`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace` or `usage`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
+| `#/settings/<page>[?days=]` | A dialog: `general`, `themes`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, `usage`, `daemons` or `notifications`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
 
 The page keeps a few conveniences in the browser's `localStorage`, each forgotten without
 harm: the colours chosen as `hmz-theme` (`light`, `dark`, or absent for the system's), a sidebar
