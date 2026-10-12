@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 import threading
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .config import AgentConfig
 from .event import Event
@@ -64,6 +64,11 @@ _NAMING = "hmz-session"
 #: What the `set_host_tools` putting a flow's own callbacks in front of the agent is sent
 #: under, so that omp refusing it is told from its refusing anything else.
 _HOSTING = "hmz-tools"
+
+#: What a flow's callback is called in front of the agent, ahead of the name the flow gave it:
+#: omp's own tools are called what a flow's may be -- a `write` of the flow's would otherwise
+#: be omp's, or one of those `read-only` asks about -- and opencode's are called this too.
+_PREFIX = "humanize_"
 
 #: The files omp declares providers of its own in, under its home, in the order it reads them.
 _MODELS = ("models.yml", "models.yaml")
@@ -144,6 +149,8 @@ class OhMyPiSession(PiSession):
         """
         line = super()._write(text, ticket)
         offered = self._agent.toolbox.offered()
+        # Off the very list it is told, rather than asked for again: a flow offering others
+        # in between would be one whose last word omp is then never told.
         names = tuple(sorted(one.name for one in offered))
         if not ticket and names != self._hosting:
             # Ahead of a turn's prompt, which omp runs after it, and never alongside a word
@@ -152,7 +159,7 @@ class OhMyPiSession(PiSession):
             self._hosting = names
             tools = [
                 {
-                    "name": one.name,
+                    "name": _PREFIX + one.name,
                     "description": one.about,
                     "parameters": one.schema(),
                     # Shown to the model outright rather than left to be searched for.
@@ -182,7 +189,7 @@ class OhMyPiSession(PiSession):
             "id": 0,
             "method": "tools/call",
             "params": {
-                "name": said.get("toolName"),
+                "name": str(said.get("toolName") or "").removeprefix(_PREFIX),
                 "arguments": said.get("arguments") or {},
             },
         }
@@ -302,6 +309,10 @@ class OhMyPiAgentConfig(AgentConfig):
 
 class OhMyPiAgent(PiAgent):
     """omp, driven over its RPC protocol so a turn can be talked to while it runs."""
+
+    #: Its callbacks are asked for over the pipe it is driven through, so a turn driven on
+    #: another machine's omp is offered them as one driven on this one is.
+    pipes_tools: ClassVar[bool] = True
 
     def _declared(self, home: Path) -> Any:
         """What this machine's omp declares of its own providers, read out of `models.yml`.

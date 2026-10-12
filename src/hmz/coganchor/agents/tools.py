@@ -168,6 +168,18 @@ class Toolbox:
                     found.setdefault(one.name, one)
             return tuple(found.values())
 
+    def names(self) -> tuple[str, ...]:
+        """The name of every callback in front of the agent now, sorted.
+
+        Names rather than everything a tool says, which is what a backend compares to know
+        whether the CLI it has up was told of what is offered now: a name is what a tool is
+        here -- two conversations offering one name are offering one tool -- and building
+        every argument schema again before every turn to catch a reworded sentence would cost
+        each turn more than the sentence is worth. Sorted, so that a flow which builds its list
+        afresh before each turn is offering the same thing each time.
+        """
+        return tuple(sorted(one.name for one in self.offered()))
+
     def empty(self) -> bool:
         """Whether nothing is being offered, which is an agent with no tools of the flow's."""
         with self._lock:

@@ -271,8 +271,8 @@ def test_a_callback_offered_is_run_here_when_the_model_reaches_for_it(
         ]
     )
 
-    assert session('use shout {"word": "hi"}') == "HI"
-    assert session("use refuse") == "failed: ValueError: not today"
+    assert session('use humanize_shout {"word": "hi"}') == "HI"
+    assert session("use humanize_refuse") == "failed: ValueError: not today"
     assert heard == ["hi"]
     assert str(pi.calls()[0].flag("--extension")).endswith("pi_tools.cjs")
 

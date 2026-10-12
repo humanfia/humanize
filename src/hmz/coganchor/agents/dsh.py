@@ -552,7 +552,7 @@ class DshSession(SessionBase):
         effort = self.effort
         way = self._agent.provider.way if self._agent.provider is not None else None
         toolbox = self._agent.toolbox
-        offered = tuple(sorted(one.name for one in toolbox.offered()))
+        offered = toolbox.names()
         composition = _composed(
             cast("DshAgentConfig", self._agent.config),
             way,

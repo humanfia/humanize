@@ -561,10 +561,11 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   short bounded wait and never raising, and nothing else of it MUST be; where each projected
   directory landed MUST be in a file of the turn's own in the directory `tells` names on this
   machine from before the CLI starts until the turn is over.
-- A native session MUST refuse a turn asking for the flow's own callbacks and MUST ask nothing of
-  this machine's kernel; the skills a flow carries MUST be put into the target's workspace for the
-  turn and taken out again, writing over nothing and removing only what was made; and its sessions
-  MUST stay where the target's CLI keeps them, copied here as `agents` says.
+- A native session MUST refuse a turn asking for the flow's own callbacks, unless its backend asks
+  for each call over the pipe it is driven through, and MUST ask nothing of this machine's kernel;
+  the skills a flow carries MUST be put into the target's workspace for the turn and taken out
+  again, writing over nothing and removing only what was made; and its sessions MUST stay where
+  the target's CLI keeps them, copied here as `agents` says.
 - What a CLI on another machine logs MUST be read down the road a turn there takes, one short
   command at a time -- what the session logged and how long, then what was appended since --
   putting nothing on that machine and holding nothing open between the two.

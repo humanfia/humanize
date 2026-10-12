@@ -492,7 +492,7 @@ class AcpSession(SessionBase):
             client does not, refuses to open a session, or cannot pick one back up.
         """
         if self._link is not None and (
-            self.elsewhere() or self._telling != _named(self._agent)
+            self.elsewhere() or self._telling != self._agent.toolbox.names()
         ):
             # Started as an account this agent has since left, or told of callbacks the flow
             # has since changed -- an agent lists a server's tools as the conversation opens
@@ -527,7 +527,7 @@ class AcpSession(SessionBase):
             cwd=None if self._agent.anchor is not None else self._workspace(),
         )
         self._as, self._pathed = self._agent.node().name, pathed
-        self._telling = _named(self._agent)
+        self._telling = self._agent.toolbox.names()
         try:
             link.start()
             self._agreed(
@@ -1223,15 +1223,6 @@ class McpServer:
             "args": list(self.args),
             "env": [{"name": one, "value": value} for one, value in self.env],
         }
-
-
-def _named(agent: AgentBase) -> tuple[str, ...]:
-    """The names of the callbacks in front of an agent, sorted, which is what going stale means.
-
-    Names rather than everything a tool says, as for Claude: a name is what a tool is here,
-    and two conversations offering one name are offering one tool.
-    """
-    return tuple(sorted(one.name for one in agent.toolbox.offered()))
 
 
 def _bridged(agent: AgentBase) -> tuple[McpServer, ...]:

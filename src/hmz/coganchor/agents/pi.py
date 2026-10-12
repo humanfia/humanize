@@ -523,7 +523,7 @@ class PiSession(StreamSessionBase):
             argv.append("--no-context-files")
         if not getattr(config, "extensions", True):
             argv.append("--no-extensions")
-        self._telling = self._offered()
+        self._telling = self._agent.toolbox.names()
         if self._telling:
             argv += ["--extension", str(_TOOLS)]
         # Also wherever the fence cuts the network, which is where startup network work would
@@ -647,18 +647,9 @@ class PiSession(StreamSessionBase):
             self._aborted.wait(_ABORTING)
         super()._cuts()
 
-    def _offered(self) -> tuple[str, ...]:
-        """The names of the callbacks in front of the agent now, sorted.
-
-        Names rather than everything a tool says, as Claude's driver compares them: a name is
-        what a tool is here, and a flow building its list afresh before every turn is
-        offering the same thing each time.
-        """
-        return tuple(sorted(one.name for one in self._agent.toolbox.offered()))
-
     def _stale(self) -> bool:
         """Whether the process up was started with callbacks other than the ones offered now."""
-        return self._telling != self._offered()
+        return self._telling != self._agent.toolbox.names()
 
     def _restarted(self) -> None:
         """Forgets the turn the last process was in the middle of, which this one is not."""

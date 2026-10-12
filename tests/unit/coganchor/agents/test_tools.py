@@ -169,6 +169,7 @@ def test_a_toolbox_holds_one_tool_per_name_in_the_order_offered() -> None:
     box.offers(2, [other, _TOOLS[2]])
     assert not box.empty()
     assert box.offered() == (_TOOLS[0], _TOOLS[1], _TOOLS[2])
+    assert box.names() == ("data", "echo", "noop")
     box.offers(1, ())
     assert box.offered() == (other, _TOOLS[2])
     box.offers(2, [])

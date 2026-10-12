@@ -572,7 +572,7 @@ class ClaudeCodeSession(StreamSessionBase):
             argv += ["--allowedTools", ",".join(allowed_tools)]
         # Read once and kept, so that what the process is recorded as having been told is
         # what this line actually tells it.
-        self._telling = self._offered()
+        self._telling = self._agent.toolbox.names()
         if self._telling:
             # The flow's own callbacks, as the one thing Claude takes a tool it was not
             # shipped with on: a server on the command line rather than a line written into
@@ -749,19 +749,6 @@ class ClaudeCodeSession(StreamSessionBase):
             config.fence is not None and not config.fence.online
         )
 
-    def _offered(self) -> tuple[str, ...]:
-        """What a Claude started now would be told the flow's own callbacks are.
-
-        Returns:
-          The name of every callback in front of the agent, sorted, so that a flow which
-          builds its list afresh before each turn is offering the same thing each time.
-          Names rather than everything a tool says: a name is what a tool is here -- two
-          conversations offering one name are offering one tool -- and building every
-          argument schema again before every turn to catch a reworded sentence would cost
-          each turn more than the sentence is worth.
-        """
-        return tuple(sorted(one.name for one in self._agent.toolbox.offered()))
-
     def _stale(self) -> bool:
         """Whether the process up was started for something this turn is no longer.
 
@@ -792,7 +779,9 @@ class ClaudeCodeSession(StreamSessionBase):
             return True
         if self._built is not None and self._built != self._configured():
             return True
-        return self._offering is not None and self._offering != self._offered()
+        return (
+            self._offering is not None and self._offering != self._agent.toolbox.names()
+        )
 
     def _spent(self, said: dict[str, Any]) -> tuple[dict[str, int], Usage]:
         """What the turn just ending cost, per model and by the kind it went on.

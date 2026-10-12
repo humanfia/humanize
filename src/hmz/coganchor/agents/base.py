@@ -3863,6 +3863,13 @@ class AgentBase(ABC):
     #: The one agent that cannot be the reason the money ran out is the one agent worth keeping.
     spends: ClassVar[bool] = True
 
+    #: Whether the flow's callbacks reach this backend's CLI over the pipe it is driven
+    #: through rather than over the bridge (:meth:`Toolbox.command`). One that does is asked
+    #: for each call where it is already talking to this process, wherever it runs, so a turn
+    #: driven on another machine is offered them as one here is, and nothing is started for
+    #: them on this machine under a supervisor.
+    pipes_tools: ClassVar[bool] = False
+
     def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
         """Initializes an agent that has opened nothing yet.
 
@@ -5451,21 +5458,23 @@ class AgentBase(ABC):
             from hmz.coganchor.backends import installing
             from hmz.coganchor.transport import Target
 
-            if (
-                not (self._toolbox.empty() and self._shelf.empty())
-                and Target.parse(anchor.target).scheme != "local"
-            ):
+            bridged = not (self._toolbox.empty() or self.pipes_tools)
+            if (bridged or not self._shelf.empty()) and Target.parse(
+                anchor.target
+            ).scheme != "local":
                 # Refused rather than dropped. The bridge is a program on this machine that
                 # speaks to a socket in this process, and the CLI that would start it is on
                 # another one: a turn taken anyway would be one whose model was never told
                 # about the flow's callbacks, which reads as a model that would not use them.
                 # A `local` target is the exception and not a special case -- the CLI runs
                 # here, so the bridge, the socket and humanize are all where they always were.
+                # So is a backend whose callbacks come back over the pipe it is driven
+                # through (:attr:`pipes_tools`), which is no bridge at all.
+                offered = "callbacks or command lines" if bridged else "command lines"
                 raise ValueError(
                     f"{self.backend}: a turn driven on {anchor.target} cannot be offered "
-                    "the flow's own callbacks or command lines -- the bridge that carries "
-                    "them is a program on this machine, and the CLI that would start it is "
-                    "on that one"
+                    f"the flow's own {offered} -- the bridge that carries them is a program "
+                    "on this machine, and the CLI that would start it is on that one"
                 )
             projects = self._projecting(provider)
             brings = self._bringing(projects)
@@ -5481,7 +5490,7 @@ class AgentBase(ABC):
         import sys
 
         execs, paths = list(anchor.local_execs), list(anchor.local_paths)
-        if not self._toolbox.empty():
+        if not (self._toolbox.empty() or self.pipes_tools):
             execs.append(self._toolbox.command()[0])
         if shelf := self._shelf.where():
             # The scripts and the socket are this machine's, and so is what a script runs.

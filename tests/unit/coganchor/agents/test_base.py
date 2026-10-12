@@ -1351,3 +1351,30 @@ def test_identifying_names_the_cli_only_for_the_protocol_class() -> None:
     assert identifying(AcpAgentConfig, "mycli") == {"cli": "mycli"}
     assert identifying(ClaudeCodeAgentConfig, "claude") == {}
     assert identifying(AgentConfig, "x") == {}
+
+
+def test_a_turn_on_another_machine_is_offered_tools_only_over_its_own_pipe(
+    tmp_path: Path,
+) -> None:
+    class Piped(Scripted):
+        pipes_tools: ClassVar[bool] = True
+
+    anchor = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
+    machine = AnchoredConfig(anchor=anchor)
+    config = AgentConfig(model="m", effort="", machine=machine)
+    bridged, piped = Scripted(config, backend="claude"), Piped(config, backend="omp")
+    for agent in (bridged, piped):
+        agent.toolbox.offers(1, [Tool("shout", "Says a word louder.", lambda: "HI")])
+    try:
+        with pytest.raises(ValueError, match="cannot be offered the flow's own"):
+            bridged.spawned(["claude"])
+        assert piped.spawned(["omp"])
+        piped.shelf.shelves(
+            1, [Cli("tix", "Tickets.", (Command("go", "Go.", lambda: None),))]
+        )
+        with pytest.raises(ValueError, match="offered the flow's own command lines --"):
+            piped.spawned(["omp"])
+    finally:
+        piped.shelf.close()
+        bridged.toolbox.close()
+        piped.toolbox.close()

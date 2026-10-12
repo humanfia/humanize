@@ -4,9 +4,11 @@
 // pi takes no MCP server on its command line -- its own MCP support reads `mcp.json` out of
 // pi's home, which is the user's and not a flow's to write -- but it does take an extension,
 // and an extension may register a tool. So this one starts the bridge every backend is
-// handed (`hmz internal tools`), asks it what is offered, and registers each tool under the
-// name the flow gave it; a call of one is a `tools/call` through the bridge, which is the
-// callback running in the flow's own process.
+// handed (`hmz internal tools`), asks it what is offered, and registers each tool as
+// `humanize_<name>` -- pi's own tools are called what a flow's may be, and a `write` of the
+// flow's would otherwise be pi's, or one `--exclude-tools` withholds; a call of one is a
+// `tools/call` through the bridge under the name the flow gave it, which is the callback
+// running in the flow's own process.
 //
 // The bridge's argv is in `HMZ_PI_TOOLS`, as JSON. Where it is not set this registers
 // nothing, so a pi that finds this file without humanize behind it is the pi it was.
@@ -85,7 +87,7 @@ module.exports = async function humanizeTools(pi) {
   }
   for (const tool of tools) {
     pi.registerTool({
-      name: tool.name,
+      name: `humanize_${tool.name}`,
       label: tool.name,
       description: tool.description,
       parameters: tool.inputSchema,
