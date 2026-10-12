@@ -9,6 +9,7 @@ mod child;
 mod chrome;
 mod install;
 mod menu;
+mod notify;
 mod server;
 mod shell_env;
 mod update;
@@ -92,6 +93,8 @@ struct Shell {
     page: Mutex<Option<Url>>,
     /// An epic's archive opened before then, imported once it is set.
     opening: Mutex<Option<PathBuf>>,
+    /// The address of a notification clicked before then, opened once it is set.
+    notified: Mutex<Option<String>>,
 }
 
 /// Where `hmz web` stands, once it is anything but starting, and other than the page drew last.
@@ -104,6 +107,13 @@ async fn status(after: Option<Status>, shell: State<'_, Shell>) -> Result<Status
     Ok(settled
         .map(|status| status.clone())
         .unwrap_or(Status::Starting))
+}
+
+/// Posts a notification from `hmz web`'s page; clicking it brings the window forward, on the
+/// page's hash `address` where it is one.
+#[tauri::command]
+fn notify(title: String, body: String, address: Option<String>) {
+    notify::post(&title, &body, address.as_deref().unwrap_or_default());
 }
 
 /// Starts again where it stopped short: installing `hmz`, then `hmz web`.
@@ -205,7 +215,9 @@ fn start(app: AppHandle, how: How) {
                     *lock(&shell.page) = Some(page.clone());
                     let opening = lock(&shell.opening).take();
                     let opening = opening.and_then(|path| importing(&page, &path));
-                    show(app, opening.unwrap_or(page));
+                    let notified = lock(&shell.notified).take();
+                    let notified = notified.and_then(|address| notify::target(&page, &address));
+                    show(app, opening.or(notified).unwrap_or(page));
                 });
                 // Told once `hmz web` stops on its own; nothing where the app stopped it.
                 if let Some(said) = server.exited() {
@@ -454,12 +466,16 @@ pub fn run() {
             downloads: Mutex::default(),
             page: Mutex::default(),
             opening: Mutex::default(),
+            notified: Mutex::default(),
         })
         .menu(menu::build)
         .on_menu_event(menu::handle)
-        .invoke_handler(tauri::generate_handler![status, retry, keep, update_now])
+        .invoke_handler(tauri::generate_handler![
+            status, retry, keep, update_now, notify
+        ])
         .setup(|app| {
             window(app.handle())?;
+            notify::init(app.handle());
             start(app.handle().clone(), How::Usual);
             update::init(app.handle())?;
             Ok(())
