@@ -1,16 +1,18 @@
-"""A directory's runs: `/epics` lists and exports them, and `/resume` picks the last back up."""
+"""A directory's runs: `/epics` lists, exports and imports them; `/resume` picks one up."""
 
 from __future__ import annotations
 
+import shutil
 import tarfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from textual.widgets import OptionList
 
 from hmz.runtime.epic import Epic, epics
 from hmz.tui import Humanize
-from hmz.tui.pick import Epics, Exporting
+from hmz.tui.pick import Epics, Exporting, ImportingEpic
 from tests.integration.doubles_tui import (
     OWN,
     SIZE,
@@ -155,3 +157,69 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
         await typed(pilot, "/epics")
         await on(pilot, Epics)
         await until(pilot, lambda: len(rows(app)) == 2, "the scope remembered")
+
+
+def _exported(epic: Path, name: str) -> None:
+    """Exports one epic under home, short enough not to be wrapped, and takes it away."""
+    from hmz.runtime.exporting import bundle
+
+    bundle(epic, Path.home() / name)
+    shutil.rmtree(epic)
+
+
+def _cursor(app: Humanize) -> str:
+    """The row the cursor of the sheet on top is on, by id."""
+    at = app.screen.query_one("#choices", OptionList).highlighted
+    return rows(app)[at] if at is not None else ""
+
+
+async def _imports(pilot: Pilot[None], name: str) -> None:
+    """Imports one file under home from `/epics`, with the key that does."""
+    await pilot.press("i")
+    await on(pilot, ImportingEpic)
+    await pilot.press(*f"~/{name}", "enter", "enter")
+    await on(pilot, Epics)
+
+
+async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
+    workspace: Path,
+) -> None:
+    elsewhere = Path.home() / "elsewhere"
+    elsewhere.mkdir(parents=True)
+    with Epic("chat", "here", workspace) as here:
+        pass
+    with Epic("chat", "there", elsewhere) as there:
+        pass
+    _exported(here.path, "a.hmzepic")
+    _exported(there.path, "b.hmzepic")
+    (Path.home() / "c.txt").write_text("not an epic")
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await shows(pilot, "no flow has been run in this directory yet", "Import…")
+
+        await _imports(pilot, "a.hmzepic")
+        await until(pilot, lambda: rows(app) == [here.path.name], "the epic imported")
+        await shows(pilot, "imported")
+        assert _cursor(app) == here.path.name
+
+        await pilot.press("enter")
+        await shows(pilot, "export run", "chat is not resumable")
+        await pilot.press("escape")
+        await on(pilot, Epics)
+
+        # Another directory's turns the list to this machine's, where it is a row.
+        await _imports(pilot, "b.hmzepic")
+        await shows(pilot, "Every epic on this machine", "~/elsewhere")
+        await until(pilot, lambda: len(rows(app)) == 2, "both epics")
+        assert _cursor(app) == there.path.name
+
+        await pilot.press("down")
+        await _imports(pilot, "b.hmzepic")
+        await shows(pilot, "is already here")
+        await until(pilot, lambda: _cursor(app) == there.path.name, "the one here")
+
+        await _imports(pilot, "c.txt")
+        await shows(pilot, "c.txt is not a .hmzepic file")

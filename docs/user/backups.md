@@ -78,7 +78,8 @@ $ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 --backup none "hi"
 
 The epic remembers which targets it was started with. In [`hmz web`](/user/web), add and change
 targets under **Settings → Backup**, and pick an epic's under **Options → Backup** as you start
-it, the defaults ticked.
+it: the defaults are ticked until you save or start the flow with others, and from then on what
+you chose for that flow in that directory is.
 
 ## Backing an epic up by hand
 
@@ -94,6 +95,30 @@ started with were that machine's, and so were its backups, which this machine do
 
 In [`hmz web`](/user/web), **Upload** in an epic's menu, or at the top of the epic, does the same
 without waiting for it; hover it for how the last backup to each target went.
+
+## Downloading an epic
+
+A target holds the epics of every machine that backs up to it. List them, and download one into
+this machine's epics, where it is an epic like any other:
+
+```console
+$ hmz backup --list --to lab
+lab: 2 epics
+  gpu-box  /home/you/code  20261012T091500.123Z-1a2b3c  done  fix the flaky test
+  laptop  /Users/you/code  20261012T101500.456Z-4d5e6f  unfinished  write the docs
+$ hmz backup --pull 20261012T091500.123Z-1a2b3c --to lab
+/Users/you/.hmz/epics/-home-you-code/20261012T091500.123Z-1a2b3c
+```
+
+A download is an [import](/user/export#importing-a-run): it lands under the directory it ran in,
+says which target and path it came from, and resumes only where that directory is here at the
+same path, on the commit it was on. An epic you already have -- one this machine backed up and
+still keeps, or one downloaded before -- is refused. Without `--to`, every target is looked in;
+where two machines' epics share a name, name it as `<machine>/<workspace>/<epic>`.
+
+From Python, `Hmz().backups.listed("lab")` lists them and
+`Hmz().backups.pulled("lab", key)` downloads one; `listed` fetches first, so call it off any
+thread a screen is drawn on.
 
 ## Check that it worked
 
@@ -111,8 +136,10 @@ interface can show it.
 | `hmz exec: error: no backup target is named x` | `--backup x` names no target in settings | Add it, or name another. |
 | `lab: failed: Permission denied (publickey)` | git could not sign in | Check `git ls-remote <url>` works without a prompt. |
 | `hmz exec: a backup took longer than 60s and was left` | the remote is slow or unreachable | Run `hmz backup <epic>` once it answers. |
+| `hmz backup: … is already here, at …` | the epic downloaded is one you have | Open it where it is. |
 
 ## Next steps
 
 - [Settings reference](/reference/settings#backup) for every key.
 - [CLI reference](/reference/cli#hmz-backup) for `hmz backup` and `--backup`.
+- [Importing a run](/user/export#importing-a-run), which a download is.

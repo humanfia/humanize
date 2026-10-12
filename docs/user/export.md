@@ -257,7 +257,9 @@ runs.bundled(epic, output="/tmp/for-the-issue.hmzepic")
 
 ### Importing a run
 
-Somebody sent you a `.hmzepic`? Read it back in, and it is a run like any other:
+Somebody sent you a `.hmzepic`? Read it back in, and it is a run like any other. In `hmz`,
+open `/epics`, press `i` (or **Import…**) and give the file; the list shows it with the cursor
+on it, turning to this machine's epics when it ran in another directory. From a script:
 
 ```python
 from hmz.sdk import Hmz
@@ -267,7 +269,8 @@ epic = Hmz().epics.imported("~/Downloads/20260930T054014.242Z-bdae4a.hmzepic")
 
 It lands under the directory the run was started in, as it was there, so `/epics` lists it
 once you start `hmz` in that directory. A file not ending `.hmzepic`, one holding anything but
-the one run, and a run you already have are refused.
+the one run, and a run you already have are refused. An epic [backed up](/user/backups) to a git
+repository is downloaded the same way, with `hmz backup --pull`.
 
 Credentials stay `[redacted]`: what was struck out on the way out is not coming back.
 

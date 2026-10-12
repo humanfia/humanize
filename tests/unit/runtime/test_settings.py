@@ -125,6 +125,20 @@ def test_an_empty_value_or_profile_off_erases_it(
     assert set(_entry(held, tmp_path)["flows"]["ralph"]) == {"agents"}
 
 
+def test_the_backup_chosen_for_a_flow_is_kept_until_said_again(
+    held: doubles.Store, tmp_path: Path
+) -> None:
+    assert Settings(tmp_path).backup("ralph") is None
+
+    Settings(tmp_path).remember("ralph", {}, backup=["lab", "home", "lab"])
+    Settings(tmp_path).remember("ralph", {"builder": Runs("claude/opus:high")})
+
+    assert Settings(tmp_path).backup("ralph") == ("lab", "home")
+    Settings(tmp_path).remember("ralph", {}, backup=[])
+    assert Settings(tmp_path).backup("ralph") == ()
+    assert Settings(tmp_path).backup("aot") is None
+
+
 def test_each_flow_and_each_workspace_is_remembered_apart(
     held: doubles.Store, tmp_path: Path
 ) -> None:

@@ -74,7 +74,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 # What the protocol says a thing is, what a client may do, how a tool call is permitted and
 # what ends a turn having answered are the protocol's rather than Grok Build's, so they are
 # taken from the ACP client every such CLI here is driven through rather than said again.
-from .acp import _ANSWERED, _CAPABILITIES, _GRANTS, _VERSION
+from .acp import _ANSWERED, _CAPABILITIES, _GRANTS, _VERSION, _bridged, _named
 from .acp import _SAYS as _TOLD
 from .base import (
     AgentBase,
@@ -291,6 +291,12 @@ class GrokBuildSession(StreamSessionBase):
     #: itself rather than asked for in the prompt.
     shapes: ClassVar[bool] = True
 
+    #: The protocol's `session/new` and `session/load` carry `mcpServers`, so the flow's own
+    #: callbacks reach a held-open conversation as one more server, written into no
+    #: `config.toml`. `grok -p` has no flag for one, so a turn that has to go there while
+    #: callbacks are offered is refused rather than taken without them: :meth:`_stream`.
+    takes_tools: ClassVar[bool] = True
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:
@@ -348,8 +354,19 @@ class GrokBuildSession(StreamSessionBase):
 
         Yields:
           What the agent said, and the answer it ended on.
+
+        Raises:
+          Unrecoverable: For a turn the command line has to take while the flow's own
+            callbacks are offered: `grok -p` takes no MCP server, and a turn whose model was
+            never told of them reads as a model that would not use them.
         """
         if schema is not None or self._commanded() or self._forking():
+            if self._agent.toolbox.offered():
+                said = (
+                    f"{_COMMAND} -p, which this turn needs, takes no MCP server, so it "
+                    "cannot be offered the flow's own callbacks"
+                )
+                raise Unrecoverable(1, [_COMMAND], "", said)
             with self._lock:
                 self._shut()
                 # The finite command transport checks the process's exit status after its
@@ -427,6 +444,8 @@ class GrokBuildSession(StreamSessionBase):
             # provider adds nothing is handed this process's own, and a flow that moved one of
             # the twelve variables Grok Build reads would otherwise move nothing at all.
             self._environ() or dict(os.environ),
+            # And the callbacks it was handed, which it lists once, as the session opens.
+            _named(self._agent),
         )
 
     def _model(self) -> str:
@@ -533,7 +552,10 @@ class GrokBuildSession(StreamSessionBase):
             # and starting another must not start another conversation. A load the agent
             # refuses is refused again on the next try -- the conversation is not there under
             # that id -- so it is said once rather than tried down the whole chain.
-            where: dict[str, Any] = {"cwd": self._workspace(), "mcpServers": []}
+            where: dict[str, Any] = {
+                "cwd": self._workspace(),
+                "mcpServers": [one.sent() for one in _bridged(self._agent)],
+            }
             if self._id is not None:
                 self._settle(
                     proc,

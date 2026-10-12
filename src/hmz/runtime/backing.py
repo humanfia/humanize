@@ -20,17 +20,18 @@ from __future__ import annotations
 
 import contextlib
 import fcntl
+import json
 import os
 import re
 import shutil
 import socket
 import subprocess
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from hmz import machine
 from hmz.runtime.epic import BACKED, JOURNAL, note
-from hmz.runtime.exporting import MANIFEST, plain, unpacked
+from hmz.runtime.exporting import MANIFEST, placed, plain, unpacked
 from hmz.runtime.settings import Settings
 
 if TYPE_CHECKING:
@@ -39,7 +40,17 @@ if TYPE_CHECKING:
 
     from hmz.runtime.settings import Target
 
-__all__ = ["Keeping", "chosen", "configured", "push", "wait", "where"]
+__all__ = [
+    "Keeping",
+    "Stored",
+    "chosen",
+    "configured",
+    "listed",
+    "pulled",
+    "push",
+    "wait",
+    "where",
+]
 
 #: How long one git command is given. A remote that does not answer is a backup that failed,
 #: never a thread held for ever.
@@ -47,6 +58,9 @@ _PATIENCE = 120.0
 
 #: What a minute is to `interval`, as a test may shorten it.
 _MINUTE = 60.0
+
+#: How many directories down a repository keeps an epic: machine, workspace, epic.
+_DEEP = 3
 
 #: What a machine's name is flattened to, as a directory of the repository.
 _PLAIN = re.compile(r"[^A-Za-z0-9._-]+")
@@ -138,6 +152,146 @@ def wait(seconds: float | None = None) -> bool:
         return _HELD.wait_for(lambda: not _WORKING, seconds)
 
 
+class Stored(NamedTuple):
+    """One epic a target holds, as its manifest there says it.
+
+    Attributes:
+      key: Where it is in the repository, `<machine>/<workspace>/<epic>`, which is what
+        :func:`pulled` is handed.
+      machine: The machine it was backed up from, as its directory is named.
+      workspace: Where it says it ran, on that machine.
+      epic: Its name.
+      flow: The flow it ran.
+      task: What it was asked to do.
+      began: When it began.
+      ended: When it ended, or "" for one that had not when it was backed up.
+      how: How it ended -- `done`, `failed`, `stopped` -- or "" for one that had not.
+      head: The commit its workspace was on, or "" where it said none.
+    """
+
+    key: str
+    machine: str
+    workspace: str
+    epic: str
+    flow: str
+    task: str
+    began: str
+    ended: str
+    how: str
+    head: str
+
+
+def listed(name: str) -> list[Stored]:
+    """Every epic one target holds, read off its branch as it is now.
+
+    Fetched first, as a backup fetches, and read file by file out of this machine's clone of
+    it: nothing but the fetch goes over the network.
+
+    Args:
+      name: The target, by name.
+
+    Returns:
+      One per epic, in the order their names sort, which is when each began.
+
+    Raises:
+      ValueError: For a name no target in settings has.
+      OSError: What git said, where it would not, or took too long.
+    """
+    target = _target(name)
+    found: list[Stored] = []
+    with _cloned(target) as at:
+        _fetches(at, target.branch)
+        for manifest in at.glob(f"*/*/*/{MANIFEST}"):
+            epic = manifest.parent
+            key = epic.relative_to(at).as_posix()
+            if (
+                key.startswith(".")
+                or not _inside(at, epic)
+                or not (epic / JOURNAL).is_file()
+            ):
+                continue
+            try:
+                said: object = json.loads(manifest.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(said, dict):
+                continue
+            run, workspace = (
+                _mapping(cast("dict[str, Any]", said).get(one))
+                for one in ("run", "workspace")
+            )
+            ended = str(run.get("ended") or "")
+            found.append(
+                Stored(
+                    key=key,
+                    machine=epic.parent.parent.name,
+                    workspace=str(workspace.get("at") or ""),
+                    epic=epic.name,
+                    flow=str(run.get("flow") or ""),
+                    task=str(run.get("task") or ""),
+                    began=str(run.get("began") or ""),
+                    ended=ended,
+                    how=str(run.get("how") or "") if ended else "",
+                    head=str(workspace.get("head") or ""),
+                )
+            )
+    return sorted(found, key=lambda one: (one.epic, one.key))
+
+
+def pulled(name: str, key: str) -> Path:
+    """Downloads one epic a target holds into this machine's epics, as an import would.
+
+    Args:
+      name: The target, by name.
+      key: Where the epic is in its repository, `<machine>/<workspace>/<epic>`.
+
+    Returns:
+      Where the epic now is: under the workspace it says it ran in.
+
+    Raises:
+      ValueError: For a name no target in settings has, a key naming no epic it holds, an
+        epic not laid out as one, and one already here -- which an epic this machine backed
+        up and still has is.
+      OSError: What git said, where it would not, or took too long.
+    """
+    target = _target(name)
+    parts = key.split("/")
+    if len(parts) != _DEEP or any(
+        not one or one.startswith(".") or "\\" in one for one in parts
+    ):
+        raise ValueError(f"{key} is not <machine>/<workspace>/<epic>")
+    with _cloned(target) as at:
+        _fetches(at, target.branch)
+        epic = at.joinpath(*parts)
+        if not _inside(at, epic) or not (epic / JOURNAL).is_file():
+            raise ValueError(f"{name} holds no epic at {key}")
+        # Where it came from, with nothing signed into it: the line is read by whoever
+        # reads the epic.
+        return placed(epic, f"{key} on {name} ({plain(target.url)})")
+
+
+def _target(name: str) -> Target:
+    """One target in settings, by name.
+
+    Raises:
+      ValueError: For a name none has.
+    """
+    found = next((one for one in configured()[0] if one.name == name), None)
+    if found is None:
+        raise ValueError(f"no backup target is named {name}")
+    return found
+
+
+def _inside(at: Path, epic: Path) -> bool:
+    """Whether an epic of a clone is there, rather than wherever a link in it goes."""
+    return epic.resolve() == at.resolve().joinpath(epic.relative_to(at))
+
+
+def _mapping(held: object) -> dict[str, Any]:
+    """What a manifest holds under one key, where it is a mapping, and nothing otherwise."""
+    return cast("dict[str, Any]", held) if isinstance(held, dict) else {}
+
+
 class Keeping:
     """One epic's backups as it runs: each target's policies, carried out as they come due."""
 
@@ -215,19 +369,7 @@ def _commits(target: Target, epic: Path, why: str) -> None:
     Raises:
       OSError: What git said, where it would not.
     """
-    at = machine() / "backup" / target.name
-    at.mkdir(parents=True, exist_ok=True)
-    with _locked(at.with_name(f"{target.name}.lock")):
-        # Left by a process that died mid-command: nothing else holds the clone now.
-        (at / ".git" / "index.lock").unlink(missing_ok=True)
-        _git(at, "init", "-q")
-        _git(at, "config", "remote.origin.url", target.url)
-        _git(
-            at,
-            "config",
-            "remote.origin.fetch",
-            "+refs/heads/*:refs/remotes/origin/*",
-        )
+    with _cloned(target) as at:
         if _git(at, "config", "user.email", checked=False).returncode:
             _git(at, "config", "user.name", "hmz")
             _git(at, "config", "user.email", "hmz@localhost")
@@ -252,6 +394,25 @@ def _commits(target: Target, epic: Path, why: str) -> None:
                     raise
             else:
                 return
+
+
+@contextlib.contextmanager
+def _cloned(target: Target) -> Generator[Path]:
+    """One target's clone, made where it is not, held against every other process using it."""
+    at = machine() / "backup" / target.name
+    at.mkdir(parents=True, exist_ok=True)
+    with _locked(at.with_name(f"{target.name}.lock")):
+        # Left by a process that died mid-command: nothing else holds the clone now.
+        (at / ".git" / "index.lock").unlink(missing_ok=True)
+        _git(at, "init", "-q")
+        _git(at, "config", "remote.origin.url", target.url)
+        _git(
+            at,
+            "config",
+            "remote.origin.fetch",
+            "+refs/heads/*:refs/remotes/origin/*",
+        )
+        yield at
 
 
 def _unbacked(journal: Path) -> None:
@@ -308,7 +469,8 @@ def _git(
     except subprocess.TimeoutExpired as slow:
         raise OSError(f"git {said[0]} took longer than {_PATIENCE:.0f}s") from slow
     if checked and done.returncode:
-        raise OSError(done.stderr.strip() or f"git {said[0]} failed")
+        # Never with what was signed into a URL: what git says is shown to somebody.
+        raise OSError(plain(done.stderr.strip()) or f"git {said[0]} failed")
     return done
 
 

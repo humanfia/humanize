@@ -157,6 +157,8 @@ class Backups:
     def state(self, ran: Ran | Path) -> dict[str, dict[str, Any]]: ...  # at, ok, error, why
     def where(self, ran: Ran | Path) -> str: ...
     def wait(self, seconds: float | None = None) -> bool: ...
+    def listed(self, name: str) -> list[Stored]: ...  # blocks for the fetch
+    def pulled(self, name: str, key: str) -> Path: ...  # Epics.foreign says if it resumes
 
 # flows.py -- the flows there are, and the places they come from. What each of these answers
 # is `hmz.runtime.flowing`'s to say, and flowing.md carries the contract.

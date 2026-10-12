@@ -101,3 +101,21 @@ def test_where_and_waiting_are_the_backings(
 
     assert Backups().where(tmp_path / "e") == "m/e"
     assert Backups().wait(3) is True
+
+
+def test_listing_and_pulling_are_the_backings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    held = backing.Stored("m/w/e", "m", "/w", "e", "ralph", "t", "", "", "", "")
+
+    def listed(name: str) -> list[backing.Stored]:
+        return [held] if name == "lab" else []
+
+    def pulled(name: str, key: str) -> Path:
+        return tmp_path / name / key
+
+    monkeypatch.setattr(backing, "listed", listed)
+    monkeypatch.setattr(backing, "pulled", pulled)
+
+    assert Backups().listed("lab") == [held]
+    assert Backups().pulled("lab", "m/w/e") == tmp_path / "lab" / "m/w/e"

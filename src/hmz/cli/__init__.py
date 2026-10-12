@@ -622,7 +622,7 @@ COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
     "update": (_update, "update hmz to its newest release"),
-    "backup": (_backup, "back an epic up to git repositories now"),
+    "backup": (_backup, "back epics up to git repositories, or download them"),
     "internal": (_internal, "internal commands used by humanize; do not run directly"),
 }
 

@@ -661,7 +661,7 @@ answers as buttons, the first focused as it opens. Each button's tooltip says wh
 
 ### Path completion {#path-completion}
 
-A form's path rows -- **Export run**'s `to`, the ssh host form's `identity file`, the docker
+A form's path rows -- **Export run**'s `to`, **Import epic**'s `file`, the ssh host form's `identity file`, the docker
 host form's `socket` and `tls`, **Import ssh hosts**'s `from`, and the environment
 form's `workdir` on this machine -- complete as they are written, as a shell does:
 
@@ -1079,14 +1079,25 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | Title | `Epics` |
 | About | `Every epic in this directory, newest first: task, status, and session count.`; on this machine, `Every epic on this machine, newest first: workspace, task, status, and session count.` |
 | Rows | `YYYY-MM-DD HH:MM · <flow>`, about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress reads `was left unfinished`. |
-| Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t` |
-| Keys | `enter open   ctrl+t this machine\|this directory   / search   tab actions   esc close` |
+| Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t`; **Import…**, as `i` |
+| Keys | `enter open   ctrl+t this machine\|this directory   i import   / search   tab actions   esc close` |
 | Empty | `no flow has been run in this directory yet` / `no flow has been run on this machine yet`; `reading…` while a machine's are read |
 
 `ctrl+t` turns the list between the epics of this directory and those of every directory on
 this machine (every `epics/*/*` under the [home](/reference/environment#humanize-home)), read
 off the screen. Which was last chosen is remembered as
 [`every_epic`](/reference/settings#machine-settings).
+
+`i` or **Import…** opens **Import epic** (`An epic somebody exported, read back in under the
+directory it ran in.`): one row `file   the .hmzepic to import`, a
+[path](#path-completion); **Done** `imports the epic`, `~` expanded; error `the file to import
+is required`. It is then read in, as
+[`Hmz().epics.imported`](/user/export#importing-a-run) does, off the screen: `importing…`, then
+`imported into <workspace>`, repeated in the transcript on close, with the cursor on it. One
+of another directory turns the list to this machine's until the sheet closes, without
+changing `every_epic`. Refused in the store's words: `<file> is not a .hmzepic file`, `<file>
+is not a bundle humanize can read: …`, `<file> does not hold exactly one epic`, and `<name> is
+already here, at <path>`, which puts the cursor on that one.
 
 `enter`, `→` or a click on a run opens it, a pick list of what can be done with it (`/epics` as
 its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←`, `backspace` or
@@ -1097,7 +1108,7 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | Title | `<when> · <flow>` |
 | About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).` |
 | Keys | `enter choose   esc back` |
-| `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`, or, for an epic of this directory imported from elsewhere whose workspace or commit is not here, `this epic cannot be resumed here: <why>`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 | `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. |
 
