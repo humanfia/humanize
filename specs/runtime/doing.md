@@ -31,6 +31,8 @@ class Hmz:
     def fallbacks(self) -> Fallbacks: ...
     @property
     def epics(self) -> Epics: ...
+    @property
+    def backups(self) -> Backups: ...
     def backends(self) -> tuple[Profile, ...]: ...
     def installed(self) -> dict[str, tuple[Model, ...]]: ...  # what each here last said it runs
     def installable(self) -> dict[str, tuple[Model, ...]]: ...  # its program here, its extra not
@@ -47,6 +49,7 @@ class Hmz:
         budget: Budget | Mapping[str, Any] | None = None,
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
+        backup: Iterable[str] | None = None,  # the targets; None for the defaults
     ) -> Runner: ...
     def run(
         self,
@@ -60,6 +63,7 @@ class Hmz:
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
+        backup: Iterable[str] | None = None,
     ) -> Run: ...
     def exec(self, argv: list[str]) -> Any: ...
     def host(self) -> Host: ...
@@ -86,6 +90,7 @@ class Run:
         self, runner: Runner, task: str, *, outworlder: OutworlderDriver | None = None
     ) -> None: ...
     flow: str; ref: str; task: str; declaration: Declaration; budget: Budget; profile: bool
+    backup: tuple[str, ...]
     usage: Usage; epic: Path | None; running: bool; raised: BaseException | None
     result: Any  # properties
     @property
@@ -140,6 +145,16 @@ class Epics:
         profile: str | os.PathLike[str] | None = None,
         kept: Iterable[str | os.PathLike[str]] | None = None,
     ) -> dict[str, Any]: ...
+
+# backups.py -- the git repositories epics are backed up to. Settings keep them, and
+# `hmz.runtime.backing` backs an epic up; SPEC.md carries the contract.
+class Backups:
+    def targets(self) -> tuple[Target, ...]: ...
+    def defaults(self) -> tuple[str, ...]: ...
+    def push(self, ran: Ran | Path, names: Iterable[str] | None = None) -> tuple[str, ...]: ...
+    def state(self, ran: Ran | Path) -> dict[str, dict[str, Any]]: ...  # at, ok, error, why
+    def where(self, ran: Ran | Path) -> str: ...
+    def wait(self, seconds: float | None = None) -> bool: ...
 
 # flows.py -- the flows there are, and the places they come from. What each of these answers
 # is `hmz.runtime.flowing`'s to say, and flowing.md carries the contract.
@@ -304,6 +319,9 @@ class Fallbacks:
   their extra, and which may be fallen back on without anybody choosing it -- never litellm, and
   DeepSeek Harness only once its local account is set up -- MUST be answered here once, for
   every way in.
+- Backing an epic up by hand MUST go to the targets named, else those it was started with,
+  else the defaults, MUST be refused for a target settings has none of, and MUST return at once
+  saying where it went; how it went MUST be read off the epic as it is now.
 - A trace of one run MUST be gathered here rather than by whoever asked for it, by the ids the
   run wrote down rather than the directory it ran in, MUST land with the run unless a path was
   named, and one asked for without a workspace MUST stay without one. It MUST read the sessions
@@ -345,6 +363,8 @@ class Fallbacks:
   it; said while no turn is open it MUST go into whichever turn starts next for it, and one the
   agent refuses MUST go back to the head of the queue. A turn that ends holding one, and a run
   that stops or ends with any waiting, MUST say so. Claims MUST NOT gate what is said to agents.
+- A run MUST be started with the backup targets its frontend chose, or the defaults where
+  it chose none, and how it was started MUST say which.
 - One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST
   close every conversation of a stopping run under whatever turn is open, and say how many.
 - An aside MUST be read-only, carry no skills, say nothing to the run, answer only the frontend

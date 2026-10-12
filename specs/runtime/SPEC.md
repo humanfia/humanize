@@ -49,6 +49,17 @@ class Settings:
         profile: bool | None = None,
     ) -> None: ...
     def forget(self, workspace: str = "") -> bool: ...
+    def backups(self) -> tuple[tuple[Target, ...], tuple[str, ...]]: ...  # targets, defaults
+    def back_up_to(
+        self, targets: Iterable[Target | Mapping[str, Any]], defaults: Iterable[str] = ()
+    ) -> None: ...  # ValueError for one that is not one, nothing written
+POLICIES = ("session", "interval", "end")  # when an epic is backed up unasked; none: by hand
+class Target(NamedTuple):  # one git repository epics are backed up to
+    name: str  # one short word
+    url: str
+    branch: str = "main"
+    policies: tuple[str, ...] = ()
+    every: int = 30  # minutes apart, for `interval`
 
 # telemetry.py -- humanize's own failures, where that has been answered yes
 SENT: tuple[str, ...]  # what is sent, in the words the question is asked in
@@ -127,6 +138,8 @@ class Ran(NamedTuple):
     picked_up: str = ""  # the epic it was picked up from
     profile: bool = False  # whether it was profiled as well as traced
     spent: dict[str, Any] | None = None  # cost, output_tokens and seconds, as its budget counted
+    backup: tuple[str, ...] = ()  # the targets it is backed up to
+    backed: dict[str, dict[str, Any]] = {}  # each target's last backup: at, ok, error, why
     @property
     def name(self) -> str: ...
 class Epic:  # a context manager, closed however the run ends
@@ -145,6 +158,7 @@ class Epic:  # a context manager, closed however the run ends
         resumable: bool = False,
         picked_up: Path | None = None,
         profile: bool = False,
+        backup: Sequence[str] = (),
     ) -> None: ...
     @property
     def path(self) -> Path: ...
@@ -204,6 +218,8 @@ def logs(epic: Path, session: Session) -> dict[str, Path]: ...
 def picks_up(epic: Path) -> bool: ...
 def state(epic: Path, flow: str = "") -> dict[str, Any]: ...  # flow by canonical ref
 def resumed(flow: str, workspace: Path | str | None = None) -> Path | None: ...
+BACKED = "backed"  # the line saying how one backup of an epic went
+def note(epic: Path, event: str, **said: Any) -> None: ...  # a line from outside the run
 
 # exporting.py -- one whole run as one archive
 BUNDLE = "{epic}.epic.tar.gz"
@@ -217,6 +233,7 @@ def bundle(
     *,
     transcript: str | None = None,
 ) -> tuple[Path, dict[str, Any]]: ...
+def unpacked(epic: Path, into: Path) -> dict[str, Any]: ...  # what a bundle holds, as files
 def logged(epic: Path) -> dict[str, dict[str, Path]]: ...
 def plain(said: str, struck: Sequence[str] = ()) -> str: ...
 def sized(count: int) -> str: ...
@@ -233,6 +250,7 @@ class Line(NamedTuple):  # an `hmz exec` line, read
     profile: bool = False
     resume: bool = False
     as_json: bool = False
+    backup: tuple[str, ...] | None = None  # None for the defaults
 def read_line(argv: list[str]) -> Line: ...
 class Runner:
     def __init__(
@@ -246,9 +264,11 @@ class Runner:
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
+        backup: Iterable[str] | None = None,  # None for the defaults
     ) -> None: ...
     flow: str; impl: FlowImpl; declaration: Declaration; agents: dict[str, AgentDriver]
     envs: dict[str, EnvDriver]; params: FlowParams; budget: Budget; profile: bool
+    backup: tuple[str, ...]
     picked_up: Path | None; workspace: Path; recorder: Recorder | None  # properties
     used: dict[str, str]  # where each environment role was put, as `-e` spells it
     def unreadable(self) -> str: ...
@@ -277,6 +297,17 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
     def sessions(self) -> tuple[SessionHandle, ...]: ...  # the ones still open
     def usage(self) -> Usage: ...  # the engine's reckoning of the run
     def finished(self) -> Usage: ...  # the same, kept once the run is over
+
+# backing.py -- epics backed up to git repositories, behind everything else
+def configured() -> tuple[tuple[Target, ...], tuple[str, ...]]: ...  # Settings().backups()
+def chosen(names: Iterable[str] | None) -> tuple[str, ...]: ...  # None: the defaults
+def where(epic: Path) -> str: ...  # <machine>/<workspace>/<epic>, in the repository
+def push(epic: Path, names: Iterable[str], why: str) -> None: ...  # queued, never waited on
+def wait(seconds: float | None = None) -> bool: ...  # whether none is left
+class Keeping:  # one epic's policies, as it runs
+    def __init__(self, epic: Path, names: Sequence[str]) -> None: ...
+    def closed(self) -> None: ...  # a session closed: `session`
+    def ended(self) -> None: ...  # the epic ended: `end`, and `interval` stops
 ```
 
 ## Requirements
@@ -380,6 +411,28 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
 - A run under a finite cost cap MUST bring a missing or stale price list up to date before its
   first turn, waiting no longer than the fetch's own timeout nor once the run is stopped, and
   on the rules every fetch is held to; every other run MUST have it refreshed without waiting.
+- `Settings` MUST answer the git repositories epics are backed up to -- this machine's, not a
+  workspace's -- and the defaults among them, reading one that is not a target as none and a
+  default naming none as nothing; writing them MUST refuse a target that is not one, two of one
+  name and a default naming none, writing nothing, and MUST leave the rest of the file alone.
+- A run MUST be backed up to the targets it was given -- the defaults where it was given none,
+  nowhere where it was given an empty list -- and MUST be refused for a target settings has none
+  of; its epic MUST say which, and MUST read back as `Ran.backup`. Each target MUST back it up as
+  its policies say and only so: `session` as each of its sessions closes, `interval` every
+  `every` minutes while it runs, `end` once it has ended however it ended -- whichever way in ran
+  it; no policy MUST mean by hand only.
+- A backup MUST commit the files `unpacked` writes -- struck of credentials exactly as a bundle
+  is -- under `<machine>/<workspace>/<epic>/` of the target's branch, in one commit naming the
+  epic and why, and push it; it MUST start from what the remote's branch holds, MUST make a
+  branch the remote has not got, and MUST try once more where the push was refused. It MUST go
+  through this machine's own git and whatever it signs in with, MUST ask nobody anything, MUST
+  hold every git command to a timeout, and MUST keep its clone as a cache under
+  `hmz.machine()`, held against every other process backing up to it.
+- No backup MUST hold anything else up: each MUST be queued and done on a thread of its own,
+  one queue per target, an epic already waiting MUST NOT be queued twice, and a failure MUST
+  be written into the epic rather than raised. How each target's last backup went -- when,
+  whether, why not with no credential in it, and why it was made -- MUST be written into the
+  epic as `backed` and read back as `Ran.backed`.
 - `read_line` MUST read the whole `hmz exec` line, MUST NOT load a flow to answer `--help`,
   MUST take every `-a`, `-e` and `-p` as one list however they were broken up -- the budget
   out of `-p budget.<limit>=` --, and

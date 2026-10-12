@@ -92,6 +92,11 @@ class Run:
         return self._runner.profile
 
     @property
+    def backup(self) -> tuple[str, ...]:
+        """The backup targets the epic goes to, by name."""
+        return self._runner.backup
+
+    @property
     def usage(self) -> Usage:
         """What every session of the run has spent so far."""
         from hmz.flows import Usage

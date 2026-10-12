@@ -46,7 +46,10 @@ def _go(page: Page, address: str) -> None:
 
 
 def _start_chat(page: Page, task: str) -> None:
-    """Starts chat from a new epic's box, on whichever model its agent is offered first."""
+    """Starts chat from a new epic's box, on whichever model its agent is offered first.
+
+    A chat is opened on its conversation, as a chat app opens on one, not on its graph.
+    """
     _go(page, "/new?flow=chat")
     expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
     page.get_by_role("button", name="Options").click()
@@ -55,7 +58,7 @@ def _start_chat(page: Page, task: str) -> None:
     )
     page.locator("[data-hmz=composer-text]").fill(task)
     page.locator("[data-hmz=composer-text]").press("Enter")
-    page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
+    page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/assistant%2F1$"))
 
 
 def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
@@ -112,25 +115,25 @@ def test_an_epic_started_from_the_page_is_drawn_answered_read_and_stopped(
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "hello there")
 
-        agent = page.locator("[data-hmz=graph-agent][data-role=assistant]")
-        expect(agent).to_be_visible()
-        # What the agent said is unread until its session is read.
-        expect(agent.locator("[data-hmz=graph-session] .unread")).to_have_count(1)
-        expect(page.locator("[data-hmz=epic] .pill-live")).to_be_visible()
-        waiting = page.locator("[data-hmz=waiting] [data-hmz=question]")
-        expect(waiting).to_be_visible()
-        waiting.get_by_role("textbox").fill("and again")
-        waiting.get_by_role("button", name="Answer").click()
-
-        page.locator("[data-hmz=session]", has_text="assistant/1").click()
+        # Read as a conversation: what you said, what it said back, and a follow-up typed
+        # under it, never a question waiting for you.
         thread = page.locator("[data-hmz=thread]")
+        expect(thread.locator(".said.you .body")).to_have_text(["hello there"])
         expect(thread).to_contain_text("did: hello there")
+        expect(page.locator("[data-hmz=epic] .pill-live")).to_be_visible()
+        say = page.locator("[data-hmz=say] textarea")
+        expect(say).to_have_attribute("placeholder", "Message assistant/1")
+        say.fill("and again")
+        say.press("Enter")
         expect(thread).to_contain_text("did: and again")
-        expect(page.locator("[data-hmz=say] textarea")).to_have_attribute(
-            "placeholder", "Message assistant/1"
+        expect(thread.locator(".said.you .body")).to_have_text(
+            ["hello there", re.compile(r"said\s*and again$")]
         )
+        expect(page.locator("[data-hmz=waiting]")).to_have_count(0)
 
         page.locator("[data-hmz=bar] .crumbs a").click()
+        agent = page.locator("[data-hmz=graph-agent][data-role=assistant]")
+        expect(agent).to_be_visible()
         expect(agent.locator("[data-hmz=graph-session] .unread")).to_have_count(0)
         page.get_by_role("button", name="Stop").click()
         page.get_by_role("button", name="Stop").click()
@@ -157,6 +160,91 @@ def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
         expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
         page.keyboard.press("Escape")
         expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
+
+
+#: A chat of the project's own that asks its person to pick one of two before going on.
+_PICKING = '''
+from typing import Literal
+
+from pydantic import BaseModel
+
+from hmz.flows import (
+    Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, LocalEnv, Outworlder,
+    flow,
+)
+
+
+class Agents(AgentCollection):
+    """An agent and its person."""
+
+    assistant: Agent
+    human: Outworlder
+
+
+class Envs(EnvCollection):
+    """The workspace."""
+
+    workspace: LocalEnv
+
+
+class Pick(BaseModel):
+    colour: Literal["red", "blue"]
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def chat(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """Asks which, then says it."""
+    assistant, human = agents["assistant"], agents["human"]
+    conversation, person = await assistant.spawn(), await human.spawn()
+    await assistant.run(task, session=conversation, env=envs["workspace"])
+    picked = await human.run("Which colour?", session=person, output_schema=Pick)
+    said = f"colour {picked.colour}"
+    while said:
+        said = await human.run(
+            await assistant.run(said, session=conversation, env=envs["workspace"]),
+            session=person,
+        )
+'''
+
+
+def test_a_chat_asks_in_its_conversation_and_is_answered_there(
+    project: Path, engine: str
+) -> None:
+    flows = project / ".hmz" / "flows" / "chat"
+    flows.mkdir(parents=True)
+    (flows / "__init__.py").write_text(_PICKING)
+    with served() as site, opened(site, engine=engine) as page:
+        started = page.evaluate(
+            """async () => (await fetch('/api/held/start', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({flow: 'chat', task: 'first',
+                budget: {cost: 5, duration: 600, output_tokens: 100000},
+                agents: {assistant: 'claude/claude-haiku-4-5'}}),
+            })).status"""
+        )
+        assert started == 200
+        _go(page, "/live")
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/assistant%2F1$"))
+
+        # What it asks is asked in the thread, its answers there to pick, never as a card.
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("Which colour?")
+        chips = page.locator("[data-hmz=thread-ask] button")
+        expect(chips).to_have_text(["red", "blue"])
+        expect(page.locator("[data-hmz=waiting]")).to_have_count(0)
+        chips.nth(1).click()
+        expect(thread).to_contain_text("did: colour blue")
+        expect(page.locator("[data-hmz=thread-ask]")).to_have_count(0)
+
+        say = page.locator("[data-hmz=say] textarea")
+        say.fill("more")
+        say.press("Enter")
+        expect(thread).to_contain_text("did: more")
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
 
 
 @pytest.mark.parametrize("name", _PAGES)
@@ -535,7 +623,7 @@ def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "log me")
-        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: log me")
 
         inspector = page.locator("[data-hmz=inspector]")
         expect(inspector.locator("[data-hmz=spending]")).to_contain_text(
@@ -546,7 +634,8 @@ def test_an_epic_is_read_as_its_log_and_its_agents_as_a_list(
         page.locator("[data-hmz=sidebar] [data-hmz=log]").click()
         thread = page.locator("[data-hmz=thread]")
         expect(thread).to_contain_text("did: log me")
-        expect(thread).to_contain_text("human asks")
+        # What a chat asks next is the reply said back, which is not said twice.
+        expect(thread).not_to_contain_text("human asks")
         expect(page.locator("[data-hmz=bar] .crumbs")).to_contain_text("Log")
 
         page.locator("[data-hmz=bar] .crumbs a").click()
@@ -592,7 +681,7 @@ def test_the_panel_says_every_figure_in_words_and_within_its_edges(
 ) -> None:
     with served() as site, opened(site, engine=engine, width=width, dark=dark) as page:
         _start_chat(page, "fit me")
-        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: fit me")
         if width < 860:
             page.locator("[data-hmz=bar] .panel-toggle").click()
         inspector = page.locator("[data-hmz=inspector]")
@@ -621,11 +710,13 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "remember papaya")
-        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        expect(page.locator("[data-hmz=thread]")).to_contain_text(
+            "did: remember papaya"
+        )
         page.get_by_role("button", name="Stop").click()
         page.get_by_role("button", name="Stop").click()
         _start_chat(page, "and then this")
-        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: and then this")
         page.get_by_role("button", name="Stop").click()
         page.get_by_role("button", name="Stop").click()
 
