@@ -32,9 +32,11 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.runtime.tracing': ['hmz.coganchor'],
   'hmz.runtime.watching': ['hmz.coganchor'],
   'hmz.runtime.exporting': ['hmz.coganchor', 'hmz.runtime.epic', 'hmz.runtime.tracing'],
+  'hmz.runtime.backing': ['hmz.runtime.epic', 'hmz.runtime.exporting', 'hmz.runtime.settings'],
   'hmz.runtime.runner': [
     'hmz.coganchor',
     'hmz.flows',
+    'hmz.runtime.backing',
     'hmz.runtime.epic',
     'hmz.runtime.flowing',
     'hmz.runtime.kept',
@@ -51,6 +53,7 @@ const ALLOWED: Record<string, string[]> = {
   'hmz.runtime.doing': [
     'hmz.coganchor',
     'hmz.flows',
+    'hmz.runtime.backing',
     'hmz.runtime.epic',
     'hmz.runtime.exporting',
     'hmz.runtime.flowing',
@@ -179,7 +182,13 @@ const LAYERS: Layer[] = [
   {
     id: 'exporting',
     dotted: 'hmz.runtime.exporting',
-    here: 'One whole run packaged up to send somewhere.',
+    here: 'One whole run packaged up to send somewhere, and read back in.',
+    spec: 'runtime/SPEC.md',
+  },
+  {
+    id: 'backing',
+    dotted: 'hmz.runtime.backing',
+    here: 'Epics backed up to git repositories, behind everything else.',
     spec: 'runtime/SPEC.md',
   },
   {
@@ -241,7 +250,7 @@ const BANDS: { label: string; ids: string[] }[] = [
   { label: 'holding a run', ids: ['daemon'] },
   { label: 'front door', ids: ['runtime', 'doing'] },
   { label: 'running a flow', ids: ['runner', 'flowing', 'flows'] },
-  { label: 'what a run leaves', ids: ['exporting', 'epic', 'tracing', 'watching'] },
+  { label: 'what a run leaves', ids: ['exporting', 'backing', 'epic', 'tracing', 'watching'] },
   { label: 'driving agents', ids: ['coganchor', 'serve'] },
   { label: 'remembered', ids: ['telemetry', 'settings', 'kept'] },
 ]

@@ -44,7 +44,7 @@ def test_exported_traces_beside_the_run_then_packs_it(
         ("traced", run, run / TRACES / pick.EXPORTED),
         ("bundled", run, str(tmp_path)),
     ]
-    assert landed == tmp_path / "run.tar.gz"
+    assert landed == tmp_path / "run.hmzepic"
     assert size == len(store.epics.archive)
 
 

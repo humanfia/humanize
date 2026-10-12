@@ -31,6 +31,7 @@ from hmz.coganchor.agents.base import (
     StreamSessionBase,
     identifying,
 )
+from hmz.coganchor.agents.clis import Cli, Command
 from hmz.coganchor.agents.config import AgentConfig, Budget, Unserved
 from hmz.coganchor.agents.event import (
     Event,
@@ -43,6 +44,9 @@ from hmz.coganchor.agents.event import (
 from hmz.coganchor.agents.hooks import Moment, Occasion, Verdict
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.agents.tools import Tool
+from hmz.coganchor.anchor import AnchorConfig
+from hmz.coganchor.machines import AnchoredConfig
+from hmz.coganchor.providers.store import Provider
 from hmz.runtime import telemetry
 from tests.unit.coganchor.agents.doubles_core import (
     Scripted,
@@ -595,6 +599,20 @@ def test_tools_offered_are_the_agents_until_the_session_closes() -> None:
     assert agent.toolbox.empty()
 
 
+def test_command_lines_are_refused_by_a_backend_with_no_shell() -> None:
+    class Shellless(Turns):
+        takes_clis: ClassVar[bool] = False
+
+    cli = Cli("tix", "Tickets.", (Command("go", "Go.", lambda: None),))
+    session = Scripted(session=Shellless).new()
+    with pytest.raises(NotImplementedError, match="no shell"):
+        session.shelves([cli])
+    session.shelves(None)
+    session.shelves([])
+    assert session.clis == ()
+    assert Scripted().new().takes_clis
+
+
 def test_a_session_carries_the_flows_skills_it_was_told(tmp_path: Path) -> None:
     agent = Scripted()
     agent.loads([Loaded("a", tmp_path), Loaded("b", tmp_path), Loaded("c", tmp_path)])
@@ -1129,6 +1147,54 @@ def test_where_an_agent_keeps_its_sessions(tmp_path: Path) -> None:
     agent.keeps = None
     assert agent.keeps is None
     assert KEEPING == "HUMANIZE_SESSIONS"
+
+
+def test_sessions_logged_on_another_machine_are_kept_in_the_run_as_copies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(KEEPING, raising=False)
+    native = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
+    afar = AnchorConfig(target="ssh://box", harness="ssh://gpu", workspace="/w")
+    here = AnchorConfig(target="tcp://box:9", workspace="/w", native=True)
+    for anchor, copied in ((native, True), (afar, True), (here, False)):
+        machine = AnchoredConfig(anchor=anchor)
+        agent = Scripted(
+            AgentConfig(model="m", effort="", machine=machine), backend="claude"
+        )
+        agent.keeps = tmp_path
+        assert agent.anchor == anchor
+        assert (agent.kept() == tmp_path / "claude") is copied
+    monkeypatch.setenv(KEEPING, "off")
+    assert agent.kept() != tmp_path / "claude"
+
+
+def test_a_native_turn_brings_back_sessions_kept_under_a_home_it_projects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(KEEPING, raising=False)
+    team = Provider(cli="claude", name="team")
+    (team.at / "home").mkdir(parents=True)
+    (team.at / "home" / ".credentials.json").write_text("{}")
+
+    class Signed(Scripted):
+        @property
+        def provider(self) -> Provider | None:
+            return team
+
+    anchor = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
+    machine = AnchoredConfig(anchor=anchor)
+    agent = Signed(AgentConfig(model="m", effort="", machine=machine), backend="claude")
+    agent.keeps = tmp_path / "epic"
+
+    line = agent.spawned(["claude"])
+
+    kept = tmp_path / "epic" / "claude"
+    assert f"--bring=CLAUDE_CONFIG_DIR/projects={kept}" in line
+    assert not any(
+        ".credentials" in word for word in line if word.startswith("--bring")
+    )
+    (tell,) = [word for word in line if word.startswith("--tell=")]
+    assert "hmz-homes-" in tell
 
 
 def test_a_journal_is_told_every_session_opened(tmp_path: Path) -> None:

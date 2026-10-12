@@ -4,6 +4,7 @@
 
 import { get } from './api.js'
 import { fill, h, icon, iconButton } from './dom.js'
+import { follow } from './shell.js'
 
 /**
  * @param {object} made
@@ -95,18 +96,8 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     panel.querySelector('.path-entry, .crumb:last-child')?.focus()
   }
 
-  /**
-   * Puts the list under the field, against the window rather than whatever holds the field --
-   * a menu or a dialog that scrolls would cut it off -- and over it where there is no room below.
-   */
-  function place() {
-    const box = node.getBoundingClientRect()
-    const width = Math.min(440, innerWidth - 16)
-    const height = Math.min(460, innerHeight * 0.6)
-    panel.style.width = `${width}px`
-    panel.style.left = `${Math.max(8, Math.min(box.right - width, innerWidth - width - 8))}px`
-    panel.style.top = `${box.bottom + 6 + height > innerHeight ? Math.max(8, box.top - height - 6) : box.bottom + 6}px`
-  }
+  /** Stops keeping the list by the field, once it is shut. */
+  let unfollow = () => {}
 
   function pick(path) {
     say(path)
@@ -115,6 +106,7 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
   }
 
   function closePanel() {
+    unfollow()
     panel.hidden = true
     browse.setAttribute('aria-expanded', 'false')
     document.removeEventListener('pointerdown', outside, true)
@@ -127,7 +119,8 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
   browse.addEventListener('click', () => {
     if (!panel.hidden) return closePanel()
     panel.hidden = false
-    place()
+    // Against the window rather than whatever holds the field, a menu or a dialog that scrolls.
+    unfollow = follow(panel, node, { align: 'end' })
     browse.setAttribute('aria-expanded', 'true')
     document.addEventListener('pointerdown', outside, true)
     // Opened where the path written is, or the directory a file written is in.

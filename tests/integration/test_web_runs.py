@@ -76,7 +76,36 @@ def test_a_run_started_from_a_page_is_followed_answered_and_stopped(
         bundle = browser.get(f"/api/runs/{run['name']}/bundle")
         assert bundle.status == 200
         assert bundle.headers["content-disposition"].startswith("attachment;")
+        assert bundle.headers["content-type"] == "application/vnd.hmz.epic+gzip"
+        assert bundle.headers["content-disposition"].endswith(".hmzepic")
         assert browser.get("/api/runs/no-such-run").status == 404
+
+
+def test_a_line_said_in_the_conversation_between_turns_is_the_next_turn(
+    project: Path,
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        with browser.follows() as heard:
+            browser.post("/api/held/start", _CHAT)
+            _, asked = until(heard, _record("asked", mode="listen"), "chat asking")
+            assert asked["key"] == ""
+
+            said = {"text": "tell me more", "to": "assistant/1"}
+            assert browser.post("/api/held/say", said).status == 200
+            until(
+                heard,
+                _record("answered", question=asked["question"], text="tell me more"),
+                "the question answered",
+            )
+            until(
+                heard,
+                _record("event", kind="text", text="did: tell me more"),
+                "a reply",
+            )
+            until(heard, _record("asked", mode="listen"), "chat asking again")
+            browser.post("/api/held/stop")
 
 
 def test_a_page_that_heard_part_of_the_stream_hears_the_rest_and_no_more(
@@ -189,6 +218,38 @@ def test_an_epic_written_down_is_read_back_out_of_the_logs_it_kept(
             if one["category"] == "message"
         ]
         assert "did: the first one" in said
+
+
+def test_an_epic_written_down_is_laid_out_as_a_timeline_and_each_span_read_whole(
+    project: Path,
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        _chatted(browser, "the first one")
+
+        (ran,) = browser.get("/api/runs").json()["runs"]
+        timeline = browser.get(f"/api/runs/{ran['name']}/timeline").json()
+        assert timeline["epic"] == ran["name"]
+        assert timeline["live"] is False
+        strings = timeline["strings"]
+        flow, session = timeline["processes"]
+        assert (flow["kind"], strings[flow["name"]]) == ("flow", "chat")
+        assert (session["kind"], session["parent"]) == ("session", 0)
+        assert strings[session["role"]] == "assistant"
+        track = timeline["tracks"][session["tracks"][0]]
+        cats = [strings[one] for one in track["spans"]["cat"]]
+        assert cats[:2] == ["session", "turn"]
+        assert track["spans"]["depth"][:2] == [0, 1]
+
+        turn = track["first"] + 1
+        at = f"/api/runs/{ran['name']}/timeline/span/{turn}"
+        said = browser.get(f"{at}?layout={timeline['layout']}").json()
+        assert (said["cat"], said["args"]["prompt"]) == ("turn", "the first one")
+        assert browser.get(f"{at}?layout=moved").status == 409
+        for missing in (str(timeline["summary"]["spans"]), "nope"):
+            gone = browser.get(f"/api/runs/{ran['name']}/timeline/span/{missing}")
+            assert gone.status == 404
 
 
 def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_history(

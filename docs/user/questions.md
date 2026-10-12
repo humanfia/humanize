@@ -19,7 +19,8 @@ hmz
 beside /v2, offering the choices keep and drop. Then reply with one sentence.
 ```
 
-The agent stops, the question comes up in yellow, and whatever you type next is the answer.
+The agent stops, the question comes up in yellow with the choices it offered, and whatever you
+type next is the answer.
 
 ## Before you start
 
@@ -33,14 +34,20 @@ The agent stops, the question comes up in yellow, and whatever you type next is 
 - **An agent's question** comes from the coding agent itself, part-way through a turn: its CLI
   has a tool for asking its user something. The turn waits for your answer, then carries on
   with it.
-- **A flow's question** comes from the flow, between turns: `chat` asks what to say next after
-  every answer, and a flow that needs a setting from you asks for it. The flow waits, then goes
-  on with what you said.
+- **A flow's question** comes from the flow, between turns: a flow that needs a setting from
+  you asks for it. The flow waits, then goes on with what you said.
+
+In `chat` the second kind is the conversation itself rather than a question beside it. After
+every answer `chat` waits for your next message, and whatever you type in the conversation,
+a follow-up or a steer, is that message. There is no separate question to answer. The agent's
+own questions still show in the conversation, with the choices it offered.
 
 Both are shown the same way, a `●` line in yellow with `type an answer, or /afk to stop being
 asked` under it, and both are answered the same way: type a line and press <kbd>enter</kbd>.
-Nothing times out. A question is put to **you** as the flow's `human` role, its
-[outworlder](/user/concepts), which is why the transcript heads it `outworlder human`.
+`chat` asking what next is the exception: its question is the answer already on the screen,
+so nothing more is shown. Nothing times out. A question is put to **you** as the flow's
+`human` role, its [outworlder](/user/concepts), which is why its own transcript is headed
+`outworlder human`.
 
 ## Example: answer an agent's question at the prompt
 
@@ -53,9 +60,6 @@ stops on the question:
 ● assistant is working
 
 ● Should the old /v1 API be kept alongside the new /v2, or should it be dropped entirely?   ①
-
-── outworlder human
-
 ● Should the old /v1 API be kept alongside the new /v2, or should it be dropped entirely? (Keep /v1 / Drop /v1)   ②
    type an answer, or /afk to stop being asked                                              ③
 
@@ -74,20 +78,15 @@ Press <kbd>enter</kbd>, and the same turn goes on with your answer:
 ```text
 ❯ keep, until the next release
 
-── assistant
-
 ● I'll keep both /v1 and /v2 APIs available until the next release, then deprecate /v1.   ⑦
 
-✻ Worked for 14s · assistant
-
-── outworlder human
-   type an answer, or /afk to stop being asked                                              ⑧
+✻ Worked for 14s · assistant                                                               ⑧
 ```
 
 ### What each part means
 
 1. **The question in the agent's own words**, where the agent asked it.
-2. **The same question put to you**, under `outworlder human`. The choices the agent offered
+2. **The same question put to you**, in the same conversation. The choices the agent offered
    follow it in brackets. They are suggestions: type one, or anything else.
 3. **`type an answer, or /afk to stop being asked`** marks a question that is waiting.
 4. **`human · outworlder · asking`** on the agent lines above the prompt says a question is up,
@@ -97,8 +96,9 @@ Press <kbd>enter</kbd>, and the same turn goes on with your answer:
    the question rather than steering the turn. On a narrow terminal the status line drops its
    leftmost keys first, so this one may not be shown.
 7. **The turn carries on** with your answer, in the same session.
-8. **`chat` asking what next**: a flow's question with no words, since the prompt is what asks
-   it. Type the next thing to say, or leave it for as long as you like.
+8. **`chat` waiting for your next message**: the reply is the question, so nothing more is
+   shown. Type the next thing to say, here or in the assistant's own conversation, where it is
+   the next message rather than a steer. Or leave it for as long as you like.
 
 ## Example: a flow's question with choices
 
@@ -159,7 +159,8 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 
 1. **The question is still printed**, in yellow, so a log shows what the agent wanted to know.
 2. **The agent is told nobody answered**, and carries on as best it can: here it wrote the
-   question into its answer instead. `chat` then ends, since nobody is there to say what next.
+   question into its answer instead. `chat` then ends, since nobody is there to send a next
+   message.
    The command exits `0`.
 
 ## Check that it worked
@@ -174,8 +175,9 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 - **Where you answer.** A question is shown on the transcript every agent is on and on the
   asking outworlder's own, which <kbd>shift+tab</kbd> reaches and which holds nothing but what
   it asks you. A line typed on either answers it: the oldest question up on the first, the
-  oldest that outworlder asks on the second. On one agent's transcript a line goes to the
-  agent instead. See [Many conversations at once](/user/conversations).
+  oldest that outworlder asks on the second. One the agent stopped mid-turn to ask, and
+  `chat` asking what next, are shown and answered in that agent's conversation as well. On one
+  agent's transcript any other line goes to the agent instead. See [Many conversations at once](/user/conversations).
 - **Somebody else's.** Where [another interface](/features/daemon#several-people-on-one-run)
   reads the same run, a question nobody has claimed goes to whoever answers first, and an
   answer from somebody else shows ` · by <name>`. One whose outworlder another has claimed
@@ -208,12 +210,13 @@ away: agents that ask are told nobody is here
 — the flow is done —
 ```
 
-Here `chat` was waiting for the next thing to say, so being away ended it.
+Here `chat` was waiting for your next message, so being away ended it.
 
 | | While you are away |
 | --- | --- |
 | An agent's question | shown, and the agent is told nobody answered; it carries on |
-| A flow's question | answered with nothing, or with the flow's defaults; `chat` ends there |
+| A flow's question | answered with nothing, or with the flow's defaults |
+| `chat` waiting for your next message | answered with nothing, so the conversation ends |
 | A flow's question that has no default | the flow fails with `nobody is there to answer …`, unless it handles that |
 | A question already up | answered by nobody, at once |
 

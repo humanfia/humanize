@@ -90,6 +90,7 @@ _ACTS: dict[str, dict[str, tuple[tuple[type, ...], Any]]] = {
         "budget": ((dict, NoneType), None),
         "profile": ((bool,), False),
         "resume": ((bool, str), False),
+        "backup": ((list, NoneType), None),
     },
     "say": {"text": ((str,), ...), "to": ((str,), "")},
     "answer": {"question": ((str,), ...), "text": ((str,), ...)},

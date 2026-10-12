@@ -173,6 +173,9 @@ def _read(schema: type[BaseModel], answers: dict[str, str]) -> dict[str, Any]:
 class HumanSession(SessionBase):
     """One conversation with the person: said to, and answered when they answer."""
 
+    #: The person's own shell is theirs: nothing of the flow's is put on its PATH.
+    takes_clis: ClassVar[bool] = False
+
     def stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
     ) -> Iterator[Event]:

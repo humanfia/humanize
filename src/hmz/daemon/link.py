@@ -26,7 +26,7 @@ from hmz.daemon.proto import GONE, MESSAGE, Frames, asked, frame
 
 if TYPE_CHECKING:
     import os
-    from collections.abc import Callable, Iterator, Mapping
+    from collections.abc import Callable, Iterable, Iterator, Mapping
     from pathlib import Path
     from types import TracebackType
 
@@ -159,6 +159,7 @@ class Link:
         budget: Any = None,
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
+        backup: Iterable[str] | None = None,
     ) -> dict[str, Any]:
         """Starts a flow, which every frontend attached then reads.
 
@@ -171,6 +172,7 @@ class Link:
           budget: What the run may spend, as a mapping or a `Budget`.
           profile: Whether to profile the programs its agents start, as well as trace them.
           resume: Whether to pick up the newest run of it, or the epic to pick up.
+          backup: The backup targets its epic goes to, by name, or None for the defaults.
 
         Returns:
           The answer, with the run's number as `run`.
@@ -186,6 +188,7 @@ class Link:
                 "budget": _plain(budget),
                 "profile": profile,
                 "resume": resume if isinstance(resume, bool) else str(resume),
+                "backup": None if backup is None else list(backup),
             }
         )
 
