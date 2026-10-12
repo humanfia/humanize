@@ -1,7 +1,7 @@
 // The sidebar, as Codex and Claude keep theirs: a new epic, finding one, the flows, and every
 // workspace of this machine as a folder of its epics, newest first -- each epic opened out into
 // its agents, and each agent into the sessions it opened. Under them, the machine, how many
-// epics are going on it, and a menu of the colours, the settings and what the epics spent.
+// epics are going on it, and a menu of the settings and what the epics spent.
 
 import { address, get, poll, post, refresh } from './api.js'
 import { ask } from './held.js'
@@ -10,7 +10,6 @@ import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.
 import { sessionsOf } from './epic.js'
 import { nameOf } from './places.js'
 import { choice, dragged, keep, kept, menu, section, settleSidebar, toggleSidebar } from './shell.js'
-import { choose, chosen, label, paired, pairing, pairs, theme, themes, usePair } from './themes.js'
 
 /** How many epics a page of the list holds. */
 const PAGE = 60
@@ -46,22 +45,11 @@ export function mountSidebar(root, context, where) {
   menu(
     account,
     (close) => [
-      // Auto, with the pair it follows the system with; a theme chosen outright, and those made
-      // here alone; then every pair, any of which Auto then follows.
-      section('Theme'),
-      choice({ label: 'Auto', about: themeAbout(), chosen: chosen() === 'auto', act: () => choose('auto'), close }),
-      themes()
-        .filter((one) => !one.pair || chosen() === one.id)
-        .map((one) => choice({ label: one.name, about: label(one).split(' · ')[1], chosen: chosen() === one.id, act: () => choose(one.id), close })),
-      choice({ label: 'Themes', glyph: 'sliders', href: '#/settings/themes', close }),
-      section('Pairs'),
-      pairs().map((one) => choice({ label: one.name, chosen: chosen() === 'auto' && pairing() === one.key, act: () => usePair(one.key), close })),
-      h('hr'),
       context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
       choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
     ],
-    { up: true, span: true, label: 'Machine' },
+    { up: true, label: 'Machine' },
   )
   fill(
     root,
@@ -343,13 +331,4 @@ function forget(path) {
 
 function tone(how) {
   return { stopping: 'running', budget: 'stopped', refused: 'failed', crashed: 'failed' }[how] || how
-}
-
-/** What Auto follows the system with: a pair by its name, or the two themes apart. */
-function themeAbout() {
-  const key = pairing()
-  if (key) return pairs().find((one) => one.key === key).name
-  return Object.values(paired())
-    .map((id) => label(theme(id)))
-    .join(' / ')
 }
