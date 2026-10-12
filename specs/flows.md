@@ -231,6 +231,7 @@ class Session(Protocol):
 class Agent(Protocol):
     _permission: ClassVar[Permission]
     _skills: ClassVar[tuple[str, ...]]
+    _tools: ClassVar[tuple[FakeTool, ...]] # Needs FakeToolAgentMixin.
 
     @property
     def effort(self) -> str: ...
@@ -360,6 +361,16 @@ class AskUserHookAgentMixin: # A fake hook to handle the case where the harness 
         kind: Literal[HookKind.ASK_USER],
         fn: HookFn[AskUserHookParams, AskUserHookResult] | None,
     ) -> None: ...
+
+class FakeToolAgentMixin: ...
+    # Lets the role declare `_tools`: each is offered to the agent as a tool, and the agent calling it runs `call` in the flow, as the flow.
+
+@dataclass(frozen=True)
+class FakeTool:
+    name: str # Unique per role.
+    about: str # What the model is told it is for.
+    call: Callable[..., Any] # Sync or async, given an instance of `takes` (nothing if None). Its answer goes back to the agent as text; what it raises is the tool failing, not the turn.
+    takes: type[pydantic.BaseModel] | None = None
 ```
 
 The flow declares what an agent must be able to do by subclassing it:

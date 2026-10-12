@@ -58,7 +58,7 @@ Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__
 | Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
 | Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) |
 | Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` ([table](#what-each-harness-serves)) |
-| Agent mixins | `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
+| Agent mixins | `FakeToolAgentMixin` with [`FakeTool`](#fake-tools), `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
 | Budgets | [`Budget`](#budget), [`Usage`](#usage) |
 | Environments | [`EnvCollection`](#envcollection), [`Env`](#env), [`LocalEnv`](#localenv), [`EnvBackendKind`](#envbackendkind), [`SequenceNotStr`](#sequencenotstr) |
@@ -129,6 +129,9 @@ captured namespaces (`FlowDefinitionError`; the first four rows are prefixed
 | `Outworlder` type with a harness protocol or mixin | `an Outworlder is whoever is outside the run, and has no harness or mixins` |
 | `_permission` not a `Permission` | `<Type>._permission is not a Permission` |
 | `_skills` not a tuple/list of non-empty strings | `<Type>._skills is not a tuple of skill names` |
+| `_tools` not a tuple/list of `FakeTool` | `<Type>._tools is not a tuple of FakeTool` |
+| two of `_tools` of one name | `<Type>._tools names one tool twice` |
+| `_tools` without `FakeToolAgentMixin` | `<Type>._tools needs FakeToolAgentMixin` |
 | environment type carries an agent mixin | `an environment cannot be declared with an agent's mixins` |
 | `_cpu_count`, `_memory`, `_gpu_count`, `_gpu_memory` not an `int` ≥ 0 (a `bool` is refused) | `<Type>.<attr> is not a whole number of at least 0` |
 | `_image` not a string without whitespace | `<Type>._image is not an image: <value>` |
@@ -335,6 +338,7 @@ the epic (`agents`, `opened.agent`), in the trace, and in the remembered setting
 class Agent(Protocol):
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
+    _tools: ClassVar[tuple[FakeTool, ...]] = ()
 
     role: str                     # read-only properties
     harness: HarnessKind
@@ -361,6 +365,7 @@ class Agent(Protocol):
 | --- | --- | --- | --- |
 | `_permission` | `Permission` | `Permission()` | What the role's sessions may touch; they run under exactly this. See [Permissions](#what-each-agent-may-do). |
 | `_skills` | `tuple[str, ...]` | `()` | Skills mounted into the role's sessions. See [Skills](#the-skills-a-flow-brings). |
+| `_tools` | `tuple[FakeTool, ...]` | `()` | The flow's functions the role's sessions offer the agent as tools; needs `FakeToolAgentMixin`. See [Fake tools](#fake-tools). |
 
 | Property | Type | Value |
 | --- | --- | --- |
@@ -422,9 +427,30 @@ class Builder(Agent, GoalCommandAgentMixin, PermissionRequestHookAgentMixin):
 | `SubagentStartHookAgentMixin` | `on_subagent_start`. | `<role>: a subagent_start hook needs SubagentStartHookAgentMixin on the role` |
 | `SubagentStopHookAgentMixin` | `on_subagent_stop`. | `<role>: a subagent_stop hook needs SubagentStopHookAgentMixin on the role` |
 | `AskUserHookAgentMixin` | `on_ask_user`. | `<role>: a ask_user hook needs AskUserHookAgentMixin on the role` |
+| `FakeToolAgentMixin` | [`_tools`](#fake-tools). | `FlowDefinitionError`: `<Type>._tools needs FakeToolAgentMixin` |
 
 The prefix test is on the prompt with leading whitespace removed. Every prompt not starting
 `/goal` or `/loop` goes to the CLI unchanged; other slash commands are not interpreted.
+
+#### Fake tools {#fake-tools}
+
+```python
+@dataclass(frozen=True, slots=True)
+class FakeTool:
+    name: str
+    about: str
+    call: Callable[..., object]
+    takes: type[pydantic.BaseModel] | None = None
+```
+
+Each of a role's `_tools` is offered to the agent, by `name` and `about`, as a tool taking
+`takes`'s JSON Schema, over MCP. The agent calling it runs `call` -- sync or async, given an
+instance of `takes`, or nothing where `takes` is `None` -- in the flow's process, on its loop,
+as the flow; the turn waits for it. A `str` it returns is what the agent reads, `None` reads
+`done`, anything else JSON. What it raises is answered to the agent as the tool failing; the
+turn and the flow go on. `derive` keeps a view's tools; a flow handed the agent offers its own
+role's. Served by `claude` and `codex` where the CLI runs on this machine; a turn of one run
+natively on another is refused. See [A tool of the flow's own](/weaver/tools#fake-tools).
 
 ### What each harness serves {#what-each-harness-serves}
 
@@ -432,19 +458,19 @@ Generated from `hmz.runtime.flowing.spi.HARNESS_CAPABILITIES` and the harness pr
 
 <div class="harness-matrix">
 
-| `-a` | Goal | Loop | Steering | Permission request | Subagent start, stop | Ask user | [Fork](#fork) | Rungs |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
-| `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
-| `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
-| `kimi` | ✓ | | ✓ | ✓ | | ✓ | any workdir | read-only, workspace-write, auto, bypass |
-| `pi` `omp` | | | ✓ | | | ✓ | same workdir | read-only, workspace-write, auto, bypass |
-| `dsh` | ✓ | | | | | | no | bypass |
-| `litellm` | | | | | | | any workdir | read-only, workspace-write, auto, bypass |
-| `cursor-agent` | | | | | ✓ | | no | read-only, workspace-write, auto, bypass |
-| `mcode` | | | | | ✓ | | no | workspace-write, auto, bypass |
-| `grok` `opencode` `mimo` `qwen` | | | | | | | same workdir | read-only, workspace-write, auto, bypass |
-| `agy` | | | | | | | no | read-only, workspace-write, auto, bypass |
-| `acp` | | | | | | | same workdir | set by the CLI |
+| `-a` | Goal | Loop | Steering | Permission request | Subagent start, stop | Ask user | Fake tools | [Fork](#fork) | Rungs |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
+| `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
+| `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
+| `kimi` | ✓ | | ✓ | ✓ | | ✓ | | any workdir | read-only, workspace-write, auto, bypass |
+| `pi` `omp` | | | ✓ | | | ✓ | | same workdir | read-only, workspace-write, auto, bypass |
+| `dsh` | ✓ | | | | | | | no | bypass |
+| `litellm` | | | | | | | | any workdir | read-only, workspace-write, auto, bypass |
+| `cursor-agent` | | | | | ✓ | | | no | read-only, workspace-write, auto, bypass |
+| `mcode` | | | | | ✓ | | | no | workspace-write, auto, bypass |
+| `grok` `opencode` `mimo` `qwen` | | | | | | | | same workdir | read-only, workspace-write, auto, bypass |
+| `agy` | | | | | | | | no | read-only, workspace-write, auto, bypass |
+| `acp` | | | | | | | | same workdir | set by the CLI |
 
 </div>
 
@@ -1407,7 +1433,7 @@ nothing was spent. Refusals for one kind of agent grant are computed once per ro
 | anything not handed out by the run | — | `RequirementError`: `<ref>: '<role>' was given <value>, which is not an agent the run handed out` (or `environment`) |
 
 The callee receives **exactly** its declaration: each agent re-granted the callee role's
-mixins, `_permission` and `_skills`; each environment the callee role's mixins. Its hooks
+mixins, `_permission`, `_skills` and `_tools`; each environment the callee role's mixins. Its hooks
 and sessions are its own; a session the caller opened cannot be used by the callee.
 
 `Hmz().flows.running()` lists every flow call currently running in this process (oldest
@@ -2090,9 +2116,10 @@ turn.
 | `await notify(message)` | `NOTIFICATION`. |
 | `await subagent(name, task="", said="") -> str` | `SUBAGENT_START`, `SUBAGENT_STOP` where served. |
 | `await until_steered() -> str` | Waits for a `steer` and returns it. |
+| `await use(name, input=None) -> str` | Calls one of the role's [fake tools](#fake-tools), as the agent would, and returns what the agent would read. `SessionError` for a name it does not offer. |
 
 Attributes: `prompts`, `requests`, `steered` (prompt, queued), `tools` (name, input, ran),
-`forked_from`, `permission`, `skills`, `turns`, `named`, `closed`, `id`, `usage`.
+`offered` (the fake tools), `forked_from`, `permission`, `skills`, `turns`, `named`, `closed`, `id`, `usage`.
 
 ::: warning `until_steered()` waits indefinitely
 Give such a test a hard deadline:

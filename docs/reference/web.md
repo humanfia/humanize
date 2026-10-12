@@ -132,7 +132,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | Address | View |
 | --- | --- |
 | `#/new[?workspace=&flow=&resume=<name>]` | A new epic: in the workspace picked (where `hmz web` started by default), the flow picked, or the epic named picked up. The page opens here. |
-| `#/live` | The epic going; its address becomes `#/epics/<name>` once it is written down. |
+| `#/live` | The epic going; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/assistant%2F1`, once that opens. |
 | `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<role>/<n>` | The thread of the `n`-th session that role opened, as the epic going names it (`/` written `%2F`). |

@@ -147,6 +147,7 @@ class FakeRun:
     budget: Budget = field(default_factory=lambda: Budget(cost=2.0))
     usage: Usage = field(default_factory=lambda: Usage(cost=0.5))
     profile: bool = False
+    backup: tuple[str, ...] = ()
     epic: Path | None = None
     blind: str = ""
     raises: BaseException | None = None
@@ -544,6 +545,22 @@ def test_a_flow_that_will_not_start_is_said_as_why(
     # And it is not left starting.
     where.refuses = None
     _started(alice, where).released.set()
+
+
+def test_the_backup_targets_a_flow_is_started_with_go_to_the_run(
+    host: Host, where: Workspace
+) -> None:
+    alice = Told(host, "alice")
+    assert alice.asks("start", flow="ralph", backup="lab") == {
+        "ok": False,
+        "why": "backup is a list of backup target names",
+    }
+
+    _started(alice, where, backup=["lab"]).released.set()
+    _ = alice.told("ended", run=1)
+    _started(alice, where).released.set()
+
+    assert [one["backup"] for one in where.asked] == [["lab"], None]
 
 
 def test_one_flow_runs_at_a_time(host: Host, where: Workspace) -> None:

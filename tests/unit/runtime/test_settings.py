@@ -9,7 +9,7 @@ import yaml
 
 from hmz.coganchor.machines import store as machines
 from hmz.runtime.kept import Runs
-from hmz.runtime.settings import Settings
+from hmz.runtime.settings import POLICIES, Settings, Target
 from tests.unit.runtime import doubles_u12 as doubles
 
 if TYPE_CHECKING:
@@ -383,3 +383,82 @@ def test_a_workspace_kept_is_offered_until_it_is_forgotten(
     assert Settings(other).flow == ""
     assert Settings(other).forget() is True
     assert Settings().workspaces() == [str(one.resolve())]
+
+
+def test_no_backup_target_is_kept_until_one_is_written(held: doubles.Store) -> None:
+    assert Settings().backups() == ((), ())
+    assert held.writes == 0
+
+
+def test_backup_targets_read_back_with_their_defaults(held: doubles.Store) -> None:
+    Settings().back_up_to(
+        [
+            Target("lab", "ssh://h/me/epics", policies=("session", "end")),
+            {"name": "home", "url": "/srv/epics", "branch": "x", "every": 5},
+        ],
+        ["lab"],
+    )
+
+    assert Settings().backups() == (
+        (
+            Target("lab", "ssh://h/me/epics", "main", ("session", "end"), 30),
+            Target("home", "/srv/epics", "x", (), 5),
+        ),
+        ("lab",),
+    )
+    assert held.held["backup"]["targets"][0]["policies"] == ["session", "end"]
+    assert POLICIES == ("session", "interval", "end")
+
+
+def test_writing_backup_targets_leaves_everything_else(
+    held: doubles.Store, tmp_path: Path
+) -> None:
+    Settings(tmp_path).remember("ralph", {"builder": Runs("claude/opus:high")})
+    Settings().detailing(on=True)
+
+    Settings().back_up_to([Target("lab", "/srv/epics")])
+
+    assert Settings(tmp_path).agents("ralph") == {"builder": Runs("claude/opus:high")}
+    assert Settings().details is True
+    assert Settings().backups() == ((Target("lab", "/srv/epics"),), ())
+
+
+@pytest.mark.parametrize(
+    ("targets", "defaults", "why"),
+    [
+        ([{"name": "two words", "url": "/x"}], [], "one short word"),
+        ([{"name": "lab"}], [], "has no URL"),
+        ([{"name": "lab", "url": "/x", "policies": ["hourly"]}], [], "no policy"),
+        ([{"name": "lab", "url": "/x", "every": 0}], [], "whole number"),
+        ([{"name": "lab", "url": "/x", "every": True}], [], "whole number"),
+        ([Target("lab", "/x"), Target("lab", "/y")], [], "two backup targets"),
+        ([Target("lab", "/x")], ["home"], "no backup target is named home"),
+    ],
+)
+def test_a_backup_target_that_is_not_one_is_refused_and_nothing_written(
+    held: doubles.Store, targets: list[Any], defaults: list[str], why: str
+) -> None:
+    with pytest.raises(ValueError, match=why):
+        Settings().back_up_to(targets, defaults)
+    assert held.writes == 0
+
+
+def test_a_backup_target_that_cannot_be_read_is_left_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    doubles.store(
+        monkeypatch,
+        {
+            "backup": {
+                "targets": [
+                    {"name": "lab", "url": "/x"},
+                    {"name": "bad"},
+                    "nonsense",
+                    {"name": "lab", "url": "/again"},
+                ],
+                "defaults": ["bad", "lab", "lab"],
+            }
+        },
+    )
+
+    assert Settings().backups() == ((Target("lab", "/x"),), ("lab",))

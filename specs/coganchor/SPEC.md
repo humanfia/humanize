@@ -578,7 +578,8 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 - Everything `/settings` sets but an account MUST be kept in the one file `settings.where`
   names, `settings.yaml` in humanize's home, and in no file of its own: the chains a failed turn
   falls back along under `fallbacks`, the CLIs added by hand under `clis` and the runtimes under
-  `runtimes`, beside what `runtime` keeps there. Every write MUST make its own change to the file as it is under a lock
+  `runtimes`, beside what `runtime` keeps there -- the git repositories epics are backed up to
+  among it, under `backup`. Every write MUST make its own change to the file as it is under a lock
   every writer takes, leaving every other part as it found it, MUST put the file in place whole,
   MUST leave a new one this user's alone and one already there the mode it has, and MUST NOT
   write over one that cannot be read.

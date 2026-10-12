@@ -2690,6 +2690,11 @@ table.spending tr.whole td {
   background: color-mix(in srgb, var(--budget) 10%, transparent);
 }
 
+/* The answers a question at the end of a conversation offers, under it as it is drawn. */
+.thread-ask {
+  padding: 6px 0 0 calc(1.5em + 6px);
+}
+
 .said.failed {
   color: var(--fail);
 }

@@ -111,7 +111,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   is typing while what it is about stands.
 - MUST offer the transcripts the terminal interface keeps: one per session, one per agent
   across its sessions, one per person of what they are asked and answer, and one they all
-  appear on -- a line said in one going to whose it is.
+  appear on -- a line said in one going to whose it is, and answering instead what that
+  session's open turn asks.
+- MUST open a chat started from it on its conversation, read as a chat app reads one: the task
+  and every answer as the person's lines among the agent's, a line typed under it the next
+  turn, what to say next never drawn as a question, and what the agent asks mid-turn asked at
+  the end of the conversation with its answers there to pick.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
