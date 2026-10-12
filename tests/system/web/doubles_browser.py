@@ -88,7 +88,16 @@ def opened(
                 context.add_init_script(init)
             page = context.new_page()
             failed: list[str] = []
-            page.on("pageerror", lambda error: failed.append(str(error)))
+            # Bar the browser's word that a resize took more than one frame to settle: a
+            # notice, not a failure, which WebKit raises as an error on a busy machine.
+            page.on(
+                "pageerror",
+                lambda error: (
+                    failed.append(str(error))
+                    if not str(error).startswith("ResizeObserver loop")
+                    else None
+                ),
+            )
             # A refusal is the server answering, which the page says where it happened; what
             # fails the test is the page throwing, or the server failing.
             page.on(

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import time
 import urllib.parse
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -25,7 +26,7 @@ from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
 from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Locator, Page
+    from playwright.sync_api import FloatRect, Locator, Page
 
 #: Every settings page, by the word its address ends in.
 _PAGES = (
@@ -108,6 +109,33 @@ def _centre(node: Locator) -> dict[str, float]:
     }
 
 
+def _comes_to(node: Locator, x: float, y: float) -> dict[str, float]:
+    """Where a node's middle comes to rest, once it is within a pixel or two of where asked.
+
+    A drag, a wheel or a button moves the graph on the page's next frame, and a page under
+    load draws that frame late: what is measured at once can be where it was.
+    """
+    deadline = time.monotonic() + 10
+    while not _near(at := _centre(node), x, y) and time.monotonic() < deadline:
+        node.page.wait_for_timeout(50)
+    assert _near(at, x, y), f"{at} is not ({x}, {y})"
+    return at
+
+
+def _near(at: dict[str, float], x: float, y: float) -> bool:
+    """Whether a point is within a pixel or two of another."""
+    return abs(at["x"] - x) < 2 and abs(at["y"] - y) < 2
+
+
+def _box(node: Locator) -> FloatRect:
+    """Where a node is on the page, once it is drawn: a graph redrawn replaces its nodes."""
+    deadline = time.monotonic() + 10
+    while (box := node.bounding_box()) is None and time.monotonic() < deadline:
+        node.page.wait_for_timeout(50)
+    assert box
+    return box
+
+
 def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
     project: Path, engine: str
 ) -> None:
@@ -123,30 +151,29 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
         expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
             re.compile("stopped")
         )
-        # Measured once the graph has stopped moving: what settles around it resizes the canvas.
+        # Measured once the graph and what is drawn around it have stopped moving: what
+        # settles around it -- what the run spent, how long it took -- resizes the canvas.
         page.wait_for_function(
             """() => new Promise((settled) => {
-              const at = () => JSON.stringify(document.querySelector(
-                '[data-hmz=graph-agent][data-role=assistant]')?.getBoundingClientRect())
+              const at = () => JSON.stringify(['[data-hmz=graph-agent][data-role=assistant]',
+                '[data-hmz=graph]'].map((one) => document.querySelector(one)
+                  ?.getBoundingClientRect()))
               const before = at()
-              setTimeout(() => settled(before !== undefined && at() === before), 300)
-            })"""
+              setTimeout(() => settled(!before.includes('null') && at() === before), 1000)
+            })""",
+            polling=100,
         )
-        canvas = page.locator("[data-hmz=graph]").bounding_box()
+        canvas = _box(page.locator("[data-hmz=graph]"))
         drawn = _centre(agent)
-        assert canvas
         address = page.url
 
         # Dragged from a session on the node, past where the graph ends: nothing opens.
-        session = agent.locator("[data-hmz=graph-session]").bounding_box()
-        assert session
+        session = _box(agent.locator("[data-hmz=graph-session]"))
         page.mouse.move(session["x"] + 10, session["y"] + 10)
         page.mouse.down()
         page.mouse.move(session["x"] - 290, session["y"] - 190, steps=8)
         page.mouse.up()
-        moved = _centre(agent)
-        assert abs(moved["x"] - (drawn["x"] - 300)) < 2
-        assert abs(moved["y"] - (drawn["y"] - 200)) < 2
+        moved = _comes_to(agent, drawn["x"] - 300, drawn["y"] - 200)
         assert page.url == address
 
         # Two fingers slid over a trackpad move it; a pinch and a mouse's wheel zoom it.
@@ -154,9 +181,7 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
         before = zoom.inner_text()
         page.mouse.move(canvas["x"] + canvas["width"] / 2, canvas["y"] + 40)
         page.mouse.wheel(30, 40)
-        slid = _centre(agent)
-        assert abs(slid["x"] - (moved["x"] - 30)) < 2
-        assert abs(slid["y"] - (moved["y"] - 40)) < 2
+        _comes_to(agent, moved["x"] - 30, moved["y"] - 40)
         expect(zoom).to_have_text(before)
         for wheel in ({"deltaY": -60, "ctrlKey": True}, {"deltaY": -3, "deltaMode": 1}):
             said = zoom.inner_text()
@@ -169,9 +194,7 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
 
         page.get_by_role("button", name="Recenter").click()
         expect(zoom).to_have_text(before)
-        back = _centre(agent)
-        assert abs(back["x"] - drawn["x"]) < 2
-        assert abs(back["y"] - drawn["y"]) < 2
+        _comes_to(agent, drawn["x"], drawn["y"])
 
 
 def test_a_model_no_cli_would_list_is_typed(
