@@ -4,7 +4,7 @@
 // Options on the box, set up as this directory last ran that flow, the way `/flow` in the
 // terminal interface sets one up. Picking a run up again is the same box, on that run.
 
-import { get, post } from '../api.js'
+import { get, hash, post } from '../api.js'
 import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
@@ -235,7 +235,7 @@ export function mount(root, { query }) {
 
   // Back from making an account or a runtime, the pickers offer it.
   const back = () => {
-    if (!location.hash.startsWith('#/settings')) readBackends(workspace).catch(() => {})
+    if (!location.hash.startsWith(hash('/settings'))) readBackends(workspace).catch(() => {})
   }
   window.addEventListener('hashchange', back)
   return () => {

@@ -5,7 +5,7 @@
 // from, fetched or written into, and -- one opened -- every flow its index lists, every release
 // of each, installing, switching and uninstalling one; with adding, fetching and removing one.
 
-import { get, poll, post, refresh } from '../api.js'
+import { get, hash, poll, post, refresh } from '../api.js'
 import { stays } from '../app.js'
 import { acting, confirming, empty, fill, h, icon, permitted, problem } from '../dom.js'
 import { workspacePicker } from '../places.js'
@@ -135,7 +135,7 @@ export function mount(root, { query }) {
                 one.about ? h('span', { class: 'card-about' }, one.about) : null,
               )
               card.addEventListener('click', () => show(one.name))
-              const newEpic = `#/new?flow=${encodeURIComponent(one.name)}&workspace=${encodeURIComponent(workspace)}`
+              const newEpic = hash(`/new?flow=${encodeURIComponent(one.name)}&workspace=${encodeURIComponent(workspace)}`)
               return menuOn(card, () => [
                 { head: one.name },
                 { label: 'New epic', glyph: 'new', href: newEpic },
@@ -172,7 +172,7 @@ export function mount(root, { query }) {
     if (chosen !== name) return
     const installed = ((verses && verses.installed) || []).find((one) => one.flow === name)
     const update = ((verses && verses.updates) || []).find((one) => one.flow === name)
-    const actions = [h('a', { class: 'btn primary', href: `#/new?flow=${encodeURIComponent(flow.name)}&workspace=${encodeURIComponent(workspace)}` }, icon('new'), 'New epic')]
+    const actions = [h('a', { class: 'btn primary', href: hash(`/new?flow=${encodeURIComponent(flow.name)}&workspace=${encodeURIComponent(workspace)}`) }, icon('new'), 'New epic')]
     if (update) actions.push(acting(`Update to ${update.to}`, () => change('/api/flowverses/install', { flow: name, version: update.to }), { busy: 'Updating…' }))
     if (!name.startsWith('@local/')) actions.push(acting('Copy here', () => change('/api/flows/fork', { flow: name, workspace }), { kind: 'btn quiet', busy: 'Copying…' }))
     if (installed) actions.push(confirming({ label: 'Uninstall', ask: `Uninstall ${name}?`, yes: 'Uninstall', no: 'Cancel', act: () => change('/api/flowverses/uninstall', { flow: name }) }))

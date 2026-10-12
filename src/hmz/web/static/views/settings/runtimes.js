@@ -3,7 +3,7 @@
 // reaching it asks; a new one is written from its backend's own fields, or brought in from
 // the hosts an ssh config names.
 
-import { get, post } from '../../api.js'
+import { get, onDaemon, post } from '../../api.js'
 import { acting, confirming, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { pathPicker } from '../../paths.js'
 
@@ -196,6 +196,7 @@ function labelOf(key) {
 
 /** The SSH hosts your config names, read once, for the fields that name one. */
 let hosts = null
+onDaemon(() => (hosts = null))
 function sshHosts() {
   hosts ||= get('/api/runtimes/hosts').then((answer) => answer.hosts.map((one) => one.alias), () => [])
   return hosts

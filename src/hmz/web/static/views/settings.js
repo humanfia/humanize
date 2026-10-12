@@ -4,6 +4,7 @@
 // work goes, where epics are backed up, this one directory -- and last what the runs here spent; and, after what is true
 // wherever humanize runs, how this browser draws the page.
 
+import { hash } from '../api.js'
 import { shut } from '../app.js'
 import { fill, h, iconButton, problem } from '../dom.js'
 import { dragged } from '../shell.js'
@@ -34,7 +35,7 @@ export function mount(root, { parts, query }) {
         'nav',
         { class: 'settings-nav', 'aria-label': 'Settings pages' },
         h('h2', {}, 'Settings'),
-        Object.entries(PAGES).map(([key, one]) => h('a', { href: `#/settings/${key}`, 'aria-current': key === name ? 'page' : null }, one.label)),
+        Object.entries(PAGES).map(([key, one]) => h('a', { href: hash(`/settings/${key}`), 'aria-current': key === name ? 'page' : null }, one.label)),
       ),
     ),
     h(

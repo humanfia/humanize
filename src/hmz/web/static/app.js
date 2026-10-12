@@ -2,9 +2,10 @@
 // epics on the left, and whichever view the address names beside it -- a new epic, its graph, one session's
 // thread, the flows -- with finding a run and the settings opened over it as dialogs. Routed
 // by the address's fragment, so that every view of the page is an address that can be kept,
-// shared or opened again, and the server serves one page for all of them.
+// shared or opened again, and the server serves one page for all of them. An address names the
+// daemon it is of first, `#/@<name>/<view>…`, or names none and is of Local.
 
-import { get } from './api.js'
+import { daemon, get, hash } from './api.js'
 import { fill, h, problem } from './dom.js'
 import { mountSidebar } from './sidebar.js'
 import { kept, toggleSidebar } from './shell.js'
@@ -44,16 +45,16 @@ let behind = ''
 /** What the view drawn was drawn for, so a dialog opened over it leaves it standing. */
 let shown = ''
 
-/** Where the page is: the parts of the address's path, and its query. */
+/** Where the page is: the parts of the address's path, after the daemon it names, and its query. */
 export function where() {
-  const raw = location.hash.replace(/^#/, '') || '/new'
+  const raw = location.hash.replace(/^#/, '').replace(/^\/?@[^/?]*/, '') || '/new'
   const url = new URL(raw.startsWith('/') ? raw : `/${raw}`, 'http://page')
   return { parts: url.pathname.split('/').filter(Boolean).map(decodeURIComponent), query: url.searchParams }
 }
 
-/** Goes to another view of the page. */
+/** Goes to another view of the page, on the daemon it is on. */
 export function go(path) {
-  location.hash = path
+  location.hash = hash(path)
 }
 
 /** Puts the query of the view the page is on in the address, without a step in its history. */
@@ -68,7 +69,7 @@ export function stays(query) {
   const said = new URLSearchParams()
   for (const [name, value] of Object.entries(query)) if (value !== '' && value !== undefined && value !== null) said.set(name, value)
   const text = said.toString()
-  history.replaceState(null, '', `#/${parts.map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`)
+  history.replaceState(null, '', hash(`/${parts.map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`))
   routedTo = location.hash
 }
 
@@ -222,14 +223,36 @@ window.addEventListener('hmz:out', () => {
   )
 })
 
+// Another daemon: everything drawn of the last is drawn again of this one, as the address
+// routed next says -- told before that routing, which api.js is told of first.
+window.addEventListener('hmz:daemon', () => {
+  if (mounted) mounted.leave()
+  mounted = null
+  shown = ''
+  opened = ''
+  behind = ''
+  named().catch(() => {})
+})
+
+/** Names the page by the machine the daemon it is on is. */
+function named() {
+  const asked = daemon()
+  return get('/api/held').then((context) => {
+    if (asked === daemon()) document.title = `humanize · ${context.machine}`
+    return context
+  })
+}
+
 window.addEventListener('hashchange', route)
 
-get('/api/held')
+named()
   .then((context) => {
-    document.title = `humanize · ${context.machine}`
     mountSidebar(document.getElementById('sidebar'), context, where)
     route()
   })
   .catch((error) => {
-    if (!out) fill(page, h('div', { class: 'view' }, problem(error)))
+    if (out) return
+    // A daemon out of reach: said where the view would be, the sidebar there to go elsewhere.
+    mountSidebar(document.getElementById('sidebar'), {}, where)
+    fill(page, h('div', { class: 'view' }, problem(error)))
   })

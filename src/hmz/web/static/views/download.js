@@ -4,7 +4,7 @@
 // epics, as an import would, opening it. What the target holds is fetched afresh as it opens,
 // which can take a while.
 
-import { get, post, refresh } from '../api.js'
+import { get, hash, post, refresh } from '../api.js'
 import { go, shut, stays } from '../app.js'
 import { ago, badge, empty, fill, flowName, h, headline, icon, iconButton, problem, when } from '../dom.js'
 import { nameOf } from '../places.js'
@@ -22,7 +22,7 @@ export function mount(root, { query }) {
   get('/api/settings').then((settings) => {
     const names = settings.backup.targets.map((one) => one.name)
     if (!names.length) {
-      fill(body, empty('No backup target.', ' Add one, and the epics it holds are downloaded from here.', h('a', { class: 'btn primary', href: '#/settings/backup' }, 'Backup')))
+      fill(body, empty('No backup target.', ' Add one, and the epics it holds are downloaded from here.', h('a', { class: 'btn primary', href: hash('/settings/backup') }, 'Backup')))
       return
     }
     const chosen = names.includes(query.get('target')) ? query.get('target') : names[0]
@@ -79,7 +79,7 @@ export function mount(root, { query }) {
 
   function row(target, one) {
     const action = one.here
-      ? h('a', { class: 'btn small quiet', href: `#/epics/${encodeURIComponent(one.epic)}` }, 'Open')
+      ? h('a', { class: 'btn small quiet', href: hash(`/epics/${encodeURIComponent(one.epic)}`) }, 'Open')
       : h('button', { class: 'btn small', type: 'button', onclick: (event) => pull(target, one, event.currentTarget) }, 'Download')
     return h(
       'div',

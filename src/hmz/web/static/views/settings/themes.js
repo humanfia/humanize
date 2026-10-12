@@ -4,6 +4,7 @@
 // it is made on, each of its colours and a picture behind any of the large planes, shown on the
 // page as it is changed and kept at once.
 
+import { hash } from '../../api.js'
 import { confirming, fill, h, iconButton, problem } from '../../dom.js'
 import { choice, menu } from '../../shell.js'
 import { menuOn, toast } from '../../ui.js'
@@ -61,11 +62,11 @@ function list(holder) {
   })
   const fresh = async (from, name) => {
     const one = await look.create(from, name)
-    location.hash = `/settings/themes/${one.id}`
+    location.hash = hash(`/settings/themes/${one.id}`)
   }
   const freshPair = async ([light, dark], name) => {
     const [one] = await look.createPair(light, dark, name)
-    location.hash = `/settings/themes/${one.id}`
+    location.hash = hash(`/settings/themes/${one.id}`)
   }
   const use = (one) => {
     look.choose(one.id)
@@ -75,7 +76,7 @@ function list(holder) {
   const offered = (one) => [
     { head: look.label(one) },
     { label: 'Use', glyph: 'check', act: () => use(one) },
-    look.OWN.includes(one) ? null : { label: 'Edit', glyph: 'new', href: `#/settings/themes/${one.id}` },
+    look.OWN.includes(one) ? null : { label: 'Edit', glyph: 'new', href: hash(`/settings/themes/${one.id}`) },
     { label: 'Duplicate', glyph: 'copy', act: () => fresh(one, `${one.name} copy`) },
     { label: 'Export', glyph: 'download', act: () => look.exported(one) },
   ]
@@ -107,7 +108,7 @@ function list(holder) {
         'div',
         { class: 'row' },
         h('button', { class: 'btn small', type: 'button', disabled: on, onclick: () => (look.usePair(pair.key), redraw()) }, 'Use pair'),
-        pair.mine ? either('Edit', two, (one) => (location.hash = `/settings/themes/${one.id}`)) : null,
+        pair.mine ? either('Edit', two, (one) => (location.hash = hash(`/settings/themes/${one.id}`))) : null,
         either('Duplicate', two, (one) => fresh(one, `${pair.name} ${one.base}`), () => freshPair(two, `${pair.name} copy`)),
         either('Export', two, (one) => look.exported(one), () => look.exported(pair.key)),
         pair.mine ? confirming({ label: 'Delete', ask: `Delete ${pair.name}?`, yes: 'Delete', small: true, act: () => look.removePair(pair.key).then(redraw) }) : null,
@@ -126,7 +127,7 @@ function list(holder) {
         'div',
         { class: 'row' },
         h('button', { class: 'btn small', type: 'button', disabled: on, onclick: () => use(one) }, 'Use'),
-        h('a', { class: 'btn quiet small', href: `#/settings/themes/${one.id}` }, 'Edit'),
+        h('a', { class: 'btn quiet small', href: hash(`/settings/themes/${one.id}`) }, 'Edit'),
         h('button', { class: 'btn quiet small', type: 'button', onclick: () => fresh(one, `${one.name} copy`) }, 'Duplicate'),
         h('button', { class: 'btn quiet small', type: 'button', onclick: () => look.exported(one) }, 'Export'),
         confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', small: true, act: () => look.remove(one.id).then(redraw) }),
@@ -209,7 +210,7 @@ function hex(colour) {
 function editor(holder, id) {
   const one = look.theme(id)
   if (!one || look.OWN.includes(one)) {
-    fill(holder, problem('No such theme'), h('p', { class: 'row' }, h('a', { class: 'btn', href: '#/settings/themes' }, 'Themes')))
+    fill(holder, problem('No such theme'), h('p', { class: 'row' }, h('a', { class: 'btn', href: hash('/settings/themes') }, 'Themes')))
     return
   }
   // What the theme's colours are where it sets none: its base's, as a theme on it works them out.
@@ -233,7 +234,7 @@ function editor(holder, id) {
         'div',
         { class: 'segmented', role: 'group', 'aria-label': 'Side', 'data-hmz': 'theme-side' },
         look.members(one.pair).map((other) =>
-          h('button', { type: 'button', 'aria-pressed': String(other.id === one.id), onclick: () => (location.hash = `/settings/themes/${other.id}`) }, other.base === 'dark' ? 'Dark' : 'Light'),
+          h('button', { type: 'button', 'aria-pressed': String(other.id === one.id), onclick: () => (location.hash = hash(`/settings/themes/${other.id}`)) }, other.base === 'dark' ? 'Dark' : 'Light'),
         ),
       )
     : null
@@ -350,12 +351,12 @@ function editor(holder, id) {
         h(
           'div',
           { class: 'row' },
-          h('a', { class: 'btn', href: '#/settings/themes' }, 'Done'),
+          h('a', { class: 'btn', href: hash('/settings/themes') }, 'Done'),
           one.pair
             ? h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.usePair(one.pair), toast(`Using ${one.name}`)) }, 'Use pair')
             : h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.choose(one.id), toast(`Using ${one.name}`)) }, 'Use'),
           h('button', { class: 'btn quiet', type: 'button', onclick: () => look.exported(one.pair || one) }, 'Export'),
-          confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', act: () => (one.pair ? look.removePair(one.pair) : look.remove(one.id)).then(() => (location.hash = '/settings/themes')) }),
+          confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', act: () => (one.pair ? look.removePair(one.pair) : look.remove(one.id)).then(() => (location.hash = hash('/settings/themes'))) }),
         ),
       ),
     ),

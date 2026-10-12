@@ -2,7 +2,7 @@
 // the disk, or dropped anywhere on the window, and opened once it is in. One already on this
 // machine, named by its path -- as the desktop app opens a file -- is `#/epics/import?path=`.
 
-import { refresh, send } from './api.js'
+import { daemon, hash, refresh, send } from './api.js'
 import { h, iconButton, problem } from './dom.js'
 
 /** What an epic's archive is named with, and sent as. */
@@ -29,18 +29,21 @@ function failed(...why) {
 /** How an import refused is said: the server's sentence, and the epic it names where that is here already. */
 export function refusal(error) {
   const name = error.said && error.said.name
-  return [problem(error), name ? h('a', { href: `#/epics/${encodeURIComponent(name)}`, 'data-hmz': 'imported-already', onclick: () => say() }, 'Open') : null]
+  return [problem(error), name ? h('a', { href: hash(`/epics/${encodeURIComponent(name)}`), 'data-hmz': 'imported-already', onclick: () => say() }, 'Open') : null]
 }
 
 /** Sends one archive, saying so as it goes, and opens the epic it was once it is in. */
 export async function importFile(file) {
   if (file.size > LARGEST) return failed(problem('That is more than a request here may send.'))
   say(h('span', {}, `Importing ${file.name}…`))
+  const into = daemon()
   try {
     const answer = await send('/api/runs/import', file, KIND)
     say()
+    // Opened on the daemon it went into, unless the page has since gone to another.
+    if (into !== daemon()) return
     refresh('/api/runs')
-    location.hash = `/epics/${encodeURIComponent(answer.name)}`
+    location.hash = hash(`/epics/${encodeURIComponent(answer.name)}`)
   } catch (error) {
     failed(refusal(error))
   }

@@ -3,7 +3,7 @@
 // what it spent and how long it took -- found by how it went, by flow and by its task, a page
 // at a time. The list `/epics` is in the terminal interface.
 
-import { address, poll } from '../api.js'
+import { address, hash, poll } from '../api.js'
 import { shut, stays } from '../app.js'
 import { nameOf, workspaces } from '../places.js'
 import { epicMenu } from '../sidebar.js'
@@ -108,7 +108,7 @@ export function mount(root, { query }) {
             {},
             menuOn(h(
               'a',
-              { class: ['result', run.held && 'held'], href: `#/epics/${encodeURIComponent(run.name)}`, title: run.task, 'data-hmz': 'epic' },
+              { class: ['result', run.held && 'held'], href: hash(`/epics/${encodeURIComponent(run.name)}`), title: run.task, 'data-hmz': 'epic' },
               h('span', { class: 'result-top' }, badge(run.how), h('span', { class: 'result-task' }, headline(run.task)), h('span', { class: 'result-when', title: when(run.began) }, ago(run.began))),
               h(
                 'span',

@@ -9,7 +9,7 @@
 // and the side questions asked beside it.
 
 import { asides, board, outworlders, question, saying } from '../acting.js'
-import { get } from '../api.js'
+import { get, hash, scoped } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { ask } from '../held.js'
@@ -80,7 +80,7 @@ export function mount(root, { parts, query }) {
               { class: 'view-pad' },
               starting || !none
                 ? h('p', { class: 'loading', role: 'status' }, 'Waiting for the epic to be written down…')
-                : empty('No epic is going here.', ' Start one, or open an epic from the sidebar.', h('a', { class: 'btn primary', href: '#/new' }, 'New epic')),
+                : empty('No epic is going here.', ' Start one, or open an epic from the sidebar.', h('a', { class: 'btn primary', href: hash('/new') }, 'New epic')),
             ),
           ),
         )
@@ -91,7 +91,7 @@ export function mount(root, { parts, query }) {
     if (!name) {
       // The run going is named now: the address says which, and it is followed by name.
       name = detail.name
-      history.replaceState(null, '', `#/epics/${encodeURIComponent(name)}`)
+      history.replaceState(null, '', hash(`/epics/${encodeURIComponent(name)}`))
       landing = chatting(detail)
       stop()
       stop = watch(name, detail.workspace, told)
@@ -106,7 +106,7 @@ export function mount(root, { parts, query }) {
     if (opened) {
       // A chat is a conversation, and is opened on it, as a chat app opens on one.
       landing = false
-      history.replaceState(null, '', `#/epics/${encodeURIComponent(name)}/sessions/${encodeURIComponent(opened.key)}`)
+      history.replaceState(null, '', hash(`/epics/${encodeURIComponent(name)}/sessions/${encodeURIComponent(opened.key)}`))
       mode = modeOf(['epics', name, 'sessions', opened.key])
     }
     const model = run ? live(held, run, detail) : written(detail, traced)
@@ -129,14 +129,14 @@ export function mount(root, { parts, query }) {
       const actions = []
       if (going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(workspace(), 'stop') }))
       else if (going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(workspace(), 'force') }))
-      if (!going && detail.picks_up) actions.push(h('a', { class: 'btn', href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, icon('resume'), 'Resume'))
-      actions.push(h('a', { class: 'icon-btn', href: `#/epics/${encodeURIComponent(detail.name)}/exomyth`, 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
-      if (!going) actions.push(h('a', { class: 'icon-btn', href: `/api/runs/${encodeURIComponent(detail.name)}/bundle`, download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
+      if (!going && detail.picks_up) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
+      actions.push(h('a', { class: 'icon-btn', href: hash(`/epics/${encodeURIComponent(detail.name)}/exomyth`), 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
+      if (!going) actions.push(h('a', { class: 'icon-btn', href: scoped(`/api/runs/${encodeURIComponent(detail.name)}/bundle`), download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
       // How each target last took it, said on hover; read again as the epic is.
       actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Upload', title: backedSaid(detail.backed) || 'Upload', 'data-hmz': 'upload', onclick: () => upload(detail.name) }, icon('up')))
       actions.push(copier('Copy link', () => location.href))
       actions.push(panel.toggle)
-      const base = `#/epics/${encodeURIComponent(detail.name)}`
+      const base = hash(`/epics/${encodeURIComponent(detail.name)}`)
       const sub = [
         badge(state),
         h('span', { class: 'mono', title: detail.flow }, flowName(detail.flow)),
@@ -348,7 +348,7 @@ export function mount(root, { parts, query }) {
       dock.querySelector('.composer, .dock-note')?.remove()
       if (composer) dock.append(composer)
       else if (detail.picks_up)
-        dock.append(h('p', { class: 'dock-note' }, 'Ended · ', h('a', { href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, 'Resume')))
+        dock.append(h('p', { class: 'dock-note' }, 'Ended · ', h('a', { href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, 'Resume')))
       // Imported from a workspace this machine has not got as it was: why it is not picked up here.
       else if (detail.foreign) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'foreign' }, `Imported · not resumable here: ${detail.foreign}`))
     })
@@ -403,7 +403,7 @@ export function mount(root, { parts, query }) {
 
   function overview(detail, run, model, focus, going, figures, standing) {
     const agent = model.agents.find((one) => one.role === focus)
-    const base = `#/epics/${encodeURIComponent(detail.name)}`
+    const base = hash(`/epics/${encodeURIComponent(detail.name)}`)
     const parts = []
     if (agent) {
       parts.push(
@@ -609,7 +609,7 @@ function placed(env) {
 
 /** The agents as a list rather than a graph: the working first, then in the flow's order. */
 function listOf(model, epic, focus) {
-  const base = `#/epics/${encodeURIComponent(epic)}`
+  const base = hash(`/epics/${encodeURIComponent(epic)}`)
   const order = [...model.agents].sort((a, b) => Number(b.working) - Number(a.working))
   return order.map((agent) =>
     h(
@@ -697,7 +697,7 @@ function facts(detail) {
     h('dd', {}, budgeted(detail.budget)),
     h('dt', {}, 'sessions'),
     h('dd', {}, detail.sessions.length ? sessionsOf(detail).map((one) => h('div', {}, h('span', { class: 'mono' }, one.key), ` · ${one.backend}`, one.provider ? `@${one.provider}` : '', h('div', { class: 'dim mono' }, one.ident))) : 'none'),
-    detail.picked_up ? [h('dt', {}, 'resumed from'), h('dd', {}, h('a', { href: `#/epics/${encodeURIComponent(detail.picked_up)}` }, detail.picked_up))] : null,
+    detail.picked_up ? [h('dt', {}, 'resumed from'), h('dd', {}, h('a', { href: hash(`/epics/${encodeURIComponent(detail.picked_up)}`) }, detail.picked_up))] : null,
     detail.profile ? [h('dt', {}, 'profiled'), h('dd', {}, 'yes')] : null,
   )
 }
