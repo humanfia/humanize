@@ -1110,8 +1110,9 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 | `takes` | a pydantic model of its arguments, or `None` for none |
 | `call` | called with the model (or nothing); its return value goes back as text; raising is the tool failing |
 
-- Served by `claude` (`--mcp-config`) and `codex` (`-c mcp_servers.humanize.…`)
-  (`session.takes_tools`); elsewhere `NotImplementedError: <cli> has no way of being given a
+- Served (`session.takes_tools`) by `claude` (`--mcp-config`), `codex`
+  (`-c mcp_servers.humanize.…`), and `opencode` and `mimo` (`mcp.humanize` merged into
+  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`); elsewhere `NotImplementedError: <cli> has no way of being given a
   tool of a flow's own`.
 - The road is MCP: the CLI is given `hmz internal tools --at <socket>`. Tools are per agent.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
@@ -1551,6 +1552,10 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 
 - The table is written for the turn, never to a settings file. Its `read` and `edit` rules are
   relative to the top of the git checkout the session is in, or `/`.
+- [Callback tools](#callbacks-as-tools) are a `local` server `humanize` in `mcp`, merged into
+  the `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT` the turn would otherwise have (the
+  account's, else an exported one); the model sees them as `humanize_<name>`. A value that is
+  not a JSON object (JSONC included) fails the turn with `ValueError`.
 - mimocode reads `~/.claude.json` at start; where the fence does not let it,
   `MIMOCODE_DISABLE_CLAUDE_CODE=1` is set.
 - Both keep sessions in SQLite; traces read it with a query.
