@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
 from pydantic import BaseModel
 
+from hmz.coganchor import gateway, providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -24,6 +25,7 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.agents.codex import strict, turning, unattended
+from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner
 
 if TYPE_CHECKING:
@@ -752,3 +754,92 @@ def test_a_goal_is_set_on_the_thread_and_pursued_until_met(
     (goal,) = server.called("thread/goal/set")
     assert goal == {"threadId": "th-1", "objective": "ship it"}
     assert session.id == "th-1"
+
+
+# --------------------------------------------------------------- through a LiteLLM gateway
+
+
+class _Gateway:
+    """A gateway that starts nothing: where it would be, and whether it was taken down."""
+
+    started: ClassVar[list[_Gateway]] = []
+
+    def __init__(self, provider: Provider) -> None:
+        self.account = provider
+        self.port = 4321
+        self.url = "http://127.0.0.1:4321"
+        self.key = "sk-master"
+        self.running = True
+        _Gateway.started.append(self)
+
+    def stop(self) -> None:
+        self.running = False
+
+
+_ROUTED = Provider(
+    cli="codex",
+    name="gw",
+    way="litellm-anthropic-key",
+    env={"ANTHROPIC_API_KEY": "upstream-secret"},
+)
+
+
+def _unswapped(_self: Provider) -> tuple[tuple[str, str], ...]:
+    """No credential path answered by another, which the supervisor's tests are about."""
+    return ()
+
+
+@pytest.fixture
+def routed(monkeypatch: pytest.MonkeyPatch) -> list[_Gateway]:
+    """An account litellm holds, and a gateway that is only pretended."""
+
+    def find(cli: str, name: str) -> Provider | None:
+        return _ROUTED if name == "gw" else Provider(cli, name, way="")
+
+    monkeypatch.setattr(providers, "find", find)
+    monkeypatch.setattr(Provider, "swaps", _unswapped)
+    monkeypatch.setattr(gateway, "Gateway", _Gateway)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "lying-about")
+    _Gateway.started = []
+    return _Gateway.started
+
+
+def test_codex_through_a_gateway_speaks_the_responses_api_to_it(
+    routed: list[_Gateway], spawner: Spawner, server: _Server
+) -> None:
+    agent = _agent(provider="gw", model="claude-x")
+
+    agent.new()("hi")
+
+    started = _servers(spawner)[0]
+    argv = " ".join(started.args)
+    assert "model_provider=humanize" in argv
+    assert "model_providers.humanize.base_url=http://127.0.0.1:4321" in argv
+    assert "model_providers.humanize.env_key=CODEX_PROVIDER_KEY" in argv
+    assert "model_providers.humanize.wire_api=responses" in argv
+    assert "sk-master" not in argv
+    env = started.environ
+    assert env["CODEX_PROVIDER_KEY"] == "sk-master"
+    assert "ANTHROPIC_API_KEY" not in env
+    assert "upstream-secret" not in env.values()
+    # The model as it was named, which the gateway sends on to the account's provider.
+    assert server.called("thread/start")[0]["model"] == "claude-x"
+    agent.stop()
+    assert not routed[0].running
+
+
+def test_a_thread_whose_gateway_went_away_is_picked_up_on_a_server_at_the_next(
+    routed: list[_Gateway], spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    agent = _agent(provider="gw")
+    session = agent.new(tmp_path)
+    session("one")
+    routed[0].running = False
+
+    session("two")
+
+    first, _ = _servers(spawner)
+    assert first.returncode is not None
+    assert len(routed) == 2
+    assert routed[1].running
+    assert server.called("thread/resume")[0]["threadId"] == "th-1"

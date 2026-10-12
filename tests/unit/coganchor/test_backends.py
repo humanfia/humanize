@@ -71,9 +71,9 @@ def test_a_backend_that_routes_takes_every_way_litellm_has_through_a_gateway() -
 
 
 def test_a_backend_that_does_not_route_takes_no_way_through_a_gateway() -> None:
-    codex = backends.named("codex")
-    assert codex is not None
-    assert backends.routed(codex) == ()
+    dsh = backends.named("dsh")
+    assert dsh is not None
+    assert backends.routed(dsh) == ()
 
 
 @pytest.mark.parametrize(

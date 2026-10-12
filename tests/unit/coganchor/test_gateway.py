@@ -123,6 +123,7 @@ def test_a_gateway_serves_every_model_of_the_account_under_its_key_alone() -> No
         "model": "openai/*",
         "api_base": "https://gw.example/v1",
         "api_key": "upstream-key",
+        "use_chat_completions_api": True,
     }
     assert said["model_list"] == [
         {"model_name": "openai/*", "litellm_params": params},
@@ -131,6 +132,16 @@ def test_a_gateway_serves_every_model_of_the_account_under_its_key_alone() -> No
     assert said["general_settings"] == {"master_key": "sk-master"}
     assert said["litellm_settings"]["drop_params"] is True
     assert said["litellm_settings"]["use_chat_completions_url_for_anthropic_messages"]
+
+
+def test_a_gateway_asks_a_vendor_in_whichever_protocol_it_speaks() -> None:
+    account = Provider(
+        cli="codex", name="a", way="litellm-openai-key", env={"OPENAI_API_KEY": "k"}
+    )
+
+    said = configured(account, "sk-master")
+
+    assert "use_chat_completions_api" not in said["model_list"][0]["litellm_params"]
 
 
 def test_a_gateway_for_an_account_naming_no_provider_is_refused() -> None:
@@ -149,11 +160,29 @@ def test_claude_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
     assert argued(_claude(), env) == ()
 
 
-def test_a_backend_naming_no_way_to_a_gateway_is_pointed_nowhere() -> None:
+def test_codex_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
     codex = backends.named("codex")
     assert codex is not None
-    assert spoken(codex, "http://127.0.0.1:4000", "sk") == {}
-    assert argued(codex, {}) == ()
+
+    env = spoken(codex, "http://127.0.0.1:4000", "sk-master")
+
+    # No `/v1` after it: codex asks `{base_url}/responses`, which the gateway serves too.
+    assert env == {
+        "CODEX_PROVIDER_URL": "http://127.0.0.1:4000",
+        "CODEX_PROVIDER_KEY": "sk-master",
+    }
+    said = argued(codex, env)
+    assert "model_providers.humanize.base_url=http://127.0.0.1:4000" in said
+    assert "model_providers.humanize.env_key=CODEX_PROVIDER_KEY" in said
+    assert "model_providers.humanize.wire_api=responses" in said
+    assert "sk-master" not in " ".join(said)
+
+
+def test_a_backend_naming_no_way_to_a_gateway_is_pointed_nowhere() -> None:
+    dsh = backends.named("dsh")
+    assert dsh is not None
+    assert spoken(dsh, "http://127.0.0.1:4000", "sk") == {}
+    assert argued(dsh, {}) == ()
 
 
 @pytest.mark.parametrize("missing", NEEDS)

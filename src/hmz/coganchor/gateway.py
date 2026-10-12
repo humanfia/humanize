@@ -243,7 +243,14 @@ def configured(provider: Provider, key: str) -> dict[str, Any]:
             f"The account {provider.name!r} names no provider for the gateway to send "
             "its turns to"
         )
-    params = {"model": f"{said}/*", **credentials(provider)}
+    params: dict[str, Any] = {"model": f"{said}/*", **credentials(provider)}
+    if provider.env.get(_URL):
+        # A turn asked in the Responses API, as codex asks every one, sent to somebody's
+        # endpoint as chat completions: the one every endpoint calling itself OpenAI-compatible
+        # speaks, where litellm would otherwise ask it in the Responses API. A vendor's own
+        # is asked in whichever it speaks, and one that has no Responses API in chat
+        # completions anyway.
+        params["use_chat_completions_api"] = True
     return {
         "model_list": [
             {"model_name": f"{said}/*", "litellm_params": params},

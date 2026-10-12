@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 import psutil
 import pytest
 
+from hmz.coganchor import providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -26,9 +27,18 @@ from hmz.coganchor.agents import (
     Question,
     Verdict,
 )
-from tests.integration.doubles_agents import Standins, kinds, standins
+from hmz.coganchor.gateway import gatewayable
+from hmz.coganchor.providers import Provider
+from tests.integration.doubles_agents import (
+    Endpoint,
+    Standins,
+    kinds,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 CONFIG = CodexAgentConfig(model="gpt-stand-in", effort="high")
@@ -328,3 +338,109 @@ def test_two_sessions_take_their_turns_at_the_same_time(codex: Standins) -> None
         one.join(30)
 
     assert answers == {"a": "a", "b": "b"}
+
+
+# --------------------------------------------------------------- through a LiteLLM gateway
+
+#: A `codex app-server` that asks the provider it was given as settings, in the Responses API
+#: and under the key in the variable it was told of, and says what streamed back.
+ROUTED = r"""
+import urllib.request
+
+note()
+told = dict(one.split("=", 1) for one in argv if one.startswith("model"))
+base = told["model_providers.humanize.base_url"]
+key = os.environ[told["model_providers.humanize.env_key"]]
+threads = {}
+
+for line in sys.stdin:
+    call = json.loads(line)
+    method, params = call.get("method"), call.get("params") or {}
+    if "id" not in call:
+        continue
+    result = {}
+    if method == "thread/start":
+        threads["t-1"] = params.get("model")
+        result = {"thread": {"id": "t-1"}}
+    out({"jsonrpc": "2.0", "id": call["id"], "result": result})
+    if method == "thread/start":
+        out({"method": "thread/status/changed",
+             "params": {"threadId": "t-1", "status": {"type": "idle"}}})
+    if method != "turn/start":
+        continue
+    said = params["input"][0]["text"]
+    note(said)
+    asked = urllib.request.Request(
+        base + "/responses",
+        data=json.dumps({"model": threads["t-1"], "stream": True, "input": [
+            {"type": "message", "role": "user",
+             "content": [{"type": "input_text", "text": said}]}]}).encode(),
+        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(asked, timeout=60) as answer:
+            events = [json.loads(one[5:]) for one in answer.read().decode().splitlines()
+                      if one.startswith("data:") and one[5:].strip() != "[DONE]"]
+        body = "".join(one.get("delta", "") for one in events
+                       if one.get("type") == "response.output_text.delta")
+    except Exception as why:
+        body = repr(why)
+    out({"method": "turn/started", "params": {"threadId": "t-1", "turnId": "turn-1"}})
+    out({"method": "item/completed", "params": {"threadId": "t-1", "turnId": "turn-1",
+         "item": {"id": "m-1", "type": "agentMessage", "text": body}}})
+    out({"method": "turn/completed", "params": {"threadId": "t-1",
+         "turn": {"id": "turn-1", "status": "completed"}}})
+    out({"method": "thread/status/changed",
+         "params": {"threadId": "t-1", "status": {"type": "idle"}}})
+"""
+
+
+@pytest.fixture
+def endpoint() -> Iterator[Endpoint]:
+    # Driven to its end after the test, which is what shuts it.
+    yield from serving()
+
+
+def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
+    """No credential path answered by another: see the test that uses it."""
+    return ()
+
+
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+@pytest.mark.timeout(240)
+def test_codex_under_an_account_a_gateway_holds_asks_it_in_the_responses_api(
+    endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = standins(tmp_path, monkeypatch, "CODEX_PROVIDER_KEY", "LITELLM_GATEWAY_KEY")
+    held.install("codex", ROUTED)
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
+    # A credential path answered by another is the supervisor's, which is tested where it is
+    # written; an account that is variables alone is what is under test here.
+    monkeypatch.setattr(Provider, "swaps", _unswapped)
+    # An endpoint that speaks chat completions alone, as most calling themselves
+    # OpenAI-compatible do: the gateway is what turns codex's Responses API into them.
+    providers.add(
+        "codex",
+        "gw",
+        way="litellm-openai-gateway",
+        env={
+            "LITELLM_GATEWAY_URL": endpoint.url,
+            "LITELLM_GATEWAY_KEY": "upstream-secret",
+            "LITELLM_GATEWAY_API": "openai",
+        },
+    )
+    agent = CodexAgent(CodexAgentConfig(model="stand-in", effort="", provider="gw"))
+    try:
+        said = agent.new(tmp_path)("say hi", suppress=True)
+        through = agent.gateway
+        assert through is not None
+    finally:
+        agent.stop()
+
+    assert said == "say hi"
+    assert [one["model"] for one in endpoint.asked] == ["stand-in"]
+    (launch,) = (one for one in held.calls("codex") if not one.stdin)
+    assert f"model_providers.humanize.base_url={through.url}" in launch.argv
+    assert launch.env["CODEX_PROVIDER_KEY"] == through.key
+    assert launch.env["LITELLM_GATEWAY_KEY"] is None
+    assert not through.running

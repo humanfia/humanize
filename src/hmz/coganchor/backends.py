@@ -1676,6 +1676,10 @@ PROFILES = (
         # Azure's is a variable of its own rather than this one: what a resource lists at
         # `/models` is the models Azure has, and what a turn names is a deployment of one.
         endpoint="CODEX_PROVIDER_URL",
+        # And the same way is how the local LiteLLM gateway is spoken to, for an account made
+        # by any of litellm's ways: codex speaks the Responses API to it, and it speaks the
+        # account's onward.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",

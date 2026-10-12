@@ -731,6 +731,7 @@ account's on the other.
 | Backend | Ways (`backends.routed`) | The CLI is pointed at the gateway by (`Profile.routes`) |
 | --- | --- | --- |
 | `claude` | `litellm-openai-key`, `litellm-anthropic-key`, `litellm-gemini-key`, `litellm-xai-key`, `litellm-openrouter-key`, `litellm-deepseek-key`, `litellm-groq-key`, `litellm-mistral-key`, `litellm-openai-gateway`, `litellm-anthropic-gateway`, `litellm-bedrock`, `litellm-vertex`, `litellm-azure` | `anthropic-gateway`: `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` |
+| `codex` | the same | `openai-gateway`: `CODEX_PROVIDER_URL`, `CODEX_PROVIDER_KEY`, and its `-c model_providers.humanize.*` arguments, `wire_api=responses`; codex asks `{base_url}/responses`, which the gateway serves with no `/v1` |
 
 Each `litellm-<way>` asks and sets what `litellm`'s own `<way>` does ([Ways by
 backend](#ways-by-backend)), and is offered only while the gateway can be started here
@@ -739,7 +740,7 @@ backend](#ways-by-backend)), and is offered only while the gateway can be starte
 | What | How |
 | --- | --- |
 | Started | by `agent.gateway`, the first time a turn needs it: `python -m litellm.proxy.proxy_cli --config FILE --host 127.0.0.1 --port PORT`, with this interpreter, on a free port, waited for at `/v1/models` under its own key, past any proxy, for up to 120 s. One per agent; started again for another account or once it has gone. |
-| Configured | `gateway.configured(provider, key)`: a model list of `PREFIX/*` and `*`, both sent to `PREFIX/*` with the account's credentials (`gateway.credentials`), `drop_params`, and Anthropic messages sent to an OpenAI-shaped provider as chat completions. `PREFIX` is `gateway.prefix`: the vendor of a key way, `bedrock`, `vertex_ai` or `azure`, or a gateway account's `LITELLM_GATEWAY_API`. |
+| Configured | `gateway.configured(provider, key)`: a model list of `PREFIX/*` and `*`, both sent to `PREFIX/*` with the account's credentials (`gateway.credentials`), `drop_params`, Anthropic messages to an OpenAI-shaped provider sent onward as chat completions, and so are Responses API requests to a gateway account's endpoint (`use_chat_completions_api`), or to a provider litellm knows no Responses API of. `PREFIX` is `gateway.prefix`: the vendor of a key way, `bedrock`, `vertex_ai` or `azure`, or a gateway account's `LITELLM_GATEWAY_API`. |
 | Held | the configuration is a file `0600` in a directory `0700` of its own, removed with the gateway; the master key is `sk-` and 32 random bytes. Neither is on a command line; a failure to start says the proxy's last lines with every secret struck out. |
 | The turn | `agent.environment()` is the `routes` way answered by the gateway (`gateway.spoken`): its URL variable the gateway's `http://127.0.0.1:PORT`, its secret the master key, plus what that way sets, and `127.0.0.1` and `localhost` added to `NO_PROXY`; its `args`, filled in, are appended (`gateway.argued`). `claude` is also given the agent's model as every model it reaches for on its own (`ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_`, `_OPUS_`, `ANTHROPIC_SMALL_FAST_MODEL`). `agent.hushed()` is `hushes()` and everything the account sets, so none of it reaches the CLI. |
 | Fenced | `agent.fenced()` adds `127.0.0.1:PORT` to the hosts. `providers.composed` adds none of the account's variables, so the account's own endpoint opens no host for the CLI. |
