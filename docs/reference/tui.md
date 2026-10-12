@@ -389,7 +389,7 @@ Paths are not names: use `/flow ./path`.
 | Condition | Result |
 | --- | --- |
 | btw on | Asked as a side question. |
-| a question is answerable here (aggregate, monitor, or the asking outworlder's view) | Taken as the answer. |
+| a question is answerable here (aggregate, monitor, the asking outworlder's view, or the conversation it is part of) | Taken as the answer. |
 | `<name>` not among the offered flows | `hmz: no such flow: <name>`, and for a name said as before the `@` (`local/x`) ` -- a flow of local is called @local/x now` |
 | a run going | `hmz: cannot choose a flow while one is running` |
 | the flow is [set up](#set-up) | Chosen; with a task, the run starts. Without a task, `enter a task to start the flow`. |
@@ -439,7 +439,8 @@ Lines said and not yet taken are **pinned** on the left above the editor:
 ## Questions, and being away {#questions-and-being-away}
 
 A question comes from a flow's `Outworlder` role, or from an agent asking its user through a
-hook the flow hung. It is shown on the asking outworlder's view and on the aggregate:
+hook the flow hung. It is shown on the asking outworlder's view and on the aggregate, and
+also in the conversation it is part of, where it is one:
 
 ```text
 ● Which region?
@@ -452,7 +453,8 @@ hook the flow hung. It is shown on the asking outworlder's view and on the aggre
 | --- | --- |
 | Options | `      <n>. <option>` (6 spaces). |
 | Footer | `   <name>'s to answer` (held by another), else `   [yours to answer: ]type an answer, or /afk to stop being asked`. |
-| Answerable here | On the aggregate or monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role. Only questions unowned or owned by this frontend, and not already being answered. None on a `session` view. |
+| Part of a conversation | A question asked while one conversation has a turn open (the asked record's `key`, else the only conversation working), and a `listen` question whose text is the last answer a conversation gave (a conversation asking what next, as `chat` does after every turn). The first is shown in that conversation as well (its question line left out where the agent's own `●` line already says it), and reaches the aggregate from there rather than from the outworlder's view; the second is not shown at all, its footer on the outworlder's view only. The answer is echoed in that conversation too. |
+| Answerable here | On the aggregate or monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role; on a `session` view: the oldest part of the conversation read (the newest of the agent read). Only questions unowned or owned by this frontend, and not already being answered. |
 | Answer | The next line typed. A bare number `1‥n` that is not itself an option picks that option (resolved by the host). Echoed as `❯ <text>[ · by <name>]`. |
 | Refusals | `hmz: already answered by <name>`, `hmz: <role> is <name>'s`, `hmz: no question <id> is waiting`. |
 | Away | While a role is away its questions are answered at once: `""` for text, a schema's defaults, or `OutworlderAway` for a field with none; an agent's question is told nobody answered. A question pending when away is set is withdrawn (the flow sees `OutworlderAway`). |
