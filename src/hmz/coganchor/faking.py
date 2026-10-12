@@ -167,6 +167,8 @@ class FakeCli:
           ValueError: If the name is not a plain file name, there are no commands, or two
             commands share a name.
         """
+        # A tuple whatever it was given as, so that a command line is a value like any other.
+        object.__setattr__(self, "commands", tuple(self.commands))
         if not self.name or self.name[0] in ".-" or not set(self.name) <= _NAMED:
             raise ValueError(f"{self.name!r} is not a name a shell can run")
         names = [one.name for one in self.commands]

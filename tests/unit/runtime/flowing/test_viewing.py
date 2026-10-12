@@ -12,6 +12,7 @@ from hmz.flows import (
     Agent,
     AgentCollection,
     BashEnvMixin,
+    CapabilityMissing,
     CapabilityNotGranted,
     ClaudeCodeAgent,
     Env,
@@ -360,7 +361,7 @@ class Fix(pydantic.BaseModel):
 
 @flow(agents=Plain, envs=NoEnvs, params=Prompt)
 async def plain(
-    task: str, *, agents: Plain, envs: NoEnvs, params: Prompt, ctx: FlowContext
+    task: str, *, agents: HandsOn, envs: NoEnvs, params: Prompt, ctx: FlowContext
 ) -> str:
     coder = agents["coder"]
     return await coder.run(params.prompt, session=await coder.spawn())
@@ -547,10 +548,11 @@ async def fully(
 async def handing(
     task: str, *, agents: Goals, envs: NoEnvs, params: Prompt, ctx: FlowContext
 ) -> str:
+    await fully(task, agents={"scribe": agents["coder"]}, envs={}, params=params)
     return await fully(task, agents={"scribe": agents["coder"]}, envs={}, params=params)
 
 
-async def test_a_flow_handed_an_agent_offers_its_own_roles_tools() -> None:
+async def test_a_flow_handed_an_agent_offers_its_own_roles_tools_every_call() -> None:
     async def reply(prompt: str, *, session: Any, **_: Any) -> str:
         return await session.use("broken")
 
@@ -620,11 +622,26 @@ async def test_a_sessions_command_lines_run_as_its_flow_and_answer_as_programs()
     assert [("hi", ctx)] == TICKETS
 
 
+class HandsOn(AgentCollection):
+    coder: Agent
+
+
+@flow(agents=HandsOn, envs=NoEnvs, params=Prompt)
+async def handing_on(
+    task: str, *, agents: Plain, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> tuple[str, object]:
+    return await triaged(
+        task, agents={"triager": agents["coder"]}, envs={}, params=params
+    )
+
+
 async def test_a_model_called_directly_runs_no_command_lines() -> None:
     model = FakeAgentDriver(HarnessKind.LITELLM)
 
-    with pytest.raises(UnsupportedOperation, match="no shell"):
+    with pytest.raises(CapabilityMissing, match="no shell"):
         await run_fake(triaged, agents={"triager": model})
+    with pytest.raises(UnsupportedOperation, match="no shell"):
+        await run_fake(handing_on, agents={"coder": model})
 
 
 # ----------------------------------------------------------------------------- outworlders

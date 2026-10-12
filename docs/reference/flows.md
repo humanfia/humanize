@@ -455,10 +455,11 @@ instance of `takes`, or nothing where `takes` is `None` -- in the flow's process
 as the flow; the turn waits for it. A `str` it returns is what the agent reads, `None` reads
 `done`, anything else JSON. What it raises is answered to the agent as the tool failing; the
 turn and the flow go on. `derive` keeps a view's tools; a flow handed the agent offers its own
-role's. Served where the harness's row below has Fake tools (not `acp`: its protocol is a plain
-`Agent`, which serves no mixin), where the CLI runs on this machine; a turn of one run natively on another is refused. On `grok`, a turn only `grok -p` can
-take (an `output_schema`, a fork's first turn, web search off, a rung that takes tools away) is
-refused with `HarnessUnrecoverable` while tools are offered. See
+role's. Served where the harness's row below has Fake tools (not `acp`: its protocol is a
+plain `Agent`, which serves no mixin), where the CLI runs on this machine; a turn of one run
+natively on another is refused. On `grok`, a turn only `grok -p` can take (an `output_schema`,
+a fork's first turn, web search off, a rung that takes tools away) is refused with
+`HarnessUnrecoverable` while tools are offered. See
 [A tool of the flow's own](/weaver/tools#fake-tools).
 
 `FakeTool` is the type coganchor's drivers offer (`SessionBase.offers`), so a flow's tool is
@@ -490,8 +491,10 @@ line the parser or the model refuses prints the usage and exits 2. Running a com
 flow's process, as the flow: a `str` it returns is printed, `None` prints nothing, anything else
 JSON; `SystemExit(n)` exits `n`, anything else raised exits 1 with the error on stderr. No mixin
 is needed: every harness with a shell serves it, and a role declaring any is refused for
-`litellm` (`UnsupportedOperation` at `run`, as an `env` is). `FakeCli` is the type coganchor's
-drivers shelve (`SessionBase.shelves`). See [A command line of the flow's own](/weaver/tools#fake-clis).
+`litellm`: `<ref>: '<role>' declares _clis, and litellm has no shell to run them` from `hmz exec`
+or as `CapabilityMissing` before the run starts, and `UnsupportedOperation` at `run` for one a
+caller hands on, as an `env` is. `FakeCli` is the type coganchor's drivers shelve
+(`SessionBase.shelves`). See [A command line of the flow's own](/weaver/tools#fake-clis).
 
 ### What each harness serves {#what-each-harness-serves}
 

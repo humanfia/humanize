@@ -391,8 +391,8 @@ program exits 0. Raising `SystemExit(n)` exits with `n`; raising anything else e
 error on stderr. A line the parser refuses, or a value the model refuses, prints the usage and
 exits 2. None of these fail the turn.
 
-Every CLI with a shell runs them. A role declaring `_clis` is refused for `litellm`, which has
-none, as an `env` is. In a test, a fake session runs one with
+Every CLI with a shell runs them. `litellm` has none, so a role declaring `_clis` is refused
+for it before the run starts. In a test, a fake session runs one with
 `await session.run_cli(["tix", "file", "--title", "x"])`, which answers the status, stdout and
 stderr the agent's shell would have seen.
 

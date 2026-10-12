@@ -344,6 +344,7 @@ class Runner:
           Refused: For a role that cannot be given this.
         """
         from hmz.coganchor import providers
+        from hmz.flows import HarnessKind
         from hmz.runtime.flowing.specs import AgentSpec, SpecError, parse_agents
         from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES
 
@@ -387,6 +388,10 @@ class Runner:
                     f"{named}: {name!r} needs "
                     f"{', '.join(sorted(one.__name__ for one in lacking))}, "
                     f"which {harness} does not support"
+                )
+            if role.clis and harness is HarnessKind.LITELLM:
+                raise Refused(
+                    f"{named}: {name!r} declares _clis, and litellm has no shell to run them"
                 )
             if (
                 isinstance(said, AgentSpec)

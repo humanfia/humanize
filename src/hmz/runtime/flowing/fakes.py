@@ -606,7 +606,7 @@ class FakeSession:
         try:
             given = () if tool.takes is None else (tool.takes(**(input or {})),)
             said = await cast("Callable[..., Awaitable[object]]", tool.call)(*given)
-        except Exception as why:  # noqa: BLE001 -- told the agent, as a real one is
+        except (Exception, SystemExit) as why:  # noqa: BLE001 -- told the agent, as a real one is
             return f"{type(why).__name__}: {why}"
         if said is None:
             return "done"
