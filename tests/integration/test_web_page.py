@@ -703,6 +703,11 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
         expect(listed).to_contain_text("Manual")
         listed.locator("[data-hmz=backup-default]").check()
         expect(listed.locator("[data-hmz=backup-default]")).to_be_checked()
+        # Saved as it is ticked, behind the page: written before a new epic reads it.
+        page.wait_for_function(
+            "async () => (await (await fetch('/api/settings')).json())"
+            ".backup.defaults.includes('t')"
+        )
         page.keyboard.press("Escape")
 
         _go(page, "/new?flow=chat")
