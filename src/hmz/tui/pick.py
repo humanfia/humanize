@@ -2362,6 +2362,8 @@ class Action(NamedTuple):
 #: list and its id cannot be taken for a name somebody chose.
 _ACT_ADD, _ACT_SPEAKS, _ACT_IMPORTS = "add", "speaks", "imports"
 _ACT_SEARCH, _ACT_SAVE, _ACT_DONE = "search", "save", "done"
+#: Turning `/epics` between this directory and this machine.
+_ACT_SCOPE = "scope"
 #: Asking again what a list is of, naming an ssh host nobody saved, asking a daemon what it
 #: has, and taking away what a sheet is about.
 _ACT_AGAIN, _ACT_UNSAVED, _ACT_DETECT, _ACT_REMOVE = (
@@ -6659,10 +6661,7 @@ def _config_named(config: str) -> str:
     """An ssh config as a row says it: the user's own as `~/.ssh/config`, another shortly."""
     if not config:
         return _OWN_CONFIG
-    said = str(Path(config).expanduser())
-    home = str(Path.home())
-    if said.startswith(f"{home}/"):
-        said = f"~{said[len(home) :]}"
+    said = _homed(str(Path(config).expanduser()))
     return said if len(said) <= _LABEL else f"…/{_shortly(said)}"
 
 
@@ -9541,6 +9540,19 @@ def _asked_for(task: str) -> str:
     return said if len(said) <= _ENOUGH_TASK else f"{said[: _ENOUGH_TASK - 1]}…"
 
 
+def _homed(said: str) -> str:
+    """A path, with a home directory written as `~`, as a shell writes one."""
+    home = str(Path.home())
+    return (
+        f"~{said[len(home) :]}" if said == home or said.startswith(f"{home}/") else said
+    )
+
+
+def _ran_in(ran: Ran) -> str:
+    """Where one run ran, as a row says it: an older one may not have written it down."""
+    return _homed(ran.workspace) if ran.workspace else "an unknown directory"
+
+
 def _when(said: str) -> str:
     """One of the moments an epic writes down, as a row of a list says one.
 
@@ -9774,7 +9786,7 @@ def _counted(said: dict[str, Any], of: str) -> int:
 
 
 class Epics(Sheet[Doing]):
-    """Every run of a flow in this directory, newest first, and what to do with one.
+    """Every run of a flow here or on this machine, newest first, and what to do with one.
 
     A run is written down as it happens -- which flow, on what, by which agents, and which
     sessions each of them opened -- and until now nothing showed them. What they are for is
@@ -9784,7 +9796,16 @@ class Epics(Sheet[Doing]):
     Read rather than chosen from, so enter goes into the run under the cursor rather than
     doing anything to it: what there is to do is what that run is, and the sheet it opens is
     where the run says where it is written down.
+
+    Of this directory, or of every directory on this machine with `ctrl+t`: a run is looked for
+    by where it ran as often as by when, and somebody who has forgotten which checkout it was
+    in is somebody this directory's alone would tell nothing. Which of the two was last asked
+    for is remembered, as how somebody likes to look back rather than as anything about here.
     """
+
+    BINDINGS: ClassVar = [
+        Binding("ctrl+t", "scope", "scope", show=False, priority=True),
+    ]
 
     def __init__(
         self,
@@ -9792,7 +9813,7 @@ class Epics(Sheet[Doing]):
         *,
         running: Callable[[], bool] | None = None,
     ) -> None:
-        """Reads every run of this directory.
+        """Reads every run of this directory, or of this machine where that was last asked for.
 
         Args:
           workspace: Which directory's, defaulting to this one.
@@ -9804,14 +9825,22 @@ class Epics(Sheet[Doing]):
         super().__init__()
         from hmz.daemon import Hmz
 
-        runs = Hmz(workspace).epics
+        hmz = Hmz(workspace)
+        self._runs = hmz.epics
+        self._settings = hmz.settings
+        #: Whether the list is of every epic on this machine rather than of this directory's.
+        self._every = self._settings.every_epic
+        #: Where this directory's epics are kept, which tells one run here from one run
+        #: elsewhere: a path written down in a run is spelled however it was typed.
+        self._here = self._runs.under()
         #: Newest first: what somebody opening this came to look at is the run that has just
-        #: happened, and a list of a hundred is one nobody scrolls to the end of.
-        self._ran = [
-            one
-            for one in (runs.read(at) for at in reversed(runs.all()))
-            if one is not None
-        ]
+        #: happened, and a list of a hundred is one nobody scrolls to the end of. This
+        #: directory's read at once, as it always was; a whole machine's is read off the event
+        #: loop once the sheet is up, since that may be every run anybody ever did here.
+        self._ran: list[Ran] = [] if self._every else self._read(every=False)
+        #: Whether the list is still being read, which an empty one says rather than that
+        #: nothing has been run.
+        self._reading = self._every
         self._underway = running or (lambda: False)
         #: Which run the cursor is on, by the directory it is written in: rows are narrowed
         #: by a search, so a row number is not a run.
@@ -9827,11 +9856,61 @@ class Epics(Sheet[Doing]):
     def _ask(self) -> None:
         """Says what these are, and puts them up."""
         self.query_one("#asked", Label).update("Epics")
-        self.query_one("#about", Label).update(
-            "Every run of a flow in this directory, newest first: task, "
-            "status, and session count."
-        )
         self._fill()
+        if self._reading:
+            self._rereads()
+
+    def _read(self, *, every: bool) -> list[Ran]:
+        """The epics of this directory or of this whole machine, newest first.
+
+        Args:
+          every: Whether of this whole machine.
+
+        Returns:
+          Every one that reads as an epic.
+        """
+        found = self._runs.every() if every else self._runs.all()
+        return [one for one in (self._runs.read(at) for at in reversed(found)) if one]
+
+    @work(group="epics", exclusive=True)
+    async def _rereads(self) -> None:
+        """Reads the list again for the scope it is now, off the event loop."""
+        import asyncio
+
+        every, was = self._every, self._was
+        self._ran = []
+        self._reading = True
+        self._fill()
+        ran = await asyncio.to_thread(self._read, every=every)
+        if every == self._every:
+            self._ran = ran
+            self._reading = False
+            self._was = was
+            self._fill()
+
+    def action_scope(self) -> None:
+        """Turns the list between this directory's epics and this whole machine's."""
+        self._every = not self._every
+        self._settings.every_epic = self._every
+        self._said = ""
+        self._rereads()
+
+    def _scope(self) -> Action:
+        """The button the list is turned between this directory and this machine from."""
+        return Action(
+            _ACT_SCOPE,
+            self._other(),
+            f"list the epics of {self._other()}",
+            self.action_scope,
+        )
+
+    def _other(self) -> str:
+        """The scope the list turns to, as its button and its key say it."""
+        return "this directory" if self._every else "this machine"
+
+    def _ours(self, ran: Ran) -> bool:
+        """Whether one run was run in this directory."""
+        return ran.at.parent == self._here
 
     def _about(self, ran: Ran) -> str:
         """What a row says about one run: what it was asked to do, how it went, and its size.
@@ -9841,6 +9920,8 @@ class Epics(Sheet[Doing]):
         that says nothing while taking the room the ones that did not need.
         """
         said = _asked_for(ran.task) if ran.task else "no task"
+        if self._every:
+            said = f"{_ran_in(ran)}{_DOT}{said}"
         held = f"{said}{_DOT}{_many(len(ran.sessions), 'session')}"
         if ran.how != "done":
             held += f"{_DOT}{_how(ran)}"
@@ -9854,8 +9935,8 @@ class Epics(Sheet[Doing]):
         return "/epics"
 
     def actions(self) -> list[Action]:
-        """Searching the runs."""
-        return [self._searches()]
+        """Searching the runs, and turning them between this directory and this machine."""
+        return [self._searches(), self._scope()]
 
     def enters(self, row: str) -> bool:
         """Every row is a run, which the arrow right goes into.
@@ -9870,9 +9951,20 @@ class Epics(Sheet[Doing]):
 
     def _fill(self) -> None:
         """Puts the runs up, the first a search found or the one the cursor was on."""
+        self.query_one("#about", Label).update(
+            f"Every epic {'on this machine' if self._every else 'in this directory'}, "
+            f"newest first: {'workspace, ' if self._every else ''}task, status, and "
+            "session count."
+        )
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
-        shown = [one for one in self._ran if self.fits(one.flow, one.task, one.name)]
+        shown = [
+            one
+            for one in self._ran
+            if self.fits(
+                one.flow, one.task, one.name, _ran_in(one) if self._every else ""
+            )
+        ]
         sought = self._sought([one.name for one in shown])
         if sought is not None:
             self._was = sought
@@ -9901,14 +9993,20 @@ class Epics(Sheet[Doing]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(Key("enter", "open"), Key("esc", "close"))
+        self._footed(
+            Key("enter", "open"), Key("ctrl+t", self._other()), Key("esc", "close")
+        )
 
     def leaving(self) -> None:
         """Leaves, saying in the transcript whatever was gathered while this was open."""
         self.dismiss(Doing(said=tuple(self._told)) if self._told else None)
 
     def _nothing(self) -> str:
-        """What an empty list says, which is that nothing has been run here yet."""
+        """What an empty list says: that it is being read, or that nothing has been run."""
+        if self._reading:
+            return "reading…"
+        if self._every:
+            return "no flow has been run on this machine yet"
         return "no flow has been run in this directory yet"
 
     async def _exports(self, ran: Ran, to: str) -> None:
@@ -9961,7 +10059,11 @@ class Epics(Sheet[Doing]):
         Returns:
           Whether picking it up would have anything to pick up from.
         """
-        return self._picks_up(ran.flow) and _hmz().epics.picks_up(ran.at)
+        return (
+            self._ours(ran)
+            and self._picks_up(ran.flow)
+            and _hmz().epics.picks_up(ran.at)
+        )
 
     def _picks_up(self, flow: str) -> bool:
         """Whether one flow says now that it can be picked up.
@@ -10009,7 +10111,14 @@ class Epics(Sheet[Doing]):
         )
         while True:
             said = await showing.push_screen_wait(
-                Does(ran, resumable=self._picks_up(ran.flow))
+                Does(
+                    ran,
+                    # Of another directory, what it recorded: a flow named here is not
+                    # necessarily the one it ran, and carrying it on is refused anyway.
+                    resumable=self._picks_up(ran.flow)
+                    if self._ours(ran)
+                    else ran.resumable,
+                )
             )
             if said is None:
                 return  # walked out of it, which does nothing to the run
@@ -10021,6 +10130,14 @@ class Epics(Sheet[Doing]):
             if to is not None:
                 await self._exports(ran, to)
                 return
+        if said == RESUMES and not self._ours(ran):
+            # Refused rather than picked up here: a flow carries on in the directory it
+            # works in, and this is not the one this epic's work is in.
+            self._said = (
+                f"this epic ran in {escape(_ran_in(ran))}; resume it from hmz there"
+            )
+            self._fill()
+            return
         if said == RESUMES and self._underway():
             # Said here rather than on the way out: the question this sheet is asking is
             # still worth answering, and a flow is stopped with esc rather than from here.

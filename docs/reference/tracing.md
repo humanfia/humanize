@@ -4,8 +4,8 @@ What a run leaves on disk and how it is read back: the **epic** (the run's own r
 sessions its CLIs logged, the optional **profile** of the programs it ran, the **trace** that
 gathers all of it onto one timeline (a Chrome JSON trace, opened in
 [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://tracing`), and the **bundle** a run is
-exported as. Exomyth, humanize's visualizer, is the part that builds the trace
-(`hmz.runtime.tracing`). Guides: [Exporting a run](/user/export), [Tracing](/user/tracing).
+exported as. Exomyth, humanize's visualizer, is the part that builds the trace and the
+[timeline](#timeline) (`hmz.runtime.tracing`). Guides: [Exporting a run](/user/export), [Tracing](/user/tracing).
 
 ## Model
 
@@ -155,6 +155,109 @@ Every value is a string.
 | `sessions`, `slices`, `tracks` | as `agents` | counts (sessions with actions; actions; tracks) |
 | `start`, `end` | as `agents` | first and last moment of sessions and programs, ISO 8601 UTC |
 | `programs` | the trace has a profile | count of programs |
+
+## The Exomyth timeline {#timeline}
+
+The same epic laid out for a viewer of its own rather than for Perfetto: compact, columnar, and
+without the payloads, which are asked for one span at a time. Built by
+`hmz.runtime.tracing.timeline.build` from the sessions a [trace](#document) of the epic would
+be drawn from, the epic itself, the tree of flows it called and its `profile.jsonl`; served as
+[`GET /api/runs/<name>/timeline`](/reference/web#api-runs) and from Python as
+[`Epics.timeline`](#epics-timeline). Unlike a Chrome trace, **every session is its own
+process**, under the session that started it.
+
+```json
+{"version": 1, "layout": "9f2c41d07ab3e815", "epic": "20261012T093000.000Z",
+ "origin": 1791800000.123, "live": false,
+ "strings": ["", "chat", "flows", ...],
+ "processes": [{"id": 0, "kind": "flow", "name": 1, "parent": -1, "tracks": [0], ...}, ...],
+ "tracks": [{"process": 0, "name": 2, "first": 0, "count": 3, "depths": 2,
+             "spans": {"start": [...], "dur": [...], "depth": [...], "cat": [...],
+                       "name": [...], "model": [...], "in": [...], "out": [...]}}, ...],
+ "spawns": {"span": [1, 57], "process": [1, 2]},
+ "summary": {"start": 0, "end": 93000000, "processes": 3, "tracks": 4, "spans": 211,
+             "categories": {"llm": {"count": 40, "time": 51000000, "in": 9000, "out": 2100}}}}
+```
+
+Every key is always present. Times are **whole microseconds since `origin`** (epoch seconds,
+the earliest moment of anything in the document); durations are never negative and may be 0.
+Every text field is an **index into `strings`**, whose index 0 is `""` (nothing said), except
+a process's `kind`.
+
+| Key | Is |
+| --- | --- |
+| `version` | `1`. A client MUST refuse a version it does not know. |
+| `layout` | A hex digest that changes whenever an id would name another span (another process, track, start or category), and stays the same while spans only grow longer. |
+| `epic` | The epic's name, or `""`. |
+| `origin` | Epoch seconds (float) that time 0 is. Wall clock of `t` µs: `origin + t / 1e6`. |
+| `live` | `true` while the epic has not ended: the document grows, so re-read it. |
+| `strings` | The string table. |
+| `processes` | Lanes of the chart's first level, by `id` (= index). |
+| `tracks` | Lanes of the second level, by index, each one process's. |
+| `spawns` | Arrows: columns `span` (the span that started it) and `process` (what it started), sorted by span. A sub-agent's comes from the action that started it; every other session's from the flow call that opened it, or the epic's own span. |
+| `summary` | `start` (0), `end` (µs; the last moment anything did), counts of `processes`, `tracks`, `spans`, and `categories`: `{<category>: {count, time, in, out}}` (`time` = durations summed, µs; `in`/`out` = tokens). |
+
+### Processes {#timeline-processes}
+
+| Field | Is |
+| --- | --- |
+| `id` | Its index in `processes`. |
+| `kind` | `flow` (the epic and the flows it called; first, where there is an epic), `session` (one agent or sub-agent conversation, ordered by start), or `os` (one program of a [profiled](#profiling-a-run) epic, ordered by start then pid). |
+| `name` | `<label> · <title>` for a session (≤ 120 characters), the flow for `flow`, `<program> · <pid>` for `os`. |
+| `parent` | A process id, or `-1`. A sub-agent hangs from the session that started it, a session the epic opened (or a sub-agent whose starter did nothing) from the `flow` process (0), a program from the program that held its parent's pid when it started, where that was profiled. |
+| `key` | The session key (`<backend>:<id>`); `epic:<name>` for `flow`; `pid:<pid>:<start>` for `os`. |
+| `pid` | The operating system's pid for `os`, else 0. |
+| `agent` | The agent it ran on, as [a trace names one](#what-counts-as-one-agent). |
+| `role` | The flow's role that opened it (root sessions the epic recorded), else `""`. |
+| `backend`, `model` | The CLI, and the model the session logged. |
+| `label` | `main` or what a sub-agent was started as; how the epic ended for `flow`; the program's name for `os`. |
+| `record` | The epic's record of the call that opened it (`epic.jsonl` or `epic.<flow>_<id>.jsonl`); `""` for `flow` and `os`. |
+| `start`, `end` | µs, over its spans. |
+| `tracks` | Its track ids, in lane order. |
+
+### Tracks and spans {#timeline-tracks}
+
+A process's spans are stacked as a Chrome trace stacks them: each goes in the first lane
+where it nests inside the span open on top, and one that overlaps without nesting spills into
+the next lane. One lane is one track. Within a track, **two spans at one depth never overlap**,
+and a span at depth `d + 1` lies inside the latest span at depth `d` before it.
+
+| Track field | Is |
+| --- | --- |
+| `process` | Its process. |
+| `name` | `main` or the session's label; `flows`; `threads`. The n-th lane (n ≥ 2) adds ` ~<n>`. |
+| `first` | The id of its first span. |
+| `count` | How many spans. |
+| `depths` | Deepest depth + 1. |
+| `spans` | Columns, each `count` long, **sorted by `start`** (so, by start within every depth too: binary-search what is on screen): `start`, `dur`, `depth`, `cat`, `name`, `model` (string indices), `in`, `out` (tokens the reader's `usage` gave for that span, else 0). |
+
+| `cat` | Depth | Span |
+| --- | --- | --- |
+| `flow` | 0 for the epic, n for a call n flows deep | The epic, from its `began` to its `ended`, and each flow it called, inside its caller; one not yet returned ends at `summary.end`. |
+| `session` | 0 | A session, over everything it did. |
+| `turn`, `llm`, `tool`, `message`, `event` | 1, 2, … | Its [actions](#model). Where spans start and end together, `session` holds `turn` holds the rest. |
+| `process` | 0, then 1 | One per thread: the program's main thread, the others inside it. |
+
+**Span ids** number every span from 0 in track order with no gaps: span `i` of track `t` is
+`tracks[t].first + i`. A span id is good for the timeline it came from: for a `live` epic, the
+last one served. Pass its `layout` when asking for a span: a timeline laid out again since,
+with ids moved, is `409` rather than some other span.
+
+### One span, whole {#timeline-span}
+
+`GET /api/runs/<name>/timeline/span/<id>?layout=<layout>` (`layout` optional), or
+`Timeline.span(id)`:
+
+```json
+{"id": 57, "process": 1, "track": 1, "start": 16000000, "dur": 14000000, "depth": 2,
+ "cat": "tool", "name": "Task: look", "at": "2026-10-12T09:30:16+00:00",
+ "args": {"tool": "Task", "input": {...}, "session": "claude:..."}}
+```
+
+`args`: an action's own `args` and `session` (its key); a session banner's session `args`,
+`agent`, `parent`, `session`; a flow's `flow`, `task`, `how`, `record`; a thread's `pid`,
+`ppid`, `tid`, `argv` (joined), `cpu` (seconds). An id the timeline does not have is `404` (a
+`KeyError` from Python).
 
 ## Profiling a run {#profiling-a-run}
 
@@ -354,7 +457,7 @@ Each is replaced by `[redacted]`.
 bundles. Reading: `all()`, `read(epic)`, `sessions(epic)`, `opened(epic)`, `state(epic, flow)`,
 `resumed(flow)`, `picks_up(epic)` ([SDK](/reference/sdk#epics)).
 
-### `Epics.traced`
+### `Epics.traced` {#epics-traced}
 
 ```python
 def traced(self, epic: Path, *, output: str | os.PathLike[str] | None = None,
@@ -395,6 +498,17 @@ The workspace is the `Hmz` workspace; with `Hmz()` and named sessions, sessions 
 wherever they were recorded; `Hmz("/path")` keeps only sessions recorded there (the path is
 taken as given; `~` is not expanded). Returns the document.
 
+### `Epics.timeline` {#epics-timeline}
+
+```python
+def timeline(self, epic: Path) -> Timeline
+```
+
+Gathers what [`traced`](#epics-traced) gathers -- the ids the run recorded, where it kept
+them -- with the run, the tree of flows it called and its `profile.jsonl`, and lays them out as
+an [Exomyth timeline](#timeline). Writes nothing. `Timeline.document` is the document;
+`Timeline.span(id)` one span, whole.
+
 ### `Epics.bundled`
 
 ```python
@@ -407,7 +521,9 @@ Writes the [export](#export) archive; returns its path and the manifest as writt
 ### `collect` <Badge type="info" text="internal" />
 
 `hmz.runtime.tracing.collect(workspace=None, *, sessions=None, agents=None, output=None,
-start=None, end=None, profile=None, kept=None) -> dict`: what `traced` and `trace` call.
+start=None, end=None, profile=None, kept=None) -> dict`: what `traced` and `trace` call. `hmz.runtime.tracing.collector.gather(workspace=None, *, sessions=None, agents=None,
+start=None, end=None, kept=None) -> list[Session]`: the sessions `collect` would draw, which
+`timeline` lays out.
 
 ## Watching a run instead
 

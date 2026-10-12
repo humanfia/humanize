@@ -117,7 +117,7 @@ const ROWS: Row[] = [
   row('omp', 'Oh My Pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, trace: Y }),
   row('opencode', 'opencode', { fork: Y, web: Y, rungs: ALL4, trace: Y }),
   row('pi', 'pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, trace: Y }),
-  row('qwen', 'Qwen Code', { schema: Y, fork: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('qwen', 'Qwen Code', { schema: Y, fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
   row('an ACP CLI', 'added on this machine', { fork: IF_SERVED, rungs: BYPASS }),
 ]
 

@@ -92,6 +92,7 @@ def test_start_writes_out_the_whole_request(params: Any, plain: Any) -> None:
             "budget": {"cost": 5},
             "profile": True,
             "resume": False,
+            "backup": None,
         }
     ]
 
@@ -107,6 +108,15 @@ def test_start_says_which_run_to_pick_up(resume: Any, said: object) -> None:
     assert held.said[0]["agents"] == {}
     assert held.said[0]["envs"] == {}
     assert held.said[0]["budget"] is None
+
+
+@pytest.mark.parametrize(
+    ("backup", "said"), [(None, None), ((), []), (("lab", "home"), ["lab", "home"])]
+)
+def test_start_says_where_the_epic_is_backed_up(backup: Any, said: object) -> None:
+    link, held = _link()
+    link.start("chat", "t", backup=backup)
+    assert held.said[0]["backup"] == said
 
 
 @pytest.mark.parametrize(
