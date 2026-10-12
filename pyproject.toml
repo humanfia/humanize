@@ -154,7 +154,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    # The web interface's page is driven in a real browser by its integration tests: what it
+    # The web interface's page is driven in a real browser by `tests/system/web`: what it
     # draws and what it sends are only seen there.
     "playwright>=1.55",
     "pre-commit>=4.6.2",

@@ -21,14 +21,8 @@ from playwright.sync_api import expect
 
 import hmz.coganchor.models
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import (
-    ENGINES,
-    backed_up_elsewhere,
-    elsewhere,
-    go,
-    opened,
-    served,
-)
+from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
+from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
     from playwright.sync_api import Locator, Page

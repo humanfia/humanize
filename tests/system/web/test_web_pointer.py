@@ -14,7 +14,8 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, Browser, go, opened, served
+from tests.integration.doubles_web import Browser, served
+from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
     from pathlib import Path

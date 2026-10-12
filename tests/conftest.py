@@ -6,7 +6,8 @@ Three trees, one rule each:
   of what is tested; every other `hmz` package mocked. No subprocess, socket or network.
 - `tests/integration/test_<topic>_*.py` -- packages wired together against fakes this repo
   writes. CI runs each topic alone.
-- `tests/system/` -- real agents on real tasks. Never in CI; see `AGENTS.md`.
+- `tests/system/` -- real agents on real tasks, and the web page in real browsers. Never in
+  CI; see `AGENTS.md`.
 
 The autouse fixtures below keep a test out of the home, the daemon, the network and the
 sign-ins of whoever runs it. They reach into a few private names because resetting process
@@ -57,12 +58,17 @@ def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _no_real_agents(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hides every coding agent installed here. `tests/system` overrides this."""
+    hide_agents(_temporary, monkeypatch)
+
+
+def hide_agents(temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Hides every coding agent installed here, so a test that forgot its stand-in fails.
 
     humanize looks for a CLI on `PATH` and in `~/.local/bin`; both are narrowed to the
-    system's own directories and this Python's. `tests/system` overrides this.
+    system's own directories and this Python's.
     """
-    monkeypatch.setenv("HOME", tempfile.mkdtemp(prefix="home-", dir=_temporary))
+    monkeypatch.setenv("HOME", tempfile.mkdtemp(prefix="home-", dir=temporary))
     searched = [
         str(Path(sys.executable).parent),
         "/usr/bin",

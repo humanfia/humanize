@@ -100,7 +100,7 @@ uv run pytest
 ```
 
 Minutes. It leaves `tests/system` out: those tests drive real coding agent CLIs on real tasks
-for 5 to 30 minutes each, and spend real tokens. Your first patch does not need them.
+for 5 to 30 minutes each, and spend real tokens, or draw the web page in real browsers. Your first patch does not need them.
 
 ## Step 5: commit it
 
@@ -133,8 +133,7 @@ tests run for what your change touched:
 | | |
 | --- | --- |
 | `static` | Every pre-commit hook over every file, as in Step 4, and the package built |
-| `tests (<os>)` | `tests/unit/<package>` a package at a time, then `tests/integration/test_<topic>_*.py` a topic at a time but `web`, on Linux and macOS |
-| `web (<os>)` | `tests/integration/test_web_*.py`, on Linux and macOS |
+| `tests (<os>)` | `tests/unit/<package>` a package at a time, then `tests/integration/test_<topic>_*.py` a topic at a time, on Linux and macOS |
 | `ci-ok` | Green when every job above passed |
 
 A change to `docs/` also runs `build-docs` from `build-docs.yml`.

@@ -18,7 +18,7 @@ editing the title runs it alone; `main` needs it too.
 Every job starts at once. The organisation runs at most 20 jobs at a time, 5 of them on macOS,
 shared by every pull request and every run of the merge queue, and a job's setup outlasts most
 packages' tests. So the jobs are few: on each system one runs every package's unit tests and
-every topic's integration tests but `web`, and another runs `web`, the slowest. And each runs
+every topic's integration tests. And each runs
 only for what your change touched, which `changes` finds first: against the pull request's
 base, in the merge queue against `main`, and on a push to a release branch against the commit
 before it.
@@ -26,9 +26,8 @@ before it.
 ```text
 static      every hook, then the package ───────────────────────┐
 changes ─┬▶ tests    unit, a package at a time, then            │
-         │           integration, a topic at a time but web     │
-         │                                     × Linux, macOS ──┼─▶ ci-ok
-         ├▶ web      integration's web topic   × Linux, macOS ──┤
+         │           integration, a topic at a time             ├─▶ ci-ok
+         │                                     × Linux, macOS ──┤
          └▶ desktop  the macOS app, on macOS ───────────────────┘
 ```
 
@@ -51,8 +50,7 @@ the row in `ci.yml`'s `changes`.
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
 | `static` | Every pre-commit hook: `ruff`, `pyright` strict, `actionlint` and `zizmor` over `.github/`, and the file hygiene. Then the wheel and the sdist build, and PyPI would render `README.md`, so any commit on a `release/*` branch can be [released](/contributing/releasing) | `uv run pre-commit run --all-files`, then `uv build --no-sources && uvx twine check --strict dist/*` |
-| `tests (<os>)` | `tests/unit/<package>`, each directory under `tests/unit/` on its own; then `tests/integration/test_<topic>_*.py`, each of `core`, `agents`, `tui`, `daemon` and `anchor` on its own; each that the change touched. Skipped when the change touched none | `uv run pytest tests/unit/<package>`, `uv run pytest tests/integration/test_<topic>_*.py` |
-| `web (<os>)` | `tests/integration/test_web_*.py`. Skipped when the change did not touch it | `uv run pytest tests/integration/test_web_*.py` |
+| `tests (<os>)` | `tests/unit/<package>`, each directory under `tests/unit/` on its own; then `tests/integration/test_<topic>_*.py`, each of `core`, `agents`, `tui`, `daemon`, `anchor` and `web` on its own; each that the change touched. Skipped when the change touched none | `uv run pytest tests/unit/<package>`, `uv run pytest tests/integration/test_<topic>_*.py` |
 | `changes` | What the change touched, by the table above. Skipped on `release.yml`'s run, which runs everything | |
 | `desktop` | [The macOS app](/contributing/#the-macos-app) in `desktop/`: `cargo fmt --check`, `cargo clippy` with warnings as errors, `cargo test`, and the app built unoptimised, without the disk image. Skipped when `desktop/` is unchanged | the commands in [The macOS app](/contributing/#the-macos-app) |
 | `ci-ok` | Every job above passed, or was skipped as it says | |
@@ -60,16 +58,17 @@ the row in `ci.yml`'s `changes`.
 
 Every job but `desktop` runs on Python 3.12, from the environment `uv.lock` pins with every extra; the tests
 run on Linux and macOS. `tests/system` is never run here: it drives real agents for minutes a
-test and spends real tokens, so it is yours to run when your change needs it. [Where a test
-goes](/contributing/#where-a-test-goes) says when.
+test and spends real tokens, and `hmz web`'s page in real browsers, so it is yours to run when
+your change needs it. [Where a test goes](/contributing/#where-a-test-goes) says when.
 
-The `web` topic drives `hmz web`'s page in headless Chromium and in WebKit, the engine the
-macOS app's window draws it with: fetch both with `uv run playwright install chromium webkit`
-before running it.
+The `web` topic speaks HTTP to `hmz web` as a browser does, and opens no browser.
+`tests/system/web/` draws the page in headless Chromium and in WebKit, the engine the macOS
+app's window draws it with: fetch both with `uv run playwright install chromium webkit` before
+running it.
 
 A new package's directory under `tests/unit/` takes a `unit-<package>` filter in `changes`,
 and `tests` fails until it has one. A new topic takes a filter and a word in the `tests` job's
-list of topics; a file named for no topic in it, nor `web`, runs in no job.
+list of topics; a file named for no topic in it runs in no job.
 
 ## How long it takes
 
@@ -111,7 +110,7 @@ in an error on the run's summary.
   again.
 - **`static`** prints the diff each hook wants. Run `uv run pre-commit run --all-files`, commit
   what it changed, and push.
-- **A package or topic in `tests` or `web`.** Run the same command from the table above.
+- **A package or topic in `tests`.** Run the same command from the table above.
   Only that package's or topic's tests ran, so a test that leans on another's fails here and
   not in a plain `uv run pytest`: make it stand alone.
 - **A test fails on macOS alone.** Run it on a Mac, or ask on the pull request for somebody

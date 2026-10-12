@@ -1,6 +1,6 @@
 # Lint and the package, then the tests on Linux and macOS: on each system one job runs the unit
-# tests a package at a time and the integration tests a topic at a time, and another runs the
-# `web` topic, the slowest; the macOS app in desktop/ is built and tested on macOS. Each runs
+# tests a package at a time and the integration tests a topic at a time; the macOS app in
+# desktop/ is built and tested on macOS. Each runs
 # only for what the change touched: a package's unit tests when the package or its tests
 # changed, a topic when a package it runs or its tests changed, everything when what all the
 # tests share changed. Few jobs, because the organisation runs at most 20 at once and 5 of them on macOS,
@@ -8,8 +8,8 @@
 # needs, and the merge queue runs it again on each pull request as `main` will be once it
 # merges, so a push to `main`, already tested there, runs none of this: cache.yml saves the
 # caches these restore. A push to a `release/*` branch runs it, on what the push changed.
-# title.yml checks the pull request's title. `tests/system` runs real agents and is never run
-# here. docs/contributing/ci.md has the rest.
+# title.yml checks the pull request's title. `tests/system` runs real agents, and the web page
+# in real browsers, and is never run here. docs/contributing/ci.md has the rest.
 
 name: ci
 
@@ -105,7 +105,7 @@ jobs:
               - src/hmz/**
               - tests/integration/*_anchor*.py
               - tests/integration/doubles_core.py
-            web:
+            integration-web:
               - *shared
               - src/hmz/**
               - tests/integration/*_web*.py
@@ -199,7 +199,7 @@ jobs:
 
       # Two workers a vCPU: these tests wait on subprocesses, sockets and pseudoterminals far
       # more than they compute, and `-n auto` alone counts physical cores.
-      - name: pytest tests/integration/test_<topic>_*.py, a topic at a time, but web
+      - name: pytest tests/integration/test_<topic>_*.py, a topic at a time
         if: ${{ !cancelled() }}
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}
@@ -207,7 +207,7 @@ jobs:
         run: |
           export PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN)))
           status=0
-          for topic in core agents tui daemon anchor; do
+          for topic in core agents tui daemon anchor web; do
             if [[ $EVENT != workflow_dispatch && $CHANGES != *"\"integration-$topic\""* ]]; then
               echo "integration $topic: unchanged"
               continue
@@ -218,38 +218,6 @@ jobs:
             echo "::endgroup::"
           done
           exit "$status"
-
-  # The `web` topic, apart: the slowest, and it fetches browsers.
-  web:
-    name: web (${{ matrix.os }})
-    needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"web"')) }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          python-version: "3.12"
-          # Restores what cache.yml saved on `main`, and writes nothing.
-          save-cache: false
-
-      # The web interface's page is driven in real browsers, which Playwright fetches: Chromium,
-      # and WebKit, which the macOS app's window draws the page with.
-      - name: playwright install chromium webkit
-        run: uv run --frozen --all-extras playwright install --with-deps chromium webkit
-
-      - name: pytest tests/integration/test_web_*.py
-        run: |
-          PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN))) \
-            uv run --frozen --all-extras pytest tests/integration/test_web_*.py --durations=25
 
   # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
   # as a release builds it, but unoptimised and without the disk image.
@@ -302,12 +270,12 @@ jobs:
 
   ci-ok:
     if: always()
-    needs: [changes, static, tests, web, desktop]
+    needs: [changes, static, tests, desktop]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           # `changes` on a dispatch, and what the change left alone.
-          allowed-skips: changes, tests, web, desktop
+          allowed-skips: changes, tests, desktop
           jobs: ${{ toJSON(needs) }}

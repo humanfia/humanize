@@ -57,7 +57,7 @@ jobs:
               - desktop/**
               - .github/workflows/cache.yml
 
-  # ci.yml's `static`, `tests` and `web` read these.
+  # ci.yml's `static` and `tests` read these.
   python:
     name: python (${{ matrix.os }})
     needs: changes

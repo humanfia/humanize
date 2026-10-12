@@ -19,7 +19,8 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import AGENT, install
-from tests.integration.doubles_web import ENGINES, Browser, go, opened, served, until
+from tests.integration.doubles_web import Browser, served, until
+from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
     from collections.abc import Callable
