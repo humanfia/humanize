@@ -117,6 +117,21 @@ class Settings:
         """Writes down which agent `/btw` asks, or "" to go back to the flow's first."""
         self._sets("btw", spec)
 
+    @property
+    def every_epic(self) -> bool:
+        """Whether `/epics` lists the epics of this whole machine rather than this directory's.
+
+        This machine's rather than a workspace's, as `details` is: it is how whoever is at it
+        likes to look back, whichever project they are standing in. Off unless somebody says
+        otherwise, since the epics somebody opens the list for are mostly the ones run here.
+        """
+        return self._held.get("every_epic") is True
+
+    @every_epic.setter
+    def every_epic(self, on: bool) -> None:
+        """Writes down whether `/epics` lists the epics of this whole machine."""
+        self._sets("every_epic", on)
+
     def answers(self, *, enable_sentry: bool) -> None:
         """Writes down whether humanize reports its own failures.
 
