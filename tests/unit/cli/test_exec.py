@@ -61,6 +61,7 @@ _LINE = SimpleNamespace(
     budget={"cost": 5.0},
     profile=False,
     resume=False,
+    backup=None,
 )
 
 
@@ -97,11 +98,41 @@ def test_exec_runs_the_flow_the_line_names(
         budget={"cost": 5.0},
         profile=False,
         resume=False,
+        backup=None,
     )
     running: _Running = runtime.run.return_value
     assert len(running.watched) == 1
     assert capsys.readouterr().err == ""
     crash.assert_not_called()
+
+
+def test_the_epics_backups_are_waited_for_once_the_run_is_over(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    waited: list[float] = []
+
+    def wait(seconds: float) -> bool:
+        waited.append(seconds)
+        return len(waited) > 1
+
+    runtime.backups.wait.side_effect = wait
+    runtime.run.return_value = _Running(lambda run: sys.stdout.write("answered\n"))
+
+    assert main(["exec", "x"]) == 0
+    said = capsys.readouterr()
+    assert said.out == "answered\n"
+    assert said.err == "hmz exec: backing the epic up\n"
+    assert waited[0] == 0
+    assert waited[1] > 0
+
+
+def test_a_backup_that_does_not_finish_is_left_and_said(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runtime.backups.wait.return_value = False
+
+    assert main(["exec", "x"]) == 0
+    assert "was left; `hmz backup EPIC` sends it again" in capsys.readouterr().err
 
 
 def test_what_the_run_notices_is_said_aside(

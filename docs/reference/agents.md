@@ -118,7 +118,7 @@ All classes are importable from `hmz.coganchor.agents`.
 | Web off | `Profile.searches` | `web_search=False` can be said |
 | Rungs | `AgentBase.rungs` | which [rungs](#what-an-agent-may-do) the backend takes |
 | Fast tier | `AgentBase.service_tiers` | `service_tier="fast"` is served |
-| Tools | `SessionBase.takes_tools` | Python callbacks can be offered as tools |
+| Tools | `SessionBase.takes_tools`; `FakeToolAgentMixin` | Python callbacks can be offered as tools; a flow's as [fake tools](/reference/flows#fake-tools) |
 | Trace | `_READERS` in `hmz.runtime.tracing.collector` | `Hmz().epics.trace()` reads its logs |
 
 The flow mixins are what a role typed as that harness may declare; the driver columns are what
@@ -1101,7 +1101,8 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 ## Callback tools {#callbacks-as-tools}
 
 `session.offers([Tool(name, about, call, takes=None)])` gives the agent a tool whose call runs
-`call` in this process; `offers(None)` withdraws them. Not available to flows.
+`call` in this process; `offers(None)` withdraws them. A flow offers them by declaring
+[`FakeTool`s](/weaver/tools#fake-tools) in a role's `_tools`.
 
 | `Tool` field | Meaning |
 | --- | --- |
@@ -1110,11 +1111,13 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 | `takes` | a pydantic model of its arguments, or `None` for none |
 | `call` | called with the model (or nothing); its return value goes back as text; raising is the tool failing |
 
-- Served by `claude` (`--mcp-config`), `codex` (`-c mcp_servers.humanize.…`), `pi`
-  (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under `--no-extensions` too),
-  `omp` (RPC `set_host_tools`) and `dsh` (a `@deepseek-ai/dsh-mcp-client` row in its patch,
-  tools named `mcp__humanize__<name>`) (`session.takes_tools`); elsewhere
-  `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
+- Served where `session.takes_tools`: `claude` (`--mcp-config`), `codex`
+  (`-c mcp_servers.humanize.…`), `qwen` (`mcpServers.humanize`, `trust: true`, in its
+  `QWEN_CODE_SYSTEM_SETTINGS_PATH` file; the user's `mcp.allowed`/`mcp.excluded` and folder
+  trust still apply), `pi` (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under
+  `--no-extensions` too), `omp` (RPC `set_host_tools`) and `dsh` (a
+  `@deepseek-ai/dsh-mcp-client` row in its patch, tools named `mcp__humanize__<name>`);
+  elsewhere `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
 - The road is MCP: the CLI is given `hmz internal tools --at <socket>`, which `pi`'s extension
   starts itself. `omp` asks for each call back over its own RPC pipe instead. Tools are per
   agent.
@@ -1611,6 +1614,9 @@ one.
   shared by concurrent sessions at that effort, under one `hmz-qwen-*` temporary directory.
   A `QWEN_CODE_SYSTEM_DEFAULTS_PATH` of the user's is watched for changes; settings the driver
   cannot parse keep a fresh process per turn.
+- An agent offering [callback tools](#callbacks-as-tools) or serving a `PRE_TOOL_USE` table gets
+  a settings file of its own instead; the tools go in as `mcpServers.humanize`, and a change in
+  which names are offered restarts the process.
 - Usage counts each assistant message once; the terminal summary fills only missing fields.
 
 ## A CLI of your own {#a-cli-of-your-own}

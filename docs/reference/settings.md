@@ -13,6 +13,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | accounts | `H/providers/<cli>/<name>/provider.json`; CLIs added by hand under [`clis`](#clis) in `H/settings.yaml` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
 | runtimes | [`runtimes`](#runtimes) in `H/settings.yaml` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
 | fallbacks | [`fallbacks`](#fallbacks) in `H/settings.yaml` | this machine | Fallback | this page |
+| backups | [`backup`](#backup) in `H/settings.yaml`; clones cached under `hmz.machine()/backup/<name>/` | this machine | none yet: `settings.yaml` | this page |
 | flowverses | `H/flowverses/<name>/index/` (index clones), `H/flowverses/<name>/installed/[<user>/]<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
 
 `H` is `$HUMANIZE_HOME`, else `~/.hmz`. A workspace is identified by its absolute,
@@ -56,6 +57,14 @@ clis:                              # this machine; added on the Accounts page
 runtimes:                          # this machine; the Runtimes page
   ssh:
     gpu-box: {host: 10.0.0.2, user: you, port: 0, ...}
+backup:                            # this machine
+  targets:
+  - name: lab
+    url: git@github.com:you/epics.git
+    branch: main
+    policies: [session, interval, end]
+    every: 30
+  defaults: [lab]
 ```
 
 ### Machine settings
@@ -202,13 +211,32 @@ runtimes:
       workdir: /lustre/me/project
 ```
 
+### `backup`
+
+The git repositories [epics are backed up to](/user/backups), written by
+`Hmz().settings.back_up_to(targets, defaults)` and read by every process that runs an epic, as
+the epic starts.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `targets[].name` | `str`: a letter or digit, then letters, digits, `-` and `_`, 32 at most | **required** | What `--backup`, `--to` and `defaults` name it. Unique. |
+| `targets[].url` | `str` | **required** | Where git pushes to, with this machine's own ssh key or credential helper. |
+| `targets[].branch` | `str` | `main` | The branch epics are committed to; made where the repository has none. |
+| `targets[].policies` | list of `session`, `interval`, `end` | `[]`: by hand only | When an epic is backed up there unasked. |
+| `targets[].every` | `int` ≥ 1 | `30` | Minutes between `interval` backups of a running epic. |
+| `defaults` | list of target names | `[]` | The targets an epic goes to when it is started without saying. |
+
+A target that does not validate is skipped as the file is read, and a default naming no target
+is dropped; `back_up_to` refuses both with `ValueError` and writes nothing. Each backup's
+outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why`).
+
 ## File behaviour
 
 | Behaviour | Rule |
 | --- | --- |
 | Missing, unreadable, invalid YAML, not a mapping | read as empty; never prevents a start |
 | Unknown keys | kept at the top level and in a workspace entry; a flow's entry is replaced whole when `/flow` is saved |
-| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace removed, or the whole of `fallbacks`, `clis` or one runtime); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is never written over: it is left for whoever is editing it to correct. |
+| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace removed, or the whole of `fallbacks`, `clis`, `backup` or one runtime); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is never written over: it is left for whoever is editing it to correct. |
 | Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params`, `budget` and `profile` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
 | Write failure, or a file that does not read as a mapping | a `Settings` holds the change in memory and writes nothing; a fallback, added CLI or runtime is refused with `OSError` |
 

@@ -6,8 +6,9 @@ it was set up with, what a run of it may spend and whether that run is profiled 
 driven by one flow on two agents is driven by them again tomorrow, rather than falling back to
 the default every time it is opened. Beside those is the handful of settings
 that are not a workspace's at all, which is what `enable_sentry` is: whether humanize reports
-its own failures, answered once and true wherever it is run from -- and `details`, whether the
-interface shows the working of each turn.
+its own failures, answered once and true wherever it is run from -- `details`, whether the
+interface shows the working of each turn, and `backup`, the git repositories epics are backed
+up to.
 
 A leaf rather than part of the interface, for the reason the agents kept under a name are one:
 the interface writes these and a command line has to be able to read them without loading the
@@ -28,21 +29,50 @@ set up, and remembered here against that flow's own name for it.
 from __future__ import annotations
 
 import copy
+import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import yaml
 
 from hmz.runtime.kept import Runs, read_back, written
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
 
-__all__ = ["Settings"]
+__all__ = ["POLICIES", "Settings", "Target"]
+
+#: When an epic is backed up to a target without anybody asking: as each of its sessions
+#: closes, every `every` minutes while it runs, and once it has ended. None of them is
+#: backing up by hand only, which is what a target nobody said otherwise of does.
+POLICIES = ("session", "interval", "end")
+
+#: What a backup target may be called: one short word, since it is a directory and a flag.
+_NAMED = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}")
 
 #: Where the file says how it spells an environment, which every write writes: see
 #: :data:`hmz.coganchor.machines.store.SPELLING`.
 _SPELLING = "spelling"
+
+
+class Target(NamedTuple):
+    """One git repository epics are backed up to.
+
+    Attributes:
+      name: What it is called, one short word and nobody else's.
+      url: Where it is, as git reaches it -- through this machine's own ssh or credential
+        helper, with nothing signed in here.
+      branch: The branch epics are committed to, made where the repository has none.
+      policies: When an epic is backed up there without anybody asking, of
+        :data:`POLICIES`; none is by hand only.
+      every: How many minutes apart `interval` backs a running epic up.
+    """
+
+    name: str
+    url: str
+    branch: str = "main"
+    policies: tuple[str, ...] = ()
+    every: int = 30
 
 
 class Settings:
@@ -139,6 +169,65 @@ class Settings:
           enable_sentry: What was answered.
         """
         self._sets("enable_sentry", enable_sentry)
+
+    def backups(self) -> tuple[tuple[Target, ...], tuple[str, ...]]:
+        """The git repositories epics are backed up to, and those a new epic goes to.
+
+        This machine's rather than a workspace's: where its epics go is the same wherever
+        they were run. A target that cannot be read is left out, and so is a default naming
+        no target there is.
+
+        Returns:
+          Every target, in the order written, and the names of the defaults among them.
+        """
+        held = _mapping(self._held.get("backup"))
+        targets: dict[str, Target] = {}
+        for raw in _listed(held.get("targets")):
+            try:
+                one = _target(raw)
+            except ValueError:
+                continue
+            targets.setdefault(one.name, one)
+        defaults = (str(one) for one in _listed(held.get("defaults")))
+        return tuple(targets.values()), tuple(
+            dict.fromkeys(one for one in defaults if one in targets)
+        )
+
+    def back_up_to(
+        self,
+        targets: Iterable[Target | Mapping[str, Any]],
+        defaults: Iterable[str] = (),
+    ) -> None:
+        """Writes down every git repository epics are backed up to, and the defaults.
+
+        Args:
+          targets: Every target there is from now on, as a `Target` or as the file holds one.
+          defaults: Which of them a new epic is backed up to unless it is told otherwise.
+
+        Raises:
+          ValueError: For a target that is not one -- no URL, a name that is no short word or
+            is another's, a policy there is none of, minutes that are not a whole number -- or
+            a default naming none of them. Nothing is written then.
+        """
+        kept: dict[str, Target] = {}
+        for raw in targets:
+            one = _target(raw._asdict() if isinstance(raw, Target) else raw)
+            if one.name in kept:
+                raise ValueError(f"two backup targets are named {one.name}")
+            kept[one.name] = one
+        named = list(dict.fromkeys(str(one) for one in defaults))
+        if missing := [one for one in named if one not in kept]:
+            raise ValueError(f"no backup target is named {', '.join(missing)}")
+        self._sets(
+            "backup",
+            {
+                "targets": [
+                    {**one._asdict(), "policies": list(one.policies)}
+                    for one in kept.values()
+                ],
+                "defaults": named,
+            },
+        )
 
     def forget(self, workspace: str = "") -> bool:
         """Forgets what one workspace was set up to run, leaving everything else as it is.
@@ -478,6 +567,37 @@ def _respell(held: dict[str, Any]) -> None:
     """
     if _SPELLING not in held:
         _respelled(held)
+
+
+def _target(raw: object) -> Target:
+    """One backup target, read out of what the file or a caller says of it.
+
+    Raises:
+      ValueError: Why it is not one.
+    """
+    said = _mapping(raw)
+    name = str(said.get("name") or "")
+    if not _NAMED.fullmatch(name):
+        raise ValueError(f"a backup target is named by one short word, not {name!r}")
+    url = str(said.get("url") or "").strip()
+    if not url:
+        raise ValueError(f"backup target {name} has no URL")
+    policies = tuple(dict.fromkeys(str(one) for one in _listed(said.get("policies"))))
+    if wrong := [one for one in policies if one not in POLICIES]:
+        raise ValueError(
+            f"backup target {name} has no policy {', '.join(wrong)}: "
+            f"there are {', '.join(POLICIES)}"
+        )
+    every = said.get("every", 30)
+    if isinstance(every, bool) or not isinstance(every, int) or every < 1:
+        raise ValueError(f"backup target {name}: every is a whole number of minutes")
+    branch = str(said.get("branch") or "main").strip() or "main"
+    return Target(name, url, branch, policies, every)
+
+
+def _listed(held: object) -> list[Any]:
+    """One value of the file as the list it is, and an empty one where it is not one."""
+    return list(cast("list[Any]", held)) if isinstance(held, list | tuple) else []
 
 
 def _mapping(held: object) -> dict[str, Any]:

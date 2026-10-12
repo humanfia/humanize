@@ -21,6 +21,7 @@ hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz update                             update hmz to its newest release
+hmz backup <epic> [--to <target>]...   back an epic up to git repositories now
 hmz internal <command> [<args>...]     processes humanize spawns for itself
 ```
 
@@ -30,6 +31,7 @@ hmz internal <command> [<args>...]     processes humanize spawns for itself
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
 | [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
+| [`backup`](#hmz-backup) | `_backup` | `back an epic up to git repositories now` |
 | [`internal`](#hmz-internal) | `_internal` | `internal commands used by humanize; do not run directly` |
 
 `python -m hmz` is the same program. The console script is `hmz = "hmz.cli:main"`.
@@ -45,14 +47,14 @@ thirty words. This page is the full account of each.
 | --- | --- | --- |
 | empty | [Opens the interface](#hmz). | `0`, or `1` (see below) |
 | exactly `["--version"]` | Prints `hmz <version>` (from the installed distribution's metadata) to stdout. | `0` |
-| first word is `exec`, `web`, `update` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
+| first word is `exec`, `web`, `update`, `backup` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
 | `-h` or `--help` first | Prints the top-level help. | `0` |
 | anything else | argparse usage error on stderr (below). | `2` |
 
 ```console
 $ hmz bogus
 usage: hmz [-h] COMMAND ...
-hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, update, internal)
+hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, update, backup, internal)
 ```
 
 `hmz --version <anything>` is not the version form and fails the same way.
@@ -110,6 +112,7 @@ with no interface. The run's [outworlder](#nobody-is-at-the-prompt) is always aw
 ```text
 usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
                 [-p KEY=VALUE[,...]] [--profile] [--resume] [--json]
+                [--backup NAME]
                 task
 ```
 
@@ -124,6 +127,7 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | <span id="exec-profile"></span>`--profile` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
+| <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. Once the run has said how it went, `hmz exec` waits up to 60 s for the epic's backups, saying `hmz exec: backing the epic up` on stderr, and says where it left one. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | <span id="exec-task"></span>`task` | positional string | exactly 1 (**required**) | — | What the flow is to do. Put `--` before a task that starts with `-`. |
 
@@ -592,6 +596,26 @@ interface](/reference/tui) in a line as it opens, the [web interface](/reference
 | PyPI did not answer, or `HUMANIZE_RELEASES=off` | stderr `hmz update: PyPI could not be asked for the newest release` | `1` |
 | The installer failed | stderr `hmz update: <installer> exited <status>` | `1` |
 | The installer left another version | stderr `hmz update: <installer> left hmz at <version>, not <new>` | `1` |
+
+## `hmz backup` {#hmz-backup}
+
+```text
+usage: hmz backup [-h] [--to NAME] epic
+```
+
+Backs one epic of this directory -- by its name, or by its path -- up to
+[git repositories](/user/backups) now, waits for it, and says how each target took it.
+
+| Option | Value | Occurrences | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `epic` | the epic's name or path | exactly 1 | — | The epic. |
+| `--to` | a [backup target](/reference/settings#backup) name | 0‥n | the targets the epic was started with, else `backup.defaults` | Where it goes. |
+
+| Condition | Output | Exit |
+| --- | --- | --- |
+| Every target took it | stdout `<target>: backed up to <url>`, the URL with anything signed into it taken out | `0` |
+| A target did not | stderr `<target>: failed: <why>` | `1` |
+| No such epic, no such target, or no target at all | argparse usage error on stderr | `2` |
 
 ## `hmz internal` <Badge type="warning" text="not typed by hand" /> {#hmz-internal}
 
