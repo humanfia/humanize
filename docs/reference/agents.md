@@ -1110,9 +1110,14 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 | `takes` | a pydantic model of its arguments, or `None` for none |
 | `call` | called with the model (or nothing); its return value goes back as text; raising is the tool failing |
 
-- Served by `claude` (`--mcp-config`) and `codex` (`-c mcp_servers.humanize.…`)
-  (`session.takes_tools`); elsewhere `NotImplementedError: <cli> has no way of being given a
-  tool of a flow's own`.
+- Served by `claude` (`--mcp-config`), `codex` (`-c mcp_servers.humanize.…`), `grok` and an
+  ACP CLI (a `humanize` stdio server in the `mcpServers` of the call that opens the
+  conversation) (`session.takes_tools`); elsewhere `NotImplementedError: <cli> has no way of
+  being given a tool of a flow's own`.
+- Changing the offered names restarts the process and picks the conversation back up; an ACP
+  CLI serving neither `session/resume` nor `session/load` fails that turn instead.
+- `grok` serves them on held-open turns only: a turn that needs `grok -p` (a shape, a fork, and
+  the rest under [Grok Build](#grok-build)) is refused with `Unrecoverable` while any are offered.
 - The road is MCP: the CLI is given `hmz internal tools --at <socket>`. Tools are per agent.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
 
@@ -1413,7 +1418,8 @@ effort goes in the handshake.
 model, an effort, an approval, an agent profile, a plugin directory and the leader. A
 tool-withholding rung, `web_search=False`, a network-cutting fence, a shape, a fork, or any field
 below but `leader` set away from default sends the turn to
-`grok -p --output-format streaming-json --resume <id> …` instead.
+`grok -p --output-format streaming-json --resume <id> …` instead. `grok -p` takes no MCP
+server, so such a turn is refused while [callback tools](#callbacks-as-tools) are offered.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -1647,7 +1653,7 @@ cannot be steered, has no goal, reports no usage and has no trace.
 | `reads_files` | `bool` | serve `fs/read_text_file` from this machine |
 | `writes_files` | `bool` | serve `fs/write_text_file` |
 | `terminals` | `bool` | serve `terminal/*` (start, read, wait, kill) |
-| `mcp_servers` | `tuple[McpServer, ...]` | MCP servers added to the agent's own |
+| `mcp_servers` | `tuple[McpServer, ...]` | MCP servers added to the agent's own; [callback tools](#callbacks-as-tools) add a `humanize` one |
 
 The first three are refused for an agent under a native anchor. Under a fence, what this
 client does for the agent is held to the same fence: a refused file or path is answered with
