@@ -120,6 +120,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
+- MUST offer `Upload` on every epic, which backs it up now to the targets it was started with,
+  else the defaults, answering at once with the targets it was queued for -- never waiting on a
+  push -- and MUST say how its last backup to each target went, as it is read again.
 - MUST serve a run's Exomyth timeline as `runtime/tracing` lays it out, and each span of it whole
   by its id, refusing an id it does not have as not found. A run that has ended MUST be laid
   out once until its record changes, the last few kept; a run still going MUST be laid out
@@ -131,8 +134,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   it as it is started.
 - MUST start a run in the workspace picked -- any it serves, or one opened by its path,
   completed as it is typed -- as that workspace last set its flow up -- its agents,
-  environments, params, budget and profiling -- and pick a run up, in its own workspace, as
-  that run was started.
+  environments, params, budget and profiling -- backed up to the default targets unless others
+  are picked, and pick a run up, in its own workspace, as that run was started.
 - MUST set an agent up as the terminal interface does, a step at a time: a CLI installed here
   that can fill the role, the account it runs as -- this machine's own or one made, and a way to
   make one -- a model known runnable as that account, asking the CLI where none is known yet and
@@ -151,8 +154,9 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   an epic runs on the machine.
 - MUST offer what the runs spent by day and by flow -- of every workspace or of one -- and the
   pages `/settings` has: general, accounts -- correcting an account with what is left blank
-  kept, never a value shown -- fallback, runtimes and the workspace, for any workspace it
-  serves. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
+  kept, never a value shown -- fallback, runtimes, backup -- every target, its policies and
+  whether it is a default, a URL never shown with anything signed into it -- and the workspace,
+  for any workspace it serves. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
   run.
 - MUST name what it draws -- a button, a tab, a menu's choice, a heading, a field -- by a word
   or a short phrase, never a sentence, and MUST call a run of a flow an epic.

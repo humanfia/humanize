@@ -14,7 +14,7 @@ import { ask } from '../held.js'
 import { live, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, dragged, keep, kept, sidePanel, tabbed } from '../shell.js'
-import { epicMenu } from '../sidebar.js'
+import { backedSaid, epicMenu, upload } from '../sidebar.js'
 import { copy, menuOn } from '../ui.js'
 import { saidTraced, sayer } from '../transcript.js'
 
@@ -122,12 +122,14 @@ export function mount(root, { parts, query }) {
     const going = Boolean(run && run.live)
     const state = run ? (run.ended ? run.ended.how : run.state === 'stopping' ? 'stopping' : run.live ? 'running' : detail.how) : detail.how
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
-    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state], () => {
+    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed], () => {
       const actions = []
       if (going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(workspace(), 'stop') }))
       else if (going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(workspace(), 'force') }))
       if (!going && detail.picks_up) actions.push(h('a', { class: 'btn', href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, icon('resume'), 'Resume'))
       if (!going) actions.push(h('a', { class: 'icon-btn', href: `/api/runs/${encodeURIComponent(detail.name)}/bundle`, download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
+      // How each target last took it, said on hover; read again as the epic is.
+      actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Upload', title: backedSaid(detail.backed) || 'Upload', 'data-hmz': 'upload', onclick: () => upload(detail.name) }, icon('up')))
       actions.push(copier('Copy link', () => location.href))
       actions.push(panel.toggle)
       const base = `#/epics/${encodeURIComponent(detail.name)}`

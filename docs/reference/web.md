@@ -140,7 +140,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/flows[?workspace=&flow=]` | The flows on offer in a workspace, one opened. |
 | `#/flows?tab=verses[&verse=]` | The flowverses, one opened. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
-| `#/settings/<page>[?days=]` | A dialog: `general`, `accounts`, `fallback`, `runtimes`, `workspace` or `usage`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
+| `#/settings/<page>[?days=]` | A dialog: `general`, `themes`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace` or `usage`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
 
 The page keeps a few conveniences in the browser's `localStorage`, each forgotten without
 harm: the colours chosen as `hmz-theme` (`light`, `dark`, or absent for the system's), a sidebar
@@ -158,7 +158,7 @@ JSON in and out. A `POST` takes a JSON object, `{}` where nothing is sent.
 | --- | --- | --- |
 | `GET /api/held` | | `machine` (this machine's name), `here` (where `hmz web` started), `version`, `newer` (a newer release of `hmz` PyPI lists, asked as `hmz web` starts and at most once a day, or `""`), `running` (`{workspace: run}`: the [`run` snapshot](/reference/daemon#snapshots) of each workspace whose epic is going, or what its host's `status` says of it) |
 | `GET /api/held/stream` | `?workspace=`; `Last-Event-ID` header, or `?last=` | [The stream](#stream) of that workspace's runs, attaching to them |
-| `POST /api/held/start` | `workspace`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile` (bool); `resume` (bool, or an epic) | The host's answer: `run` |
+| `POST /api/held/start` | `workspace`; `flow`, `task` (both required); `agents`, `envs` (`{role: spec}`); `params`, `budget` (object or `null`); `profile` (bool); `resume` (bool, or an epic); `backup` (target names, `[]` for none; `null`, the default, for the defaults) | The host's answer: `run` |
 | `POST /api/held/say` | `text`; `to` (`""`, a role, `<role>/<n>`, or `outworlder:<role>`, routed as [`say` routes it](/reference/daemon#say-routing)) | The host's answer |
 | `POST /api/held/answer` | `question`, `text` | The host's answer |
 | `POST /api/held/stop`, `/force` | | The host's answer |
@@ -191,13 +191,15 @@ asks one, through the same side conversations: a second question to one still an
 | `GET /api/runs/<name>/timeline` | | The run's [Exomyth timeline](/reference/tracing#timeline): compact JSON, with an `ETag`. A run that has ended is laid out once, the last **4** kept until its journal changes; a run going is laid out again on every request |
 | `GET /api/runs/<name>/timeline/span/<id>` | `layout` (the timeline's own) | [One span](/reference/tracing#timeline-span) of the last timeline laid out of the run, whole; `404` for an id it does not have, `409` where `layout` is not the last timeline's |
 | `GET /api/runs/<name>/bundle` | | The run's [export](/reference/tracing), as a download |
+| `POST /api/runs/<name>/backup` | `to` (target names; the run's own, else the defaults, without) | `queued`: the targets it was [backed up](/user/backups) to, on threads of their own -- nothing waits for the push; `400` for a target there is none of, `409` where there is no target at all |
 | `GET /api/usage` | `days` (`30`; 1 to 365); `workspace` (only its runs) | `days` (per UTC day, oldest first), `flows` (costliest first), `ended` (`{how: n}`), `whole`: each with `runs`, `cost`, `output_tokens`, `seconds`, and `money`, `tokens`, `worked` as the terminal interface says them |
 
 A row is `name`, `flow`, `task` (its first line, cut at 240 characters), `began`, `ended`,
 `how` (as the run ended; `running` for the run going, `unfinished` for one that never said),
 `agents` (`[{role, runs}]`), `sessions` (a count), `resumable`, `held` (whether it is the run
-going) and `spent`: what its budget counted as it ended, or `null`. A run of no such name is
-`404`.
+going), `spent`: what its budget counted as it ended, or `null`, `backup` (the targets it was
+started with) and `backed` (`{target: {at, ok, error, why}}`: how its last backup to each
+went). A run of no such name is `404`.
 
 ### Flows {#api-flows}
 
@@ -224,8 +226,8 @@ going) and `spent`: what its budget counted as it ended, or `null`. A run of no 
 
 | Method and path | Takes | Answers |
 | --- | --- | --- |
-| `GET /api/settings` | `workspace` | `workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (set up here) |
-| `POST /api/settings` | any of `btw` (text), `details`, `reports` (bool) | As `GET` |
+| `GET /api/settings` | `workspace` | `workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (set up here), `backup` (`targets`: each `name`, `url` with nothing signed into it, `branch`, `policies`, `every`; `defaults`) |
+| `POST /api/settings` | any of `btw` (text), `details`, `reports` (bool), `backup` (`{targets, defaults}`, every one of them; a `url` sent back as `GET` showed it keeps the one written) | As `GET`; `400`, and nothing written, for a target that is not one |
 | `POST /api/settings/forget` | `workspace` | `forgot` (whether there was anything), and as `GET` |
 | `GET /api/accounts` | | `accounts` (`cli`, `name`, `way`, `sets`, `made`, `models`, `asked`, `serves`) and `backends` (each CLI's `ways`: `name`, `about`, `terminal`, `asks`) |
 | `POST /api/accounts` | `cli`, `name`, `way`; `answers` (`{variable: value}`) | As `GET`. A way whose `terminal` is true is refused: it runs the CLI's own sign-in. |

@@ -13,7 +13,7 @@ const menus = new WeakMap()
  *
  * @param {Element} el The thing.
  * @param {() => (Item|null|false|'-')[]} items What it offers, as `{label, glyph, act, href,
- *   danger}`, a `'-'` between groups, or a `{head}` saying what the menu is about.
+ *   danger, title}`, a `'-'` between groups, or a `{head}` saying what the menu is about.
  * @returns {Element} The thing.
  */
 export function menuOn(el, items) {
@@ -69,7 +69,7 @@ function open(items, x, y) {
       continue
     }
     const kids = [h('span', { class: 'choice-mark', 'aria-hidden': 'true' }, one.glyph ? icon(one.glyph) : null), h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, one.label))]
-    const item = one.href ? h('a', { class: ['choice', one.danger && 'danger'], role: 'menuitem', href: one.href }, kids) : h('button', { class: ['choice', one.danger && 'danger'], type: 'button', role: 'menuitem', disabled: one.disabled }, kids)
+    const item = one.href ? h('a', { class: ['choice', one.danger && 'danger'], role: 'menuitem', href: one.href, title: one.title || null }, kids) : h('button', { class: ['choice', one.danger && 'danger'], type: 'button', role: 'menuitem', disabled: one.disabled, title: one.title || null }, kids)
     item.addEventListener('click', () => {
       close()
       if (one.act) one.act()

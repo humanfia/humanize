@@ -76,7 +76,9 @@ $ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 --backup lab --backup ho
 $ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 --backup none "hi"
 ```
 
-The epic remembers which targets it was started with.
+The epic remembers which targets it was started with. In [`hmz web`](/user/web), add and change
+targets under **Settings → Backup**, and pick an epic's under **Options → Backup** as you start
+it, the defaults ticked.
 
 ## Backing an epic up by hand
 
@@ -87,6 +89,9 @@ $ hmz backup 20261012T091500.123Z-1a2b3c --to home
 ```
 
 Without `--to`, the epic goes to the targets it was started with, else to the defaults.
+
+In [`hmz web`](/user/web), **Upload** in an epic's menu, or at the top of the epic, does the same
+without waiting for it; hover it for how the last backup to each target went.
 
 ## Check that it worked
 

@@ -24,7 +24,16 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 #: Every settings page, by the word its address ends in.
-_PAGES = ("general", "themes", "accounts", "fallback", "runtimes", "workspace", "usage")
+_PAGES = (
+    "general",
+    "themes",
+    "accounts",
+    "fallback",
+    "runtimes",
+    "backup",
+    "workspace",
+    "usage",
+)
 
 #: What the macOS app's window says it is: WKWebView, and the app.
 _APP = (
@@ -673,6 +682,55 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         page.get_by_role("button", name="Copy link").click()
         expect(page.get_by_role("button", name="Copied")).to_be_visible()
         assert page.evaluate("navigator.clipboard.readText()") == page.url
+
+
+def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
+    project: Path, engine: str
+) -> None:
+    import subprocess
+
+    bare = project.parent / "epics.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    with served() as site, opened(site, engine=engine) as page:
+        _go(page, "/settings/backup")
+        writing = page.locator("[data-hmz=write-backup]")
+        writing.get_by_label("Name").fill("t")
+        writing.get_by_label("Repository").fill(str(bare))
+        writing.get_by_role("button", name="Save").click()
+        listed = page.locator("[data-hmz=backup-target][data-name=t]")
+        expect(listed).to_contain_text("Manual")
+        listed.locator("[data-hmz=backup-default]").check()
+        expect(listed.locator("[data-hmz=backup-default]")).to_be_checked()
+        page.keyboard.press("Escape")
+
+        _go(page, "/new?flow=chat")
+        page.get_by_role("button", name="Options").click()
+        expect(page.locator("[data-hmz=backup] input[value=t]")).to_be_checked()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_value("claude-haiku-4-5")
+        page.locator("[data-hmz=composer-text]").fill("back me up")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/assistant%2F1$"))
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopped")
+        )
+
+        page.locator("[data-hmz=bar] .bar-title").click(button="right")
+        page.get_by_role("menuitem", name="Upload").click()
+        expect(page.locator(".toast")).to_have_text("Uploading to t")
+        expect(page.locator("[data-hmz=upload]")).to_have_attribute(
+            "title", re.compile(r"^t: uploaded")
+        )
+        log = subprocess.run(
+            ["git", "--git-dir", str(bare), "log", "--format=%s", "main"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert re.fullmatch(r"Back up epic \S+ \(manual\)\n", log.stdout)
 
 
 @pytest.mark.parametrize(("width", "dark"), [(1280, False), (390, True)])
