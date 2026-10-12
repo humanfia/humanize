@@ -39,6 +39,7 @@ __all__ = [
     "FAULTS",
     "LITELLM_SDK",
     "PROFILES",
+    "ROUTED",
     "SIGNS",
     "SWARM",
     "UNKNOWN",
@@ -62,9 +63,11 @@ __all__ = [
     "reachable",
     "read",
     "remember",
+    "routed",
     "serves",
     "speaking",
     "trouble",
+    "upstream",
     "written",
 ]
 
@@ -704,6 +707,12 @@ class Profile:
         account points it at instead. Read off each CLI's own bundle rather than off its
         documentation. Empty for a backend nothing is written down about, which such a flow
         then lets reach nothing at all.
+      routes: Which of its own ways the local LiteLLM gateway is spoken to it through -- the
+        way that points this CLI at somebody's endpoint, which the gateway then is. Every way
+        litellm has in is a way in for a backend that names one: :func:`routed` makes them,
+        and a turn under one of them is this CLI speaking its own protocol to a gateway on
+        loopback that speaks the account's onward. Empty for a backend nobody has said which
+        of its ways that is, which is offered none of them.
     """
 
     name: str
@@ -740,6 +749,7 @@ class Profile:
     journal: tuple[str, ...] = ()
     installs: str = ""
     hosts: tuple[str, ...] = ()
+    routes: str = ""
 
     def takes(self, effort: str) -> bool:
         """Whether this backend has a word for a rung by that name.
@@ -1016,7 +1026,7 @@ _LITELLM = ("high", "medium", "low", "minimal", "none")
 
 #: The litellm the `[litellm]` extra installs, written the way somebody installing it by hand
 #: has to write it. It MUST be kept in step with `pyproject.toml`, which is the copy that binds.
-LITELLM_SDK = "litellm>=1.104"
+LITELLM_SDK = "litellm>=1.105"
 
 #: Every backend humanize drives, as each of them reported itself. Codex says which efforts
 #: each of its models takes and they differ, so they are written down as it gave them.
@@ -1150,6 +1160,10 @@ PROFILES = (
         # so what it serves is what a turn may name. The cloud gateways have base URLs of
         # their own, and none of them answers `/v1/models` in a shape this reads.
         endpoint="ANTHROPIC_BASE_URL",
+        # And the same way is how the local LiteLLM gateway is spoken to, for an account made
+        # by any of litellm's ways: Claude Code speaks Anthropic's protocol to it, and it
+        # speaks the account's onward.
+        routes="anthropic-gateway",
         # Sign-ins first, then a credential of Anthropic's own, then an endpoint of somebody
         # else's, then a cloud's -- each set up the way Claude Code's own docs set it up, and
         # each checked against what 2.1.288 reads: `strings` of the binary names every
@@ -4507,6 +4521,53 @@ ALIKE: tuple[tuple[str, ...], ...] = (
     ("OPENAI_BASE_URL", "OPENAI_API_BASE"),
     ("XAI_API_KEY", "GROK_CODE_XAI_API_KEY"),
 )
+
+
+#: What a way through the local LiteLLM gateway is called, in front of the name of the litellm
+#: way it is: `litellm-openai-key` is an OpenAI key, spoken to through the gateway.
+ROUTED = "litellm-"
+
+
+def routed(profile: Profile) -> tuple[Way, ...]:
+    """The ways into a backend that go through the local LiteLLM gateway.
+
+    One per way litellm itself has in, asking what that way asks and setting what it sets: the
+    account is litellm's, and the backend is pointed at the gateway that holds it rather than
+    being handed any of it. Made from litellm's ways rather than written beside each backend's
+    own, so that a way litellm learns is a way every backend that names :attr:`Profile.routes`
+    learns with it.
+
+    Args:
+      profile: The backend.
+
+    Returns:
+      The ways, in litellm's order, and none for a backend that names no way of its own to
+      be spoken to through the gateway by.
+    """
+    if not profile.routes:
+        return ()
+    held = next(one for one in PROFILES if one.name == "litellm")
+    return tuple(
+        Way(
+            name=f"{ROUTED}{way.name}",
+            about=f"through a local LiteLLM gateway: {way.about}",
+            asks=way.asks,
+            sets=way.sets,
+        )
+        for way in held.ways
+    )
+
+
+def upstream(way: str) -> str:
+    """Which of litellm's own ways a way through the gateway is.
+
+    Args:
+      way: What an account says it was made by.
+
+    Returns:
+      The litellm way, or "" for a way that does not go through the gateway.
+    """
+    return way.removeprefix(ROUTED) if way.startswith(ROUTED) else ""
 
 
 def alike(variable: str) -> tuple[str, ...]:

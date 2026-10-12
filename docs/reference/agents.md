@@ -201,7 +201,7 @@ and a negative cap (`a budget cannot be less than nothing`).
 | --- | --- | --- |
 | `agy`, `claude`, `codex`, `dsh`, `grok`, `qwen` | the id the CLI or its endpoint serves | `claude-opus-5`, `gpt-5.6-sol`, `deepseek-v4-flash` |
 | `kimi` | Kimi Code's `provider/id` | `kimi-code/k3` |
-| `litellm` | a litellm model string, `provider/id`; under a gateway account a bare id, sent as `openai/<id>` or `anthropic/<id>` | `openai/gpt-5`, `anthropic/claude-sonnet-4-5` |
+| `litellm` | a litellm model string, `provider/id`; under an account a bare id, sent to the account's provider -- `openai/<id>` under an OpenAI key, the protocol under a gateway account | `openai/gpt-5`, `anthropic/claude-sonnet-4-5` |
 | `pi`, `omp`, `opencode` | `provider/id` | `openai-codex/gpt-5.5`, `deepseek/deepseek-v4-flash`, `opencode/big-pickle` |
 | `mimo` | `provider/id`; under a gateway account, the id its endpoint serves (sent as `humanize/<id>`) | `xiaomi/mimo-v2.5`, `gpt-5.6-sol` |
 | `cursor-agent` | an id from the account's list, the rung and tier written into it | `composer-2.5-high-fast` |
@@ -1115,10 +1115,23 @@ Brought skills are copied, for the session's life, where the backend reads a pro
   (`-c mcp_servers.humanize.…`), `qwen` (`mcpServers.humanize`, `trust: true`, in its
   `QWEN_CODE_SYSTEM_SETTINGS_PATH` file; the user's `mcp.allowed`/`mcp.excluded` and folder
   trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
-  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), and `agy` (a plugin,
-  `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`);
+  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `agy` (a plugin,
+  `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
+  `grok` and an ACP CLI (a `humanize` stdio server in the `mcpServers` of the call that opens
+  the conversation), `pi` (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under
+  `--no-extensions` too), `omp` (RPC `set_host_tools`) and `dsh` (a
+  `@deepseek-ai/dsh-mcp-client` row in its patch, tools named `mcp__humanize__<name>`);
   elsewhere `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
-- The road is MCP: the CLI is given `hmz internal tools --at <socket>`. Tools are per agent.
+- On `grok` and an ACP CLI, changing the offered names restarts the process and picks the
+  conversation back up; an ACP CLI serving neither `session/resume` nor `session/load` fails
+  that turn instead.
+- `grok` serves them on held-open turns only: a turn that needs `grok -p` (a shape, a fork, and
+  the rest under [Grok Build](#grok-build)) is refused with `Unrecoverable` while any are offered.
+- The road is MCP: the CLI is given `hmz internal tools --at <socket>`, which `pi`'s extension
+  starts itself. `omp` asks for each call back over its own RPC pipe instead. Tools are per
+  agent.
+- Offering other names between two turns starts `pi` and `dsh` again before the next one;
+  `omp` is told on the process already up.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
 
 ## Command lines {#command-lines}
@@ -1476,6 +1489,9 @@ effort goes in the handshake.
 - `Unrecoverable`: the length refusal, and a session id the runtime will not resume.
 - `DSH_HOME` is the kept directory, and sessions go under its `sessions` (`Profile.told`).
 - `interject` is unsupported: `session/prompt` queues and `steer` is not on the SDK surface.
+- Offered [callbacks](#callbacks-as-tools) insert a `@deepseek-ai/dsh-mcp-client` row
+  (`serverName: humanize`, `failOnStartupError: true`) into the patch; other names restart the
+  runtime.
 - Without an account, the SDK's saved credentials or `DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`.
 
 ### Grok Build {#grok-build}
@@ -1484,7 +1500,8 @@ effort goes in the handshake.
 model, an effort, an approval, an agent profile, a plugin directory and the leader. A
 tool-withholding rung, `web_search=False`, a network-cutting fence, a shape, a fork, or any field
 below but `leader` set away from default sends the turn to
-`grok -p --output-format streaming-json --resume <id> …` instead.
+`grok -p --output-format streaming-json --resume <id> …` instead. `grok -p` takes no MCP
+server, so such a turn is refused while [callback tools](#callbacks-as-tools) are offered.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -1592,6 +1609,9 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   (`agentInvoked: false`), also ends the turn.
 - At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
   `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
+- Offered [callbacks](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
+  the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
+  is answered `host_tool_result`. A refused `set_host_tools` fails the turn.
 - No `NODE_COMPILE_CACHE` and no `NODE_OPTIONS` preload: omp is one Bun-compiled executable,
   so `PRE_TOOL_USE` is read off the turn only.
 - The fence also lets through the `baseUrl` of the model's provider in `models.yml` (else
@@ -1639,6 +1659,7 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
   [--thinking <rung>]
   [--exclude-tools bash,edit,write,powershell] [--no-context-files] [--no-extensions]
   [--offline] [--append-system-prompt <s>]... [--skill <path>]...
+  [--extension <hmz>/coganchor/agents/pi_tools.cjs]
 ```
 
 | Field | Default | Meaning |
@@ -1651,7 +1672,9 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `skill_paths` | `()` | `--skill` per entry |
 
 `--session-id` rather than `--continue`, which resumes the newest session in the directory.
-pi 0.85.1 has no web tools of its own.
+pi 0.85.1 has no web tools of its own. Offered [callbacks](#callbacks-as-tools) add the
+`--extension`, which reads the bridge's argv from `HMZ_PI_TOOLS` and registers each tool under
+its own name.
 
 ### Qwen Code {#qwen-code}
 
@@ -1725,7 +1748,7 @@ cannot be steered, has no goal, reports no usage and has no trace.
 | `reads_files` | `bool` | serve `fs/read_text_file` from this machine |
 | `writes_files` | `bool` | serve `fs/write_text_file` |
 | `terminals` | `bool` | serve `terminal/*` (start, read, wait, kill) |
-| `mcp_servers` | `tuple[McpServer, ...]` | MCP servers added to the agent's own |
+| `mcp_servers` | `tuple[McpServer, ...]` | MCP servers added to the agent's own; [callback tools](#callbacks-as-tools) add a `humanize` one |
 
 The first three are refused for an agent under a native anchor. Under a fence, what this
 client does for the agent is held to the same fence: a refused file or path is answered with

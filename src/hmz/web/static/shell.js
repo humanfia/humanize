@@ -109,12 +109,19 @@ export function follow(pop, anchor, how) {
     if (!event || !(event.target instanceof Node) || !pop.contains(event.target)) place(pop, anchor, how)
   }
   again()
-  const grown = new ResizeObserver(() => again())
+  // Placed again in the next frame rather than inside the observer's own: placing it sizes it,
+  // which said there would be a size the observer is not told of, and an error.
+  let frame = 0
+  const grown = new ResizeObserver(() => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => again())
+  })
   grown.observe(pop)
   addEventListener('scroll', again, true)
   addEventListener('resize', again)
   return () => {
     grown.disconnect()
+    cancelAnimationFrame(frame)
     removeEventListener('scroll', again, true)
     removeEventListener('resize', again)
   }

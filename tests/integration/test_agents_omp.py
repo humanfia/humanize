@@ -20,8 +20,9 @@ from typing import TYPE_CHECKING
 
 import psutil
 import pytest
+from pydantic import BaseModel
 
-from hmz.coganchor.agents import Failed, OhMyPiAgent, OhMyPiAgentConfig
+from hmz.coganchor.agents import Failed, OhMyPiAgent, OhMyPiAgentConfig, Tool
 from tests.integration.doubles_agents import Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -93,6 +94,7 @@ else:
 
 lines = queue.Queue()
 held = []
+hosted = []
 SPENT = {"input": 10, "output": 5, "cacheRead": 2, "cacheWrite": 1}
 
 
@@ -155,6 +157,12 @@ while (told := take()) is not None:
     if told["type"] == "steer":
         note("steer " + told["message"])
         user(told["message"])
+        continue
+    if told["type"] == "set_host_tools":
+        hosted = [one["name"] for one in told["tools"]]
+        note("set_host_tools " + ",".join(hosted))
+        out({"type": "response", "command": "set_host_tools", "id": told.get("id"),
+             "success": True, "data": {"toolNames": hosted}})
         continue
     if told["type"] == "set_thinking_level":
         note("set_thinking_level " + told["level"])
@@ -248,6 +256,17 @@ while (told := take()) is not None:
         more = until("extension_ui_response") or {}
         said = "cancelled" if more.get("cancelled") else str(more.get("value"))
         note("answered " + said)
+    if said.startswith("use "):
+        # A host tool, asked for back over the pipe as omp asks for one.
+        _, name, *given = said.split(" ", 2)
+        if name not in hosted:
+            refuse("no host tool " + name)
+        out({"type": "host_tool_call", "id": "host_1", "toolCallId": "call_2",
+             "toolName": name, "arguments": json.loads(given[0] if given else "{}")})
+        more = until("host_tool_result") or {}
+        said = "".join(one["text"] for one in more["result"]["content"])
+        if more.get("isError"):
+            said = "failed: " + said
     answers(said)
     ends()
     if said == "then-exit":
@@ -471,4 +490,35 @@ def test_an_approval_at_no_rung_is_put_to_whoever_drives_the_agent(
     assert omp.calls()[0].flag("--approval-mode") is None
     assert [(one.text, one.options) for one in asked] == [
         ("Allow tool: write\nPath: hello.txt", ("Approve", "Deny"))
+    ]
+
+
+def test_a_callback_offered_is_a_host_tool_run_here_when_reached_for(
+    omp: Standins,
+) -> None:
+    class Asked(BaseModel):
+        word: str
+
+    heard: list[str] = []
+
+    def shout(asked: Asked) -> str:
+        heard.append(asked.word)
+        return asked.word.upper()
+
+    def refuse() -> str:
+        raise ValueError("not today")
+
+    session = OhMyPiAgent(CONFIG).new()
+    session.offers([Tool("shout", "Says a word louder.", shout, Asked)])
+
+    assert session('use shout {"word": "hi"}') == "HI"
+    assert heard == ["hi"]
+
+    session.offers([Tool("refuse", "Says no.", refuse)])
+
+    assert session("use refuse") == "failed: ValueError: not today"
+    assert len({one.pid for one in omp.calls()}) == 1
+    assert [one for one in omp.said() if one.startswith("set_host_tools")] == [
+        "set_host_tools shout",
+        "set_host_tools refuse",
     ]

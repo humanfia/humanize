@@ -37,7 +37,7 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, Protocol, cast
 
-from hmz.coganchor import backends
+from hmz.coganchor import backends, gateway
 
 from .base import _IN_SHAPE, AgentBase, SessionBase
 from .config import AgentConfig
@@ -63,29 +63,6 @@ _EXTRA = (
 #: How long the endpoint may say nothing, in seconds, before the turn is given up on.
 _SILENCE = 600.0
 
-#: The variables a gateway account is made of, and which protocol of litellm's it speaks.
-_URL = "LITELLM_GATEWAY_URL"
-_KEY = "LITELLM_GATEWAY_KEY"
-_API = "LITELLM_GATEWAY_API"
-
-#: The clouds, each as the variables its account was made with and the litellm parameter
-#: each of them is passed as.
-_CLOUDS: dict[str, tuple[tuple[str, str], ...]] = {
-    "bedrock": (
-        ("AWS_PROFILE", "aws_profile_name"),
-        ("AWS_REGION_NAME", "aws_region_name"),
-    ),
-    "vertex": (
-        ("VERTEXAI_PROJECT", "vertex_project"),
-        ("VERTEXAI_LOCATION", "vertex_location"),
-    ),
-    "azure": (
-        ("AZURE_API_BASE", "api_base"),
-        ("AZURE_API_KEY", "api_key"),
-        ("AZURE_API_VERSION", "api_version"),
-    ),
-}
-
 #: What ends the chunks a turn waits on: put there by the reader once the answer is over, and
 #: by a cut to end the turn sooner.
 _OVER = object()
@@ -109,8 +86,9 @@ class LiteLLMAgentConfig(AgentConfig):
 
     The model is a litellm model string, its provider in front -- `openai/gpt-5`,
     `anthropic/claude-sonnet-4-5`, `bedrock/...` -- which is how litellm knows where to send it.
-    Under a gateway account a bare id is sent to the gateway in the protocol the account
-    named.
+    Under an account a bare id is the account's provider's, as
+    :func:`hmz.coganchor.gateway.spelled` says: `gpt-5` under an OpenAI key is `openai/gpt-5`,
+    and under a gateway account it is sent in the protocol the account named.
     """
 
 
@@ -366,19 +344,10 @@ class LiteLLMSession(SessionBase):
         return event
 
     def _model(self) -> str:
-        """The litellm model string this turn is sent to.
+        """The litellm model string this turn is sent to, as :func:`gateway.spelled` says."""
+        return gateway.spelled(self._agent.config.model, self._agent.provider)
 
-        Under a gateway account, a bare id prefixed with the protocol the account named: the
-        gateway serves the id, and litellm needs to know how to speak to it.
-        """
-        model = self._agent.config.model
-        provider = self._agent.provider
-        api = provider.env.get(_API, "") if provider is not None else ""
-        if api and not model.startswith(f"{api}/"):
-            return f"{api}/{model}"
-        return model
-
-    def _credentials(self) -> dict[str, object]:
+    def _credentials(self) -> dict[str, str]:
         """What the account this turn runs under is, as litellm's own parameters.
 
         Passed on the call rather than set in the environment, which is this process's and
@@ -389,39 +358,11 @@ class LiteLLMSession(SessionBase):
           Failed: For an account made some way this backend does not offer.
         """
         provider = self._agent.provider
-        if provider is None:
-            return {}
-        env = provider.env
-        if provider.way in _CLOUDS:
-            return {
-                name: env[variable]
-                for variable, name in _CLOUDS[provider.way]
-                if env.get(variable)
-            }
-        if env.get(_URL):
-            return {"api_base": env[_URL], "api_key": env.get(_KEY, "")}
-        way = next(
-            (
-                one
-                for profile in backends.PROFILES
-                if profile.name == "litellm"
-                for one in profile.ways
-                if one.name == provider.way
-            ),
-            None,
-        )
-        secret = (
-            next((asked.env for asked in way.asks if asked.secret), None)
-            if way is not None
-            else None
-        )
-        if secret is None:
-            said = (
-                f"The account {provider.name!r} was made by {provider.way!r}, which "
-                "litellm does not offer; make it again by one of its own ways"
-            )
-            raise Failed(1, ["litellm", provider.name], output="", stderr=said)
-        return {"api_key": env.get(secret, "")}
+        try:
+            return gateway.credentials(provider)
+        except ValueError as why:
+            named = provider.name if provider is not None else ""
+            raise Failed(1, ["litellm", named], output="", stderr=str(why)) from why
 
     def _file(self, session_id: str) -> Path:
         """Where one conversation of this agent is kept."""

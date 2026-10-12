@@ -306,12 +306,20 @@ class DshSession(SessionBase):
     #: The SDK's runtime holds the turn, and nothing reaches into it to stop one.
     cuts_transport: ClassVar[bool] = True
 
+    #: The runtime ships `@deepseek-ai/dsh-mcp-client`, which one row of the patch mounts as
+    #: a stdio server more (:func:`_composed`), so a flow's own callbacks reach a turn without
+    #: a line written into the dsh home's own settings.
+    takes_tools: ClassVar[bool] = True
+
     def __init__(
         self, agent: DshAgent, cwd: str | os.PathLike[str] | None = None
     ) -> None:
         super().__init__(agent, cwd)
         self._harness: _Harness | None = None
         self._runtime_effort: str | None = None
+        #: The names of the callbacks the live runtime was offered. Its MCP client lists them
+        #: once, as the runtime boots, so a flow offering others is a runtime started again.
+        self._runtime_offered: tuple[str, ...] = ()
         self._attempt_id: str | None = None
         self._reaper: weakref.finalize[..., Any] | None = None
         #: The composition the live runtime was started from, so that an agent reconfigured
@@ -543,7 +551,13 @@ class DshSession(SessionBase):
         """Returns a runtime initialized for this session's current effort and composition."""
         effort = self.effort
         way = self._agent.provider.way if self._agent.provider is not None else None
-        composition = _composed(cast("DshAgentConfig", self._agent.config), way)
+        toolbox = self._agent.toolbox
+        offered = tuple(sorted(one.name for one in toolbox.offered()))
+        composition = _composed(
+            cast("DshAgentConfig", self._agent.config),
+            way,
+            toolbox.command() if offered else None,
+        )
         # The account and the composition as well as the effort. A runtime is started with
         # one account's environment and its credential paths, and with one composition read
         # once at boot, and none of the three changes under one already up -- so an agent
@@ -553,6 +567,7 @@ class DshSession(SessionBase):
         if self._harness is not None and (
             self._runtime_effort != effort
             or self._runtime_composition != composition
+            or self._runtime_offered != offered
             or self.elsewhere()
         ):
             self._shut()
@@ -686,6 +701,7 @@ class DshSession(SessionBase):
         self._harness, self._composition = harness, written
         self._runtime_effort = effort
         self._runtime_composition = composition
+        self._runtime_offered = offered
         self._as, self._pathed = self._agent.node().name, pathed
         self._reaper = weakref.finalize(self, harness.close)
         return harness
@@ -857,7 +873,9 @@ def _represent_js(dumper: yaml.SafeDumper, value: _Js) -> yaml.ScalarNode:
 _CordisDumper.add_representer(_Js, _represent_js)
 
 
-def _composed(config: DshAgentConfig, way: str | None = None) -> str:
+def _composed(
+    config: DshAgentConfig, way: str | None = None, bridge: list[str] | None = None
+) -> str:
     """What one agent's runtime is told over the SDK's own profile, as a patch.
 
     Only what humanize has to say: a row of `dsh-base` addressed by its id, either switched
@@ -870,6 +888,8 @@ def _composed(config: DshAgentConfig, way: str | None = None) -> str:
       config: The agent's settings, whose `goals`, `compaction`, `session_compression`,
         `web_search` and -- under a gateway -- `model` are the things that move.
       way: The way the account a turn runs under was made by, or None for no account.
+      bridge: The command that reaches the flow's own callbacks, or None for an agent
+        offered none.
 
     Returns:
       The patch to write out and hand the runtime with `--patch`, as YAML.
@@ -935,6 +955,25 @@ def _composed(config: DshAgentConfig, way: str | None = None) -> str:
         off(_SEARCH)
         rows.append({"id": "web", "config": {"fetchProvider": "http"}})
         rows.append({"id": "tool-web", "config": {"search": False}})
+    # The flow's own callbacks, as one stdio MCP server more: a row `dsh-base` has none of,
+    # naming the client the runtime ships. The model is shown them as
+    # `mcp__humanize__<name>`, and a call of one runs it in this process.
+    if bridge is not None:
+        command, *args = bridge
+        row = {
+            "id": "humanize-tools",
+            "name": "@deepseek-ai/dsh-mcp-client",
+            "config": {
+                "serverName": "humanize",
+                "transport": "stdio",
+                "command": command,
+                "args": args,
+                # A runtime that could not reach them refuses to start rather than
+                # starting without them, which is a flow quietly not doing what it says.
+                "failOnStartupError": True,
+            },
+        }
+        rows.append({"insert": [row]})
     return yaml.dump(
         rows, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
     )
