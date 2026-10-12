@@ -301,6 +301,12 @@ def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, 
     return tuple(found)
 
 
+#: The backends whose way of being pointed at a gateway takes no effort for any model: agy
+#: refuses `--effort` for every model of `AGY_LLM_GATEWAY_MODELS`, which is the whole of what
+#: it may name there (1.3.3) -- so a model offered at a rung would be every turn refused.
+_UNLADDERED = frozenset({"agy"})
+
+
 def _routed(profile: Profile, held: providers.Provider) -> list[Model]:
     """What an account a local LiteLLM gateway holds runs, which is litellm's to say.
 
@@ -315,7 +321,7 @@ def _routed(profile: Profile, held: providers.Provider) -> list[Model]:
 
     Returns:
       The models, each at that backend's whole ladder where it reasons and at none where it
-      does not.
+      does not -- and at none at all for a backend of :data:`_UNLADDERED`.
 
     Raises:
       ValueError: If the endpoint the account names would not say, or litellm is not
@@ -323,6 +329,7 @@ def _routed(profile: Profile, held: providers.Provider) -> list[Model]:
     """
     from hmz.coganchor.gateway import prefix
 
+    ladder = () if profile.name in _UNLADDERED else profile.efforts
     litellm = named("litellm")
     assert litellm is not None  # noqa: S101 -- one of humanize's own
     environ = dict(held.env)
@@ -332,10 +339,10 @@ def _routed(profile: Profile, held: providers.Provider) -> list[Model]:
             raise ValueError(
                 f"{_pointed(litellm, environ)} would not say what it serves"
             )
-        return [Model(one.name, profile.efforts, profile.swarms) for one in served]
+        return [Model(one.name, ladder, profile.swarms) for one in served]
     said = f"{prefix(held)}/"
     return [
-        Model(one.name, profile.efforts if one.efforts else (), profile.swarms)
+        Model(one.name, ladder if one.efforts else (), profile.swarms)
         for one in _litellm(litellm, _unasked)
         if one.name.startswith(said)
     ]
