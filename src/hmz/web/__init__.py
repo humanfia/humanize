@@ -60,6 +60,7 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
     from hmz.coganchor import releases
 
     from .notices import Notices
+    from .notifications import Notifications
     from .places import Places
     from .remote import Remotes
     from .runs import Runs
@@ -79,6 +80,9 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
         # Every daemon on another machine let go of as the block ends, and what reached it.
         site.remotes = Remotes()
         held_open.callback(site.remotes.close)
+        # Every daemon's notices, as this machine's interface tells them.
+        site.notifications = Notifications(site)
+        held_open.callback(site.notifications.close)
         # Set first as the block ends, which is what ends every stream being sent.
         held_open.callback(site.going.set)
         # And before it, what ends the notices' streams at once rather than once they wake.

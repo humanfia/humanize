@@ -44,6 +44,7 @@ from . import (
     flows,
     held,
     notices,
+    notifications,
     paths,
     places,
     proxy,
@@ -59,6 +60,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
     from .notices import Notices
+    from .notifications import Notifications
     from .places import Places
     from .remote import Remotes
     from .runs import Runs
@@ -80,6 +82,7 @@ ROUTES: tuple[Route, ...] = (
     *verses.ROUTES,
     *notices.ROUTES,
     *remote.ROUTES,
+    *notifications.ROUTES,
 )
 
 #: What a daemon is called in the paths a page asks another machine's daemon by.
@@ -170,6 +173,8 @@ class Site(ThreadingHTTPServer):
         self.notices = notices
         #: The daemons on other machines, as each is reached, once `listening` has them.
         self.remotes: Remotes | None = None
+        #: Every daemon's notices, as this interface tells them, once it is listening.
+        self.notifications: Notifications | None = None
         #: Set as the server stops, which is what ends every stream it is sending.
         self.going = threading.Event()
         self._key = secrets.token_urlsafe(32)

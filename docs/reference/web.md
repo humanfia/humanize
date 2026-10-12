@@ -307,6 +307,27 @@ A notice is `id` (a whole number, larger than any before it, on this machine too
 | `asked` | A flow asks a person a question (mode `ask`) | The role asking, the question |
 | `listening` | A flow waits for what to say next: a chat between turns (mode `listen`) | The role asking, what it asks |
 
+### Notifications {#api-notifications}
+
+What every daemon's notices come to, served by the interface a page is open on alone: its own
+machine's as they are heard, and each SSH daemon's while it is reached, off the
+`/api/notices/stream` that daemon's own interface serves -- from what it says once first
+reached, and from where it was last heard after that. A notification is the notice, with its own
+`id` (counted from `1` each time `hmz web` starts), `daemon` (`local` or the daemon's name) and
+`read`. The last **200** are kept, in memory.
+
+| Method and path | Takes | Answers |
+| --- | --- | --- |
+| `GET /api/notifications` | | `items` (newest first), `unread` (how many are not read) |
+| `GET /api/notifications/stream` | `Last-Event-ID` header, or `?last=` | `text/event-stream`: a `notification` event, `id` its `id`, for each kept after the one named -- every one kept where it names one later than any here -- then each as it comes; with none, from now. `: quiet` after **15 s** of nothing |
+| `POST /api/notifications/read` | `ids` (a list), or `all: true` | As `GET` |
+| `POST /api/notifications/clear` | | As `GET`, with nothing kept |
+| `GET /api/notifications/settings` | | `kinds` (`{done, failed, stopped, asked, listening}`: whether each is told) and `system` (whether the page asks the system to show them too), as [`notifications`](/reference/settings#machine-settings) holds them |
+| `POST /api/notifications/settings` | any of `kinds` (any of those five, each a bool), `system` (bool) | As `GET`; `400`, and nothing written, for anything else |
+
+A notice of a kind turned off is never kept nor sent. Which kinds are told is read afresh for
+every notice, so a change takes effect at once.
+
 ## The stream {#stream}
 
 `GET /api/held/stream` answers `text/event-stream`, starting with `retry: 2000`. Each event is
