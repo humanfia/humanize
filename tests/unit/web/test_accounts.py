@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from hmz.web.accounts import listed
 
 #: A key, which a page must never be handed.
@@ -22,8 +24,21 @@ class _Account:
     made: str = "2026-10-08T10:00:00Z"
 
 
+@pytest.fixture(autouse=True)
+def _upstream(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A way through the gateway is one called `via-` something, as far as a page is told."""
+    from hmz.coganchor import backends
+
+    def upstream(way: str) -> str:
+        return way.removeprefix("via-") if way.startswith("via-") else ""
+
+    monkeypatch.setattr(backends, "upstream", upstream)
+
+
 class _Accounts:
     """The accounts: one made for claude, and each CLI's own sign-in."""
+
+    GATEWAY = "LiteLLM"
 
     def all(self) -> list[_Account]:
         return [_Account("claude", "work", env={"ANTHROPIC_API_KEY": _SECRET})]
@@ -40,7 +55,15 @@ class _Accounts:
                 name="login", about="sign in", argv=("claude", "login"), asks=()
             ),
             SimpleNamespace(name="key", about="an API key", argv=(), asks=(asked,)),
+            *(
+                [SimpleNamespace(name="via-openai", about="a key", argv=(), asks=())]
+                if cli == "codex"
+                else []
+            ),
         ]
+
+    def wants(self, cli: str) -> str:
+        return "install it" if cli == "claude" else ""
 
     def models(self, cli: str, name: str) -> tuple[Any, ...]:
         return (SimpleNamespace(name="opus"),)
@@ -86,3 +109,12 @@ def test_a_way_in_that_runs_the_clis_own_sign_in_is_said_to_need_a_terminal() ->
     assert key["asks"] == [
         {"env": "ANTHROPIC_API_KEY", "about": "the key", "secret": True, "fixed": ""}
     ]
+
+
+def test_a_way_through_the_gateway_is_grouped_and_a_cli_wanting_it_says_how() -> None:
+    whole = listed(_hmz())
+    said = {one["cli"]: one for one in whole["backends"]}
+
+    assert [way["group"] for way in said["codex"]["ways"]] == ["", "", "LiteLLM"]
+    assert (said["claude"]["wants"], said["codex"]["wants"]) == ("install it", "")
+    assert whole["gateway"] == "LiteLLM"

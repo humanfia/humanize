@@ -9,8 +9,14 @@ from hmz.tui.dropdown import Dropdown, Value
 
 
 def test_a_value_says_nothing_beside_itself_unless_told() -> None:
-    assert Value("on", "On") == ("on", "On", "")
+    assert Value("on", "On") == ("on", "On", "", "", False)
     assert Value("on", "On", "send reports").about == "send reports"
+
+
+def test_a_value_is_listed_under_no_heading_and_picked_unless_told() -> None:
+    said = Value("", "install it", group="LiteLLM", inert=True)
+
+    assert (said.group, said.inert) == ("LiteLLM", True)
 
 
 def test_a_dropdown_is_a_screen_of_its_own_answering_with_a_value() -> None:

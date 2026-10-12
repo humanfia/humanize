@@ -41,11 +41,17 @@ class Value(NamedTuple):
       value: What picking it answers with.
       label: What it is called on the list.
       about: A few words on what it means, said quietly beside it, or "".
+      group: The heading it is listed under, or "" for none. Values under one heading are
+        listed together, the heading once above the first of them.
+      inert: Whether it is said rather than picked: a line the cursor passes over, telling
+        somebody what is missing for something they cannot pick yet.
     """
 
     value: str
     label: str
     about: str = ""
+    group: str = ""
+    inert: bool = False
 
 
 #: The mark against the value in force, as every list here marks it.
@@ -56,6 +62,11 @@ _NARROWEST = 24
 
 #: The most values shown before the list scrolls.
 _TALLEST = 12
+
+
+def _group(line: Value | str) -> str:
+    """The heading a line of a dropped list is under: its own, or the one it is."""
+    return line if isinstance(line, str) else line.group
 
 
 def anchor(listing: OptionList) -> Offset:
@@ -122,6 +133,14 @@ class Dropdown(ModalScreen[str | None]):
         self._current = current
         self._at = at
         self._cursor = current if cursor is None else cursor
+        #: What each line of the list is: a value, or the heading of the values under it.
+        self._lines: list[Value | str] = []
+        for one in self._values:
+            if one.group and (not self._lines or _group(self._lines[-1]) != one.group):
+                self._lines.append(one.group)
+            self._lines.append(one)
+        #: Whether any line is one the cursor never lands on: a heading, or a line said.
+        self._passed = any(isinstance(one, str) or one.inert for one in self._lines)
         #: Which row is drawn in the cursor's colours, or None before any is.
         self._lit: int | None = None
 
@@ -138,6 +157,8 @@ class Dropdown(ModalScreen[str | None]):
         Returns:
           The row, as markup.
         """
+        if one.inert:
+            return escape(one.label) if here else f"[$text-muted]{escape(one.label)}[/]"
         tick = (
             ""
             if one.value != self._current
@@ -158,8 +179,14 @@ class Dropdown(ModalScreen[str | None]):
         """The values, a row apiece."""
         listing = OptionList(
             *(
-                Option(self._prompt(one, here=False), id=f"={one.value}")
-                for one in self._values
+                Option(f"[b]{escape(one)}[/]", disabled=True)
+                if isinstance(one, str)
+                else Option(
+                    self._prompt(one, here=False),
+                    id=None if one.inert else f"={one.value}",
+                    disabled=one.inert,
+                )
+                for one in self._lines
             )
         )
         listing.border_title = escape(self._title)
@@ -168,9 +195,14 @@ class Dropdown(ModalScreen[str | None]):
     def on_mount(self) -> None:
         """Opens on the value in force, dropped under the row, and inside the screen."""
         listing = self.query_one(OptionList)
-        values = [one.value for one in self._values]
+        values = [
+            one.value if isinstance(one, Value) and not one.inert else None
+            for one in self._lines
+        ]
         listing.highlighted = (
-            values.index(self._cursor) if self._cursor in values else 0
+            values.index(self._cursor)
+            if self._cursor in values
+            else next((at for at, one in enumerate(values) if one is not None), 0)
         )
         listing.focus()
         if self._at is None:
@@ -179,19 +211,20 @@ class Dropdown(ModalScreen[str | None]):
         # Under the row where there is room, and over it where there is not: a list that
         # ran off the bottom of the terminal would be values nobody can reach. And in from
         # the right edge as far as it is wide, for a value at the far end of its row.
-        tall = min(len(values), _TALLEST) + 2
-        wide = (
-            max(
-                cell_len(one.label)
-                + len(_INFORCE)
-                + 1
-                + (cell_len(one.about) + 2 if one.about else 0)
-                for one in self._values
-            )
-            + 4
-        )
-        # No narrower than the stylesheet lets it be, which is what it is drawn at.
-        wide = max(wide, _NARROWEST)
+        widths = [
+            cell_len(one)
+            if isinstance(one, str)
+            else cell_len(one.label)
+            + len(_INFORCE)
+            + 1
+            + (cell_len(one.about) + 2 if one.about else 0)
+            for one in self._lines
+        ]
+        # No narrower than the stylesheet lets it be, and no wider, which is what it is drawn
+        # at -- and a line wider than that is wrapped, a row of the list per row it takes.
+        wide = min(max(max(widths) + 4, _NARROWEST), self.size.width * 9 // 10)
+        inside = max(1, wide - 4)
+        tall = min(sum(-(-max(1, one) // inside) for one in widths), _TALLEST) + 2
         below = self._at.y + 1
         y = below if below + tall <= self.size.height else max(0, self._at.y - tall)
         x = max(0, min(self._at.x, self.size.width - wide))
@@ -207,11 +240,24 @@ class Dropdown(ModalScreen[str | None]):
         """
         # Only the row the cursor left and the one it is on: the rest are drawn as they were.
         for at in {self._lit, event.option_index} - {None}:
-            if at is not None and 0 <= at < len(self._values):
+            if (
+                at is not None
+                and 0 <= at < len(self._lines)
+                and isinstance(one := self._lines[at], Value)
+            ):
                 event.option_list.replace_option_prompt_at_index(
-                    at, self._prompt(self._values[at], here=at == event.option_index)
+                    at, self._prompt(one, here=at == event.option_index)
                 )
         self._lit = event.option_index
+        # A heading over the first value and a line said under the last are lines the cursor
+        # never lands on, so it is the first and last values that bring them into view.
+        if not self._passed:
+            return
+        options = event.option_list.options
+        if not any(not one.disabled for one in options[event.option_index + 1 :]):
+            event.option_list.scroll_end(animate=False, immediate=True)
+        elif not any(not one.disabled for one in options[: event.option_index]):
+            event.option_list.scroll_home(animate=False, immediate=True)
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Answers with the value picked.

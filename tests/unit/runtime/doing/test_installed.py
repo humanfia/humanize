@@ -192,3 +192,54 @@ def test_dsh_is_ready_to_open_only_once_configured(
 
     assert discover.ready_to_open("dsh", tmp_path) is configured
     assert asked == [tmp_path]
+
+
+class _Hmz:
+    """humanize as it is installed: from an index, or from anywhere else."""
+
+    version = "1.2.3"
+
+    def __init__(self, *, indexed: bool) -> None:
+        self._indexed = indexed
+
+    def read_text(self, name: str) -> str | None:
+        return None if self._indexed else '{"url": "file:///src"}'
+
+
+@pytest.mark.parametrize(
+    ("indexed", "requirement"),
+    [(True, "'hmz[litellm]==1.2.3'"), (False, "'litellm>=")],
+)
+def test_adding_an_extra_names_what_is_missing_and_the_line_that_adds_it(
+    monkeypatch: pytest.MonkeyPatch, *, indexed: bool, requirement: str
+) -> None:
+    import importlib.metadata
+
+    def distribution(name: str) -> _Hmz:
+        assert name == "hmz"
+        return _Hmz(indexed=indexed)
+
+    monkeypatch.setattr(importlib.metadata, "distribution", distribution)
+
+    said = discover.adding("litellm")
+
+    assert said.startswith("litellm is not installed; run: uv pip install --python ")
+    assert requirement in said
+    assert said.endswith("; then reopen hmz")
+
+
+def test_adding_a_backend_with_no_extra_says_to_install_it() -> None:
+    assert discover.adding("mine") == "install mine, then reopen humanize"
+
+
+def test_adding_an_extra_to_a_humanize_that_is_no_distribution_names_its_packages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import importlib.metadata
+
+    def distribution(name: str) -> _Hmz:
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "distribution", distribution)
+
+    assert "'litellm>=" in discover.adding("litellm")

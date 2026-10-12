@@ -119,3 +119,39 @@ def test_a_way_nobody_offers_adds_no_arguments(
     Accounts().write("codex", "gw", "gone")
 
     assert added.calls == [(("codex", "gw", "gone", None, ()), {})]
+
+
+@pytest.mark.parametrize(
+    ("routes", "gatewayable", "said"),
+    [
+        (True, False, "the line"),
+        (True, True, ""),
+        (False, False, ""),
+    ],
+)
+def test_a_cli_the_gateway_could_route_says_how_to_add_it_while_it_cannot(
+    monkeypatch: pytest.MonkeyPatch, *, routes: bool, gatewayable: bool, said: str
+) -> None:
+    from hmz.coganchor import backends, gateway
+    from hmz.runtime.doing import installed
+
+    def routed(profile: object) -> tuple[object, ...]:
+        return (WAY,) if routes else ()
+
+    def adding(backend: str) -> str:
+        return "the line" if backend == "litellm" else ""
+
+    monkeypatch.setattr(backends, "named", {"claude": ONE}.get)
+    monkeypatch.setattr(backends, "routed", routed)
+    monkeypatch.setattr(gateway, "gatewayable", lambda: gatewayable)
+    monkeypatch.setattr(installed, "adding", adding)
+
+    assert Accounts().wants("claude") == said
+
+
+def test_a_cli_nobody_drives_wants_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    from hmz.coganchor import backends
+
+    monkeypatch.setattr(backends, "named", dict[str, object]().get)
+
+    assert Accounts().wants("nope") == ""

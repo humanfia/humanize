@@ -24,6 +24,10 @@ __all__ = ["Accounts"]
 class Accounts:
     """Every account there is, how a backend is signed into, and what one of them runs."""
 
+    #: The heading the ways in through the local LiteLLM gateway are listed under, wherever
+    #: they are listed.
+    GATEWAY = "LiteLLM"
+
     def all(self, cli: str = "") -> list[Provider]:
         """Every account somebody made, or one backend's.
 
@@ -42,6 +46,31 @@ class Accounts:
         from hmz.coganchor import providers
 
         return providers.ways(cli)
+
+    def wants(self, cli: str) -> str:
+        """What this Python wants before a backend has its ways in through a local gateway.
+
+        A backend that can be spoken to through the LiteLLM gateway is offered every way
+        litellm has in only while the `[litellm]` extra is installed whole. Without it those
+        ways are not offered, and this is the line that adds them -- so that somebody is told
+        they are there rather than never finding out.
+
+        Args:
+          cli: The backend, by any name it answers to.
+
+        Returns:
+          The line that installs the extra, or "" for a backend that already has those ways
+          in or never would.
+        """
+        from hmz.coganchor import backends
+        from hmz.coganchor.gateway import gatewayable
+
+        from .installed import adding
+
+        profile = backends.named(cli)
+        if profile is None or not backends.routed(profile) or gatewayable():
+            return ""
+        return adding("litellm")
 
     def way(self, cli: str, name: str) -> Way | None:
         """The way in one backend offers under a name, or None for one it does not."""

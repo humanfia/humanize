@@ -734,7 +734,10 @@ account's on the other.
 
 Each `litellm-<way>` asks and sets what `litellm`'s own `<way>` does ([Ways by
 backend](#ways-by-backend)), and is offered only while the gateway can be started here
-(`gateway.gatewayable()`: `litellm` and its proxy's own modules all importable).
+(`gateway.gatewayable()`: `litellm` and its proxy's own modules all importable). The pickers
+list them after the backend's own ways, under the heading `LiteLLM`; where they are not offered
+for a backend that names `routes`, `Accounts.wants(cli)` is the line that installs the extra
+(`installed.adding("litellm")`), said under that heading instead.
 
 | What | How |
 | --- | --- |

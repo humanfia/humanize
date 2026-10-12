@@ -1,7 +1,9 @@
 // The accounts an agent can be run as: each a named set of credentials for one CLI, kept apart
 // from the CLI's own and from each other, and listed by the names of what it sets -- never by
 // a value, since this is drawn where somebody can read it. A page makes one out of a way in
-// that is answers alone; a way that runs the CLI's own sign-in needs a terminal.
+// that is answers alone; a way that runs the CLI's own sign-in needs a terminal. The ways in
+// through the local LiteLLM gateway are listed last, under a group of their own -- and where the
+// extra they need is missing, the group says so and the line that adds it is said under it.
 
 import { get, post } from '../../api.js'
 import { acting, ago, confirming, fill, h, problem } from '../../dom.js'
@@ -129,6 +131,7 @@ export function draw(holder) {
     const way = h('select', { 'aria-label': 'Sign-in method', id: 'account-way' })
     const name = h('input', { type: 'text', id: 'account-name', placeholder: 'work', required: true, autocomplete: 'off' })
     const about = h('p', { class: 'hint' })
+    const wants = h('p', { class: 'note', 'data-hmz': 'gateway-wants' })
     const answers = h('div', { class: 'form' })
     const said = h('div', { 'aria-live': 'polite' })
     const make = h('button', { class: 'btn primary', type: 'submit' }, 'Create')
@@ -137,13 +140,28 @@ export function draw(holder) {
       { class: 'form' },
       h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'account-cli' }, 'CLI'), cli), h('div', { class: 'field' }, h('label', { for: 'account-way' }, 'Sign-in method'), way), h('div', { class: 'field' }, h('label', { for: 'account-name' }, 'Name'), name)),
       about,
+      wants,
       answers,
       h('div', { class: 'row' }, make, said),
     )
-    const ways = () => data.backends.find((one) => one.cli === cli.value)?.ways || []
+    const backend = () => data.backends.find((one) => one.cli === cli.value)
+    const ways = () => backend()?.ways || []
     const picked = () => ways().find((one) => one.name === way.value)
+    const option = (one) => h('option', { value: one.name }, one.terminal ? `${one.name} (at a terminal)` : one.name)
     const drawWays = () => {
-      fill(way, ways().map((one) => h('option', { value: one.name }, one.terminal ? `${one.name} (at a terminal)` : one.name)))
+      const groups = [...new Set(ways().map((one) => one.group).filter(Boolean))]
+      const missing = backend()?.wants || ''
+      fill(
+        way,
+        ways()
+          .filter((one) => !one.group)
+          .map(option),
+        groups.map((group) => h('optgroup', { label: group }, ways().filter((one) => one.group === group).map(option))),
+        missing ? h('optgroup', { label: data.gateway, disabled: true }, h('option', { value: '' }, 'Not installed')) : null,
+      )
+      if (missing) fill(wants, `${data.gateway}: `, h('code', {}, missing))
+      else fill(wants)
+      wants.hidden = !missing
       const first = ways().find((one) => !one.terminal)
       if (first) way.value = first.name
       drawAnswers()
