@@ -299,12 +299,13 @@ An exception inside a request is refused with `str(exception)` or its type name.
 | `to` | The line |
 | --- | --- |
 | `""` | Answers a pending *listen* question the sender may answer, else goes to the first conversation with a turn open (in opening order). |
-| `<role>` | That role's newest conversation with a turn open. |
-| `<role>/<n>` | That conversation. |
+| `<role>` | That role's newest conversation with a turn open; with none open, in `chat` only, answers a pending listen question the sender may answer. |
+| `<role>/<n>` | That conversation; with no turn open in it, in `chat` only, answers a pending listen question the sender may answer. |
 | `outworlder:<role>` | Answers that role's pending listen question only; never put into a turn. |
 
 A line enters a conversation only while a turn is open, one line per agent at a time; it
-waits otherwise, and the next turn to start takes the oldest matching line into its prompt.
+waits otherwise, and the next turn to start takes the oldest matching line into its prompt. A
+line that answered a listen question is taken by no turn.
 Accepted lines are reported with `said`; a backend's refusal with `refused` (the line returns
 to the head of the queue).
 
@@ -341,7 +342,7 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `profile` (bool), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
 | `opened` | `role`, `key` (`<role>/<n>`), `agent` (agent id), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono`, `wall` (Unix time) |
 | `event` | `key`, `session` (`key` where the event names a conversation, else `""`), `agent`, `cli`, `model`, `ident` (backend's conversation id, `""` until named), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono`. Same fields as [`hmz exec --json`](/reference/cli#ndjson). |
-| `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`) |
+| `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`), `key` (`<role>/<n>` of the one conversation with a turn open, else `""`) |
 | `answered` | `question`, `role`, `by`, `client`, `text` (the option chosen, or the text) |
 | `withdrawn` | `question`, `why`: `away` (the role went afk) or `over` (the run ended, stopped, was forced or the host closed) |
 | `said` | `text`, `key`, `by`, `client`: a line a conversation took |
@@ -396,7 +397,7 @@ The latest of each type is kept and re-sent on attach; a changed one is broadcas
 | `sessions` | `run`, `open` (keys still open), `working` (keys with a turn open) | `0`, `[]`, `[]` |
 | `calls` | `calls`: `[{ref, name, depth, since (host monotonic), id, parent (index or null)}]` | `[]` |
 | `waiting` | `queued` `[{text, by, client, to}]`, `given` `[{agent, text, by, client}]` | `[]`, `[]` |
-| `pending` | `pending`: `[{question, run, role, text, options, mode, owner (client id or null)}]` | `[]` |
+| `pending` | `pending`: `[{question, run, role, text, options, mode, key, owner (client id or null)}]` | `[]` |
 | `usage` | `run`, `usage` (Usage JSON or `null`), `budget`; refreshed at most once a second | `0`, `null`, `null` |
 | `board` | `items`: `[{key, value, about, whose (both, user, flow), by, at}]`, or `null` for a run with no board; reset to `null` on start | `null` |
 

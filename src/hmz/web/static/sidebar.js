@@ -316,9 +316,22 @@ export function epicMenu(run) {
     { label: 'Copy task', glyph: 'copy', act: () => copy(run.task, 'Task copied') },
     { label: 'Copy name', glyph: 'copy', act: () => copy(run.name, 'Name copied') },
     run.held ? null : { label: 'Export', glyph: 'download', act: () => (location.href = `/api/runs/${encodeURIComponent(run.name)}/bundle`) },
+    { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
     run.held ? '-' : null,
     run.held ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask(run.workspace, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
   ]
+}
+
+/** Backs an epic up to its targets now, behind the page: how it went is read as the epic is. */
+export function upload(name) {
+  post(`/api/runs/${encodeURIComponent(name)}/backup`, {}).then((answer) => toast(`Uploading to ${answer.queued.join(', ')}`), (error) => toast(error.message))
+}
+
+/** How an epic's last backup to each target went, each in turn, or '' where it has none. */
+export function backedSaid(backed) {
+  return Object.entries(backed || {})
+    .map(([name, one]) => `${name}: ${one.ok ? 'uploaded' : `failed, ${one.error}`} ${when(one.at)}`)
+    .join(' · ')
 }
 
 /** Forgets a workspace nothing ran in, which takes it out of the list. */

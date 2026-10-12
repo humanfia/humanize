@@ -32,6 +32,7 @@ class MimoCodeSession(OpencodeSession):
 
     command: ClassVar[str] = "mimo"
     permits: ClassVar[str] = "MIMOCODE_PERMISSION"
+    configures: ClassVar[str] = "MIMOCODE_CONFIG_CONTENT"
 
     #: Three ways out where opencode has two. It ships the same page-fetcher and web search,
     #: and a third tool that looks up the APIs and libraries a turn is working against -- which

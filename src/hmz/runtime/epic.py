@@ -59,6 +59,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import threading
 import uuid
 from pathlib import Path
@@ -76,6 +77,7 @@ if TYPE_CHECKING:
     from .tracing.profile import Profiler
 
 __all__ = [
+    "BACKED",
     "JOURNAL",
     "LOCAL",
     "RECORD",
@@ -91,9 +93,11 @@ __all__ = [
     "Sub",
     "called",
     "epics",
+    "foreign",
     "harbor",
     "harnessed",
     "logs",
+    "note",
     "opened",
     "picks_up",
     "read",
@@ -117,6 +121,9 @@ _LEGIBLE = re.compile(r"[^A-Za-z0-9._@-]+")
 
 #: The file an epic's own record is written to, inside the epic's directory.
 JOURNAL = "epic.jsonl"
+
+#: What a line saying how one backup of the epic went is, in its own record.
+BACKED = "backed"
 
 #: What the record of a flow another flow called is called, beside the run's own: which
 #: flow it is of, and an id of that call rather than of the flow -- a flow called twice is
@@ -294,6 +301,10 @@ class Ran(NamedTuple):
       spent: What the run spent as its budget counted it, as JSON -- `cost` in dollars,
         `output_tokens` and `seconds` -- written as it ended, or None for a run still going
         or one killed before it could say.
+      backup: The git repositories it was to be backed up to, by the name each is kept
+        under in settings.
+      backed: How its last backup to each target went, by target: `at`, `ok`, `error` --
+        "" where it went -- and `why` it was backed up.
     """
 
     at: Path
@@ -315,6 +326,8 @@ class Ran(NamedTuple):
     picked_up: str = ""
     profile: bool = False
     spent: dict[str, Any] | None = None
+    backup: tuple[str, ...] = ()
+    backed: dict[str, dict[str, Any]] = {}  # noqa: RUF012 -- a NamedTuple's default
 
     @property
     def name(self) -> str:
@@ -455,10 +468,85 @@ def picks_up(epic: Path) -> bool:
 
     Returns:
       True where the run was of a resumable flow and got as far as writing its first call
-      down; False for any other run, for one killed before it wrote anything, and for one
-      still going -- a run picked up from one that goes on is two loops on one directory.
+      down; False for any other run, for one killed before it wrote anything, for one
+      still going -- a run picked up from one that goes on is two loops on one directory --
+      and for one imported from a workspace this machine has not got (:func:`foreign`).
     """
-    return not _going(epic) and any(one.get("t") == "call" for one in _journal(epic))
+    return (
+        not _going(epic)
+        and any(one.get("t") == "call" for one in _journal(epic))
+        and not foreign(epic)
+    )
+
+
+def foreign(epic: Path) -> str:
+    """Why a run imported from another machine cannot be picked up on this one.
+
+    A run picked up goes on in the workspace it ran in, from where it got to there. So the
+    workspace it says has to be here, at that very path, and -- where it is a repository and
+    the bundle said which commit it was on -- has to hold that commit.
+
+    Args:
+      epic: The epic's directory.
+
+    Returns:
+      Why not, in words, or "" for a run that was not imported or can be picked up here.
+    """
+    events = _events(epic)
+    # The last: a run imported, exported again and imported here is on the commit it was
+    # exported from the second time.
+    imported = next(
+        (one for one in reversed(events) if one.get("event") == "imported"), None
+    )
+    if imported is None:
+        return ""
+    ran_in = next(
+        (
+            str(one.get("workspace") or "")
+            for one in events
+            if one.get("event") == "began"
+        ),
+        "",
+    )
+    at = Path(ran_in)
+    if not ran_in or not at.is_dir():
+        return f"the workspace it ran in, {ran_in or 'unsaid'}, is not on this machine"
+    if at.resolve() != at:
+        return f"the workspace it ran in, {ran_in}, is {at.resolve()} here"
+    head = str(imported.get("head") or "")
+    if head and not _holds(at, head):
+        return f"the workspace it ran in, {ran_in}, has no commit {head[:12]}"
+    return ""
+
+
+def _holds(at: Path, head: str) -> bool:
+    """Whether a workspace holds one commit, or is no repository to hold one in.
+
+    Args:
+      at: The workspace.
+      head: The commit.
+
+    Returns:
+      False for a repository without it, and True otherwise -- a directory that is not one,
+      or a machine with no git to ask, being a workspace with nothing to check.
+    """
+
+    def git(*said: str) -> int:
+        try:
+            return subprocess.run(
+                ["git", "-C", str(at), *said],
+                capture_output=True,
+                timeout=20.0,
+                check=False,
+                stdin=subprocess.DEVNULL,
+            ).returncode
+        except (OSError, subprocess.SubprocessError):
+            return 0
+
+    return (
+        git("cat-file", "-e", f"{head}^{{commit}}") == 0
+        or git("rev-parse", "--git-dir") != 0
+    )
 
 
 def _hold(at: Path) -> int | None:
@@ -587,6 +675,7 @@ class Epic:
         resumable: bool = False,
         picked_up: Path | None = None,
         profile: bool = False,
+        backup: Sequence[str] = (),
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
 
@@ -610,6 +699,7 @@ class Epic:
             that what a turn spent its minutes on is in the run's trace beside the turn. Asked
             of the run as its budget is, by whoever starts it, and written down with the rest
             so that a run picked up again is profiled as the run it goes on from was.
+          backup: The git repositories it is backed up to, by name.
         """
         self._begin(
             home()
@@ -655,6 +745,7 @@ class Epic:
             params=dict(params or {}),
             **({"budget": dict(budget)} if budget is not None else {}),
             **({"profile": True} if profile else {}),
+            **({"backup": list(backup)} if backup else {}),
             spelling=SPELLING,
         )
 
@@ -991,6 +1082,22 @@ def epics(workspace: Path | str | None = None) -> list[Path]:
         return []
 
 
+def every() -> list[Path]:
+    """The epics run on this machine, in every workspace, oldest first.
+
+    Returns:
+      One directory per epic, ordered by the moment it began, which is what each is named.
+    """
+    found: list[Path] = []
+    with contextlib.suppress(OSError):
+        for workspace in (home() / "epics").iterdir():
+            with contextlib.suppress(OSError):
+                found += (
+                    one for one in workspace.iterdir() if (one / JOURNAL).is_file()
+                )
+    return sorted(found, key=lambda one: one.name)
+
+
 def _events(epic: Path) -> list[dict[str, Any]]:
     """Every line one epic holds, in the order they were written.
 
@@ -1152,6 +1259,8 @@ def read(epic: Path) -> Ran | None:
     spelled = str if began.get("spelling") == SPELLING else _respelled
     params = began.get("params")
     budget = began.get("budget")
+    # One imported was given another machine's targets, which are nothing to back up to here.
+    backup = None if _here(events) else began.get("backup")
     return Ran(
         at=epic,
         flow=str(began.get("flow") or ""),
@@ -1183,7 +1292,50 @@ def read(epic: Path) -> Ran | None:
             if usage
             else None
         ),
+        backup=tuple(
+            str(one)
+            for one in cast("list[Any]", backup if isinstance(backup, list) else [])
+        ),
+        backed={
+            str(one.get("to")): {
+                "at": str(one.get("at") or ""),
+                "ok": one.get("ok") is True,
+                "error": str(one.get("error") or ""),
+                "why": str(one.get("why") or ""),
+            }
+            # Only since it came here: one imported was backed up on another machine, to
+            # targets of that machine's.
+            for one in events[_here(events) :]
+            if one.get("event") == BACKED
+        },
     )
+
+
+def _here(events: list[dict[str, Any]]) -> int:
+    """Where in one epic's events this machine's own begin: after the last import, if any."""
+    return next(
+        (
+            len(events) - at
+            for at, one in enumerate(reversed(events))
+            if one.get("event") == "imported"
+        ),
+        0,
+    )
+
+
+def note(epic: Path, event: str, **said: Any) -> None:
+    """Appends one line to an epic's own record from outside the run writing it.
+
+    What happens to a run once it has ended, or beside it -- a backup of it -- is still
+    written where the run is read, as every line of it is: appended whole and flushed.
+
+    Args:
+      epic: The epic's directory.
+      event: What happened.
+      said: What is worth saying about it.
+    """
+    with (epic / JOURNAL).open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({"event": event, "at": _now(), **said}) + "\n")
 
 
 def _respelled(one: object) -> str:

@@ -296,8 +296,10 @@ _EXTERNAL = {"type": "externalSandbox"}
 
 #: What an app server knows and cannot be told again: the account it was started as, the
 #: names of the flow's own callbacks it was told about, the command it was started with and
-#: the fence it was started inside. See :meth:`CodexAgent._knowing`.
-type _Knows = tuple[str, tuple[str, ...], tuple[str, ...], Fence | None]
+#: the fence it was started inside -- and where the agent's shelf was, whose command lines
+#: are on its PATH only if it was anywhere (:meth:`Shelf.where`). See
+#: :meth:`CodexAgent._knowing`.
+type _Knows = tuple[str, tuple[str, ...], tuple[str, ...], Fence | None, str]
 
 #: The sandboxes a rung may ask for that confine a command at all, and so the ones
 #: :data:`_LANDLOCK` has anything to do with.
@@ -657,7 +659,7 @@ class _AppServer:
         #: has been set up as something its server reads only as it starts, starts another
         #: rather than going on talking to this one. Kept here rather than on the agent, so
         #: that two starting at once cannot leave the agent believing either is the other.
-        self.knows: _Knows = ("", (), (), None)
+        self.knows: _Knows = ("", (), (), None, "")
         #: Whose turns run here, so that what is teed can be what nobody is watching. Held
         #: weakly: the agent holds the server, and the finalizer that takes the server down is
         #: the agent's -- so a server holding its agent back would be an agent nothing could
@@ -2249,6 +2251,7 @@ class CodexAgent(AgentBase):
             offering,
             tuple(self._argv(offering)),
             self.config.fence,
+            self.shelf.where(),
         )
         self._retiring = [one for one in self._retiring if not one._stopped]
         kept: list[_AppServer] = []

@@ -33,7 +33,7 @@ from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES
 from hmz.runtime.runner import Line, Refused, Runner, read_line
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
 
 
 # ------------------------------------------------------------------ the line
@@ -123,6 +123,7 @@ def test_repeated_flags_add_up_in_order() -> None:
         (["-f", "x", "-p", "budget.cost=lots", "t"], "budget.cost"),
         (["-f", "x", "-p", "budget.output_tokens=1.5", "t"], "budget.output_tokens"),
         (["-f", "x", "-p", "budget.graceful=perhaps", "t"], "true or false"),
+        (["-f", "x", "--backup", "lab", "--backup", "none", "t"], "names no target"),
     ],
 )
 def test_a_line_that_is_not_one_exits_saying_why(
@@ -647,6 +648,24 @@ def test_a_run_is_picked_up_from_the_epic_named_or_the_newest(
     with epic.Epic("ralph", "t", tmp_path, ref="official/ralph", resumable=True) as one:
         _picked_up(one.path)
     assert _runner(resume=True, workspace=tmp_path).picked_up == one.path
+
+
+def test_a_run_imported_from_a_workspace_not_here_is_not_picked_up(
+    engine_: Flowing, tmp_path: Path
+) -> None:
+    engine_.impl.resumable = True
+    named = _picked_up(tmp_path / "named")
+    (named / epic.JOURNAL).write_text(
+        json.dumps({"event": "began", "workspace": str(tmp_path / "gone")})
+        + "\n"
+        + json.dumps({"event": "imported", "from": "named.hmzepic"})
+        + "\n"
+    )
+
+    with pytest.raises(
+        Refused, match=r"cannot be resumed here: .* not on this machine"
+    ):
+        _runner(resume=named)
 
 
 # ------------------------------------------------------------------ prices
@@ -1189,3 +1208,81 @@ def test_what_a_run_spent_is_the_engines_reckoning_kept_when_it_ends(
     assert runner.recorder.usage() == Usage(cost=1.5, output_tokens=7)
     (usage,) = [one for one in _events(written.journal) if one["event"] == "usage"]
     assert (usage["cost"], usage["output_tokens"], usage["seconds"]) == (1.5, 7, 0.0)
+
+
+# ------------------------------------------------------------------ backups
+
+
+@pytest.mark.parametrize(
+    ("argv", "backup"),
+    [
+        ([], None),
+        (["--backup", "lab", "--backup", "home"], ("lab", "home")),
+        (["--backup", "none"], ()),
+    ],
+)
+def test_the_backup_targets_are_read_off_the_line(
+    argv: list[str], backup: tuple[str, ...] | None
+) -> None:
+    assert read_line(["-f", "x", *argv, "t"]).backup == backup
+
+
+@pytest.fixture
+def targets(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Any, ...]]:
+    """Two backup targets in settings, `lab` the default, and every push kept."""
+    from hmz.runtime import backing
+    from hmz.runtime.settings import Target
+
+    pushed: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(
+        backing,
+        "configured",
+        lambda: (
+            (
+                Target("lab", "/lab", policies=("session", "end")),
+                Target("home", "/home", policies=("interval",), every=60),
+            ),
+            ("lab",),
+        ),
+    )
+
+    def push(epic: Path, names: Iterable[str], why: str) -> None:
+        pushed.append((epic, tuple(names), why))
+
+    monkeypatch.setattr(backing, "push", push)
+    return pushed
+
+
+def test_a_run_given_no_backup_targets_goes_to_the_defaults(
+    engine_: Flowing, targets: list[tuple[Any, ...]], tmp_path: Path
+) -> None:
+    runner = _runner(workspace=tmp_path)
+
+    assert runner.backup == ("lab",)
+    runner.run("t")
+    assert _ran(runner)["backup"] == ("lab",)
+
+
+def test_a_backup_target_settings_has_none_of_is_refused(
+    engine_: Flowing, targets: list[tuple[Any, ...]]
+) -> None:
+    with pytest.raises(Refused, match="no backup target is named nope"):
+        _runner(backup=["lab", "nope"])
+
+
+def test_an_epic_is_backed_up_as_sessions_close_and_once_it_has_ended(
+    engine_: Flowing, targets: list[tuple[Any, ...]], tmp_path: Path
+) -> None:
+    def does(recorder: Any) -> None:
+        recorder.closed(Handle(id="s1"))
+
+    engine_.flow = _does(does)
+    runner = _runner(workspace=tmp_path, backup=["lab", "home"])
+    runner.run("t")
+
+    at = _ran(runner)["at"]
+    assert targets == [(at, ("lab",), "session"), (at, ("lab",), "end")]
+
+
+def _does(does: Callable[[Any], None]) -> Callable[[dict[str, Any]], None]:
+    return lambda said: does(said["recorder"])

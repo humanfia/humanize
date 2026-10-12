@@ -40,7 +40,9 @@ Three things set it apart from a coding agent:
 
 ## Example: a conversation
 
-`talk` is the shape of [`chat`](https://humanfia.ai/flows/chat), the flow the interface opens on:
+`talk` is the shape of [`chat`](https://humanfia.ai/flows/chat), the flow the interface opens on. For `chat`
+alone, the interfaces show the outworlder as the conversation itself: a line typed to the
+assistant between turns is the next message, rather than a separate question to answer.
 
 ```python
 # .hmz/flows/talk/__init__.py

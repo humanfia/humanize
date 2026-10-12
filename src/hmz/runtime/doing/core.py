@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Model, Profile
     from hmz.flows import Budget, FlowParams
     from hmz.runtime.doing.accounts import Accounts
+    from hmz.runtime.doing.backups import Backups
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
@@ -61,6 +62,7 @@ class Hmz:
         self._runtimes: Runtimes | None = None
         self._fallbacks: Fallbacks | None = None
         self._epics: Epics | None = None
+        self._backups: Backups | None = None
 
     @property
     def workspace(self) -> Path:
@@ -134,6 +136,15 @@ class Hmz:
 
             self._epics = Epics(self._workspace)
         return self._epics
+
+    @property
+    def backups(self) -> Backups:
+        """The git repositories epics are backed up to, and backing one up by hand."""
+        if self._backups is None:
+            from hmz.runtime.doing.backups import Backups
+
+            self._backups = Backups()
+        return self._backups
 
     def backends(self) -> tuple[Profile, ...]:
         """Every coding agent CLI humanize drives, whether or not it is installed here."""
@@ -233,6 +244,7 @@ class Hmz:
         budget: Budget | Mapping[str, Any] | None = None,
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
+        backup: Iterable[str] | None = None,
     ) -> Runner:
         """Loads a flow and opens a driver for every role it is given, checking all of it.
 
@@ -245,6 +257,7 @@ class Hmz:
           budget: What the run may spend; only `chat` runs without one.
           profile: Whether to profile the programs its agents start, as well as trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
+          backup: The backup targets the epic goes to, by name, or None for the defaults.
 
         Returns:
           The flow, loaded, with its drivers in hand and nothing started.
@@ -264,6 +277,7 @@ class Hmz:
             profile=profile,
             resume=resume,
             workspace=self._workspace,
+            backup=backup,
         )
 
     def run(
@@ -278,6 +292,7 @@ class Hmz:
         profile: bool = False,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
+        backup: Iterable[str] | None = None,
     ) -> Run:
         """A run of one flow, loaded and ready to be started.
 
@@ -291,6 +306,7 @@ class Hmz:
           profile: Whether to profile the programs its agents start, as well as trace them.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           outworlder: Whoever is outside the run, or None for nobody.
+          backup: The backup targets the epic goes to, by name, or None for the defaults.
 
         Returns:
           The run. Nothing has started: `run()` runs it here, `start()` on a thread.
@@ -310,6 +326,7 @@ class Hmz:
                 budget=budget,
                 profile=profile,
                 resume=resume,
+                backup=backup,
             ),
             task,
             outworlder=outworlder,
@@ -341,6 +358,7 @@ class Hmz:
             budget=line.budget,
             profile=line.profile,
             resume=line.resume,
+            backup=line.backup,
         ).run()
 
     def host(self) -> Host:

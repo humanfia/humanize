@@ -19,7 +19,8 @@ granted what it declared -- with the drivers underneath swapped for these::
   `USER_PROMPT_SUBMIT` and `STOP` on every turn, `SESSION_END` on close, and whichever
   others a scripted answer reaches for through its session -- :meth:`FakeSession.tool`,
   :meth:`~FakeSession.ask`, :meth:`~FakeSession.notify`, :meth:`~FakeSession.subagent` --
-  so that a flow's hooks are exercised too. A `STOP` hook that blocks keeps the turn going
+  so that a flow's hooks are exercised too; and it calls the flow's own tools its session
+  offers, through :meth:`FakeSession.use`. A `STOP` hook that blocks keeps the turn going
   with its reason as the next prompt, as a real one does, and a hard deadline cuts off a turn
   its answer holds open -- one waiting on :meth:`FakeSession.until_steered` -- as a real
   driver's does. It forks where its harness does, as a real one does: not a session that
@@ -93,6 +94,7 @@ if TYPE_CHECKING:
 
     from hmz.flows import (
         AskUserHookResult,
+        FakeTool,
         Flow,
         FlowParams,
         HookResult,
@@ -281,6 +283,7 @@ class FakeSession:
       requests: Every turn it was asked for, limits and all.
       steered: Every prompt it was steered with, and whether it was queued.
       tools: Every tool its answers reached for, what with, and whether it was let run.
+      offered: The flow's tools it offers the agent.
       turns: How many turns it was asked for, a turn a hook refused among them.
       named: Whether a turn of it has got past its hooks to the agent, which is where a real
         CLI names a conversation, and so has one to fork.
@@ -298,8 +301,10 @@ class FakeSession:
         hooks: HookTable,
         forked_from: FakeSession | None,
         carried_on: Kept | None = None,
+        offered: tuple[FakeTool, ...] = (),
     ) -> None:
         self.driver = driver
+        self.offered = offered
         self.placement = placement
         self.placements = [placement]
         self.permission = permission
@@ -577,6 +582,30 @@ class FakeSession:
         self.tools.append((name, said, allowed))
         return allowed
 
+    async def use(self, name: str, input: Mapping[str, Any] | None = None) -> str:  # noqa: A002
+        """Calls one of the flow's tools it offers, as the agent would.
+
+        Returns:
+          What the agent would read back: what the tool answered, as text -- `done` for
+          nothing, JSON for what is not a string -- or, where it raised, what it raised.
+
+        Raises:
+          SessionError: If it is closed, or offers no tool of that name.
+        """
+        if self.closed:
+            raise SessionError(f"{self._id} is closed")
+        tool = next((one for one in self.offered if one.name == name), None)
+        if tool is None:
+            raise SessionError(f"{self._id} offers no tool called {name!r}")
+        try:
+            given = () if tool.takes is None else (tool.takes(**(input or {})),)
+            said = await cast("Callable[..., Awaitable[object]]", tool.call)(*given)
+        except Exception as why:  # noqa: BLE001 -- told the agent, as a real one is
+            return f"{type(why).__name__}: {why}"
+        if said is None:
+            return "done"
+        return said if isinstance(said, str) else json.dumps(said, default=str)
+
     async def ask(self, question: str, options: Sequence[str] = ()) -> str | None:
         """Asks the user a question, where the harness can.
 
@@ -702,6 +731,7 @@ class FakeAgentDriver:
         hooks: HookTable,
         fork_of: Any = None,
         carry_on: Kept | None = None,
+        tools: tuple[FakeTool, ...] = (),
     ) -> FakeSession:
         forked: FakeSession | None = None
         told = None if carry_on is None else self.recalled(carry_on, placement)
@@ -718,7 +748,7 @@ class FakeAgentDriver:
             self.carried(fork_of.placement, placement, "fork")
             forked = fork_of
         session = FakeSession(
-            self, placement, permission, skills, hooks, forked, carry_on
+            self, placement, permission, skills, hooks, forked, carry_on, tools
         )
         if told is not None:
             session.prompts = told
