@@ -57,6 +57,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import MachineConfig
     from hmz.coganchor.providers import Provider
+    from hmz.coganchor.tailing import Tail
 
     from .allowance import Ledger
     from .config import AgentConfig, Budget
@@ -85,6 +86,12 @@ class Journal(Protocol):
 #: account. For a machine that will not hand a tracee over, and for a suite of stand-ins that
 #: must not need one.
 KEEPING = "HUMANIZE_SESSIONS"
+
+
+def _unkept() -> bool:
+    """Whether this process was told to keep no session of its own (:data:`KEEPING`)."""
+    return os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no")
+
 
 #: What a directory of a CLI's kept sessions holds copies of conversations under, beside the
 #: sessions themselves: a name no CLI keeps anything under, and never part of a conversation.
@@ -2135,6 +2142,10 @@ class SessionBase(ABC):
             if (held := self._agent.allowance) is not None:
                 held.over()
         self._shut()
+        if self._id is not None:
+            # What the CLI logged on another machine, copied whole now that it is done --
+            # waited for, unless this is a stop arriving under a turn, which must not wait.
+            self._agent._closes(self._id, wait=not self._working)
         # And whatever this conversation was offering the agent: a callback that outlived the
         # conversation offering it would be one the flow can no longer see the point of.
         # Calling the finalizer is what takes them back, so that a session closed by hand and
@@ -2379,6 +2390,9 @@ class SessionBase(ABC):
                 )
             self._id = session_id
             self._agent._opens(session_id)
+            if self._agent._tail is not None:
+                # And let go of, for a session nobody closes, rather than copied for ever.
+                weakref.finalize(self, self._agent._closes, session_id, wait=False)
             if self._agent.epic is not None:
                 # The run is the only thing that knows this session was one of its own: the
                 # backend logs it under this id and never says whose it was. Nor which
@@ -3871,6 +3885,12 @@ class AgentBase(ABC):
         self._loads: tuple[Loaded, ...] = ()
         # The machine this agent's turns land on, once the first of them has brought it up.
         self._anchor: AnchorConfig | None = None
+        # What copies its sessions here from that machine, for a CLI that keeps them there,
+        # and whether that has been settled.
+        self._tail: Tail | None = None
+        self._tailed = False
+        # Where its native turns say they moved the CLI's home to, once one is to.
+        self._told: Path | None = None
         #: Which account its turns run as: the one it was configured with, or the one this
         #: machine is signed into. Looked up once, when the first turn needs it, and held
         #: from then on -- an account taken away while a flow is running is not a reason for
@@ -4823,18 +4843,19 @@ class AgentBase(ABC):
 
         Returns:
           This backend's directory in :attr:`keeps` where its turns keep their sessions there,
-          and the CLI's own home where they cannot: an agent no run drives, a process told
-          `HUMANIZE_SESSIONS=off`, a machine that cannot supervise a turn, and a turn the
-          target's own CLI takes. For a backend nothing is written down about, its directory
-          in :attr:`keeps`, or None where there is none and nothing says where its CLI keeps
-          them.
+          or where what they log on another machine is copied to -- the target's own CLI, and
+          one under a harness on a machine of its own -- and the CLI's own home where neither
+          is so: an agent no run drives, a process told `HUMANIZE_SESSIONS=off`, and a machine
+          that cannot supervise a turn. For a backend nothing is written down about, its
+          directory in :attr:`keeps`, or None where there is none and nothing says where its
+          CLI keeps them.
         """
         from hmz.coganchor.backends import named
 
         profile = named(self.backend)
         if profile is None:
             return None if self.keeps is None else self.keeps / self.backend
-        if (keeps := self.keeps) is not None and self._keeping():
+        if (keeps := self.keeps) is not None and (self._keeping() or self._tailing()):
             return keeps / profile.name
         try:
             environment = self._environ()
@@ -4859,7 +4880,7 @@ class AgentBase(ABC):
         profile = named(self.backend)
         if profile is None or not profile.sessions or self.keeps is None:
             return False
-        if os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no"):
+        if _unkept():
             return False
         if profile.told:
             return True
@@ -4874,6 +4895,84 @@ class AgentBase(ABC):
         # A CLI that runs on the target, or under a harness on another machine, keeps its
         # sessions on that machine: nothing of this one's is there to keep them in.
         return not self._anchor.native and not elsewhere(self._anchor)
+
+    def _tailing(self) -> bool:
+        """Whether this agent's sessions are logged on another machine and copied here.
+
+        Returns:
+          True for a backend that logs its sessions, on an agent a run drives, whose CLI is
+          the target's own or runs under a harness on another machine, that machine being one
+          a command can be started on -- unless this process was told to keep none.
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.tailing import road
+
+        profile = named(self.backend)
+        if profile is None or not profile.logs or self.keeps is None:
+            return False
+        if _unkept():
+            return False
+        return self._anchor is not None and road(self._anchor) is not None
+
+    def _tails(self) -> Tail | None:
+        """What copies this agent's sessions here, made the first time one is opened.
+
+        Returns:
+          It, or None for an agent whose sessions are not copied (:meth:`_tailing`). A native
+          one whose account projects the CLI's home follows each turn's private directory on
+          the target, as the turn tells it (:meth:`_telling`), and what is left there is
+          brought back as the turn ends (:meth:`_bringing`).
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.serve.sessions import (
+            HOST_SPECIFIC_ENV,
+            HOST_SPECIFIC_PREFIXES,
+        )
+        from hmz.coganchor.tailing import Tail, road
+
+        with self._holding:
+            if self._tailed or not self._tailing():
+                return self._tail
+            anchor, profile, keeps = self._anchor, named(self.backend), self.keeps
+            way = None if anchor is None else road(anchor)
+            if anchor is None or profile is None or keeps is None or way is None:
+                return None  # what `_tailing` has just said is not so
+            home, told = "", None
+            variable = profile.home_var
+            if anchor.native and not (
+                variable in HOST_SPECIFIC_ENV
+                or variable.startswith(HOST_SPECIFIC_PREFIXES)
+            ):
+                # What this machine's environment says crosses to the target's own CLI, and
+                # is where it keeps its home there; a harness elsewhere is given none of it.
+                # An account that is not there is the next turn's to say.
+                with contextlib.suppress(ValueError):
+                    if variable in dict(self._projecting(self.provider)):
+                        told = self._telling()
+                    home = (self._environ() or os.environ).get(variable, "")
+            # Settled, as a turn keeping them there settles it: copies go on landing here.
+            self._keeps, self._said, self._settled = keeps, True, True
+            self._tail = Tail(way, profile, keeps / profile.name, home, told)
+            self._tailed = True
+            return self._tail
+
+    def _telling(self) -> Path:
+        """Where each native turn says where it projected the CLI's home to, for as long as it runs.
+
+        Returns:
+          A directory of this agent's own that only this user may enter, taken away with the
+          agent.
+        """
+        import shutil
+        import tempfile
+        from pathlib import Path
+
+        with self._holding:
+            if self._told is None:
+                made = tempfile.mkdtemp(prefix="hmz-homes-")
+                weakref.finalize(self, shutil.rmtree, made, ignore_errors=True)
+                self._told = Path(made)
+            return self._told
 
     def _keeping_swaps(self) -> tuple[tuple[str, str], ...]:
         """The paths this agent's sessions are kept at, and where its turn keeps them instead.
@@ -5151,12 +5250,16 @@ class AgentBase(ABC):
                     "the flow's own callbacks -- the bridge that carries them is a program "
                     "on this machine, and the CLI that would start it is on that one"
                 )
+            projects = self._projecting(provider)
+            brings = self._bringing(projects)
             return replace(
                 anchor,
                 hushes=tuple(sorted(self.hushed())),
-                projects=self._projecting(provider),
+                projects=projects,
                 carries=carried(self.backend, self._loads),
                 installs=installing(self.backend),
+                brings=brings,
+                tells=str(self._telling()) if brings else "",
             )
         if self._toolbox.empty():
             return anchor
@@ -5164,6 +5267,37 @@ class AgentBase(ABC):
         if held in anchor.local_execs:
             return anchor
         return replace(anchor, local_execs=(*anchor.local_execs, held))
+
+    def _bringing(
+        self, projects: Sequence[tuple[str, str]]
+    ) -> tuple[tuple[str, str], ...]:
+        """What a native turn brings back of a home its account moved, before it goes.
+
+        A provider whose credentials are under the backend's own home projects that home into
+        the turn's private directory on the target, so the CLI keeps its sessions there too --
+        and that directory is taken away as the turn ends, before anything copying from the
+        target's own home could find them.
+
+        Args:
+          projects: What the turn projects, as :meth:`_projecting` said.
+
+        Returns:
+          One `(VARIABLE/PATH, the CLI's directory in kept)` per directory the backend logs a
+          session under -- never a file every session shares, which the turn's own home holds
+          only this turn's part of -- for a turn projecting its home whose sessions are copied
+          here; nothing otherwise.
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.tailing import roots
+
+        profile = named(self.backend)
+        if profile is None or profile.home_var not in dict(projects):
+            return ()
+        tail = self._tails()
+        kept = self.kept()
+        if tail is None or kept is None:
+            return ()
+        return tuple((f"{profile.home_var}/{one}", str(kept)) for one in roots(profile))
 
     def _projecting(self, provider: Provider | None) -> tuple[tuple[str, str], ...]:
         """The credential files this turn's account keeps, and what to call each on the target.
@@ -5339,6 +5473,19 @@ class AgentBase(ABC):
         """
         with self._holding:
             self._opened.append(session)
+        if (tail := self._tails()) is not None:
+            tail.follow(session)
+
+    def _closes(self, session: str, *, wait: bool = True) -> None:
+        """Copies the whole of a session it logged on another machine here, as it closes.
+
+        Args:
+          session: The backend's id for it.
+          wait: Whether to wait for the copy, which a session closed under a turn still
+            running, or let go of without closing, leaves to a thread instead.
+        """
+        if self._tail is not None:
+            self._tail.forget(session, wait=wait)
 
     def _heard(self, event: Event, session: SessionBase | None = None) -> None:
         """Tells everyone watching what a turn of this agent just said.

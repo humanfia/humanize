@@ -124,6 +124,22 @@ _SWEEP = 'rm -rf -- "$1"'
 #: Reading one of them back, as it stands once the CLI is done with it.
 _READ_BACK = 'cat -- "$1"'
 
+#: Everything at the paths after `$1` inside it, each of which may be a glob of one name per
+#: part, as one `tar` on stdout -- or nothing, where none of them is there.
+_PACK = """
+cd "$1" 2>/dev/null || exit 0
+shift
+n=$#
+for p in "$@"; do for f in $p; do [ -e "$f" ] && set -- "$@" "$f"; done; done
+shift "$n"
+[ $# -gt 0 ] || exit 0
+tar cf - "$@" 2>/dev/null
+exit 0
+"""
+
+#: How long the end of a turn may spend bringing back what it wrote in a projected directory.
+_BRINGING = 30.0
+
 #: Where the turns using a carried directory write down that they are using it. Inside what
 #: they are using, so that removing it removes them, and a dotted name so that a CLI reading a
 #: directory of skills does not read this as one.
@@ -213,6 +229,16 @@ class AnchorConfig:
         turn, as `(the directory on this machine, where it goes relative to the workspace)`.
         Which is how a flow's own skills reach a CLI that reads them on the target: a mirror
         is what pushes them under a supervisor, and there is no mirror here.
+      brings: What of a projected directory to bring back here before it is taken away, as
+        `(VARIABLE/PATH, the directory on this machine)`: every file at or under `PATH` --
+        which may be a glob -- inside the directory `VARIABLE` was projected as, put at the same
+        place under that directory here. Which is how a session the CLI keeps under a home a
+        provider moved into the turn's private directory outlives the turn; nothing outside
+        `PATH` is brought, so the credentials beside it stay on the target until they go.
+      tells: A directory on this machine to keep a file in for as long as the turn runs, of
+        `VARIABLE=where it landed` lines, one per projected variable: which is how what copies
+        a session as it goes finds a home the turn moved into its private directory, whose
+        name the target chose. Empty to tell nobody.
       installs: The one line that puts this CLI on the target, said when it is not there.
         Handed in rather than looked up: which line installs a backend is a fact about that
         backend, and coganchor is underneath the layer those are written down in.
@@ -246,6 +272,8 @@ class AnchorConfig:
     hushes: tuple[str, ...] = ()
     projects: tuple[tuple[str, str], ...] = ()
     carries: tuple[tuple[str, str], ...] = ()
+    brings: tuple[tuple[str, str], ...] = ()
+    tells: str = ""
     installs: str = ""
     fence: Fence | None = None
 
@@ -302,6 +330,24 @@ class AnchorConfig:
                 )
         if self.fence is not None and not self.fence.open:
             self._fenceable(where.scheme)
+        if self.tells and not self.tells.startswith("/"):
+            raise ValueError(
+                f"unsupported tell {self.tells!r}; expected an absolute path"
+            )
+        projected = {name for name, _ in self.projects}
+        for named, into in self.brings:
+            variable, _, under = named.partition("/")
+            if (
+                variable not in projected
+                or not under
+                or under.startswith("/")
+                or ".." in under.split("/")
+                or not into.startswith("/")
+            ):
+                raise ValueError(
+                    f"unsupported bring {named}={into!r}; expected a projected VARIABLE, "
+                    "a PATH inside it and an absolute path"
+                )
         for whence, where in self.carries:
             # Relative on the target's side, and only downwards: what is carried goes inside
             # the workspace, and a `..` in it would be a flow writing outside the project.
@@ -841,7 +887,10 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
       OSError: If the target cannot be reached, or a credential cannot be put on it -- or,
         with `EBUSY`, if a sign-in that refreshes itself is out for another turn already.
     """
+    from pathlib import Path
+
     from hmz.coganchor import __version__
+    from hmz.coganchor.atomic import writes
 
     config = config or AnchorConfig()
     if not command:
@@ -855,6 +904,8 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     making: set[str] = set()
     lent: list[_Lent] = []
     session = ""
+    projected: dict[str, str] = {}
+    told = ""
     # What this turn writes its claims on carried directories under. One per turn rather than
     # per session: a turn is what plants them and a turn is what gives them up.
     whose = uuid.uuid4().hex
@@ -878,9 +929,20 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             fence = _fenced(client, config)
             if config.projects:
                 session = _session(client, workspace)
-                said |= _projected(
+                projected = _projected(
                     client, config.projects, session, workspace, refreshing, lent
                 )
+                said |= projected
+                if config.tells:
+                    # Nobody told is a session copied as the turn ends rather than as it goes.
+                    with contextlib.suppress(OSError):
+                        told = os.path.join(config.tells, whose)
+                        writes(
+                            Path(told),
+                            "".join(
+                                f"{k}={v}\n" for k, v in projected.items()
+                            ).encode(),
+                        )
                 if fence is not None:
                     fence["write"] = [*fence["write"], session]
             _carried(client, config.carries, workspace, whose, kept, making)
@@ -892,6 +954,10 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             # taken off *through* that channel, so it has to happen while there is one. And
             # a refreshed sign-in is read back before the copy it is in is taken away.
             _brought_back(client, lent, workspace)
+            _brought_home(client, config.brings, projected, workspace)
+            if told:
+                with contextlib.suppress(OSError):
+                    os.unlink(told)
             _swept(
                 client, session, kept, sorted(making, reverse=True), workspace, whose
             )
@@ -951,7 +1017,11 @@ def _ran(
 
 
 def _exchanged(
-    client: RemoteClient, argv: list[str], cwd: str, feeding: bytes = b""
+    client: RemoteClient,
+    argv: list[str],
+    cwd: str,
+    feeding: bytes = b"",
+    within: float = _SETTLING,
 ) -> tuple[int, bytes]:
     """Runs one short command on the target and waits for the whole of what it said.
 
@@ -965,6 +1035,7 @@ def _exchanged(
         them to its own before it runs anything.
       cwd: Where to run it, as the target names it.
       feeding: What to write to its stdin, for a command whose input must not be in its argv.
+      within: How long to wait for it, in seconds.
 
     Returns:
       Its exit status, and what it wrote to stdout byte for byte.
@@ -996,13 +1067,13 @@ def _exchanged(
     for at in range(0, len(feeding), CHUNK_SIZE):
         handle.send_stdin(feeding[at : at + CHUNK_SIZE])
     handle.close_stdin()
-    if not done.wait(timeout=_SETTLING):
+    if not done.wait(timeout=within):
         # Ended there as well as given up on here, best effort: these are one-line commands,
         # so one that has not answered in this long is stuck, and a stuck command left running
         # on the target is one nothing will ever come back for.
         with contextlib.suppress(OSError):
             handle.signal(signals.SIGKILL)
-        raise TimeoutError(f"the target did not answer {argv[0]!r} in {_SETTLING:.0f}s")
+        raise TimeoutError(f"the target did not answer {argv[0]!r} in {within:.0f}s")
     if (error := held.get("error")) is not None:
         raise error
     return _status(held.get("result")), bytes(said)
@@ -1272,6 +1343,53 @@ def _brought_back(client: RemoteClient, lent: Sequence[_Lent], workspace: str) -
             writes(here, now)
         except OSError as why:
             log.warning("could not bring %s back from the target: %s", one.here, why)
+
+
+def _brought_home(
+    client: RemoteClient,
+    brings: Sequence[tuple[str, str]],
+    projected: Mapping[str, str],
+    workspace: str,
+) -> None:
+    """Brings what a turn wrote under a projected directory back here, before it goes.
+
+    One `tar` per directory, of the paths named under it and nothing else, unpacked here
+    over whatever was there -- refusing anything that would land outside. Never raises, for
+    the reason :func:`_swept` does not, and waits no longer than :data:`_BRINGING` all told:
+    this is the end of a turn, and whatever is not back by then is left.
+
+    Args:
+      client: The connection, which may already be broken.
+      brings: What to bring, as :attr:`AnchorConfig.brings` says it.
+      projected: Where each projected variable landed on the target.
+      workspace: Where to run the commands from, as the target names it.
+    """
+    import io
+    import tarfile
+    import time
+
+    wanted: dict[tuple[str, str], list[str]] = {}
+    for named, into in brings:
+        variable, _, under = named.partition("/")
+        if (landed := projected.get(variable)) is not None:
+            wanted.setdefault((landed, into), []).append(under)
+    until = time.monotonic() + _BRINGING
+    for (landed, into), paths in wanted.items():
+        if (left := until - time.monotonic()) <= 0:
+            log.warning("ran out of time bringing %s back from the target", into)
+            return
+        try:
+            _, packed = _exchanged(
+                client,
+                ["/bin/sh", "-c", _PACK, "humanize", landed, *paths],
+                workspace,
+                within=left,
+            )
+            if packed:
+                with tarfile.open(fileobj=io.BytesIO(packed)) as unpacking:
+                    unpacking.extractall(into, filter="data")
+        except (OSError, ValueError, tarfile.TarError) as why:
+            log.warning("could not bring %s back from the target: %s", into, why)
 
 
 def _carried(

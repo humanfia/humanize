@@ -457,10 +457,42 @@ holds:
   no-op program fails (the answer is cached; a failure is asked again after a minute);
 - the turn is native on a target, or its harness runs on another machine.
 
+### Sessions on another machine
+
+A turn that is native on a target, or whose harness runs on another machine, keeps its session
+in that CLI's home over there. For an agent a run drives, every file the backend logs the
+session to (`Profile.logs`, e.g. Claude's `projects/*/<id>.jsonl` and its sub-agents') is
+copied into `<epic>/sessions/<cli>/…`, laid out the same way, from the moment the CLI names the
+session:
+
+- every 2 s (`hmz.coganchor.tailing.EVERY`), whole lines of each `.jsonl` log only, at most
+  8 MiB of a log per read, on a background thread;
+- whole as the session closes, which is before the run closes its environments (so before a
+  container is removed), including a log written in place (agy's `conversations/<id>.db`),
+  which is copied only then. A session closed under a running turn (a stop), or let go of
+  without a close, gets that last copy on a background thread instead;
+- down the road the turn takes (`ssh`, `docker exec`, `container exec`, `srun`): one short
+  `sh` command lists the files and their lengths, one more reads what was appended. Nothing is
+  installed or held open there. A `tcp://` or `peer://` target, on which no command is started,
+  gets no copy.
+
+The CLI's home over there is the one the turn had: the value of its home variable on this
+machine where that crosses to a native turn, else that machine's own, else its default under
+that machine's `$HOME`. A native turn whose provider projects the CLI's home (e.g.
+`CLAUDE_CONFIG_DIR` for a Claude subscription) keeps its sessions in the turn's private
+directory, whose name the target picks. While the turn runs it keeps where that landed in a
+file of its own in a private directory on this machine (`AnchorConfig.tells`, `--tell`), and
+the copy follows the session there every 2 s as above. As the turn ends, just before that
+directory is removed, it brings each directory the CLI logs sessions under (e.g. Claude's
+`projects`; never its credentials, nor an index every session shares) back into the epic as
+one `tar` (`AnchorConfig.brings`, `--bring`), spending at most 30 s on it. A failed copy is logged once at `WARNING` and retried; it never fails
+or slows a turn. `agent.kept()`, the epic's `opened` line, logs, traces, export and the
+running tally all read the copy. `HUMANIZE_SESSIONS=off` copies nothing.
+
 MiniMax Code needs its sessions kept to run fenced: see
 [Agents › MiniMax Code](/reference/agents#minimax-code).
 
-<small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.sessions`, `Profile.kept`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`KEEPING`, `keeps`, `_keeping`), [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py) (`supervises`).</small>
+<small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.sessions`, `Profile.kept`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`KEEPING`, `keeps`, `_keeping`, `_tailing`), [`src/hmz/coganchor/tailing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/tailing.py) (`Tail`, `road`), [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py) (`supervises`).</small>
 
 ## A turn under a provider
 

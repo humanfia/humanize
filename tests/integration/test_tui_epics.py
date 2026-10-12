@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import tarfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.runtime.epic import epics
+from hmz.runtime.epic import Epic, epics
 from hmz.tui import Humanize
 from hmz.tui.pick import Epics, Exporting
 from tests.integration.doubles_tui import (
+    OWN,
     SIZE,
     on,
     opened,
@@ -24,8 +26,6 @@ from tests.integration.doubles_tui import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from textual.pilot import Pilot
 
 
@@ -120,3 +120,38 @@ async def test_resume_picks_the_last_run_of_a_resumable_flow_back_up(
         "started: heard make it so",
         "resumed: heard make it so",
     ]
+
+
+async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> None:
+    # Under home, so that it is said short enough not to be wrapped: `~/elsewhere`.
+    elsewhere = Path.home() / "elsewhere"
+    elsewhere.mkdir(parents=True)
+    with Epic("chat", "here", workspace) as here:
+        pass
+    with Epic(OWN, "there", elsewhere, resumable=True) as there:
+        pass
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await shows(pilot, "Every epic in this directory", "ctrl+t this machine")
+        assert rows(app) == [here.path.name]
+
+        await pilot.press("ctrl+t")
+        await shows(pilot, "Every epic on this machine", "ctrl+t this directory")
+        await until(pilot, lambda: len(rows(app)) == 2, "both epics")
+        assert rows(app) == [there.path.name, here.path.name]
+        await shows(pilot, "~/elsewhere · there")
+
+        # Another directory's epic is read and exported from here, but not carried on.
+        await pilot.press("up", "enter")
+        await shows(pilot, "resume run")
+        await pilot.press("enter")
+        await on(pilot, Epics)
+        await shows(pilot, "this epic ran in ~/elsewhere; resume it from hmz there")
+
+        await pilot.press("escape")
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await until(pilot, lambda: len(rows(app)) == 2, "the scope remembered")

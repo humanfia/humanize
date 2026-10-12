@@ -1679,7 +1679,10 @@ role.
 | [`rlar`](https://humanfia.ai/flows/rlar) | `actor`, `reviewer` | | ✓ | required | what each role declares |
 
 `chat` opens one session and takes one turn per line the outworlder says; under `hmz exec`
-(outworlder away) it takes the task as its one turn and returns. The first turn's failure ends
+(outworlder away) it takes the task as its one turn and returns. Interfaces show that
+outworlder as the conversation itself: its wait for the next line is no separate question, a
+follow-up or steer typed in the assistant's conversation is that line, and the agent's own
+questions show there with their options. The first turn's failure ends
 the run; later failures are reported and the conversation continues.
 
 The loops are each the plainest form of their idea, written to be read and copied. Each runs

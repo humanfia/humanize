@@ -421,7 +421,8 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
   callbacks -- the bridge that carries them is a program on this machine, and the CLI that
   would start it is on that one`.
 - **Sessions of a native or afar turn stay where that CLI keeps them**, on the other machine; a
-  run cannot keep them in its epic ([Providers › Where sessions are kept](/reference/providers#where-sessions-are-kept)).
+  run copies what they log into its epic as they go and whole as they close
+  ([Providers › Sessions on another machine](/reference/providers#sessions-on-another-machine)).
 - **Forks stay on one machine.** A fork into a session on another machine is refused with
   `UnsupportedOperation: <cli> cannot fork a session onto another machine`.
 
@@ -610,7 +611,8 @@ refused rather than run as whatever account the target is signed into.
 
 - There is no `net`: the CLI's connections are the target's. A gateway at `127.0.0.1` is the
   target's loopback.
-- The CLI keeps its sessions on the target.
+- The CLI keeps its sessions on the target; a run copies what they log into its epic
+  ([Providers › Sessions on another machine](/reference/providers#sessions-on-another-machine)).
 
 <small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`drive`, `_installed`, `_projected`, `_carried`, `_swept`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`_reaching`, `_projecting`).</small>
 
