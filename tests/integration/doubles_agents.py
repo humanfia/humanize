@@ -135,6 +135,30 @@ def kinds(events: list[Any]) -> list[str]:
     return [event.kind for event in events]
 
 
+#: What a stand-in asks an OpenAI-compatible endpoint with, put beside its body: `chatted`
+#: streams one Chat Completions turn from wherever it is pointed and says what came back.
+CHATTING = r"""
+import urllib.request
+
+
+def chatted(base, key, model, said):
+    asked = urllib.request.Request(
+        base.rstrip("/") + "/chat/completions",
+        data=json.dumps({"model": model, "stream": True,
+                         "messages": [{"role": "user", "content": said}]}).encode(),
+        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(asked, timeout=60) as answer:
+            lines = answer.read().decode().splitlines()
+    except Exception as why:
+        return repr(why)
+    events = [json.loads(one[5:]) for one in lines
+              if one.startswith("data:") and one[5:].strip() != "[DONE]"]
+    return "".join((choice.get("delta") or {}).get("content") or ""
+                   for one in events for choice in one.get("choices") or [])
+"""
+
+
 #: How DeepSeek Harness opens the snapshot of its own runtime it puts after a user's prompt.
 RUNTIME_CONTEXT = "Current runtime context."
 

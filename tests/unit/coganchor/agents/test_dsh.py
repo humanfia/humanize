@@ -23,8 +23,9 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.dsh import native_ready
 from hmz.coganchor.agents.event import Unrecoverable
+from hmz.coganchor.providers import Provider
 
-from .doubles_u5 import configured, heard
+from .doubles_u5 import configured, gatewayed, heard
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -567,3 +568,53 @@ def test_the_base_url_settings_name_reaches_the_runtime(
 
     env = runtime.harnesses[0].made["env"]
     assert env["DEEPSEEK_BASE_URL"] == "https://api.example/v1"
+
+
+def test_a_turn_through_a_gateway_runs_on_the_route_it_is_pointed_at_it_by(
+    made: Callable[..., DshAgent],
+    runtime: _Runtime,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gatewayed(
+        monkeypatch,
+        Provider(
+            cli="dsh",
+            name="gw",
+            way="litellm-openai-key",
+            env={"OPENAI_API_KEY": "upstream-secret"},
+        ),
+    )
+
+    _turn(made(provider="gw", effort="high").new(tmp_path))
+
+    (harness,) = runtime.harnesses
+    assert harness.made["provider"] == "gateway"
+    assert harness.made["reasoning_effort"] is None
+    env = harness.made["env"]
+    assert env["DEEPSEEK_BASE_URL"] == "http://127.0.0.1:4321"
+    assert env["DEEPSEEK_API_KEY"] == "sk-master"
+    assert env["DSH_GATEWAY_API"] == "openai-completions"
+    assert "upstream-secret" not in env.values()
+    (route,) = [one for one in harness.patch if one["id"] == "llm-pi-ai"]
+    assert route["config"]["providers"]["gateway"]["models"] == [{"id": "deepseek-v4"}]
+    assert "settings" in _disabled(harness.patch)
+
+
+def test_a_gateway_started_again_starts_the_runtime_again(
+    made: Callable[..., DshAgent],
+    runtime: _Runtime,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = gatewayed(
+        monkeypatch, Provider(cli="dsh", name="gw", way="litellm-openai-key")
+    )
+    session = made(provider="gw").new(tmp_path)
+
+    _turn(session)
+    started[0].running = False
+    _turn(session)
+
+    assert len(started) == 2
+    assert [one.closed for one in runtime.harnesses] == [True, False]

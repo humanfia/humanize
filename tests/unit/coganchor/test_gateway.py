@@ -149,6 +149,50 @@ def test_claude_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
     assert argued(_claude(), env) == ()
 
 
+@pytest.mark.parametrize(
+    ("cli", "expected", "args"),
+    [
+        (
+            "dsh",
+            {
+                "DEEPSEEK_BASE_URL": "http://127.0.0.1:4000",
+                "DEEPSEEK_API_KEY": "sk-master",
+                "DSH_GATEWAY_API": "openai-completions",
+            },
+            (),
+        ),
+        (
+            "kimi",
+            {
+                "KIMI_MODEL_BASE_URL": "http://127.0.0.1:4000",
+                "KIMI_MODEL_API_KEY": "sk-master",
+                "KIMI_MODEL_PROVIDER_TYPE": "openai",
+            },
+            (),
+        ),
+        (
+            "qwen",
+            {
+                "OPENAI_BASE_URL": "http://127.0.0.1:4000",
+                "OPENAI_API_KEY": "sk-master",
+                "QWEN_DEFAULT_AUTH_TYPE": "openai",
+            },
+            ("--auth-type", "openai"),
+        ),
+    ],
+)
+def test_a_cli_speaking_openais_api_is_pointed_at_a_gateway_by_its_openai_way(
+    cli: str, expected: dict[str, str], args: tuple[str, ...]
+) -> None:
+    profile = backends.named(cli)
+    assert profile is not None
+
+    env = spoken(profile, "http://127.0.0.1:4000", "sk-master")
+
+    assert env == expected
+    assert argued(profile, env) == args
+
+
 def test_a_backend_naming_no_way_to_a_gateway_is_pointed_nowhere() -> None:
     codex = backends.named("codex")
     assert codex is not None
