@@ -585,7 +585,7 @@ to it, as `uv tool upgrade` holds it; uv says how to lift the pin. Epics a [daem
 under the release it started with until it stops; where one is running, `hmz update` says so
 and leaves it alone. The interfaces say when a newer release is out: the [terminal
 interface](/reference/tui) in a line as it opens, the [web interface](/reference/web) with
-`Update` in the machine menu.
+`Update` in the daemon picker.
 
 | Condition | Output | Exit |
 | --- | --- | --- |
