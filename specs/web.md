@@ -115,6 +115,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
+- MUST serve a run's Exomyth timeline as `runtime/tracing` lays it out, and each span of it whole
+  by its id, refusing an id it does not have as not found. A run that has ended MUST be laid
+  out once until its record changes, the last few kept; a run still going MUST be laid out
+  again on every request, answered with the tag that says whether the page has it already. A
+  span's id MUST be read in the last timeline laid out of that run, and one asked for with a
+  `layout` that is not that timeline's MUST be refused as a conflict.
 - MUST let a flow be set up in a workspace and saved without starting it, refused where a role
   has no agent or -- for every flow but chat -- nothing says what it may spend, and MUST save
   it as it is started.
@@ -155,12 +161,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   interface's forms set them up, never spelled whole.
 - MUST draw in humanize's own type and in a theme: one of the pairs it comes with -- a light and
   a dark of humanize's own, Humanize Green, and of twelve more, each named for a mood and its
-  colour -- or one made in the browser
-  on Light or Dark -- any of its colours, and a picture, still or moving, behind any of the
+  colour -- or one made in the browser on Light or Dark, alone or with a light and a dark as a
+  pair of its own -- any of its colours, and a picture, still or moving, behind any of the
   page's large planes -- chosen, or under Auto the one picked for the browser's light and the one
-  for its dark, a pair at once or any two; MUST let a theme be written out whole as a
-  `.hmztheme` file and read back in, and MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
-  to be reduced.
+  for its dark, a pair at once or any two; MUST let a theme, or a pair with both its themes, be
+  written out whole as a `.hmztheme` file and read back in, and MUST be usable on a screen as
+  narrow as a phone's, and MUST hold still where motion is asked to be reduced.
 - MUST let a theme be chosen only in Settings, never from the sidebar's menu, in the browser
   and the desktop app alike.
 - MUST draw its chrome around the window controls of the desktop app when it is shown in it,

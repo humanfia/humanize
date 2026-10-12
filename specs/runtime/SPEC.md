@@ -27,6 +27,10 @@ class Settings:
     def btw(self) -> str: ...  # the agent `/btw` asks, "" for the flow's first
     @btw.setter
     def btw(self, spec: str) -> None: ...
+    @property
+    def every_epic(self) -> bool: ...  # whether `/epics` lists this machine's, not this directory's
+    @every_epic.setter
+    def every_epic(self, on: bool) -> None: ...
     def answers(self, *, enable_sentry: bool) -> None: ...
     def agents(self, flow: str) -> dict[str, Runs]: ...  # by role
     def envs(self, flow: str) -> dict[str, str]: ...  # by role, as `-e` spells one
@@ -189,6 +193,7 @@ def harbor(target: str, runtime: str) -> None: ...  # which runtime a harness ma
 def harnessed(machine: MachineConfig | None) -> str: ...  # local, self, <backend>:<name>
 def under(workspace: Path | str | None = None) -> Path: ...
 def epics(workspace: Path | str | None = None) -> list[Path]: ...
+def every() -> list[Path]: ...  # of every workspace on this machine, oldest first
 def records(epic: Path) -> list[Path]: ...
 def read(epic: Path) -> Ran | None: ...
 def tree(epic: Path) -> tuple[Called, ...]: ...
@@ -311,9 +316,12 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   account they ran as, what the backend called it, which conversation it was forked from and
   where it is kept. A session a turn could keep MUST be kept in the epic as the only copy of it:
   under `sessions/<cli>/`, laid out as that CLI's home is, written, resumed and forked there, and
-  never in the CLI's own home. One no turn could keep MUST be read where its CLI kept it, the
-  epic saying where; an epic holding a link per session MUST still read back, and no epic MUST
-  be given one.
+  never in the CLI's own home. One whose CLI ran on another machine -- the target's own, or under
+  a harness elsewhere -- MUST be kept there and copied into the epic's `sessions/<cli>/`, laid
+  out the same way: whole lines as they are logged while it is open, the whole of it as it
+  closes, and read from that copy. One neither kept nor copied MUST be read where its CLI kept
+  it, the epic saying where; an epic holding a link per session MUST still read back, and no
+  epic MUST be given one.
 - A resumable run's journal MUST be kept inside its epic, MUST be there for a run picking it
   up even where this one was killed, and a run picking one up MUST be handed a copy of it in an
   epic of its own and MUST say which epic it came from.

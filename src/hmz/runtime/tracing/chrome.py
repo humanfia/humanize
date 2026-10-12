@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import datetime
 import math
 from typing import TYPE_CHECKING, Any
 
+from .packing import stacked
 from .profile import Thread as _Thread
-from .session import Action, Session, summarize
+from .session import Action, Session, stamp, summarize
 
 if TYPE_CHECKING:
     import pathlib
@@ -177,8 +177,8 @@ def build(
         "sessions": str(len(live)),
         "slices": str(sum(len(item.actions) for item in live)),
         "tracks": str(sum(1 for event in events if event["name"] == "thread_name")),
-        "start": _stamp(min(began)),
-        "end": _stamp(max(over)),
+        "start": stamp(min(began)),
+        "end": stamp(max(over)),
     }
     if ran:
         # Said only where there is a profile: an `otherData` that reported nought programs
@@ -234,7 +234,7 @@ def _programs(
                         "ppid": one.ppid,
                         "argv": " ".join(one.argv),
                         "cpu": round(thread.cpu, 3),
-                        "at": _stamp(thread.began),
+                        "at": stamp(thread.began),
                     },
                 }
             )
@@ -280,21 +280,9 @@ def _render(
     origins: dict[str, tuple[int, int, float]],
 ) -> None:
     """Packs one row of sessions into nested lanes and emits its trace events."""
-    lanes: list[list[float]] = []
-    for item, action in sorted(
-        entries, key=lambda entry: (entry[1].start, -entry[1].end)
-    ):
-        lane = 0
-        while lane < len(lanes):
-            stack = lanes[lane]
-            while stack and stack[-1] <= action.start:
-                stack.pop()
-            if not stack or stack[-1] >= action.end:
-                break
-            lane += 1
-        if lane == len(lanes):
-            lanes.append([])
-        lanes[lane].append(action.end)
+    ordered = sorted(entries, key=lambda entry: (entry[1].start, -entry[1].end))
+    placed = stacked((action.start, action.end) for _, action in ordered)
+    for (item, action), (lane, _) in zip(ordered, placed, strict=True):
         events.append(
             {
                 "ph": "X",
@@ -306,7 +294,7 @@ def _render(
                 "dur": max(round((action.end - action.start) * 1e6), 1),
                 "args": {
                     **action.args,
-                    "at": _stamp(action.start),
+                    "at": stamp(action.start),
                     "session": item.key,
                 },
             }
@@ -315,7 +303,7 @@ def _render(
             tracks[item.key] = (pid, base + lane)
         if action.spawn:
             origins[action.spawn] = (pid, base + lane, action.start)
-    for lane in range(len(lanes)):
+    for lane in range(max((lane for lane, _ in placed), default=-1) + 1):
         label = name if lane == 0 else f"{name} ~{lane + 1}"
         events.append(_meta(pid, base + lane, "thread_name", {"name": label}))
         events.append(
@@ -326,8 +314,3 @@ def _render(
 def _meta(pid: int, tid: int, name: str, args: dict[str, Any]) -> dict[str, Any]:
     """Builds one Chrome trace metadata event."""
     return {"ph": "M", "pid": pid, "tid": tid, "name": name, "args": args}
-
-
-def _stamp(at: float) -> str:
-    """Formats an epoch second value as an ISO 8601 UTC timestamp."""
-    return datetime.datetime.fromtimestamp(at, datetime.UTC).isoformat()

@@ -19,7 +19,8 @@ hmz
 beside /v2, offering the choices keep and drop. Then reply with one sentence.
 ```
 
-The agent stops, the question comes up in yellow, and whatever you type next is the answer.
+The agent stops, the question comes up in yellow with the choices it offered, and whatever you
+type next is the answer.
 
 ## Before you start
 
@@ -33,9 +34,13 @@ The agent stops, the question comes up in yellow, and whatever you type next is 
 - **An agent's question** comes from the coding agent itself, part-way through a turn: its CLI
   has a tool for asking its user something. The turn waits for your answer, then carries on
   with it.
-- **A flow's question** comes from the flow, between turns: `chat` asks what to say next after
-  every answer, and a flow that needs a setting from you asks for it. The flow waits, then goes
-  on with what you said.
+- **A flow's question** comes from the flow, between turns: a flow that needs a setting from
+  you asks for it. The flow waits, then goes on with what you said.
+
+In `chat` the second kind is the conversation itself rather than a question beside it. After
+every answer `chat` waits for your next message, and whatever you type in the conversation,
+a follow-up or a steer, is that message. There is no separate question to answer. The agent's
+own questions still show in the conversation, with the choices it offered.
 
 Both are shown the same way, a `●` line in yellow with `type an answer, or /afk to stop being
 asked` under it, and both are answered the same way: type a line and press <kbd>enter</kbd>.
@@ -97,8 +102,9 @@ Press <kbd>enter</kbd>, and the same turn goes on with your answer:
    the question rather than steering the turn. On a narrow terminal the status line drops its
    leftmost keys first, so this one may not be shown.
 7. **The turn carries on** with your answer, in the same session.
-8. **`chat` asking what next**: a flow's question with no words, since the prompt is what asks
-   it. Type the next thing to say, or leave it for as long as you like.
+8. **`chat` waiting for your next message**: no words, since the prompt is what asks. Type the
+   next thing to say, here or in the assistant's own conversation, where it is the next message
+   rather than a steer. Or leave it for as long as you like.
 
 ## Example: a flow's question with choices
 
@@ -159,7 +165,8 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 
 1. **The question is still printed**, in yellow, so a log shows what the agent wanted to know.
 2. **The agent is told nobody answered**, and carries on as best it can: here it wrote the
-   question into its answer instead. `chat` then ends, since nobody is there to say what next.
+   question into its answer instead. `chat` then ends, since nobody is there to send a next
+   message.
    The command exits `0`.
 
 ## Check that it worked
@@ -208,12 +215,13 @@ away: agents that ask are told nobody is here
 — the flow is done —
 ```
 
-Here `chat` was waiting for the next thing to say, so being away ended it.
+Here `chat` was waiting for your next message, so being away ended it.
 
 | | While you are away |
 | --- | --- |
 | An agent's question | shown, and the agent is told nobody answered; it carries on |
-| A flow's question | answered with nothing, or with the flow's defaults; `chat` ends there |
+| A flow's question | answered with nothing, or with the flow's defaults |
+| `chat` waiting for your next message | answered with nothing, so the conversation ends |
 | A flow's question that has no default | the flow fails with `nobody is there to answer …`, unless it handles that |
 | A question already up | answered by nobody, at once |
 

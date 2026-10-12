@@ -495,3 +495,9 @@ class FlowException(Exception): ...
 Some harnesses mix permission with approval policy. In our design, all approval are BYPASS (e.g. danger-full-access + never for Codex, or bypassPermissions for Claude Code). And we never use any auto review mode (where the model is responsible for reviewing the action). If the managed policy rejects BYPASS, they will be run in the most permissive-possible non-auto mode, and all their action requests will be always approved. For example, if BYPASS is disallowed in Claude Code, it will be run in acceptEdits mode, and all its action requests will be always approved. This is to ensure that the flow can always run without any human intervention, and the harnesses will never be able to reject any action request.
 
 `chat` flow is a special flow. It will always use the harness specific agent (e.g. ClaudeCodeAgent) for the selected harness. Therefore, it will always has all the capabilities of the agent.
+
+`chat` keeps its `human: Outworlder` role (the agent's own questions, e.g. AskUserQuestion, are put to it through the ASK_USER hook), but interfaces wrap that outworlder as the conversation itself, like a chat app:
+- Each reply is said to the outworlder, which listens for the next message. That listen is not drawn as a separate question (no "Waiting for you" ask); the conversation's composer is where it is answered.
+- A follow-up or steer typed in the assistant's conversation while chat is listening is the next message: it answers the listen and becomes the next turn.
+- A question the agent asks mid-turn appears inline in the conversation with its options, and is answered from the composer.
+- Away (`hmz exec`, `/afk`) is unchanged: the listen is answered with nothing, so chat ends after one turn.
