@@ -250,6 +250,7 @@ const ICONS = {
   home: ['M3 11l9-8 9 8', 'M5 10v10h14V10'],
   copy: ['M9 9h11v11H9Z', 'M5 15H4V4h11v1'],
   open: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v6H4V6h6'],
+  bell: ['M6 16v-5a6 6 0 0 1 12 0v5l2 2H4Z', 'M10 21h4'],
 }
 
 /** An icon, drawn in the colour of the text around it and said by nothing: its button says it. */

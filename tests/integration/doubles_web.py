@@ -85,6 +85,7 @@ def opened(
     dark: bool = False,
     user_agent: str | None = None,
     init: str | None = None,
+    routed: Callable[[Page], object] | None = None,
 ) -> Generator[Page]:
     """The page, in a browser let in by the address, until the block ends.
 
@@ -96,6 +97,7 @@ def opened(
       dark: Whether the system the browser runs on asks for dark colours.
       user_agent: What the browser says it is, where not its own: as the macOS app's window.
       init: A script run in the page before any of its own.
+      routed: Told the page before it is opened, to answer some of its requests itself.
 
     Yields:
       The page, drawn and with its sidebar up.
@@ -120,6 +122,8 @@ def opened(
             if init:
                 context.add_init_script(init)
             page = context.new_page()
+            if routed:
+                routed(page)
             failed: list[str] = []
             page.on("pageerror", lambda error: failed.append(str(error)))
             # A refusal is the server answering, which the page says where it happened; what
