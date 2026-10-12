@@ -1,10 +1,10 @@
 """What a flow declares, read off its collections: one role apiece, and what each asks for.
 
 A flow says what it needs by the types of its `AgentCollection` and `EnvCollection` keys, and
-by the mixins, permission, skills, tools and resources those types carry. That is read here, once
-per collection and once per declared type, into :class:`AgentRole` and :class:`EnvRole` --
-plain values the engine checks what a caller passes against, and the ways in draw pickers
-from, without either of them touching an annotation again.
+by the mixins, permission, skills, tools, command lines and resources those types carry. That
+is read here, once per collection and once per declared type, into :class:`AgentRole` and
+:class:`EnvRole` -- plain values the engine checks what a caller passes against, and the ways
+in draw pickers from, without either of them touching an annotation again.
 
 Nothing here resolves an annotation at import. The decorator runs as a flow's module is
 imported, when the names its collections mention may not all exist yet, so a collection is
@@ -31,6 +31,7 @@ from hmz.flows import (
     CPUEnvMixin,
     Env,
     EnvCollection,
+    FakeCli,
     FakeTool,
     FakeToolAgentMixin,
     FlowDefinitionError,
@@ -89,12 +90,14 @@ class Grant:
       permission: What an agent's sessions run under; unused for an environment.
       skills: The skills an agent's sessions are given, as the role names them.
       tools: The flow's tools an agent's sessions offer, as the role declares them.
+      clis: The flow's command lines an agent's sessions put on its PATH, likewise.
     """
 
     capabilities: frozenset[type]
     permission: Permission = _NO_PERMISSION
     skills: tuple[str, ...] = ()
     tools: tuple[FakeTool, ...] = ()
+    clis: tuple[FakeCli, ...] = ()
 
     @classmethod
     def of(
@@ -103,23 +106,31 @@ class Grant:
         permission: Permission = _NO_PERMISSION,
         skills: tuple[str, ...] = (),
         tools: tuple[FakeTool, ...] = (),
+        clis: tuple[FakeCli, ...] = (),
     ) -> Grant:
-        """The one grant of these capabilities, permission, skills and tools.
+        """The one grant of these capabilities, permission, skills, tools and command lines.
 
         Grants are compared by identity where it counts -- a role remembers what it made of
         each grant it was offered -- so equal ones are the same object, and a run, a
         `derive` or a thousand of either make no new ones.
         """
-        key = (capabilities, permission, skills, tools)
+        key = (capabilities, permission, skills, tools, clis)
         grant = _GRANTS.get(key)
         if grant is None:
-            grant = _GRANTS[key] = cls(capabilities, permission, skills, tools)
+            grant = _GRANTS[key] = cls(capabilities, permission, skills, tools, clis)
         return grant
 
 
 #: Every grant made, by what it grants.
 _GRANTS: dict[
-    tuple[frozenset[type], Permission, tuple[str, ...], tuple[FakeTool, ...]], Grant
+    tuple[
+        frozenset[type],
+        Permission,
+        tuple[str, ...],
+        tuple[FakeTool, ...],
+        tuple[FakeCli, ...],
+    ],
+    Grant,
 ] = {}
 
 
@@ -142,6 +153,7 @@ class AgentRole:
       permission: What its sessions run under, and the least an agent given for it holds.
       skills: The skills its sessions are given, as it names them.
       tools: The flow's tools its sessions offer, as it declares them.
+      clis: The flow's command lines its sessions put on the agent's PATH, likewise.
       grant: What a view of an agent filling it is granted.
     """
 
@@ -154,6 +166,7 @@ class AgentRole:
     permission: Permission
     skills: tuple[str, ...]
     tools: tuple[FakeTool, ...]
+    clis: tuple[FakeCli, ...]
     grant: Grant
     #: What a grant offered for this role came to, by the grant: None where it meets the
     #: role, else the refusal -- so that a caller passing the same kind of agent a
@@ -373,8 +386,8 @@ def agent_roles(
             raise FlowDefinitionError(
                 f"{collection.__qualname__}.{name}: {declared!r} is not an Agent"
             )
-        auto, harness, capabilities, permission, skills, tools, grant = _agent_type(
-            declared
+        auto, harness, capabilities, permission, skills, tools, clis, grant = (
+            _agent_type(declared)
         )
         roles.append(
             AgentRole(
@@ -387,6 +400,7 @@ def agent_roles(
                 permission=permission,
                 skills=skills,
                 tools=tools,
+                clis=clis,
                 grant=grant,
             )
         )
@@ -511,6 +525,7 @@ _AGENT_TYPES: dict[
         Permission,
         tuple[str, ...],
         tuple[FakeTool, ...],
+        tuple[FakeCli, ...],
         Grant,
     ],
 ] = {}
@@ -536,6 +551,7 @@ def _agent_type(
     Permission,
     tuple[str, ...],
     tuple[FakeTool, ...],
+    tuple[FakeCli, ...],
     Grant,
 ]:
     """What one agent type asks for, read off its bases and class attributes."""
@@ -580,6 +596,17 @@ def _agent_type(
         raise FlowDefinitionError(f"{where}._tools names one tool twice")
     if offered and FakeToolAgentMixin not in capabilities:
         raise FlowDefinitionError(f"{where}._tools needs FakeToolAgentMixin")
+    clis: object = getattr(declared, "_clis", ())
+    if not isinstance(clis, (tuple, list)) or not all(
+        isinstance(one, FakeCli)
+        for one in clis  # pyright: ignore[reportUnknownVariableType]
+    ):
+        raise FlowDefinitionError(f"{where}._clis is not a tuple of FakeCli")
+    shelved = tuple(cast("list[FakeCli]", clis))
+    if len({one.name for one in shelved}) < len(shelved):
+        raise FlowDefinitionError(f"{where}._clis names one command line twice")
+    if shelved and (auto or HarnessKind.LITELLM in harnesses):
+        raise FlowDefinitionError(f"{where}._clis needs an agent with a shell")
     known = (
         auto,
         harnesses[0] if harnesses else None,
@@ -587,7 +614,8 @@ def _agent_type(
         permission,
         named,
         offered,
-        Grant.of(capabilities, permission, named, offered),
+        shelved,
+        Grant.of(capabilities, permission, named, offered, shelved),
     )
     _AGENT_TYPES[declared] = known
     return known
@@ -661,5 +689,7 @@ def serves(backend: str, role: AgentRole | None) -> bool:
         # Every backend humanize does not drive itself is driven over ACP.
         harness = HarnessKind.ACP
     if role.harness is not None and harness != role.harness:
+        return False
+    if role.clis and harness is HarnessKind.LITELLM:
         return False
     return role.capabilities <= flowing.HARNESS_CAPABILITIES[harness]

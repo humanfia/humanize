@@ -14,12 +14,10 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import AGENT, install, write_flow
-from tests.integration.doubles_web import ENGINES, Browser, opened, served, until
+from tests.integration.doubles_web import ENGINES, Browser, go, opened, served, until
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    from playwright.sync_api import Page
 
 
 @pytest.fixture
@@ -105,10 +103,6 @@ def test_a_workspace_is_opened_by_its_path_and_forgotten(
         assert str(other) not in [one["path"] for one in listed]
 
 
-def _go(page: Page, address: str) -> None:
-    page.evaluate("(to) => { location.hash = to }", address)
-
-
 @pytest.mark.parametrize("engine", ENGINES)
 def test_the_sidebar_is_a_folder_of_epics_per_workspace(
     project: Path, other: Path, engine: str
@@ -142,7 +136,7 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
     project: Path, other: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/new?flow=chat")
+        go(page, "/new?flow=chat")
         page.locator("[data-hmz=workspace-picker]").click()
         page.get_by_role("menuitem", name="Open folder…").click()
         page.locator("[data-hmz=workspace-path]").fill(str(other))
@@ -222,7 +216,7 @@ def test_a_long_name_stays_inside_what_shows_it(
     at = tmp_path / "a-workspace-whose-name-runs-on-and-on-with-nowhere-to-break"
     write_flow(at / ".hmz" / "flows", long, _OWN)
     with served() as site, opened(site, engine=engine, width=390, height=844) as page:
-        _go(page, f"/flows?workspace={at.resolve()}&flow=@local/{long}")
+        go(page, f"/flows?workspace={at.resolve()}&flow=@local/{long}")
         expect(page.locator(".flow-detail h2")).to_have_text(f"@local/{long}")
         out = page.evaluate(
             """() => [...document.querySelectorAll(
@@ -234,6 +228,6 @@ def test_a_long_name_stays_inside_what_shows_it(
         # What is cut short says itself in full on hover.
         page.locator("[data-hmz=workspace-picker]").hover()
         expect(page.locator(".tip")).to_have_text(str(at.resolve()))
-        _go(page, f"/new?workspace={at.resolve()}&flow=@local/{long}")
+        go(page, f"/new?workspace={at.resolve()}&flow=@local/{long}")
         page.locator("[data-hmz=flow-picker] b").hover()
         expect(page.locator(".tip")).to_have_text(f"@local/{long}")

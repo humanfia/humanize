@@ -49,7 +49,7 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.epic',
     'hmz.runtime.telemetry',
   ],
-  'hmz.flows': ['hmz.runtime.flowing'],
+  'hmz.flows': ['hmz.runtime.flowing', 'hmz.coganchor.faking'],
   'hmz.runtime.doing': [
     'hmz.coganchor',
     'hmz.flows',

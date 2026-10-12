@@ -10,6 +10,7 @@ import { mountSidebar } from './sidebar.js'
 import { kept, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
+import './importing.js'
 
 /** Every view, by the first part of the address that names it. */
 const VIEWS = {
@@ -33,12 +34,14 @@ let closing = null
 let out = false
 /** Which routing is the latest: one overtaken while its view was loading draws nothing. */
 let routed = 0
+/** The address routed last, as the view drawn for it has since said it. */
+let routedTo = ''
+/** How many routings are still drawing. */
+let drawing = 0
 /** The address of the view under a dialog, which closing the dialog goes back to. */
 let behind = ''
 /** What the view drawn was drawn for, so a dialog opened over it leaves it standing. */
 let shown = ''
-/** The address last routed, or put in since: one gone past it is another view's, not yet drawn. */
-let routedAt = ''
 
 /** Where the page is: the parts of the address's path, and its query. */
 export function where() {
@@ -54,14 +57,23 @@ export function go(path) {
 
 /** Puts the query of the view the page is on in the address, without a step in its history. */
 export function stays(query) {
-  // A view still reading as the address moves on to another is not the one to say its query.
-  if (location.hash !== routedAt) return
+  // An address not routed yet is the next view's: a view finishing what it read in that moment
+  // would otherwise put its own query into it, and the next view would open on that.
+  if (location.hash !== routedTo) return
   const { parts } = where()
+  // Only into the address of what is drawn: one gone on to, not drawn yet, is not its to say.
+  const here = parts.join('/')
+  if (here !== shown.split('?')[0] && here !== opened) return
   const said = new URLSearchParams()
   for (const [name, value] of Object.entries(query)) if (value !== '' && value !== undefined && value !== null) said.set(name, value)
   const text = said.toString()
   history.replaceState(null, '', `#/${parts.map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`)
-  routedAt = location.hash
+  routedTo = location.hash
+}
+
+/** Whether the address names a dialog, over the view drawn: what that view does is not to say. */
+export function covered() {
+  return Boolean(DIALOGS[where().parts[0]])
 }
 
 /** Closes the dialog open, going back to the view under it. */
@@ -72,7 +84,19 @@ export function shut() {
 async function route() {
   if (out) return
   const mine = ++routed
-  routedAt = location.hash
+  routedTo = location.hash
+  // Busy until every address asked for is drawn: the view left stands until then, and is not
+  // what the address names.
+  drawing++
+  page.setAttribute('aria-busy', 'true')
+  try {
+    await routing(mine)
+  } finally {
+    if (--drawing === 0) page.removeAttribute('aria-busy')
+  }
+}
+
+async function routing(mine) {
   const { parts, query } = where()
   const dialog = DIALOGS[parts[0]]
   if (dialog) {
@@ -87,8 +111,11 @@ async function route() {
   await view(mine, parts, query, key)
 }
 
+/** An epic read back in by its path: an address under `epics` no epic is named. */
+const IMPORT = () => import('./views/import.js')
+
 async function view(mine, parts, query, key) {
-  const load = VIEWS[parts[0]] || VIEWS.new
+  const load = parts[0] === 'epics' && parts[1] === 'import' && parts.length === 2 ? IMPORT : VIEWS[parts[0]] || VIEWS.new
   const named = VIEWS[parts[0]] ? parts : ['new']
   // A view that can move within itself -- a run's graph to one of its sessions -- does.
   if (mounted && mounted.load === load && mounted.moved && mounted.moved({ parts: named, query })) {
@@ -174,6 +201,7 @@ paint()
 window.addEventListener('hmz:out', () => {
   if (out) return
   out = true
+  page.removeAttribute('aria-busy')
   if (mounted) mounted.leave()
   close()
   fill(

@@ -18,8 +18,8 @@ agent declared without :class:`SteeringAgentMixin`, or a `/goal` prompt without
 whatever the harness underneath could do. A role typed as one harness's own protocol --
 :class:`ClaudeCodeAgent` and the rest -- asks for that harness and everything it can do.
 
-Everything here but the enums, :class:`Permission`, :class:`Budget`, :class:`Usage` and
-:class:`FakeTool` is a protocol for a type checker. What a flow is handed at run time is the
+Everything here but the enums, :class:`Permission`, :class:`Budget` and :class:`Usage` is a
+protocol for a type checker. What a flow is handed at run time is the
 runtime's own object, shaped however is fastest, and answers to these structurally.
 """
 
@@ -35,7 +35,9 @@ import pydantic
 from typing_extensions import ReadOnly, TypedDict
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Mapping
+
+    from hmz.coganchor.faking import FakeCli, FakeTool
 
     from .envs import Env
     from .hooks import (
@@ -75,7 +77,6 @@ __all__ = [
     "CodexAgent",
     "CursorAgent",
     "DeepSeekHarnessAgent",
-    "FakeTool",
     "FakeToolAgentMixin",
     "GoalCommandAgentMixin",
     "GrokBuildAgent",
@@ -337,13 +338,17 @@ class Agent(Protocol):
       _skills: The skills the role's sessions are given: a skill in the flow's own `skills/`
         by name, or one elsewhere as a git URL with `#<skill>`.
       _tools: The flow's own functions the role's sessions offer the agent as tools, each
-        :class:`FakeTool` of a name of its own. Declaring any takes
+        :class:`~hmz.flows.FakeTool` of a name of its own. Declaring any takes
         :class:`FakeToolAgentMixin`.
+      _clis: The flow's own command lines the role's sessions put on the agent's PATH, each
+        :class:`~hmz.flows.FakeCli` of a name of its own. Every harness with a shell runs
+        them, so declaring any takes no mixin; a role declaring any is not litellm's.
     """
 
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
     _tools: ClassVar[tuple[FakeTool, ...]] = ()
+    _clis: ClassVar[tuple[FakeCli, ...]] = ()
 
     @property
     def effort(self) -> str:
@@ -529,36 +534,6 @@ class AgentCollection(TypedDict, extra_items=ReadOnly[Agent]):
 # ------------------------------------------------------------------------------ the mixins
 
 
-@dataclass(frozen=True, slots=True)
-class FakeTool:
-    """A function of the flow's, offered to the agent as a tool of its own.
-
-    The agent calling it is the function running, in the flow's process, as the flow::
-
-        async def remember(said: Note) -> str:
-            notes.append(said.text)
-            return "noted"
-
-        class Scribe(Agent, FakeToolAgentMixin):
-            _tools = (FakeTool("remember", "Writes a note down for later.", remember, Note),)
-
-    Attributes:
-      name: What the agent calls it.
-      about: What it is for, which is all the model is told of when to use it.
-      call: The function, sync or async, given an instance of `takes` -- or nothing, where
-        `takes` is None. What it answers is what the agent reads back: a string as it is,
-        None as `done`, anything else as JSON. What it raises is the tool failing, which the
-        agent is told of; the turn and the flow go on.
-      takes: The pydantic model it is called with, whose schema is what the agent is told
-        it takes, or None for a tool that takes nothing.
-    """
-
-    name: str
-    about: str
-    call: Callable[..., object]
-    takes: type[pydantic.BaseModel] | None = None
-
-
 class FakeToolAgentMixin(Protocol):
     """Lets a role declare `_tools`, which its sessions offer the agent as tools of its own."""
 
@@ -674,11 +649,11 @@ class CursorAgent(
     """Cursor Agent, with everything it can do."""
 
 
-class OpenCodeAgent(Agent, Protocol):
+class OpenCodeAgent(Agent, FakeToolAgentMixin, Protocol):
     """opencode, with everything it can do."""
 
 
-class MiMoCodeAgent(Agent, Protocol):
+class MiMoCodeAgent(Agent, FakeToolAgentMixin, Protocol):
     """MiMo Code, with everything it can do."""
 
 
@@ -688,7 +663,7 @@ class MiniMaxCodeAgent(
     """MiniMax Code, with everything it can do."""
 
 
-class QwenCodeAgent(Agent, Protocol):
+class QwenCodeAgent(Agent, FakeToolAgentMixin, Protocol):
     """Qwen Code, with everything it can do."""
 
 
@@ -703,23 +678,33 @@ class KimiCodeAgent(
     """Kimi Code, with everything it can do."""
 
 
-class GrokBuildAgent(Agent, Protocol):
-    """Grok Build, with everything it can do."""
+class GrokBuildAgent(Agent, FakeToolAgentMixin, Protocol):
+    """Grok Build, with everything it can do.
+
+    Its `_tools` reach it over ACP, the one way grok is given a tool of the flow's, and a turn
+    that only `grok -p` can take is refused while any are offered: an `output_schema`, the
+    first turn of a fork, web search off, and a permission whose rung takes tools away each
+    raise :class:`~hmz.flows.errors.HarnessUnrecoverable` there.
+    """
 
 
-class PiAgent(Agent, SteeringAgentMixin, AskUserHookAgentMixin, Protocol):
+class PiAgent(
+    Agent, FakeToolAgentMixin, SteeringAgentMixin, AskUserHookAgentMixin, Protocol
+):
     """pi, with everything it can do."""
 
 
-class OhMyPiAgent(Agent, SteeringAgentMixin, AskUserHookAgentMixin, Protocol):
+class OhMyPiAgent(
+    Agent, FakeToolAgentMixin, SteeringAgentMixin, AskUserHookAgentMixin, Protocol
+):
     """Oh My Pi, with everything it can do."""
 
 
-class AntigravityAgent(Agent, Protocol):
+class AntigravityAgent(Agent, FakeToolAgentMixin, Protocol):
     """Antigravity, with everything it can do."""
 
 
-class DeepSeekHarnessAgent(Agent, GoalCommandAgentMixin, Protocol):
+class DeepSeekHarnessAgent(Agent, FakeToolAgentMixin, GoalCommandAgentMixin, Protocol):
     """DeepSeek Harness, with everything it can do."""
 
 

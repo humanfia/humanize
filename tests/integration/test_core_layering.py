@@ -80,8 +80,9 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.telemetry",
     },
     # What a flow imports: it names the engine only from inside `flow`, `load` and
-    # `Outworlder.new` (see HANDED_THROUGH).
-    "hmz.flows": {"hmz.runtime.flowing"},
+    # `Outworlder.new` (see HANDED_THROUGH), and the fake tools and command lines it hands an
+    # agent, which are coganchor's own (see FAKING).
+    "hmz.flows": {"hmz.runtime.flowing", "hmz.coganchor.faking"},
     "hmz.runtime.doing": {
         "hmz.coganchor",
         "hmz.flows",
@@ -122,6 +123,10 @@ HANDED_THROUGH = ("hmz.flows", "hmz.runtime.flowing")
 
 #: The calls of the flow API that hand their work to the engine.
 HANDING = {"flow", "load", "new"}
+
+#: The one module of another layer the flow API imports at import: the values of a fake tool
+#: and a fake command line, one type each for a flow and for the drivers that offer them.
+FAKING = "hmz.coganchor.faking"
 
 
 def _module(source: Path) -> str:
@@ -288,7 +293,7 @@ def test_the_flow_api_names_the_engine_only_inside_the_calls_that_hand_to_it() -
                 if name.split(".")[0] != "hmz" or _covers("hmz.flows", name):
                     continue
                 lazy = bool(calls) and calls[0] in HANDING
-                if not (lazy and _covers(HANDED_THROUGH[1], name)):
+                if name != FAKING and not (lazy and _covers(HANDED_THROUGH[1], name)):
                     reached.setdefault(source.name, set()).add(ast.unparse(node))
     assert not reached, f"the flow API reaches past itself: {reached}"
 
@@ -320,7 +325,11 @@ def test_importing_a_layer_loads_no_other_layer(front: str) -> None:
     """Every cross-layer import is made inside the call that needs it, not at import."""
     loaded = _loaded(f"import {front}")
     assert front in loaded, "the probe imported nothing, so this checks nothing"
-    assert loaded <= {"hmz"} | {one for one in loaded if _covers(front, one)}, loaded
+    # The flow API's one module of coganchor, and the front door it is reached through.
+    faking: set[str] = {"hmz.coganchor", FAKING} if front == "hmz.flows" else set()
+    assert loaded <= {"hmz", *faking} | {
+        one for one in loaded if _covers(front, one)
+    }, loaded
 
 
 def test_reading_an_exec_line_loads_neither_the_interface_nor_the_daemon() -> None:

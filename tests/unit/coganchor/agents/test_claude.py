@@ -10,12 +10,13 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import pytest
 from pydantic import BaseModel
 
-from hmz.coganchor import models
+from hmz.coganchor import AnchorConfig, gateway, models, providers
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
@@ -24,10 +25,12 @@ from hmz.coganchor.agents import (
     Failed,
     Moment,
     Question,
+    Unserved,
     Verdict,
 )
 from hmz.coganchor.agents.base import KEEPING
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner, offering
 
 if TYPE_CHECKING:
@@ -35,6 +38,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from hmz.coganchor.agents import Occasion
+    from hmz.coganchor.machines import MachineConfig
 
 
 #: What every agent here is made with unless a test says otherwise.
@@ -700,3 +704,117 @@ def test_a_second_copy_of_a_conversation_is_refused_where_the_first_was_brought_
     assert len(spawner.started) == 1
     assert _transcript(home, had).read_text() == "one\n"
     assert _transcript(home, there).read_text() == "one\n"
+
+
+# --------------------------------------------------------------- through a LiteLLM gateway
+
+
+class _Gateway:
+    """A gateway that starts nothing: where it would be, and whether it was taken down."""
+
+    started: ClassVar[list[_Gateway]] = []
+
+    def __init__(self, provider: Provider) -> None:
+        self.account = provider
+        self.port = 4321
+        self.url = "http://127.0.0.1:4321"
+        self.key = "sk-master"
+        self.running = True
+        _Gateway.started.append(self)
+
+    def stop(self) -> None:
+        self.running = False
+
+
+_ROUTED = Provider(
+    cli="claude",
+    name="gw",
+    way="litellm-openai-key",
+    env={"OPENAI_API_KEY": "upstream-secret"},
+)
+
+
+@pytest.fixture
+def routed(monkeypatch: pytest.MonkeyPatch) -> list[_Gateway]:
+    """An account litellm holds, and a gateway that is only pretended."""
+
+    def find(cli: str, name: str) -> Provider | None:
+        return _ROUTED if name == "gw" else Provider(cli, name, way="")
+
+    monkeypatch.setattr(providers, "find", find)
+    monkeypatch.setattr(gateway, "Gateway", _Gateway)
+    monkeypatch.setenv("OPENAI_API_KEY", "lying-about")
+    _Gateway.started = []
+    return _Gateway.started
+
+
+def test_a_turn_through_a_gateway_is_pointed_at_it_and_given_none_of_the_account(
+    routed: list[_Gateway],
+) -> None:
+    agent = _agent(provider="gw")
+
+    env = agent.environment()
+    hushed = agent.hushed()
+
+    assert env["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:4321"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "sk-master"
+    assert "127.0.0.1" in env["NO_PROXY"].split(",")
+    assert "OPENAI_API_KEY" in hushed
+    assert "upstream-secret" not in env.values()
+    assert len(routed) == 1
+    assert agent.gateway is routed[0]
+
+
+def test_claude_reaches_for_no_model_of_its_own_through_a_gateway(
+    routed: list[_Gateway], spawner: Spawner, claude: _Claude
+) -> None:
+    _agent(provider="gw", model="gpt-5").new()("hi")
+
+    env = spawner.last.environ
+    assert env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "gpt-5"
+    assert env["ANTHROPIC_SMALL_FAST_MODEL"] == "gpt-5"
+    assert "OPENAI_API_KEY" not in env
+
+
+def test_an_account_not_through_a_gateway_starts_none(routed: list[_Gateway]) -> None:
+    agent = _agent()
+
+    assert agent.gateway is None
+    assert routed == []
+
+
+def test_a_fenced_turn_through_a_gateway_may_reach_it_on_loopback(
+    routed: list[_Gateway],
+) -> None:
+    fence = _agent(provider="gw", fence=Fence(online=False)).fenced()
+
+    assert fence is not None
+    assert "127.0.0.1:4321" in fence.hosts
+
+
+def test_a_stopped_agent_takes_its_gateway_down(routed: list[_Gateway]) -> None:
+    agent = _agent(provider="gw")
+    assert agent.gateway is not None
+
+    agent.stop()
+
+    assert not routed[0].running
+
+
+def test_a_gateway_that_went_away_is_started_again(routed: list[_Gateway]) -> None:
+    agent = _agent(provider="gw")
+    first = cast("_Gateway", agent.gateway)
+    first.running = False
+
+    assert agent.gateway is not first
+    assert len(routed) == 2
+
+
+def test_a_cli_run_on_another_machine_is_refused_an_account_through_a_gateway(
+    routed: list[_Gateway],
+) -> None:
+    machine = cast("MachineConfig", SimpleNamespace(anchor=AnchorConfig(native=True)))
+
+    with pytest.raises(Unserved, match="local LiteLLM gateway"):
+        _agent(provider="gw", machine=machine)
+    assert routed == []

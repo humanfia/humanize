@@ -20,8 +20,8 @@ from hmz.coganchor.agents import (
     AcpAgent,
     AcpAgentConfig,
     Failed,
+    FakeTool,
     Moment,
-    Tool,
     Unhooked,
     driver,
 )
@@ -279,11 +279,11 @@ def test_a_flow_s_callback_is_a_tool_the_agent_reaches_over_mcp(acp: Standins) -
     session = _agent().new()
     try:
         session.offers(
-            [Tool(name="lookup", about="Looks up.", call=looks_up, takes=_Word)]
+            [FakeTool(name="lookup", about="Looks up.", call=looks_up, takes=_Word)]
         )
         answered = session('tool lookup {"word": "kiwi"}')
         session.offers(
-            [Tool(name="define", about="Defines.", call=looks_up, takes=_Word)]
+            [FakeTool(name="define", about="Defines.", call=looks_up, takes=_Word)]
         )
         again = session('tool define {"word": "fig"}')
     finally:

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Self
 import pytest
 
 from hmz import machine
-from hmz.coganchor import backends, models
+from hmz.coganchor import backends, models, providers
 from hmz.coganchor.backends import Model
 
 if TYPE_CHECKING:
@@ -527,6 +527,45 @@ def test_ask_litellm_reads_its_shipped_catalogue(
         Model("anthropic/claude-opus-5", ()),
         Model("vertex_ai/gemini-3-pro", ()),
     )
+
+
+def test_ask_an_account_through_a_gateway_reads_litellms_catalogue_for_its_provider(
+    backend: Callable[..., Ran], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran = backend()
+    package = tmp_path / "litellm"
+    package.mkdir()
+    (package / "model_prices_and_context_window_backup.json").write_text(
+        json.dumps(
+            {
+                "gpt-5": {
+                    "litellm_provider": "openai",
+                    "mode": "chat",
+                    "supports_reasoning": True,
+                },
+                "gpt-4o": {"litellm_provider": "openai", "mode": "chat"},
+                "anthropic/claude-opus-5": {
+                    "litellm_provider": "anthropic",
+                    "mode": "chat",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def found(name: str) -> types.SimpleNamespace:
+        return types.SimpleNamespace(origin=str(package / "__init__.py"))
+
+    monkeypatch.setattr(importlib.util, "find_spec", found)
+    providers.add("claude", "gw", way="litellm-openai-key", env={"OPENAI_API_KEY": "k"})
+    claude = backends.named("claude")
+    assert claude is not None
+
+    assert models.ask("claude", "gw") == (
+        Model("openai/gpt-5", claude.efforts),
+        Model("openai/gpt-4o", ()),
+    )
+    assert ran.calls == 0
 
 
 def test_ask_litellm_not_installed(

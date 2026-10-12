@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from threading import Event
 
-__all__ = ["Asked", "Download", "Refusal", "Route", "Stream", "routes"]
+__all__ = ["Asked", "Download", "Made", "Refusal", "Route", "Stream", "routes"]
 
 
 class Refusal(Exception):  # noqa: N818 -- what the page is told, not what went wrong here
@@ -25,11 +25,13 @@ class Refusal(Exception):  # noqa: N818 -- what the page is told, not what went 
 
     Attributes:
       status: The HTTP status it is answered with.
+      said: What else the page is told beside the sentence, by name.
     """
 
-    def __init__(self, sentence: str, status: int = 400) -> None:
+    def __init__(self, sentence: str, status: int = 400, **said: Any) -> None:
         super().__init__(sentence)
         self.status = status
+        self.said = said
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,12 +43,15 @@ class Asked:
       matched: What the route's path took out of the request's, by name.
       query: The query string, a value per name -- the last, where one was given twice.
       body: What a write sent, which is JSON; empty for a read.
+      file: The file a write sent in place of JSON, under the name it was sent as, where its
+        route takes one; None otherwise. It is gone once the route has answered.
     """
 
     site: Any
     matched: dict[str, str] = field(default_factory=dict[str, str])
     query: dict[str, str] = field(default_factory=dict[str, str])
     body: dict[str, Any] = field(default_factory=dict[str, Any])
+    file: Path | None = None
 
     def text(self, name: str, *, required: bool = True) -> str:
         """One string the body sent.
@@ -109,6 +114,17 @@ class Download:
 
 
 @dataclass(frozen=True, slots=True)
+class Made:
+    """What a write made, answered as JSON with `201 Created`.
+
+    Attributes:
+      answer: What it is said as.
+    """
+
+    answer: Any
+
+
+@dataclass(frozen=True, slots=True)
 class Stream:
     """Events to send for as long as the browser listens, as a server-sent event stream.
 
@@ -129,11 +145,14 @@ class Route:
       method: `GET` for a read, `POST` for a write.
       path: The path, with `{name}` where a part of it is taken out by name.
       answers: What answers it, handed the request.
+      file: The media type of a file a write may send in place of JSON -- or any sent as
+        `application/octet-stream` -- or "" for a route that takes JSON alone.
     """
 
     method: str
     path: str
     answers: Callable[[Asked], Any]
+    file: str = ""
 
     def match(self, method: str, path: str) -> dict[str, str] | None:
         """What this route takes out of a request's path, or None where it is not this route.

@@ -20,7 +20,7 @@ from hmz.coganchor.agents import (
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
     Failed,
-    Tool,
+    FakeTool,
     Unserved,
 )
 from tests.integration.doubles_agents import Standins, kinds, standins
@@ -177,7 +177,7 @@ def test_a_tool_the_flow_offers_is_called_through_a_plugin_of_humanizes(
         asked.append("secret")
         return "zanzibar-417"
 
-    session.offers([Tool("secret", "Says the secret word.", secret)])
+    session.offers([FakeTool("secret", "Says the secret word.", secret)])
 
     assert session("call secret") == "zanzibar-417"
     assert asked == ["secret"]
@@ -197,7 +197,7 @@ def test_tools_carried_where_agy_would_run_its_commands_are_refused(
     (tmp_path / "b").mkdir()
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "a"))
     session = agent.new(tmp_path / "b")
-    session.offers([Tool("secret", "Says the secret word.", lambda: "")])
+    session.offers([FakeTool("secret", "Says the secret word.", lambda: "")])
 
     with pytest.raises(Unserved, match="first of its directories"):
         session("call secret")

@@ -59,6 +59,17 @@ The app is a window, not a second humanize. It runs `hmz` as
   in the Finder.
 - **It updates itself.** See [Updates](#updates).
 
+## Opening a `.hmzepic` {#opening-a-hmzepic}
+
+The app is what a `.hmzepic` -- an [exported epic](/user/export) -- opens with. Double-click one
+in the Finder, choose **Open With → humanize**, or drop one on the window: the app imports it,
+as **Import** on the page does, and opens it on its [Exomyth](/user/web#exomyth). Opened while
+the app is still starting, it is imported once the page is there. Of several opened or dropped
+at once, the last is imported; anything but a `.hmzepic` is left alone.
+
+One you already have is refused, with **Open** to go to it; one that cannot be picked up on this
+Mac says why on its own page, as any [imported epic](/user/web#importing-an-epic) does.
+
 ## Updates {#updates}
 
 The app looks for a new release a few seconds after it opens, and every 6 hours after. It

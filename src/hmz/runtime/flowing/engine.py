@@ -55,6 +55,7 @@ from hmz.flows import (
     FlowDepthExceeded,
     FlowParams,
     FlowRuntimeError,
+    HarnessKind,
     HarnessMismatch,
     MissingRole,
     OutputTokensExceeded,
@@ -362,10 +363,12 @@ class FlowImpl:
             given = agents.get(name)
             if type(given) is AgentView and not role.auto and role.harness is None:
                 grant = given._grant
-                if grant is role.grant or role._seen.get(grant, _UNSEEN) is None:
-                    views[name] = AgentView(
-                        given._driver, grant if full else role.grant, node, name
-                    )
+                # A full view's tools and command lines are the callee's own, which only
+                # `_agent` grants it unless the caller's grant is the role's.
+                if grant is role.grant or (
+                    not full and role._seen.get(grant, _UNSEEN) is None
+                ):
+                    views[name] = AgentView(given._driver, role.grant, node, name)
                     continue
             if given is None:
                 if role.auto:
@@ -554,9 +557,14 @@ def _agent(
             if refusal is not None:
                 raise refusal[0](f"{flow.ref}: {role.name!r} {refusal[1]}")
         if full:
-            # Everything the agent given holds, but the tools: those are the callee's own.
+            # Everything the agent given holds, but the tools and command lines: those are
+            # the callee's own.
             grant = Grant.of(
-                grant.capabilities, grant.permission, grant.skills, role.tools
+                grant.capabilities,
+                grant.permission,
+                grant.skills,
+                role.tools,
+                role.clis,
             )
         else:
             grant = role.grant
@@ -1804,6 +1812,7 @@ async def run_flow(
                     role.permission,
                     role.skills,
                     role.tools,
+                    role.clis,
                 )
                 if impl._full
                 else role.grant
@@ -1902,4 +1911,8 @@ def _serves(flow: FlowImpl, role: AgentRole, driver: AgentDriver) -> None:
             f"{flow.ref}: {role.name!r} needs "
             f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
             f"{driver.harness} does not support"
+        )
+    if role.clis and driver.harness is HarnessKind.LITELLM:
+        raise CapabilityMissing(
+            f"{flow.ref}: {role.name!r} declares _clis, and litellm has no shell to run them"
         )

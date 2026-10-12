@@ -74,7 +74,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 # What the protocol says a thing is, what a client may do, how a tool call is permitted and
 # what ends a turn having answered are the protocol's rather than Grok Build's, so they are
 # taken from the ACP client every such CLI here is driven through rather than said again.
-from .acp import _ANSWERED, _CAPABILITIES, _GRANTS, _VERSION, _bridged, _named
+from .acp import _ANSWERED, _CAPABILITIES, _GRANTS, _VERSION, _bridged
 from .acp import _SAYS as _TOLD
 from .base import (
     AgentBase,
@@ -445,7 +445,7 @@ class GrokBuildSession(StreamSessionBase):
             # the twelve variables Grok Build reads would otherwise move nothing at all.
             self._environ() or dict(os.environ),
             # And the callbacks it was handed, which it lists once, as the session opens.
-            _named(self._agent),
+            self._agent.toolbox.names(),
         )
 
     def _model(self) -> str:
