@@ -423,10 +423,10 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        # A theme is chosen only in Settings: the machine's menu offers none.
-        page.locator("[data-hmz=machine-menu]").click()
+        # A theme is chosen only in Settings: the daemon picker offers none.
+        page.locator("[data-hmz=daemon-bar]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Import", "Settings", "Usage", "Download"]
+            ["Local", "Manage", "Import", "Settings", "Usage", "Download"]
         )
         page.keyboard.press("Escape")
         go(page, "/settings/themes")
@@ -598,11 +598,13 @@ def test_a_newer_release_is_offered_under_the_machine(
     releases.fetch()
     with served() as site, opened(site, engine=engine) as page:
         expect(page.locator("[data-hmz=newer]")).to_be_visible()
-        page.locator("[data-hmz=machine-menu]").click()
+        page.locator("[data-hmz=daemon-bar]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Update", "Import", "Settings", "Usage", "Download"]
+            ["Local", "Manage", "Update", "Import", "Settings", "Usage", "Download"]
         )
-        expect(page.locator("[role=menu] .choice-about")).to_have_text(["hmz 99.0.0"])
+        expect(page.locator("[role=menu] .choice-about").last).to_have_text(
+            "hmz 99.0.0"
+        )
 
 
 def test_a_flow_is_opened_and_started_from_the_flows(
@@ -662,7 +664,7 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
             )
         expect(page.locator(f":is({clicked})[data-tauri-drag-region]")).to_have_count(0)
         # A menu opened in a row is not what the window is dragged by.
-        page.locator("[data-hmz=machine-menu]").click()
+        page.locator("[data-hmz=daemon-bar]").click()
         expect(page.locator("[role=menu]")).to_have_attribute(
             "data-tauri-drag-region", "false"
         )
@@ -850,7 +852,7 @@ def test_an_epic_backed_up_elsewhere_is_downloaded_and_opened(
 ) -> None:
     name = backed_up_elsewhere(tmp_path, monkeypatch)
     with served() as site, opened(site, engine=engine) as page:
-        page.locator("[data-hmz=machine-menu]").click()
+        page.locator("[data-hmz=daemon-bar]").click()
         page.get_by_role("menuitem", name="Download").click()
 
         stored = page.locator(f"[data-hmz=stored-epic][data-epic='{name}']")
@@ -1012,9 +1014,9 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
         page.wait_for_url(opened_on)
         expect(listed).to_have_count(1)
 
-        # Picked again, from the machine's menu: it is here already, and is opened from there.
+        # Picked again, from the daemon picker: it is here already, and is opened from there.
         go(page, "/new")
-        page.locator("[data-hmz=machine-menu]").click()
+        page.locator("[data-hmz=daemon-bar]").click()
         with page.expect_file_chooser() as choosing:
             page.get_by_role("menuitem", name="Import").click()
         choosing.value.set_files(archive)

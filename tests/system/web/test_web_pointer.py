@@ -231,9 +231,9 @@ def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -
         page.keyboard.press("Escape")
         page.keyboard.press("Escape")
 
-        # The machine's menu, at the foot of the window: over its button, as wide as it.
-        page.locator("[data-hmz=machine-menu]").click()
-        _whole(page, page.get_by_role("menu", name="Machine"))
+        # The daemon picker, at the foot of the window: over its button, as wide as it.
+        page.locator("[data-hmz=daemon-bar]").click()
+        _whole(page, page.get_by_role("menu", name="Daemon"))
         page.keyboard.press("Escape")
 
         # A path browsed for from the folder a new epic opens, in a window too short for it.

@@ -65,9 +65,13 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
-The foot of the sidebar names this machine and says how many epics are going on it;
-its menu opens **Import**, **Settings**, **Usage** and **Download**, which downloads an epic out of a
-[backup target](/user/backups#downloading-an-epic). Where a newer humanize is out, the machine is marked ↑ and its menu offers
+The foot of the sidebar is the daemon bar: the daemon the page is of -- **Local**, or an SSH
+daemon by its name -- its host, a dot for how it stands (up, connecting, installing, failed or
+not connected) and how many epics are `live` on it, or `idle`. Click it for the daemon picker:
+every daemon with how it stands, a click switching the page to it; **Connect** under one that
+failed; **Manage**, which opens **Settings → Daemons**; then **Import**,
+**Settings**, **Usage** and **Download**, which downloads an epic out of a
+[backup target](/user/backups#downloading-an-epic). Where a newer humanize is out, the bar is marked ↑ and the picker offers
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
@@ -216,7 +220,7 @@ tokens, and every process -- click one to pick it.
 
 ### Importing an epic {#importing-an-epic}
 
-Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or in the machine's menu at
+Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or in the daemon picker at
 the foot of the sidebar, or right-click between the epics in the sidebar, and pick the file --
 or drop it anywhere on the window. It is read back in under the directory it ran in, and opens
 once it is in. One you already have is refused, with **Open** to go to it.
@@ -427,7 +431,7 @@ says.
 ### The sidebar says why the host let it go
 
 The host holding the runs went: it was closed, or it let this window go. The page reaches the
-runs again by itself a moment later, starting a host where none is, and the foot of the sidebar
+runs again by itself a moment later, starting a host where none is, and the daemon bar
 says `idle` or how many are `live` again once it has.
 
 ### A way in is marked `(at a terminal)`
