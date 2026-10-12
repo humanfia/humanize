@@ -17,8 +17,13 @@ const DOWN = 96
 const INSET = 28
 const LABEL = 34
 const ACROSS = 4
-/** The least a graph is shrunk to fit its height: past it, it is scrolled through. */
+/** The least a graph is shrunk to fit its height as it opens: past it, it is dragged through. */
 const SMALLEST = 0.55
+/** How far it zooms out and in. */
+const LEAST = 0.2
+const MOST = 3
+/** How far a press moves before it drags the paper rather than clicks what is on it. */
+const SLOP = 4
 const BOW = 42
 
 /**
@@ -27,8 +32,7 @@ const BOW = 42
  */
 export function graph({ open }) {
   const stage = h('div', { class: 'stage' })
-  const sizer = h('div', { class: 'sizer' }, stage)
-  const canvas = h('div', { class: 'canvas', 'data-hmz': 'graph', role: 'group', 'aria-label': 'The agents of the epic and who handed to whom' }, sizer)
+  const canvas = h('div', { class: 'canvas', 'data-hmz': 'graph', role: 'group', 'aria-label': 'The agents of the epic and who handed to whom' }, stage)
   const zoomed = h('span', { class: 'zoom-said', 'aria-live': 'polite' }, '100%')
   const zoom = h(
     'div',
@@ -36,50 +40,134 @@ export function graph({ open }) {
     iconButton('minus', 'Zoom out', { onclick: () => scale(at / 1.2) }),
     zoomed,
     iconButton('plus', 'Zoom in', { onclick: () => scale(at * 1.2) }),
-    iconButton('fit', 'Fit', { onclick: () => fit() }),
+    iconButton('recenter', 'Recenter', { onclick: () => recenter() }),
   )
   const node = h('div', { class: 'graph' }, canvas, zoom)
   menuOn(canvas, () => [
-    { label: 'Fit', glyph: 'fit', act: () => fit() },
+    { label: 'Recenter', glyph: 'recenter', act: () => recenter() },
     { label: 'Actual size', glyph: 'plus', act: () => scale(1) },
   ])
+  // The paper has no edge: the view is where on it the canvas's corner is, and how near.
   let at = 1
+  let x = 0
+  let y = 0
+  // Until it is moved, the graph keeps to the middle of a view that grows or shrinks.
+  let moved = false
   let size = { width: 0, height: 0 }
   let shape = ''
   let fitted = false
   let placing = []
   let nows = []
 
-  function scale(to) {
-    at = Math.min(2, Math.max(0.3, to))
-    stage.style.transform = `scale(${at})`
-    sizer.style.width = `${size.width * at}px`
-    sizer.style.height = `${size.height * at}px`
+  function show() {
+    stage.style.transform = `translate(${x}px, ${y}px) scale(${at})`
+    canvas.style.setProperty('--grid-at', `${x}px ${y}px`)
+    canvas.style.setProperty('--grid-big', `${120 * at}px`)
+    canvas.style.setProperty('--grid-small', `${24 * at}px`)
     zoomed.textContent = `${Math.round(at * 100)}%`
   }
 
-  function fit() {
-    if (!canvas.clientWidth || !size.width) return
-    scale(Math.min(1, (canvas.clientWidth - 32) / size.width, Math.max(SMALLEST, (canvas.clientHeight - 32) / size.height)))
+  /** Zooms to a scale about a point of the canvas, which stays where it is: its middle unless said. */
+  function scale(to, about = { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }) {
+    const next = Math.min(MOST, Math.max(LEAST, to))
+    x = about.x - ((about.x - x) * next) / at
+    y = about.y - ((about.y - y) * next) / at
+    at = next
+    moved = true
+    show()
   }
 
-  // Dragging the paper moves the view over it, as a canvas does.
+  /** The graph as it opens: as wide as the view, not so small it cannot be read, in its middle. */
+  function recenter() {
+    if (!canvas.clientWidth || !size.width) return
+    const width = canvas.clientWidth
+    const height = canvas.clientHeight
+    at = Math.min(1, (width - 32) / size.width, Math.max(SMALLEST, (height - 32) / size.height))
+    x = (width - size.width * at) / 2
+    y = Math.max(16, (height - size.height * at) / 2)
+    moved = false
+    show()
+  }
+
+  /** Where on the canvas a pointer is. */
+  const on = (event) => {
+    const box = canvas.getBoundingClientRect()
+    return { x: event.clientX - box.left, y: event.clientY - box.top }
+  }
+
+  // A pinch -- which a browser says as a wheel with Ctrl down -- and a mouse's wheel zoom about
+  // the pointer; two fingers sliding over a trackpad move the paper. A trackpad is told from a
+  // mouse as a browser lets it be: by its old wheelDelta, three times its delta the other way.
+  canvas.addEventListener(
+    'wheel',
+    (event) => {
+      event.preventDefault()
+      const step = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1
+      const sliding = !event.ctrlKey && (event.deltaX !== 0 || (event.wheelDeltaY ? event.wheelDeltaY === -3 * event.deltaY : event.deltaMode === 0))
+      if (!sliding) {
+        scale(at * Math.exp(-event.deltaY * step * (event.ctrlKey ? 0.01 : 0.0015)), on(event))
+        return
+      }
+      x -= event.deltaX * step
+      y -= event.deltaY * step
+      moved = true
+      show()
+    },
+    { passive: false },
+  )
+  // Safari, and so the desktop app's window, says a pinch as a gesture of its own.
+  let pinched = 1
+  canvas.addEventListener('gesturestart', (event) => {
+    event.preventDefault()
+    pinched = at
+  })
+  canvas.addEventListener('gesturechange', (event) => {
+    event.preventDefault()
+    scale(pinched * event.scale, on(event))
+  })
+
+  // Dragging anywhere moves the paper, a node and all; a press that hardly moves is a click.
   let dragged = null
+  let letGo = false
   canvas.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0 || event.target.closest('a, button')) return
-    dragged = { x: event.clientX, y: event.clientY, left: canvas.scrollLeft, top: canvas.scrollTop }
-    canvas.setPointerCapture(event.pointerId)
-    canvas.classList.add('dragging')
+    if (event.button > 1 || event.target.closest('input, textarea, select')) return
+    dragged = { id: event.pointerId, from: { x: event.clientX, y: event.clientY }, was: { x, y }, moving: false }
   })
   canvas.addEventListener('pointermove', (event) => {
-    if (!dragged) return
-    canvas.scrollLeft = dragged.left - (event.clientX - dragged.x)
-    canvas.scrollTop = dragged.top - (event.clientY - dragged.y)
+    if (!dragged || event.pointerId !== dragged.id) return
+    const dx = event.clientX - dragged.from.x
+    const dy = event.clientY - dragged.from.y
+    if (!dragged.moving) {
+      if (Math.hypot(dx, dy) < SLOP) return
+      dragged.moving = true
+      canvas.setPointerCapture(event.pointerId)
+      canvas.classList.add('dragging')
+      getSelection()?.removeAllRanges()
+    }
+    x = dragged.was.x + dx
+    y = dragged.was.y + dy
+    moved = true
+    show()
   })
-  const drop = () => {
+  const drop = (event) => {
+    if (!dragged || event.pointerId !== dragged.id) return
+    if (dragged.moving) {
+      letGo = true
+      canvas.classList.remove('dragging')
+      setTimeout(() => (letGo = false))
+    }
     dragged = null
-    canvas.classList.remove('dragging')
   }
+  // What a drag lets go over is not clicked.
+  canvas.addEventListener(
+    'click',
+    (event) => {
+      if (!letGo) return
+      event.stopPropagation()
+      event.preventDefault()
+    },
+    { capture: true },
+  )
   canvas.addEventListener('pointerup', drop)
   canvas.addEventListener('pointercancel', drop)
 
@@ -104,7 +192,7 @@ export function graph({ open }) {
       shape = ''
       fitted = false
       draw(...last)
-    }
+    } else if (!moved) recenter()
   }).observe(canvas)
   let laidAcross = ACROSS
 
@@ -185,11 +273,14 @@ export function graph({ open }) {
     stage.style.height = `${size.height}px`
     if (!fitted && canvas.isConnected && canvas.clientWidth) {
       fitted = true
-      fit()
-    } else scale(at)
+      recenter()
+    } else show()
     if (focus && boxes[focus]) {
       const box = boxes[focus]
-      canvas.scrollTo({ left: Math.max(0, (box.x + box.w / 2) * at - canvas.clientWidth / 2), top: Math.max(0, (box.y + box.h / 2) * at - canvas.clientHeight / 2) })
+      x = canvas.clientWidth / 2 - (box.x + box.w / 2) * at
+      y = canvas.clientHeight / 2 - (box.y + box.h / 2) * at
+      moved = true
+      show()
     }
   }
 
@@ -253,7 +344,7 @@ export function graph({ open }) {
     ])
   }
 
-  return { node, draw, fit }
+  return { node, draw, recenter }
 }
 
 function heightOf(agent) {

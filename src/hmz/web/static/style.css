@@ -2194,8 +2194,8 @@ pre.block {
 .canvas {
   position: absolute;
   inset: 0;
-  overflow: auto;
-  display: grid;
+  overflow: hidden;
+  touch-action: none;
   cursor: grab;
   background-color: var(--paper);
   background-image:
@@ -2203,18 +2203,19 @@ pre.block {
     linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  background-size:
+    var(--grid-big, 120px) var(--grid-big, 120px),
+    var(--grid-big, 120px) var(--grid-big, 120px),
+    var(--grid-small, 24px) var(--grid-small, 24px),
+    var(--grid-small, 24px) var(--grid-small, 24px);
+  background-position: var(--grid-at, 0 0);
 }
 
-.canvas.dragging {
+.canvas.dragging,
+.canvas.dragging * {
   cursor: grabbing;
   -webkit-user-select: none; /* Safari has only the prefixed one */
   user-select: none;
-}
-
-.sizer {
-  position: relative;
-  margin: auto;
 }
 
 .stage {
@@ -2222,6 +2223,7 @@ pre.block {
   left: 0;
   top: 0;
   transform-origin: 0 0;
+  will-change: transform;
 }
 
 .frame {
