@@ -6,18 +6,20 @@
 # tests share changed. Few jobs, because the organisation runs at most 20 at once and 5 of them on macOS,
 # and a job's setup outlasts most packages' tests. `ci-ok` is the one check a branch rule
 # needs, and the merge queue runs it again on each pull request as `main` will be once it
-# merges, so a push to `main`, already tested there, only saves the caches pull requests
-# restore. title.yml checks the pull request's title. `tests/system` runs real agents and is
-# never run here. docs/contributing/ci.md has the rest.
+# merges, so a push to `main`, already tested there, runs none of this: cache.yml saves the
+# caches these restore. A push to a `release/*` branch runs it, on what the push changed.
+# title.yml checks the pull request's title. `tests/system` runs real agents and is never run
+# here. docs/contributing/ci.md has the rest.
 
 name: ci
 
 on:
-  push:
-    branches: [main]
   pull_request:
   # The merge queue: `main`, with the pull requests ahead of this one merged, and this one.
   merge_group:
+  # What a release is built from: the release pull request merged, or a commit pushed there.
+  push:
+    branches: ["release/**"]
   # release.yml runs it on the release pull request, which its token cannot start otherwise.
   workflow_dispatch:
 
@@ -26,8 +28,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # Every commit to `main` keeps its run, so a failure there is pinned to one commit.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  # Every commit to a release branch keeps its run, so a failure there is pinned to one commit.
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 env:
   FORCE_COLOR: "1"
@@ -53,6 +55,9 @@ jobs:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
+          # A pull request against its base, the merge queue against `main`, and a push against
+          # the branch before it; a release branch's first push, against nothing, runs everything.
+          base: ${{ github.event_name == 'push' && github.ref || '' }}
           # Unit tests mock every other package, so a package's run only for it. The agents,
           # daemon and tui topics run the packages they import, and `hmz`, which loads the
           # rest lazily; core, anchor and web run `hmz` whole. runtime, flows and coganchor
@@ -122,10 +127,10 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
-          # Pull requests restore what `main` saved and write nothing.
-          save-cache: ${{ github.ref == 'refs/heads/main' }}
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-cache: false
 
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -145,8 +150,7 @@ jobs:
         run: uvx twine@7.0.0 check --strict dist/*
 
   # Each package's unit tests and each topic's integration tests run alone, as they would in a
-  # job of their own, so none leans on another's; the log folds each into a group. On a push,
-  # the environment alone, for its cache.
+  # job of their own, so none leans on another's; the log folds each into a group.
   tests:
     name: tests (${{ matrix.os }})
     needs: changes
@@ -165,14 +169,13 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
-          # Pull requests restore what `main` saved and write nothing.
-          save-cache: ${{ github.ref == 'refs/heads/main' }}
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-cache: false
 
       - name: uv sync
         run: uv sync --frozen --all-extras
 
       - name: pytest tests/unit/<package>, a package at a time
-        if: github.event_name != 'push'
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}
           EVENT: ${{ github.event_name }}
@@ -197,7 +200,7 @@ jobs:
       # Two workers a vCPU: these tests wait on subprocesses, sockets and pseudoterminals far
       # more than they compute, and `-n auto` alone counts physical cores.
       - name: pytest tests/integration/test_<topic>_*.py, a topic at a time, but web
-        if: ${{ !cancelled() && github.event_name != 'push' }}
+        if: ${{ !cancelled() }}
         env:
           CHANGES: ${{ needs.changes.outputs.changes || '' }}
           EVENT: ${{ github.event_name }}
@@ -220,7 +223,7 @@ jobs:
   web:
     name: web (${{ matrix.os }})
     needs: changes
-    if: ${{ !cancelled() && github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"web"')) }}
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"web"')) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -235,7 +238,7 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
-          # `tests` saves the same cache.
+          # Restores what cache.yml saved on `main`, and writes nothing.
           save-cache: false
 
       # The web interface's page is driven in real browsers, which Playwright fetches: Chromium,
@@ -276,8 +279,8 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: desktop/src-tauri
-          # Pull requests restore what `main` saved and write nothing.
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-if: false
 
       - name: cargo fmt --check
         working-directory: desktop/src-tauri
@@ -305,6 +308,6 @@ jobs:
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
-          # `changes` on a dispatch, `web` on a push, and what the change left alone.
+          # `changes` on a dispatch, and what the change left alone.
           allowed-skips: changes, tests, web, desktop
           jobs: ${{ toJSON(needs) }}

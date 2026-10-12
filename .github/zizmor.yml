@@ -4,3 +4,8 @@ rules:
     # Each `./` here is read after the checkout of the commit being run, which is what `$/`
     # would name anyway.
     disable: true
+  cache-poisoning:
+    # ci.yml runs on a push to a `release/*` branch, which zizmor takes for a publishing
+    # workflow, but publishes nothing: publish.yml builds what is released, from no cache.
+    ignore:
+      - ci.yml

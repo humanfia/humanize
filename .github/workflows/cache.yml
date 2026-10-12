@@ -1,0 +1,135 @@
+# The caches ci.yml restores, saved on `main`, the one branch whose caches every pull request
+# and the merge queue can read: Python's environment on Linux and macOS, pre-commit's hooks, and
+# the macOS app's Rust and pnpm. A push to `main` saves those its change made stale; once a week
+# all of them, since a runner's new image or a week unread loses them with no change at all.
+# ci.yml itself never runs on `main`: the merge queue tested each commit before it landed.
+
+name: cache
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - pyproject.toml
+      - uv.lock
+      - .pre-commit-config.yaml
+      - desktop/package.json
+      - desktop/pnpm-lock.yaml
+      - desktop/src-tauri/Cargo.toml
+      - desktop/src-tauri/Cargo.lock
+      - .github/workflows/cache.yml
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  # What the push changed; the weekly run and a dispatch save everything.
+  changes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            python:
+              - pyproject.toml
+              - uv.lock
+              - .pre-commit-config.yaml
+              - .github/workflows/cache.yml
+            desktop:
+              - desktop/**
+              - .github/workflows/cache.yml
+
+  # ci.yml's `static`, `tests` and `web` read these.
+  python:
+    name: python (${{ matrix.os }})
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.changes.outputs.python == 'true') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          save-cache: true
+
+      - name: uv sync
+        run: uv sync --frozen --all-extras
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: runner.os == 'Linux'
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: pre-commit install-hooks
+        if: runner.os == 'Linux'
+        run: uv run --frozen --all-extras pre-commit install-hooks
+
+  # ci.yml's `desktop` reads these. Named as that job is, since the Rust cache's key carries the
+  # job's name; it builds what that job builds, so every crate it needs is in the cache.
+  desktop:
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.changes.outputs.desktop == 'true') }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: cargo clippy
+        working-directory: desktop/src-tauri
+        run: cargo clippy --locked --all-targets
+
+      - name: cargo test --no-run
+        working-directory: desktop/src-tauri
+        run: cargo test --locked --no-run
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        run: pnpm tauri build --debug --bundles app

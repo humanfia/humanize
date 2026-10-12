@@ -33,7 +33,8 @@ rules as `main`. Three workflows do it:
    to `CHANGELOG.md`, written from the pull request titles since the last release of that line,
    or, for a new line, since the line before it was cut.
 2. **`ci.yml`** runs on the release pull request, started by `release.yml`: a pull request a
-   workflow opened starts no checks of its own, and `ci-ok` is needed to merge it.
+   workflow opened starts no checks of its own, and `ci-ok` is needed to merge it. It runs
+   again on every push to a `release/*` branch, the merge included, on what the push changed.
 3. **`publish.yml`**, on a push to a `release/*` branch that merged its release pull request,
    tags the merge commit `vX.Y.Z`, builds a wheel and an sdist, runs `twine check --strict`
    (which fails if PyPI could not render `README.md`), publishes both to
