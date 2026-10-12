@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from hmz.coganchor.agents import Failed, FakeTool, PiAgent, PiAgentConfig
 from hmz.coganchor.gateway import gatewayable
 from tests.integration.doubles_agents import (
-    CHATS,
+    CHATTING,
     Endpoint,
     Standins,
     kinds,
@@ -240,7 +240,7 @@ def test_an_agent_that_may_change_nothing_is_given_no_tools_that_would(
 #: `models.json` under its home, the model `--model` names among its models and the key its
 #: `apiKey` names in the environment, and asks the provider's `baseUrl` for every prompt.
 ROUTED = (
-    CHATS
+    CHATTING
     + r"""
 home = os.environ.get("PI_CODING_AGENT_DIR") or os.path.expanduser("~/.pi/agent")
 with open(os.path.join(home, "models.json")) as declared:

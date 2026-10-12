@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.coganchor import providers
 from hmz.coganchor.agents import (
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
@@ -23,9 +24,18 @@ from hmz.coganchor.agents import (
     FakeTool,
     Unserved,
 )
-from tests.integration.doubles_agents import Standins, kinds, standins
+from hmz.coganchor.gateway import gatewayable
+from hmz.coganchor.providers import Provider
+from tests.integration.doubles_agents import (
+    Endpoint,
+    Standins,
+    kinds,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 CONFIG = AntigravityCLIAgentConfig(model="gemini-stand-in", effort="high")
@@ -165,6 +175,96 @@ def test_a_hung_turn_is_ended_by_the_watchdog(
 
     with pytest.raises(Failed):
         AntigravityCLIAgent(CONFIG).new()("hang")
+
+
+#: An `agy` in enterprise-gateway mode, as the real one is under `AGY_LLM_GATEWAY_URL`: it
+#: takes only a model its gateway was told it serves and no effort for it, and streams Chat
+#: Completions from `{url}/v1/chat/completions` under the gateway's key.
+AGY_GATEWAY = r"""
+import urllib.request
+
+served = os.environ.get("AGY_LLM_GATEWAY_MODELS", "").split(",")
+model = flags.get("--model", "")
+if model not in served:
+    sys.exit("model %s is not served by the gateway" % model)
+if "--effort" in argv:
+    sys.exit("--effort is not supported for model %s" % model)
+assert os.environ["AGY_LLM_GATEWAY_WIRE_PROTOCOL"] == "openai"
+for line in sys.stdin:
+    said = json.loads(line)["message"]["content"]
+    note(said)
+    asked = urllib.request.Request(
+        os.environ["AGY_LLM_GATEWAY_URL"] + "/v1/chat/completions",
+        data=json.dumps({"model": model, "stream": True,
+                         "messages": [{"role": "user", "content": said}]}).encode(),
+        headers={"Authorization": "Bearer " + os.environ["AGY_LLM_GATEWAY_API_KEY"],
+                 "Content-Type": "application/json"})
+    with urllib.request.urlopen(asked, timeout=60) as answer:
+        pieces = [json.loads(one[5:]) for one in answer.read().decode().splitlines()
+                  if one.startswith("data:") and one[5:].strip() != "[DONE]"]
+    body = "".join(one["choices"][0]["delta"].get("content") or ""
+                   for one in pieces if one.get("choices"))
+    out({"event": "result", "result": {"conversation_id": "conv-gw", "status": "SUCCESS",
+         "response": body, "usage": {"input_tokens": 1, "output_tokens": 1}}})
+"""
+
+
+def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
+    """No credential path answered by another: an account of variables alone is under test."""
+    return ()
+
+
+@pytest.fixture
+def endpoint() -> Iterator[Endpoint]:
+    # Driven to its end after the test, which is what shuts it.
+    yield from serving()
+
+
+@pytest.mark.timeout(240)
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+def test_agy_under_an_account_a_gateway_holds_is_its_openai_gateway(
+    endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = standins(
+        tmp_path,
+        monkeypatch,
+        "AGY_LLM_GATEWAY_URL",
+        "AGY_LLM_GATEWAY_API_KEY",
+        "AGY_LLM_GATEWAY_MODELS",
+        "LITELLM_GATEWAY_KEY",
+    )
+    held.install("agy", AGY_GATEWAY)
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
+    monkeypatch.setattr(Provider, "swaps", _unswapped)
+    providers.add(
+        "agy",
+        "gw",
+        way="litellm-openai-gateway",
+        env={
+            "LITELLM_GATEWAY_URL": endpoint.url,
+            "LITELLM_GATEWAY_KEY": "upstream-secret",
+            "LITELLM_GATEWAY_API": "openai",
+        },
+    )
+    agent = AntigravityCLIAgent(
+        AntigravityCLIAgentConfig(model="stand-in", effort="high", provider="gw")
+    )
+    try:
+        said = agent.new(tmp_path)("say hi", suppress=True)
+        through = agent.gateway
+        assert through is not None
+    finally:
+        agent.stop()
+
+    assert "say hi" in said
+    assert [one["model"] for one in endpoint.asked] == ["stand-in"]
+    env = held.calls("agy")[0].env
+    assert env["AGY_LLM_GATEWAY_URL"] == through.url
+    assert env["AGY_LLM_GATEWAY_API_KEY"] == through.key
+    assert env["AGY_LLM_GATEWAY_MODELS"] == "stand-in"
+    assert env["LITELLM_GATEWAY_KEY"] is None
+    assert not through.running
 
 
 def test_a_tool_the_flow_offers_is_called_through_a_plugin_of_humanizes(

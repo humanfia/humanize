@@ -17,8 +17,9 @@ from hmz.coganchor.agents import (
     driver,
 )
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.providers import Provider
 
-from .doubles_u5 import configured, heard, line, option, spawning
+from .doubles_u5 import configured, gatewayed, heard, line, option, spawning
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -401,3 +402,31 @@ def test_a_closed_fence_lets_the_settings_qwen_is_pointed_at_be_read(
 
     assert len(granted.read) == len(fence.read) + 1
     assert granted.write == fence.write
+
+
+def test_a_turn_through_a_gateway_is_pointed_at_it_as_an_openai_endpoint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "lying-about")
+    gatewayed(
+        monkeypatch,
+        Provider(
+            cli="qwen",
+            name="gw",
+            way="litellm-anthropic-key",
+            env={"ANTHROPIC_API_KEY": "upstream-secret"},
+        ),
+    )
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent(provider="gw")
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    (process,) = spawned
+    assert option(process.args, "--auth-type") == "openai"
+    env = process.env
+    assert env is not None
+    assert env["OPENAI_BASE_URL"] == "http://127.0.0.1:4321"
+    assert env["OPENAI_API_KEY"] == "sk-master"
+    assert "ANTHROPIC_API_KEY" not in env

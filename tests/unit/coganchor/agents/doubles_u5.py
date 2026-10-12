@@ -217,8 +217,8 @@ def option(argv: list[str], flag: str) -> str | None:
     return argv[argv.index(flag) + 1] if flag in argv else None
 
 
-class Gateway:
-    """A LiteLLM gateway that starts nothing: where it would be, and whether it is up."""
+class Pretended:
+    """A LiteLLM gateway that starts nothing: where it would be, and whether it was taken down."""
 
     def __init__(self, provider: Provider) -> None:
         self.account = provider
@@ -251,5 +251,31 @@ def routing(monkeypatch: pytest.MonkeyPatch, cli: str) -> None:
         return account if name == "gw" else Provider(backend, name, way="")
 
     monkeypatch.setattr(providers, "find", find)
-    monkeypatch.setattr(gateway, "Gateway", Gateway)
+    monkeypatch.setattr(gateway, "Gateway", Pretended)
     monkeypatch.setenv("OPENAI_API_KEY", "lying-about")
+
+
+def gatewayed(monkeypatch: pytest.MonkeyPatch, account: Provider) -> list[Pretended]:
+    """Makes `account` the one an agent configured with its name runs as, held by a gateway.
+
+    The gateway is :class:`Pretended`, so that a driver pointing its CLI at one is observable
+    without litellm being started.
+
+    Returns:
+      Every gateway started, in the order started.
+    """
+    from hmz.coganchor import gateway, providers
+
+    started: list[Pretended] = []
+
+    def find(cli: str, name: str) -> Provider | None:
+        del cli
+        return account if name == account.name else None
+
+    def start(provider: Provider) -> Pretended:
+        started.append(Pretended(provider))
+        return started[-1]
+
+    monkeypatch.setattr(providers, "find", find)
+    monkeypatch.setattr(gateway, "Gateway", start)
+    return started

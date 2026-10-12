@@ -2,7 +2,9 @@
 
 The stand-in takes ordinary turns as stream-json messages on a stdin held open, and a turn held
 to a shape as plain stdin, answering both in the same `system`, `assistant` and `result`
-records. A turn that failed says so in its result.
+records. A turn that failed says so in its result. Told an `--auth-type`, it asks the endpoint
+it was pointed at for the answer -- a local LiteLLM gateway, run for real, in front of an
+`Endpoint`.
 """
 
 from __future__ import annotations
@@ -12,10 +14,20 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic import BaseModel
 
+from hmz.coganchor import providers
 from hmz.coganchor.agents import Failed, FakeTool, QwenCodeAgent, QwenCodeAgentConfig
-from tests.integration.doubles_agents import Standins, kinds, standins
+from hmz.coganchor.gateway import gatewayable
+from tests.integration.doubles_agents import (
+    CHATTING,
+    Endpoint,
+    Standins,
+    kinds,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 CONFIG = QwenCodeAgentConfig(model="qwen-stand-in", effort="high")
@@ -71,6 +83,9 @@ def turn(said):
                 "result": "", "error": {"message": "it could not finish"},
                 "usage": {"input_tokens": 1, "output_tokens": 0}})
         return
+    if "--auth-type" in argv:
+        said = chatted(os.environ["OPENAI_BASE_URL"], os.environ["OPENAI_API_KEY"],
+                       flags.get("--model"), said)
     answer = json.dumps({"value": said}) if "--json-schema" in argv else said
     record({"type": "assistant", "message": {"id": "m1", "role": "assistant", "content": [
         {"type": "thinking", "thinking": "thinking about " + said},
@@ -101,7 +116,7 @@ class Shape(BaseModel):
 @pytest.fixture
 def qwen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standins:
     held = standins(tmp_path, monkeypatch)
-    held.install("qwen", QWEN)
+    held.install("qwen", CHATTING + QWEN)
     return held
 
 
@@ -163,6 +178,62 @@ def test_a_hung_turn_is_ended_by_the_watchdog(
 
     with pytest.raises(Failed):
         QwenCodeAgent(CONFIG).new()("hang")
+
+
+@pytest.fixture
+def endpoint() -> Iterator[Endpoint]:
+    yield from serving()
+
+
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+@pytest.mark.timeout(240)
+def test_qwen_under_an_account_a_gateway_holds_is_pointed_at_it(
+    endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = standins(
+        tmp_path,
+        monkeypatch,
+        "OPENAI_BASE_URL",
+        "OPENAI_API_KEY",
+        "QWEN_DEFAULT_AUTH_TYPE",
+        "LITELLM_GATEWAY_KEY",
+    )
+    held.install("qwen", CHATTING + QWEN)
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
+    monkeypatch.setenv("OPENAI_API_KEY", "lying-about")
+    providers.add(
+        "qwen",
+        "gw",
+        way="litellm-openai-gateway",
+        env={
+            "LITELLM_GATEWAY_URL": endpoint.url,
+            "LITELLM_GATEWAY_KEY": "upstream-secret",
+            "LITELLM_GATEWAY_API": "openai",
+        },
+    )
+    agent = QwenCodeAgent(
+        QwenCodeAgentConfig(model="stand-in", effort="", provider="gw")
+    )
+    try:
+        said = agent.new()("hello")
+        through = agent.gateway
+        assert through is not None
+    finally:
+        agent.stop()
+
+    assert said == "hello"
+    assert [one["model"] for one in endpoint.asked] == ["stand-in"]
+    launch = held.calls("qwen")[0]
+    assert launch.flag("--auth-type") == "openai"
+    assert launch.env == {
+        "HMZ_TEST_INHERITED": "from-the-flow",
+        "OPENAI_BASE_URL": through.url,
+        "OPENAI_API_KEY": through.key,
+        "QWEN_DEFAULT_AUTH_TYPE": "openai",
+        "LITELLM_GATEWAY_KEY": None,
+    }
+    assert not through.running
 
 
 class Word(BaseModel):

@@ -25,7 +25,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.gateway import gatewayable
 from tests.integration.doubles_agents import (
-    CHATS,
+    CHATTING,
     Endpoint,
     Standins,
     kinds,
@@ -204,7 +204,7 @@ def test_a_run_cannot_be_talked_to_mid_turn_nor_given_a_goal(
 #: the `{env:...}` in, finds the model `--model` names under the provider it names, and asks
 #: that provider's `baseURL` with its `apiKey` -- saying what came back as a turn.
 ROUTED = (
-    CHATS
+    CHATTING
     + r"""
 import re
 

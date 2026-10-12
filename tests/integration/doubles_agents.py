@@ -163,28 +163,27 @@ def kinds(events: list[Any]) -> list[str]:
     return [event.kind for event in events]
 
 
-#: What a stand-in speaking OpenAI's Chat Completions asks with, as source for its body:
-#: `chatted(url, key, model, said)` streams one turn from the base URL it is given, as the
-#: SDKs these CLIs are built on do, and returns what came back -- or what went wrong instead.
-CHATS = r"""
+#: What a stand-in asks an OpenAI-compatible endpoint with, put beside its body: `chatted`
+#: streams one Chat Completions turn from wherever it is pointed and says what came back.
+CHATTING = r"""
 import urllib.request
 
 
-def chatted(url, key, model, said):
+def chatted(base, key, model, said):
     asked = urllib.request.Request(
-        url + "/chat/completions",
+        base.rstrip("/") + "/chat/completions",
         data=json.dumps({"model": model, "stream": True,
                          "messages": [{"role": "user", "content": said}]}).encode(),
         headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(asked, timeout=60) as answer:
-            lines = [one[5:].strip() for one in answer.read().decode().splitlines()
-                     if one.startswith("data:")]
+            lines = answer.read().decode().splitlines()
     except Exception as why:
         return repr(why)
-    chunks = [json.loads(one) for one in lines if one != "[DONE]"]
+    events = [json.loads(one[5:]) for one in lines
+              if one.startswith("data:") and one[5:].strip() != "[DONE]"]
     return "".join((choice.get("delta") or {}).get("content") or ""
-                   for chunk in chunks for choice in chunk.get("choices") or [])
+                   for one in events for choice in one.get("choices") or [])
 """
 
 
