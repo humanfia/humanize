@@ -7,9 +7,12 @@ from hmz.flows import agents, defining, envs, errors, hooks
 
 MODULES = (agents, defining, envs, errors, hooks)
 
+#: What it hands on from coganchor rather than writes: the fake tool and command line types.
+FAKES = {"FakeCli", "FakeCommand", "FakeTool"}
+
 
 def test_the_package_offers_exactly_what_its_modules_do() -> None:
-    offered = {name for module in MODULES for name in module.__all__}
+    offered = FAKES | {name for module in MODULES for name in module.__all__}
     assert set(hmz.flows.__all__) == offered
     assert len(hmz.flows.__all__) == len(offered)
 

@@ -690,6 +690,17 @@ def test_an_epic_made_now_is_listed_after_one_made_before(workspace: Path) -> No
     assert epic.epics(workspace) == [before, now.path]
 
 
+def test_epics_begun_inside_one_millisecond_are_listed_as_they_began(
+    workspace: Path,
+) -> None:
+    begun: list[Path] = []
+    for _ in range(20):
+        with Epic("f", "t", workspace) as one:
+            begun.append(one.path)
+
+    assert epic.epics(workspace) == begun
+
+
 # ----------------------------------------------------------- picking up
 
 

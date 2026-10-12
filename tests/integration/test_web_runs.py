@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz import machine
 from tests.integration.doubles_core import AGENT, install, started
-from tests.integration.doubles_web import Browser, served, until
+from tests.integration.doubles_web import Browser, elsewhere, served, until
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -298,3 +300,68 @@ def test_a_session_of_an_earlier_epic_is_asked_beside_it_as_a_fork_of_its_histor
             ).status
             == 404
         )
+
+
+def test_an_exported_epic_is_imported_back_by_its_bytes_or_its_path(
+    project: Path, tmp_path: Path
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        with browser.follows() as heard:
+            browser.post("/api/held/start", _CHAT)
+            until(heard, _record("asked"), "chat asking")
+            browser.post("/api/held/stop")
+            until(heard, _record("ended"), "the run ending")
+        (run,) = browser.get("/api/runs").json()["runs"]
+        name = run["name"]
+        archive = tmp_path / f"{name}.hmzepic"
+        archive.write_bytes(browser.get(f"/api/runs/{name}/bundle").body)
+        shutil.rmtree(browser.get(f"/api/runs/{name}").json()["at"])
+        assert browser.get(f"/api/runs/{name}").status == 404
+
+        sent = browser.sends("/api/runs/import", archive.read_bytes(), archive.name)
+        assert sent.status == 201, sent.body
+        assert sent.json() == {
+            "name": name,
+            "workspace": str(project.resolve()),
+            "resumable": False,
+            "why": "",
+        }
+        assert browser.get(f"/api/runs/{name}").json()["foreign"] == ""
+
+        again = browser.sends("/api/runs/import", archive.read_bytes(), archive.name)
+        assert again.status == 409
+        assert again.json()["name"] == name
+        assert "is already here" in again.json()["error"]
+        named = browser.post("/api/runs/import", {"path": str(archive)})
+        assert (named.status, named.json()["name"]) == (409, name)
+
+        # Somebody else's: a workspace this machine has not got.
+        (tmp_path / "theirs").mkdir()
+        theirs = elsewhere(archive, "/nowhere/at/all", tmp_path / "theirs")
+        shutil.rmtree(browser.get(f"/api/runs/{name}").json()["at"])
+        read = browser.post("/api/runs/import", {"path": str(theirs)})
+        assert read.status == 201, read.body
+        assert (read.json()["workspace"], read.json()["resumable"]) == (
+            "/nowhere/at/all",
+            False,
+        )
+        assert "not on this machine" in read.json()["why"]
+        one = browser.get(f"/api/runs/{name}").json()
+        assert (one["foreign"], one["picks_up"]) == (read.json()["why"], False)
+
+        not_one = browser.sends("/api/runs/import", b"not a bundle", "x.hmzepic")
+        assert not_one.status == 400
+        assert not_one.json()["error"].startswith("x.hmzepic is not a bundle")
+        assert browser.sends("/api/runs/import", b"", "x.txt").status == 400
+        assert browser.sends("/api/runs/import", b"", "").status == 400
+        assert browser.post("/api/runs/import", {"path": "x.hmzepic"}).status == 400
+        plain = {"Content-Type": "text/plain"}
+        assert (
+            browser.sends("/api/runs/import", b"", "x.hmzepic", **plain).status == 415
+        )
+        huge = {"Content-Length": str(3 << 30)}
+        assert browser.sends("/api/runs/import", b"", "x.hmzepic", **huge).status == 413
+        # Nothing sent is kept.
+        assert not [*machine().glob("tmp*/x.hmzepic")]

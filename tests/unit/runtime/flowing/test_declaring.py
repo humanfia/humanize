@@ -10,11 +10,15 @@ import pytest
 from hmz.flows import (
     Agent,
     AgentCollection,
+    AntigravityAgent,
     ClaudeCodeAgent,
     CodexAgent,
     CPUEnvMixin,
+    DeepSeekHarnessAgent,
     Env,
     EnvCollection,
+    FakeCli,
+    FakeCommand,
     FakeTool,
     FakeToolAgentMixin,
     FilesEnvMixin,
@@ -22,13 +26,20 @@ from hmz.flows import (
     FlowParams,
     GoalCommandAgentMixin,
     GPUEnvMixin,
+    GrokBuildAgent,
     HarnessKind,
     ImageEnvMixin,
+    LiteLLMAgent,
     LocalEnv,
     MemoryEnvMixin,
+    MiMoCodeAgent,
+    OhMyPiAgent,
+    OpenCodeAgent,
     Outworlder,
     Permission,
     PermissionKind,
+    PiAgent,
+    QwenCodeAgent,
     ShellEnvMixin,
 )
 from hmz.runtime.flowing.declaring import (
@@ -39,6 +50,7 @@ from hmz.runtime.flowing.declaring import (
     agent_roles,
     checked_definition,
     env_roles,
+    serves,
 )
 
 if TYPE_CHECKING:
@@ -232,6 +244,91 @@ def test_an_agent_roles_tools_are_read_into_its_grant() -> None:
 
 
 @pytest.mark.parametrize(
+    "protocol",
+    [
+        QwenCodeAgent,
+        AntigravityAgent,
+        OpenCodeAgent,
+        MiMoCodeAgent,
+        PiAgent,
+        OhMyPiAgent,
+        DeepSeekHarnessAgent,
+        GrokBuildAgent,
+    ],
+)
+def test_a_role_typed_as_a_harness_that_takes_tools_may_declare_them(
+    protocol: type,
+) -> None:
+    class Tooled(protocol):  # pyright: ignore[reportUntypedBaseClass]
+        _tools = (TOOL,)
+
+    class Agents(AgentCollection):
+        one: Tooled
+
+    (role,) = agent_roles(Agents, HERE, {"Tooled": Tooled})
+
+    assert role.tools == (TOOL,)
+
+
+CLI = FakeCli("tix", "Files tickets.", (FakeCommand("file", "Files one.", _nothing),))
+
+
+class Shelving(Agent):
+    _clis = (CLI,)
+
+
+class WithClis(AgentCollection):
+    one: Shelving
+
+
+class ClisNotFakeClis(Agent):
+    _clis = ("tix",)  # pyright: ignore[reportAssignmentType]
+
+
+class WithClisNotFakeClis(AgentCollection):
+    one: ClisNotFakeClis
+
+
+class CliNamedTwice(Agent):
+    _clis = (CLI, FakeCli("tix", "Again.", (FakeCommand("go", "Goes.", _nothing),)))
+
+
+class WithCliNamedTwice(AgentCollection):
+    one: CliNamedTwice
+
+
+class LiteLLMShelving(LiteLLMAgent):
+    _clis = (CLI,)
+
+
+class WithLiteLLMClis(AgentCollection):
+    one: LiteLLMShelving
+
+
+class OutworlderShelving(Outworlder):
+    _clis = (CLI,)
+
+
+class WithOutworlderClis(AgentCollection):
+    one: OutworlderShelving
+
+
+def test_an_agent_roles_command_lines_are_read_into_its_grant_with_no_mixin() -> None:
+    (role,) = roles_of(WithClis)
+
+    assert role.clis == (CLI,)
+    assert role.grant is Grant.of(role.capabilities, clis=(CLI,))
+
+
+def test_a_role_with_command_lines_is_served_by_any_harness_but_litellm() -> None:
+    (role,) = roles_of(WithClis)
+
+    assert serves("claude", role)
+    assert serves("kimi", role)
+    assert not serves("litellm", role)
+
+
+@pytest.mark.parametrize(
     ("collection", "says"),
     [
         (Wrong, "cannot be resolved"),
@@ -247,6 +344,10 @@ def test_an_agent_roles_tools_are_read_into_its_grant() -> None:
         (WithToolsWithoutMixin, "_tools needs FakeToolAgentMixin"),
         (WithToolsNotFakeTools, "_tools is not a tuple of FakeTool"),
         (WithToolNamedTwice, "_tools names one tool twice"),
+        (WithClisNotFakeClis, "_clis is not a tuple of FakeCli"),
+        (WithCliNamedTwice, "_clis names one command line twice"),
+        (WithLiteLLMClis, "_clis needs an agent with a shell"),
+        (WithOutworlderClis, "_clis needs an agent with a shell"),
     ],
 )
 def test_agent_roles_refuse(collection: type, says: str) -> None:

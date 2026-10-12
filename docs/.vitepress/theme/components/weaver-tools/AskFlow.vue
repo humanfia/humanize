@@ -83,7 +83,7 @@ const WIDE: Layout = {
   yR: 186,
   wait: { y: 238, lines: ['a question waits as long as its answer takes;', 'other hooks give up after 15 minutes'] },
   mixin: { x: 272, y: 270, w: 354 },
-  tag: { x: 14, y: 296, lines: ['claude and codex can also', 'be handed a FakeTool'] },
+  tag: { x: 14, y: 296, lines: ['a flow can also hand it', 'a FakeTool or a FakeCli'] },
   open: { x: 450, y: 110, s: 1.4 },
   whole: { x: 320, y: 180, s: 1 },
 }
@@ -100,7 +100,7 @@ const NARROW: Layout = {
   yR: 400,
   wait: { y: 448, lines: ['a question waits as long as its answer takes;', 'other hooks give up after 15 minutes'] },
   mixin: { x: 14, y: 480, w: 332 },
-  tag: { x: 14, y: 586, lines: ['claude and codex can also be handed a FakeTool'] },
+  tag: { x: 14, y: 586, lines: ['a flow can also hand it a FakeTool or a FakeCli'] },
   open: { x: 180, y: 340, s: 1.25 },
   whole: { x: 180, y: 315, s: 1 },
 }
@@ -255,7 +255,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="4 / 7"
-    label="An agent asking the flow. The builder's role is typed with AskUserHookAgentMixin, which claude, codex, kimi, pi and omp carry; others are refused before the first turn. Mid-turn, the builder asks its user: review calc.py. In a flow that user is the flow: its on_ask_user hook is called with an AskUserHookParams carrying the question, the options, the flow's context and the session. The builder's turn waits, as long as the answer takes, with no 15-minute limit, while the hook spawns a reviewer session and takes a whole reviewer turn inside the builder's turn. The hook returns AskUserHookResult with answer=said, and the builder carries on from there and ends its turn. The question is the tool; on claude and codex a flow can also hand the agent a FakeTool of its own."
+    label="An agent asking the flow. The builder's role is typed with AskUserHookAgentMixin, which claude, codex, kimi, pi and omp carry; others are refused before the first turn. Mid-turn, the builder asks its user: review calc.py. In a flow that user is the flow: its on_ask_user hook is called with an AskUserHookParams carrying the question, the options, the flow's context and the session. The builder's turn waits, as long as the answer takes, with no 15-minute limit, while the hook spawns a reviewer session and takes a whole reviewer turn inside the builder's turn. The hook returns AskUserHookResult with answer=said, and the builder carries on from there and ends its turn. The question is the tool; a flow can also hand the agent a FakeTool or a FakeCli of its own."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="world">

@@ -662,7 +662,7 @@ class AntigravityCLISession(StreamSessionBase):
     def _offered(self) -> tuple[object, ...]:
         """What the flow's callbacks are for the process: their names, and where they are."""
         toolbox = self._agent.toolbox
-        names = tuple(sorted(one.name for one in toolbox.offered()))
+        names = toolbox.names()
         return (names, toolbox.address()) if names else ()
 
     def _plugin(self) -> str:

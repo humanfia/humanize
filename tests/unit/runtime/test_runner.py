@@ -164,6 +164,7 @@ class AgentRole:
     capabilities: frozenset[type] = frozenset()
     permission: Permission = Permission()
     skills: tuple[str, ...] = ()
+    clis: tuple[object, ...] = ()
 
 
 @dataclass(frozen=True)

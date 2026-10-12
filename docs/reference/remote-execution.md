@@ -420,7 +420,8 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
   callbacks or [command lines](/reference/agents#command-lines) is refused: `<cli>: a turn
   driven on <target> cannot be offered the flow's own callbacks or command lines -- the bridge
   that carries them is a program on this machine, and the CLI that would start it is on that
-  one`.
+  one` (`command lines` alone for `omp`). `omp`'s callbacks are the exception (`AgentBase.pipes_tools`): it asks for each call over
+  the RPC pipe it is driven through, so they reach it wherever it runs.
 - **Sessions of a native or afar turn stay where that CLI keeps them**, on the other machine; a
   run copies what they log into its epic as they go and whole as they close
   ([Providers › Sessions on another machine](/reference/providers#sessions-on-another-machine)).
@@ -519,7 +520,7 @@ A path is answered from the target unless it is one of these:
 | The CLI's state paths (table below), as files and as programs | `statepaths.PROFILES` |
 | `~/.hmz`, `~/.humanize`, `~/.cache/humanize`, `~/.config/humanize` | `statepaths.COMMON_STATE_PATHS` |
 | `local_paths`, `local_execs`, and what every `redirects` entry is answered with | `AnchorConfig` |
-| The program that bridges the flow's tool callbacks, when offered | added to `local_execs` |
+| The program that bridges the flow's tool callbacks, when offered (not for `omp`, which needs no bridge) | added to `local_execs` |
 | The agent's shelf of the flow's command lines, once any is shelved, and the Python they run | added to `local_execs`; the shelf to `local_paths` too |
 
 | CLI | State paths kept here |

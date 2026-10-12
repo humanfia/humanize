@@ -189,9 +189,10 @@ class Endpoint:
 
     What it answers is chosen by the last user message a harness did not write itself, so a
     test says the turn it wants by what it asks: `unfinished` is refused with a 400, `hang`
-    sends one piece and then nothing until the endpoint is shut, and anything else streams
-    back some thinking and the prompt itself -- or `{"value": <prompt>}` where a shape was
-    asked for -- with usage.
+    sends one piece and then nothing until the endpoint is shut, `use <tool> [<json>]` calls the
+    offered tool of that name (or of a name ending `__<tool>`) with that JSON, the tool's
+    result is answered `the tool said <result>`, and anything else streams back some thinking
+    and the prompt itself -- or `{"value": <prompt>}` where a shape was asked for -- with usage.
     """
 
     url: str
@@ -238,14 +239,17 @@ class _Answers(BaseHTTPRequestHandler):
         self.wfile.write(said)
 
     def _chunk(
-        self, delta: dict[str, Any], usage: dict[str, int] | None = None
+        self,
+        delta: dict[str, Any],
+        usage: dict[str, int] | None = None,
+        finish: str | None = None,
     ) -> None:
         said: dict[str, Any] = {
             "id": "chatcmpl-1",
             "object": "chat.completion.chunk",
             "created": 1,
             "model": "stand-in",
-            "choices": [{"index": 0, "delta": delta, "finish_reason": None}]
+            "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]
             if delta
             else [],
         }
@@ -253,6 +257,41 @@ class _Answers(BaseHTTPRequestHandler):
             said["usage"] = usage
         self.wfile.write(f"data: {json.dumps(said)}\n\n".encode())
         self.wfile.flush()
+
+    @staticmethod
+    def _reaching(asked: dict[str, Any], said: str) -> str:
+        """The offered tool a prompt of `use <name> <json>` asks for, by its full name."""
+        verb, _, rest = said.partition(" ")
+        wanted = rest.partition(" ")[0]
+        if verb != "use" or not wanted:
+            return ""
+        tools: list[dict[str, Any]] = asked.get("tools") or []
+        offered = [str(one["function"]["name"]) for one in tools]
+        return next(
+            (one for one in offered if one == wanted or one.endswith(f"__{wanted}")), ""
+        )
+
+    def _reach(self, name: str, said: str) -> None:
+        """Streams one call of the tool `name`, with what `said` put after its name."""
+        arguments = said.split(" ", 2)[2] if said.count(" ") >= 2 else "{}"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        call = {
+            "index": 0,
+            "id": "call-1",
+            "type": "function",
+            "function": {"name": name, "arguments": arguments},
+        }
+        self._chunk({"role": "assistant", "tool_calls": [call]})
+        self._chunk({"content": ""}, finish="tool_calls")
+        self._chunk(
+            {}, {"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18}
+        )
+        self.wfile.write(b"data: [DONE]\n\n")
+        self.wfile.flush()
+        self.close_connection = True
 
     def do_GET(self) -> None:
         self._send(200, {"object": "list", "data": [{"id": "stand-in"}]})
@@ -274,10 +313,18 @@ class _Answers(BaseHTTPRequestHandler):
         if said == "unfinished":
             self._send(400, {"error": {"message": "it could not finish"}})
             return
+        messages: list[dict[str, Any]] = asked["messages"]
+        nothing: dict[str, Any] = {}
+        last = next((one for one in reversed(messages) if not harnessed(one)), nothing)
+        if last.get("role") != "tool" and (reach := self._reaching(asked, said)):
+            self._reach(reach, said)
+            return
         shaped = asked.get("response_format") or "schema" in json.dumps(
             asked["messages"]
         )
         answer = json.dumps({"value": said}) if shaped else said
+        if last.get("role") == "tool":
+            answer = "the tool said " + str(last.get("content"))
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Connection", "close")
