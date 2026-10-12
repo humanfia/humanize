@@ -38,11 +38,9 @@ from __future__ import annotations
 
 import contextlib
 import datetime
-import importlib.metadata
 import os
 import re
 import shlex
-import sys
 import textwrap
 from functools import partial
 from pathlib import Path
@@ -3725,21 +3723,6 @@ def _drives(backend: str) -> type[AgentBase] | None:
         return None
 
 
-#: What each backend behind an extra is missing when it is missing, and the packages of that
-#: extra: the line for a humanize installed from a repository or a checkout, which an index
-#: has no `hmz[...]` of.
-_EXTRAS = {
-    "dsh": (
-        "DeepSeek Harness is not installed",
-        f"'{backends.DSH_SDK}' 'python-dotenv>=1.2.3'",
-    ),
-    "kimi": (
-        "Kimi Code is installed, but the websockets package is not",
-        "'websockets>=15,<18'",
-    ),
-    "litellm": ("litellm is not installed", f"'{backends.LITELLM_SDK}'"),
-}
-
 #: The ways an account of DeepSeek Harness can be made by, read off its profile rather than
 #: named here: every one of them asks for `DEEPSEEK_API_KEY` -- the key on its own, or a
 #: gateway's URL and the key that endpoint takes -- and its driver refuses an account made
@@ -3747,21 +3730,6 @@ _EXTRAS = {
 _DSH_WAYS = frozenset(
     way.name for one in backends.PROFILES if one.name == "dsh" for way in one.ways
 )
-
-
-def _installing(backend: str) -> str:
-    """The command that adds an optional backend to this Python environment."""
-    if (extra := _EXTRAS.get(backend)) is None:
-        return f"install {backend}, then reopen humanize"
-    missing, requirement = extra
-    # A humanize from an index has no `direct_url.json` (PEP 610), and that index has its
-    # extra, pinned to the version running so that nothing else of humanize is installed.
-    hmz = importlib.metadata.distribution("hmz")
-    if hmz.read_text("direct_url.json") is None:
-        requirement = shlex.quote(f"hmz[{backend}]=={hmz.version}")
-    executable = str(Path(sys.executable).absolute())
-    command = f"uv pip install --python {shlex.quote(executable)} {requirement}"
-    return f"{missing}; run: {command}; then reopen hmz"
 
 
 class Made(NamedTuple):
@@ -3936,6 +3904,18 @@ _TYPED_ABOUT = "environment variables, as NAME=VALUE, one per line"
 #: What each row asking whether to write the account down for another backend as well is put
 #: up under, in front of that backend's name.
 _ALSO = "also:"
+
+
+def _routed(way: Value) -> bool:
+    """Whether a way in, as a dropped list says it, is one through the local LiteLLM gateway.
+
+    Args:
+      way: The way, by the name it is picked by.
+
+    Returns:
+      True for one of the ways :func:`hmz.coganchor.backends.routed` makes.
+    """
+    return bool(backends.upstream(way.value))
 
 
 class Signing(Form[Signs]):
@@ -4157,6 +4137,25 @@ class Signing(Form[Signs]):
         if held.startswith(_ALSO):
             return (_YES, _NO)
         return ()
+
+    def dropping(self, row: str) -> Drop:
+        """The ways in, those through the local LiteLLM gateway last and under a heading.
+
+        Every way litellm has in is one more way into a CLI the gateway can speak to, which
+        is a long list of somebody else's: the CLI's own come first and alone. Where the
+        `[litellm]` extra is missing they are not offered, and the line that adds it is said
+        under the heading in their place.
+        """
+        drop = super().dropping(row)
+        if row != _BY:
+            return drop
+        accounts = _hmz().accounts
+        heading = accounts.GATEWAY
+        group = [one._replace(group=heading) for one in drop.values if _routed(one)]
+        if wants := accounts.wants(self._cli()):
+            group.append(Value("", wants, group=heading, inert=True))
+        own = [one for one in drop.values if not _routed(one)]
+        return drop._replace(values=[*own, *group])
 
     def stepped(self, held: str) -> None:
         """Lets go of what belonged to the CLI or the way in before it moved.
@@ -4963,7 +4962,7 @@ class Clis(Picks):
                 (
                     backend,
                     backend,
-                    _installing(backend)
+                    _hmz().adding(backend)
                     if backend in self._unavailable
                     else _many(len(self._agents[backend]), "model")
                     if self._agents[backend]

@@ -1529,6 +1529,11 @@ PROFILES = (
         # somewhere else and in another shape, so this ordinarily falls back to asking agy;
         # a gateway put behind it that answers `/v1/models` is answered from there.
         endpoint="GOOGLE_GEMINI_BASE_URL",
+        # And the OpenAI gateway below is how the local LiteLLM gateway is spoken to, which
+        # answers Chat Completions at `/v1/chat/completions` -- where agy sends them, under the
+        # bare URL. What it serves is the one model a turn names, which the driver says: a
+        # gateway holding a wildcard has no list of its own for agy to be told.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -1676,6 +1681,10 @@ PROFILES = (
         # Azure's is a variable of its own rather than this one: what a resource lists at
         # `/models` is the models Azure has, and what a turn names is a deployment of one.
         endpoint="CODEX_PROVIDER_URL",
+        # And the same way is how the local LiteLLM gateway is spoken to, for an account made
+        # by any of litellm's ways: codex speaks the Responses API to it, and it speaks the
+        # account's onward.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -1950,6 +1959,10 @@ PROFILES = (
         # Its SDK has no model-list request at all, so an endpoint that answers one is the
         # only way this backend ever says something other than the two names it ships with.
         endpoint="DEEPSEEK_BASE_URL",
+        # And the first of the gateways below is how the local LiteLLM gateway is spoken to,
+        # for an account made by any of litellm's ways: pi-ai's Chat Completions route to it,
+        # which posts `/chat/completions` under the URL as it is handed.
+        routes="openai-gateway",
         # Every gateway is somebody else's protocol, spoken by the runtime's own generic
         # adapter rather than by DeepSeek's. The stock `@deepseek-ai/dsh-llm-deepseek` does
         # post OpenAI chat completions, but in DeepSeek's dialect: put to a recording server
@@ -2126,6 +2139,10 @@ PROFILES = (
         # only where the CLI looks up its own catalogue: a list from somewhere a turn does
         # not go is the same fresh-and-wrong answer as the CLI's own.
         endpoint="GROK_XAI_API_BASE_URL",
+        # And the local LiteLLM gateway is an endpoint speaking OpenAI's API like any other,
+        # spoken to in chat completions -- the one protocol it speaks for every provider
+        # behind it, which the driver says in place of the way's own `responses`.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -2323,6 +2340,11 @@ PROFILES = (
         # move Kimi's own service: each of those ways builds a provider out of it in memory
         # and makes it the default, so it is where the turns of such an account go.
         endpoint="KIMI_MODEL_BASE_URL",
+        # And the OpenAI way below is how the local LiteLLM gateway is spoken to, at its
+        # default of Chat Completions -- with the model the agent runs as the one it names,
+        # which the driver says (`agents/kimi.py`), there being no answer to that for the
+        # gateway to give.
+        routes="openai-gateway",
         # Every way but the login is the one provider 2.1.1 builds out of `KIMI_MODEL_*` in
         # memory and makes the default, so nothing is written to the `config.toml` of the home
         # every account shares. What tells them apart is `KIMI_MODEL_PROVIDER_TYPE`: its env
@@ -2572,6 +2594,9 @@ PROFILES = (
         # against the one provider the driver declares for it, under whatever id the turn
         # names -- so what that gateway serves is what a turn of it may name, bare.
         endpoint="PI_GATEWAY_URL",
+        # And the OpenAI one is how the local LiteLLM gateway is spoken to: pi speaks Chat
+        # Completions to it, as a provider of its own the driver declares for the turn.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -3080,6 +3105,9 @@ PROFILES = (
         # endpoint, Gemini's, Vertex -- falls back to those two names, and a turn there is
         # given whichever model it names regardless.
         endpoint="OPENAI_BASE_URL",
+        # And the OpenAI way below is how the local LiteLLM gateway is spoken to, at its
+        # default of Chat Completions, which is `--auth-type openai` on every turn's line.
+        routes="openai-gateway",
         ways=(
             # No sign-in of its own any more. Qwen OAuth's free tier was discontinued on
             # 2026-04-15, and 0.24.7 refuses `--auth-type qwen-oauth` with that sentence even
@@ -3300,6 +3328,9 @@ PROFILES = (
         # whose ids a turn names bare and the driver spells `gateway/<id>` -- so what that
         # endpoint lists is what a turn of the account may name.
         endpoint="OPENCODE_GATEWAY_URL",
+        # And the OpenAI one is how the local LiteLLM gateway is spoken to: opencode speaks
+        # Chat Completions to it, as that same provider of its config.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -3570,6 +3601,9 @@ PROFILES = (
         # configuration a gateway way sets -- which is the driver's to spell, so what this
         # endpoint lists is what a turn may name.
         endpoint="MIMO_GATEWAY_URL",
+        # And the OpenAI one is how the local LiteLLM gateway is spoken to, as it is for
+        # opencode.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -3928,6 +3962,11 @@ PROFILES = (
             Sign("refused", r"sign in to minimax"),
             Sign("refused", r"oauth bearer is not synced"),
         ),
+        # The local LiteLLM gateway is an endpoint speaking OpenAI's chat completions, the one
+        # protocol it speaks for every provider behind it. The way's command is not run for
+        # it: the driver adds the gateway as a provider of its own, under the gateway's port,
+        # once a turn names the model (:mod:`hmz.coganchor.agents.minimax`).
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",

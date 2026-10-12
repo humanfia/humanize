@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 import yaml
+from textual.widgets import OptionList
 
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
@@ -131,6 +132,42 @@ async def test_the_accounts_and_runtimes_pages_start_empty(workspace: Path) -> N
 
         await opens(pilot, "accounts")
         await shows(pilot, "no accounts yet", "Add an account")
+
+
+@pytest.mark.parametrize("gatewayable", [True, False])
+async def test_the_ways_through_the_gateway_are_dropped_under_one_heading(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch, *, gatewayable: bool
+) -> None:
+    from hmz.coganchor import backends, gateway
+
+    claude = backends.named("claude")
+    assert claude is not None
+    monkeypatch.setattr(gateway, "gatewayable", lambda: gatewayable)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_settings(pilot, "accounts")
+        await pilot.click("#act-add")
+        await shows(pilot, "Add an account")
+        await opens(pilot, "way")
+        dropped = await on(pilot, Dropdown)
+
+        options = dropped.query_one(OptionList).options
+        listed = [str(one.id or "") for one in options]
+        heading = listed.index("")
+        # The CLI's own ways first, then the heading and every way under it, or the line.
+        assert all(one.startswith("=") for one in listed[:heading])
+        assert not any(one.startswith("=litellm-") for one in listed[:heading])
+        if gatewayable:
+            assert listed[heading + 1 :] == [
+                f"={one.name}" for one in backends.routed(claude)
+            ]
+        else:
+            assert listed[heading + 1 :] == [""]
+        # The list runs past the bottom of what it shows, and the heading is near its end.
+        await pilot.press("end")
+        await shows(
+            pilot,
+            "litellm-azure" if gatewayable else "litellm is not installed; run: uv pip",
+        )
 
 
 #: A stand-in `sinfo`: Slurm's version, and three nodes of which two may take a job.

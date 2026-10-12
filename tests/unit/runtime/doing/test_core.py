@@ -269,3 +269,16 @@ def test_the_host_is_one_however_often_asked(hmz: Hmz) -> None:
 
     assert isinstance(host, Host)
     assert hmz.host() is host
+
+
+def test_the_line_adding_an_extra_is_the_one_installed_says(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.runtime.doing import installed
+
+    def adding(backend: str) -> str:
+        return f"add {backend}"
+
+    monkeypatch.setattr(installed, "adding", adding)
+
+    assert Hmz(tmp_path).adding("litellm") == "add litellm"

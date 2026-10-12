@@ -14,18 +14,27 @@ on the key that says to ask again -- and read here.
 
 from __future__ import annotations
 
+import importlib.metadata
 import importlib.util
+import shlex
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from hmz.coganchor.backends import named, profiles, program, speaking
+from hmz.coganchor.backends import (
+    DSH_SDK,
+    LITELLM_SDK,
+    named,
+    profiles,
+    program,
+    speaking,
+)
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from hmz.coganchor.backends import Model
     from hmz.runtime.doing.accounts import Accounts
 
-__all__ = ["installable", "installed", "ready_to_open"]
+__all__ = ["adding", "installable", "installed", "ready_to_open"]
 
 #: The backends that want something of this Python environment as well as of this machine,
 #: by the modules that say the extra carrying one is installed. Every module of it, because
@@ -36,6 +45,18 @@ _EXTRAS = {
     "dsh": ("deepseek_harness", "dotenv"),
     "kimi": ("websockets",),
     "litellm": ("litellm",),
+}
+
+#: What each backend behind an extra is missing when it is missing, and the packages of that
+#: extra: the line for a humanize installed from a repository or a checkout, which an index
+#: has no `hmz[...]` of.
+_LINES = {
+    "dsh": ("DeepSeek Harness is not installed", f"'{DSH_SDK}' 'python-dotenv>=1.2.3'"),
+    "kimi": (
+        "Kimi Code is installed, but the websockets package is not",
+        "'websockets>=15,<18'",
+    ),
+    "litellm": ("litellm is not installed", f"'{LITELLM_SDK}'"),
 }
 
 
@@ -81,6 +102,36 @@ def installable(accounts: Accounts) -> dict[str, tuple[Model, ...]]:
         for backend in _EXTRAS
         if _is_here(backend) and not _has_extra(backend)
     }
+
+
+def adding(backend: str) -> str:
+    """The line that adds an optional backend to this Python environment.
+
+    Said wherever something is offered that the extra would bring -- a backend in a picker,
+    or the ways into a CLI through the local LiteLLM gateway -- rather than hidden.
+
+    Args:
+      backend: The backend whose extra it is.
+
+    Returns:
+      What is missing, and the command that adds it: the extra of the release running, for a
+      humanize from an index, and its packages for one installed from anywhere else.
+    """
+    if (extra := _LINES.get(backend)) is None:
+        return f"install {backend}, then reopen humanize"
+    missing, requirement = extra
+    # A humanize from an index has no `direct_url.json` (PEP 610), and that index has its
+    # extra, pinned to the version running so that nothing else of humanize is installed.
+    # And one that is no distribution at all -- a checkout on `PYTHONPATH` -- is anywhere else.
+    try:
+        hmz = importlib.metadata.distribution("hmz")
+    except importlib.metadata.PackageNotFoundError:
+        hmz = None
+    if hmz is not None and hmz.read_text("direct_url.json") is None:
+        requirement = shlex.quote(f"hmz[{backend}]=={hmz.version}")
+    executable = str(Path(sys.executable).absolute())
+    command = f"uv pip install --python {shlex.quote(executable)} {requirement}"
+    return f"{missing}; run: {command}; then reopen hmz"
 
 
 def _is_installed(backend: str) -> bool:

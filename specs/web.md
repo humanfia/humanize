@@ -181,8 +181,10 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   pages `/settings` has: general, accounts -- correcting an account with what is left blank
   kept, never a value shown -- fallback, runtimes, backup -- every target, its policies and
   whether it is a default, a URL never shown with anything signed into it -- and the workspace,
-  for any workspace it serves. A way in that runs a CLI's own sign-in MUST be said to need a terminal rather than
-  run.
+  for any workspace it serves. A way in that runs a CLI's own sign-in MUST be said to need a
+  terminal rather than run, and the ways in through the local LiteLLM gateway MUST be grouped as
+  the terminal interface lists them, with the line that adds the `litellm` extra where it is
+  missing.
 - MUST name what it draws -- a button, a tab, a menu's choice, a heading, a field -- by a word
   or a short phrase, never a sentence, and MUST call a run of a flow an epic.
 - MUST answer a right click as a desktop app does: with what can be done to the thing under it,

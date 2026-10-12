@@ -175,6 +175,19 @@ class Hmz:
 
         return installed.installable(self.accounts)
 
+    def adding(self, backend: str) -> str:
+        """The line that adds an optional backend's extra to this Python environment.
+
+        Args:
+          backend: The backend.
+
+        Returns:
+          What is missing, and the command that adds it.
+        """
+        from hmz.runtime.doing import installed
+
+        return installed.adding(backend)
+
     def serves(self, backend: str, role: AgentRole | None) -> bool:
         """Whether a backend could fill an agent role, as a run of its flow would ask it.
 

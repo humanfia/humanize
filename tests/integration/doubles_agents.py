@@ -163,6 +163,62 @@ def kinds(events: list[Any]) -> list[str]:
     return [event.kind for event in events]
 
 
+#: What a stand-in asks an OpenAI-compatible endpoint with, put beside its body: `chatted`
+#: streams one Chat Completions turn from wherever it is pointed and says what came back.
+CHATTING = r"""
+import urllib.request
+
+
+def chatted(base, key, model, said):
+    asked = urllib.request.Request(
+        base.rstrip("/") + "/chat/completions",
+        data=json.dumps({"model": model, "stream": True,
+                         "messages": [{"role": "user", "content": said}]}).encode(),
+        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(asked, timeout=60) as answer:
+            lines = answer.read().decode().splitlines()
+    except Exception as why:
+        return repr(why)
+    events = [json.loads(one[5:]) for one in lines
+              if one.startswith("data:") and one[5:].strip() != "[DONE]"]
+    return "".join((choice.get("delta") or {}).get("content") or ""
+                   for one in events for choice in one.get("choices") or [])
+"""
+
+
+def routing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cli: str, endpoint: Endpoint
+) -> None:
+    """Makes `gw` an account of `cli`'s a local LiteLLM gateway holds, on `endpoint`.
+
+    Made by litellm's way for an OpenAI-compatible gateway, in a humanize home of the test's
+    own; the key it holds is in the environment as something else besides. Credential paths
+    answered by another are the supervisor's, tested where it is written: an account that is
+    variables alone is what is under test here.
+    """
+    from hmz.coganchor import providers
+    from hmz.coganchor.providers import Provider
+
+    def unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
+        del self
+        return ()
+
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
+    monkeypatch.setattr(Provider, "swaps", unswapped)
+    providers.add(
+        cli,
+        "gw",
+        way="litellm-openai-gateway",
+        env={
+            "LITELLM_GATEWAY_URL": endpoint.url,
+            "LITELLM_GATEWAY_KEY": "upstream-secret",
+            "LITELLM_GATEWAY_API": "openai",
+        },
+    )
+
+
 #: How DeepSeek Harness opens the snapshot of its own runtime it puts after a user's prompt.
 RUNTIME_CONTEXT = "Current runtime context."
 

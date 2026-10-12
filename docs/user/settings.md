@@ -514,6 +514,18 @@ until it is done, and what it writes lands in the account rather than in the CLI
 A way that only asks keeps your answers as the variables the CLI reads. `env` takes whichever
 variables you type, one `NAME=VALUE` per line.
 
+A CLI that can be put [through LiteLLM](/reference/providers#through-litellm), such as
+`claude`, also has every way `litellm` has in: an OpenAI key, OpenRouter, Bedrock, Vertex,
+Azure and the rest, each named `litellm-` and the `litellm` way it is. They come last in the
+list of ways, under the heading **LiteLLM**, on the form in `hmz` and in the web page alike.
+Without the `[litellm]` extra they are not offered, and that heading says what is missing and
+the command that installs it instead:
+
+```text
+LiteLLM
+litellm is not installed; run: uv pip install --python /path/to/python 'hmz[litellm]==…'; then reopen hmz
+```
+
 ### Managing accounts
 
 The Accounts page lists every account under a heading per CLI: its name, the way it was made

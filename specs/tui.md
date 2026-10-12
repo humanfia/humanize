@@ -170,7 +170,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST make an account on one form -- its CLI, its way in, a name no account is already called,
   what that way asks, and which other CLIs to write it down for -- wherever one is asked for,
   and then ask what it runs without holding up the page it was made from, saying so while it
-  asks and saying how that went, why included, once it has.
+  asks and saying how that went, why included, once it has; MUST list the ways in through the
+  local LiteLLM gateway after the CLI's own, under one heading, and where the `litellm` extra is
+  missing for a CLI the gateway can speak to, the line that adds it under that heading instead.
 - MUST answer falling back on the fallback page of `/settings` — which places take over from
   which, a chain written on one form of the place that fails, the places it falls back to in the
   order they are tried, added, taken off and put in another order there, and how it is tried

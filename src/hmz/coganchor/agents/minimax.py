@@ -39,8 +39,12 @@ refused, and the permission is to grant online ALL.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import os
+import subprocess
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
@@ -90,6 +94,14 @@ _KINDS = {
     "cache_read": "cacheReadTokens",
     "cache_write": "cacheWriteTokens",
 }
+
+#: What a provider added to it is asked for by, in front of the name it was added under, and
+#: the variable `mcode provider add` reads the key out of -- the gateway ways' own.
+_CUSTOM = "custom_provider:"
+_KEY = "MCODE_PROVIDER_API_KEY"
+
+#: How long `mcode provider` is given to change its configuration, which asks nobody anything.
+_CONFIGURING = 120.0
 
 #: The status a tool call is stated at once it has finished, as the CLI numbers them: `2` for
 #: one that succeeded and `3` for one that failed. The earlier ones are the call being written,
@@ -203,6 +215,9 @@ class MiniMaxCodeSession(CommandSessionBase):
         self._spent = 0
         self._costing = Usage()
         self._ran = ""
+        #: Whether the turn now running asked for its model as a provider a LiteLLM gateway
+        #: was added as, whose name is the gateway's port rather than anything of the model's.
+        self._through = False
 
     @property
     def named(self) -> str | None:
@@ -222,6 +237,7 @@ class MiniMaxCodeSession(CommandSessionBase):
         """
         self._said, self._failed, self._shaped, self._shown = [], None, None, set()
         self._spent, self._costing, self._ran = 0, Usage(), ""
+        self._through = False
         configured = self._agent.config
         taken(configured.model, self.effort, self._agent.node().name)
         argv = [
@@ -241,7 +257,11 @@ class MiniMaxCodeSession(CommandSessionBase):
             *_PERMITTED[configured.permission],
         ]
         if configured.model:
-            argv += ["--model", configured.model]
+            asked = configured.model
+            if isinstance(self._agent, MiniMaxCodeAgent):
+                asked = self._agent.through(asked)
+            self._through = asked != configured.model
+            argv += ["--model", asked]
         if self.effort:
             argv += ["--effort", self.effort]
         if (schema := self._shaping) is not None:
@@ -396,7 +416,8 @@ class MiniMaxCodeSession(CommandSessionBase):
             raise Failed(1, [_COMMAND], said, self._failed)
         if not transcript.strip():
             raise Failed(1, [_COMMAND], "", f"{_COMMAND} said nothing at all")
-        model = self._ran or self._agent.config.model
+        configured = self._agent.config.model
+        model = configured if self._through else self._ran or configured
         return Event(
             kind="result",
             text=said.strip(),
@@ -455,6 +476,14 @@ class MiniMaxCodeAgent(AgentBase):
     #: turn starts an agent of its own and when that one has come back.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | SUBAGENTS
 
+    def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
+        """Initializes an agent that has added no gateway to MiniMax Code's providers yet."""
+        super().__init__(config, name=name)
+        #: The providers it has added for a LiteLLM gateway, by name, and what guards adding
+        #: one: see :meth:`through`.
+        self._added: set[str] = set()
+        self._adding = threading.Lock()
+
     def _serves(self, config: AgentConfig) -> None:
         """Refuses a config this backend cannot express, this account's catalogue too.
 
@@ -462,11 +491,123 @@ class MiniMaxCodeAgent(AgentBase):
           config: What the agent is to run at.
 
         Raises:
-          Unserved: For what the base class refuses, and for a rung the catalogue this
-            account last gave says the model has not got.
+          Unserved: For what the base class refuses, for a rung the catalogue this account
+            last gave says the model has not got, and for no model at all under an account a
+            LiteLLM gateway holds -- which MiniMax Code would run its own default for.
         """
         super()._serves(config)
         taken(config.model, config.effort, config.provider)
+        if not config.model and config.provider:
+            from hmz.coganchor import providers
+
+            if providers.routed(providers.find(self.backend, config.provider)):
+                raise Unserved(
+                    f"{_COMMAND}: the {config.provider} account goes through a LiteLLM "
+                    "gateway, which runs the model a turn names; name one"
+                )
+
+    def through(self, model: str) -> str:
+        """What a turn asks MiniMax Code for `model` by, which through a gateway is a provider.
+
+        MiniMax Code reads no variable for where a model is: an endpoint is a provider added
+        to its `config.yaml`, which `mcode provider add` writes -- the gateway ways' own
+        command. So a LiteLLM gateway is added as one the first time a turn asks for a model
+        through it: with that one model, which is what a provider runs, and without `--use`,
+        which would spend a turn of the model testing it and make it the account's default.
+        Under a name of its own -- the gateway's port, and a digest of its key and the model
+        -- so that nothing already there is ever replaced: not another agent's of the same
+        account, not this agent's for another model a turn of another session may be on, and
+        not one left by a gateway gone from the same port. Taken out when the agent stops.
+
+        The key is the gateway's own, which `mcode provider add` saves into the account's
+        `config.yaml` -- a key to a port of loopback, good while the gateway is.
+
+        Args:
+          model: The model, as the gateway names it.
+
+        Returns:
+          The model as MiniMax Code asks for it: `model` itself for an account no gateway
+          holds, and `custom_provider:hmz-PORT-DIGEST/model` for one that is.
+
+        Raises:
+          subprocess.CalledProcessError: If MiniMax Code would not add it.
+        """
+        held = self.gateway
+        if held is None:
+            return model
+        digest = hashlib.sha256(f"{held.key}\n{model}".encode()).hexdigest()[:8]
+        named = f"hmz-{held.port}-{digest}"
+        with self._adding:
+            if named not in self._added:
+                said = self.environment()
+                self._configures(
+                    "add",
+                    "--name",
+                    named,
+                    "--base-url",
+                    said.get("MCODE_GATEWAY_URL", held.url),
+                    "--api-format",
+                    said.get("MCODE_GATEWAY_FORMAT", "openai-completions"),
+                    "--model",
+                    model,
+                    "--api-key-env",
+                    _KEY,
+                    key=held.key,
+                )
+                self._added.add(named)
+        return f"{_CUSTOM}{named}/{model}"
+
+    def _configures(self, *args: str, key: str = "") -> None:
+        """Runs one `mcode provider` under this agent's account, as its turns are run.
+
+        Under the account's own paths, so that what it writes is the account's `config.yaml`,
+        and without anything the account hushes -- but not inside the fence nor under the
+        gateway's variables, neither of which a change to a file of the account's needs.
+
+        Args:
+          args: What follows `mcode provider`.
+          key: The key `add` reads out of :data:`_KEY`.
+
+        Raises:
+          subprocess.CalledProcessError: If it fails, or does not finish in time.
+        """
+        from hmz.coganchor.backends import elsewhere
+
+        hushed = self.hushed()
+        env = {name: value for name, value in os.environ.items() if name not in hushed}
+        if key:
+            env[_KEY] = key
+        argv = [elsewhere(_COMMAND) or _COMMAND, "provider", *args]
+        provider = self.provider
+        try:
+            done = subprocess.run(
+                provider.command(argv) if provider is not None else argv,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=_CONFIGURING,
+                check=False,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as late:
+            said = f"{_COMMAND} provider did not finish in {_CONFIGURING:g}s"
+            raise Failed(1, argv, "", said) from late
+        if done.returncode != 0:
+            raise Failed(done.returncode, argv, done.stdout, done.stderr)
+
+    def stop(self) -> None:
+        """Stops as every agent does, and takes the providers it added for a gateway out.
+
+        After its turns have stopped, so that none is left on a provider taken from under it:
+        each names a port nothing will listen on again once the gateway has gone. An agent
+        never stopped leaves them, holding a key to that port. See :meth:`through`.
+        """
+        super().stop()
+        with self._adding:
+            added, self._added = self._added, set()
+        for named in sorted(added):
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                self._configures("remove", f"{_CUSTOM}{named}", "--yes")
 
     def _fences(self, config: AgentConfig) -> None:
         """Refuses a fence as the base class does, and every one that cuts the network.

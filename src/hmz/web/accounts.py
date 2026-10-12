@@ -5,7 +5,9 @@ through the same object. What a page is handed of an account is what that page d
 name, the way it was made by and the names of the variables it sets -- never a value, since
 this is drawn where somebody can read it. A way in that runs the backend's own sign-in hands
 that command the terminal, which a page has not got, so a page makes an account only out of a
-way that is answers alone, and says where the others are made.
+way that is answers alone, and says where the others are made. The ways in through the local
+LiteLLM gateway are handed under a group of their own, and where the `[litellm]` extra is
+missing a CLI that could have them is handed the line that adds it instead.
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ def listed(hmz: Any) -> dict[str, Any]:
         and (one := accounts.find(profile.name, LOCAL)) is not None
     ]
     return {
+        "gateway": accounts.GATEWAY,
         "accounts": [
             _account(accounts, one)
             for one in sorted(
@@ -52,7 +55,10 @@ def listed(hmz: Any) -> dict[str, Any]:
         "backends": [
             {
                 "cli": profile.name,
-                "ways": [_way(one) for one in accounts.ways(profile.name)],
+                "ways": [
+                    _way(one, accounts.GATEWAY) for one in accounts.ways(profile.name)
+                ],
+                "wants": accounts.wants(profile.name),
             }
             for profile in hmz.backends()
         ],
@@ -72,10 +78,13 @@ def _account(accounts: Any, one: Provider) -> dict[str, Any]:
     }
 
 
-def _way(way: Way) -> dict[str, Any]:
+def _way(way: Way, gateway: str) -> dict[str, Any]:
+    from hmz.coganchor.backends import upstream
+
     return {
         "name": way.name,
         "about": way.about,
+        "group": gateway if upstream(way.name) else "",
         "terminal": bool(way.argv),
         "asks": [
             {

@@ -891,6 +891,31 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
         )
 
 
+@pytest.mark.parametrize("gatewayable", [True, False])
+def test_the_ways_through_the_gateway_are_one_group_or_the_line_that_adds_them(
+    project: Path, monkeypatch: pytest.MonkeyPatch, engine: str, *, gatewayable: bool
+) -> None:
+    from hmz.coganchor import backends, gateway
+
+    claude = backends.named("claude")
+    assert claude is not None
+    monkeypatch.setattr(gateway, "gatewayable", lambda: gatewayable)
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/settings/accounts")
+        page.locator("#account-cli").select_option("claude")
+        group = page.locator("#account-way optgroup[label=LiteLLM]")
+        wants = page.locator("[data-hmz=gateway-wants]")
+        if gatewayable:
+            expect(group.locator("option")).to_have_count(len(backends.routed(claude)))
+            expect(
+                page.locator("#account-way > option[value^=litellm-]")
+            ).to_have_count(0)
+            expect(wants).to_be_hidden()
+        else:
+            expect(group).to_have_attribute("disabled", "")
+            expect(wants).to_contain_text("litellm is not installed; run: uv pip")
+
+
 #: Drags a file over the page, a step at a time, as one is dragged out of a folder: the file is
 #: made where it is named, and kept for the steps after.
 _DRAG = """([kinds, name, bytes]) => {
