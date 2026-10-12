@@ -295,7 +295,8 @@ checked as a configured one is.
 | Backend | How a moved effort takes hold |
 | --- | --- |
 | `codex`, `kimi`, `opencode`, `mimo`, `cursor-agent`, `mcode`, `litellm` | sent with the next turn |
-| `claude`, `dsh`, `agy`, `grok`, `qwen` | the process or runtime is restarted and resumes the same conversation |
+| `claude`, `agy`, `grok`, `qwen` | the process is restarted and resumes the same conversation |
+| `dsh` | the runtime is restarted before the first turn; after it the turn is refused (`Unrecoverable`), see [DeepSeek Harness](#deepseek-harness) |
 | `pi`, `omp` | a command to the held process, between turns |
 
 <small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.efforts`, `Profile.beyond`, `Profile.takes`, `AUTO`, `SWARM`).</small>
@@ -1003,7 +1004,7 @@ raise `Stopped`. `agent.stopped` says whether it has happened. What the turn cha
 `session.interrupt(*, why)` ends the running turn and leaves the session usable (no-op with no
 turn). `session.cut(*, why)` does the same and, on a backend with `cuts_transport`, puts the
 shared transport down, ending every turn on it and any goal; the next turn restarts it and
-resumes by id.
+resumes by id, except on `dsh`, whose next turn is refused (`Unrecoverable`).
 
 | How the backend holds a turn | `interrupt` reaches | `cut` reaches |
 | --- | --- | --- |
@@ -1133,7 +1134,8 @@ runs `call` in this process; `offers(None)` withdraws them. `FakeTool` is one ty
 - The road is MCP: the CLI is given `hmz internal tools --at <socket>`, which `pi`'s extension
   starts itself. `omp` asks for each call back over its own RPC pipe instead. Tools are per
   agent.
-- Offering other names between two turns starts `pi` and `dsh` again before the next one;
+- Offering other names between two turns starts `pi` again before the next one, and refuses
+  `dsh`'s next turn once its session has taken one;
   `omp` is told on the process already up.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused), but for
   `omp` (`AgentBase.pipes_tools`), whose calls come back over its RPC pipe wherever it runs.
@@ -1484,20 +1486,27 @@ effort goes in the handshake.
 | `session_compression` | `"none"` | the session log's compression, `none` or `zstd` (the tally cannot read `zstd`) |
 
 - `goals` keeps the goal service, `create_goal`, `/goal` and the round driver; `False` unmounts
-  them. Re-read every turn, so a reconfigured agent gets a rebuilt runtime and keeps its
-  conversation.
+  them. Re-read every turn, so a reconfigured agent gets a rebuilt runtime.
 - `web_search`: `False` unmounts the web; unset keeps the profile's. Under a gateway account the
   web keeps `web_fetch` and loses its DeepSeek search.
 - Every runtime runs at `DSH_PERMISSION_MODE=danger-full-access` (`bypass`): the SDK answers no
   approval request, so the fence is what confines it.
 - Under a fence that cuts the network, a model endpoint on loopback is unreachable: the runtime
   connects to loopback directly, never through the fence's proxy.
-- `Unrecoverable`: the length refusal, and a session id the runtime will not resume.
+- `Unrecoverable`: the length refusal, a session id the runtime will not resume, and any
+  turn that would need a new runtime for a session that has already taken one.
+- A session that has taken a turn cannot leave its runtime. The SDK's `--profile sdk` serves
+  only `initialize`, `session/prompt` and `shutdown`, and a fresh runtime's `session/prompt`
+  creates the session, which its persistence refuses once the log exists; the runtime's own
+  resume is unreachable. So a new effort, account, composition or set of offered tools, a
+  `cut`, a closed transport, an anchored session's second turn and a session reopened in a
+  later process are refused up front; start a new session. Moving onto the runtime's
+  `--profile acp`, which has `session/resume` and per-session `mcpServers`, is the eventual fix.
 - `DSH_HOME` is the kept directory, and sessions go under its `sessions` (`Profile.told`).
 - `interject` is unsupported: `session/prompt` queues and `steer` is not on the SDK surface.
 - Offered [fake tools](#callbacks-as-tools) insert a `@deepseek-ai/dsh-mcp-client` row
   (`serverName: humanize`, `failOnStartupError: true`) into the patch; other names restart the
-  runtime.
+  runtime before the first turn and are refused after it.
 - Without an account, the SDK's saved credentials or `DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`.
 
 ### Grok Build {#grok-build}

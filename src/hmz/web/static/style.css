@@ -2965,6 +2965,83 @@ details.said-more summary {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding: 10px 16px 16px;
+}
+
+.exo-flame-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.exo-crumbs {
+  margin: 8px 0 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.exo-crumbs [aria-current] {
+  font-weight: 600;
+}
+
+.exo-flame-box {
+  border: 1px solid var(--line-strong);
+}
+
+.exo-flame-canvas {
+  display: block;
+}
+
+.exo-stats {
+  margin-top: 16px;
+}
+
+.exo-stats-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+}
+
+.exo-stats-head h3 {
+  margin: 0;
+}
+
+.exo-stats th {
+  padding: 0;
+}
+
+.exo-sort {
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.exo-row {
+  cursor: pointer;
+}
+
+.exo-row:hover td {
+  background: var(--hover);
+}
+
+.exo-row.chosen td {
+  background: var(--hover);
+  box-shadow: inset 0 -2px 0 var(--pink);
+}
+
+.exo-more {
+  margin: 6px 0 0;
+  font-size: 12px;
 }
 
 .exo-tip {

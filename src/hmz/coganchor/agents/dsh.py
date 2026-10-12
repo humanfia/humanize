@@ -151,6 +151,12 @@ _KEY_REQUIRED = (
     "the agent's account row; or set DEEPSEEK_API_KEY "
     "before starting hmz."
 )
+_UNRESUMABLE = (
+    "DeepSeek Harness cannot carry {} on in a new runtime: its SDK starts a conversation and "
+    "never resumes one, so a session that has taken a turn keeps the runtime it took it in. "
+    "That runtime is gone or was started for another effort, account, composition or set of "
+    "offered tools; start a new session instead."
+)
 _GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
 
 #: Which of a message's streamed pieces are the agent talking, and which of the two it is.
@@ -563,16 +569,29 @@ class DshSession(SessionBase):
         # once at boot, and none of the three changes under one already up -- so an agent
         # reconfigured mid-session, or one told `disable_goals` after its first turn, has to
         # be given a runtime that was built the new way rather than quietly left on the old
-        # one. The conversation survives it: the session is resumed by the id it already has.
-        if self._harness is not None and (
+        # one.
+        stale = (
             self._runtime_effort != effort
             or self._runtime_composition != composition
             or self._runtime_offered != offered
             or self.elsewhere()
-        ):
-            self._shut()
-        if self._harness is not None:
+        )
+        if self._harness is not None and not stale:
             return self._harness
+        # Except that a conversation which has taken a turn does not survive it. A fresh
+        # runtime knows only the sessions it opened itself, and `session/prompt` opens one by
+        # creating it -- which its persistence refuses for an id whose log is already on disk.
+        # The runtime can resume one, but nothing on the SDK's JSON-RPC surface reaches that.
+        # So the turn is refused here, saying why, rather than by the runtime as a collision;
+        # and the runtime it would have replaced is left up, for a session put back as it was.
+        if self._id is not None:
+            raise Unrecoverable(
+                1,
+                ["dsh", self._id],
+                output="",
+                stderr=_UNRESUMABLE.format(self._id),
+            )
+        self._shut()
 
         harness_type = _harness_type()
         where = self._workspace()

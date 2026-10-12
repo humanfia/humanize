@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor.agents import DshAgent, DshAgentConfig, Failed
+from hmz.coganchor.agents import DshAgent, DshAgentConfig, Failed, Unrecoverable
 from tests.integration.doubles_agents import Endpoint, harnessed, kinds, serving
 
 if TYPE_CHECKING:
@@ -117,3 +117,53 @@ def test_a_callback_offered_is_run_here_when_the_model_reaches_for_it(
     assert said == "the tool said HI"
     offered = [one["function"]["name"] for one in endpoint.asked[0]["tools"]]
     assert "mcp__humanize__shout" in offered
+
+
+def test_a_new_effort_after_a_turn_is_refused_before_the_runtime_is(
+    endpoint: Endpoint,
+) -> None:
+    session = DshAgent(CONFIG).new()
+    assert session("one") == "one"
+
+    session.effort = "low"
+    with pytest.raises(Unrecoverable, match="cannot carry") as refused:
+        session("two")
+
+    assert "already exists" not in str(refused.value)
+    assert len(endpoint.asked) == 1
+
+
+def test_other_tools_after_a_turn_are_refused_before_the_runtime_is(
+    endpoint: Endpoint,
+) -> None:
+    from pydantic import BaseModel
+
+    from hmz.coganchor.agents import Tool
+
+    class Asked(BaseModel):
+        word: str
+
+    def shout(asked: Asked) -> str:
+        return asked.word.upper()
+
+    session = DshAgent(CONFIG).new()
+    assert session("one") == "one"
+
+    session.offers([Tool("shout", "Says a word louder.", shout, Asked)])
+    with pytest.raises(Unrecoverable, match="cannot carry") as refused:
+        session("two")
+
+    assert "already exists" not in str(refused.value)
+    assert len(endpoint.asked) == 1
+
+
+def test_a_fresh_session_takes_its_first_turn_at_a_new_effort(
+    endpoint: Endpoint,
+) -> None:
+    session = DshAgent(CONFIG).new()
+
+    session.effort = "low"
+
+    assert session("one") == "one"
+    (asked,) = endpoint.asked
+    assert asked["reasoning_effort"] == "low"

@@ -838,9 +838,12 @@ class BackendAgent(AgentBase):
   leaves as they are.
 - A command turn MUST tee both of the agent's streams as they arrive, and a sink that has gone away
   MUST NOT take the turn down or stop the reading; a held-open process MUST NOT outlive its
-  session, and an anchored session MUST end its process each turn and resume on the turn after.
+  session, and an anchored session MUST end its process each turn and resume on the turn after
+  (`dsh` excepted, as below).
 - A driver MUST NOT switch a skill of its CLI on or off and MUST NOT write the CLI's own settings;
-  a reopened transport MUST resume the conversation by the id the backend gave it.
+  a reopened transport MUST resume the conversation by the id the backend gave it, except on `dsh`,
+  whose SDK cannot resume: a turn that would need a new runtime for a conversation that has
+  already taken a turn MUST be refused with `Unrecoverable` instead.
 - A hook MUST be hangable on a moment and takeable off again, and a moment the agent does not reach
   MUST be refused (`Unhooked`) where the hook is hung; a refusal MUST stop the thing only where the
   backend asks first, and MUST be readable as a report where it does not.

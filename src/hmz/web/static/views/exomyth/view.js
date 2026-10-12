@@ -29,6 +29,8 @@ export function mount(root, name, query) {
   let matches = []
   let match = -1
   let flame = null
+  /** What share of the Flame the words found hold, or null. */
+  let share = null
   let flaming = 0
   let left = false
 
@@ -72,12 +74,7 @@ export function mount(root, name, query) {
           ['flame', 'Flame'],
         ],
         tab,
-        (key) => {
-          tab = key
-          stays(tab === 'flame' ? { tab } : {})
-          drawTools()
-          shownTab()
-        },
+        shownAs,
       ),
       h(
         'div',
@@ -101,9 +98,19 @@ export function mount(root, name, query) {
     chart.arrows(on)
   })
 
+  /** Shows a tab. */
+  function shownAs(key) {
+    tab = key
+    stays(tab === 'flame' ? { tab } : {})
+    drawTools()
+    shownTab()
+    tally()
+  }
+
   /** Finds again what is asked for, keeping the place among what is found at the span picked. */
   function refind() {
     matches = chart.find(finding.value)
+    share = flame && flame.find ? flame.find(finding.value) : null
     match = picked && picked.span !== undefined ? matches.indexOf(picked.span) : -1
     tally()
   }
@@ -125,12 +132,13 @@ export function mount(root, name, query) {
   })
 
   function tally() {
-    counter.textContent = finding.value.trim() ? (match >= 0 ? `${match + 1}/${matches.length}` : String(matches.length)) : ''
+    if (tab === 'flame') counter.textContent = share === null ? '' : `${(share * 100).toFixed(1)}%`
+    else counter.textContent = finding.value.trim() ? (match >= 0 ? `${match + 1}/${matches.length}` : String(matches.length)) : ''
   }
 
   /** Picks the next span found, or the one before. */
   function step(by) {
-    if (!matches.length) return
+    if (tab !== 'timeline' || !matches.length) return
     match = (match + by + matches.length) % matches.length
     tally()
     chose({ span: matches[match] })
@@ -221,6 +229,7 @@ export function mount(root, name, query) {
       if (tab !== 'flame' && flame) {
         flame.leave?.()
         flame = null
+        share = null
       }
       return
     }
@@ -233,7 +242,18 @@ export function mount(root, name, query) {
       const module = await import('./flame.js')
       if (mine !== flaming || left || tab !== 'flame') return
       flame?.leave?.()
-      flame = module.mount(flameHost, model, range) || {}
+      flame = module.mount(flameHost, model, range, {
+        timeline: (said) => {
+          finding.value = said
+          shownAs('timeline')
+          refind()
+        },
+        shared: (said) => {
+          share = said
+          tally()
+        },
+      }) || {}
+      if (finding.value.trim()) refind()
     } catch (error) {
       fill(flameHost, problem(error))
     }
@@ -292,10 +312,10 @@ export function mount(root, name, query) {
       read = {}
       spans.clear()
     }
-    if (finding.value.trim()) refind()
     drawHead()
     details()
     flamed()
+    if (finding.value.trim()) refind()
   }
 
   /** Reads what the epic is -- its task, how it ended -- which the bar says. */
@@ -322,6 +342,7 @@ export function mount(root, name, query) {
     view: () => chart.debug.view(),
     where: (id) => chart.debug.where(id),
     rows: () => chart.debug.rows(),
+    flame: () => flame && flame.debug,
   }
 
   return () => {

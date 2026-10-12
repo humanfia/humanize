@@ -38,6 +38,10 @@ _CALLS = 25_000
 #: for a machine running a whole suite, on what is meant to take well under 8.
 _FRAME = 50.0
 
+#: The longest the long epic's spans may take to be summed for the Flame, in milliseconds: as
+#: generous, on what is meant to take under 100.
+_SUM = 500.0
+
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
@@ -290,3 +294,120 @@ def test_fifty_thousand_spans_are_drawn_within_a_frame(
             page.wait_for_timeout(250)
             page.keyboard.up("w")
         assert statistics.median(took) < _FRAME, took
+
+
+def _flame(page: Page, name: str) -> None:
+    """Opens an epic's Exomyth on its Flame and waits for frames to be drawn."""
+    go(page, f"/epics/{name}/exomyth?tab=flame")
+    page.wait_for_function(
+        "() => window.__exomyth && window.__exomyth.flame()"
+        " && window.__exomyth.flame().render() >= 0 && window.__exomyth.flame().drawn() > 0"
+    )
+
+
+def test_an_epic_is_drawn_as_a_flame_weighed_and_zoomed(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        name = _chatted(site, "flame me")
+        _flame(page, name)
+        flame = "window.__exomyth.flame()"
+        assert page.evaluate(f"{flame}.zoomed()") == name
+        whole = page.evaluate(f"{flame}.total()")
+        assert whole > 0
+
+        # Counted, the whole is every span; merged or not, the same.
+        page.locator("[data-hmz=exomyth-weight] button", has_text="Count").click()
+        spans = page.evaluate("window.__exomyth.model().summary.spans")
+        assert page.evaluate(f"{flame}.total()") == spans
+        page.locator("[data-hmz=exomyth-merge]").click()
+        expect(page.locator("[data-hmz=exomyth-merge]")).to_have_attribute(
+            "aria-pressed", "false"
+        )
+        assert page.evaluate(f"{flame}.total()") == spans
+
+        # A frame clicked is zoomed to; the crumbs zoom back out.
+        at = page.evaluate(f"{flame}.where('turn: flame me')")
+        page.mouse.click(at["x"], at["y"])
+        assert page.evaluate(f"{flame}.zoomed()") == "turn: flame me"
+        crumbs = page.locator("[data-hmz=exomyth-crumbs]")
+        expect(crumbs).to_contain_text("turn: flame me")
+        crumbs.get_by_role("button", name=name).click()
+        assert page.evaluate(f"{flame}.zoomed()") == name
+
+        page.locator("[data-hmz=exomyth-weight] button", has_text="Time").click()
+        assert page.evaluate(f"{flame}.total()") == whole
+
+        # Words found light their frames, said as a share of the whole.
+        page.keyboard.press("/")
+        page.keyboard.type("flame me")
+        expect(page.locator("[data-hmz=exomyth-found]")).to_have_text(
+            re.compile(r"^\d+\.\d%$")
+        )
+        page.keyboard.press("Escape")
+
+        # A stretch picked on the Timeline is what the Flame sums.
+        page.get_by_role("tab", name="Timeline").click()
+        page.wait_for_function(
+            "() => document.querySelector('[data-hmz=exomyth-canvas]').clientWidth > 0"
+        )
+        box = page.locator("[data-hmz=exomyth-canvas]").bounding_box()
+        assert box
+        page.mouse.move(box["x"] + box["width"] * 0.5, box["y"] + 10)
+        page.mouse.down()
+        page.mouse.move(box["x"] + box["width"] - 2, box["y"] + 10, steps=5)
+        page.mouse.up()
+        page.get_by_role("tab", name="Flame").click()
+        page.wait_for_function(
+            "(whole) => { const f = window.__exomyth.flame(); return f && f.total() < whole }",
+            arg=whole,
+        )
+        expect(page.locator("[data-hmz=exomyth-flame-range]")).not_to_have_text(
+            "Whole epic"
+        )
+
+
+def test_the_slices_are_sorted_and_shown_on_the_timeline(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _flame(page, _chatted(site, "list me"))
+        table = page.locator("[data-hmz=exomyth-stats]")
+        table.locator("[data-sort=count]").click()
+        expect(table.locator("th[aria-sort=descending]")).to_contain_text("Count")
+        counts = [
+            int(said.replace(",", ""))
+            for said in table.locator("tbody tr td:nth-child(3)").all_inner_texts()
+        ]
+        assert counts == sorted(counts, reverse=True)
+        table.locator("[data-sort=count]").click()
+        expect(table.locator("th[aria-sort=ascending]")).to_contain_text("Count")
+
+        table.locator("tbody tr", has_text="turn: list me").click()
+        flame = "window.__exomyth.flame()"
+        assert page.evaluate(f"{flame}.share()") > 0
+        table.locator("[data-hmz=exomyth-show]").click()
+        expect(page.locator("[data-hmz=exomyth-timeline]")).to_be_visible()
+        expect(page.locator("[data-hmz=exomyth-find]")).to_have_value("turn: list me")
+        expect(page.locator("[data-hmz=exomyth-found]")).to_have_text(
+            re.compile(r"^[1-9]")
+        )
+        assert not page.url.endswith("?tab=flame")
+
+
+def test_fifty_thousand_spans_are_summed_and_drawn_as_a_flame_in_time(
+    tmp_path: Path, project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        name = _chatted(site, "flame me long")
+        _lengthened(site, tmp_path, name, _CALLS)
+        _flame(page, name)
+        assert page.evaluate("window.__exomyth.model().summary.spans") >= 2 * _CALLS
+        summed = page.evaluate(
+            "() => Array.from({length: 5}, () => window.__exomyth.flame().aggregate())"
+        )
+        drawn = page.evaluate(
+            "() => Array.from({length: 10}, () => window.__exomyth.flame().render())"
+        )
+        assert statistics.median(summed) < _SUM, summed
+        assert statistics.median(drawn) < _FRAME, drawn
