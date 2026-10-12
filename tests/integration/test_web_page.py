@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 
 import hmz.coganchor.models
@@ -908,7 +909,11 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
         app.goto(site.address)
         app.wait_for_selector("[data-hmz=sidebar] .brand")
         go(app, f"/epics/import?path={urllib.parse.quote(str(theirs))}")
-        app.wait_for_url(opened_on)
+        try:
+            app.wait_for_url(opened_on)
+        except PlaywrightError as why:
+            said = app.locator("[data-hmz=page]").inner_text()
+            raise AssertionError(f"{app.url} says {said!r}") from why
         expect(app.locator("[data-hmz=foreign]")).to_contain_text(
             "not resumable here: the workspace it ran in, /nowhere/at/all, is not on"
         )

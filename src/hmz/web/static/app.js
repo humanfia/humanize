@@ -56,6 +56,9 @@ export function go(path) {
 /** Puts the query of the view the page is on in the address, without a step in its history. */
 export function stays(query) {
   const { parts } = where()
+  // Only into the address of what is drawn: one gone on to, not drawn yet, is not its to say.
+  const here = parts.join('/')
+  if (here !== shown.split('?')[0] && here !== opened) return
   const said = new URLSearchParams()
   for (const [name, value] of Object.entries(query)) if (value !== '' && value !== undefined && value !== null) said.set(name, value)
   const text = said.toString()
