@@ -1110,8 +1110,8 @@ anything else is the file. `esc` goes back to the run.
 
 The epic as a timeline of its sessions, as [the Exomyth timeline](/reference/tracing#timeline)
 lays it out, on a screen of its own: `hmz › /epics › <when> · <flow> › Exomyth` across the
-top, **Timeline** and **Flame** at the right of it (the one shown in bold), then `<epic> ·
-<n> session(s) · <n> span(s) · <length>[ · live]`. It is read off the screen (`reading…`;
+top, **Timeline** and **Flame** at the right of it (the one shown in bold), then
+`<epic> · <n> session(s) · <n> span(s) · <length>[ · live]`. It is read off the screen (`reading…`;
 an error in red); while the epic is `live` it is read again every 3 seconds, a failed read
 included, keeping the window, the search, what is folded (by process key) and the span under
 the cursor (by process, track, depth and start). A timeline of a version this hmz does not
@@ -1146,8 +1146,8 @@ row.
 | `r` | read again |
 | `esc` | out of the search, then the pane, then back to the run |
 
-Keys line: `w/s zoom   a/d pan   ←/→ span   enter details   f fit   0 whole   space fold   / search
-[n/N next   ]tab flame   esc back`.
+Keys line:
+`w/s zoom   a/d pan   ←/→ span   enter details   f fit   0 whole   space fold   / search   [n/N next   ]tab flame   esc back`.
 
 **Flame**: where the time in the window went, as three rows of nested bars over a list: kind
 of process (`flow` primary, `session` secondary, `os` warning), then category, then name,
@@ -1156,8 +1156,8 @@ is each span's own inside the window, less the spans under it in its track; `t` 
 tokens in and out instead. Under it `time|tokens   spans   stack`, and a list of at most 400
 stacks, each under the one it is part of: total (as on the ruler, or tokens as
 [the status line](#the-status-line) counts them), how many spans, and its name; the stack under
-the list's cursor is drawn turned round in the bars. Under the list: `weighed by time|tokens ·
-<from> · <to>`. Keys: `↑/↓ stack   t tokens|time   r refresh   tab timeline   esc back`.
+the list's cursor is drawn turned round in the bars. Under the list:
+`weighed by time|tokens · <from> · <to>`. Keys: `↑/↓ stack   t tokens|time   r refresh   tab timeline   esc back`.
 
 ## `/resume` {#carrying-the-last-one-on-outright}
 
