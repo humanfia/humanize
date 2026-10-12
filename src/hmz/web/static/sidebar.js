@@ -61,7 +61,7 @@ export function mountSidebar(root, context, where) {
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
       choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
     ],
-    { up: true, label: 'Machine' },
+    { up: true, span: true, label: 'Machine' },
   )
   fill(
     root,
