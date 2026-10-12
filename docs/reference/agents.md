@@ -1115,8 +1115,8 @@ Brought skills are copied, for the session's life, where the backend reads a pro
   (`-c mcp_servers.humanize.…`), `qwen` (`mcpServers.humanize`, `trust: true`, in its
   `QWEN_CODE_SYSTEM_SETTINGS_PATH` file; the user's `mcp.allowed`/`mcp.excluded` and folder
   trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
-  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `pi` (`--extension
-  <hmz>/coganchor/agents/pi_tools.cjs`, loaded under `--no-extensions` too), `omp` (RPC
+  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `pi`
+  (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under `--no-extensions` too), `omp` (RPC
   `set_host_tools`) and `dsh` (a `@deepseek-ai/dsh-mcp-client` row in its patch, tools named
   `mcp__humanize__<name>`); elsewhere `NotImplementedError: <cli> has no way of being given a
   tool of a flow's own`.
