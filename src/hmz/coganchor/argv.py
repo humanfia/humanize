@@ -177,6 +177,13 @@ def parser() -> ArgumentParser:
         "NAME at back into DIR before that directory is removed",
     )
     built.add_argument(
+        "--tell",
+        metavar="DIR",
+        default="",
+        help="with --native, keep a file of NAME=PATH lines in DIR while the turn runs, "
+        "one for each --project that landed at PATH on the target",
+    )
+    built.add_argument(
         "--carry",
         metavar="DIR=PATH",
         action="append",
@@ -256,6 +263,7 @@ def settings(args: Namespace) -> AnchorConfig:
         projects=tuple(_pair(said) for said in args.project),
         carries=tuple(_pair(said) for said in args.carry),
         brings=tuple(_pair(said) for said in args.bring),
+        tells=args.tell,
         installs=args.installs,
         fence=Fence.loads(args.fence) if args.fence else None,
     )
@@ -328,6 +336,8 @@ def options(config: AnchorConfig) -> list[str]:
     ):
         written += [f"{flag}={one}={other}" for one, other in pairs]
     written += [f"--private={name}" for name in config.private]
+    if config.tells:
+        written.append(f"--tell={config.tells}")
     if config.force:
         written.append("--force")
     if config.native:

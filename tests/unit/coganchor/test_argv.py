@@ -67,12 +67,14 @@ def test_pairs_are_read_on_their_first_equals_sign() -> None:
         "--project=CODEX_HOME=/creds",
         "--carry=/skills=.agents/skills",
         "--bring=CODEX_HOME/sessions=/epic/codex",
+        "--tell=/tmp/homes",
     )
 
     assert config.redirects == (("/a", "/b=c"),)
     assert config.projects == (("CODEX_HOME", "/creds"),)
     assert config.carries == (("/skills", ".agents/skills"),)
     assert config.brings == (("CODEX_HOME/sessions", "/epic/codex"),)
+    assert config.tells == "/tmp/homes"
 
 
 def test_a_fence_is_read_from_its_json() -> None:
@@ -92,6 +94,7 @@ def test_a_fence_is_read_from_its_json() -> None:
         ["--bring=CODEX_HOME=/epic"],
         ["--bring=CODEX_HOME/../x=/epic"],
         ["--bring=CODEX_HOME/sessions=relative"],
+        ["--tell=relative"],
         ["--target=nonsense://x"],
     ],
 )
@@ -140,6 +143,7 @@ NATIVE = AnchorConfig(
     projects=(("CODEX_HOME", "/accounts/codex"),),
     carries=(("/flows/skills", ".agents/skills"),),
     brings=(("CODEX_HOME/sessions", "/epic/codex"),),
+    tells="/tmp/homes",
     installs="npm install -g some-cli",
 )
 

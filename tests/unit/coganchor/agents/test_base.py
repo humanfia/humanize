@@ -1178,6 +1178,8 @@ def test_a_native_turn_brings_back_sessions_kept_under_a_home_it_projects(
     assert not any(
         ".credentials" in word for word in line if word.startswith("--bring")
     )
+    (tell,) = [word for word in line if word.startswith("--tell=")]
+    assert "hmz-homes-" in tell
 
 
 def test_a_journal_is_told_every_session_opened(tmp_path: Path) -> None:

@@ -526,7 +526,9 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   written back over the original before it is removed, unless the original changed meanwhile,
   which MUST be said rather than written over. What a turn wrote at a path `brings` names inside
   a projected directory MUST be brought back here before that directory is removed, within a
-  short bounded wait and never raising, and nothing else of it MUST be.
+  short bounded wait and never raising, and nothing else of it MUST be; where each projected
+  directory landed MUST be in a file of the turn's own in the directory `tells` names on this
+  machine from before the CLI starts until the turn is over.
 - A native session MUST refuse a turn asking for the flow's own callbacks and MUST ask nothing of
   this machine's kernel; the skills a flow carries MUST be put into the target's workspace for the
   turn and taken out again, writing over nothing and removing only what was made; and its sessions

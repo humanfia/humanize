@@ -15,7 +15,9 @@ nothing new is put on the machine.
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
 import re
 import subprocess
 import threading
@@ -30,7 +32,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.transport import Road
 
-__all__ = ["EVERY", "Tail", "road"]
+__all__ = ["EVERY", "Tail", "road", "roots"]
 
 log = logging.getLogger(__name__)
 
@@ -125,7 +127,14 @@ class Tail:
     again next time: it is never the turn's business.
     """
 
-    def __init__(self, way: Road, profile: Profile, into: Path, home: str = "") -> None:
+    def __init__(
+        self,
+        way: Road,
+        profile: Profile,
+        into: Path,
+        home: str = "",
+        told: Path | None = None,
+    ) -> None:
         """Copies nothing yet.
 
         Args:
@@ -133,8 +142,11 @@ class Tail:
           profile: The CLI, for where it keeps its home and what it logs a session to.
           into: Where the copies go, laid out as that home is.
           home: The CLI's home as the turn was told it, or "" for wherever that machine says.
+          told: A directory on this machine in place of `home`, in which each turn moving the
+            CLI's home keeps a file of `VARIABLE=where it went` lines while it runs -- every
+            home they name being followed, and none while there are none.
         """
-        self._way, self._profile, self._into = way, profile, into
+        self._way, self._profile, self._into, self._told = way, profile, into, told
         variable = profile.home_var if _NAME.fullmatch(profile.home_var) else ""
         self._home = (variable, profile.home_dir, profile.home_in, home)
         self._following: set[str] = set()
@@ -171,13 +183,15 @@ class Tail:
         if wait:
             self.copy((ident,), whole=True)
             return
-        threading.Thread(
-            target=self.copy,
-            args=((ident,),),
-            kwargs={"whole": True},
-            name=f"hmz-tail-{self._profile.name}-last",
-            daemon=True,
-        ).start()
+        # Not at all where the interpreter is already going away.
+        with contextlib.suppress(RuntimeError):
+            threading.Thread(
+                target=self.copy,
+                args=((ident,),),
+                kwargs={"whole": True},
+                name=f"hmz-tail-{self._profile.name}-last",
+                daemon=True,
+            ).start()
 
     def copy(self, idents: Iterable[str], *, whole: bool = False) -> None:
         """Copies what these sessions have logged since the last copy. Never raises.
@@ -213,12 +227,38 @@ class Tail:
                     return
             self.copy(following)
 
+    def _homes(self) -> list[tuple[str, str, str, str]]:
+        """Each home to copy from, as the scripts above take one."""
+        if self._told is None:
+            return [self._home]
+        variable, directory, inside, _ = self._home
+        said: list[str] = []
+        with contextlib.suppress(OSError):
+            for one in sorted(self._told.iterdir()):
+                with contextlib.suppress(OSError):
+                    said += one.read_text(encoding="utf-8").splitlines()
+        went = dict.fromkeys(
+            where
+            for name, _, where in (one.partition("=") for one in said)
+            if name == variable and where
+        )
+        return [(variable, directory, inside, where) for where in went]
+
     def _copied(self, idents: tuple[str, ...], *, whole: bool) -> bool:
         """:meth:`copy` once, raising what went wrong.
 
         Returns:
           Whether a log was left only partly read, being longer than one read takes.
         """
+        behind = False
+        for home in self._homes():
+            behind |= self._copied_from(home, idents, whole=whole)
+        return behind
+
+    def _copied_from(
+        self, home: tuple[str, str, str, str], idents: tuple[str, ...], *, whole: bool
+    ) -> bool:
+        """:meth:`_copied`, from one home."""
         patterns = [
             # `find -path` lets a `*` cross a `/`, so a `**/` is a `*` that may be nothing.
             glob.replace("**/", "*")
@@ -233,8 +273,8 @@ class Tail:
         found: list[str] = ["("]
         for one in patterns:
             found += [*([] if len(found) == 1 else ["-o"]), "-path", one]
-        listed = self._ran(_LIST, [*roots, "-type", "f", *found, ")"])
-        grown: list[tuple[str, int, int]] = []
+        listed = self._ran(_LIST, home, [*roots, "-type", "f", *found, ")"])
+        grown: list[tuple[str, int, int, int]] = []
         for line in listed.decode("utf-8", "replace").splitlines():
             size, _, path = line.partition(" ")
             if not size.isdigit() or path.startswith("/") or ".." in path.split("/"):
@@ -243,21 +283,25 @@ class Tail:
             if not (lines or whole):
                 continue  # written in place: copied whole, once, as the session closes
             here = self._into / path
-            have = here.stat().st_size if lines and here.is_file() else 0
+            was = here.stat().st_size if here.is_file() else 0
             # Shorter than the copy is a file written again from the start.
-            have = 0 if int(size) < have else have
+            have = 0 if not lines or int(size) < was else was
             if int(size) > have or not lines:
                 end = min(int(size), have + _MOST) if lines else int(size)
-                grown.append((path, have, end))
+                grown.append((path, was, have, end))
         if not grown:
             return False
-        said = self._ran(_READ, [str(one) for each in grown for one in each])
-        if len(said) != sum(end - have for _, have, end in grown):
-            return (
-                False  # changed between the two commands: the next copy reads it again
-            )
+        said = self._ran(
+            _READ,
+            home,
+            [str(one) for path, _, have, end in grown for one in (path, have, end)],
+        )
+        if len(said) != sum(end - have for _, _, have, end in grown):
+            # Changed between the two commands: read again, now for a last copy, and next
+            # time otherwise.
+            return whole
         at, behind = 0, False
-        for path, have, end in grown:
+        for path, was, have, end in grown:
             chunk, at = said[at : at + end - have], at + end - have
             capped = path.endswith(_LINES) and end - have == _MOST
             behind |= capped
@@ -267,13 +311,18 @@ class Tail:
                 continue
             here = self._into / path
             here.parent.mkdir(parents=True, exist_ok=True)
-            with here.open("r+b" if have else "wb") as copy:
+            here.touch()
+            with here.open("r+b") as copy:
+                if copy.seek(0, os.SEEK_END) != was:
+                    continue  # written meanwhile by something else, whose it is now
                 copy.seek(have)
                 copy.write(chunk)
                 copy.truncate()
         return behind
 
-    def _ran(self, script: str, args: list[str]) -> bytes:
+    def _ran(
+        self, script: str, home: tuple[str, str, str, str], args: list[str]
+    ) -> bytes:
         """What one of the scripts above wrote, run on that machine.
 
         Raises:
@@ -281,12 +330,24 @@ class Tail:
           subprocess.TimeoutExpired: If it took longer than :data:`_ASKING`.
         """
         done = self._way.run(
-            ["/bin/sh", "-c", script, "humanize", *self._home, *args], timeout=_ASKING
+            ["/bin/sh", "-c", script, "humanize", *home, *args], timeout=_ASKING
         )
         if done.returncode != 0:
             said = done.stderr.decode("utf-8", "replace").strip()
             raise OSError(f"exited {done.returncode}: {said}")
         return done.stdout
+
+
+def roots(profile: Profile) -> tuple[str, ...]:
+    """The directories under a CLI's home that it logs its sessions under, a file apiece.
+
+    Args:
+      profile: The CLI.
+
+    Returns:
+      Each, as the part of a log's glob before its first pattern; none is `.`.
+    """
+    return tuple(sorted({one for glob in profile.logs if (one := _root(glob)) != "."}))
 
 
 def _root(glob: str) -> str:

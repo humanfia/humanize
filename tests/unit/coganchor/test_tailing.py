@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.backends import named
-from hmz.coganchor.tailing import Tail, road
+from hmz.coganchor.tailing import Tail, road, roots
 from hmz.coganchor.transport import Target
 
 if TYPE_CHECKING:
@@ -140,3 +140,42 @@ def test_a_session_not_followed_is_not_copied_as_it_is_forgotten(
     far = Far({"projects/-w/s1.jsonl": b"one\n"})
     _tail(far, tmp_path).forget("s1")
     assert not far.asked
+
+
+def test_every_home_the_turns_told_of_is_followed_and_none_before(
+    tmp_path: Path,
+) -> None:
+    far = Far({})
+    told = tmp_path / "homes"
+    told.mkdir()
+    tail = Tail(cast("Road", far), _claude(), tmp_path / "in", "/ignored", told)
+    tail.copy(["s1"])
+    assert not far.asked
+    (told / "t1").write_text("CLAUDE_CONFIG_DIR=/tmp/a\nCODEX_HOME=/tmp/b\n")
+    (told / "t2").write_text("CLAUDE_CONFIG_DIR=/tmp/c\n")
+    tail.copy(["s1"])
+    assert [one[7] for one in far.asked] == ["/tmp/a", "/tmp/c"]
+
+
+def test_a_copy_written_meanwhile_by_something_else_is_left_as_it_is(
+    tmp_path: Path,
+) -> None:
+    far = Far({"projects/-w/s1.jsonl": b"one\n"})
+    copy = tmp_path / "projects" / "-w" / "s1.jsonl"
+    real = far.run
+
+    def bringing(
+        argv: Sequence[str], feeding: bytes = b"", timeout: float | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        if "find" not in argv[2]:
+            copy.parent.mkdir(parents=True, exist_ok=True)
+            copy.write_bytes(b"one\ntwo\n")
+        return real(argv, feeding, timeout)
+
+    far.run = bringing
+    _tail(far, tmp_path).copy(["s1"])
+    assert copy.read_bytes() == b"one\ntwo\n"
+
+
+def test_the_directories_a_cli_logs_under_are_its_roots() -> None:
+    assert roots(_claude()) == ("projects",)

@@ -87,6 +87,12 @@ class Journal(Protocol):
 #: must not need one.
 KEEPING = "HUMANIZE_SESSIONS"
 
+
+def _unkept() -> bool:
+    """Whether this process was told to keep no session of its own (:data:`KEEPING`)."""
+    return os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no")
+
+
 #: What a directory of a CLI's kept sessions holds copies of conversations under, beside the
 #: sessions themselves: a name no CLI keeps anything under, and never part of a conversation.
 KEPT = ".kept"
@@ -2384,8 +2390,9 @@ class SessionBase(ABC):
                 )
             self._id = session_id
             self._agent._opens(session_id)
-            # And let go of, for a session nobody closes, rather than copied for ever.
-            weakref.finalize(self, self._agent._closes, session_id, wait=False)
+            if self._agent._tail is not None:
+                # And let go of, for a session nobody closes, rather than copied for ever.
+                weakref.finalize(self, self._agent._closes, session_id, wait=False)
             if self._agent.epic is not None:
                 # The run is the only thing that knows this session was one of its own: the
                 # backend logs it under this id and never says whose it was. Nor which
@@ -3882,6 +3889,8 @@ class AgentBase(ABC):
         # and whether that has been settled.
         self._tail: Tail | None = None
         self._tailed = False
+        # Where its native turns say they moved the CLI's home to, once one is to.
+        self._told: Path | None = None
         #: Which account its turns run as: the one it was configured with, or the one this
         #: machine is signed into. Looked up once, when the first turn needs it, and held
         #: from then on -- an account taken away while a flow is running is not a reason for
@@ -4871,7 +4880,7 @@ class AgentBase(ABC):
         profile = named(self.backend)
         if profile is None or not profile.sessions or self.keeps is None:
             return False
-        if os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no"):
+        if _unkept():
             return False
         if profile.told:
             return True
@@ -4901,7 +4910,7 @@ class AgentBase(ABC):
         profile = named(self.backend)
         if profile is None or not profile.logs or self.keeps is None:
             return False
-        if os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no"):
+        if _unkept():
             return False
         return self._anchor is not None and road(self._anchor) is not None
 
@@ -4909,10 +4918,10 @@ class AgentBase(ABC):
         """What copies this agent's sessions here, made the first time one is opened.
 
         Returns:
-          It, or None for an agent whose sessions are not copied (:meth:`_tailing`), and for
-          a native one whose account projects the CLI's home: that home is the turn's private
-          directory on the target, which nothing here can name, and what is in it is brought
-          back as the turn ends instead (:meth:`_bringing`).
+          It, or None for an agent whose sessions are not copied (:meth:`_tailing`). A native
+          one whose account projects the CLI's home follows each turn's private directory on
+          the target, as the turn tells it (:meth:`_telling`), and what is left there is
+          brought back as the turn ends (:meth:`_bringing`).
         """
         from hmz.coganchor.backends import named
         from hmz.coganchor.serve.sessions import (
@@ -4928,7 +4937,7 @@ class AgentBase(ABC):
             way = None if anchor is None else road(anchor)
             if anchor is None or profile is None or keeps is None or way is None:
                 return None  # what `_tailing` has just said is not so
-            home = ""
+            home, told = "", None
             variable = profile.home_var
             if anchor.native and not (
                 variable in HOST_SPECIFIC_ENV
@@ -4939,14 +4948,31 @@ class AgentBase(ABC):
                 # An account that is not there is the next turn's to say.
                 with contextlib.suppress(ValueError):
                     if variable in dict(self._projecting(self.provider)):
-                        self._tailed = True
-                        return None
+                        told = self._telling()
                     home = (self._environ() or os.environ).get(variable, "")
             # Settled, as a turn keeping them there settles it: copies go on landing here.
             self._keeps, self._said, self._settled = keeps, True, True
-            self._tail = Tail(way, profile, keeps / profile.name, home)
+            self._tail = Tail(way, profile, keeps / profile.name, home, told)
             self._tailed = True
             return self._tail
+
+    def _telling(self) -> Path:
+        """Where each native turn says where it projected the CLI's home to, for as long as it runs.
+
+        Returns:
+          A directory of this agent's own that only this user may enter, taken away with the
+          agent.
+        """
+        import shutil
+        import tempfile
+        from pathlib import Path
+
+        with self._holding:
+            if self._told is None:
+                made = tempfile.mkdtemp(prefix="hmz-homes-")
+                weakref.finalize(self, shutil.rmtree, made, ignore_errors=True)
+                self._told = Path(made)
+            return self._told
 
     def _keeping_swaps(self) -> tuple[tuple[str, str], ...]:
         """The paths this agent's sessions are kept at, and where its turn keeps them instead.
@@ -5225,13 +5251,15 @@ class AgentBase(ABC):
                     "on this machine, and the CLI that would start it is on that one"
                 )
             projects = self._projecting(provider)
+            brings = self._bringing(projects)
             return replace(
                 anchor,
                 hushes=tuple(sorted(self.hushed())),
                 projects=projects,
                 carries=carried(self.backend, self._loads),
                 installs=installing(self.backend),
-                brings=self._bringing(projects),
+                brings=brings,
+                tells=str(self._telling()) if brings else "",
             )
         if self._toolbox.empty():
             return anchor
@@ -5254,23 +5282,22 @@ class AgentBase(ABC):
           projects: What the turn projects, as :meth:`_projecting` said.
 
         Returns:
-          One `(VARIABLE/PATH, the CLI's directory in keeps)` per session path of the backend,
-          for a turn projecting its home whose sessions are copied here; nothing otherwise.
+          One `(VARIABLE/PATH, the CLI's directory in kept)` per directory the backend logs a
+          session under -- never a file every session shares, which the turn's own home holds
+          only this turn's part of -- for a turn projecting its home whose sessions are copied
+          here; nothing otherwise.
         """
         from hmz.coganchor.backends import named
+        from hmz.coganchor.tailing import roots
 
-        profile, keeps = named(self.backend), self.keeps
-        if (
-            profile is None
-            or keeps is None
-            or profile.home_var not in dict(projects)
-            or not self._tailing()
-        ):
+        profile = named(self.backend)
+        if profile is None or profile.home_var not in dict(projects):
             return ()
-        # Settled, as a turn keeping them there settles it.
-        self._keeps, self._said, self._settled = keeps, True, True
-        kept = str(keeps / profile.name)
-        return tuple((f"{profile.home_var}/{one}", kept) for one in profile.sessions)
+        tail = self._tails()
+        kept = self.kept()
+        if tail is None or kept is None:
+            return ()
+        return tuple((f"{profile.home_var}/{one}", str(kept)) for one in roots(profile))
 
     def _projecting(self, provider: Provider | None) -> tuple[tuple[str, str], ...]:
         """The credential files this turn's account keeps, and what to call each on the target.

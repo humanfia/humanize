@@ -143,3 +143,61 @@ def test_a_session_under_a_projected_home_is_brought_back_before_the_home_goes(
     assert (copied / "projects" / "-w" / "s1.jsonl").read_text() == "kept\n"
     assert not (copied / ".credentials.json").exists()
     assert not Path(done.stdout.decode().strip()).exists()
+
+
+#: A turn keeping a session under a projected home, a line now and one more once told to go.
+_KEEPS_AS_IT_GOES = (
+    'mkdir -p "$CLAUDE_CONFIG_DIR/projects/-w" && '
+    'echo one > "$CLAUDE_CONFIG_DIR/projects/-w/s1.jsonl" && '
+    'while [ ! -e "$1" ]; do sleep 0.1; done && '
+    'echo two >> "$CLAUDE_CONFIG_DIR/projects/-w/s1.jsonl"'
+)
+
+
+def test_a_session_under_a_projected_home_is_copied_as_it_goes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fakes(tmp_path, monkeypatch)
+    project = tmp_path / "project"
+    project.mkdir()
+    creds = tmp_path / "creds"
+    creds.mkdir()
+    (creds / ".credentials.json").write_text("a token\n")
+    copied = tmp_path / "epic" / "sessions" / "claude"
+    told = tmp_path / "homes"
+    told.mkdir()
+    go = tmp_path / "go"
+    settings = AnchorConfig(
+        target=f"ssh://box-{tmp_path.name}",
+        workspace=str(project),
+        native=True,
+        projects=(("CLAUDE_CONFIG_DIR", str(creds)),),
+        brings=(("CLAUDE_CONFIG_DIR/projects", str(copied)),),
+        tells=str(told),
+    )
+    way = road(settings)
+    profile = named("claude")
+    assert way is not None
+    assert profile is not None
+    tail = Tail(way, profile, copied, told=told)
+    copy = copied / "projects" / "-w" / "s1.jsonl"
+
+    turn = subprocess.Popen(
+        settings.command(["/bin/sh", "-c", _KEEPS_AS_IT_GOES, "turn", str(go)]),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        tail.follow("s1")
+        _soon(lambda: copy.is_file() and copy.read_bytes() == b"one\n")
+        (telling,) = told.iterdir()
+        (landed,) = telling.read_text().splitlines()
+        assert landed.startswith("CLAUDE_CONFIG_DIR=/")
+    finally:
+        go.touch()
+        _, said = turn.communicate(timeout=60)
+    assert turn.returncode == 0, said
+    tail.forget("s1")
+    assert copy.read_bytes() == b"one\ntwo\n"
+    assert not list(told.iterdir()), "told only while the turn runs"
+    assert not (copied / ".credentials.json").exists()

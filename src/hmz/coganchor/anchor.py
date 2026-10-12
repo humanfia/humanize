@@ -235,6 +235,10 @@ class AnchorConfig:
         place under that directory here. Which is how a session the CLI keeps under a home a
         provider moved into the turn's private directory outlives the turn; nothing outside
         `PATH` is brought, so the credentials beside it stay on the target until they go.
+      tells: A directory on this machine to keep a file in for as long as the turn runs, of
+        `VARIABLE=where it landed` lines, one per projected variable: which is how what copies
+        a session as it goes finds a home the turn moved into its private directory, whose
+        name the target chose. Empty to tell nobody.
       installs: The one line that puts this CLI on the target, said when it is not there.
         Handed in rather than looked up: which line installs a backend is a fact about that
         backend, and coganchor is underneath the layer those are written down in.
@@ -269,6 +273,7 @@ class AnchorConfig:
     projects: tuple[tuple[str, str], ...] = ()
     carries: tuple[tuple[str, str], ...] = ()
     brings: tuple[tuple[str, str], ...] = ()
+    tells: str = ""
     installs: str = ""
     fence: Fence | None = None
 
@@ -325,6 +330,10 @@ class AnchorConfig:
                 )
         if self.fence is not None and not self.fence.open:
             self._fenceable(where.scheme)
+        if self.tells and not self.tells.startswith("/"):
+            raise ValueError(
+                f"unsupported tell {self.tells!r}; expected an absolute path"
+            )
         projected = {name for name, _ in self.projects}
         for named, into in self.brings:
             variable, _, under = named.partition("/")
@@ -878,7 +887,10 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
       OSError: If the target cannot be reached, or a credential cannot be put on it -- or,
         with `EBUSY`, if a sign-in that refreshes itself is out for another turn already.
     """
+    from pathlib import Path
+
     from hmz.coganchor import __version__
+    from hmz.coganchor.atomic import writes
 
     config = config or AnchorConfig()
     if not command:
@@ -893,6 +905,7 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     lent: list[_Lent] = []
     session = ""
     projected: dict[str, str] = {}
+    told = ""
     # What this turn writes its claims on carried directories under. One per turn rather than
     # per session: a turn is what plants them and a turn is what gives them up.
     whose = uuid.uuid4().hex
@@ -920,6 +933,16 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
                     client, config.projects, session, workspace, refreshing, lent
                 )
                 said |= projected
+                if config.tells:
+                    # Nobody told is a session copied as the turn ends rather than as it goes.
+                    with contextlib.suppress(OSError):
+                        told = os.path.join(config.tells, whose)
+                        writes(
+                            Path(told),
+                            "".join(
+                                f"{k}={v}\n" for k, v in projected.items()
+                            ).encode(),
+                        )
                 if fence is not None:
                     fence["write"] = [*fence["write"], session]
             _carried(client, config.carries, workspace, whose, kept, making)
@@ -932,6 +955,9 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             # a refreshed sign-in is read back before the copy it is in is taken away.
             _brought_back(client, lent, workspace)
             _brought_home(client, config.brings, projected, workspace)
+            if told:
+                with contextlib.suppress(OSError):
+                    os.unlink(told)
             _swept(
                 client, session, kept, sorted(making, reverse=True), workspace, whose
             )
