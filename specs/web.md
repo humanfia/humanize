@@ -134,8 +134,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   it as it is started.
 - MUST start a run in the workspace picked -- any it serves, or one opened by its path,
   completed as it is typed -- as that workspace last set its flow up -- its agents,
-  environments, params, budget and profiling -- backed up to the default targets unless others
-  are picked, and pick a run up, in its own workspace, as that run was started.
+  environments, params, budget, profiling and backup targets -- backed up to the default targets
+  where it set none and none others are picked, and pick a run up, in its own workspace, as that run was started.
 - MUST set an agent up as the terminal interface does, a step at a time: a CLI installed here
   that can fill the role, the account it runs as -- this machine's own or one made, and a way to
   make one -- a model known runnable as that account, asking the CLI where none is known yet and

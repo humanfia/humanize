@@ -3,7 +3,7 @@
 `hmz` -- the whole command line, over layers that have none of their own. Four commands anybody
 types, one door onto what humanize spawns for itself, and naming no command at all opens the
 terminal interface; `hmz web` opens the web interface instead, `hmz update` moves humanize
-itself to its newest release, and `hmz backup` backs an epic up. It reads a line, routes it and
+itself to its newest release, and `hmz backup` backs an epic up, or down. It reads a line, routes it and
 settles who is reading; it decides nothing a layer under it decides.
 
 ## API
@@ -15,7 +15,8 @@ hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[
          [--backup <target>|none]... <task>
 hmz web [--port <port>] [--no-open] [--attached]
 hmz update
-hmz backup <epic> [--to <target>]...
+hmz backup <epic> [--to <target>]... | hmz backup --list [--to <target>]...
+hmz backup --pull <epic> [--to <target>]...   # <epic> := <name> | <machine>/<workspace>/<name>
 <ref>    := [@<flowverse>/][<user>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
 <path>   := .<...> | /<...> | ~<...>   # nothing else is a path
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
@@ -186,6 +187,12 @@ def tools(argv: list[str]) -> int: ...
   names, else those it was started with, else the defaults, MUST wait for it and say how each
   target took it -- a URL with nothing signed into it -- and MUST exit zero where all did, one
   where one did not, and two for an epic or a target there is none of, or no target at all.
+  `--list` MUST say, per target `--to` names -- else every target --, each epic it holds: the
+  machine, the workspace, the epic, how it ended and its task, on one line; `--pull` MUST
+  download the epic out of the first of them holding it, as an import, and print where it now
+  is. A target that cannot be reached MUST be said, and MUST exit one unless the epic was
+  downloaded from another, as MUST an epic already here; an epic no target that answered holds,
+  or more than one machine's of that name, MUST be a usage error where every target answered.
 - MUST draw a run from the agents' own event stream rather than from each backend's own progress and
   MUST NOT show both, saying which agent is taking a turn and in which conversation, what it said,
   what it ran, what it started, and what a turn cost -- in money as well as tokens, and tokens alone

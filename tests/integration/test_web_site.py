@@ -310,3 +310,21 @@ def test_an_epic_is_uploaded_without_the_page_waiting_on_the_push(
             check=True,
         )
         assert log.stdout.splitlines() == [f"Back up epic {name} (manual)"]
+
+
+def test_the_backup_saved_for_a_flow_is_what_it_opens_on(project: Path) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        assert browser.get("/api/flow?name=chat").json()["remembered"]["backup"] is None
+        setup = {"flow": "chat", "agents": {"assistant": AGENT}}
+        target = {"name": "t", "url": str(project.parent / "epics.git")}
+        browser.post("/api/settings", {"backup": {"targets": [target]}})
+
+        assert browser.post("/api/flows/setup", setup | {"backup": "t"}).status == 400
+        assert browser.post("/api/flows/setup", setup | {"backup": ["x"]}).status == 400
+        saved = browser.post("/api/flows/setup", setup | {"backup": ["t"]})
+        assert saved.status == 200, saved.body
+        assert saved.json()["remembered"]["backup"] == ["t"]
+        browser.post("/api/flows/setup", setup | {"backup": []})
+        assert browser.get("/api/flow?name=chat").json()["remembered"]["backup"] == []

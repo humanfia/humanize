@@ -38,7 +38,7 @@ import yaml
 from hmz.runtime.kept import Runs, read_back, written
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Iterable, Mapping, Sequence
 
 __all__ = ["POLICIES", "Settings", "Target"]
 
@@ -362,6 +362,30 @@ class Settings:
         """
         return self._flow(self._here(), flow).get("profile") is True
 
+    def backup(self, flow: str) -> tuple[str, ...] | None:
+        """The backup targets an epic of one flow here was last said to go to, by name.
+
+        Kept beside the budget and for the reason it is kept: where an epic is backed up is
+        decided by whoever runs it here. Whether settings still has each target is not this
+        one's to say: one taken out since is nowhere to back up to, and the caller drops it.
+
+        Args:
+          flow: The flow it was said for.
+
+        Returns:
+          The targets, an empty tuple for none at all, and None for a flow nobody has said
+          it of here -- which is the defaults.
+        """
+        return self._backup(self._here(), flow)
+
+    @classmethod
+    def _backup(cls, entry: dict[str, Any], flow: str) -> tuple[str, ...] | None:
+        """The backup targets one workspace's entry holds for one flow, or None for none."""
+        held = cls._flow(entry, flow).get("backup")
+        if not isinstance(held, list):
+            return None
+        return tuple(str(one) for one in cast("list[Any]", held))
+
     def _kept(
         self, flow: str, under: str, entry: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -396,6 +420,7 @@ class Settings:
         budget: dict[str, Any] | None = None,
         *,
         profile: bool | None = None,
+        backup: Sequence[str] | None = None,
     ) -> None:
         """Writes down what this workspace is set up to run, so that it opens that way.
 
@@ -418,6 +443,9 @@ class Settings:
           profile: Whether a run of it here is profiled as well as traced, or None to leave
             whatever was kept, for the same reason. Written down only where it is on: off is
             what a flow nobody has said anything of is.
+          backup: The backup targets an epic of it here goes to, by name, or None to leave
+            whatever was kept, for the same reason. Empty is none at all, which is a choice
+            as much as any: the defaults are what a flow nobody has said anything of gets.
         """
 
         def change(held: dict[str, Any]) -> None:
@@ -443,6 +471,9 @@ class Settings:
             )
             if profiled:
                 kept["profile"] = True
+            targets = backup if backup is not None else self._backup(mine, flow)
+            if targets is not None:
+                kept["backup"] = list(dict.fromkeys(targets))
             flows = mine.get("flows")
             if not isinstance(flows, dict):
                 flows = mine["flows"] = {}

@@ -174,8 +174,8 @@ export function mount(root, { query }) {
     const params = schemaForm(flow.params, kept.params || {})
     const budget = budgetFields(kept.budget || {}, summarise)
     const profile = h('input', { type: 'checkbox', checked: Boolean(kept.profile) })
-    // Where the epic is backed up: as the one picked up was, else the defaults.
-    const goesTo = ran ? ran.backup : backup.defaults
+    // Where the epic is backed up: as the one picked up was, else as saved, else the defaults.
+    const goesTo = ran ? ran.backup : (kept.backup ?? backup.defaults)
     const targets = backup.targets.map((one) => h('label', { class: 'check', title: one.url }, h('input', { type: 'checkbox', value: one.name, checked: goesTo.includes(one.name) }), one.name))
     /** What the flow is set up with, as a start sends it. */
     function readAll() {
@@ -184,7 +184,9 @@ export function mount(root, { query }) {
       const envsSaid = {}
       for (const [role, one] of Object.entries(places)) if (one.value()) envsSaid[role] = one.value()
       const backupSaid = targets.map((one) => one.firstChild).filter((one) => one.checked).map((one) => one.value)
-      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile: profile.checked, backup: targets.length ? backupSaid : undefined }
+      // The defaults left as they are go on following the defaults, rather than being kept.
+      const followed = kept.backup == null && backupSaid.length === backup.defaults.length && backupSaid.every((one) => backup.defaults.includes(one))
+      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile: profile.checked, backup: targets.length && !followed ? backupSaid : undefined }
     }
     for (const one of Object.values(leaving)) one()
     leaving = Object.values(pickers).map((one) => one.leave)

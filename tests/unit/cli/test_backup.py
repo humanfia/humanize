@@ -100,3 +100,114 @@ def test_an_epic_with_no_target_anywhere_is_refused(
     with pytest.raises(SystemExit):
         main(["backup", EPIC.name])
     assert "no backup target" in capsys.readouterr().err
+
+
+def _stored(machine: str, epic: str, how: str = "done") -> SimpleNamespace:
+    return SimpleNamespace(
+        key=f"{machine}/-w/{epic}",
+        machine=machine,
+        workspace="/w",
+        epic=epic,
+        task="fix\nit",
+        how=how,
+    )
+
+
+def test_each_target_lists_the_epics_it_holds(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runtime.backups.listed.side_effect = {
+        "lab": [_stored("a", "e1"), _stored("b", "e2", "")],
+        "home": [],
+    }.get
+
+    assert main(["backup", "--list"]) == 0
+
+    assert capsys.readouterr().out == (
+        "lab: 2 epics\n"
+        "  a  /w  e1  done  fix it\n"
+        "  b  /w  e2  unfinished  fix it\n"
+        "home: 0 epics\n"
+    )
+
+
+def test_a_target_that_cannot_be_reached_is_said_and_the_rest_listed(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def listed(name: str) -> list[SimpleNamespace]:
+        if name == "lab":
+            raise OSError("unreachable")
+        return []
+
+    runtime.backups.listed.side_effect = listed
+
+    assert main(["backup", "--list"]) == 1
+    said = capsys.readouterr()
+    assert said.err == "lab: failed: unreachable\n"
+    assert said.out == "home: 0 epics\n"
+
+
+def test_an_epic_is_pulled_by_name_and_its_path_printed(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runtime.backups.listed.return_value = [_stored("a", "e1")]
+    runtime.backups.pulled.return_value = Path("/home/epics/-w/e1")
+
+    assert main(["backup", "--pull", "e1", "--to", "home"]) == 0
+
+    runtime.backups.pulled.assert_called_once_with("home", "a/-w/e1")
+    assert capsys.readouterr().out == "/home/epics/-w/e1\n"
+
+
+def test_an_epic_already_here_is_not_pulled(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runtime.backups.listed.return_value = [_stored("a", "e1")]
+    runtime.backups.pulled.side_effect = ValueError("e1 is already here, at /x")
+
+    assert main(["backup", "--pull", "a/-w/e1", "--to", "lab"]) == 1
+    assert "already here" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("argv", "why"),
+    [
+        (["--pull", "e9"], "no target holds an epic e9"),
+        (["--pull", ""], "no target holds an epic"),
+        (["--pull", "e1"], "from more than one machine"),
+        (["--list", "--to", "x"], "no backup target is named x"),
+        (["--list", EPIC.name], "goes without --list"),
+        ([], "required: epic"),
+    ],
+)
+def test_a_line_naming_nothing_to_list_or_pull_is_refused(
+    runtime: mock.Mock,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    why: str,
+) -> None:
+    runtime.backups.listed.return_value = [_stored("a", "e1"), _stored("b", "e1")]
+
+    with pytest.raises(SystemExit) as stopped:
+        main(["backup", *argv])
+    assert stopped.value.code == 2
+    assert why in capsys.readouterr().err
+
+
+def test_a_pull_past_a_target_that_did_not_answer_says_both(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def listed(name: str) -> list[SimpleNamespace]:
+        if name == "lab":
+            raise OSError("unreachable")
+        return [_stored("a", "e1")]
+
+    runtime.backups.listed.side_effect = listed
+    runtime.backups.pulled.return_value = Path("/here/e1")
+
+    assert main(["backup", "--pull", "e1"]) == 0
+    assert capsys.readouterr().out == "/here/e1\n"
+    assert main(["backup", "--pull", "e9"]) == 1
+    assert capsys.readouterr().err == (
+        "lab: failed: unreachable\nhmz backup: no target that answered holds e9\n"
+    )
