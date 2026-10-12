@@ -628,7 +628,7 @@ def test_a_turn_through_a_gateway_runs_on_the_route_it_is_pointed_at_it_by(
     assert "settings" in _disabled(harness.patch)
 
 
-def test_a_gateway_started_again_starts_the_runtime_again(
+def test_a_gateway_started_again_is_a_new_runtime_a_conversation_cannot_carry_on_in(
     made: Callable[..., DshAgent],
     runtime: _Runtime,
     tmp_path: Path,
@@ -637,11 +637,15 @@ def test_a_gateway_started_again_starts_the_runtime_again(
     started = gatewayed(
         monkeypatch, Provider(cli="dsh", name="gw", way="litellm-openai-key")
     )
-    session = made(provider="gw").new(tmp_path)
+    agent = made(provider="gw")
+    session = agent.new(tmp_path)
 
     _turn(session)
     started[0].running = False
-    _turn(session)
+    with pytest.raises(Unrecoverable, match="cannot carry"):
+        _turn(session)
+    _turn(agent.new(tmp_path))
 
     assert len(started) == 2
-    assert [one.closed for one in runtime.harnesses] == [True, False]
+    assert len(runtime.harnesses) == 2
+    assert len(runtime.prompts) == 2

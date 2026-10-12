@@ -341,7 +341,7 @@ class DshSession(SessionBase):
         #: mid-session is noticed as one whose runtime was built the old way.
         self._runtime_composition: str | None = None
         #: The LiteLLM gateway the live runtime was pointed at, if any: one started again
-        #: since is at another port, under another key, so the runtime is started again too.
+        #: since is at another port, under another key, so the runtime is stale with it.
         self._runtime_through: Gateway | None = None
         #: Where the composition the live runtime was started from is written, for as long
         #: as that runtime is up. Its own finalizer removes it if this session is dropped
