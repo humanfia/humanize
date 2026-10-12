@@ -78,7 +78,7 @@ export function mount(root, { query }) {
     { label: 'Flows' },
   )
 
-  /** Which workspace was read last: one read after another was picked draws nothing. */
+  /** Which workspace was read last, or null once left: one read after another was picked draws nothing. */
   let loading = ''
 
   /** Reads what a workspace offers -- its flows, and the one it last set up -- and opens one. */
@@ -234,6 +234,8 @@ export function mount(root, { query }) {
   }
   window.addEventListener('hashchange', back)
   return () => {
+    // Left, what is still being read draws nothing, nor puts its flow in the next view's address.
+    loading = null
     window.removeEventListener('hashchange', back)
     for (const one of leaving) one()
   }
