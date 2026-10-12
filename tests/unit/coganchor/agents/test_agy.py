@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz.coganchor import gateway, providers
 from hmz.coganchor.agents import (
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
@@ -17,6 +18,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.config import Unserved
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.providers import Provider
 
 from .doubles_u5 import configured, heard, line, option, spawning
 
@@ -293,3 +295,76 @@ def test_a_result_that_did_not_succeed_fails_the_turn(
         _turn(agent.new(tmp_path))
 
     assert failed.value.stderr == why
+
+
+# --------------------------------------------------------------- through a LiteLLM gateway
+
+
+class _Gateway:
+    """A gateway that starts nothing: where it would be, and the key it takes."""
+
+    def __init__(self, provider: Provider) -> None:
+        self.account = provider
+        self.port = 4321
+        self.url = "http://127.0.0.1:4321"
+        self.key = "sk-master"
+        self.running = True
+
+    def stop(self) -> None:
+        self.running = False
+
+
+_ROUTED = Provider(
+    cli="agy",
+    name="gw",
+    way="litellm-openai-key",
+    env={"OPENAI_API_KEY": "upstream-secret"},
+)
+
+
+@pytest.fixture
+def routed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An account litellm holds, and a gateway that is only pretended."""
+
+    def find(cli: str, name: str) -> Provider | None:
+        return _ROUTED if name == "gw" else Provider(cli, name, way="")
+
+    monkeypatch.setattr(providers, "find", find)
+    monkeypatch.setattr(gateway, "Gateway", _Gateway)
+
+
+@pytest.mark.usefixtures("routed")
+def test_a_turn_through_a_gateway_is_its_openai_gateway_serving_the_model_named(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_answering(*_SAID))
+    agent = _agent(provider="gw", model="openai/gpt-5", effort="high")
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    (process,) = spawned
+    env = process.env
+    assert env is not None
+    # Bare: agy adds `/v1/chat/completions` itself.
+    assert env["AGY_LLM_GATEWAY_URL"] == "http://127.0.0.1:4321"
+    assert env["AGY_LLM_GATEWAY_API_KEY"] == "sk-master"
+    assert env["AGY_LLM_GATEWAY_WIRE_PROTOCOL"] == "openai"
+    assert env["AGY_LLM_GATEWAY_MODELS"] == "openai/gpt-5"
+    assert "upstream-secret" not in env.values()
+    assert option(process.args, "--model") == "openai/gpt-5"
+    assert "--effort" not in process.args
+
+
+@pytest.mark.usefixtures("routed")
+def test_a_turn_not_through_a_gateway_is_told_no_model_it_serves(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_answering(*_SAID))
+    agent = _agent(provider="mine")
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    env = spawned[0].env or {}
+    assert "AGY_LLM_GATEWAY_MODELS" not in env

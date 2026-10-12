@@ -1529,6 +1529,11 @@ PROFILES = (
         # somewhere else and in another shape, so this ordinarily falls back to asking agy;
         # a gateway put behind it that answers `/v1/models` is answered from there.
         endpoint="GOOGLE_GEMINI_BASE_URL",
+        # And the OpenAI gateway below is how the local LiteLLM gateway is spoken to, which
+        # answers Chat Completions at `/v1/chat/completions` -- where agy sends them, under the
+        # bare URL. What it serves is the one model a turn names, which the driver says: a
+        # gateway holding a wildcard has no list of its own for agy to be told.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
