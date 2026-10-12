@@ -1,11 +1,11 @@
 // A new run, as a new chat opens: the flow picked in the bar as a model is picked, and the task
 // typed into the box in the middle. The rest a flow is set up with -- an agent for each role,
-// where each environment works, its params, its budget and whether it is profiled -- is under
+// where each environment works, its params, its budget, where it is backed up and whether it is profiled -- is under
 // Options on the box, set up as this directory last ran that flow, the way `/flow` in the
 // terminal interface sets one up. Picking a run up again is the same box, on that run.
 
 import { get, post } from '../api.js'
-import { go, stays } from '../app.js'
+import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
@@ -55,6 +55,8 @@ export function mount(root, { query }) {
   let flows = []
   let backends = { clis: {}, installable: {}, envs: ['local'] }
   let runtimes = []
+  /** The backup targets there are, and those a new epic goes to. */
+  let backup = { targets: [], defaults: [] }
   let picked = null
   let run = null
   let setup = null
@@ -85,16 +87,19 @@ export function mount(root, { query }) {
     fill(box.said)
     try {
       const ran = resume ? await get(`/api/runs/${encodeURIComponent(resume)}`) : null
+      if (mine !== loading) return
       if (ran && !workspace) {
         workspace = ran.workspace
         place.set(workspace)
       }
       if (!workspace) workspace = (await workspaces()).here
-      const [found, installed, saved] = await Promise.all([get(`/api/flows?workspace=${encodeURIComponent(workspace)}`), readBackends(workspace), get('/api/runtimes')])
+      const [found, installed, saved, settings] = await Promise.all([get(`/api/flows?workspace=${encodeURIComponent(workspace)}`), readBackends(workspace), get('/api/runtimes'), get('/api/settings').catch(() => null)])
       if (mine !== loading) return
       flows = found.flows
       backends = installed
       runtimes = saved.runtimes
+      // Unread, nothing is picked and the epic goes where the defaults say.
+      backup = settings ? settings.backup : { targets: [], defaults: [] }
       // A flow the address names that is not on offer there opens the one it last set up.
       const asked = flows.some((one) => one.name === flow) ? flow : ''
       const wanted = (ran && ran.flow) || asked || found.flow || (flows[0] && flows[0].name) || ''
@@ -109,7 +114,8 @@ export function mount(root, { query }) {
   async function choose(name, ran) {
     choosing = name
     run = ran
-    stays({ workspace, flow: name, resume: ran ? ran.name : '' })
+    // The address of a dialog opened over it is the dialog's own.
+    if (!covered()) stays({ workspace, flow: name, resume: ran ? ran.name : '' })
     fill(picker.querySelector('b'), name)
     let read
     try {
@@ -129,7 +135,8 @@ export function mount(root, { query }) {
       box.text.dispatchEvent(new Event('input'))
     }
     summarise()
-    box.text.focus()
+    // Typed into next -- but not from under a dialog opened over it, out of what is typed there.
+    if (!covered()) box.text.focus()
   }
 
   function summarise() {
@@ -170,13 +177,19 @@ export function mount(root, { query }) {
     const params = schemaForm(flow.params, kept.params || {})
     const budget = budgetFields(kept.budget || {}, summarise)
     const profile = h('input', { type: 'checkbox', checked: Boolean(kept.profile) })
+    // Where the epic is backed up: as the one picked up was, else as saved, else the defaults.
+    const goesTo = ran ? ran.backup : (kept.backup ?? backup.defaults)
+    const targets = backup.targets.map((one) => h('label', { class: 'check', title: one.url }, h('input', { type: 'checkbox', value: one.name, checked: goesTo.includes(one.name) }), one.name))
     /** What the flow is set up with, as a start sends it. */
     function readAll() {
       const agentsSaid = {}
       for (const [role, one] of Object.entries(pickers)) if (one.value()) agentsSaid[role] = one.value()
       const envsSaid = {}
       for (const [role, one] of Object.entries(places)) if (one.value()) envsSaid[role] = one.value()
-      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile: profile.checked }
+      const backupSaid = targets.map((one) => one.firstChild).filter((one) => one.checked).map((one) => one.value)
+      // The defaults left as they are go on following the defaults, rather than being kept.
+      const followed = kept.backup == null && backupSaid.length === backup.defaults.length && backupSaid.every((one) => backup.defaults.includes(one))
+      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile: profile.checked, backup: targets.length && !followed ? backupSaid : undefined }
     }
     for (const one of Object.values(leaving)) one()
     leaving = Object.values(pickers).map((one) => one.leave)
@@ -187,6 +200,7 @@ export function mount(root, { query }) {
         rooms.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Environments'), h('div', { class: 'stack' }, rooms)) : null,
         params.fields.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Parameters'), h('div', { class: 'grid' }, params.fields)) : null,
         h('section', { class: 'option-group' }, h('h3', {}, 'Budget'), budget.fields, h('span', { class: 'hint' }, flow.name === 'chat' ? 'Optional for chat.' : 'At least one limit.')),
+        targets.length ? h('section', { class: 'option-group', 'data-hmz': 'backup' }, h('h3', {}, 'Backup'), h('div', { class: 'row' }, targets)) : null,
         h('label', { class: 'check' }, profile, 'Profile'),
         // Set up without starting, as `/flow` saves it: what a new epic here opens on.
         h('div', { class: 'row' }, acting('Save', () => post('/api/flows/setup', { workspace, flow: flow.name, ...readAll() }), { kind: 'btn small', busy: 'Saving…', done: 'Saved' })),
@@ -223,6 +237,10 @@ export function mount(root, { query }) {
   }
   window.addEventListener('hashchange', back)
   return () => {
+    // Left, what is still being read draws nothing -- above all, it never puts its flow in the
+    // address of the view the page went on to.
+    loading = null
+    choosing = null
     window.removeEventListener('hashchange', back)
     for (const one of leaving) one()
   }

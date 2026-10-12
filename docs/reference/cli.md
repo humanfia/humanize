@@ -21,7 +21,7 @@ hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz update                             update hmz to its newest release
-hmz backup <epic> [--to <target>]...   back an epic up to git repositories now
+hmz backup <epic> [--to <target>]...   back epics up to git repositories, or download them
 hmz internal <command> [<args>...]     processes humanize spawns for itself
 ```
 
@@ -31,7 +31,7 @@ hmz internal <command> [<args>...]     processes humanize spawns for itself
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
 | [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
-| [`backup`](#hmz-backup) | `_backup` | `back an epic up to git repositories now` |
+| [`backup`](#hmz-backup) | `_backup` | `back epics up to git repositories, or download them` |
 | [`internal`](#hmz-internal) | `_internal` | `internal commands used by humanize; do not run directly` |
 
 `python -m hmz` is the same program. The console script is `hmz = "hmz.cli:main"`.
@@ -600,22 +600,30 @@ interface](/reference/tui) in a line as it opens, the [web interface](/reference
 ## `hmz backup` {#hmz-backup}
 
 ```text
-usage: hmz backup [-h] [--to NAME] epic
+usage: hmz backup [-h] [--to NAME] [--list | --pull EPIC] [epic]
 ```
 
 Backs one epic of this directory -- by its name, or by its path -- up to
-[git repositories](/user/backups) now, waits for it, and says how each target took it.
+[git repositories](/user/backups) now, waits for it, and says how each target took it. With
+`--list` or `--pull`, reads the targets instead: each is fetched first.
 
 | Option | Value | Occurrences | Default | Meaning |
 | --- | --- | --- | --- | --- |
-| `epic` | the epic's name or path | exactly 1 | — | The epic. |
-| `--to` | a [backup target](/reference/settings#backup) name | 0‥n | the targets the epic was started with, else `backup.defaults` | Where it goes. |
+| `epic` | the epic's name or path | exactly 1, without `--list` and `--pull`; 0 with them | — | The epic. |
+| `--to` | a [backup target](/reference/settings#backup) name | 0‥n | backing up: the targets the epic was started with, else `backup.defaults`; `--list`, `--pull`: every target | Where it goes, or where to look. |
+| `--list` | — | 0‥1 | off | List each target's epics, of every machine. |
+| `--pull` | an epic's name, or `<machine>/<workspace>/<epic>` | 0‥1 | — | [Download](/user/backups#downloading-an-epic) it from the first target holding it, as an [import](/user/export#importing-a-run). |
 
 | Condition | Output | Exit |
 | --- | --- | --- |
 | Every target took it | stdout `<target>: backed up to <url>`, the URL with anything signed into it taken out | `0` |
 | A target did not | stderr `<target>: failed: <why>` | `1` |
 | No such epic, no such target, or no target at all | argparse usage error on stderr | `2` |
+| `--list` | stdout `<target>: <n> epics`, then per epic `  <machine>  <workspace>  <epic>  <how or unfinished>  <task>` | `0` |
+| `--pull`, downloaded | stdout the path it now has | `0` |
+| A target could not be fetched | stderr `<target>: failed: <why>`, the rest still read | `1` |
+| `--pull` of an epic already here | stderr `hmz backup: <epic> is already here, at <path>` | `1` |
+| `--pull` of an epic no target holds, or more than one machine's of that name | argparse usage error on stderr | `2` |
 
 ## `hmz internal` <Badge type="warning" text="not typed by hand" /> {#hmz-internal}
 
@@ -631,6 +639,7 @@ COMMAND`, `invalid choice: …`) and exits `2`.
 | Command | Summary as printed | Spawned by |
 | --- | --- | --- |
 | [`anchor`](#hmz-internal-anchor) | `run an agent turn on another machine` | every turn whose work lands on another machine |
+| [`cli`](#hmz-internal-cli) | `relay agent runs of a flow's command line to the flow` | a script on an agent's `PATH`, once per run of a flow's command line |
 | [`cred`](#hmz-internal-cred) | `run a program with credentials from an account` | every turn or login under an account, and every turn whose sessions humanize keeps |
 | [`fence`](#hmz-internal-fence) | `run a program held to what its flow permits` | every turn of an agent whose permission fences anything |
 | [`hook`](#hmz-internal-hook) | `relay agent hooks to a flow` | a CLI's hook table, once per hook call |
@@ -809,6 +818,23 @@ Carries the tool protocol both ways at once between stdin/stdout and the Unix so
 | `1` | the socket cannot be reached (`hmz internal tools: <socket>: <why>`) |
 | `2` | no `--at` |
 
+### `hmz internal cli` {#hmz-internal-cli}
+
+```text
+hmz internal cli --at SOCKET --name NAME [-- WORDS...]
+```
+
+Sends `{"name": NAME, "argv": WORDS}` on one line to the Unix socket `SOCKET`, reads one line
+`{"code", "out", "err"}` back, writes `out` to stdout and `err` to stderr, and exits `code`.
+Everything after the first `--` is passed on untouched, `--help` and later `--` included.
+Stdin is not read. See [Agents › Command lines](/reference/agents#command-lines).
+
+| Exit | When |
+| --- | --- |
+| the flow's | it answered: `0`, `2` for a usage error, `127` for a command line no longer shelved, or what the flow's function exited with |
+| `1` | the socket cannot be reached (`NAME: the flow serving it has ended (<why>)`), or no answer came back (`NAME: the flow serving it gave no answer`) |
+| `2` | no `--at` or `--name` |
+
 ## Exit statuses {#exit-statuses}
 
 | Status | Command | Meaning |
@@ -825,6 +851,7 @@ Carries the tool protocol both ways at once between stdin/stdout and the Unix so
 | `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the run has let go of what it made. |
 | `129`, `143` | `hmz exec` | `SIGHUP`, `SIGTERM`, after the run has let go of what it made. |
 | *program's* | `internal anchor`, `cred`, `fence` | The wrapped program's own status. |
+| *flow's* | `internal cli` | What the flow answered the run with. |
 
 ## Environment variables {#environment-variables}
 

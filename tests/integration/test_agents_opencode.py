@@ -11,6 +11,7 @@ import json
 from typing import TYPE_CHECKING
 
 import pytest
+from pydantic import BaseModel
 
 from hmz.coganchor.agents import (
     AgentBase,
@@ -20,6 +21,7 @@ from hmz.coganchor.agents import (
     MimoCodeAgentConfig,
     OpencodeAgent,
     OpencodeAgentConfig,
+    Tool,
 )
 from tests.integration.doubles_agents import Standins, kinds, standins
 
@@ -186,3 +188,69 @@ def test_a_run_cannot_be_talked_to_mid_turn_nor_given_a_goal(
         agent.new().interject("hello?")
     with pytest.raises(NotImplementedError):
         agent.new().pursue("the suite passes")
+
+
+#: A run that takes the flow's server out of the config variable it was handed, the way the
+#: real CLI does: started from its `command`, spoken to in JSON lines, its one tool called with
+#: the prompt, and what that answers said as the turn's text beside the config's other keys.
+TOOLED = r"""
+import subprocess
+
+said = sys.stdin.read()
+note(said)
+config = json.loads(os.environ[os.environ["HMZ_TEST_CONFIGURES"]])
+server = config["mcp"]["humanize"]
+assert server["type"] == "local" and server["enabled"]
+bridge = subprocess.Popen(server["command"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          text=True)
+
+
+def ask(marked, method, params):
+    bridge.stdin.write(json.dumps({"jsonrpc": "2.0", "id": marked, "method": method,
+                                   "params": params}) + "\n")
+    bridge.stdin.flush()
+    return json.loads(bridge.stdout.readline())["result"]
+
+
+ask(1, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                      "clientInfo": {"name": "stand-in", "version": "0"}})
+named = ask(2, "tools/list", {})["tools"][0]["name"]
+answer = ask(3, "tools/call", {"name": named, "arguments": {"word": said}})
+bridge.stdin.close()
+bridge.wait()
+text = f"{named}: {answer['content'][0]['text']} {sorted(config)}"
+out({"type": "text", "sessionID": "ses_tooled",
+     "part": {"id": "p1", "type": "text", "text": text}})
+"""
+
+
+class _Word(BaseModel):
+    word: str
+
+
+def test_a_callback_offered_is_a_server_in_the_cli_s_config_that_runs_it_here(
+    backend: tuple[Standins, AgentBase, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stands, agent, _ = backend
+    mimo = isinstance(agent, MimoCodeAgent)
+    stands.install("mimo" if mimo else "opencode", TOOLED)
+    configures = "MIMOCODE_CONFIG_CONTENT" if mimo else "OPENCODE_CONFIG_CONTENT"
+    monkeypatch.setenv("HMZ_TEST_CONFIGURES", configures)
+    # A config the person exported is kept beside the server rather than replaced by it.
+    monkeypatch.setenv(configures, '{"provider":{}}')
+    heard: list[str] = []
+
+    def shout(said: _Word) -> str:
+        heard.append(said.word)
+        return said.word.upper()
+
+    session = agent.new()
+    session.offers([Tool("shout", "says the word louder", shout, _Word)])
+
+    assert session("hello") == "shout: HELLO ['mcp', 'provider']"
+    assert heard == ["hello"]
+
+    # One it cannot add to is refused rather than replaced.
+    monkeypatch.setenv(configures, '{"provider":{}} // jsonc')
+    with pytest.raises(ValueError, match=configures):
+        session("again")

@@ -201,7 +201,7 @@ and a negative cap (`a budget cannot be less than nothing`).
 | --- | --- | --- |
 | `agy`, `claude`, `codex`, `dsh`, `grok`, `qwen` | the id the CLI or its endpoint serves | `claude-opus-5`, `gpt-5.6-sol`, `deepseek-v4-flash` |
 | `kimi` | Kimi Code's `provider/id` | `kimi-code/k3` |
-| `litellm` | a litellm model string, `provider/id`; under a gateway account a bare id, sent as `openai/<id>` or `anthropic/<id>` | `openai/gpt-5`, `anthropic/claude-sonnet-4-5` |
+| `litellm` | a litellm model string, `provider/id`; under an account a bare id, sent to the account's provider -- `openai/<id>` under an OpenAI key, the protocol under a gateway account | `openai/gpt-5`, `anthropic/claude-sonnet-4-5` |
 | `pi`, `omp`, `opencode` | `provider/id` | `openai-codex/gpt-5.5`, `deepseek/deepseek-v4-flash`, `opencode/big-pickle` |
 | `mimo` | `provider/id`; under a gateway account, the id its endpoint serves (sent as `humanize/<id>`) | `xiaomi/mimo-v2.5`, `gpt-5.6-sol` |
 | `cursor-agent` | an id from the account's list, the rung and tier written into it | `composer-2.5-high-fast` |
@@ -666,7 +666,7 @@ read last (`Profile.journal`).
 | --- | --- |
 | `Unrecoverable` (a `Failed`) | no retry could change it: a context-window overflow, a session id the backend will not resume, a budget spent with `then="fail"`. Never retried, never carried to another account. |
 | `Stopped` | the agent was [stopped](#stopping). Not a `CalledProcessError`. |
-| `NotImplementedError` | the backend lacks the feature (`pursue` without goals, `interject` without steering, `fork` without forks, `offers` without tools) |
+| `NotImplementedError` | the backend lacks the feature (`pursue` without goals, `interject` without steering, `fork` without forks, `offers` without tools, `shelves` without a shell) |
 
 `suppress=True` returns `""` (or `None` with a schema) for a `Failed` or a schema mismatch, and
 nothing else.
@@ -1112,12 +1112,86 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 | `call` | called with the model (or nothing); its return value goes back as text; raising is the tool failing |
 
 - Served where `session.takes_tools`: `claude` (`--mcp-config`), `codex`
-  (`-c mcp_servers.humanize.…`) and `qwen` (`mcpServers.humanize`, `trust: true`, in its
+  (`-c mcp_servers.humanize.…`), `qwen` (`mcpServers.humanize`, `trust: true`, in its
   `QWEN_CODE_SYSTEM_SETTINGS_PATH` file; the user's `mcp.allowed`/`mcp.excluded` and folder
-  trust still apply); elsewhere `NotImplementedError: <cli> has no way of being given a
-  tool of a flow's own`.
-- The road is MCP: the CLI is given `hmz internal tools --at <socket>`. Tools are per agent.
+  trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
+  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `agy` (a plugin,
+  `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
+  `grok` and an ACP CLI (a `humanize` stdio server in the `mcpServers` of the call that opens
+  the conversation), `pi` (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under
+  `--no-extensions` too), `omp` (RPC `set_host_tools`) and `dsh` (a
+  `@deepseek-ai/dsh-mcp-client` row in its patch, tools named `mcp__humanize__<name>`);
+  elsewhere `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
+- On `grok` and an ACP CLI, changing the offered names restarts the process and picks the
+  conversation back up; an ACP CLI serving neither `session/resume` nor `session/load` fails
+  that turn instead.
+- `grok` serves them on held-open turns only: a turn that needs `grok -p` (a shape, a fork, and
+  the rest under [Grok Build](#grok-build)) is refused with `Unrecoverable` while any are offered.
+- The road is MCP: the CLI is given `hmz internal tools --at <socket>`, which `pi`'s extension
+  starts itself. `omp` asks for each call back over its own RPC pipe instead. Tools are per
+  agent.
+- Offering other names between two turns starts `pi` and `dsh` again before the next one;
+  `omp` is told on the process already up.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
+
+## Command lines {#command-lines}
+
+`session.shelves([Cli(name, about, commands)])` puts a program called `name` on the agent's
+`PATH`; every run of it is answered in this process. `shelves(None)` takes them back. Not
+available to flows yet.
+
+```python
+class File(BaseModel):
+    title: str = Field(description="what the ticket says")
+    points: int = 3
+
+session.shelves([Cli("tix", "Track tickets.", (Command("file", "File one.", file, File),))])
+# the agent's shell: tix --help; tix file --help; tix file --title "red build" --points 5
+```
+
+| `Command` field | Meaning |
+| --- | --- |
+| `name` | the subcommand typed after the program's name |
+| `about` | its line in `--help`, and its own `--help` description |
+| `takes` | a pydantic model of its options, or `None` for none |
+| `call` | called with the model (or nothing) |
+
+| Field of `takes` | Option |
+| --- | --- |
+| any | `--field-name FIELD_NAME`, help from `Field(description=…)` and the default |
+| no default | required |
+| `bool` | `--flag` / `--no-flag` |
+| `list[T]`, `tuple[T, ...]`, `set[T]` | `--flag [V ...]` |
+| `Literal[…]`, an `Enum` | `--flag {a,b}` |
+
+The words are parsed by `argparse` and validated by the model, so a value the model refuses is a
+usage error like a missing flag.
+
+| Run | Stdout | Stderr | Exit |
+| --- | --- | --- | --- |
+| `--help`, `COMMAND --help` | the help | | `0` |
+| a line the parser or the model refuses | | the usage and `NAME COMMAND: error: …` | `2` |
+| `call` returns a `str` | it, with a trailing newline | | `0` |
+| `call` returns `None` | | | `0` |
+| `call` returns anything else | it as indented JSON (a model as `model_dump(mode="json")`) | | `0` |
+| `call` raises `SystemExit(n)` | | a non-integer `n` | `n` (`None` is `0`, text is `1`) |
+| `call` raises anything else | | `NAME: <Type>: <message>` | `1` |
+| a command line taken back since the shell found it | | `NAME: command not found` | `127` |
+
+- `Cli` refuses a `name` that is not a plain file name (letters, digits, `.`, `_`, `-`, not
+  starting with `.` or `-`), no commands, and a command named twice (`ValueError`).
+- Served wherever there is a shell (`session.takes_clis`): every backend but `litellm` and the
+  person at the prompt, where `NotImplementedError: <cli> has no shell to run a command line of
+  a flow's own in`.
+- Command lines are per agent, as tools are. The first one shelved makes `agent.shelf`: a 0700
+  directory under `$TMPDIR` holding `bin/NAME` (a `#!/bin/sh` script running
+  [`hmz internal cli`](/reference/cli#hmz-internal-cli)) and the socket. `bin` is put first on
+  `PATH` in every process of the agent from then on, and a process held open from before is
+  started again for its next turn.
+- `call` runs on a thread of its own per run. Stdin and the working directory are not passed.
+- Under a [fence](#the-fence) the directory is readable. Under a supervised anchor it and the
+  Python running humanize are kept here (`local_execs`, `local_paths`). A native anchored turn
+  on a non-`local` target with any shelved is refused.
 
 ## Machine and account
 
@@ -1274,6 +1348,13 @@ or flow resources restart the process; an anchored turn always ends it.
   hosts (including `lh3.googleusercontent.com`) and starts a loopback language server on a
   kernel-chosen port; the turn is started as `hmz-offline` regardless of `web_search`.
 - Credential: `antigravity-oauth-token` under its home (only `HOME` moves it).
+- [Callback tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
+  with `--add-dir` (the session directory is then always added too); a change in the offered
+  names restarts the process. agy runs commands in the first workspace directory by path, so
+  the plugin's must sort after the session's: where it would sort before (a session under
+  `/workspace` with `TMPDIR=/tmp`) the turn is refused with `Unserved: agy cannot be offered
+  tools in <dir>`. Calls need `auto` or `bypass` (or the user's own `mcp(...)` allow rule); at
+  other rungs agy denies them.
 
 ### Claude Code {#claude-code}
 
@@ -1408,6 +1489,9 @@ effort goes in the handshake.
 - `Unrecoverable`: the length refusal, and a session id the runtime will not resume.
 - `DSH_HOME` is the kept directory, and sessions go under its `sessions` (`Profile.told`).
 - `interject` is unsupported: `session/prompt` queues and `steer` is not on the SDK surface.
+- Offered [callbacks](#callbacks-as-tools) insert a `@deepseek-ai/dsh-mcp-client` row
+  (`serverName: humanize`, `failOnStartupError: true`) into the patch; other names restart the
+  runtime.
 - Without an account, the SDK's saved credentials or `DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`.
 
 ### Grok Build {#grok-build}
@@ -1416,7 +1500,8 @@ effort goes in the handshake.
 model, an effort, an approval, an agent profile, a plugin directory and the leader. A
 tool-withholding rung, `web_search=False`, a network-cutting fence, a shape, a fork, or any field
 below but `leader` set away from default sends the turn to
-`grok -p --output-format streaming-json --resume <id> …` instead.
+`grok -p --output-format streaming-json --resume <id> …` instead. `grok -p` takes no MCP
+server, so such a turn is refused while [callback tools](#callbacks-as-tools) are offered.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -1524,6 +1609,9 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   (`agentInvoked: false`), also ends the turn.
 - At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
   `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
+- Offered [callbacks](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
+  the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
+  is answered `host_tool_result`. A refused `set_host_tools` fails the turn.
 - No `NODE_COMPILE_CACHE` and no `NODE_OPTIONS` preload: omp is one Bun-compiled executable,
   so `PRE_TOOL_USE` is read off the turn only.
 - The fence also lets through the `baseUrl` of the model's provider in `models.yml` (else
@@ -1554,6 +1642,10 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 
 - The table is written for the turn, never to a settings file. Its `read` and `edit` rules are
   relative to the top of the git checkout the session is in, or `/`.
+- [Callback tools](#callbacks-as-tools) are a `local` server `humanize` in `mcp`, merged into
+  the `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT` the turn would otherwise have (the
+  account's, else an exported one); the model sees them as `humanize_<name>`. A value that is
+  not a JSON object (JSONC included) fails the turn with `ValueError`.
 - mimocode reads `~/.claude.json` at start; where the fence does not let it,
   `MIMOCODE_DISABLE_CLAUDE_CODE=1` is set.
 - Both keep sessions in SQLite; traces read it with a query.
@@ -1567,6 +1659,7 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
   [--thinking <rung>]
   [--exclude-tools bash,edit,write,powershell] [--no-context-files] [--no-extensions]
   [--offline] [--append-system-prompt <s>]... [--skill <path>]...
+  [--extension <hmz>/coganchor/agents/pi_tools.cjs]
 ```
 
 | Field | Default | Meaning |
@@ -1579,7 +1672,9 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `skill_paths` | `()` | `--skill` per entry |
 
 `--session-id` rather than `--continue`, which resumes the newest session in the directory.
-pi 0.85.1 has no web tools of its own.
+pi 0.85.1 has no web tools of its own. Offered [callbacks](#callbacks-as-tools) add the
+`--extension`, which reads the bridge's argv from `HMZ_PI_TOOLS` and registers each tool under
+its own name.
 
 ### Qwen Code {#qwen-code}
 
@@ -1653,7 +1748,7 @@ cannot be steered, has no goal, reports no usage and has no trace.
 | `reads_files` | `bool` | serve `fs/read_text_file` from this machine |
 | `writes_files` | `bool` | serve `fs/write_text_file` |
 | `terminals` | `bool` | serve `terminal/*` (start, read, wait, kill) |
-| `mcp_servers` | `tuple[McpServer, ...]` | MCP servers added to the agent's own |
+| `mcp_servers` | `tuple[McpServer, ...]` | MCP servers added to the agent's own; [callback tools](#callbacks-as-tools) add a `humanize` one |
 
 The first three are refused for an agent under a native anchor. Under a fence, what this
 client does for the agent is held to the same fence: a refused file or path is answered with

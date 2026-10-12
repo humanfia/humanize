@@ -56,6 +56,8 @@ def filled(said: str, answers: Mapping[str, str]) -> str: ...
 
 def environ(provider: Provider | None) -> dict[str, str]: ...
 
+def routed(provider: Provider | None) -> bool: ...  # whether a local LiteLLM gateway holds it
+
 # login.py -- making one, by running the CLI's own login
 def way_of(cli: str, name: str) -> Way | None: ...
 
@@ -149,5 +151,9 @@ def failed(status: int) -> int: ...
   it supervise one, and MUST ask again after a no.
 - Whoever kills a supervisor MUST call `swept` once it has been waited on, so no copy of a
   credential outlives the turn it was made for.
+- `ways` MUST offer a backend's own ways, then the ways through a local LiteLLM gateway where
+  that backend has them and the gateway can be started here, then `env`. A turn under an account
+  a gateway holds MUST be run without what that account sets, as well as without every variable
+  its backend would take another account from.
 - Nothing here MUST print or echo a secret: what is shown of an account MUST be the names of
   the variables it sets and never their values.

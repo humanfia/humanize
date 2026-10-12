@@ -38,6 +38,7 @@ class Settings:
     def params(self, flow: str) -> dict[str, Any]: ...
     def budget(self, flow: str) -> dict[str, Any]: ...  # a Budget, as JSON
     def profile(self, flow: str) -> bool: ...  # whether a run of it is profiled
+    def backup(self, flow: str) -> tuple[str, ...] | None: ...  # its targets; None: defaults
     def remember(
         self,
         flow: str,
@@ -47,6 +48,7 @@ class Settings:
         budget: dict[str, Any] | None = None,
         *,
         profile: bool | None = None,
+        backup: Sequence[str] | None = None,
     ) -> None: ...
     def forget(self, workspace: str = "") -> bool: ...
     def backups(self) -> tuple[tuple[Target, ...], tuple[str, ...]]: ...  # targets, defaults
@@ -216,13 +218,14 @@ def opened(epic: Path) -> dict[str, list[str]]: ...
 def where(epic: Path, session: Session) -> Path: ...
 def logs(epic: Path, session: Session) -> dict[str, Path]: ...
 def picks_up(epic: Path) -> bool: ...
+def foreign(epic: Path) -> str: ...  # why an imported run cannot be picked up here, or ""
 def state(epic: Path, flow: str = "") -> dict[str, Any]: ...  # flow by canonical ref
 def resumed(flow: str, workspace: Path | str | None = None) -> Path | None: ...
 BACKED = "backed"  # the line saying how one backup of an epic went
 def note(epic: Path, event: str, **said: Any) -> None: ...  # a line from outside the run
 
-# exporting.py -- one whole run as one archive
-BUNDLE = "{epic}.epic.tar.gz"
+# exporting.py -- one whole run as one archive, and back
+BUNDLE = "{epic}.hmzepic"  # a gzipped tar
 MANIFEST = "manifest.json"
 TRANSCRIPT = "transcript.md"
 REDACTED = "[redacted]"
@@ -234,6 +237,8 @@ def bundle(
     transcript: str | None = None,
 ) -> tuple[Path, dict[str, Any]]: ...
 def unpacked(epic: Path, into: Path) -> dict[str, Any]: ...  # what a bundle holds, as files
+def unbundle(archive: str | os.PathLike[str]) -> Path: ...
+def placed(epic: Path, origin: str) -> Path: ...  # an epic laid out as `unpacked` lays it out
 def logged(epic: Path) -> dict[str, dict[str, Path]]: ...
 def plain(said: str, struck: Sequence[str] = ()) -> str: ...
 def sized(count: int) -> str: ...
@@ -304,6 +309,19 @@ def chosen(names: Iterable[str] | None) -> tuple[str, ...]: ...  # None: the def
 def where(epic: Path) -> str: ...  # <machine>/<workspace>/<epic>, in the repository
 def push(epic: Path, names: Iterable[str], why: str) -> None: ...  # queued, never waited on
 def wait(seconds: float | None = None) -> bool: ...  # whether none is left
+class Stored(NamedTuple):  # one epic a target holds, as its manifest there says it
+    key: str  # <machine>/<workspace>/<epic>, in the repository
+    machine: str
+    workspace: str  # where it says it ran
+    epic: str
+    flow: str
+    task: str
+    began: str
+    ended: str  # "" for one not ended when it was backed up
+    how: str  # done, failed, stopped; "" for one not ended
+    head: str
+def listed(name: str) -> list[Stored]: ...  # fetched afresh, oldest first
+def pulled(name: str, key: str) -> Path: ...  # into this machine's epics, as an import
 class Keeping:  # one epic's policies, as it runs
     def __init__(self, epic: Path, names: Sequence[str]) -> None: ...
     def closed(self) -> None: ...  # a session closed: `session`
@@ -317,14 +335,16 @@ class Keeping:  # one epic's policies, as it runs
 - MUST NOT name `cli`, `daemon`, `tui`, `web` or `sdk`, MUST restate no rule the layers under it
   carry out, and MUST load nothing until it is named. `telemetry` MUST name nothing above it.
 - `Settings` MUST answer what a workspace was last set up to run — the flow, what each of its
-  agent and environment roles was given, its params, what a run may spend and whether a run is
-  profiled — and MUST answer what is not a workspace's at all.
+  agent and environment roles was given, its params, what a run may spend, whether a run is
+  profiled and the backup targets a run goes to — and MUST answer what is not a workspace's at
+  all.
 - A setting that is a question somebody has to answer MUST have three answers — yes, no, and
   nobody asked — and reading one MUST NOT write it.
 - Two holders of the settings MUST NOT put back what the other has written; remembering a
-  flow's agents MUST leave its environments, params, budget and profiling alone where they are
-  not handed in, an empty one MUST erase, and settings humanize did not write MUST read as nothing
-  remembered.
+  flow's agents MUST leave its environments, params, budget, profiling and backup targets alone
+  where they are not handed in, an empty one MUST erase -- but for backup targets, where empty
+  MUST be none and nothing remembered MUST be the defaults -- and settings humanize did not
+  write MUST read as nothing remembered.
 - Nothing MUST be reported where the question has not been answered yes, a run with nobody at
   a terminal MUST NOT ask, and `SAYS` MUST answer it for one process alone.
 - `SENT` and `KEPT` MUST be the whole of what is sent and what never is, in words, readable
@@ -366,6 +386,15 @@ class Keeping:  # one epic's policies, as it runs
 - A bundle MUST be written whole and leave nothing behind where it fails, MUST be readable by
   whoever exported it alone, MUST land only where a path names, a file or a directory to put it
   in, and MUST replace the earlier archive when one run is exported twice.
+- Importing MUST take only a `.hmzepic` holding one epic directory with its `epic.jsonl` and
+  manifest and nothing but plain files under it, MUST refuse any other archive, any member that
+  would land outside it, and an epic already here, and MUST leave nothing behind where it
+  fails. The epic MUST land whole under the workspace it says it ran in, each session's logs
+  where that session says it is kept -- one kept in another machine's CLI home kept in the
+  epic, its line saying so -- and MUST say it was imported, from which file and which commit.
+- An imported run MUST NOT be picked up unless the workspace it ran in is here at that very
+  path and, where that is a repository and a commit was said, holds that commit; resuming one
+  that cannot MUST be refused saying why.
 - Constructing a `Runner` MUST raise `Refused`, before anything runs and before any agent
   starts, for a flow that cannot be loaded; a role given that the flow does not declare, that
   the runtime fills -- an `Outworlder`, a `LocalEnv` -- or that is given twice; a required
@@ -433,6 +462,13 @@ class Keeping:  # one epic's policies, as it runs
   be written into the epic rather than raised. How each target's last backup went -- when,
   whether, why not with no credential in it, and why it was made -- MUST be written into the
   epic as `backed` and read back as `Ran.backed`.
+- `listed` MUST fetch the target's branch into its clone as a backup does, under the same lock
+  and timeouts and asking nobody anything, and MUST answer every epic it holds, of every machine
+  and workspace, read off the files there alone. `pulled` MUST take one of them into this
+  machine's epics exactly as importing a bundle does -- through `placed`, which `unbundle` reads
+  an archive back through as well -- with the same refusals, an epic this machine backed up and
+  still has being one already here, and MUST say it was imported from that key on that target,
+  its URL with nothing signed into it. A key that is not three plain names MUST be refused.
 - `read_line` MUST read the whole `hmz exec` line, MUST NOT load a flow to answer `--help`,
   MUST take every `-a`, `-e` and `-p` as one list however they were broken up -- the budget
   out of `-p budget.<limit>=` --, and

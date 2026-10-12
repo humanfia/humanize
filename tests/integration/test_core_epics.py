@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.cli import main
+from hmz.runtime.epic import logs
 from hmz.sdk import Hmz
 from tests.integration.doubles_core import AGENT, hmz_exec, install, started
 
@@ -101,7 +102,7 @@ def test_an_epic_exports_whole_with_an_accounts_values_struck_out(
     landed, manifest = hmz.epics.bundled(epic, output=out)
 
     # A directory is written into, under the run's own name.
-    assert landed == out / f"{epic.name}.epic.tar.gz"
+    assert landed == out / f"{epic.name}.hmzepic"
     with tarfile.open(landed) as bundle:
         names = bundle.getnames()
         said = b"".join(
@@ -122,3 +123,41 @@ def test_an_epic_exports_whole_with_an_accounts_values_struck_out(
     assert [one["runs"] for one in manifest["agents"]] == [f"{AGENT}:auto"]
     assert SECRET not in json.dumps(manifest)
     assert "[redacted]" in manifest["run"]["task"]
+
+
+def test_an_exported_epic_imports_on_another_machine_and_picks_up_where_it_can(
+    tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    epics = Hmz(project).epics
+    _loop()
+    (first,) = epics.all()
+    before = epics.read(first)
+    landed, _ = epics.bundled(first, output=tmp_path)
+
+    # Another machine: a home of its own, the same workspace.
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))
+    assert epics.all() == []
+    back = Hmz().epics.imported(landed)
+
+    assert epics.all() == [back]
+    assert back.name == first.name
+    assert before is not None
+    # The stand-in keeps its sessions in its own home, which is the other machine's: here
+    # they are kept in the epic, as a session a turn kept would be.
+    assert epics.read(back) == before._replace(
+        at=back,
+        sessions=tuple(
+            one._replace(where=f"sessions/{one.backend}") for one in before.sessions
+        ),
+    )
+    for was, now in zip(before.sessions, epics.sessions(back), strict=True):
+        assert set(logs(back, now)) == set(logs(first, was))
+        assert logs(back, now)
+    assert epics.picks_up(back)
+    assert epics.resumed("flame_chase") == back
+    with pytest.raises(ValueError, match="already here"):
+        epics.imported(landed)
+
+    project.rename(tmp_path / "moved")
+    assert "not on this machine" in epics.foreign(back)
+    assert not epics.picks_up(back)

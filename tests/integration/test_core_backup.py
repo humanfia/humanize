@@ -1,4 +1,4 @@
-"""Epics backed up to a git repository on this machine, as their targets' policies say.
+"""Epics backed up to a git repository on this machine, as their targets' policies say, and back.
 
 Each target here is a bare repository in the test's own directory, reached by the git on this
 machine as any remote is; each run is the stand-in `claude` driven by a real `hmz exec`, or by
@@ -10,7 +10,8 @@ from __future__ import annotations
 import subprocess
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -18,11 +19,8 @@ import yaml
 from hmz import home
 from hmz.cli import main
 from hmz.runtime import Hmz, backing
-from hmz.runtime.epic import read
+from hmz.runtime.epic import logs, read
 from tests.integration.doubles_core import AGENT, hmz_exec, install, write_flow
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 #: A flow whose one turn is followed by long enough a wait for `interval` to come due.
 SLOW = """
@@ -225,6 +223,78 @@ def test_a_backup_never_holds_the_run_up(
     held.set()
     assert backing.wait(60)
     assert _log(bare)
+
+
+def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
+    bare: Path,
+    project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target: dict[str, object] = {"name": "t", "url": str(bare), "policies": ["end"]}
+    _targets(target)
+    assert (
+        hmz_exec(
+            "-f", "chat", "-a", f"assistant={AGENT}", "--backup", "t", "hi"
+        ).returncode
+        == 0
+    )
+    epics = Hmz(project).epics
+    (first,) = epics.all()
+    before = epics.read(first)
+    assert before is not None
+
+    # Another machine: a home of its own, the same workspace, the same repository.
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "elsewhere"))
+    _targets(target)
+    assert epics.all() == []
+    (held,) = Hmz().backups.listed("t")
+    assert (held.key, held.epic, held.flow, held.task, held.how) == (
+        backing.where(first),
+        first.name,
+        "chat",
+        "hi",
+        "done",
+    )
+    assert held.workspace == before.workspace
+    assert main(["backup", "--list", "--to", "t"]) == 0
+    assert first.name in capsys.readouterr().out
+
+    assert main(["backup", "--pull", first.name, "--to", "t"]) == 0
+    back = Path(capsys.readouterr().out.strip())
+
+    assert epics.all() == [back]
+    # As it ran, its sessions kept in the epic since the stand-in's home is the other
+    # machine's, and none of that machine's targets or backups.
+    assert epics.read(back) == before._replace(
+        at=back,
+        sessions=tuple(
+            one._replace(where=f"sessions/{one.backend}") for one in before.sessions
+        ),
+        backup=(),
+        backed={},
+    )
+    for was, now in zip(before.sessions, epics.sessions(back), strict=True):
+        assert set(logs(back, now)) == set(logs(first, was))
+    assert epics.foreign(back) == ""
+    with pytest.raises(ValueError, match="already here"):
+        Hmz().backups.pulled("t", held.key)
+    assert main(["backup", "--pull", held.key, "--to", "t"]) == 1
+    assert "already here" in capsys.readouterr().err
+
+    project.rename(tmp_path / "moved")
+    assert "not on this machine" in epics.foreign(back)
+
+
+def test_an_epic_this_machine_backed_up_and_still_has_is_not_downloaded(
+    bare: Path, project: Path
+) -> None:
+    _targets({"name": "t", "url": str(bare), "policies": ["end"]}, defaults=("t",))
+    assert hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "hi").returncode == 0
+
+    with pytest.raises(ValueError, match="already here"):
+        Hmz().backups.pulled("t", backing.where(_epic(project)))
 
 
 def test_epics_of_two_runs_share_one_repository(bare: Path, project: Path) -> None:

@@ -3,7 +3,7 @@
 `hmz` -- the whole command line, over layers that have none of their own. Four commands anybody
 types, one door onto what humanize spawns for itself, and naming no command at all opens the
 terminal interface; `hmz web` opens the web interface instead, `hmz update` moves humanize
-itself to its newest release, and `hmz backup` backs an epic up. It reads a line, routes it and
+itself to its newest release, and `hmz backup` backs an epic up, or down. It reads a line, routes it and
 settles who is reading; it decides nothing a layer under it decides.
 
 ## API
@@ -15,7 +15,8 @@ hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[
          [--backup <target>|none]... <task>
 hmz web [--port <port>] [--no-open] [--attached]
 hmz update
-hmz backup <epic> [--to <target>]...
+hmz backup <epic> [--to <target>]... | hmz backup --list [--to <target>]...
+hmz backup --pull <epic> [--to <target>]...   # <epic> := <name> | <machine>/<workspace>/<name>
 <ref>    := [@<flowverse>/][<user>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
 <path>   := .<...> | /<...> | ~<...>   # nothing else is a path
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
@@ -33,6 +34,7 @@ hmz internal anchor rendezvous [--listen [<host>:]<port>] [--punching <seconds>]
 hmz internal cred (--map | --keep) <from>=<to> [...] -- <command> [<args>...]
 hmz internal fence --policy (<json> | @<path>) [--] <command> [<args>...]
 hmz internal tools --at <socket>
+hmz internal cli --at <socket> --name <name> [-- <words>...]
 hmz internal hook --at <socket>
 ```
 
@@ -41,7 +43,7 @@ hmz internal hook --at <socket>
 APART = "HUMANIZE_DAEMON"   # `off`, `0` or `no`: keep the run with the terminal
 COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, web, update, backup,
                                                                # internal
-INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, fence, hook, tools
+INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cli, cred, fence, hook, tools
 def main(argv: list[str] | None = None) -> int: ...
 def opens() -> int: ...
 def many(count: int | str, thing: str) -> str: ...
@@ -74,8 +76,9 @@ def web(argv: list[str], *, apart: bool) -> int: ...
 def update(argv: list[str]) -> int: ...
 # backup.py -- `hmz backup`
 def backup(argv: list[str]) -> int: ...
-# anchor.py, cred.py, fence.py, hook.py, tools.py -- one command apiece
+# anchor.py, cli.py, cred.py, fence.py, hook.py, tools.py -- one command apiece
 def anchor(argv: list[str]) -> int: ...
+def cli(argv: list[str]) -> int: ...
 def cred(argv: list[str]) -> int: ...
 def fence(argv: list[str]) -> int: ...
 def hook(argv: list[str]) -> int: ...
@@ -184,6 +187,12 @@ def tools(argv: list[str]) -> int: ...
   names, else those it was started with, else the defaults, MUST wait for it and say how each
   target took it -- a URL with nothing signed into it -- and MUST exit zero where all did, one
   where one did not, and two for an epic or a target there is none of, or no target at all.
+  `--list` MUST say, per target `--to` names -- else every target --, each epic it holds: the
+  machine, the workspace, the epic, how it ended and its task, on one line; `--pull` MUST
+  download the epic out of the first of them holding it, as an import, and print where it now
+  is. A target that cannot be reached MUST be said, and MUST exit one unless the epic was
+  downloaded from another, as MUST an epic already here; an epic no target that answered holds,
+  or more than one machine's of that name, MUST be a usage error where every target answered.
 - MUST draw a run from the agents' own event stream rather than from each backend's own progress and
   MUST NOT show both, saying which agent is taking a turn and in which conversation, what it said,
   what it ran, what it started, and what a turn cost -- in money as well as tokens, and tokens alone
@@ -198,6 +207,9 @@ def tools(argv: list[str]) -> int: ...
   put up.
 - `hmz internal tools` MUST do nothing but carry lines, MUST carry both directions at once with the
   end of either ending the other, and MUST answer a socket that is not there with a status rather than
+  a crash.
+- `hmz internal cli` MUST do nothing but carry the one run and its answer, MUST exit with the
+  status the flow answered, and MUST answer a socket that is not there with a status rather than
   a crash.
 - `hmz internal hook` MUST do nothing but carry the one call, MUST exit zero whatever the flow said
   and whether or not it was there, MUST NOT exit with the status these CLIs read as the hook itself

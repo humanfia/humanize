@@ -132,10 +132,33 @@ def opened(
             )
             page.goto(site.address)
             page.wait_for_selector("[data-hmz=sidebar] .brand")
+            _drawn(page)
             yield page
             assert not failed, f"the page went wrong: {failed}"
         finally:
             browser.close()
+
+
+def go(page: Page, address: str) -> None:
+    """Goes to another view of the page by its address, as a link does, once it is drawn.
+
+    Until then, the view left still stands, and what is done on the page would be done to it.
+    """
+    page.evaluate(
+        """(to) => new Promise((done) => {
+            const was = location.hash
+            addEventListener('hashchange', () => done(), { once: true })
+            location.hash = to
+            // The address it is on already, which goes nowhere.
+            if (location.hash === was) done()
+        })""",
+        address,
+    )
+    _drawn(page)
+
+
+def _drawn(page: Page) -> None:
+    page.wait_for_selector("[data-hmz=page]:not([aria-busy])", state="attached")
 
 
 @dataclass

@@ -9486,6 +9486,9 @@ class Adjusted(NamedTuple):
 #: names would be two things to learn.
 RESUMES, _EXPORTS = "resume", "export"
 
+#: And reading it as a timeline, which is a screen of its own (:mod:`hmz.tui.exomyth`).
+_EXOMYTH = "exomyth"
+
 #: What the trace an export gathers is filed as, inside the run's own `traces/`. Named for
 #: what made it rather than for the moment it was made: a trace gathered by hand keeps both
 #: when it is gathered twice, and this one is of a run that is over and will not read any
@@ -9583,17 +9586,20 @@ class Does(Picks):
     #: A few rows, read rather than narrowed.
     SEARCHES: ClassVar = False
 
-    def __init__(self, ran: Ran, *, resumable: bool) -> None:
+    def __init__(self, ran: Ran, *, resumable: bool, foreign: str = "") -> None:
         """Goes into one run.
 
         Args:
           ran: The run, as it was written down.
           resumable: Whether its flow says now that it can be picked up, which is asked of
             the flow rather than of the run: a flow may have been rewritten since.
+          foreign: Why a run imported from another machine cannot be picked up on this
+            one, or "" for none.
         """
         super().__init__()
         self._ran = ran
-        self._resumable = resumable
+        self._resumable = resumable and not foreign
+        self._foreign = foreign
         self.asked = f"{_when(ran.began)}{_DOT}{ran.flow}"
         #: Where it is written first, on a line of its own: it is the long part and the part
         #: somebody copies, and a path wrapped into the middle of a sentence is one that has
@@ -9605,9 +9611,9 @@ class Does(Picks):
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """Carrying on where it stopped, where that is a thing this flow can do, and sending it.
+        """Carrying on where it stopped, where this flow can, sending it, and reading it.
 
-        Two rather than four. Gathering a trace wrote a file into the run that an export
+        No row for gathering a trace: that wrote a file into the run that an export
         would have carried anyway, so exporting gathers one and packs it: a bundle read by
         somebody who was not there is a bundle with the timeline already in it.
         """
@@ -9627,12 +9633,15 @@ class Does(Picks):
                 "the entire run as an archive, with its trace",
             )
         )
+        held.append((_EXOMYTH, "Exomyth", "the epic as a timeline of its sessions"))
         return held
 
     def nothing(self) -> str:
         """Why carrying on is not one of the things there are to do, where it is not."""
         if self._resumable:
             return ""
+        if self._foreign:
+            return f"this epic cannot be resumed here: {escape(self._foreign)}"
         return (
             f"{escape(self._ran.flow)} is not resumable, so this run cannot be resumed"
         )
@@ -9713,6 +9722,52 @@ class Exporting(Form[str]):
             return
         # As it was written rather than as a path: a separator it ends in says a directory
         # not made yet, and a path would drop it.
+        self.dismiss(said)
+
+
+#: The row an import is told which file it reads on.
+_FILE = "file"
+
+
+class ImportingEpic(Form[str]):
+    """Which `.hmzepic` to read back in, as an epic of the directory it says it ran in.
+
+    Asked as an export asks where it goes: a path, finished as it is typed.
+    """
+
+    def asked(self) -> list[Question]:
+        """Which file."""
+        from hmz.runtime.exporting import BUNDLE
+
+        return [
+            Question(
+                _FILE,
+                "file",
+                f"the {BUNDLE.removeprefix('{epic}')} to import",
+                needed=not self._typed_in.get(_FILE, "").strip(),
+                path=True,
+            )
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "imports the epic"
+
+    def _ask(self) -> None:
+        """Says what an import is."""
+        self.query_one("#asked", Label).update("Import epic")
+        self.query_one("#about", Label).update(
+            "An epic somebody exported, read back in under the directory it ran in."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the file, once there is one."""
+        said = self._typed_in.get(_FILE, "").strip()
+        if not said:
+            self._wrong = "the file to import is required"
+            self._fill()
+            return
         self.dismiss(said)
 
 
@@ -9805,6 +9860,7 @@ class Epics(Sheet[Doing]):
 
     BINDINGS: ClassVar = [
         Binding("ctrl+t", "scope", "scope", show=False, priority=True),
+        Binding("i", "imports", "import", show=False),
     ]
 
     def __init__(
@@ -9935,8 +9991,17 @@ class Epics(Sheet[Doing]):
         return "/epics"
 
     def actions(self) -> list[Action]:
-        """Searching the runs, and turning them between this directory and this machine."""
-        return [self._searches(), self._scope()]
+        """Searching the runs, turning them between this directory and this machine, importing."""
+        return [
+            self._searches(),
+            self._scope(),
+            Action(
+                _ACT_IMPORTS,
+                "import…",
+                "an epic from a .hmzepic file",
+                self.action_imports,
+            ),
+        ]
 
     def enters(self, row: str) -> bool:
         """Every row is a run, which the arrow right goes into.
@@ -9994,7 +10059,10 @@ class Epics(Sheet[Doing]):
             f"[$text-muted]{said}[/]" if said else ""
         )
         self._footed(
-            Key("enter", "open"), Key("ctrl+t", self._other()), Key("esc", "close")
+            Key("enter", "open"),
+            Key("ctrl+t", self._other()),
+            Key("i", "import"),
+            Key("esc", "close"),
         )
 
     def leaving(self) -> None:
@@ -10037,6 +10105,63 @@ class Epics(Sheet[Doing]):
         self._said = said
         self._told.append(f"[dim]{said}[/dim]")
         self._fill()
+
+    @work
+    async def action_imports(self) -> None:
+        """Asks which `.hmzepic` to read back in, reads it off the event loop, and goes to it.
+
+        To the epic it is, wherever that ran: one of another directory turns the list to this
+        machine's for as long as the sheet is open, so that the cursor has a row to land on.
+        An epic already here is refused, and gone to as it would have been.
+        """
+        import asyncio
+
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            source = await showing.push_screen_wait(ImportingEpic())
+        finally:
+            self.opened()
+        if source is None:
+            return
+        self._said = "importing…"
+        self._fill()
+        try:
+            at = await asyncio.to_thread(self._runs.imported, source)
+        except (OSError, RuntimeError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+            # What the store says of an epic it has already: gone to rather than looked for.
+            _, already, there = str(why).partition(" is already here, at ")
+            if already:
+                await self._goes_to(Path(there))
+            else:
+                self._fill()
+            return
+        ran = self._runs.read(at)
+        said = f"imported into {_ran_in(ran) if ran else 'its directory'}"
+        self._said = escape(said)
+        self._told.append(f"[dim]{escape(said)}[/dim]")
+        await self._goes_to(at)
+
+    async def _goes_to(self, epic: Path) -> None:
+        """Reads the list again with the cursor on one epic, of this machine if it must be.
+
+        Args:
+          epic: The epic, by the directory it is written in.
+        """
+        from textual.worker import WorkerCancelled
+
+        self._was = epic.name
+        if epic.parent != self._here:
+            self._every = True
+        # Onto the list once it is read: a list that was empty had the focus on its buttons.
+        with contextlib.suppress(WorkerCancelled):
+            await self._rereads().wait()
+            self._settles_focus()
 
     def _follows(self, listing: OptionList) -> None:
         """Takes which run the cursor is on off the list, by the directory it is written in."""
@@ -10118,10 +10243,17 @@ class Epics(Sheet[Doing]):
                     resumable=self._picks_up(ran.flow)
                     if self._ours(ran)
                     else ran.resumable,
+                    # Of this directory but brought from elsewhere: why it cannot go on here.
+                    foreign=self._runs.foreign(ran.at) if self._ours(ran) else "",
                 )
             )
             if said is None:
                 return  # walked out of it, which does nothing to the run
+            if said == _EXOMYTH:
+                from .exomyth import Exomyth
+
+                await showing.push_screen_wait(Exomyth(ran))
+                continue
             if said != _EXPORTS:
                 break
             to = await showing.push_screen_wait(Exporting(ran))

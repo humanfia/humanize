@@ -36,7 +36,7 @@ def test_many_says_a_count_as_english_does(
 
 def test_the_commands_are_exec_web_update_backup_and_the_internal_door() -> None:
     assert set(COMMANDS) == {"exec", "web", "update", "backup", "internal"}
-    assert set(INTERNAL) == {"anchor", "cred", "fence", "hook", "tools"}
+    assert set(INTERNAL) == {"anchor", "cli", "cred", "fence", "hook", "tools"}
     for run, summary in (*COMMANDS.values(), *INTERNAL.values()):
         assert callable(run)
         assert summary
@@ -87,7 +87,7 @@ def test_internal_naming_none_of_them_is_refused(
     assert "usage: hmz internal" in capsys.readouterr().err
 
 
-def test_internal_help_lists_all_five(capsys: pytest.CaptureFixture[str]) -> None:
+def test_internal_help_lists_all_six(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as raised:
         main(["internal", "--help"])
     assert raised.value.code == 0

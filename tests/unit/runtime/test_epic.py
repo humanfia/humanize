@@ -496,6 +496,25 @@ def test_where_a_run_is_backed_up_and_how_it_went_read_back(workspace: Path) -> 
     assert ran.backed["lab"]["at"]
 
 
+def test_an_imported_run_reads_back_only_its_backups_here(
+    workspace: Path,
+) -> None:
+    with Epic("ralph", "fix it", workspace, backup=["lab"]) as one:
+        pass
+    epic.note(one.path, epic.BACKED, to="lab", ok=True, error="", why="end")
+    epic.note(one.path, "imported", **{"from": "x.hmzepic"})
+
+    ran = epic.read(one.path)
+    assert ran is not None
+    assert ran.backup == ()
+    assert ran.backed == {}
+
+    epic.note(one.path, epic.BACKED, to="home", ok=True, error="", why="manual")
+    ran = epic.read(one.path)
+    assert ran is not None
+    assert set(ran.backed) == {"home"}
+
+
 def test_a_run_given_no_backup_says_none(workspace: Path) -> None:
     with Epic("ralph", "fix it", workspace) as one:
         pass

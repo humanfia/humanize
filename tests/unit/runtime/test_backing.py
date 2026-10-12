@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 import socket
 import subprocess
 from dataclasses import dataclass, field
@@ -12,7 +14,7 @@ import pytest
 from hmz import machine
 from hmz.runtime import backing
 from hmz.runtime.epic import Epic, read
-from hmz.runtime.exporting import REDACTED
+from hmz.runtime.exporting import REDACTED, unpacked
 from hmz.runtime.settings import Target
 
 if TYPE_CHECKING:
@@ -150,3 +152,82 @@ def test_an_epic_backed_up_nowhere_asks_nothing_of_settings(
     monkeypatch.setattr(backing, "configured", asked)
 
     backing.Keeping(ran, ()).ended()
+
+
+def _held(ran: Path) -> str:
+    """The epic as a target holds it, in this machine's clone of it."""
+    key = f"other/{ran.parent.name}/{ran.name}"
+    unpacked(ran, machine() / "backup" / "lab" / key)
+    return key
+
+
+def test_a_target_lists_the_epics_it_holds_after_a_fetch(git: Git, ran: Path) -> None:
+    key = _held(ran)
+
+    held = backing.listed("lab")
+
+    assert ["fetch", "-q", "--prune", "origin"] in git.asked
+    assert [one.key for one in held] == [key]
+    one = held[0]
+    assert (one.machine, one.epic, one.flow) == ("other", ran.name, "ralph")
+    said = read(ran)
+    assert said is not None
+    assert (one.workspace, one.began, one.ended, one.how) == (
+        said.workspace,
+        said.began,
+        said.ended,
+        said.how,
+    )
+    assert "sk-ant-" not in one.task
+
+
+def test_an_epic_pulled_lands_as_an_import_saying_where_it_came_from(
+    git: Git, ran: Path
+) -> None:
+    key = _held(ran)
+    shutil.rmtree(ran)
+
+    at = backing.pulled("lab", key)
+
+    assert at == ran
+    said = read(at)
+    assert said is not None
+    assert said.flow == "ralph"
+    came = [
+        json.loads(line)
+        for line in (at / "epic.jsonl").read_text().splitlines()
+        if '"imported"' in line
+    ]
+    assert came[-1]["from"] == f"{key} on lab (ssh://{REDACTED}@host/epics)"
+
+
+def test_an_epic_still_here_is_not_pulled_again(git: Git, ran: Path) -> None:
+    key = _held(ran)
+
+    with pytest.raises(ValueError, match="already here"):
+        backing.pulled("lab", key)
+
+
+@pytest.mark.parametrize("key", ["a/b", "/etc/x", "a/../b", "a/b/c/d", "a/b/none"])
+def test_a_key_that_names_no_epic_held_is_refused(git: Git, key: str) -> None:
+    with pytest.raises(ValueError, match=r"is not|holds no epic"):
+        backing.pulled("lab", key)
+
+
+def test_an_epic_reached_through_a_link_in_the_repository_is_not_one(
+    git: Git, ran: Path
+) -> None:
+    key = _held(ran)
+    clone = machine() / "backup" / "lab"
+    (clone / "linked").symlink_to(clone / "other")
+    linked = "linked/" + key.split("/", 1)[1]
+
+    assert [one.key for one in backing.listed("lab")] == [key]
+    with pytest.raises(ValueError, match="holds no epic"):
+        backing.pulled("lab", linked)
+
+
+def test_a_target_settings_has_none_of_lists_nothing(git: Git) -> None:
+    with pytest.raises(ValueError, match="no backup target is named gone"):
+        backing.listed("gone")
+    assert git.asked == []

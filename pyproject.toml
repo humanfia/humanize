@@ -90,9 +90,48 @@ kimi = [
 ]
 # A model called directly rather than through a coding agent CLI: litellm is the one client
 # that speaks every vendor's API, gateways and clouds alike, and it is a large install that only
-# a flow with a `litellm` role needs.
+# a flow with a `litellm` role needs. And the gateway it runs locally besides, which is what puts
+# a coding agent CLI in front of an endpoint that CLI does not speak to itself.
+#
+# The gateway is litellm's own proxy, and what it needs is litellm's `[proxy]` extra -- written
+# out here rather than named, because that extra also brings the proxy's command-line client,
+# which holds `rich` below 14, and the interface here is on `rich` 15. The server imports none
+# of it. So: every requirement of `litellm[proxy]` 1.105 but `rich` and `inquirerpy`, which are
+# that client's alone, and `websockets`, which only its realtime endpoints import and which the
+# `kimi` extra already brings at a release `litellm[proxy]` holds below. Move these together
+# with the `litellm` they were read off, and with `LITELLM_SDK` in `coganchor/backends.py`.
 litellm = [
-    "litellm>=1.104",
+    "litellm>=1.105",
+    "apscheduler>=3.11.2,<4",
+    "azure-identity>=1.25.2,<2",
+    "azure-storage-blob>=12.28,<13",
+    "backoff>=2.2.1,<3",
+    "boto3>=1.43.1,<2",
+    "cryptography>=49,<51",
+    "expression>=5.6,<6",
+    "fastapi>=0.136.3,<1",
+    "fastapi-sso>=0.19,<1",
+    "granian>=2.7.4,<3",
+    "gunicorn>=23,<24",
+    "hiredis>=3,<4",
+    "httpx2>=2.5,<3",
+    "litellm-enterprise>=0.1.73",
+    "litellm-proxy-extras>=0.4.105",
+    "mcp>=2.2,<3",
+    "orjson>=3.11.6,<4",
+    "polars>=1.38.1,<2",
+    "pyjwt>=2.13,<3",
+    "pynacl>=1.6.2,<2",
+    "pyroscope-io>=0.8.16,<1; sys_platform != 'win32'",
+    "python-multipart>=0.0.27,<1",
+    "pyyaml>=6.0.3,<7",
+    "restrictedpython>=8.5,<9",
+    "rq>=2.7,<3",
+    "soundfile>=0.12.1,<1",
+    "starlette>=1.0.1,<2",
+    "tomlkit>=0.13.3,<1",
+    "uvicorn>=0.33,<1",
+    "uvloop>=0.22.1,<1; sys_platform != 'win32'",
 ]
 # All of them, for an install that would rather not choose.
 all = [

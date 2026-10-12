@@ -102,9 +102,11 @@ leaves an endpoint-sourced catalogue in place. Otherwise the CLI is asked (see
 ## The ways in {#the-ways-in}
 
 A way is one kind of account a backend offers. `ways(cli)` returns the backend's own ways in
-order, then `env` for every backend but `dsh` and `litellm`: a `litellm` turn is a call in
-this process, handed the account's credentials as parameters, so it has no environment of its
-own for variables to be set in.
+order, then every way of `litellm`'s through a local gateway where the backend has them and the
+`[litellm]` extra is installed ([Through LiteLLM](#through-litellm)), then `env` for every
+backend but `dsh` and `litellm`: a `litellm` turn is a call in this process, handed the
+account's credentials as parameters, so it has no environment of its own for variables to be
+set in.
 
 `hmz.coganchor.backends.Way`:
 
@@ -750,6 +752,38 @@ not opened. Example: a `claude` account with
 
 <small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`reachable`, `_CLOUDS`), [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py) (`composed`, `hushed`), [`src/hmz/coganchor/models.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/models.py) (`_served`, `_listing`).</small>
 
+## Through LiteLLM {#through-litellm}
+
+With the `[litellm]` extra installed, a CLI can be run as any account `litellm` has a way in
+for -- a vendor's key, an OpenAI- or Anthropic-compatible gateway, Bedrock, Vertex or Azure --
+whether or not the CLI has a way in for it of its own. Its turns go through a LiteLLM proxy the
+agent starts on this machine's loopback, which speaks the CLI's protocol on one side and the
+account's on the other.
+
+| Backend | Ways (`backends.routed`) | The CLI is pointed at the gateway by (`Profile.routes`) |
+| --- | --- | --- |
+| `claude` | `litellm-openai-key`, `litellm-anthropic-key`, `litellm-gemini-key`, `litellm-xai-key`, `litellm-openrouter-key`, `litellm-deepseek-key`, `litellm-groq-key`, `litellm-mistral-key`, `litellm-openai-gateway`, `litellm-anthropic-gateway`, `litellm-bedrock`, `litellm-vertex`, `litellm-azure` | `anthropic-gateway`: `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` |
+
+Each `litellm-<way>` asks and sets what `litellm`'s own `<way>` does ([Ways by
+backend](#ways-by-backend)), and is offered only while the gateway can be started here
+(`gateway.gatewayable()`: `litellm` and its proxy's own modules all importable).
+
+| What | How |
+| --- | --- |
+| Started | by `agent.gateway`, the first time a turn needs it: `python -m litellm.proxy.proxy_cli --config FILE --host 127.0.0.1 --port PORT`, with this interpreter, on a free port, waited for at `/v1/models` under its own key, past any proxy, for up to 120 s. One per agent; started again for another account or once it has gone. |
+| Configured | `gateway.configured(provider, key)`: a model list of `PREFIX/*` and `*`, both sent to `PREFIX/*` with the account's credentials (`gateway.credentials`), `drop_params`, and Anthropic messages sent to an OpenAI-shaped provider as chat completions. `PREFIX` is `gateway.prefix`: the vendor of a key way, `bedrock`, `vertex_ai` or `azure`, or a gateway account's `LITELLM_GATEWAY_API`. |
+| Held | the configuration is a file `0600` in a directory `0700` of its own, removed with the gateway; the master key is `sk-` and 32 random bytes. Neither is on a command line; a failure to start says the proxy's last lines with every secret struck out. |
+| The turn | `agent.environment()` is the `routes` way answered by the gateway (`gateway.spoken`): its URL variable the gateway's `http://127.0.0.1:PORT`, its secret the master key, plus what that way sets, and `127.0.0.1` and `localhost` added to `NO_PROXY`; its `args`, filled in, are appended (`gateway.argued`). `claude` is also given the agent's model as every model it reaches for on its own (`ANTHROPIC_DEFAULT_HAIKU_MODEL`, `_SONNET_`, `_OPUS_`, `ANTHROPIC_SMALL_FAST_MODEL`). `agent.hushed()` is `hushes()` and everything the account sets, so none of it reaches the CLI. |
+| Fenced | `agent.fenced()` adds `127.0.0.1:PORT` to the hosts. `providers.composed` adds none of the account's variables, so the account's own endpoint opens no host for the CLI. |
+| Anchored | supervised with the harness here: the gateway runs here, its variables are kept here (`private`), and with `net` `remote` `127.0.0.1:PORT` is kept local (`net_allow`). Driven natively, or with the harness elsewhere, the CLI is not on this machine, and the agent is refused the account (`Unserved`) where it is configured. |
+| Stopped | by `agent.stop()`, and when the agent or the gateway is collected: `SIGTERM` to its process group, `SIGKILL` after 5 s, and every child. |
+| Models | `models.ask(cli, account)` reads what is behind the gateway, never the CLI: a gateway account's endpoint, asked as `litellm`'s are, or `litellm`'s own catalogue narrowed to `PREFIX/`. A model that reasons takes the CLI's whole ladder. A bare id is sent to `PREFIX/id`. |
+
+A turn of the `litellm` backend itself is sent with the same mapping (`gateway.spelled`,
+`gateway.credentials`): a bare id under any account is sent to that account's provider.
+
+<small>Defined in [`src/hmz/coganchor/gateway.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/gateway.py), [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`routed`, `upstream`, `Profile.routes`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`gateway`), [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py) (`routed`).</small>
+
 ## One account, several CLIs
 
 A credential is the vendor's, so an account made for one backend can often run another.
@@ -810,7 +844,8 @@ from hmz.coganchor.providers import login
 | `Provider(cli, name, way="env", env={}, args=(), made="")` | one account; `.at`, `.swaps()`, `.command(argv)`, `.held()` |
 | `LOCAL` | `""` |
 | `ENV` | the `env` way |
-| `ways(cli)` | the backend's ways, `env` last (not for `dsh` or `litellm`) |
+| `ways(cli)` | the backend's ways, then [through LiteLLM](#through-litellm), `env` last (not for `dsh` or `litellm`) |
+| `routed(provider)` | whether a local LiteLLM gateway holds it |
 | `providers(cli="")` | every account, or one backend's, by backend then name |
 | `find(cli, name)` | one account or `None`; never `None` for `LOCAL` of a known backend |
 | `where(cli, name)` | the account's directory |
@@ -833,8 +868,9 @@ from hmz.coganchor.providers import login
 | --- | --- |
 | `agent.provider` | `Provider \| None`; `None` for the machine's own account |
 | `agent.node()` | the account it is on now, never `None` |
-| `agent.environment()` | `provider.env` |
-| `agent.hushed()` | `hushes() - provider.env` |
+| `agent.environment()` | `provider.env`; through LiteLLM, the gateway |
+| `agent.hushed()` | `hushes() - provider.env`; through LiteLLM, `hushes() \| provider.env` |
+| `agent.gateway` | the `Gateway` a turn through LiteLLM goes through, else `None` |
 
 `Hmz().accounts` (`hmz.runtime.doing.accounts.Accounts`) is the same surface as one object,
 used by the TUI; see [SDK](/reference/sdk):

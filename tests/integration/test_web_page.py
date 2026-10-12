@@ -18,13 +18,22 @@ from playwright.sync_api import expect
 
 import hmz.coganchor.models
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, opened, served
+from tests.integration.doubles_web import ENGINES, go, opened, served
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 #: Every settings page, by the word its address ends in.
-_PAGES = ("general", "themes", "accounts", "fallback", "runtimes", "workspace", "usage")
+_PAGES = (
+    "general",
+    "themes",
+    "accounts",
+    "fallback",
+    "runtimes",
+    "backup",
+    "workspace",
+    "usage",
+)
 
 #: What the macOS app's window says it is: WKWebView, and the app.
 _APP = (
@@ -41,16 +50,12 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Pa
     return install(tmp_path, monkeypatch)
 
 
-def _go(page: Page, address: str) -> None:
-    page.evaluate("(to) => { location.hash = to }", address)
-
-
 def _start_chat(page: Page, task: str) -> None:
     """Starts chat from a new epic's box, on whichever model its agent is offered first.
 
     A chat is opened on its conversation, as a chat app opens on one, not on its graph.
     """
-    _go(page, "/new?flow=chat")
+    go(page, "/new?flow=chat")
     expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
     page.get_by_role("button", name="Options").click()
     expect(page.locator("[data-role=assistant] [data-hmz=pick-model]")).to_have_value(
@@ -65,7 +70,7 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/new?flow=chat")
+        go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         role = page.locator("[data-role=assistant]")
         expect(role.locator("[data-hmz=pick-cli]")).to_have_value("claude")
@@ -96,7 +101,7 @@ def test_a_model_no_cli_would_list_is_typed(
 
     monkeypatch.setattr(hmz.coganchor.models, "ask", refused)
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/new?flow=chat")
+        go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         role = page.locator("[data-role=assistant]")
         expect(role.locator("[data-hmz=agent-picker] .hint")).to_contain_text(
@@ -217,16 +222,19 @@ def test_a_chat_asks_in_its_conversation_and_is_answered_there(
     (flows / "__init__.py").write_text(_PICKING)
     with served() as site, opened(site, engine=engine) as page:
         started = page.evaluate(
-            """async () => (await fetch('/api/held/start', {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({flow: 'chat', task: 'first',
-                budget: {cost: 5, duration: 600, output_tokens: 100000},
-                agents: {assistant: 'claude/claude-haiku-4-5'}}),
-            })).status"""
+            """async () => {
+              const answer = await fetch('/api/held/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({flow: 'chat', task: 'first',
+                  budget: {cost: 5, duration: 600, output_tokens: 100000},
+                  agents: {assistant: 'claude/claude-haiku-4-5'}}),
+              })
+              return [answer.status, await answer.text()]
+            }"""
         )
-        assert started == 200
-        _go(page, "/live")
+        assert started[0] == 200, started[1]
+        go(page, "/live")
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/assistant%2F1$"))
 
         # What it asks is asked in the thread, its answers there to pick, never as a card.
@@ -252,7 +260,7 @@ def test_every_settings_page_opens_and_reads(
     project: Path, name: str, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, f"/settings/{name}")
+        go(page, f"/settings/{name}")
         body = page.locator(f"[data-hmz=settings-{name}]")
         expect(body).to_be_visible()
         expect(body.locator(".loading")).to_have_count(0)
@@ -315,7 +323,7 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
             ["Settings", "Usage"]
         )
         page.keyboard.press("Escape")
-        _go(page, "/settings/themes")
+        go(page, "/settings/themes")
         expect(page.locator("[data-hmz=pair]")).to_have_count(len(_PAIRS))
         expect(page.locator("[data-hmz=auto-pair]")).to_have_value("humanize")
         page.locator("[data-hmz=auto-pair]").select_option(label="Peaceful Lilac")
@@ -348,7 +356,7 @@ def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/settings/themes")
+        go(page, "/settings/themes")
         expect(page.locator("[data-hmz=theme]")).to_have_count(0)
         page.get_by_role("button", name="New", exact=True).click()
         editor = page.locator("[data-hmz=theme-editor]")
@@ -415,7 +423,7 @@ def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/settings/themes")
+        go(page, "/settings/themes")
         page.get_by_role("button", name="New pair").click()
         expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
             "Light"
@@ -461,7 +469,7 @@ def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
 
 def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/settings/themes")
+        go(page, "/settings/themes")
         page.locator("[data-hmz=theme-file]").set_input_files(
             {"name": "x.hmztheme", "mimeType": "application/json", "buffer": b"{}"}
         )
@@ -576,7 +584,7 @@ def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
         said: list[str] = []
         settings = (f"/settings/{one}" for one in _PAGES)
         for address in ("/new?flow=chat", "/flows", "/search", *settings):
-            _go(page, address)
+            go(page, address)
             page.wait_for_timeout(300)
             if address.startswith("/new"):
                 page.get_by_role("button", name="Options").click()
@@ -600,7 +608,7 @@ def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
 
 def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/new?flow=chat")
+        go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         role = page.locator("[data-role=assistant]")
         expect(role.locator("[data-hmz=pick-model] option").first).to_have_text(
@@ -613,7 +621,7 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -
         ).to_be_visible()
 
         page.reload()
-        _go(page, "/new?flow=chat")
+        go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
 
@@ -664,7 +672,7 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         with page.expect_download() as saving:
             page.get_by_role("link", name="Export").click()
         saved = saving.value
-        assert saved.suggested_filename.endswith(".tar.gz")
+        assert saved.suggested_filename.endswith(".hmzepic")
         assert Path(saved.path()).read_bytes()[:2] == b"\x1f\x8b"
 
         # WebKit lets a click write unasked, and knows no permission to write by.
@@ -673,6 +681,62 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         page.get_by_role("button", name="Copy link").click()
         expect(page.get_by_role("button", name="Copied")).to_be_visible()
         assert page.evaluate("navigator.clipboard.readText()") == page.url
+
+
+def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
+    project: Path, engine: str
+) -> None:
+    import subprocess
+
+    bare = project.parent / "epics.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/settings/backup")
+        writing = page.locator("[data-hmz=write-backup]")
+        writing.get_by_label("Name").fill("t")
+        writing.get_by_label("Repository").fill(str(bare))
+        writing.get_by_role("button", name="Save").click()
+        listed = page.locator("[data-hmz=backup-target][data-name=t]")
+        expect(listed).to_contain_text("Manual")
+        # Ticked, it is written down before a new epic reads it.
+        with page.expect_response(
+            lambda answer: (
+                answer.url.endswith("/api/settings") and answer.request.method == "POST"
+            )
+        ) as saved:
+            listed.locator("[data-hmz=backup-default]").check()
+        assert saved.value.ok
+        expect(listed.locator("[data-hmz=backup-default]")).to_be_checked()
+        page.keyboard.press("Escape")
+
+        go(page, "/new?flow=chat")
+        page.get_by_role("button", name="Options").click()
+        expect(page.locator("[data-hmz=backup] input[value=t]")).to_be_checked()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_value("claude-haiku-4-5")
+        page.locator("[data-hmz=composer-text]").fill("back me up")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/assistant%2F1$"))
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopped")
+        )
+
+        page.locator("[data-hmz=bar] .bar-title").click(button="right")
+        page.get_by_role("menuitem", name="Upload").click()
+        expect(page.locator(".toast")).to_have_text("Uploading to t")
+        expect(page.locator("[data-hmz=upload]")).to_have_attribute(
+            "title", re.compile(r"^t: uploaded")
+        )
+        log = subprocess.run(
+            ["git", "--git-dir", str(bare), "log", "--format=%s", "main"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert re.fullmatch(r"Back up epic \S+ \(manual\)\n", log.stdout)
 
 
 @pytest.mark.parametrize(("width", "dark"), [(1280, False), (390, True)])

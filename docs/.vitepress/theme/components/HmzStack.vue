@@ -182,7 +182,7 @@ const LAYERS: Layer[] = [
   {
     id: 'exporting',
     dotted: 'hmz.runtime.exporting',
-    here: 'One whole run packaged up to send somewhere.',
+    here: 'One whole run packaged up to send somewhere, and read back in.',
     spec: 'runtime/SPEC.md',
   },
   {

@@ -268,6 +268,11 @@ def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, 
     reading = _READING.get(profile.name)
     if reading is None:
         raise ValueError(f"{profile.name} has no way of being asked what it runs")
+    held = providers.find(profile.name, provider) if provider else None
+    if held is not None and providers.routed(held):
+        found = _routed(profile, held)
+        _write(where(profile.name, provider), found)
+        return tuple(found)
     environ, run = _asking(profile, provider, seconds)
     served = _served(profile, environ)
     if (
@@ -294,6 +299,51 @@ def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, 
             found.append(model)
     _write(where(profile.name, provider), found)
     return tuple(found)
+
+
+def _routed(profile: Profile, held: providers.Provider) -> list[Model]:
+    """What an account a local LiteLLM gateway holds runs, which is litellm's to say.
+
+    Not the CLI's: pointed at the gateway, it would answer with the models it ships. And not
+    the gateway's either, which would answer with the one wildcard it was told: what a turn
+    may name is what is behind it -- the endpoint a gateway account names, asked as litellm's
+    own gateway accounts are, or litellm's catalogue of the provider a key or a cloud is for.
+
+    Args:
+      profile: The backend the account is for, whose ladder a model that reasons takes.
+      held: The account.
+
+    Returns:
+      The models, each at that backend's whole ladder where it reasons and at none where it
+      does not.
+
+    Raises:
+      ValueError: If the endpoint the account names would not say, or litellm is not
+        installed here.
+    """
+    from hmz.coganchor.gateway import prefix
+
+    litellm = named("litellm")
+    assert litellm is not None  # noqa: S101 -- one of humanize's own
+    environ = dict(held.env)
+    if _pointed(litellm, environ):
+        served = _served(litellm, environ)
+        if served is None:
+            raise ValueError(
+                f"{_pointed(litellm, environ)} would not say what it serves"
+            )
+        return [Model(one.name, profile.efforts, profile.swarms) for one in served]
+    said = f"{prefix(held)}/"
+    return [
+        Model(one.name, profile.efforts if one.efforts else (), profile.swarms)
+        for one in _litellm(litellm, _unasked)
+        if one.name.startswith(said)
+    ]
+
+
+def _unasked(*_said: object) -> str:
+    """What litellm's catalogue is read with, which runs nothing."""
+    return ""
 
 
 def _asking(

@@ -31,6 +31,7 @@ from hmz.coganchor.agents.base import (
     StreamSessionBase,
     identifying,
 )
+from hmz.coganchor.agents.clis import Cli, Command
 from hmz.coganchor.agents.config import AgentConfig, Budget, Unserved
 from hmz.coganchor.agents.event import (
     Event,
@@ -596,6 +597,20 @@ def test_tools_offered_are_the_agents_until_the_session_closes() -> None:
     session.close()
     assert session.tools == ()
     assert agent.toolbox.empty()
+
+
+def test_command_lines_are_refused_by_a_backend_with_no_shell() -> None:
+    class Shellless(Turns):
+        takes_clis: ClassVar[bool] = False
+
+    cli = Cli("tix", "Tickets.", (Command("go", "Go.", lambda: None),))
+    session = Scripted(session=Shellless).new()
+    with pytest.raises(NotImplementedError, match="no shell"):
+        session.shelves([cli])
+    session.shelves(None)
+    session.shelves([])
+    assert session.clis == ()
+    assert Scripted().new().takes_clis
 
 
 def test_a_session_carries_the_flows_skills_it_was_told(tmp_path: Path) -> None:
