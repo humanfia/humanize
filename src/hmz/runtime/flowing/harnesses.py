@@ -112,12 +112,12 @@ if TYPE_CHECKING:
         SessionBase,
         Verdict,
     )
-    from hmz.coganchor.agents.tools import Tool
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import AnchoredConfig, MachineConfig
     from hmz.flows import (
         BudgetExceeded,
+        FakeCli,
         FakeTool,
         HarnessError,
         HookResult,
@@ -367,6 +367,7 @@ class HarnessDriver:
         fork_of: SessionHandle | None = None,
         carry_on: Kept | None = None,
         tools: tuple[FakeTool, ...] = (),
+        clis: tuple[FakeCli, ...] = (),
     ) -> HarnessSession:
         """Opens a session, which starts no CLI until its first turn.
 
@@ -379,6 +380,7 @@ class HarnessDriver:
           carry_on: A conversation a session kept to carry on from, as a fork of it, or
             None.
           tools: The flow's tools its turns offer the agent.
+          clis: The flow's command lines its turns put on the agent's PATH.
 
         Returns:
           The session.
@@ -426,6 +428,7 @@ class HarnessDriver:
             bridge=HookBridge.here(timeout=HOOK_TIMEOUT),
             carry_on=carry_on,
             tools=tools,
+            clis=clis,
         )
         if self._closed:
             # Closed while the session was being made, so it is closed with the rest.
@@ -1028,6 +1031,7 @@ class HarnessSession:
         "_asking",
         "_bridge",
         "_carry_on",
+        "_clis",
         "_closed",
         "_cost",
         "_driver",
@@ -1077,6 +1081,7 @@ class HarnessSession:
         bridge: HookBridge,
         carry_on: Kept | None = None,
         tools: tuple[FakeTool, ...] = (),
+        clis: tuple[FakeCli, ...] = (),
     ) -> None:
         """Initializes a session that has taken no turn.
 
@@ -1091,6 +1096,7 @@ class HarnessSession:
           bridge: What carries moments from the CLI's threads to the engine's loop.
           carry_on: The kept conversation `session` is a fork of, or None.
           tools: The flow's tools its turns offer the agent.
+          clis: The flow's command lines its turns put on the agent's PATH.
         """
         self._driver = driver
         self._loop = asyncio.get_running_loop()
@@ -1107,8 +1113,8 @@ class HarnessSession:
         #: The kept conversation it carries on, until a turn has cut a conversation of its own
         #: from it: one moved before that is cut from it again, wherever it moves to.
         self._carry_on = carry_on
-        # A question waits on a person, and a tool on the flow's function, for as long as
-        # the loop runs.
+        # A question waits on a person, and a tool or a command line on the flow's function,
+        # for as long as the loop runs.
         self._asking = HookBridge(self._loop, timeout=None)
         self._lock = threading.Lock()
         # What the session has spent, and what of the CLI's own count has been read.
@@ -1141,6 +1147,7 @@ class HarnessSession:
         self._pre: Hung | None = None
         self._hung = frozenset(kind for kind in _STARTING if kind in hooks)
         self._tools = tuple(self._tool(one) for one in tools)
+        self._clis = tuple(self._cli(one) for one in clis)
         self._listen()
 
     # ---------------------------------------------------------------------- what it is
@@ -1241,17 +1248,45 @@ class HarnessSession:
         self._settle_pre_tool_use()
         if self._tools:
             self._session.offers(self._tools)
+        if self._clis:
+            self._session.shelves(self._clis)
 
-    def _tool(self, tool: FakeTool) -> Tool:
+    def _tool(self, tool: FakeTool) -> FakeTool:
         """A flow's tool as coganchor offers it: its call carried onto the engine's loop."""
-        from hmz.coganchor.agents.tools import Tool
+        call = self._carried(tool.call)
 
-        async def outcome(given: tuple[Any, ...]) -> tuple[object, Exception | None]:
+        def answered(*given: Any) -> object:
             try:
-                return await cast("Callable[..., Awaitable[object]]", tool.call)(
-                    *given
-                ), None
-            except Exception as why:  # noqa: BLE001 -- the tool's failure, told the agent
+                return call(*given)
+            except SystemExit as leaving:
+                # Not a tool's to leave: the tool failing, as anything else it raises is.
+                raise RuntimeError(f"exited {leaving.code}") from leaving
+
+        return dataclasses.replace(tool, call=answered)
+
+    def _cli(self, cli: FakeCli) -> FakeCli:
+        """A flow's command line as coganchor shelves it, each command's call carried likewise."""
+        return dataclasses.replace(
+            cli,
+            commands=tuple(
+                dataclasses.replace(one, call=self._carried(one.call))
+                for one in cli.commands
+            ),
+        )
+
+    def _carried(self, fn: Callable[..., object]) -> Callable[..., object]:
+        """A coroutine function of the flow's, called from a CLI's thread on the engine's loop.
+
+        What it raises is raised on that thread, `SystemExit` among it: a command line's
+        function leaving with a status, which must not reach the loop.
+        """
+
+        async def outcome(
+            given: tuple[Any, ...],
+        ) -> tuple[object, BaseException | None]:
+            try:
+                return await cast("Callable[..., Awaitable[object]]", fn)(*given), None
+            except (Exception, SystemExit) as why:  # noqa: BLE001 -- the call's failure
                 return None, why
 
         def call(*given: Any) -> object:
@@ -1263,7 +1298,7 @@ class HarnessSession:
                 raise why
             return said
 
-        return Tool(tool.name, tool.about, call, tool.takes)
+        return call
 
     def _settle_pre_tool_use(self) -> None:
         """Hangs PRE_TOOL_USE on the CLI only while a hook is hung on it.

@@ -9,13 +9,15 @@ into it; an `abort` stops it.
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 from typing import TYPE_CHECKING
 
 import psutil
 import pytest
+from pydantic import BaseModel
 
-from hmz.coganchor.agents import Failed, PiAgent, PiAgentConfig
+from hmz.coganchor.agents import Failed, FakeTool, PiAgent, PiAgentConfig
 from hmz.coganchor.gateway import gatewayable
 from tests.integration.doubles_agents import (
     CHATS,
@@ -32,6 +34,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 CONFIG = PiAgentConfig(model="openai-codex/stand-in", effort="high")
+
+#: The node pi would run on, found before a stand-in's PATH leaves only the system's own.
+NODE = shutil.which("node")
 
 PI = r"""
 import queue, threading, time
@@ -108,6 +113,16 @@ while (told := take()) is not None:
         out({"type": "agent_settled"})
         out({"type": "response", "command": "abort", "success": True})
         continue
+    if said.startswith("use ") and "--extension" in flags:
+        # A flow's callback, reached for through the extension pi was handed: loaded by node
+        # as pi loads it, and the tool it registered called as pi calls one.
+        import subprocess
+        _, name, *given = said.split(" ", 2)
+        said = subprocess.run(
+            [os.environ["HMZ_TEST_NODE"], os.environ["HMZ_TEST_HARNESS"],
+             flags["--extension"], name, *given],
+            capture_output=True, text=True, timeout=60,
+        ).stdout.strip()
     part({"type": "text_end", "contentIndex": 1, "content": said})
     errored = {"errorMessage": "it could not finish"} if said == "unfinished" else {}
     out({"type": "message_end", "message": {"role": "assistant",
@@ -292,3 +307,61 @@ def test_a_turn_through_a_litellm_gateway_reaches_the_accounts_endpoint(
     # Taken back out of pi's own file with the gateway it named.
     models = tmp_path / "home/.pi/agent/models.json"
     assert json.loads(models.read_text())["providers"] == {}
+
+
+#: What a stand-in pi runs to load the extension it was handed and call one tool of it: the
+#: factory given an API with `registerTool` alone, and the tool's `execute` called as pi's is.
+HARNESS = """
+const [extension, name, given] = process.argv.slice(2);
+const tools = new Map();
+Promise.resolve(require(extension)({ registerTool: (tool) => tools.set(tool.name, tool) }))
+  .then(() => tools.get(name).execute("call-1", JSON.parse(given || "{}")))
+  .then(
+    (result) => result.content.map((one) => one.text).join(""),
+    (why) => `failed: ${why.message}`,
+  )
+  .then((said) => {
+    console.log(said);
+    process.exit(0);
+  });
+"""
+
+
+@pytest.mark.skipif(NODE is None, reason="no node to load pi's extension with")
+def test_a_callback_offered_is_run_here_when_the_model_reaches_for_it(
+    pi: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harness = tmp_path / "harness.cjs"
+    harness.write_text(HARNESS, encoding="utf-8")
+    monkeypatch.setenv("HMZ_TEST_NODE", str(NODE))
+    monkeypatch.setenv("HMZ_TEST_HARNESS", str(harness))
+
+    class Asked(BaseModel):
+        word: str
+
+    heard: list[str] = []
+
+    def shout(asked: Asked) -> str:
+        heard.append(asked.word)
+        return asked.word.upper()
+
+    def refuse() -> str:
+        raise ValueError("not today")
+
+    session = PiAgent(CONFIG).new()
+    session.offers(
+        [
+            FakeTool("shout", "Says a word louder.", shout, Asked),
+            FakeTool("refuse", "Says no.", refuse),
+        ]
+    )
+
+    assert session('use humanize_shout {"word": "hi"}') == "HI"
+    assert session("use humanize_refuse") == "failed: ValueError: not today"
+    assert heard == ["hi"]
+    assert str(pi.calls()[0].flag("--extension")).endswith("pi_tools.cjs")
+
+    session.offers(None)
+
+    assert session("after") == "after"
+    assert pi.calls()[-1].flag("--extension") is None

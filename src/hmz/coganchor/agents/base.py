@@ -36,13 +36,13 @@ from typing import (
 
 from hmz.coganchor.backends import AUTO
 
-from .clis import Cli, Shelf
+from .clis import Shelf
 from .codenames import codename
 from .config import PERMISSIONS, UNSAID, Unfenced, Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
 from .skills import Loaded, mount, unmount
-from .tools import Tool, Toolbox
+from .tools import Toolbox
 from .watchdog import Watchdog, held
 
 if TYPE_CHECKING:
@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor import AnchorConfig
     from hmz.coganchor.backends import Profile
+    from hmz.coganchor.faking import FakeCli, FakeTool
     from hmz.coganchor.fallbacks import Answer
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.gateway import Gateway
@@ -569,10 +570,10 @@ class SessionBase(ABC):
         #: it may say again between any two turns. Held here as well as in the agent's
         #: toolbox so that a session can say what it is offering without asking the agent
         #: what everything else is offering too.
-        self._tools: tuple[Tool, ...] = ()
+        self._tools: tuple[FakeTool, ...] = ()
         #: The flow's own command lines this conversation is putting on the agent's PATH, held
         #: here as well as on the agent's shelf for the reason its tools are.
-        self._clis: tuple[Cli, ...] = ()
+        self._clis: tuple[FakeCli, ...] = ()
         #: And which of them are actually down in the workspace now, or None while none are.
         #: The two differ for exactly as long as it takes the next turn to start, which is
         #: where what was asked for is put where the backend reads it.
@@ -758,11 +759,11 @@ class SessionBase(ABC):
         self._skills = None if skills is None else tuple(dict.fromkeys(skills))
 
     @property
-    def tools(self) -> tuple[Tool, ...]:
+    def tools(self) -> tuple[FakeTool, ...]:
         """The flow's own callbacks this conversation is putting in front of the agent."""
         return self._tools
 
-    def offers(self, tools: Iterable[Tool] | None) -> None:
+    def offers(self, tools: Iterable[FakeTool] | None) -> None:
         """Says which callbacks of the flow's the agent may reach for, from the next turn on.
 
         A callback is a function of the flow's own, and the agent reaching for it is that
@@ -803,11 +804,11 @@ class SessionBase(ABC):
         box.offers(id(self), self._tools)
 
     @property
-    def clis(self) -> tuple[Cli, ...]:
+    def clis(self) -> tuple[FakeCli, ...]:
         """The flow's own command lines this conversation is putting on the agent's PATH."""
         return self._clis
 
-    def shelves(self, clis: Iterable[Cli] | None) -> None:
+    def shelves(self, clis: Iterable[FakeCli] | None) -> None:
         """Says which command lines of the flow's the agent may run, from the next turn on.
 
         A command line is a program on the agent's PATH whose every run -- `--help` and usage
@@ -3863,6 +3864,13 @@ class AgentBase(ABC):
     #: The one agent that cannot be the reason the money ran out is the one agent worth keeping.
     spends: ClassVar[bool] = True
 
+    #: Whether the flow's callbacks reach this backend's CLI over the pipe it is driven
+    #: through rather than over the bridge (:meth:`Toolbox.command`). One that does is asked
+    #: for each call where it is already talking to this process, wherever it runs, so a turn
+    #: driven on another machine is offered them as one here is, and nothing is started for
+    #: them on this machine under a supervisor.
+    pipes_tools: ClassVar[bool] = False
+
     def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
         """Initializes an agent that has opened nothing yet.
 
@@ -5451,21 +5459,23 @@ class AgentBase(ABC):
             from hmz.coganchor.backends import installing
             from hmz.coganchor.transport import Target
 
-            if (
-                not (self._toolbox.empty() and self._shelf.empty())
-                and Target.parse(anchor.target).scheme != "local"
-            ):
+            bridged = not (self._toolbox.empty() or self.pipes_tools)
+            if (bridged or not self._shelf.empty()) and Target.parse(
+                anchor.target
+            ).scheme != "local":
                 # Refused rather than dropped. The bridge is a program on this machine that
                 # speaks to a socket in this process, and the CLI that would start it is on
                 # another one: a turn taken anyway would be one whose model was never told
                 # about the flow's callbacks, which reads as a model that would not use them.
                 # A `local` target is the exception and not a special case -- the CLI runs
                 # here, so the bridge, the socket and humanize are all where they always were.
+                # So is a backend whose callbacks come back over the pipe it is driven
+                # through (:attr:`pipes_tools`), which is no bridge at all.
+                offered = "callbacks or command lines" if bridged else "command lines"
                 raise ValueError(
                     f"{self.backend}: a turn driven on {anchor.target} cannot be offered "
-                    "the flow's own callbacks or command lines -- the bridge that carries "
-                    "them is a program on this machine, and the CLI that would start it is "
-                    "on that one"
+                    f"the flow's own {offered} -- the bridge that carries them is a program "
+                    "on this machine, and the CLI that would start it is on that one"
                 )
             projects = self._projecting(provider)
             brings = self._bringing(projects)
@@ -5481,7 +5491,7 @@ class AgentBase(ABC):
         import sys
 
         execs, paths = list(anchor.local_execs), list(anchor.local_paths)
-        if not self._toolbox.empty():
+        if not (self._toolbox.empty() or self.pipes_tools):
             execs.append(self._toolbox.command()[0])
         if shelf := self._shelf.where():
             # The scripts and the socket are this machine's, and so is what a script runs.

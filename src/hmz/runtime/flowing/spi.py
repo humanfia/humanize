@@ -69,6 +69,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.machines import MachineConfig
     from hmz.flows import (
         EnvBackendKind,
+        FakeCli,
         FakeTool,
         HarnessKind,
         HookResult,
@@ -673,6 +674,7 @@ class AgentDriver(Protocol):
         fork_of: SessionHandle | None = None,
         carry_on: Kept | None = None,
         tools: tuple[FakeTool, ...] = (),
+        clis: tuple[FakeCli, ...] = (),
     ) -> SessionHandle:
         """Opens a session.
 
@@ -690,6 +692,9 @@ class AgentDriver(Protocol):
           tools: The flow's tools its every turn offers the agent, each `call` a coroutine
             function that runs the flow's own as the flow, on the engine's loop; given only
             where there are any, and only to a driver listing `FakeToolAgentMixin`.
+          clis: The flow's command lines its every turn puts on the agent's PATH, each
+            command's `call` a coroutine function like a tool's; given only where there are
+            any, and never to litellm.
 
         Returns:
           The session.

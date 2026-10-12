@@ -1,7 +1,8 @@
 //! humanize for macOS: one window on the page `hmz web` serves, started as the app's child.
 //! The window opens on the app's own page at once -- a splash while `hmz` is installed and
 //! `hmz web` starts, and what went wrong where it cannot -- and goes on to `hmz web`'s once it
-//! says where it listens.
+//! says where it listens. A `.hmzepic` opened with the app, or dropped on its window, is
+//! imported by that page, which opens the epic's Exomyth.
 
 mod alert;
 mod child;
@@ -21,8 +22,8 @@ use serde::{Deserialize, Serialize};
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent};
 use tauri::window::Color;
 use tauri::{
-    AppHandle, Manager, RunEvent, State, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-    WindowEvent,
+    AppHandle, DragDropEvent, Manager, RunEvent, State, Theme, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_window_state::StateFlags;
 use tokio::sync::watch;
@@ -40,6 +41,9 @@ const OWN: &str = "tauri://localhost/";
 /// The page's paper, `--paper` in hmz's style.css, light and dark: what the window is drawn in
 /// before a page is, so it never flashes white.
 const PAPER: (Color, Color) = (Color(0xf4, 0xf8, 0xf9, 0xff), Color(0x0f, 0x14, 0x18, 0xff));
+
+/// What an epic's archive is named with.
+const EPIC: &str = "hmzepic";
 
 /// How often an update waiting for epics to end looks whether they have.
 const WAITING: Duration = Duration::from_secs(2);
@@ -83,6 +87,11 @@ struct Shell {
     /// Each download in flight, by its address, and where it goes: macOS does not say where
     /// once it is done, and two at once must not be given one name.
     downloads: Mutex<Vec<(String, PathBuf)>>,
+    /// `hmz web`'s page, key and all, once the window is sent to it. Set and read on the main
+    /// thread, where a file is opened, so that one opened as it is set is never missed.
+    page: Mutex<Option<Url>>,
+    /// An epic's archive opened before then, imported once it is set.
+    opening: Mutex<Option<PathBuf>>,
 }
 
 /// Where `hmz web` stands, once it is anything but starting, and other than the page drew last.
@@ -191,15 +200,24 @@ fn start(app: AppHandle, how: How) {
                 let server = Arc::new(server);
                 *lock(&shell.server) = Some(server.clone());
                 shell.status.send_replace(Status::Running);
-                show(&app, server.address.url().clone());
+                let page = server.address.url().clone();
+                on_main(&app, move |app, shell| {
+                    *lock(&shell.page) = Some(page.clone());
+                    let opening = lock(&shell.opening).take();
+                    let opening = opening.and_then(|path| importing(&page, &path));
+                    show(app, opening.unwrap_or(page));
+                });
                 // Told once `hmz web` stops on its own; nothing where the app stopped it.
                 if let Some(said) = server.exited() {
                     lock(&shell.server).take();
                     shell.status.send_replace(Status::Stopped(said));
                     // Back to the app's own page from one that has gone with `hmz web`.
-                    if let Some(own) = own(&app) {
-                        show(&app, own);
-                    }
+                    on_main(&app, |app, shell| {
+                        lock(&shell.page).take();
+                        if let Some(own) = own(app) {
+                            show(app, own);
+                        }
+                    });
                 }
             }
             // The window is on the app's own page already: it opens on it, and only it retries.
@@ -211,6 +229,14 @@ fn start(app: AppHandle, how: How) {
     });
 }
 
+/// Runs on the main thread, after whatever this thread sent there before.
+fn on_main(app: &AppHandle, run: impl FnOnce(&AppHandle, &Shell) + Send + 'static) {
+    let on = app.clone();
+    if let Err(why) = app.run_on_main_thread(move || run(&on, &on.state::<Shell>())) {
+        log::error!("the window could not be told: {why}");
+    }
+}
+
 /// Opens a page in the window.
 fn show(app: &AppHandle, url: Url) {
     if let Some(window) = app.get_webview_window(MAIN)
@@ -218,6 +244,41 @@ fn show(app: &AppHandle, url: Url) {
     {
         log::error!("the window could not open the page: {why}");
     }
+}
+
+/// Of files opened or dropped at once, the last that is an epic's archive: the page imports
+/// one at a time.
+fn epic(paths: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
+    paths
+        .into_iter()
+        .filter(|path| {
+            path.extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case(EPIC))
+        })
+        .last()
+}
+
+/// The address on `hmz web`'s page that imports an epic's archive by its path and opens its
+/// Exomyth: from the address with the key, which signs in again and keeps the hash, so that it
+/// is a new load even where the same file was opened last.
+fn importing(page: &Url, path: &Path) -> Option<Url> {
+    let path: String = url::form_urlencoded::byte_serialize(path.to_str()?.as_bytes()).collect();
+    let mut url = page.clone();
+    url.set_fragment(Some(&format!("/epics/import?path={path}")));
+    Some(url)
+}
+
+/// Imports an epic's archive in `hmz web`'s page, or once the window is on it, and brings the
+/// window forward. On the main thread, where a file is opened or dropped.
+fn open(app: &AppHandle, path: PathBuf) {
+    let shell = app.state::<Shell>();
+    let page = lock(&shell.page).clone();
+    match page.and_then(|page| importing(&page, &path)) {
+        Some(url) => show(app, url),
+        None => *lock(&shell.opening) = Some(path),
+    }
+    reveal(app);
 }
 
 /// The app's own page: bundled, or served by `tauri dev` while it is developed.
@@ -391,6 +452,8 @@ pub fn run() {
             env: OnceLock::new(),
             zoom: Mutex::new(1.0),
             downloads: Mutex::default(),
+            page: Mutex::default(),
+            opening: Mutex::default(),
         })
         .menu(menu::build)
         .on_menu_event(menu::handle)
@@ -411,6 +474,11 @@ pub fn run() {
                 let _ = window.set_background_color(Some(paper(*theme)));
             }
             WindowEvent::Resized(_) => chrome::resized(window),
+            WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
+                if let Some(path) = epic(paths.iter().cloned()) {
+                    open(window.app_handle(), path);
+                }
+            }
             _ => {}
         })
         .build(tauri::generate_context!());
@@ -427,6 +495,12 @@ pub fn run() {
             has_visible_windows: false,
             ..
         } => reveal(app),
+        // Double-clicked in the Finder, or Open With: at launch too, before `hmz web` listens.
+        RunEvent::Opened { urls } => {
+            if let Some(path) = epic(urls.iter().filter_map(|url| url.to_file_path().ok())) {
+                open(app, path);
+            }
+        }
         RunEvent::Exit => {
             if let Some(server) = lock(&app.state::<Shell>().server).take() {
                 server.stop();
@@ -464,6 +538,48 @@ mod tests {
         let dev = Url::parse("http://localhost:1430/").ok();
         let served = Url::parse("http://localhost:1430/index.html").unwrap();
         assert!(allowed(&served, dev.as_ref(), None));
+    }
+
+    #[test]
+    fn imports_the_last_epic_of_those_opened_and_nothing_else() {
+        let paths = |all: &[&str]| all.iter().map(PathBuf::from).collect::<Vec<_>>();
+        assert_eq!(
+            epic(paths(&[
+                "/a/one.hmzepic",
+                "/a/notes.txt",
+                "/a/two.HmzEpic",
+                "/a/x.zip"
+            ])),
+            Some(PathBuf::from("/a/two.HmzEpic"))
+        );
+        assert_eq!(
+            epic(paths(&["/a/notes.txt", "/a/hmzepic", "/a/x.hmzepic.gz"])),
+            None
+        );
+        assert_eq!(epic(paths(&[])), None);
+        // As the Finder hands them over.
+        let url = Url::parse("file:///Users/me/My%20Epics/1T2.3Z-a.hmzepic").unwrap();
+        assert_eq!(
+            epic(url.to_file_path()),
+            Some(PathBuf::from("/Users/me/My Epics/1T2.3Z-a.hmzepic"))
+        );
+    }
+
+    #[test]
+    fn imports_by_its_path_on_the_page_it_is_given() {
+        let path = Path::new("/Users/me/My Epics/a&b=c#d+e%.hmzepic");
+        // At the address with the key, which signs in and keeps the hash.
+        let first = Url::parse("http://127.0.0.1:8765/?key=secret").unwrap();
+        let url = importing(&first, path).unwrap();
+        assert_eq!(
+            url.as_str(),
+            "http://127.0.0.1:8765/?key=secret#/epics/import?path=%2FUsers%2Fme%2FMy+Epics%2Fa%26b%3Dc%23d%2Be%25.hmzepic"
+        );
+        // Read back as the page reads its hash.
+        let hash = Url::parse(&format!("http://page{}", url.fragment().unwrap())).unwrap();
+        let read: Vec<_> = hash.query_pairs().collect();
+        assert_eq!(read, [("path".into(), path.to_str().unwrap().into())]);
+        assert!(allowed(&url, None, Some(&first)));
     }
 
     #[test]

@@ -12,13 +12,14 @@ from __future__ import annotations
 import contextlib
 import datetime
 import functools
+import re
 import shutil
 import tempfile
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from .routing import Download, Refusal, routes
+from .routing import Download, Made, Refusal, Route, routes
 
 if TYPE_CHECKING:
     from hmz.runtime.epic import Called, Ran
@@ -26,7 +27,10 @@ if TYPE_CHECKING:
     from .places import Places
     from .routing import Asked
 
-__all__ = ["ROUTES", "Runs"]
+__all__ = ["BUNDLE", "ROUTES", "Runs", "refused"]
+
+#: What an epic's archive is sent as.
+BUNDLE = "application/vnd.hmz.epic+gzip"
 
 #: How a run that has not ended is said, where it is not the run going now: one killed where
 #: it stood, which no record says the end of.
@@ -223,7 +227,50 @@ class Runs:
         except Exception:
             shutil.rmtree(scratch, ignore_errors=True)
             raise
-        return Download(at, at.name, "application/vnd.hmz.epic+gzip", gone=True)
+        return Download(at, at.name, BUNDLE, gone=True)
+
+    def imported(self, archive: Path) -> dict[str, Any]:
+        """One archive read back in as an epic, and whether it can be picked up here.
+
+        Raises:
+          Refusal: If it is not an archive humanize can read, or its epic is here already.
+        """
+        # Asked of this workspace's humanize, which reads the epic alone: the one it ran in
+        # may be nowhere here.
+        epics = self._places.hmz.epics
+        try:
+            at = epics.imported(archive)
+        except ValueError as why:
+            raise refused(why) from why
+        ran = self.read(at)
+        return {
+            "name": at.name,
+            "workspace": _resolved(ran.workspace) if ran is not None else "",
+            "resumable": epics.picks_up(at),
+            "why": epics.foreign(at),
+        }
+
+
+#: What an import is refused with for an epic here already: its name, then where it is, which
+#: ends in it.
+_HERE = re.compile(r"(?P<name>[^/]+) is already here, at .*/(?P=name)")
+
+
+def refused(why: ValueError) -> Refusal:
+    """What a page is told of an archive that could not be imported, as the runtime said it.
+
+    Args:
+      why: What importing it raised.
+
+    Returns:
+      A conflict naming the epic, for one here already; otherwise a bad request.
+    """
+    said = str(why)
+    # As it was said: it begins with a file's or an epic's name, which is not to be respelled.
+    sentence = f"{said}."
+    if found := _HERE.fullmatch(said):
+        return Refusal(sentence, 409, name=found["name"])
+    return Refusal(sentence)
 
 
 def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> set[Path]:
@@ -296,8 +343,17 @@ def labelled(spent: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
-def detail(ran: Ran, *, held: bool, picks_up: bool) -> dict[str, Any]:
-    """One run, whole, as its own page says it."""
+def detail(
+    ran: Ran, *, held: bool, picks_up: bool, foreign: str = ""
+) -> dict[str, Any]:
+    """One run, whole, as its own page says it.
+
+    Args:
+      ran: The run.
+      held: Whether it is the run going.
+      picks_up: Whether it can be picked up.
+      foreign: Why one imported cannot be picked up here, or "".
+    """
     return row(ran, held=held) | {
         "at": str(ran.at),
         "task": ran.task,
@@ -334,6 +390,7 @@ def detail(ran: Ran, *, held: bool, picks_up: bool) -> dict[str, Any]:
         "picked_up": ran.picked_up,
         "profile": ran.profile,
         "picks_up": picks_up,
+        "foreign": foreign,
     }
 
 
@@ -533,7 +590,8 @@ def _one(asked: Asked) -> dict[str, Any]:
     held = held_by(runs.all(ran.workspace), asked.site.places.running())
     hmz = runs.hmz(ran)
     picks_up = hmz.epics.picks_up(ran.at)
-    return detail(ran, held=ran.at in held, picks_up=picks_up) | {
+    foreign = hmz.epics.foreign(ran.at)
+    return detail(ran, held=ran.at in held, picks_up=picks_up, foreign=foreign) | {
         "calls": calls(hmz.epics.tree(ran.at))
     }
 
@@ -581,6 +639,16 @@ def _backup(asked: Asked) -> dict[str, Any]:
     return {"queued": list(queued)}
 
 
+def _import(asked: Asked) -> Made:
+    archive = asked.file
+    if archive is None:
+        said = Path(asked.text("path"))
+        if not said.is_absolute():
+            raise Refusal("Say path as a whole path on this machine.")
+        archive = said
+    return Made(asked.site.runs.imported(archive))
+
+
 def _usage(asked: Asked) -> dict[str, Any]:
     try:
         days = min(365, max(1, int(asked.query.get("days", "30"))))
@@ -592,15 +660,18 @@ def _usage(asked: Asked) -> dict[str, Any]:
 
 
 #: What a page reads of the runs written down here.
-ROUTES = routes(
-    ("GET", "/api/runs", _listed),
-    ("GET", "/api/runs/{name}", _one),
-    ("GET", "/api/runs/{name}/trace", _trace),
-    ("GET", "/api/runs/{name}/timeline", _timeline),
-    ("GET", "/api/runs/{name}/timeline/span/{id}", _span),
-    ("GET", "/api/runs/{name}/bundle", _bundle),
-    ("POST", "/api/runs/{name}/backup", _backup),
-    ("GET", "/api/usage", _usage),
+ROUTES = (
+    *routes(
+        ("GET", "/api/runs", _listed),
+        ("GET", "/api/runs/{name}", _one),
+        ("GET", "/api/runs/{name}/trace", _trace),
+        ("GET", "/api/runs/{name}/timeline", _timeline),
+        ("GET", "/api/runs/{name}/timeline/span/{id}", _span),
+        ("GET", "/api/runs/{name}/bundle", _bundle),
+        ("POST", "/api/runs/{name}/backup", _backup),
+        ("GET", "/api/usage", _usage),
+    ),
+    Route("POST", "/api/runs/import", _import, file=BUNDLE),
 )
 
 

@@ -61,6 +61,7 @@ from hmz.flows import (
     CapabilityNotGranted,
     DurationExceeded,
     EnvBackendKind,
+    FakeCli,
     FakeTool,
     FilesEnvMixin,
     GitEnvMixin,
@@ -277,6 +278,7 @@ class AgentView:
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
     _tools: ClassVar[tuple[FakeTool, ...]] = ()
+    _clis: ClassVar[tuple[FakeCli, ...]] = ()
 
     __slots__ = ("_driver", "_grant", "_line", "_node", "_role")
 
@@ -321,7 +323,7 @@ class AgentView:
 
     @property
     def grant(self) -> Grant:
-        """What this view lets the flow do: its capabilities, permission, skills and tools."""
+        """What this view lets the flow do: capabilities, permission, skills, tools, CLIs."""
         return self._grant
 
     @property
@@ -357,7 +359,9 @@ class AgentView:
                     f"{self._role}: {', '.join(sorted(wider))} is not among the skills "
                     "this agent was granted"
                 )
-        narrowed = Grant.of(grant.capabilities, permission, skills, grant.tools)
+        narrowed = Grant.of(
+            grant.capabilities, permission, skills, grant.tools, grant.clis
+        )
         cls = type(self)
         view = cls.__new__(cls)
         view._driver = self._driver
@@ -435,6 +439,9 @@ class AgentView:
         tools = self._offered()
         if tools:
             extra["tools"] = tools
+        clis = self._shelved()
+        if clis:
+            extra["clis"] = clis
         handle = await self._driver.open(
             placement,
             permission=self._grant.permission,
@@ -497,11 +504,18 @@ class AgentView:
         budget: Budget | None = None,
     ) -> str | pydantic.BaseModel:
         taken = self._own(session)
-        if env is not None and self._driver.harness is HarnessKind.LITELLM:
-            raise UnsupportedOperation(
-                f"{self._role}: litellm is a model called directly, with no tools and no "
-                "filesystem, so its turns work in no environment; run it with env=None"
-            )
+        if self._driver.harness is HarnessKind.LITELLM:
+            if env is not None:
+                raise UnsupportedOperation(
+                    f"{self._role}: litellm is a model called directly, with no tools and "
+                    "no filesystem, so its turns work in no environment; run it with "
+                    "env=None"
+                )
+            if self._grant.clis:
+                raise UnsupportedOperation(
+                    f"{self._role}: litellm is a model called directly, with no shell, so "
+                    "it cannot run the role's _clis"
+                )
         placement = self._placement(env)
         command = prompt.lstrip()
         if command.startswith("/"):
@@ -601,22 +615,37 @@ class AgentView:
 
     def _offered(self) -> tuple[FakeTool, ...]:
         """The flow's tools this agent's sessions offer, each made to run as its flow."""
+        return tuple(
+            dataclasses.replace(one, call=self._as_flow(one.call))
+            for one in self._grant.tools
+        )
+
+    def _shelved(self) -> tuple[FakeCli, ...]:
+        """The flow's command lines this agent's sessions shelve, each run as its flow."""
+        return tuple(
+            dataclasses.replace(
+                cli,
+                commands=tuple(
+                    dataclasses.replace(one, call=self._as_flow(one.call))
+                    for one in cli.commands
+                ),
+            )
+            for cli in self._grant.clis
+        )
+
+    def _as_flow(self, fn: Callable[..., object]) -> Callable[..., Awaitable[object]]:
+        """A function of the flow's, sync or async, as a coroutine function run as its flow."""
         node = self._node
 
-        def bound(tool: FakeTool) -> FakeTool:
-            fn = tool.call
+        async def call(*given: Any) -> object:
+            token = CALLING.set(node)
+            try:
+                said = fn(*given)
+                return await said if inspect.isawaitable(said) else said
+            finally:
+                CALLING.reset(token)
 
-            async def call(*given: Any) -> object:
-                token = CALLING.set(node)
-                try:
-                    said = fn(*given)
-                    return await said if inspect.isawaitable(said) else said
-                finally:
-                    CALLING.reset(token)
-
-            return dataclasses.replace(tool, call=call)
-
-        return tuple(bound(one) for one in self._grant.tools)
+        return call
 
     def _own(self, session: Session) -> SessionView:
         """The session, if it is one of this agent's; SessionError otherwise."""
@@ -1391,6 +1420,7 @@ class OutworlderView:
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
     _tools: ClassVar[tuple[FakeTool, ...]] = ()
+    _clis: ClassVar[tuple[FakeCli, ...]] = ()
 
     __slots__ = ("_asker", "_line", "_node", "_role", "_source")
 
