@@ -145,6 +145,15 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |
 | `#/settings/<page>[?days=]` | A dialog: `general`, `themes`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace` or `usage`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
 
+Every address above is of one daemon. `#/@<name>/<view>` -- `#/@local/new`, `#/@gpu/epics/<name>`
+-- is that view of the daemon named; an address naming none is Local's, as every address
+written before daemons were is. The page shows only the daemon its address names: every link
+it draws keeps the `@<name>` the address carries, and going to another daemon's address draws
+the view and the sidebar again, of that daemon, closing what the page streamed of the last.
+Everything the page asks of a daemon is under `/d/<name>/api/…`, Local's `/d/local/api/…`
+being the same as `/api/…`; what is the same whichever daemon the page is on --
+`/api/daemons…` and `/api/notifications…` -- is asked of Local, unscoped.
+
 The page keeps a few conveniences in the browser's `localStorage`, each forgotten without
 harm: the colours chosen as `hmz-theme` (`light`, `dark`, or absent for the system's), a sidebar
 folded away as `hmz-sidebar`, a side panel closed as `hmz-panel`, which epics are opened out

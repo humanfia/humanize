@@ -71,7 +71,11 @@ its menu opens **Import**, **Settings**, **Usage** and **Download**, which downl
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
-Every view is an address: copy it, keep it, or open it in another tab.
+Every view is an address: copy it, keep it, or open it in another tab. An address names the
+daemon it is of first, `#/@gpu/new`, and the page shows only that daemon's epics, workspaces
+and settings; every link keeps it, and going to another daemon's address draws everything again
+of that one. An address naming no daemon is Local's. See
+[The page](/reference/web#page).
 
 **Right-click** anything for what can be done to it: a folder in the sidebar (new epic here, its
 flows, search it, copy its path, settings), an epic (open, its log, resume, copy its link or task,

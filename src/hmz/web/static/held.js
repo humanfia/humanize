@@ -3,7 +3,7 @@
 // out -- the same the terminal interface draws. A workspace is followed only while a view of it
 // is open. What a view asks of a workspace's runs goes through `ask`.
 
-import { post } from './api.js'
+import { onDaemon, post, scoped } from './api.js'
 
 /** The most records kept per workspace, and about how many bytes of them, as the server keeps. */
 const KEPT = 20000
@@ -38,7 +38,7 @@ export function follow(workspace, told) {
       setTimeout(() => {
         if (one.listeners.size) return
         one.close()
-        followed.delete(workspace)
+        if (followed.get(workspace) === one) followed.delete(workspace)
       }, 5000)
     }
   }
@@ -77,7 +77,7 @@ function following(workspace) {
   function connect() {
     const query = new URLSearchParams({ workspace })
     if (lastId && state.epoch) query.set('last', lastId)
-    const mine = new EventSource(`/api/held/stream?${query}`)
+    const mine = new EventSource(scoped(`/api/held/stream?${query}`))
     one.source = mine
     // A stream let go of, or replaced, says nothing more to the page.
     const on = (name, handle) => mine.addEventListener(name, (event) => one.source === mine && handle(event))
@@ -144,6 +144,15 @@ function following(workspace) {
 
   return one
 }
+
+// Another daemon's workspaces are others: every stream of the last goes, and nobody is told it.
+onDaemon(() => {
+  for (const one of followed.values()) {
+    one.listeners.clear()
+    one.close()
+  }
+  followed.clear()
+})
 
 // A browser holds only so many connections to one server: a tab nobody looks at lets its
 // streams go after a while, and picks each up from the last record it heard once looked at.

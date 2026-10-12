@@ -2,7 +2,7 @@
 // chart is drawn in plain HTML with a table beside it, so no figure rests on a colour or on a
 // pointer hovering over it.
 
-import { address, poll } from '../../api.js'
+import { address, hash, poll } from '../../api.js'
 import { stays } from '../../app.js'
 import { badge, fill, flowName, h, problem } from '../../dom.js'
 import { workspaces } from '../../places.js'
@@ -121,7 +121,7 @@ export function draw(holder, query) {
                     h(
                       'tr',
                       {},
-                      h('td', {}, h('a', { href: `#/search?flow=${encodeURIComponent(one.flow)}`, title: one.flow }, flowName(one.flow))),
+                      h('td', {}, h('a', { href: hash(`/search?flow=${encodeURIComponent(one.flow)}`), title: one.flow }, flowName(one.flow))),
                       h('td', { class: 'num' }, one.runs),
                       h('td', { class: 'num' }, one.money),
                       h('td', {}, h('div', { class: 'share', title: share(one.cost, whole.cost) }, h('span', { style: { width: share(one.cost, whole.cost) } }))),

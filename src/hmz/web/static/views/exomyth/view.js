@@ -4,7 +4,7 @@
 // what it carried, or a stretch of time. An epic still going is read again every few seconds,
 // for as long as it is looked at.
 
-import { get, poll, refresh } from '../../api.js'
+import { get, hash, poll, refresh } from '../../api.js'
 import { stays } from '../../app.js'
 import { badge, copier, fill, h, headline, icon, iconButton, problem } from '../../dom.js'
 import { bar, sidePanel, tabbed } from '../../shell.js'
@@ -53,7 +53,7 @@ export function mount(root, name, query) {
   // ---------------------------------------------------------------- the bar and the tools
 
   function drawHead() {
-    const link = `#/epics/${encodeURIComponent(name)}`
+    const link = hash(`/epics/${encodeURIComponent(name)}`)
     const title = h('span', { class: 'crumbs' }, h('a', { href: link }, detail ? headline(detail.task) : name), h('span', { 'aria-hidden': 'true' }, ' / '), h('span', {}, 'Exomyth'))
     const sub = model
       ? [badge(model.live ? 'running' : (detail && detail.how) || 'done'), h('span', {}, `${counted(model.summary.processes)} processes`), h('span', {}, `${counted(model.summary.spans)} spans`), h('span', { class: 'mono' }, lasted(model.end))]

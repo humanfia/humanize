@@ -4,6 +4,7 @@
 // role to another, as many times as it did. While the run goes, the node working is lit, the
 // last handover is the red one, and a line on every lane says where now is.
 
+import { hash } from './api.js'
 import { flowName, h, iconButton, lasting, svg, when } from './dom.js'
 import { copy, menuOn } from './ui.js'
 
@@ -285,7 +286,7 @@ export function graph({ open }) {
   }
 
   function agentNode(agent, box, focused, epic, going) {
-    const base = `#/epics/${encodeURIComponent(epic)}`
+    const base = hash(`/epics/${encodeURIComponent(epic)}`)
     const head = h(
       'button',
       { class: 'node-head', type: 'button', 'aria-pressed': String(focused) },

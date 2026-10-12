@@ -3,7 +3,7 @@
 // its agents, and each agent into the sessions it opened. Under them, the machine, how many
 // epics are going on it, and a menu of the settings and what the epics spent.
 
-import { address, get, poll, post, refresh } from './api.js'
+import { address, daemon, get, hash, poll, post, refresh, scoped } from './api.js'
 import { ask } from './held.js'
 import { pick } from './importing.js'
 import { copy, menuOn, toast } from './ui.js'
@@ -48,9 +48,9 @@ export function mountSidebar(root, context, where) {
     (close) => [
       context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
       choice({ label: 'Import', glyph: 'file', act: pick, close }),
-      choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
-      choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
-      choice({ label: 'Download', glyph: 'download', href: '#/download', close }),
+      choice({ label: 'Settings', glyph: 'gear', href: hash('/settings/general'), close }),
+      choice({ label: 'Usage', glyph: 'chart', href: hash('/settings/usage'), close }),
+      choice({ label: 'Download', glyph: 'download', href: hash('/download'), close }),
     ],
     { up: true, label: 'Machine' },
   )
@@ -60,16 +60,16 @@ export function mountSidebar(root, context, where) {
       h(
         'div',
         { class: 'side-top' },
-        h('a', { class: 'brand', href: '#/new', 'aria-label': 'humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
+        h('a', { class: 'brand', href: hash('/new'), 'aria-label': 'humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
         iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
       ),
     ),
     h(
       'div',
       { class: 'side-nav' },
-      h('a', { href: '#/new', 'data-nav': 'new' }, icon('new'), h('span', {}, 'New epic'), h('kbd', {}, '⇧⌘O')),
-      h('a', { href: '#/search', 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search epics'), h('kbd', {}, '⌘K')),
-      h('a', { href: '#/flows', 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows'), updates),
+      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('new'), h('span', {}, 'New epic'), h('kbd', {}, '⇧⌘O')),
+      h('a', { href: hash('/search'), 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search epics'), h('kbd', {}, '⌘K')),
+      h('a', { href: hash('/flows'), 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows'), updates),
     ),
     h('div', { class: 'side-scroll' }, list, more),
     h('div', { class: 'side-foot' }, account),
@@ -149,20 +149,20 @@ export function mountSidebar(root, context, where) {
             { class: ['side-folder', chosen === group.path && 'current'] },
             toggle,
             h('span', { class: 'side-folder-name', title: group.path }, icon('folder'), h('span', { class: 'side-label' }, nameOf(group.path))),
-            iconButton('plus', `New epic in ${nameOf(group.path)}`, { class: 'side-add', onclick: () => (location.hash = `/new?workspace=${encodeURIComponent(group.path)}`) }),
+            iconButton('plus', `New epic in ${nameOf(group.path)}`, { class: 'side-add', onclick: () => (location.hash = hash(`/new?workspace=${encodeURIComponent(group.path)}`)) }),
           )
         const where = encodeURIComponent(group.path)
         menuOn(folder, () => [
           { head: group.path },
-          { label: 'New epic here', glyph: 'new', href: `#/new?workspace=${where}` },
-          { label: 'Flows here', glyph: 'flows', href: `#/flows?workspace=${where}` },
-          { label: 'Search here', glyph: 'search', href: `#/search?workspace=${where}` },
+          { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${where}`) },
+          { label: 'Flows here', glyph: 'flows', href: hash(`/flows?workspace=${where}`) },
+          { label: 'Search here', glyph: 'search', href: hash(`/search?workspace=${where}`) },
           '-',
           { label: 'Copy path', glyph: 'copy', act: () => copy(group.path, 'Path copied') },
           { label: open ? 'Collapse' : 'Expand', glyph: 'chevron', act: () => toggle.click() },
           '-',
-          { label: 'Settings', glyph: 'gear', href: `#/settings/workspace?workspace=${where}` },
-          { label: 'Usage', glyph: 'chart', href: `#/settings/usage?workspace=${where}` },
+          { label: 'Settings', glyph: 'gear', href: hash(`/settings/workspace?workspace=${where}`) },
+          { label: 'Usage', glyph: 'chart', href: hash(`/settings/usage?workspace=${where}`) },
           group.runs.length ? null : { label: 'Forget', danger: true, act: () => forget(group.path) },
         ])
         return h(
@@ -185,7 +185,7 @@ export function mountSidebar(root, context, where) {
 
   function item(run, here, parts) {
     const shown = (opened.has(run.name) || run.name === here) && !folded.has(run.name)
-    const link = `#/epics/${encodeURIComponent(run.name)}`
+    const link = hash(`/epics/${encodeURIComponent(run.name)}`)
     const toggle = h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': shown ? 'Collapse' : 'Expand' }, icon('chevron'))
     toggle.addEventListener('click', () => {
       if (shown) {
@@ -224,19 +224,21 @@ export function mountSidebar(root, context, where) {
     const stale = !read || read.how !== run.how || (run.held && Date.now() - read.at > 3000)
     if (stale && !(read && read.asking)) {
       details.set(run.name, { ...(read || {}), asking: true })
+      const of = daemon()
       get(`/api/runs/${encodeURIComponent(run.name)}`).then(
         (detail) => {
+          if (of !== daemon()) return
           details.set(run.name, { how: run.how, at: Date.now(), detail })
-          draw()
+          if (data) draw()
         },
-        () => details.set(run.name, { how: run.how, at: Date.now(), detail: null }),
+        () => of === daemon() && details.set(run.name, { how: run.how, at: Date.now(), detail: null }),
       )
     }
     const detail = read && read.detail
     const sessions = detail ? sessionsOf(detail) : []
     const agents = run.agents.map((one) => ({ role: one.role, runs: one.runs, sessions: sessions.filter((session) => session.role === one.role) }))
     if (!agents.length) return h('p', { class: 'side-quiet nested' }, 'No agents')
-    const base = `#/epics/${encodeURIComponent(run.name)}`
+    const base = hash(`/epics/${encodeURIComponent(run.name)}`)
     const logged = run.name === here && parts[2] === 'logs' && !parts[3]
     const mythed = run.name === here && parts[2] === 'exomyth'
     return h(
@@ -312,12 +314,25 @@ export function mountSidebar(root, context, where) {
   }
 
   watch()
-  window.addEventListener('hashchange', () => data && draw())
+  window.addEventListener('hashchange', () => {
+    // The links that stay go on to the daemon the address names, as it names it.
+    for (const link of root.querySelectorAll('.side-top .brand, .side-nav a')) link.setAttribute('href', hash(`/${link.dataset.nav || 'new'}`))
+    if (data) draw()
+  })
+  // Another daemon's epics and workspaces: nothing of the last one's is drawn until they are read.
+  window.addEventListener('hmz:daemon', () => {
+    data = null
+    places = null
+    limit = PAGE
+    details.clear()
+    fill(list, h('p', { class: 'side-quiet', role: 'status' }, 'Reading the epics…'))
+    watch()
+  })
 }
 
 /** What can be done to one epic, from wherever it is listed. */
 export function epicMenu(run) {
-  const base = `#/epics/${encodeURIComponent(run.name)}`
+  const base = hash(`/epics/${encodeURIComponent(run.name)}`)
   // Going, whether a host holds it or another process does -- `hmz exec`, say.
   const going = run.held || run.how === 'running'
   const resumes = run.resumable && !going && run.how !== 'done'
@@ -326,13 +341,13 @@ export function epicMenu(run) {
     { label: 'Open', glyph: 'open', href: base },
     { label: 'Open log', glyph: 'thread', href: `${base}/logs` },
     { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
-    resumes ? { label: 'Resume', glyph: 'resume', href: `#/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}` } : null,
-    { label: 'New epic like it', glyph: 'new', href: `#/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}` },
+    resumes ? { label: 'Resume', glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
+    { label: 'New epic like it', glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
     '-',
     { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
     { label: 'Copy task', glyph: 'copy', act: () => copy(run.task, 'Task copied') },
     { label: 'Copy name', glyph: 'copy', act: () => copy(run.name, 'Name copied') },
-    going ? null : { label: 'Export', glyph: 'download', act: () => (location.href = `/api/runs/${encodeURIComponent(run.name)}/bundle`) },
+    going ? null : { label: 'Export', glyph: 'download', act: () => (location.href = scoped(`/api/runs/${encodeURIComponent(run.name)}/bundle`)) },
     { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
     run.held ? '-' : null,
     run.held ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask(run.workspace, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,

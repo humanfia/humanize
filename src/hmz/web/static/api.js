@@ -1,6 +1,68 @@
 // How the page asks the server anything: one wrapper for reading and writing, which turns a
 // refusal into the sentence the server gave, and one store for what is read again and again,
-// shared by every view of it.
+// shared by every view of it. Everything is asked of the daemon the address names -- `#/@<name>/…`,
+// Local where it names none -- under `/d/<name>/api/…`, save what is the same for every daemon.
+
+/** What is asked of Local whichever daemon the page is on: the daemons, and the notifications. */
+const GLOBAL = /^\/api\/(daemons|notifications)(\/|\?|$)/
+
+/** The daemon the address names, or '' where it names none. */
+function named(address) {
+  const match = /^#?\/?@([^/?]*)/.exec(address)
+  try {
+    return match ? decodeURIComponent(match[1]) : ''
+  } catch {
+    return match[1]
+  }
+}
+
+let naming = named(location.hash)
+/** How many times the page has switched daemons: what was asked before the last is not told. */
+let era = 0
+const switched = new Set()
+
+/** The daemon the page is on. */
+export function daemon() {
+  return naming || 'local'
+}
+
+/** Where an address of the API is asked: of the daemon the page is on, unless it is global. */
+export function scoped(path) {
+  return path.startsWith('/api/') && !GLOBAL.test(path) ? `/d/${encodeURIComponent(daemon())}${path}` : path
+}
+
+/** The address of a view of the page, on the daemon the page is on, as the address names it. */
+export function hash(path) {
+  if (path.startsWith('#')) path = path.slice(1)
+  if (path.startsWith('/@')) return `#${path}`
+  return naming ? `#/@${encodeURIComponent(naming)}${path}` : `#${path}`
+}
+
+/** Switches the page to another daemon, on the view given, a new epic where none is. */
+export function toDaemon(name, path = '/new') {
+  location.hash = name === 'local' ? path : `/@${encodeURIComponent(name)}${path}`
+}
+
+/** Tells `fn` the daemon the page switched to, each time it does, until what it returns is called. */
+export function onDaemon(fn) {
+  switched.add(fn)
+  return () => switched.delete(fn)
+}
+
+// Ahead of the page's own routing, which is told by the event to draw everything again.
+window.addEventListener('hashchange', () => {
+  const was = daemon()
+  naming = named(location.hash)
+  if (daemon() === was) return
+  era += 1
+  // What was read of the last daemon is not this one's: read again, once whoever leaves has.
+  for (const read of reads.values()) Object.assign(read, { text: undefined, data: undefined, error: null, failures: 0, stale: true })
+  setTimeout(() => {
+    for (const read of reads.values()) if (read.stale) fetchNow(read)
+  })
+  for (const fn of [...switched]) fn(daemon())
+  window.dispatchEvent(new CustomEvent('hmz:daemon', { detail: { daemon: daemon() } }))
+})
 
 /** A refusal: the server's own sentence, the status it came with, and what else it said. */
 export class Refused extends Error {
@@ -13,13 +75,13 @@ export class Refused extends Error {
 
 /** Reads one answer, or throws the server's sentence. */
 export async function get(url) {
-  return answered(await fetch(url, { headers: { Accept: 'application/json' } }))
+  return answered(await fetch(scoped(url), { headers: { Accept: 'application/json' } }))
 }
 
 /** Writes, sending JSON, and reads the answer, or throws the server's sentence. */
 export async function post(url, body = {}) {
   return answered(
-    await fetch(url, {
+    await fetch(scoped(url), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(body),
@@ -30,7 +92,7 @@ export async function post(url, body = {}) {
 /** Sends a file as it is, under its name, and reads the answer, or throws the server's sentence. */
 export async function send(url, file, kind) {
   return answered(
-    await fetch(url, {
+    await fetch(scoped(url), {
       method: 'POST',
       headers: { 'Content-Type': kind, 'X-Hmz-Filename': encodeURIComponent(file.name), Accept: 'application/json' },
       body: file,
@@ -97,12 +159,15 @@ export function refresh(url) {
 
 async function fetchNow(read) {
   clearTimeout(read.timer)
+  read.stale = false
   // A page nobody looks at reads nothing again until looked at -- but what it has never read
   // it reads, so a page opened in a tab behind is drawn once it is looked at.
   if (document.hidden && read.text !== undefined) return
+  const mine = era
   try {
-    const response = await fetch(read.url, { headers: { Accept: 'application/json' } })
+    const response = await fetch(scoped(read.url), { headers: { Accept: 'application/json' } })
     const text = await response.text()
+    if (mine !== era) return
     if (response.status === 401) window.dispatchEvent(new CustomEvent('hmz:out'))
     if (!response.ok) {
       let said = null
@@ -122,6 +187,7 @@ async function fetchNow(read) {
       for (const watcher of read.watchers) watcher.told(read.data, null)
     }
   } catch (error) {
+    if (mine !== era) return
     read.failures += 1
     read.error = error
     for (const watcher of read.watchers) watcher.told(read.data, error)

@@ -305,6 +305,9 @@ class _Handler(BaseHTTPRequestHandler):
             raise Refusal(
                 "Open the address hmz web printed, on the machine it runs on.", 403
             )
+        # This machine's own daemon, named as a page names every daemon it asks.
+        if path.startswith("/d/local/api/"):
+            path = path.removeprefix("/d/local")
         if path.startswith("/api/"):
             self._api(method, path, query)
         elif path.startswith("/d/"):
