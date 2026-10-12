@@ -269,7 +269,8 @@ epic = Hmz().epics.imported("~/Downloads/20260930T054014.242Z-bdae4a.hmzepic")
 
 It lands under the directory the run was started in, as it was there, so `/epics` lists it
 once you start `hmz` in that directory. A file not ending `.hmzepic`, one holding anything but
-the one run, and a run you already have are refused.
+the one run, and a run you already have are refused. An epic [backed up](/user/backups) to a git
+repository is downloaded the same way, with `hmz backup --pull`.
 
 Credentials stay `[redacted]`: what was struck out on the way out is not coming back.
 

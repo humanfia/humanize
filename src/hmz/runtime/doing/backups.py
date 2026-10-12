@@ -3,7 +3,8 @@
 Which repositories there are is settings' to keep (:meth:`hmz.runtime.settings.Settings.backups`);
 backing an epic up, and how each backup went, is :mod:`hmz.runtime.backing`. An epic is backed
 up as its targets' policies say without anybody asking; this is the rest -- backing one up by
-hand, out of the epics menu or `hmz backup`, and reading back how it went.
+hand, out of the epics menu or `hmz backup`, reading back how it went, and downloading an epic a
+target holds -- this machine's or another's -- into this machine's epics, as an import would.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from hmz.runtime.backing import Stored
     from hmz.runtime.epic import Ran
     from hmz.runtime.settings import Target
 
@@ -95,3 +97,45 @@ class Backups:
         from hmz.runtime.backing import wait
 
         return wait(seconds)
+
+    def listed(self, name: str) -> list[Stored]:
+        """Every epic one target holds, of every machine and workspace, fetched afresh.
+
+        Blocks for the fetch, which a timeout bounds: a caller with a screen to keep drawing
+        asks it off that screen's thread.
+
+        Args:
+          name: The target, by name.
+
+        Returns:
+          One per epic, oldest first.
+
+        Raises:
+          ValueError: For a name no target in settings has.
+          OSError: What git said, where it would not, or took too long.
+        """
+        from hmz.runtime.backing import listed
+
+        return listed(name)
+
+    def pulled(self, name: str, key: str) -> Path:
+        """Downloads one epic a target holds into this machine's epics, as an import would.
+
+        Under the workspace it says it ran in, saying where it came from; whether it can be
+        picked up here is :meth:`hmz.runtime.doing.epics.Epics.foreign`'s to say.
+
+        Args:
+          name: The target, by name.
+          key: Where the epic is in its repository, as :meth:`listed` gave it.
+
+        Returns:
+          Where the epic now is.
+
+        Raises:
+          ValueError: For a name no target has, a key naming no epic it holds, an epic not
+            laid out as one, and one already here.
+          OSError: What git said, where it would not, or took too long.
+        """
+        from hmz.runtime.backing import pulled
+
+        return pulled(name, key)

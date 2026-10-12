@@ -793,7 +793,7 @@ top, `esc` leaves, and params are not asked.
 | `params` (flows that take any) | the params changed from their defaults, or `defaults`, then `▸` | [params sheet](#setting-a-flow-up) |
 | `budget` | `set ▸` or `none ▸`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
 | <span id="profiling-row"></span>`profiling` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the programs agents start` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started is [profiled](/reference/tracing#profiling-a-run) where it is on |
-| <span id="backup-row"></span>`backup` (straight under `profiling`) | the targets an epic goes to, `<a>, <b> ▸`, or `none ▸`; under it `where each epic is backed up`, with ` (the defaults)` until others are chosen | **Backup**: a switch per [target](#backup-page), named, its URL under it; **Done** `backs each epic up to the targets switched on`. With no target, nothing opens: `no backup targets: add one on /settings backup`. Held while `hmz` is open, for every flow, not remembered; a run started passes those settings still has as `backup`. |
+| <span id="backup-row"></span>`backup` (straight under `profiling`) | the targets an epic goes to, `<a>, <b> ▸`, or `none ▸`; under it `where each epic is backed up`, with ` (the defaults)` until others are chosen | **Backup**: a switch per [target](#backup-page), named, its URL under it; **Done** `backs each epic up to the targets switched on`. With no target, nothing opens: `no backup targets: add one on /settings backup`. Remembered per flow on save as `workspaces.<dir>.flows.<flow>.backup` (untouched, nothing is written, so the defaults go on applying); a run started passes those settings still has as `backup`. |
 
 Buttons: **Update**, **Uninstall** and **Copy here**, as on [Installed](#flow-list) for this
 flow (not when the page is opened on it alone); then **Save** (`run this flow, set up as it is
@@ -1929,7 +1929,7 @@ and when the width changes. The status line says `· copied` for 2 s.
 | `btw` | machine | /btw agent |
 | `backup` | machine | the Backup page |
 | `workspaces.<dir>.flow` | directory | saving `/flow` |
-| `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, profile}` | directory, per flow | saving `/flow` |
+| `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, profile, backup}` | directory, per flow | saving `/flow` |
 
 `<flow>` is the name the flow is offered under (`chat`, `<user>/<f>`, `@local/<f>`,
 `@user/<f>`, `@<flowverse>/<f>`), so two flows with one bare name never share a setup. Roles are keyed by

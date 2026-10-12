@@ -33,6 +33,7 @@ from hmz.runtime.exporting import (
     REDACTED,
     TRANSCRIPT,
     bundle,
+    placed,
     plain,
     sized,
     unbundle,
@@ -510,3 +511,41 @@ def test_what_is_not_a_bundle_is_refused(tmp_path: Path) -> None:
         unbundle(tmp_path / "gone.hmzepic")
     with pytest.raises(ValueError, match=r"not a \.hmzepic"):
         unbundle(tmp_path / "x.epic.tar.gz")
+
+
+def test_an_epic_laid_out_as_files_reads_back_in_as_a_bundle_does(
+    world: World, ran: Path, tmp_path: Path
+) -> None:
+    before = read(ran)
+    assert before is not None
+    unpacked(ran, tmp_path / "held" / ran.name)
+    shutil.rmtree(ran)
+
+    back = placed(tmp_path / "held" / ran.name, "there")
+
+    assert back == ran
+    assert read(back) == before._replace(task=f"fix it with {REDACTED}")
+    last = json.loads((back / "epic.jsonl").read_text().splitlines()[-1])
+    assert (last["event"], last["from"], last["head"]) == (
+        "imported",
+        "there",
+        "abc123",
+    )
+    assert (tmp_path / "held" / ran.name / MANIFEST).is_file()
+    with pytest.raises(ValueError, match="already here"):
+        placed(tmp_path / "held" / ran.name, "there")
+
+
+def test_an_epic_laid_out_with_a_link_in_it_is_refused(tmp_path: Path) -> None:
+    held = tmp_path / "e"
+    held.mkdir()
+    (held / "epic.jsonl").write_bytes(_BEGAN)
+    (held / MANIFEST).write_text("{}")
+    (held / "x").symlink_to("/etc/passwd")
+
+    with pytest.raises(ValueError, match="not a file"):
+        placed(held, "there")
+    (held / "x").unlink()
+    (held / MANIFEST).unlink()
+    with pytest.raises(ValueError, match=r"no manifest\.json"):
+        placed(held, "there")

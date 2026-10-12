@@ -306,7 +306,8 @@ class Flows(Drafts[Chosen]):
           envs: Where each of its environment roles is, by role.
           budget: What a run of it may spend here, or None for none yet.
           profile: Whether a run of it here is profiled as well as traced.
-          backup: The backup targets an epic goes to, by name, or None for the defaults.
+          backup: The backup targets an epic of it here goes to, by name, or None for the
+            defaults.
           unavailable: The optional backends among them that still need installing.
           running: Whether a flow is running, which is what takes the other pages away.
           inside: Whether to open on what the flow runs on rather than on a list, for a menu
@@ -343,6 +344,7 @@ class Flows(Drafts[Chosen]):
             self._params = params_of(flow, self._held(flow).get("params") or {})
             self._budget = budget_of(flow)
             self._profile = _hmz().settings.profile(flow)
+            self._backup = _hmz().settings.backup(flow)
         #: What the menu opened holding, which it goes back to where the flow it is holding
         #: instead is uninstalled from under it: a draft of a flow that is gone is nothing
         #: to save.
@@ -354,6 +356,7 @@ class Flows(Drafts[Chosen]):
             self._params,
             self._budget,
             self._profile,
+            self._backup,
         )
         #: Whether what the flow runs on is the whole of this menu, there being no list
         #: behind it to step back to: while a flow runs, and for a flow that was named.
@@ -1077,6 +1080,7 @@ class Flows(Drafts[Chosen]):
             self._params = params_of(name, self._held(name).get("params") or {})
             self._budget = budget_of(name)
             self._profile = _hmz().settings.profile(name)
+            self._backup = _hmz().settings.backup(name)
             self._cursors.pop(ROLES, None)
             self.changed()
         # On to what the flow itself takes, where it takes anything, and then to its roles:
@@ -1653,10 +1657,10 @@ class Flows(Drafts[Chosen]):
             return
         if called == self._flow.partition(":")[0]:
             # The flow the menu was holding is gone, and with it the draft of it.
-            flow, declared, runs, envs, params, budget, profile = self._opened
+            flow, declared, runs, envs, params, budget, profile, backup = self._opened
             self._flow, self._declared, self._runs = flow, declared, dict(runs)
             self._envs, self._params, self._budget = dict(envs), params, budget
-            self._profile = profile
+            self._profile, self._backup = profile, backup
             self._changed = False
         if self._page == ROLES:
             # And its page: back to what there is to run, saying so.

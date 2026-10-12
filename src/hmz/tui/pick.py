@@ -6077,9 +6077,8 @@ class Targets(Form[tuple[str, ...]]):
         """Says what this is for."""
         self.query_one("#asked", Label).update("Backup")
         self.query_one("#about", Label).update(
-            "Where each epic started here is backed up, whichever its flow, as each "
-            "target's policies say, until hmz is closed. Targets are added on "
-            "/settings backup."
+            "Where each epic of this flow here is backed up, as each target's policies "
+            "say, remembered with its budget. Targets are added on /settings backup."
         )
         self._fill()
 

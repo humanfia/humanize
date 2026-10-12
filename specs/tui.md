@@ -96,8 +96,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   declares, leaving out the ones the runtime fills -- an `Outworlder`, a `LocalEnv` -- then its
   params, asked with the flow's own params model as it is chosen and from a row of their own,
   what a run may spend, whether it is profiled, and the backup targets an epic goes to -- the
-  defaults until others are switched on there, and held for as long as the interface is open,
-  "none" where there are no targets. A saved menu MUST take
+  defaults until others are switched on there and saved, then remembered with the budget per
+  flow, "none" where there are no targets. A saved menu MUST take
   effect from the next run, and MUST refuse to save a flow whose agent role names no model, or --
   for every flow but `chat` -- one that has no budget.
 - MUST let what a run may spend -- a duration, a cost, output tokens, and whether a turn is let

@@ -1058,9 +1058,9 @@ class Humanize(App[None]):
         #: tracing them. Beside the budget, and remembered with it: like what a run may
         #: spend, it is a thing about a run of this flow rather than one of its params.
         self._profile = self.settings.profile(self._flow_named)
-        #: The backup targets an epic started here goes to, by name, or None for the defaults
-        #: as it starts: chosen on `/flow`, and held for as long as the interface is open.
-        self._backup: tuple[str, ...] | None = None
+        #: The backup targets an epic of it here goes to, by name, or None for the defaults
+        #: as it starts: chosen on `/flow`, and remembered with the budget per flow.
+        self._backup = self.settings.backup(self._flow_named)
         #: Where each role's harness went in the run going, by role: what the runtime it works
         #: on came to, which only the machine could say.
         self._harnessed: dict[str, str] = {}
@@ -3236,7 +3236,7 @@ class Humanize(App[None]):
                 envs=self._envs if holding else None,
                 budget=self._budget if holding else None,
                 profile=self._profile if holding else False,
-                backup=self._backup,
+                backup=self._backup if holding else None,
                 unavailable=frozenset(unavailable),
                 running=running,
                 # A flow that was named has been chosen, so what is left to answer is what
@@ -3332,7 +3332,7 @@ class Humanize(App[None]):
                 envs,
                 budget=budget_of(flow),
                 profile=self.settings.profile(flow),
-                backup=self._backup,
+                backup=self.settings.backup(flow),
             )
         if set(agents) != set(declared.roles):
             return None
@@ -3355,7 +3355,7 @@ class Humanize(App[None]):
             params,
             budget,
             self.settings.profile(flow),
-            self._backup,
+            self.settings.backup(flow),
         )
 
     def _took_flow(self, chosen: Chosen, *, running: bool, starting: str = "") -> None:
@@ -3414,6 +3414,8 @@ class Humanize(App[None]):
             if chosen.budget is not None
             else {},
             profile=chosen.profile,
+            # None is the defaults, left for whatever they are when an epic starts.
+            backup=chosen.backup,
         )
         if running:
             self._reconfigured()
@@ -3812,6 +3814,7 @@ class Humanize(App[None]):
             self._budget = None
         # Profiled as the run it goes on from was, so its trace is one trace of one kind.
         self._profile = ran.profile
+        self._backup = self.settings.backup(ran.flow)
         self.show(
             f"[dim]resuming {escape(ran.name)}: running {escape(ran.flow)} "
             "from saved state[/dim]"

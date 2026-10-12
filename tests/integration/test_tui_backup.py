@@ -150,6 +150,31 @@ async def test_flow_offers_the_defaults_and_starts_the_epic_on_the_targets_chose
     assert ran.backup == ("lab", "spare")
     assert _log(lab) == [f"Back up epic {epic.name} (end)"]
     assert _log(spare) == [f"Back up epic {epic.name} (end)"]
+    # Remembered for the flow here, and opened on next time.
+    assert Hmz().settings.backup("chat") == ("lab", "spare")
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/flow")
+        await on(pilot, Flows)
+        await opens(pilot, "chat")
+        await shows(pilot, "lab, spare")
+
+
+async def test_a_flow_saved_without_choosing_backup_follows_the_defaults(
+    workspace: Path, tmp_path: Path
+) -> None:
+    _targets({"name": "lab", "url": str(_bare(tmp_path, "lab"))}, defaults=("lab",))
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/flow")
+        await on(pilot, Flows)
+        await opens(pilot, "chat")
+        await picks(pilot, "\x1eprofile", "on")
+        await leaves(pilot)
+        await shows(pilot, "◉ chat")
+
+    assert Hmz().settings.profile("chat")
+    assert Hmz().settings.backup("chat") is None
 
 
 async def test_an_epic_uploaded_from_epics_lands_in_its_target(

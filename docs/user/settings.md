@@ -1135,7 +1135,8 @@ what you change until it is saved, and writes `backup` in `~/.hmz/settings.yaml`
 ([Settings reference](/reference/settings#backup)).
 
 Choose the targets of one flow's epics on `/flow`, on its **backup** row: the defaults until
-you switch others on there, for as long as `hmz` is open. Back an epic up by hand from
+you switch others on there and save, then what you chose, remembered for that flow in this
+directory. Back an epic up by hand from
 `/epics`: <kbd>enter</kbd> on it, then **upload**, which goes to the targets it was started
 with, else the defaults, and says how its last backup to each went. Neither holds anything up;
 `hmz` waits up to 15 seconds for the backups it started once you close it.
