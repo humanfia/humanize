@@ -21,6 +21,7 @@ import errno
 import hashlib
 import ipaddress
 import json
+import os
 import secrets
 import shutil
 import socket
@@ -445,19 +446,24 @@ class _Handler(BaseHTTPRequestHandler):
 
         The name is said, percent-encoded, in `X-Hmz-Filename`.
         """
-        name = Path(urllib.parse.unquote(self.headers.get(_FILENAME, ""))).name
-        if name in ("", ".", "..") or "\0" in name or len(name.encode()) > _NAMED:
+        name = urllib.parse.unquote(self.headers.get(_FILENAME, ""))
+        # Its last part, and nothing that would put it anywhere but straight in `scratch`.
+        at = os.path.normpath(os.path.join(scratch, os.path.basename(name)))  # noqa: PTH118, PTH119
+        if (
+            os.path.dirname(at) != str(scratch)  # noqa: PTH120
+            or "\0" in at
+            or len(os.path.basename(at).encode()) > _NAMED  # noqa: PTH119
+        ):
             raise Refusal(f"Say the file's name in {_FILENAME}.", 400)
         left = self._length(_LARGEST_FILE)
-        at = scratch / name
-        with at.open("wb") as written:
+        with open(at, "wb") as written:  # noqa: PTH123
             while left:
                 read = self.rfile.read(min(left, _CHUNK))
                 if not read:
                     raise Refusal("The file sent was cut short.", 400)
                 written.write(read)
                 left -= len(read)
-        return at
+        return Path(at)
 
     def _json(self, answer: Any, status: int = 200) -> None:
         body = json.dumps(
