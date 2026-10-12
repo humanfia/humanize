@@ -817,7 +817,7 @@ def test_the_ways_through_the_gateway_are_one_group_or_the_line_that_adds_them(
     assert claude is not None
     monkeypatch.setattr(gateway, "gatewayable", lambda: gatewayable)
     with served() as site, opened(site, engine=engine) as page:
-        _go(page, "/settings/accounts")
+        go(page, "/settings/accounts")
         page.locator("#account-cli").select_option("claude")
         group = page.locator("#account-way optgroup[label=LiteLLM]")
         wants = page.locator("[data-hmz=gateway-wants]")
