@@ -647,6 +647,7 @@ its own arguments. Loads `coganchor` and nothing else of humanize. Semantics:
 | `--hush NAME` | — | With `--native`, unset this variable for the CLI on the target. Repeatable. |
 | `--project NAME=DIR` | — | With `--native`, put this credentials directory on the target for the session and set `NAME` to it. Repeatable. |
 | `--carry DIR=PATH` | — | With `--native`, put this directory into the target's workspace at `PATH` for the turn. Repeatable. |
+| `--bring NAME/PATH=DIR` | — | With `--native`, copy what the turn wrote at `PATH` (may be a glob) inside the directory `--project` set `NAME` to back into `DIR`, at the same place, before that directory is removed. Repeatable. |
 | `--installs LINE` | — | With `--native`, the install line to report where the target lacks the CLI. |
 | `--fence JSON` | — | Hold the agent to this [fence](/reference/agents#the-fence) on both machines. |
 | `--check` | off | Connect, print what was found, exit. |

@@ -7,7 +7,9 @@ its home where that machine's own home says.
 
 from __future__ import annotations
 
+import subprocess
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
@@ -21,7 +23,6 @@ from tests.integration.doubles_core import MODEL, install
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
     import pytest
 
@@ -104,3 +105,41 @@ def test_what_a_cli_elsewhere_logs_is_copied_from_its_own_home_in_whole_lines(
     tail.forget("s1")
     assert (copied / "projects" / "-w" / "s1.jsonl").read_bytes() == logged.read_bytes()
     assert not list(copied.glob("projects/*/s2.jsonl"))
+
+
+#: A turn keeping a session under its home, which a provider moved into its private directory.
+_KEEPS_UNDER_ITS_HOME = (
+    'mkdir -p "$CLAUDE_CONFIG_DIR/projects/-w" && '
+    'echo kept > "$CLAUDE_CONFIG_DIR/projects/-w/s1.jsonl" && echo "$CLAUDE_CONFIG_DIR"'
+)
+
+
+def test_a_session_under_a_projected_home_is_brought_back_before_the_home_goes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fakes(tmp_path, monkeypatch)
+    project = tmp_path / "project"
+    project.mkdir()
+    creds = tmp_path / "creds"
+    creds.mkdir()
+    (creds / ".credentials.json").write_text("a token\n")
+    copied = tmp_path / "epic" / "sessions" / "claude"
+    settings = AnchorConfig(
+        target=f"ssh://box-{tmp_path.name}",
+        workspace=str(project),
+        native=True,
+        projects=(("CLAUDE_CONFIG_DIR", str(creds)),),
+        brings=(("CLAUDE_CONFIG_DIR/projects", str(copied)),),
+    )
+
+    done = subprocess.run(
+        settings.command(["/bin/sh", "-c", _KEEPS_UNDER_ITS_HOME]),
+        capture_output=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert done.returncode == 0, done.stderr
+    assert (copied / "projects" / "-w" / "s1.jsonl").read_text() == "kept\n"
+    assert not (copied / ".credentials.json").exists()
+    assert not Path(done.stdout.decode().strip()).exists()

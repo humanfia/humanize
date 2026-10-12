@@ -478,7 +478,12 @@ session:
 
 The CLI's home over there is the one the turn had: the value of its home variable on this
 machine where that crosses to a native turn, else that machine's own, else its default under
-that machine's `$HOME`. A failed copy is logged once at `WARNING` and retried; it never fails
+that machine's `$HOME`. A native turn whose provider projects the CLI's home (e.g.
+`CLAUDE_CONFIG_DIR` for a Claude subscription) keeps its sessions in the turn's private
+directory, which nothing here can follow while it runs and which is removed as the turn ends:
+just before that, the turn brings each of the CLI's session paths (`Profile.sessions`, never
+its credentials) back into the epic as one `tar` (`AnchorConfig.brings`, `--bring`), spending
+at most 30 s on it. Such a session has no copy until its turn ends. A failed copy is logged once at `WARNING` and retried; it never fails
 or slows a turn. `agent.kept()`, the epic's `opened` line, logs, traces, export and the
 running tally all read the copy. `HUMANIZE_SESSIONS=off` copies nothing.
 

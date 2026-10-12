@@ -765,7 +765,10 @@ class BackendAgent(AgentBase):
   to MUST be copied into `keeps` from the moment the backend names it: a log of lines a whole line
   at a time every few seconds, and every log whole as the session closes or is let go of, on a
   thread of its own that never holds up a turn, its streams or a stop, and says a failed copy once
-  without raising. A session MUST stay where the CLI keeps it, with nothing copied, only for an
+  without raising; a native turn whose provider projects the CLI's home, which is the turn's
+  private directory and nothing here can follow, MUST instead bring every session path of it
+  back into `keeps` as the turn ends, before that home is removed. A session MUST stay
+  where the CLI keeps it, with nothing copied, only for an
   agent no run drives, whose `keeps` is None and for which humanize MUST keep nothing of its own,
   a machine that cannot supervise one or that no command is started on, and a process told
   `KEEPING=off`; and `kept` MUST answer where it is or its copy is, laid out as the CLI's home is,

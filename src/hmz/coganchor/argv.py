@@ -169,6 +169,14 @@ def parser() -> ArgumentParser:
         "turn and set NAME to its path there",
     )
     built.add_argument(
+        "--bring",
+        metavar="NAME/PATH=DIR",
+        action="append",
+        default=[],
+        help="with --native, copy what is at PATH inside the directory --project put "
+        "NAME at back into DIR before that directory is removed",
+    )
+    built.add_argument(
         "--carry",
         metavar="DIR=PATH",
         action="append",
@@ -247,6 +255,7 @@ def settings(args: Namespace) -> AnchorConfig:
         hushes=tuple(args.hush),
         projects=tuple(_pair(said) for said in args.project),
         carries=tuple(_pair(said) for said in args.carry),
+        brings=tuple(_pair(said) for said in args.bring),
         installs=args.installs,
         fence=Fence.loads(args.fence) if args.fence else None,
     )
@@ -315,6 +324,7 @@ def options(config: AnchorConfig) -> list[str]:
         ("--redirect", config.redirects),
         ("--project", config.projects),
         ("--carry", config.carries),
+        ("--bring", config.brings),
     ):
         written += [f"{flag}={one}={other}" for one, other in pairs]
     written += [f"--private={name}" for name in config.private]
