@@ -16,9 +16,8 @@ import { dragged } from '../shell.js'
 /** Every page, by the word in the address that opens it, in its group. */
 const PAGES = {
   themes: { group: 'app', label: 'Themes', about: 'Colours and pictures of this browser’s page', load: () => import('./settings/themes.js') },
-  // Each only where its module is there to load.
-  daemons: { group: 'app', optional: true, label: 'Daemons', about: 'Machines this page reaches', load: () => import('./settings/daemons.js') },
-  notifications: { group: 'app', optional: true, label: 'Notifications', about: 'What every daemon tells you', load: () => import('./settings/notifications.js') },
+  daemons: { group: 'app', label: 'Daemons', about: 'Machines this page reaches', load: () => import('./settings/daemons.js') },
+  notifications: { group: 'app', label: 'Notifications', about: 'What every daemon tells you', load: () => import('./settings/notifications.js') },
   general: { group: 'daemon', label: 'General', about: 'Display, side questions and reporting', load: () => import('./settings/general.js') },
   accounts: { group: 'daemon', label: 'Accounts', about: 'Credentials agents run as', load: () => import('./settings/accounts.js') },
   fallback: { group: 'daemon', label: 'Fallback', about: 'Where a failed turn goes next', load: () => import('./settings/fallback.js') },
@@ -75,7 +74,7 @@ export function mount(root, { parts, query }) {
       h('h4', { class: 'settings-group' }, label),
       Object.entries(PAGES)
         .filter(([, one]) => one.group === group)
-        .map(([key, one]) => (links[key] = h('a', { href: href(key), 'aria-current': key === name ? 'page' : null, hidden: Boolean(one.optional) && key !== name }, one.label))),
+        .map(([key, one]) => (links[key] = h('a', { href: href(key), 'aria-current': key === name ? 'page' : null }, one.label))),
     ]),
   )
   const picker = h('select', { 'aria-label': 'Daemon', 'data-hmz': 'settings-daemon' }, h('option', { value: chosen }, called({ name: chosen })))
@@ -94,11 +93,6 @@ export function mount(root, { parts, query }) {
       body,
     ),
   )
-
-  // Each optional page offered once it is known to load.
-  for (const [key, one] of Object.entries(PAGES)) {
-    if (one.optional && key !== name) one.load().then(() => (links[key].hidden = false), () => {})
-  }
 
   let known = [{ name: 'local' }]
   let leaving = null

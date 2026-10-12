@@ -3948,5 +3948,64 @@ input[aria-invalid='true'] {
 
   .settings-daemon {
     padding: 8px 12px;
+/* settings: daemons, notifications */
+.daemon-state .glyph {
+  margin-right: 6px;
+}
+
+.daemon-up .glyph {
+  color: var(--done);
+}
+
+.daemon-failed .glyph {
+  color: var(--fail);
+}
+
+.daemon-connecting .glyph,
+.daemon-installing .glyph {
+  color: var(--ink-3);
+}
+
+.daemon-detail {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.notification-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.daemons-table td:last-child .row {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+/* A phone's width: each daemon a block of its own, its buttons under it. */
+@media (max-width: 860px) {
+  .daemons-table thead {
+    display: none;
+  }
+
+  .daemons-table,
+  .daemons-table tbody,
+  .daemons-table tr,
+  .daemons-table td {
+    display: block;
+  }
+
+  .daemons-table tr {
+    padding: 8px 0;
+  }
+
+  .daemons-table td {
+    border: 0;
+    padding: 2px 0;
+  }
+
+  .daemons-table td:last-child .row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }

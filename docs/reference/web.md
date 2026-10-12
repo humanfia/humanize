@@ -143,7 +143,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/flows?tab=verses[&verse=]` | The flowverses, one opened. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
 | `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |
-| `#/settings/<page>[?days=]` | A dialog: `general`, `themes`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace` or `usage`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
+| `#/settings/<page>[?days=]` | A dialog: `general`, `themes`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, `usage`, `daemons` or `notifications`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
 
 Every address above is of one daemon. `#/@<name>/<view>` -- `#/@local/new`, `#/@gpu/epics/<name>`
 -- is that view of the daemon named; an address naming none is Local's, as every address
