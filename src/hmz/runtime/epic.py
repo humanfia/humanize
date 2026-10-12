@@ -164,9 +164,23 @@ def _now() -> str:
     )
 
 
+_stamped = datetime.datetime.min.replace(tzinfo=datetime.UTC)
+_stamping = threading.Lock()
+
+
 def _stamp() -> str:
-    """This moment, as a name that sorts the way the moments do: to the millisecond."""
-    return datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S.%f")[:-3] + "Z"
+    """This moment, as a name that sorts the way the moments do: to the millisecond.
+
+    Never the same twice in one process, nor earlier than the last: two epics begun in one
+    millisecond are named a millisecond apart, so that they sort in the order they began.
+    """
+    global _stamped  # noqa: PLW0603 -- the last stamp this process gave, under the lock
+    with _stamping:
+        _stamped = max(
+            datetime.datetime.now(datetime.UTC),
+            _stamped + datetime.timedelta(milliseconds=1),
+        )
+        return _stamped.strftime("%Y%m%dT%H%M%S.%f")[:-3] + "Z"
 
 
 class Session(NamedTuple):
@@ -705,11 +719,11 @@ class Epic:
             home()
             / "epics"
             / _PLAIN.sub("-", str((workspace or Path.cwd()).resolve()))
-            # The moment names it and six hex say which, since two flows may be started in
-            # one millisecond and neither is the other's run. To the millisecond rather than
-            # to the second because these are read back in the order they sort in: which run
-            # a flow is picked up from is the last of them, and two started inside one second
-            # would otherwise be ordered by the hex, which is to say at random.
+            # The moment names it and six hex say which, since two processes may start flows
+            # in one millisecond and neither is the other's run. To the millisecond, and never
+            # the same one twice in a process, because these are read back in the order they
+            # sort in: which run a flow is picked up from is the last of them, and two named
+            # alike would otherwise be ordered by the hex, which is to say at random.
             / f"{_stamp()}-{uuid.uuid4().hex[:6]}",
             JOURNAL,
             (workspace or Path.cwd()).resolve(),

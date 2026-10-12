@@ -160,6 +160,12 @@ _KEY_REQUIRED = (
     "the agent's account row; or set DEEPSEEK_API_KEY "
     "before starting hmz."
 )
+_UNRESUMABLE = (
+    "DeepSeek Harness cannot carry {} on in a new runtime: its SDK starts a conversation and "
+    "never resumes one, so a session that has taken a turn keeps the runtime it took it in. "
+    "That runtime is gone or was started for another effort, account, composition or set of "
+    "offered tools; start a new session instead."
+)
 _GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
 
 #: Which of a message's streamed pieces are the agent talking, and which of the two it is.
@@ -315,12 +321,20 @@ class DshSession(SessionBase):
     #: The SDK's runtime holds the turn, and nothing reaches into it to stop one.
     cuts_transport: ClassVar[bool] = True
 
+    #: The runtime ships `@deepseek-ai/dsh-mcp-client`, which one row of the patch mounts as
+    #: a stdio server more (:func:`_composed`), so a flow's own callbacks reach a turn without
+    #: a line written into the dsh home's own settings.
+    takes_tools: ClassVar[bool] = True
+
     def __init__(
         self, agent: DshAgent, cwd: str | os.PathLike[str] | None = None
     ) -> None:
         super().__init__(agent, cwd)
         self._harness: _Harness | None = None
         self._runtime_effort: str | None = None
+        #: The names of the callbacks the live runtime was offered. Its MCP client lists them
+        #: once, as the runtime boots, so a flow offering others is a runtime started again.
+        self._runtime_offered: tuple[str, ...] = ()
         self._attempt_id: str | None = None
         self._reaper: weakref.finalize[..., Any] | None = None
         #: The composition the live runtime was started from, so that an agent reconfigured
@@ -557,24 +571,43 @@ class DshSession(SessionBase):
         """Returns a runtime initialized for this session's current effort and composition."""
         effort = self.effort
         way = _route(self._agent.provider)
-        composition = _composed(cast("DshAgentConfig", self._agent.config), way)
+        toolbox = self._agent.toolbox
+        offered = toolbox.names()
+        composition = _composed(
+            cast("DshAgentConfig", self._agent.config),
+            way,
+            toolbox.command() if offered else None,
+        )
         # The account and the composition as well as the effort. A runtime is started with
         # one account's environment and its credential paths, and with one composition read
         # once at boot, and none of the three changes under one already up -- so an agent
         # reconfigured mid-session, or one told `disable_goals` after its first turn, has to
         # be given a runtime that was built the new way rather than quietly left on the old
-        # one. The conversation survives it: the session is resumed by the id it already has.
-        # And the gateway the account is held by, which is started again once it has gone.
+        # one. And the gateway the account is held by, which is started again once it has gone.
         through = self._agent.gateway
-        if self._harness is not None and (
+        stale = (
             self._runtime_effort != effort
             or self._runtime_composition != composition
+            or self._runtime_offered != offered
             or self._runtime_through is not through
             or self.elsewhere()
-        ):
-            self._shut()
-        if self._harness is not None:
+        )
+        if self._harness is not None and not stale:
             return self._harness
+        # Except that a conversation which has taken a turn does not survive it. A fresh
+        # runtime knows only the sessions it opened itself, and `session/prompt` opens one by
+        # creating it -- which its persistence refuses for an id whose log is already on disk.
+        # The runtime can resume one, but nothing on the SDK's JSON-RPC surface reaches that.
+        # So the turn is refused here, saying why, rather than by the runtime as a collision;
+        # and the runtime it would have replaced is left up, for a session put back as it was.
+        if self._id is not None:
+            raise Unrecoverable(
+                1,
+                ["dsh", self._id],
+                output="",
+                stderr=_UNRESUMABLE.format(self._id),
+            )
+        self._shut()
 
         harness_type = _harness_type()
         where = self._workspace()
@@ -703,6 +736,7 @@ class DshSession(SessionBase):
         self._harness, self._composition = harness, written
         self._runtime_effort = effort
         self._runtime_composition = composition
+        self._runtime_offered = offered
         self._runtime_through = through
         self._as, self._pathed = self._agent.node().name, pathed
         self._reaper = weakref.finalize(self, harness.close)
@@ -887,7 +921,9 @@ def _route(provider: Provider | None) -> str | None:
     return _ROUTES if backends.upstream(provider.way) else provider.way
 
 
-def _composed(config: DshAgentConfig, way: str | None = None) -> str:
+def _composed(
+    config: DshAgentConfig, way: str | None = None, bridge: list[str] | None = None
+) -> str:
     """What one agent's runtime is told over the SDK's own profile, as a patch.
 
     Only what humanize has to say: a row of `dsh-base` addressed by its id, either switched
@@ -900,6 +936,8 @@ def _composed(config: DshAgentConfig, way: str | None = None) -> str:
       config: The agent's settings, whose `goals`, `compaction`, `session_compression`,
         `web_search` and -- under a gateway -- `model` are the things that move.
       way: The way the account a turn runs under was made by, or None for no account.
+      bridge: The command that reaches the flow's own callbacks, or None for an agent
+        offered none.
 
     Returns:
       The patch to write out and hand the runtime with `--patch`, as YAML.
@@ -965,6 +1003,25 @@ def _composed(config: DshAgentConfig, way: str | None = None) -> str:
         off(_SEARCH)
         rows.append({"id": "web", "config": {"fetchProvider": "http"}})
         rows.append({"id": "tool-web", "config": {"search": False}})
+    # The flow's own callbacks, as one stdio MCP server more: a row `dsh-base` has none of,
+    # naming the client the runtime ships. The model is shown them as
+    # `mcp__humanize__<name>`, and a call of one runs it in this process.
+    if bridge is not None:
+        command, *args = bridge
+        row = {
+            "id": "humanize-tools",
+            "name": "@deepseek-ai/dsh-mcp-client",
+            "config": {
+                "serverName": "humanize",
+                "transport": "stdio",
+                "command": command,
+                "args": args,
+                # A runtime that could not reach them refuses to start rather than
+                # starting without them, which is a flow quietly not doing what it says.
+                "failOnStartupError": True,
+            },
+        }
+        rows.append({"insert": [row]})
     return yaml.dump(
         rows, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
     )

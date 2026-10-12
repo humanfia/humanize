@@ -20,10 +20,10 @@ from hmz.coganchor.agents import (
     AgentBase,
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
-    Cli,
-    Command,
     CursorAgent,
     CursorAgentConfig,
+    FakeCli,
+    FakeCommand,
     SessionBase,
 )
 from tests.integration.doubles_agents import standins
@@ -76,7 +76,7 @@ class File(BaseModel):
     points: int = Field(3, description="how big it is")
 
 
-def _tickets(filed: list[File]) -> Cli:
+def _tickets(filed: list[File]) -> FakeCli:
     """A command line whose `file` command keeps what it was given in `filed`."""
 
     def files(ticket: File) -> str:
@@ -86,12 +86,12 @@ def _tickets(filed: list[File]) -> Cli:
     def full() -> None:
         raise SystemExit(4)
 
-    return Cli(
+    return FakeCli(
         "tix",
         "Track the tickets of this flow.",
         (
-            Command("file", "File a ticket.", files, File),
-            Command("full", "Say the queue is full.", full),
+            FakeCommand("file", "File a ticket.", files, File),
+            FakeCommand("full", "Say the queue is full.", full),
         ),
     )
 
@@ -193,7 +193,9 @@ def test_a_command_line_no_parser_can_be_built_for_fails_rather_than_hangs(
     held = standins(tmp_path, monkeypatch)
     held.install("cursor-agent", CURSOR)
     session = CursorAgent(CURSORED).new()
-    session.shelves([Cli("odd", "Odd.", (Command("go", "Go.", print, Helpless),))])
+    session.shelves(
+        [FakeCli("odd", "Odd.", (FakeCommand("go", "Go.", print, Helpless),))]
+    )
 
     ran = _ran(session, "odd go --help")
     assert ran["code"] == 1
