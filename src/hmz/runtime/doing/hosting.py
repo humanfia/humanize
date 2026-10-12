@@ -45,7 +45,7 @@ import threading
 import time
 import weakref
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -883,6 +883,11 @@ class Host:
         envs: Mapping[str, Any] = said.get("envs") or {}
         params = said.get("params")
         resume = said.get("resume") or False
+        backup = said.get("backup")
+        if backup is not None and not (
+            isinstance(backup, list) and all(isinstance(one, str) for one in backup)  # pyright: ignore[reportUnknownVariableType]
+        ):
+            return _no("backup is a list of backup target names")
         with self._lock:
             if self._closed:
                 return _no("this host has closed")
@@ -904,6 +909,7 @@ class Host:
                 budget=said.get("budget"),
                 profile=bool(said.get("profile")),
                 resume=resume,
+                backup=cast("list[str] | None", backup),
                 # Whoever is outside the run is every frontend here: asked on a thread of
                 # the run's own, and away while `/afk` says so.
                 outworlder=open_outworlder(
@@ -925,6 +931,7 @@ class Host:
                 "params": dict(params) if isinstance(params, dict) else {},  # pyright: ignore[reportUnknownArgumentType]
                 "budget": _json(run.budget),
                 "profile": run.profile,
+                "backup": list(run.backup),
                 "resume": str(resume) if resume else "",
                 "began": time.monotonic(),
                 "at": time.time(),

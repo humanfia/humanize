@@ -50,6 +50,12 @@ class Epics:
 
         return epics(self._workspace)
 
+    def every(self) -> list[Path]:
+        """Every run on this machine, of every workspace, oldest first."""
+        from hmz.runtime.epic import every
+
+        return every()
+
     def read(self, epic: Path) -> Ran | None:
         """What one run was: when, which flow, on what, how it went, and what it opened."""
         from hmz.runtime.epic import read

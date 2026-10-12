@@ -66,7 +66,7 @@ const one = [
       },
     ],
     caption:
-      'In <code>chat</code>, every reply asks you for the next message, so being away ends the conversation.',
+      'In <code>chat</code>, every reply waits for your next message, so being away ends the conversation.',
   },
 ]
 </script>
@@ -105,8 +105,9 @@ answer. See [Questions](/user/questions).
 - a question already waiting is answered by nobody, at once;
 - an agent that asks is shown asking, is told nobody answered, and carries on;
 - a flow's question is answered with nothing, or with the flow's defaults. One with no
-  default fails the flow with `nobody is there to answer …`, unless the flow handles that, and
-  `chat` ends. [Questions](/user/questions#when-nobody-is-there) has the table.
+  default fails the flow with `nobody is there to answer …`, unless the flow handles that;
+- `chat`, waiting for your next message, is answered with nothing and ends.
+  [Questions](/user/questions#when-nobody-is-there) has the table.
 
 Away belongs to the run rather than to your interface. It stays said after you
 [leave](/user/leaving), and every interface reading the run shows it.
@@ -154,7 +155,7 @@ from a real run:
 
 1. **`type an answer, or /afk to stop being asked`**: the question waiting on you.
 2. **`away as human: …`**: the confirmation names the outworlder it is about.
-3. **`— the flow is done —`**: an empty answer to a chat's question ends the chat. This is why
+3. **`— the flow is done —`**: an empty next message ends the chat. This is why
    `/afk` belongs off in a flow built around talking to you.
 4. **`afk human`**: away for that outworlder alone.
 
@@ -185,8 +186,8 @@ transcript, or on the outworlder's, and type it again.
 
 ### The chat ended as soon as I turned it on
 
-In [`chat`](https://humanfia.ai/flows/chat), every reply asks you for the next message, and an empty answer ends
-the conversation. Leave `/afk` off in any flow built around talking to you.
+In [`chat`](https://humanfia.ai/flows/chat), every reply waits for your next message, and being away answers it
+with nothing, which ends the conversation. Leave `/afk` off in any flow built around talking to you.
 
 ### I came back and the run is waiting on me
 

@@ -66,6 +66,19 @@ def test_the_runs_of_a_workspace_are_read_back(workspace: Path) -> None:
     assert epics.state(second, "official/other") == {}
 
 
+def test_every_run_on_this_machine_is_read_back_oldest_first(
+    workspace: Path, tmp_path: Path
+) -> None:
+    assert Epics().every() == []
+    first = _run(workspace)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    second = _run(elsewhere)
+
+    assert Epics(workspace).every() == [first, second]
+    assert Epics(workspace).all() == [first]
+
+
 def test_a_workspace_nobody_named_is_this_directory(
     workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

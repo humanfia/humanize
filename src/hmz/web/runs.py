@@ -70,10 +70,12 @@ class Runs:
         Args:
           workspace: Only the runs of this workspace, by its path, or "" for every one's.
         """
+        from hmz.runtime.epic import every
+
         wanted = _resolved(workspace) if workspace else ""
         held = [
             one
-            for at in reversed(_epics())
+            for at in reversed(every())
             if (one := self.read(at))
             and (not wanted or _resolved(one.workspace) == wanted)
         ]
@@ -124,9 +126,11 @@ class Runs:
         Raises:
           Refusal: If no workspace has a run of that name.
         """
+        from hmz.runtime.epic import every
+
         if "/" in name or name.startswith(".") or not name:
             raise Refusal(f"There is no epic {name}.", 404)
-        for epic in _epics():
+        for epic in every():
             if epic.name == name and (ran := self.read(epic)) is not None:
                 return ran
         raise Refusal(f"There is no epic {name}.", 404)
@@ -576,19 +580,6 @@ ROUTES = routes(
     ("GET", "/api/runs/{name}/bundle", _bundle),
     ("GET", "/api/usage", _usage),
 )
-
-
-def _epics() -> list[Path]:
-    """Every epic of every workspace, oldest first: each is named for when it began."""
-    from hmz import home
-    from hmz.runtime.epic import JOURNAL
-
-    found: list[Path] = []
-    with contextlib.suppress(OSError):
-        for under in (home() / "epics").iterdir():
-            with contextlib.suppress(OSError):
-                found += [one for one in under.iterdir() if (one / JOURNAL).is_file()]
-    return sorted(found, key=lambda one: one.name)
 
 
 @functools.cache

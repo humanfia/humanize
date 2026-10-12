@@ -479,6 +479,35 @@ def test_a_run_still_going_has_not_ended(workspace: Path) -> None:
     assert ran.spent is None
 
 
+def test_where_a_run_is_backed_up_and_how_it_went_read_back(workspace: Path) -> None:
+    with Epic("ralph", "fix it", workspace, backup=["lab", "home"]) as one:
+        pass
+    epic.note(one.path, epic.BACKED, to="lab", ok=False, error="no", why="end")
+    epic.note(one.path, epic.BACKED, to="lab", ok=True, error="", why="manual")
+
+    ran = epic.read(one.path)
+
+    assert ran is not None
+    assert ran.backup == ("lab", "home")
+    assert ran.how == "done"
+    assert set(ran.backed) == {"lab"}
+    assert ran.backed["lab"]["ok"] is True
+    assert ran.backed["lab"]["why"] == "manual"
+    assert ran.backed["lab"]["at"]
+
+
+def test_a_run_given_no_backup_says_none(workspace: Path) -> None:
+    with Epic("ralph", "fix it", workspace) as one:
+        pass
+
+    ran = epic.read(one.path)
+
+    assert ran is not None
+    assert ran.backup == ()
+    assert ran.backed == {}
+    assert "backup" not in json.loads(one.journal.read_text().splitlines()[0])
+
+
 def test_what_this_did_not_write_reads_as_no_run(tmp_path: Path) -> None:
     assert epic.read(tmp_path) is None
     _journal(tmp_path / JOURNAL, "not json", "[1]", {"event": "opened"})

@@ -169,7 +169,10 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   again — refusing a chain that names the place that fails or one place twice, and offering
   nothing about falling back on the accounts page.
 - MUST list the runs of this directory newest first with when each began, its flow, its task, how
-  it went and how many sessions it opened, marking which can be picked up, readable while one runs.
+  it went and how many sessions it opened, marking which can be picked up, readable while one runs;
+  and, turned by `ctrl+t` or a button and remembered for this machine, those of every directory
+  on this machine instead, each with its directory, read without holding the screen up.
+- MUST refuse to carry on a run of another directory, saying where it ran.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and
   exporting it; an export MUST ask where it goes, a file or a directory to put it in, and land
   nowhere else, MUST carry a trace of that run's own sessions and no transcript, say where it

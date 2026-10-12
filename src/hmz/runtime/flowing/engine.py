@@ -553,7 +553,14 @@ def _agent(
                 refusal = seen[grant] = _agent_refusal(role, grant)
             if refusal is not None:
                 raise refusal[0](f"{flow.ref}: {role.name!r} {refusal[1]}")
-        return AgentView(driver, grant if full else role.grant, node, role.name)
+        if full:
+            # Everything the agent given holds, but the tools: those are the callee's own.
+            grant = Grant.of(
+                grant.capabilities, grant.permission, grant.skills, role.tools
+            )
+        else:
+            grant = role.grant
+        return AgentView(driver, grant, node, role.name)
     if kind is OutworlderView:
         person: OutworlderView = given  # pyright: ignore[reportAssignmentType]
         if not role.auto and (role.capabilities or role.harness is not None):
@@ -1792,7 +1799,12 @@ async def run_flow(
         driver = agents.get(role.name)
         if driver is not None:
             grant = (
-                Grant.of(frozenset(driver.capabilities), role.permission, role.skills)
+                Grant.of(
+                    frozenset(driver.capabilities),
+                    role.permission,
+                    role.skills,
+                    role.tools,
+                )
                 if impl._full
                 else role.grant
             )

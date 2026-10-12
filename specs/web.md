@@ -111,7 +111,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   is typing while what it is about stands.
 - MUST offer the transcripts the terminal interface keeps: one per session, one per agent
   across its sessions, one per person of what they are asked and answer, and one they all
-  appear on -- a line said in one going to whose it is.
+  appear on -- a line said in one going to whose it is, and answering instead what that
+  session's open turn asks.
+- MUST open a chat started from it on its conversation, read as a chat app reads one: the task
+  and every answer as the person's lines among the agent's, a line typed under it the next
+  turn, what to say next never drawn as a question, and what the agent asks mid-turn asked at
+  the end of the conversation with its answers there to pick.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
@@ -161,12 +166,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   interface's forms set them up, never spelled whole.
 - MUST draw in humanize's own type and in a theme: one of the pairs it comes with -- a light and
   a dark of humanize's own, Humanize Green, and of twelve more, each named for a mood and its
-  colour -- or one made in the browser
-  on Light or Dark -- any of its colours, and a picture, still or moving, behind any of the
+  colour -- or one made in the browser on Light or Dark, alone or with a light and a dark as a
+  pair of its own -- any of its colours, and a picture, still or moving, behind any of the
   page's large planes -- chosen, or under Auto the one picked for the browser's light and the one
-  for its dark, a pair at once or any two; MUST let a theme be written out whole as a
-  `.hmztheme` file and read back in, and MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
-  to be reduced.
+  for its dark, a pair at once or any two; MUST let a theme, or a pair with both its themes, be
+  written out whole as a `.hmztheme` file and read back in, and MUST be usable on a screen as
+  narrow as a phone's, and MUST hold still where motion is asked to be reduced.
 - MUST let a theme be chosen only in Settings, never from the sidebar's menu, in the browser
   and the desktop app alike.
 - MUST draw its chrome around the window controls of the desktop app when it is shown in it,
