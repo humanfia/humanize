@@ -115,6 +115,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST draw a run written down: how it was set up, the tree of flows it called, its sessions,
   its turns and transcript read back out of its logs when asked for, an export, and picking it
   up where its flow says it can be.
+- MUST serve a run's Exomyth timeline as `runtime/tracing` lays it out, and each span of it whole
+  by its id, refusing an id it does not have as not found. A run that has ended MUST be laid
+  out once until its record changes, the last few kept; a run still going MUST be laid out
+  again on every request, answered with the tag that says whether the page has it already. A
+  span's id MUST be read in the last timeline laid out of that run, and one asked for with a
+  `layout` that is not that timeline's MUST be refused as a conflict.
 - MUST let a flow be set up in a workspace and saved without starting it, refused where a role
   has no agent or -- for every flow but chat -- nothing says what it may spend, and MUST save
   it as it is started.
