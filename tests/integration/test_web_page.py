@@ -698,7 +698,14 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
         writing.get_by_role("button", name="Save").click()
         listed = page.locator("[data-hmz=backup-target][data-name=t]")
         expect(listed).to_contain_text("Manual")
-        listed.locator("[data-hmz=backup-default]").check()
+        # Ticked, it is written down before a new epic reads it.
+        with page.expect_response(
+            lambda answer: (
+                answer.url.endswith("/api/settings") and answer.request.method == "POST"
+            )
+        ) as saved:
+            listed.locator("[data-hmz=backup-default]").check()
+        assert saved.value.ok
         expect(listed.locator("[data-hmz=backup-default]")).to_be_checked()
         page.keyboard.press("Escape")
 
