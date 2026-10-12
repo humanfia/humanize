@@ -95,7 +95,7 @@ function row(
 }
 
 const ROWS: Row[] = [
-  row('agy', 'Antigravity', { schema: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('agy', 'Antigravity', { schema: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
   row('claude', 'Claude Code', {
     goal: Y, loop: Y, steer: Y, perm: Y, sub: Y, ask: Y,
     schema: Y, fork: ELSEWHERE, web: Y, rungs: ALL4, fast: Y, tools: Y, trace: Y,
