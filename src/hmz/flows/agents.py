@@ -18,9 +18,9 @@ agent declared without :class:`SteeringAgentMixin`, or a `/goal` prompt without
 whatever the harness underneath could do. A role typed as one harness's own protocol --
 :class:`ClaudeCodeAgent` and the rest -- asks for that harness and everything it can do.
 
-Everything here but the enums, :class:`Permission`, :class:`Budget` and :class:`Usage` is a
-protocol for a type checker. What a flow is handed at run time is the runtime's own object,
-shaped however is fastest, and answers to these structurally.
+Everything here but the enums, :class:`Permission`, :class:`Budget`, :class:`Usage` and
+:class:`FakeTool` is a protocol for a type checker. What a flow is handed at run time is the
+runtime's own object, shaped however is fastest, and answers to these structurally.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ import pydantic
 from typing_extensions import ReadOnly, TypedDict
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from .envs import Env
     from .hooks import (
@@ -75,6 +75,8 @@ __all__ = [
     "CodexAgent",
     "CursorAgent",
     "DeepSeekHarnessAgent",
+    "FakeTool",
+    "FakeToolAgentMixin",
     "GoalCommandAgentMixin",
     "GrokBuildAgent",
     "HarnessKind",
@@ -334,10 +336,14 @@ class Agent(Protocol):
         and the flow's sessions run under exactly this.
       _skills: The skills the role's sessions are given: a skill in the flow's own `skills/`
         by name, or one elsewhere as a git URL with `#<skill>`.
+      _tools: The flow's own functions the role's sessions offer the agent as tools, each
+        :class:`FakeTool` of a name of its own. Declaring any takes
+        :class:`FakeToolAgentMixin`.
     """
 
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
+    _tools: ClassVar[tuple[FakeTool, ...]] = ()
 
     @property
     def effort(self) -> str:
@@ -523,6 +529,40 @@ class AgentCollection(TypedDict, extra_items=ReadOnly[Agent]):
 # ------------------------------------------------------------------------------ the mixins
 
 
+@dataclass(frozen=True, slots=True)
+class FakeTool:
+    """A function of the flow's, offered to the agent as a tool of its own.
+
+    The agent calling it is the function running, in the flow's process, as the flow::
+
+        async def remember(said: Note) -> str:
+            notes.append(said.text)
+            return "noted"
+
+        class Scribe(Agent, FakeToolAgentMixin):
+            _tools = (FakeTool("remember", "Writes a note down for later.", remember, Note),)
+
+    Attributes:
+      name: What the agent calls it.
+      about: What it is for, which is all the model is told of when to use it.
+      call: The function, sync or async, given an instance of `takes` -- or nothing, where
+        `takes` is None. What it answers is what the agent reads back: a string as it is,
+        None as `done`, anything else as JSON. What it raises is the tool failing, which the
+        agent is told of; the turn and the flow go on.
+      takes: The pydantic model it is called with, whose schema is what the agent is told
+        it takes, or None for a tool that takes nothing.
+    """
+
+    name: str
+    about: str
+    call: Callable[..., object]
+    takes: type[pydantic.BaseModel] | None = None
+
+
+class FakeToolAgentMixin(Protocol):
+    """Lets a role declare `_tools`, which its sessions offer the agent as tools of its own."""
+
+
 class GoalCommandAgentMixin(Protocol):
     """Lets `run` take `/goal <objective>`: the harness keeps going until it decides it is met."""
 
@@ -601,6 +641,7 @@ class AskUserHookAgentMixin(Protocol):
 
 class ClaudeCodeAgent(
     Agent,
+    FakeToolAgentMixin,
     GoalCommandAgentMixin,
     LoopCommandAgentMixin,
     SteeringAgentMixin,
@@ -615,6 +656,7 @@ class ClaudeCodeAgent(
 
 class CodexAgent(
     Agent,
+    FakeToolAgentMixin,
     GoalCommandAgentMixin,
     SteeringAgentMixin,
     PermissionRequestHookAgentMixin,

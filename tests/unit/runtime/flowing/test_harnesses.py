@@ -21,6 +21,7 @@ from hmz.flows import (
     CostExceeded,
     DurationExceeded,
     EnvBackendKind,
+    FakeTool,
     HarnessDropped,
     HarnessKind,
     HarnessNotInstalled,
@@ -123,6 +124,9 @@ class Conversation:
 
     def close(self) -> None:
         self.closed += 1
+
+    def offers(self, tools: Any) -> None:
+        self.offered = tuple(tools)
 
     def fork(self, *, into: CLI, cwd: str | None) -> Conversation:
         forked = Conversation(into, cwd)
@@ -738,6 +742,37 @@ async def test_a_session_moved_nowhere_stays_and_one_moved_elsewhere_starts_ther
     assert session.placement == _placed(tmp_path / "other")
     await session.close()
     assert first.stopped == 1
+
+
+async def test_a_flows_tools_are_offered_and_called_on_the_engines_loop(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    loop = asyncio.get_running_loop()
+    ran: list[object] = []
+
+    async def note(said: Any) -> str:
+        ran.append(asyncio.get_running_loop())
+        return f"noted {said}"
+
+    async def broken() -> None:
+        raise ValueError("no ink")
+
+    session = await open_agent(_spec()).open(
+        _placed(tmp_path),
+        permission=Permission(),
+        skills=(),
+        hooks=HookTable(),
+        tools=(FakeTool("note", "Notes.", note), FakeTool("broken", "Fails.", broken)),
+    )
+    conversation = session.coganchor
+    assert isinstance(conversation, Conversation)
+    noting, breaking = conversation.offered
+
+    assert (noting.name, noting.about, noting.takes) == ("note", "Notes.", None)
+    assert await asyncio.to_thread(noting.call, "this") == "noted this"
+    assert ran == [loop]
+    with pytest.raises(ValueError, match="no ink"):
+        await asyncio.to_thread(breaking.call)
 
 
 async def test_a_question_is_put_to_the_ask_user_hook(

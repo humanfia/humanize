@@ -118,7 +118,7 @@ All classes are importable from `hmz.coganchor.agents`.
 | Web off | `Profile.searches` | `web_search=False` can be said |
 | Rungs | `AgentBase.rungs` | which [rungs](#what-an-agent-may-do) the backend takes |
 | Fast tier | `AgentBase.service_tiers` | `service_tier="fast"` is served |
-| Tools | `SessionBase.takes_tools` | Python callbacks can be offered as tools |
+| Tools | `SessionBase.takes_tools`; `FakeToolAgentMixin` | Python callbacks can be offered as tools; a flow's as [fake tools](/reference/flows#fake-tools) |
 | Trace | `_READERS` in `hmz.runtime.tracing.collector` | `Hmz().epics.trace()` reads its logs |
 
 The flow mixins are what a role typed as that harness may declare; the driver columns are what
@@ -1101,7 +1101,8 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 ## Callback tools {#callbacks-as-tools}
 
 `session.offers([Tool(name, about, call, takes=None)])` gives the agent a tool whose call runs
-`call` in this process; `offers(None)` withdraws them. Not available to flows.
+`call` in this process; `offers(None)` withdraws them. A flow offers them by declaring
+[`FakeTool`s](/weaver/tools#fake-tools) in a role's `_tools`.
 
 | `Tool` field | Meaning |
 | --- | --- |
