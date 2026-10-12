@@ -61,6 +61,8 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.fence import Fence
 
+    from .tools import Toolbox
+
 # : What the CLI is installed as, and the variable that points one run at a settings file of : ours.
 # The system layer rather than the user's own: it is read for this process only, and : what it says
 # outranks the file the person who started the flow has configured. The same : variable
@@ -69,6 +71,9 @@ if TYPE_CHECKING:
 # spellings together rather than leaving them free to drift apart.
 _COMMAND = "qwen"
 _SETTINGS = "QWEN_CODE_SYSTEM_SETTINGS_PATH"
+
+#: What the server carrying a flow's own callbacks is called among the CLI's MCP servers.
+_SERVER = "humanize"
 
 #: The other end of that: the layer Qwen Code reads *under* everyone, which it looks for
 #: beside the system settings file -- so pointing one at a file of ours has already moved
@@ -289,6 +294,7 @@ def _root() -> Path:
 def _thinking(
     effort: str,
     gate: Gate | None = None,
+    toolbox: Toolbox | None = None,
     *,
     headless: bool = True,
 ) -> Path:
@@ -308,6 +314,8 @@ def _thinking(
       gate: Where this agent's moments are served, whose directory the file then goes in, or
         None for a turn with nowhere to serve them -- an anchored one, whose CLI runs where
         the socket is not.
+      toolbox: The flow's own callbacks this agent is offering, whose directory the file then
+        goes in too, or None for an agent offering none.
       headless: Whether to say beside it what a turn nobody is watching defaults to, or leave
         the layer unwritten so that the CLI's own answer stands.
 
@@ -320,20 +328,34 @@ def _thinking(
     # beside a socket that is not there -- `Path("").parent` being this directory, which is
     # the project.
     at = gate.address() if gate is not None else ""
+    served = toolbox.address() if toolbox is not None else ""
     named = effort if headless else f"{effort}{_AS_CONFIGURED}"
     with _EFFORT_LOCK:
-        if gate is not None and at:
-            # Named for the gate's own directory, and gone when the gate is, so that the file
-            # goes when the agent does: what is in it names that agent's socket, so it is no
-            # more reusable than the socket is, and a table kept in a dictionary here would be
-            # an entry per agent for as long as this process ran. The path is the gate and the
-            # effort, so it is the same path every time -- a settings file that moved would
-            # restart an unchanged CLI. Not in the gate's directory itself, which is in the
-            # system's temporary directory where a fenced CLI may not read it.
-            where = root / Path(at).parent.name
+        if at or served:
+            # Named for the gate's own directory and the toolbox's, and gone when either is,
+            # so that the file goes when the agent does: what is in it names that agent's
+            # sockets, so it is no more reusable than they are, and a table kept in a
+            # dictionary here would be an entry per agent for as long as this process ran.
+            # The path is the sockets and the effort, so it is the same path every time -- a
+            # settings file that moved would restart an unchanged CLI. Not in either socket's
+            # directory itself, which is in the system's temporary directory where a fenced
+            # CLI may not read it.
+            where = root / "-".join(
+                Path(one).parent.name for one in (at, served) if one
+            )
             if not where.exists():
-                weakref.finalize(gate, shutil.rmtree, where, ignore_errors=True)
-            held = _writing(where / named, effort, gate, headless=headless)
+                for owner in (gate if at else None, toolbox if served else None):
+                    if owner is not None:
+                        weakref.finalize(
+                            owner, shutil.rmtree, where, ignore_errors=True
+                        )
+            held = _writing(
+                where / named,
+                effort,
+                gate if at else None,
+                toolbox if served else None,
+                headless=headless,
+            )
         else:
             held = _EFFORTS.get((effort, headless))
             if held is None:
@@ -353,6 +375,7 @@ def _writing(
     where: Path,
     effort: str,
     gate: Gate | None,
+    toolbox: Toolbox | None = None,
     *,
     headless: bool = True,
 ) -> Path:
@@ -367,6 +390,7 @@ def _writing(
       effort: How hard the turn is to think, as Qwen Code words it.
       gate: Where this agent's moments are served, or None for a turn with nowhere to serve
         them -- and one serving nothing writes no table either.
+      toolbox: The flow's own callbacks this agent is offering, or None for none.
       headless: Whether the defaults layer is written beside the settings one at all.
 
     Returns:
@@ -390,6 +414,17 @@ def _writing(
         # is this run's alone: what they configured is untouched, and is theirs again the
         # moment the run ends.
         said |= {"hooks": table, "disableAllHooks": False}
+    if toolbox is not None:
+        # The flow's own callbacks, as the one way Qwen Code takes a tool it was not shipped
+        # with: a stdio server in `mcpServers`, beside the servers the person has configured
+        # rather than in place of them -- bar one of theirs of the same name, which this one
+        # stands in for while the run lasts. Trusted, so that reaching for a callback of the
+        # flow's is not a confirmation nobody is there to give. What their own settings say
+        # of servers in general -- `mcp.allowed`, folder trust -- still holds over this one.
+        argv = toolbox.command()
+        said["mcpServers"] = {
+            _SERVER: {"command": argv[0], "args": argv[1:], "trust": True}
+        }
     held = where / "settings.json"
     _wholly(held, json.dumps(said))
     if headless:
@@ -453,6 +488,11 @@ class QwenCodeSession(StreamSessionBase):
     #: `--json-schema` is a setting of the run: the turn is held to the shape by a tool of the
     #: CLI's own making rather than by being asked for it in the prompt.
     shapes: ClassVar[bool] = True
+
+    #: `mcpServers` in the settings file the run is already pointed at, so a flow's own
+    #: callbacks reach this turn without anything of the person at this machine's being
+    #: written.
+    takes_tools: ClassVar[bool] = True
 
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
@@ -530,14 +570,19 @@ class QwenCodeSession(StreamSessionBase):
         return [*argv, "--input-format", "stream-json"]
 
     def _settings(self) -> tuple[object, ...]:
-        """The settings and flow resources the process reads when it starts."""
+        """The settings and flow resources the process reads when it starts.
+
+        The names of the callbacks in front of the agent among them: Qwen Code lists what an
+        MCP server has when it starts it and holds that list for the life of the process, so
+        a flow offering another between two turns is answered by a process that was told.
+        """
         environment = self._environ() or dict(os.environ)
         native = self._native(environment)
         return (
             self._agent.config,
             self.effort,
             self._carrying(),
-            self._tools,
+            tuple(sorted(one.name for one in self._agent.toolbox.offered())),
             environment,
             native if native is not None else object(),
         )
@@ -772,6 +817,7 @@ class QwenCodeSession(StreamSessionBase):
         waits for before every tool it runs, so writing one for hooks that are not there is a
         relay spawned per file read, one after another, for nobody. Hanging one or taking it
         down moves the file, and a moved settings file is a process started again under it.
+        So does the server carrying the flow's own callbacks, for an agent offering any.
 
         And where the CLI's compiled bundle is kept between processes, unless whoever started
         the flow has said where themselves: a session a turn is a Node process a turn, and
@@ -788,12 +834,14 @@ class QwenCodeSession(StreamSessionBase):
             else None
         )
         self._tabled = gate is not None and gate.serving
+        box = self._agent.toolbox
         held = {
             **super()._environment(),
             _SETTINGS: str(
                 _thinking(
                     self.effort,
                     gate,
+                    box if box.offered() else None,
                     headless=self._headless(),
                 )
             ),

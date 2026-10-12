@@ -15,6 +15,8 @@ from hmz.flows import (
     CPUEnvMixin,
     Env,
     EnvCollection,
+    FakeTool,
+    FakeToolAgentMixin,
     FilesEnvMixin,
     FlowDefinitionError,
     FlowParams,
@@ -183,6 +185,52 @@ class EnvAsAgent(AgentCollection):  # pyright: ignore[reportIncompatibleVariable
     one: Env
 
 
+def _nothing() -> None:
+    return None
+
+
+TOOL = FakeTool("nothing", "Does nothing.", _nothing)
+
+
+class ToolsWithoutMixin(Agent):
+    _tools = (TOOL,)
+
+
+class WithToolsWithoutMixin(AgentCollection):
+    one: ToolsWithoutMixin
+
+
+class ToolsNotFakeTools(Agent, FakeToolAgentMixin):
+    _tools = ("nothing",)  # pyright: ignore[reportAssignmentType]
+
+
+class WithToolsNotFakeTools(AgentCollection):
+    one: ToolsNotFakeTools
+
+
+class ToolNamedTwice(Agent, FakeToolAgentMixin):
+    _tools = (TOOL, FakeTool("nothing", "Does nothing again.", _nothing))
+
+
+class WithToolNamedTwice(AgentCollection):
+    one: ToolNamedTwice
+
+
+class Tooled(Agent, FakeToolAgentMixin):
+    _tools = (TOOL,)
+
+
+class WithTools(AgentCollection):
+    one: Tooled
+
+
+def test_an_agent_roles_tools_are_read_into_its_grant() -> None:
+    (role,) = roles_of(WithTools)
+
+    assert role.tools == (TOOL,)
+    assert role.grant is Grant.of(role.capabilities, tools=(TOOL,))
+
+
 @pytest.mark.parametrize(
     ("collection", "says"),
     [
@@ -196,6 +244,9 @@ class EnvAsAgent(AgentCollection):  # pyright: ignore[reportIncompatibleVariable
         (WithBadSkills, "_skills is not a tuple"),
         (WithSkillsNotATuple, "_skills is not a tuple"),
         (EnvAsAgent, "is not an Agent"),
+        (WithToolsWithoutMixin, "_tools needs FakeToolAgentMixin"),
+        (WithToolsNotFakeTools, "_tools is not a tuple of FakeTool"),
+        (WithToolNamedTwice, "_tools names one tool twice"),
     ],
 )
 def test_agent_roles_refuse(collection: type, says: str) -> None:
