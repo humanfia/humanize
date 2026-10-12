@@ -89,17 +89,42 @@ export function graph({ open }) {
     show()
   }
 
-  // The wheel, and a trackpad's pinch, zoom about the pointer.
+  /** Where on the canvas a pointer is. */
+  const on = (event) => {
+    const box = canvas.getBoundingClientRect()
+    return { x: event.clientX - box.left, y: event.clientY - box.top }
+  }
+
+  // A pinch -- which a browser says as a wheel with Ctrl down -- and a mouse's wheel zoom about
+  // the pointer; two fingers sliding over a trackpad move the paper. A trackpad is told from a
+  // mouse as a browser lets it be: by its old wheelDelta, three times its delta the other way.
   canvas.addEventListener(
     'wheel',
     (event) => {
       event.preventDefault()
       const step = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1
-      const box = canvas.getBoundingClientRect()
-      scale(at * Math.exp(-event.deltaY * step * (event.ctrlKey ? 0.01 : 0.0015)), { x: event.clientX - box.left, y: event.clientY - box.top })
+      const sliding = !event.ctrlKey && (event.deltaX !== 0 || (event.wheelDeltaY ? event.wheelDeltaY === -3 * event.deltaY : event.deltaMode === 0))
+      if (!sliding) {
+        scale(at * Math.exp(-event.deltaY * step * (event.ctrlKey ? 0.01 : 0.0015)), on(event))
+        return
+      }
+      x -= event.deltaX * step
+      y -= event.deltaY * step
+      moved = true
+      show()
     },
     { passive: false },
   )
+  // Safari, and so the desktop app's window, says a pinch as a gesture of its own.
+  let pinched = 1
+  canvas.addEventListener('gesturestart', (event) => {
+    event.preventDefault()
+    pinched = at
+  })
+  canvas.addEventListener('gesturechange', (event) => {
+    event.preventDefault()
+    scale(pinched * event.scale, on(event))
+  })
 
   // Dragging anywhere moves the paper, a node and all; a press that hardly moves is a click.
   let dragged = null

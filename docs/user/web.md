@@ -97,8 +97,8 @@ monitor is:
 - **Sessions.** On each node, a lane per session it opened, with a mark for each turn it took
   over the epic. A turn still open is lit. Click a session to read its thread.
 
-The graph's paper has no edge: drag anywhere on it, a node included, to move it, and turn the
-wheel (or pinch) to zoom about the pointer. **Recenter**, at the bottom left beside the zoom,
+The graph's paper has no edge: drag anywhere on it, a node included, or slide two fingers over a
+trackpad to move it; pinch, or turn a mouse's wheel, to zoom about the pointer. **Recenter**, at the bottom left beside the zoom,
 brings the graph back to the middle of the view.
 
 The panel beside it (the button at the top right shows and hides it) holds:
