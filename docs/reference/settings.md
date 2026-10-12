@@ -46,6 +46,9 @@ enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
 every_epic: true                   # this machine
+notifications:                     # this machine; Settings › Notifications in the web interface
+  kinds: {done: true, failed: true, stopped: true, asked: true, listening: true}
+  system: true
 spelling: 2                        # how envs are spelled; written with every change
 fallbacks:                         # this machine; the Fallback page
 - spec: claude@work/claude-opus-5
@@ -76,6 +79,7 @@ backup:                            # this machine
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
 | `btw` | `str`: `cli[@account]/model:effort` | `""`: the running flow's first agent | `/settings` › General › **/btw agent** | the TUI | the next time `/btw` is entered |
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
+| `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | the web interface's Settings › Notifications, [`POST /api/notifications/settings`](/reference/web#api-notifications) | `hmz web` | immediately: the next notice of a kind is told or not |
 | <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
 
 What error reports contain and exclude is listed on `/settings` › General › **What is sent**.

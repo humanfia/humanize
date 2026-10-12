@@ -59,6 +59,7 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
 
     from hmz.coganchor import releases
 
+    from .notifications import Notifications
     from .places import Places
     from .runs import Runs
     from .site import Site
@@ -73,6 +74,9 @@ def listening(*, port: int = 0, apart: bool = True) -> Generator[Site]:
         # And which release of humanize is the newest, where what is kept has got old.
         releases.refresh()
         held_open.callback(site.server_close)
+        # Every daemon's notices, as this machine's interface tells them.
+        site.notifications = Notifications(site)
+        held_open.callback(site.notifications.close)
         # Set first as the block ends, which is what ends every stream being sent.
         held_open.callback(site.going.set)
         yield site

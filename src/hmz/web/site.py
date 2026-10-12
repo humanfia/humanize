@@ -42,6 +42,7 @@ from . import (
     fallbacks,
     flows,
     held,
+    notifications,
     paths,
     places,
     runs,
@@ -54,6 +55,7 @@ from .routing import Asked, Download, Made, Refusal, Route, Stream
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+    from .notifications import Notifications
     from .places import Places
     from .runs import Runs
 
@@ -71,6 +73,7 @@ ROUTES: tuple[Route, ...] = (
     *paths.ROUTES,
     *places.ROUTES,
     *verses.ROUTES,
+    *notifications.ROUTES,
 )
 
 #: How many ports any would do for are tried before one free on both loopbacks is given up on.
@@ -152,6 +155,8 @@ class Site(ThreadingHTTPServer):
         self.places = places
         self.hmz: Any = places.hmz
         self.runs = runs
+        #: Every daemon's notices, as this interface tells them, once it is listening.
+        self.notifications: Notifications | None = None
         #: Set as the server stops, which is what ends every stream it is sending.
         self.going = threading.Event()
         self._key = secrets.token_urlsafe(32)
