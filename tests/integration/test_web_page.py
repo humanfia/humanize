@@ -10,15 +10,18 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import urllib.parse
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 
 import hmz.coganchor.models
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, go, opened, served
+from tests.integration.doubles_web import ENGINES, elsewhere, go, opened, served
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -320,7 +323,7 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
         # A theme is chosen only in Settings: the machine's menu offers none.
         page.locator("[data-hmz=machine-menu]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Settings", "Usage"]
+            ["Import", "Settings", "Usage"]
         )
         page.keyboard.press("Escape")
         go(page, "/settings/themes")
@@ -494,7 +497,7 @@ def test_a_newer_release_is_offered_under_the_machine(
         expect(page.locator("[data-hmz=newer]")).to_be_visible()
         page.locator("[data-hmz=machine-menu]").click()
         expect(page.locator("[role=menu] .choice-label")).to_have_text(
-            ["Update", "Settings", "Usage"]
+            ["Update", "Import", "Settings", "Usage"]
         )
         expect(page.locator("[role=menu] .choice-about")).to_have_text(["hmz 99.0.0"])
 
@@ -802,3 +805,116 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
         expect(page.locator("[data-hmz=btw-log]")).to_contain_text(
             "read-only side copy of the flow session"
         )
+
+
+#: Drags a file over the page, a step at a time, as one is dragged out of a folder: the file is
+#: made where it is named, and kept for the steps after.
+_DRAG = """([kinds, name, bytes]) => {
+  if (name) {
+    window.moved = new DataTransfer()
+    window.moved.items.add(new File([new Uint8Array(bytes)], name))
+  }
+  const page = document.querySelector('[data-hmz=page]')
+  for (const kind of kinds) {
+    const how = {dataTransfer: window.moved, bubbles: true, cancelable: true}
+    page.dispatchEvent(new DragEvent(kind, how))
+  }
+}"""
+
+
+def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
+    project: Path, tmp_path: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "take me home")
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopped")
+        )
+        found = re.search(r"#/epics/([^/]+)", page.url)
+        assert found is not None
+        name = found[1]
+        with page.expect_download() as saving:
+            page.get_by_role("link", name="Export").click()
+        archive = tmp_path / saving.value.suggested_filename
+        saving.value.save_as(archive)
+        at = page.evaluate(
+            "async (name) => (await (await fetch(`/api/runs/${name}`)).json()).at",
+            name,
+        )
+        opened_on = re.compile(rf".*#/epics/{re.escape(name)}$")
+        listed = page.locator(f"[data-hmz=sidebar] .side-item[data-epic='{name}']")
+
+        def gone() -> None:
+            go(page, "/new")
+            shutil.rmtree(at)
+
+        # Picked, from Search epics.
+        gone()
+        page.keyboard.press("Control+k")
+        with page.expect_file_chooser() as choosing:
+            page.locator("[data-hmz=import]").click()
+        choosing.value.set_files(archive)
+        page.wait_for_url(opened_on)
+        expect(listed).to_have_count(1)
+
+        # Picked again, from the machine's menu: it is here already, and is opened from there.
+        go(page, "/new")
+        page.locator("[data-hmz=machine-menu]").click()
+        with page.expect_file_chooser() as choosing:
+            page.get_by_role("menuitem", name="Import").click()
+        choosing.value.set_files(archive)
+        notice = page.locator("[data-hmz=import-notice]")
+        expect(notice).to_contain_text("is already here")
+        notice.get_by_role("link", name="Open").click()
+        page.wait_for_url(opened_on)
+        expect(notice).to_have_count(0)
+
+        # Dropped on the window.
+        gone()
+        page.evaluate(
+            _DRAG, [["dragenter", "dragover"], archive.name, list(archive.read_bytes())]
+        )
+        expect(page.locator("body")).to_have_class(re.compile("dropping"))
+        page.evaluate(_DRAG, [["drop"], "", []])
+        page.wait_for_url(opened_on)
+        expect(page.locator("body")).not_to_have_class(re.compile("dropping"))
+        expect(listed).to_have_count(1)
+
+        # By its path: asked first, in a browser any page could have linked here from.
+        gone()
+        go(page, f"/epics/import?path={urllib.parse.quote(str(archive))}")
+        importing = page.locator("[data-hmz=importing]")
+        expect(importing).to_contain_text(str(archive))
+        importing.get_by_role("button", name="Import").click()
+        page.wait_for_url(opened_on)
+
+        junk = tmp_path / "junk.hmzepic"
+        junk.write_bytes(b"not a bundle")
+        go(page, f"/epics/import?path={urllib.parse.quote(str(junk))}")
+        importing.get_by_role("button", name="Import").click()
+        expect(importing.locator(".error")).to_contain_text(
+            "junk.hmzepic is not a bundle"
+        )
+
+        # Somebody else's, opened in the desktop app, which imports it as it is opened and
+        # says why it is not picked up here.
+        gone()
+        (tmp_path / "theirs").mkdir()
+        theirs = elsewhere(archive, "/nowhere/at/all", tmp_path / "theirs")
+        browser = page.context.browser
+        assert browser is not None
+        app = browser.new_context(user_agent=_APP).new_page()
+        app.goto(site.address)
+        app.wait_for_selector("[data-hmz=sidebar] .brand")
+        go(app, f"/epics/import?path={urllib.parse.quote(str(theirs))}")
+        try:
+            app.wait_for_url(opened_on)
+        except PlaywrightError as why:
+            said = app.locator("[data-hmz=page]").inner_text()
+            raise AssertionError(f"{app.url} says {said!r}") from why
+        expect(app.locator("[data-hmz=foreign]")).to_contain_text(
+            "not resumable here: the workspace it ran in, /nowhere/at/all, is not on"
+        )
+        expect(app.get_by_role("link", name="Resume")).to_have_count(0)

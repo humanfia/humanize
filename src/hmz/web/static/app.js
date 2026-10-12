@@ -10,6 +10,7 @@ import { mountSidebar } from './sidebar.js'
 import { kept, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
+import './importing.js'
 
 /** Every view, by the first part of the address that names it. */
 const VIEWS = {
@@ -55,6 +56,9 @@ export function go(path) {
 /** Puts the query of the view the page is on in the address, without a step in its history. */
 export function stays(query) {
   const { parts } = where()
+  // Only into the address of what is drawn: one gone on to, not drawn yet, is not its to say.
+  const here = parts.join('/')
+  if (here !== shown.split('?')[0] && here !== opened) return
   const said = new URLSearchParams()
   for (const [name, value] of Object.entries(query)) if (value !== '' && value !== undefined && value !== null) said.set(name, value)
   const text = said.toString()
@@ -100,8 +104,11 @@ async function routing(mine) {
   await view(mine, parts, query, key)
 }
 
+/** An epic read back in by its path: an address under `epics` no epic is named. */
+const IMPORT = () => import('./views/import.js')
+
 async function view(mine, parts, query, key) {
-  const load = VIEWS[parts[0]] || VIEWS.new
+  const load = parts[0] === 'epics' && parts[1] === 'import' && parts.length === 2 ? IMPORT : VIEWS[parts[0]] || VIEWS.new
   const named = VIEWS[parts[0]] ? parts : ['new']
   // A view that can move within itself -- a run's graph to one of its sessions -- does.
   if (mounted && mounted.load === load && mounted.moved && mounted.moved({ parts: named, query })) {

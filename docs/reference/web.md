@@ -94,11 +94,11 @@ this order.
 | `403` | The connection did not come from a loopback address | `Open the address hmz web printed, on the machine it runs on.` |
 | `401` | `/api/…` without the key's cookie | `Open the address hmz web printed to let this browser in.` |
 | `403` | `/api/…` that the browser says came from another page: `Sec-Fetch-Site` other than `same-origin` or `none` (a `POST`: other than `same-origin`); or, from a browser that sends no `Sec-Fetch-Site`, an `Origin` whose host and port are not the `Host` asked, by `http` or `https` -- for a `POST`, a missing `Origin` too | `Use this server's own page to make this request.` |
-| `415` | `POST` whose `Content-Type` is not `application/json` | `Send JSON.` |
-| `411` | `POST` whose `Content-Length` is not a number, or is below `0` | `Say how long what is sent is.` |
-| `413` | `POST` body over **1 MiB** | `That is more than a request here may send.` |
-| `400` | Body not a JSON object | `Send JSON.` or `Send a JSON object.` |
 | `404` / `405` | No route of that path / none for that method | `There is nothing here by that name.` |
+| `415` | `POST` whose `Content-Type` is not `application/json` -- nor, to [`POST /api/runs/import`](#api-import), `application/vnd.hmz.epic+gzip` or `application/octet-stream` | `Send JSON.` |
+| `411` | `POST` whose `Content-Length` is not a number, or is below `0` | `Say how long what is sent is.` |
+| `413` | `POST` body over **1 MiB** -- a file sent to `POST /api/runs/import`, over **2 GiB** | `That is more than a request here may send.` |
+| `400` | Body not a JSON object | `Send JSON.` or `Send a JSON object.` |
 | `405` | A method other than `GET` outside `/api/` | `Only the page's own files are here.` |
 | `400` | A field a request does not take, or of another type | e.g. `start takes no rounds.`, `say takes text as text.` |
 | `409` | The runs refused the request | Their own sentence, as [`Refused`](/reference/sdk#refused) gives it. |
@@ -133,6 +133,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | --- | --- |
 | `#/new[?workspace=&flow=&resume=<name>]` | A new epic: in the workspace picked (where `hmz web` started by default), the flow picked, or the epic named picked up. The page opens here. |
 | `#/live` | The epic going; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/assistant%2F1`, once that opens. |
+| `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path on this machine, as [`POST /api/runs/import`](#api-import) does -- in the desktop app as it is opened; in a browser, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>` -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
 | `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<role>/<n>` | The thread of the `n`-th session that role opened, as the epic going names it (`/` written `%2F`). |
@@ -187,11 +188,12 @@ asks one, through the same side conversations: a second question to one still an
 | Method and path | Takes | Answers |
 | --- | --- | --- |
 | `GET /api/runs` | `workspace` (only its runs; every workspace's without), `status`, `flow`, `q` (in its task, flow or name), `offset` (`0`), `limit` (`50`, at most `200`) | `runs` (rows, newest first), `total`, `offset`, `limit`, `counts` (`{how: n}` over every run), `flows` |
-| `GET /api/runs/<name>` | | Of whichever workspace it ran in: the row (`workspace` among it), and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile`, `picks_up` (whether it can be picked up), `calls` (the tree of flows it called) |
+| `GET /api/runs/<name>` | | Of whichever workspace it ran in: the row (`workspace` among it), and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile`, `picks_up` (whether it can be picked up), `foreign` (why one [imported](/user/export#importing-a-run) cannot be picked up here, or `""`), `calls` (the tree of flows it called) |
 | `GET /api/runs/<name>/trace` | | `sessions`: each with its `key`, `agent` and `actions` (`category`, `name`, `at`, `start`, `seconds`, `args`), read out of the run's logs as [tracing](/reference/tracing) reads them; the last **4** of runs that have ended kept, until the run's journal changes |
 | `GET /api/runs/<name>/timeline` | | The run's [Exomyth timeline](/reference/tracing#timeline): compact JSON, with an `ETag`. A run that has ended is laid out once, the last **4** kept until its journal changes; a run going is laid out again on every request |
 | `GET /api/runs/<name>/timeline/span/<id>` | `layout` (the timeline's own) | [One span](/reference/tracing#timeline-span) of the last timeline laid out of the run, whole; `404` for an id it does not have, `409` where `layout` is not the last timeline's |
 | `GET /api/runs/<name>/bundle` | | The run's [export](/reference/tracing), as a download |
+| `POST /api/runs/import` | A file, or `path` -- see [Importing](#api-import) | `201`: `name`, `workspace`, `resumable`, `why` |
 | `POST /api/runs/<name>/backup` | `to` (target names; the run's own, else the defaults, without) | `queued`: the targets it was [backed up](/user/backups) to, on threads of their own -- nothing waits for the push; `400` for a target there is none of, `409` where there is no target at all |
 | `GET /api/usage` | `days` (`30`; 1 to 365); `workspace` (only its runs) | `days` (per UTC day, oldest first), `flows` (costliest first), `ended` (`{how: n}`), `whole`: each with `runs`, `cost`, `output_tokens`, `seconds`, and `money`, `tokens`, `worked` as the terminal interface says them |
 
@@ -201,6 +203,30 @@ A row is `name`, `flow`, `task` (its first line, cut at 240 characters), `began`
 going), `spent`: what its budget counted as it ended, or `null`, `backup` (the targets it was
 started with) and `backed` (`{target: {at, ok, error, why}}`: how its last backup to each
 went). A run of no such name is `404`.
+
+#### Importing {#api-import}
+
+`POST /api/runs/import` reads an [exported](/user/export) epic back in, as
+[`Epics.imported`](/reference/sdk) does: under the workspace it says it ran in, whichever that
+is. It is sent one of two ways, each from the page's own origin as every write is:
+
+| `Content-Type` | Body | Also |
+| --- | --- | --- |
+| `application/vnd.hmz.epic+gzip` or `application/octet-stream` | The `.hmzepic`'s bytes, at most **2 GiB**, with its `Content-Length` | `X-Hmz-Filename`: the file's name, percent-encoded (`encodeURIComponent`) -- its last part is kept, and must end `.hmzepic` |
+| `application/json` | `{"path": "/whole/path/to/<name>.hmzepic"}`: a file already on this machine | |
+
+A file sent is written into a directory of its own under this machine's own directory, and
+removed once it has been answered.
+
+| Status | Body | When |
+| --- | --- | --- |
+| `201` | `name` (the epic's), `workspace` (where it ran, resolved), `resumable` (whether it can be picked up here), `why` (why an imported epic cannot be, or `""`) | Imported |
+| `400` | `error` | Not named `.hmzepic`, not a gzipped tar, not one epic holding its record and manifest, holding anything but plain files under it, saying no workspace; a `path` that is not whole, or no file; no `X-Hmz-Filename` |
+| `409` | `error`, `name` | An epic of that name is here already: `name` is it, at `#/epics/<name>` |
+| `413` | `error` | Over **2 GiB** |
+
+Every `error` but the last is the runtime's own sentence, e.g.
+`20261012-101500-ab12 is already here, at /…/epics/-work-app/20261012-101500-ab12.`
 
 ### Flows {#api-flows}
 

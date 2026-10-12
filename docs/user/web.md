@@ -62,11 +62,11 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **An epic** | Its graph: who handed to whom -- a `chat` opens on its conversation instead | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: every place flows come from, and every release each index lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
-| **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task |
+| **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar names this machine and says how many epics are going on it;
-its menu opens **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
+its menu opens **Import**, **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
@@ -190,6 +190,20 @@ epic still going is read again every two seconds while the tab is shown.
 
 With nothing picked, the panel says the epic's figures, each category's spans, time and
 tokens, and every process -- click one to pick it.
+
+### Importing an epic {#importing-an-epic}
+
+Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or in the machine's menu at
+the foot of the sidebar, or right-click between the epics in the sidebar, and pick the file --
+or drop it anywhere on the window. It is read back in under the directory it ran in, and opens
+once it is in. One you already have is refused, with **Open** to go to it.
+
+An imported epic is read as any other. It is picked up only where the directory it ran in is
+here at the same path, holding the commit its archive says; otherwise it says why under it,
+`Imported · not resumable here: …`, and offers no **Resume**. A `.hmzepic` already on this
+machine is imported by its address too, `#/epics/import?path=<file>`, once you press **Import**
+under its path. See
+[Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 

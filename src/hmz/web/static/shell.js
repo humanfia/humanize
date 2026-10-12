@@ -8,7 +8,7 @@ import { h, icon, iconButton } from './dom.js'
 const app = () => document.querySelector('.app')
 const narrow = matchMedia('(max-width: 860px)')
 /** Whether the page is the macOS app's window, as theme.js found before the page was drawn. */
-const inApp = document.documentElement.dataset.shell === 'macos'
+export const inApp = document.documentElement.dataset.shell === 'macos'
 
 /** Reads a choice this browser keeps, or the default where it keeps none or cannot. */
 export function kept(name, otherwise) {

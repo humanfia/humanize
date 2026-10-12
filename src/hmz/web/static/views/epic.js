@@ -344,11 +344,13 @@ export function mount(root, { parts, query }) {
       }
     }
     const composer = going ? (reading(mode) && sayToKey && (mode.session || mode.log) ? sayTo.node : say.node) : null
-    region('dock-composer', [going, mode.session, mode.log, detail.picks_up], () => {
+    region('dock-composer', [going, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
       if (composer) dock.append(composer)
       else if (detail.picks_up)
         dock.append(h('p', { class: 'dock-note' }, 'Ended · ', h('a', { href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, 'Resume')))
+      // Imported from a workspace this machine has not got as it was: why it is not picked up here.
+      else if (detail.foreign) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'foreign' }, `Imported · not resumable here: ${detail.foreign}`))
     })
   }
 

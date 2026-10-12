@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import contextlib
 import http.client
+import io
 import json
 import os
 import re
 import sys
+import tarfile
 import threading
 import time
 import urllib.parse
@@ -24,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from hmz.runtime.epic import JOURNAL
 from hmz.web import listening
 
 if TYPE_CHECKING:
@@ -210,6 +213,15 @@ class Browser:
         } | headers
         return self._asks("POST", path, json.dumps(body or {}).encode(), sent)
 
+    def sends(self, path: str, body: bytes, name: str, **headers: str) -> Answer:
+        """Sends a file as it is, named, as the page's own script sends an epic's archive."""
+        sent = {
+            "Origin": f"http://{self._host()}",
+            "Content-Type": "application/vnd.hmz.epic+gzip",
+            "X-Hmz-Filename": urllib.parse.quote(name),
+        } | headers
+        return self._asks("POST", path, body, sent)
+
     def _host(self) -> str:
         return self.host or f"127.0.0.1:{self.site.port}"
 
@@ -302,3 +314,33 @@ def until(
         if wanted(event, data):
             return ident, data
     raise AssertionError(f"the stream never said {what}")
+
+
+def elsewhere(archive: Path, workspace: str, to: Path) -> Path:
+    """A copy of an epic's archive whose run says it ran in another workspace.
+
+    Args:
+      archive: The `.hmzepic`.
+      workspace: Where the copy says its run ran.
+      to: The directory the copy is written into, under the archive's own name.
+
+    Returns:
+      The copy.
+    """
+    copy = to / archive.name
+    with (
+        tarfile.open(archive, "r:gz") as reading,
+        tarfile.open(copy, "w:gz") as writing,
+    ):
+        for member in reading.getmembers():
+            held = reading.extractfile(member)
+            body = held.read() if held is not None else b""
+            if member.name.endswith(f"/{JOURNAL}"):
+                lines = [json.loads(line) for line in body.splitlines()]
+                for line in lines:
+                    if line.get("event") == "began":
+                        line["workspace"] = workspace
+                body = b"".join(json.dumps(line).encode() + b"\n" for line in lines)
+                member.size = len(body)
+            writing.addfile(member, io.BytesIO(body) if member.isfile() else None)
+    return copy

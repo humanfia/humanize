@@ -1121,7 +1121,8 @@ runs `call` in this process; `offers(None)` withdraws them. `FakeTool` is one ty
   `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
   `grok` and an ACP CLI (a `humanize` stdio server in the `mcpServers` of the call that opens
   the conversation), `pi` (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under
-  `--no-extensions` too), `omp` (RPC `set_host_tools`) and `dsh` (a
+  `--no-extensions` too; tools named `humanize_<name>`), `omp` (RPC `set_host_tools`; tools named
+  `humanize_<name>`) and `dsh` (a
   `@deepseek-ai/dsh-mcp-client` row in its patch, tools named `mcp__humanize__<name>`);
   elsewhere `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
 - On `grok` and an ACP CLI, changing the offered names restarts the process and picks the
@@ -1134,7 +1135,8 @@ runs `call` in this process; `offers(None)` withdraws them. `FakeTool` is one ty
   agent.
 - Offering other names between two turns starts `pi` and `dsh` again before the next one;
   `omp` is told on the process already up.
-- A native anchored turn on a non-`local` target cannot be offered tools (refused).
+- A native anchored turn on a non-`local` target cannot be offered tools (refused), but for
+  `omp` (`AgentBase.pipes_tools`), whose calls come back over its RPC pipe wherever it runs.
 
 ## Fake command lines {#command-lines}
 
@@ -1891,7 +1893,7 @@ class SessionBase:
 
     id: str; named: str | None; cwd: str; forks: bool
     effort: str; budget: Budget | None  # settable
-    skills: tuple[str, ...]; tools: tuple[Tool, ...]
+    skills: tuple[str, ...]; tools: tuple[FakeTool, ...]
 
     def __call__(prompt, *, suppress=False, schema=…) -> str | T | None
     def stream(prompt, *, schema=None) -> Iterator[Event]
