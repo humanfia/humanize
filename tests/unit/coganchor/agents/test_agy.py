@@ -346,6 +346,7 @@ def test_a_turn_through_a_gateway_is_its_openai_gateway_serving_the_model_named(
     (process,) = spawned
     env = process.env
     assert env is not None
+    # Bare: agy adds `/v1/chat/completions` itself.
     assert env["AGY_LLM_GATEWAY_URL"] == "http://127.0.0.1:4321"
     assert env["AGY_LLM_GATEWAY_API_KEY"] == "sk-master"
     assert env["AGY_LLM_GATEWAY_WIRE_PROTOCOL"] == "openai"
