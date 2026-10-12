@@ -161,6 +161,8 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   for its dark, a pair at once or any two; MUST let a theme be written out whole as a
   `.hmztheme` file and read back in, and MUST be usable on a screen as narrow as a phone's, and MUST hold still where motion is asked
   to be reduced.
+- MUST let a theme be chosen only in Settings, never from the sidebar's menu, in the browser
+  and the desktop app alike.
 - MUST draw its chrome around the window controls of the desktop app when it is shown in it,
   and nothing else differently.
 - MUST make every view an address that can be kept and opened again, and MUST say, rather than

@@ -66,8 +66,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar names this machine and says how many epics are going on it;
-its menu picks the [theme](#themes) -- **Auto**, which follows your system, and the pair it
-follows it with -- and opens **Themes**, **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
+its menu opens **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
@@ -197,9 +196,9 @@ dark one: its own, **Humanize Green**, and **Temperate Gold**, **Concordant Scar
 **Hateful Silver**, **Devoted Pink**, **Self-Negating Plum**, **Dominant Azure**,
 **Surviving Jade** and **Lamenting Orchid**.
 
-**Auto**, the default, follows your system with a pair: pick one from the machine menu's
-**Pairs**, or under **Settings → Themes → Auto** pick a **Pair** -- or any theme for the
-system's **Light** and any for its **Dark**, your own included. Click a preset's light or dark
+A theme is picked only under **Settings → Themes**. **Auto**, the default, follows your system
+with a pair: under **Auto** pick a **Pair** -- or any theme for the system's **Light** and any
+for its **Dark**, your own included. Click a preset's light or dark
 swatch to use that one theme whatever the system is.
 
 **New** makes a theme from the one showing, **Duplicate** from any; **Edit** opens one of yours:
