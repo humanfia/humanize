@@ -275,6 +275,11 @@ Every `error` but the last is the runtime's own sentence, e.g.
 | `POST /api/runtimes/check` | `backend`, `name` | What it said: `reached`, `said`, `home`, `cpus`, `memory`, `gpus`, `usable`, `gpu_memory`, `runtimes`, `version`, `short`, `nodes` |
 | `GET /api/runtimes/hosts` | | `hosts` your ssh config names (`alias`, `host`, `user`, `port`, `identity_files`, `proxy_jump`, `saved`) |
 | `POST /api/runtimes/import` | `names`; `update` (bool) | As `GET /api/runtimes` |
+| `GET /api/daemons` | | `daemons`: `Local` first, then each ssh daemon (`name`, `label`, `host`, `user`, `port`, `identity_file`, `proxy_jump`, `options` as `[keyword, value]` pairs, `alias`, `config`) with `state`, `detail` and `version` |
+| `POST /api/daemons` | `name`, `fields`; `replace` (bool) | As `GET` |
+| `POST /api/daemons/remove` | `name` | As `GET` |
+| `GET /api/daemons/hosts` | | `hosts` your ssh config names that are not daemons yet (`alias`, `name`, `host`, `user`, `port`, `identity_files`, `proxy_jump`) |
+| `POST /api/daemons/import` | `aliases` | As `GET`, and `added`: the daemons made, skipping any already there |
 
 An account is listed by the names of the variables it sets (`sets`), never by a value.
 

@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from . import (
     accounts,
+    daemons,
     fallbacks,
     flows,
     held,
@@ -70,6 +71,7 @@ ROUTES: tuple[Route, ...] = (
     *accounts.ROUTES,
     *fallbacks.ROUTES,
     *runtimes.ROUTES,
+    *daemons.ROUTES,
     *paths.ROUTES,
     *places.ROUTES,
     *verses.ROUTES,
