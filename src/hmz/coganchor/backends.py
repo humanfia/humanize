@@ -2126,6 +2126,10 @@ PROFILES = (
         # only where the CLI looks up its own catalogue: a list from somewhere a turn does
         # not go is the same fresh-and-wrong answer as the CLI's own.
         endpoint="GROK_XAI_API_BASE_URL",
+        # And the local LiteLLM gateway is an endpoint speaking OpenAI's API like any other,
+        # spoken to in chat completions -- the one protocol it speaks for every provider
+        # behind it, which the driver says in place of the way's own `responses`.
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
@@ -3928,6 +3932,11 @@ PROFILES = (
             Sign("refused", r"sign in to minimax"),
             Sign("refused", r"oauth bearer is not synced"),
         ),
+        # The local LiteLLM gateway is an endpoint speaking OpenAI's chat completions, the one
+        # protocol it speaks for every provider behind it. The way's command is not run for
+        # it: the driver adds the gateway as a provider of its own, under the gateway's port,
+        # once a turn names the model (:mod:`hmz.coganchor.agents.minimax`).
+        routes="openai-gateway",
         ways=(
             Way(
                 name="login",
