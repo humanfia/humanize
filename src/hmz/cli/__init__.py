@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator, MutableMapping
 
     from hmz.runtime import Hmz, Run
+    from hmz.tui import Humanize
 
     from .output import Out
 
@@ -55,6 +56,9 @@ APART = "HUMANIZE_DAEMON"
 
 #: How long `hmz exec` waits for its epic's backups once the run is over.
 _BACKING = 60.0
+
+#: How long the interface waits, once it is closed, for the backups it queued itself.
+_CLOSING = 15.0
 
 
 def many(count: int | str, thing: str) -> str:
@@ -522,17 +526,45 @@ def opens() -> int:
         return _here()
     from hmz.tui import Humanize
 
-    app = Humanize(link=link)
-    app.run()
-    return app.return_code or 0
+    return _closes(Humanize(link=link))
 
 
 def _here() -> int:
     """Opens the interface in this process, holding this directory's runs itself."""
     from hmz.tui import Humanize
 
-    app = Humanize()
+    return _closes(Humanize())
+
+
+def _closes(app: Humanize) -> int:
+    """Runs the interface, then lets the backups this process queued finish, for so long.
+
+    An epic backed up from `/epics`, or one whose runs this process held, is backed up by
+    nothing but this process: going at once would drop it, and waiting for ever on a remote
+    that does not answer would hold up a terminal somebody has finished with.
+
+    Args:
+      app: The interface.
+
+    Returns:
+      What it closed with.
+    """
+    from hmz.runtime import Hmz
+
     app.run()
+    backups = Hmz().backups
+    if not backups.wait(0):
+        print("hmz: backing epics up", file=sys.stderr)
+        try:
+            done = backups.wait(_CLOSING)
+        except KeyboardInterrupt:  # not waited for, which is leaving them as well
+            done = False
+        if not done:
+            print(
+                f"hmz: a backup took longer than {_CLOSING:.0f}s and was left; "
+                "`hmz backup EPIC` sends it again",
+                file=sys.stderr,
+            )
     return app.return_code or 0
 
 

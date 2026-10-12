@@ -8,7 +8,14 @@ from hmz.tui.settings import MOVED, PAGES, page_of
 
 
 def test_the_pages_are_listed_in_order() -> None:
-    assert PAGES == ("general", "accounts", "fallback", "runtimes", "workspace")
+    assert PAGES == (
+        "general",
+        "accounts",
+        "fallback",
+        "runtimes",
+        "backup",
+        "workspace",
+    )
 
 
 @pytest.mark.parametrize(("at", "page"), list(enumerate(PAGES)))

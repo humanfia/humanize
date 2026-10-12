@@ -65,7 +65,7 @@ Each target says when, in `policies`. Tick any of them, or none:
 A backup never holds anything up. It runs behind the epic, one at a time per target, and a
 target that cannot be reached is written down as a failed backup rather than an epic that
 failed. `hmz exec` waits up to a minute for its last backups once it has printed its answer,
-then leaves.
+then leaves; `hmz` waits up to 15 seconds for the ones it started once you close it.
 
 ## Choosing the targets
 
@@ -76,7 +76,10 @@ $ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 --backup lab --backup ho
 $ hmz exec -f chat -a assistant=claude/claude-haiku-4-5 --backup none "hi"
 ```
 
-The epic remembers which targets it was started with.
+In `hmz`, the same targets are written on the [Backup page](/user/settings#backup) of
+`/settings` -- `/settings backup` -- and a flow's **backup** row on `/flow` switches on the ones
+its epics go to, the defaults until you do. The epic remembers which targets it was started
+with.
 
 ## Backing an epic up by hand
 
@@ -86,7 +89,9 @@ lab: backed up to git@github.com:you/epics.git
 $ hmz backup 20261012T091500.123Z-1a2b3c --to home
 ```
 
-Without `--to`, the epic goes to the targets it was started with, else to the defaults.
+Without `--to`, the epic goes to the targets it was started with, else to the defaults. In
+`hmz`, open the epic on `/epics` and choose **upload**, which does the same without waiting;
+the epic then says how its last backup to each target went.
 
 ## Check that it worked
 

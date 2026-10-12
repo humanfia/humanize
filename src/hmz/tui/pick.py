@@ -124,6 +124,8 @@ __all__ = [
     "Account",
     "Accounts",
     "Agent",
+    "Backing",
+    "Backups",
     "Catalogue",
     "Chosen",
     "Clis",
@@ -142,10 +144,12 @@ __all__ = [
     "Places",
     "Popup",
     "Providers",
+    "Repo",
     "Sheet",
     "Signing",
     "Signs",
     "Speaks",
+    "Targets",
     "budget_of",
     "called",
     "complete",
@@ -1929,6 +1933,7 @@ class Chosen(NamedTuple):
         with.
       profile: Whether a run of it profiles the programs its agents start, as well as
         tracing them.
+      backup: The backup targets an epic of it goes to, by name, or None for the defaults.
     """
 
     flow: str
@@ -1937,6 +1942,7 @@ class Chosen(NamedTuple):
     params: BaseModel | None = None
     budget: Budget | None = None
     profile: bool = False
+    backup: tuple[str, ...] | None = None
 
 
 class Declared(NamedTuple):
@@ -4473,12 +4479,12 @@ _REPORTS, _QUIET = "on", "off"
 
 #: The pages of `/settings`, in the order they are listed on its first screen: from the
 #: broadest to the nearest. The fallbacks are beside the accounts, since what a turn falls
-#: back to is another account or model; the machines a flow's environments go on follow; this
-#: directory's own come last. Where flows come from is `/flow`'s (:mod:`hmz.tui.flows`). The
-#: menu itself is :mod:`hmz.tui.settings`; the pages are counted here because each page that
-#: is a list of things is a class of this module, and says which page it is when it says
-#: something.
-_EVERYWHERE, _ACCOUNTS, _FALLBACK, _MACHINES, _DIRECTORY = range(5)
+#: back to is another account or model; the machines a flow's environments go on follow, then
+#: the repositories epics are backed up to; this directory's own come last. Where flows come
+#: from is `/flow`'s (:mod:`hmz.tui.flows`). The menu itself is :mod:`hmz.tui.settings`; the
+#: pages are counted here because each page that is a list of things is a class of this
+#: module, and says which page it is when it says something.
+_EVERYWHERE, _ACCOUNTS, _FALLBACK, _MACHINES, _BACKUP, _DIRECTORY = range(6)
 
 
 #: How much of a directory a row says: the last of it, which is what tells one project from
@@ -5863,6 +5869,366 @@ def _falling(step: Step) -> str:
     over = f", up to {_lasting(step.timeout)}" if step.timeout else ""
     tries = "retry" if step.tries == 1 else "retries"
     return f"{step.tries} {tries}, {step.policy}{over}{_DOT}{goes}"
+
+
+#: When an epic is backed up without anybody asking, by the word settings keeps each under:
+#: what each is called on a row. Every N minutes is a row of minutes rather than a switch.
+_POLICIES = {
+    "session": "On session close",
+    "interval": "Every N minutes",
+    "end": "On epic end",
+}
+
+#: How many minutes apart Every N minutes may back a running epic up, picked from.
+_MINUTES = (5, 10, 15, 30, 60, 120)
+
+#: The rows of a backup target's form that are not policies.
+_NAMED, _URL, _BRANCH, _DEFAULT = "name", "url", "branch", "default"
+
+#: What a target may be called, as settings takes it: one short word, a directory and a flag.
+_ONE_WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}")
+
+
+def _minutes(every: int) -> str:
+    """How many minutes apart, as the Every N minutes row says it."""
+    return f"{every} minutes"
+
+
+class Repo(NamedTuple):
+    """One backup target, as `/settings` holds it until it is saved.
+
+    Attributes:
+      name: What it is called.
+      url: Where it is, as git reaches it.
+      branch: The branch epics are committed to.
+      policies: When an epic is backed up there without anybody asking.
+      every: How many minutes apart `interval` backs a running epic up.
+      default: Whether a new epic is backed up there unless it is told otherwise.
+    """
+
+    name: str
+    url: str
+    branch: str = "main"
+    policies: tuple[str, ...] = ()
+    every: int = 30
+    default: bool = False
+
+
+def _when_backed(repo: Repo) -> str:
+    """When an epic is backed up to one target, as the one line a row has room for."""
+    said = [
+        f"every {_minutes(repo.every)}" if one == "interval" else label.lower()
+        for one, label in _POLICIES.items()
+        if one in repo.policies
+    ]
+    return ", ".join(said) or "manual only"
+
+
+class Backing(Form["Repo | str"]):
+    """Everything about one backup target, on one form: where it is, and when it is used.
+
+    Held until `/settings` is saved, as the rest of the page is. On a target already written,
+    taking it away is a row of its own above the one that keeps it.
+    """
+
+    def __init__(self, repo: Repo | None = None, *, taken: frozenset[str]) -> None:
+        """Initializes the form on a target, or on nothing for one being added.
+
+        Args:
+          repo: The target as it is held now, or None to add one.
+          taken: What the other targets are called, which this one may not be.
+        """
+        super().__init__()
+        self._unwritten = repo is None
+        held = repo or Repo("", "")
+        self._taken = taken
+        #: How many minutes apart, kept while Every N minutes is off.
+        self._every = held.every
+        self._typed_in = {
+            _NAMED: held.name,
+            _URL: held.url,
+            _BRANCH: held.branch,
+            **{
+                one: (_minutes(held.every) if one in held.policies else _NO)
+                if one == "interval"
+                else (_YES if one in held.policies else _NO)
+                for one in _POLICIES
+            },
+            _DEFAULT: _YES if held.default else _NO,
+        }
+
+    def asked(self) -> list[Question]:
+        """Where it is, then when an epic goes there."""
+        return [
+            Question(
+                _NAMED,
+                "name",
+                "one short word, as --backup takes it",
+                needed=not self._typed_in[_NAMED],
+            ),
+            Question(
+                _URL,
+                "URL",
+                "the repository, reached with your own git",
+                needed=not self._typed_in[_URL],
+            ),
+            Question(_BRANCH, "branch", "where epics are committed"),
+            Question("session", _POLICIES["session"], "as each session ends", _STEPS),
+            Question("interval", _POLICIES["interval"], "while the epic runs", _STEPS),
+            Question("end", _POLICIES["end"], "once the epic ends", _STEPS),
+            Question(_DEFAULT, "Default", "new epics go here unless told", _STEPS),
+        ]
+
+    def choices(self, held: str) -> Sequence[str]:
+        """On and off, and how many minutes apart."""
+        if held == "interval":
+            every = sorted({*_MINUTES, self._every})
+            return [_NO, *(_minutes(one) for one in every)]
+        return (_YES, _NO) if held in (*_POLICIES, _DEFAULT) else ()
+
+    def beside(self) -> list[Action]:
+        """Taking it away, for a target already written."""
+        if self._unwritten:
+            return []
+        return [
+            Action(
+                _ACT_REMOVE,
+                "remove",
+                "removes this target when saved",
+                partial(self.dismiss, _TAKES_AWAY),
+                variant="error",
+            )
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does, which is hold it."""
+        return "applies this target when /settings is saved"
+
+    def _ask(self) -> None:
+        """Says which target this is, and what one is."""
+        self.query_one("#asked", Label).update(
+            "Add backup target" if self._unwritten else escape(self._typed_in[_NAMED])
+        )
+        self.query_one("#about", Label).update(
+            "A repository epics are copied to, one commit per backup, pushed with "
+            "your own git. No policy means only when you ask."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the target, once it is named and has somewhere to go."""
+        self._wrong = ""
+        name = self._typed_in[_NAMED].strip()
+        url = self._typed_in[_URL].strip()
+        if not _ONE_WORD.fullmatch(name):
+            self._wrong = "name is one short word: letters, digits, - and _"
+        elif name in self._taken:
+            self._wrong = f"another target is named {name}"
+        elif not url:
+            self._wrong = "URL is required"
+        if self._wrong:
+            self._fill()
+            return
+        every = self._typed_in["interval"]
+        self.dismiss(
+            Repo(
+                name,
+                url,
+                self._typed_in[_BRANCH].strip() or "main",
+                tuple(one for one in _POLICIES if self._typed_in[one] != _NO),
+                int(every.split()[0]) if every != _NO else self._every,
+                self._typed_in[_DEFAULT] == _YES,
+            )
+        )
+
+
+class Targets(Form[tuple[str, ...]]):
+    """Which backup targets one epic goes to: a switch per target, on for each it goes to."""
+
+    def __init__(self, chosen: Sequence[str]) -> None:
+        """Initializes the form on the targets switched on now.
+
+        Args:
+          chosen: The targets switched on, by name.
+        """
+        super().__init__()
+        verses = _hmz().verses
+        self._targets = {
+            one.name: verses.plain(one.url) for one in _hmz().backups.targets()
+        }
+        self._typed_in = {one: _YES if one in chosen else _NO for one in self._targets}
+
+    def asked(self) -> list[Question]:
+        """A switch per target."""
+        return [
+            Question(name, name, url, _STEPS) for name, url in self._targets.items()
+        ]
+
+    def choices(self, held: str) -> Sequence[str]:
+        """On and off."""
+        del held
+        return (_YES, _NO)
+
+    def done_about(self) -> str:
+        """What answering it does, which is hold it."""
+        return "backs each epic up to the targets switched on"
+
+    def _ask(self) -> None:
+        """Says what this is for."""
+        self.query_one("#asked", Label).update("Backup")
+        self.query_one("#about", Label).update(
+            "Where each epic started here is backed up, whichever its flow, as each "
+            "target's policies say, until hmz is closed. Targets are added on "
+            "/settings backup."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the targets switched on, in the order settings lists them."""
+        self.dismiss(tuple(one for one, said in self._typed_in.items() if said == _YES))
+
+
+class Backups(Pages):
+    """The backup page of `/settings`: the repositories epics are backed up to.
+
+    Each target says where it is and when an epic is backed up there without anybody asking;
+    the ones marked default are where a new epic goes unless it is told otherwise. Held until
+    the menu is saved, and written all at once, as settings writes them.
+    """
+
+    #: What the page says it is.
+    BACKUP_ABOUT = (
+        "Repositories epics are backed up to, with your own git. A new epic goes to "
+        "the ones marked ✔ unless told otherwise."
+    )
+
+    def __init__(self) -> None:
+        """Holds no targets until the menu reads them."""
+        super().__init__()
+        #: The targets, held until the menu is saved, and as they were read.
+        self._repos: list[Repo] = []
+        self._repos_was: list[Repo] = []
+
+    def _read_backups(self) -> None:
+        """Reads the targets, and which of them are defaults."""
+        backups = _hmz().backups
+        defaults = backups.defaults()
+        self._repos = [
+            Repo(*one, default=one.name in defaults) for one in backups.targets()
+        ]
+        self._repos_was = list(self._repos)
+
+    def _backup_actions(self) -> list[Action]:
+        """What is done about the targets: adding one, searching them, and saving."""
+        return [
+            Action(
+                _ACT_ADD,
+                "add target",
+                "a repository to back epics up to",
+                lambda: self._writes_backup(None),
+            ),
+            self._searches(),
+            self._saves_all(),
+        ]
+
+    def _fill_backups(self) -> None:
+        """Puts the targets up, each saying where it is and when it is used."""
+        listing = self.query_one("#choices", OptionList)
+        self._follows(listing)
+        plain = _hmz().verses.plain
+        rows = [
+            (one, f"{plain(one.url)}{_DOT}{one.branch}{_DOT}{_when_backed(one)}")
+            for one in self._repos
+        ]
+        rows = [row for row in rows if self.fits(row[0].name, row[1])]
+        landing = self._lands([one.name for one, _ in rows])
+        self._put(
+            listing,
+            [
+                Option(
+                    self._row(
+                        seen,
+                        one.name,
+                        about,
+                        here=one.name == landing,
+                        inforce=one.default,
+                    ),
+                    id=f"={one.name}",
+                )
+                for seen, (one, about) in enumerate(rows)
+            ],
+            landing,
+        )
+        self._drawn = listing.highlighted
+        said = self._said or ("" if rows else "no backup targets yet")
+        self.query_one("#tuning", Label).update(
+            f"[$text-muted]{said}[/]" if said else ""
+        )
+        self._footed(Key("enter", "edit"), Key("esc", "close"))
+
+    def _took_backup(self, named: str) -> None:
+        """Opens the form of the target chosen.
+
+        Args:
+          named: The row chosen, by its id.
+        """
+        repo = next((one for one in self._repos if one.name == named), None)
+        if repo is not None:
+            self._writes_backup(repo)
+
+    @work
+    async def _writes_backup(self, repo: Repo | None) -> None:
+        """Asks what one target is, on one form, and holds what it says.
+
+        Args:
+          repo: The target as it is held now, or None for one being added.
+        """
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        others = frozenset(one.name for one in self._repos if one != repo)
+        try:
+            chosen = await showing.push_screen_wait(Backing(repo, taken=others))
+        finally:
+            self.opened()
+        if chosen is None or chosen == repo:
+            return
+        if isinstance(chosen, str):
+            if chosen == _TAKES_AWAY and repo is not None:
+                self._repos.remove(repo)
+                self._said = iffy(f"{escape(repo.name)} is removed when saved")
+                self.changed()
+                self._fill()
+            return
+        at = self._repos.index(repo) if repo is not None else len(self._repos)
+        self._repos[at : at + 1] = [chosen]
+        self._aim, self._said = chosen.name, ""
+        self.changed()
+        self._fill()
+
+    def _applies_backups(self, told: list[str]) -> None:
+        """Writes the targets down where they were changed, and says so.
+
+        Args:
+          told: What the transcript is to say, which this adds to.
+        """
+        if self._repos == self._repos_was:
+            return
+        try:
+            _hmz().settings.back_up_to(
+                [
+                    {**one._asdict(), "policies": list(one.policies)}
+                    for one in self._repos
+                ],
+                [one.name for one in self._repos if one.default],
+            )
+        except (OSError, ValueError) as why:
+            told.append(f"hmz: {escape(str(why))}")
+        else:
+            told.append(f"[dim]{_many(len(self._repos), 'backup target')} saved[/dim]")
 
 
 #: What can be done to one account, which is what enter opens rather than what a row of
@@ -9486,6 +9852,9 @@ class Adjusted(NamedTuple):
 #: names would be two things to learn.
 RESUMES, _EXPORTS = "resume", "export"
 
+#: Backing a run up by hand, to the targets it was started with or else the defaults.
+_UPLOADS = "upload"
+
 #: What the trace an export gathers is filed as, inside the run's own `traces/`. Named for
 #: what made it rather than for the moment it was made: a trace gathered by hand keeps both
 #: when it is gathered twice, and this one is of a run that is over and will not read any
@@ -9583,17 +9952,19 @@ class Does(Picks):
     #: A few rows, read rather than narrowed.
     SEARCHES: ClassVar = False
 
-    def __init__(self, ran: Ran, *, resumable: bool) -> None:
+    def __init__(self, ran: Ran, *, resumable: bool, uploads: bool = False) -> None:
         """Goes into one run.
 
         Args:
           ran: The run, as it was written down.
           resumable: Whether its flow says now that it can be picked up, which is asked of
             the flow rather than of the run: a flow may have been rewritten since.
+          uploads: Whether there is a backup target to back it up to.
         """
         super().__init__()
         self._ran = ran
         self._resumable = resumable
+        self._uploads = uploads
         self.asked = f"{_when(ran.began)}{_DOT}{ran.flow}"
         #: Where it is written first, on a line of its own: it is the long part and the part
         #: somebody copies, and a path wrapped into the middle of a sentence is one that has
@@ -9602,6 +9973,10 @@ class Does(Picks):
             f"{escape(str(ran.at))}\nIt {_how(ran)} with "
             f"{_many(len(ran.agents), 'agent')} in "
             f"{_many(len(ran.sessions), 'session')}."
+            + "".join(
+                f"\n{escape(name)}: {escape(_backed(said))}"
+                for name, said in ran.backed.items()
+            )
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
@@ -9627,6 +10002,10 @@ class Does(Picks):
                 "the entire run as an archive, with its trace",
             )
         )
+        if self._uploads:
+            held.append(
+                (_UPLOADS, "upload", "back the epic up to its targets, or the defaults")
+            )
         return held
 
     def nothing(self) -> str:
@@ -9636,6 +10015,14 @@ class Does(Picks):
         return (
             f"{escape(self._ran.flow)} is not resumable, so this run cannot be resumed"
         )
+
+
+def _backed(said: dict[str, Any]) -> str:
+    """How one epic's last backup to one target went, as a line about it reads."""
+    when = _when(str(said.get("at") or ""))
+    if said.get("ok"):
+        return f"backed up {when}"
+    return f"failed {when}: {said.get('error') or 'unknown error'}"
 
 
 def _how(ran: Ran) -> str:
@@ -10038,6 +10425,26 @@ class Epics(Sheet[Doing]):
         self._told.append(f"[dim]{said}[/dim]")
         self._fill()
 
+    def _uploads(self, ran: Ran) -> None:
+        """Backs one epic up by hand, behind everything else, and says where it went.
+
+        Args:
+          ran: The epic.
+        """
+        try:
+            names = _hmz().backups.push(ran)
+        except ValueError as why:  # a target it was started with has since gone
+            self._said = bad(escape(str(why)))
+        else:
+            self._said = (
+                f"backing {escape(ran.name)} up to {escape(', '.join(names))}"
+                if names
+                else iffy("no default backup target: mark one on /settings backup")
+            )
+            if names:
+                self._told.append(f"[dim]{self._said}[/dim]")
+        self._fill()
+
     def _follows(self, listing: OptionList) -> None:
         """Takes which run the cursor is on off the list, by the directory it is written in."""
         at = listing.highlighted
@@ -10110,6 +10517,8 @@ class Epics(Sheet[Doing]):
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
         while True:
+            # Read again, so that how its last backups went is how they went now.
+            ran = self._runs.read(ran.at) or ran
             said = await showing.push_screen_wait(
                 Does(
                     ran,
@@ -10118,10 +10527,14 @@ class Epics(Sheet[Doing]):
                     resumable=self._picks_up(ran.flow)
                     if self._ours(ran)
                     else ran.resumable,
+                    uploads=bool(_hmz().backups.targets()),
                 )
             )
             if said is None:
                 return  # walked out of it, which does nothing to the run
+            if said == _UPLOADS:
+                self._uploads(ran)
+                return
             if said != _EXPORTS:
                 break
             to = await showing.push_screen_wait(Exporting(ran))

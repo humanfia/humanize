@@ -1,10 +1,12 @@
 """`/settings`: every setting humanize has, on a screen of its own, one level at a time.
 
-What opens is the five places settings are kept and nothing else -- this machine's own, the
-accounts, the fallbacks, the runtimes and this workspace's -- each a card saying what is in it,
+What opens is the six places settings are kept and nothing else -- this machine's own, the
+accounts, the fallbacks, the runtimes, the backups and this workspace's -- each a card saying
+what is in it,
 as a phone's settings or VS Code's open on their categories. They stand from the broadest to
 the nearest: what is true wherever humanize runs, who its agents are and what takes over when
-one fails, where their work goes, and last the one directory open now. Where flows come from
+one fails, where their work goes and where its epics are kept, and last the one directory open
+now. Where flows come from
 is `/flow`'s (:mod:`hmz.tui.flows`), drawn the same way. Enter or a
 click goes into one and esc or backspace comes back out, as k9s and ranger walk in and out of
 what they list; the line across the top says where you are, and its first word is a way back.
@@ -45,6 +47,7 @@ from .dropdown import Dropdown, Value
 from .pick import (
     _ACCOUNTS,
     _APART_MARK,
+    _BACKUP,
     _DIRECTORY,
     _DOT,
     _DROPS,
@@ -57,6 +60,7 @@ from .pick import (
     Action,
     Adjusted,
     Agent,
+    Backups,
     Drop,
     Fallbacks,
     Key,
@@ -90,6 +94,7 @@ PAGES = (
     "accounts",
     "fallback",
     "runtimes",
+    "backup",
     "workspace",
 )
 
@@ -143,6 +148,7 @@ _PAGES = (
     _Page(
         "Runtimes", "▦", "ssh hosts, docker daemons, swarms, Apple containers and Slurm"
     ),
+    _Page("Backup", "⇪", "repositories epics are backed up to"),
     _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
 )
 
@@ -206,14 +212,14 @@ _MEANS = {
 }
 
 
-class Adjusts(Providers, Machines, Fallbacks):
-    """Every setting humanize has: `/settings`, five pages opened from one screen of them.
+class Adjusts(Providers, Machines, Fallbacks, Backups):
+    """Every setting humanize has: `/settings`, six pages opened from one screen of them.
 
     General is what is true of this machine however many projects are driven from it; the
     accounts, the fallbacks and the runtimes are what agents run as, where turns go when they
-    cannot, and the machines their work goes on; the workspace is one directory's. One menu
-    because they are one question -- what does humanize remember -- and a command apiece was
-    five things to learn the names of.
+    cannot, and the machines their work goes on; the backups are where epics are copied to;
+    the workspace is one directory's. One menu because they are one question -- what does
+    humanize remember -- and a command apiece was six things to learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
     written down is written down in humanize's own words, and a person should not have to know
@@ -278,6 +284,7 @@ class Adjusts(Providers, Machines, Fallbacks):
         self._steps = list(_hmz().fallbacks.all())
         #: The steps as they were read, so the card can say the page is holding a change.
         self._steps_was = list(self._steps)
+        self._read_backups()
         #: Whether the screen of pages is what is drawn, rather than one of them.
         self._home = page is None
         self._tab = page or 0
@@ -366,7 +373,7 @@ class Adjusts(Providers, Machines, Fallbacks):
           True for a card, and for a row of a page that is a list.
         """
         return bool(row) and (
-            self._home or self._tab in (_ACCOUNTS, _MACHINES, _FALLBACK)
+            self._home or self._tab in (_ACCOUNTS, _MACHINES, _FALLBACK, _BACKUP)
         )
 
     # -- The way across the top -----------------------------------------------------------
@@ -403,6 +410,7 @@ class Adjusts(Providers, Machines, Fallbacks):
                 _ACCOUNTS: self.ACCOUNTS_ABOUT,
                 _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
+                _BACKUP: self.BACKUP_ABOUT,
             }[self._tab]
         )
         if self._home:
@@ -413,6 +421,8 @@ class Adjusts(Providers, Machines, Fallbacks):
             self._fill_machines()
         elif self._tab == _FALLBACK:
             self._fill_steps()
+        elif self._tab == _BACKUP:
+            self._fill_backups()
         else:
             self._fill_own()
 
@@ -426,6 +436,8 @@ class Adjusts(Providers, Machines, Fallbacks):
             return _many(len([one for one in self._accounts if one.name]), "account")
         if page == _MACHINES:
             return _many(len(self._saved_machines), "machine")
+        if page == _BACKUP:
+            return _many(len(self._repos), "target")
         return _many(len(self._steps), "rule")
 
     def _pending(self, page: int) -> bool:
@@ -442,6 +454,8 @@ class Adjusts(Providers, Machines, Fallbacks):
             return bool(self._gone or self._edits)
         if page == _FALLBACK:
             return self._steps != self._steps_was
+        if page == _BACKUP:
+            return self._repos != self._repos_was
         return False
 
     def _holding(self) -> bool:
@@ -665,6 +679,7 @@ class Adjusts(Providers, Machines, Fallbacks):
             _ACCOUNTS: self._account_actions,
             _MACHINES: self._machine_actions,
             _FALLBACK: self._step_actions,
+            _BACKUP: self._backup_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
 
     def _footed(self, *keys: Key) -> None:
@@ -703,6 +718,8 @@ class Adjusts(Providers, Machines, Fallbacks):
             self._took_machine(held)
         elif self._tab == _FALLBACK:
             self._took_step(held)
+        elif self._tab == _BACKUP:
+            self._took_backup(held)
         elif held == _SENT:
             sent, kept = "; ".join(SENT), "; ".join(KEPT)
             self._said = f"Sent: {sent}. Never sent: {kept}."
@@ -806,6 +823,7 @@ class Adjusts(Providers, Machines, Fallbacks):
         told = list(self._told)
         self._applies_accounts(told)
         self._applies_steps(told)
+        self._applies_backups(told)
         self.dismiss(
             Adjusted(
                 enable_sentry=self._sentry

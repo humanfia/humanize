@@ -94,7 +94,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST set a flow up by its roles: one row per agent role and one per environment role the flow
   declares, leaving out the ones the runtime fills -- an `Outworlder`, a `LocalEnv` -- then its
   params, asked with the flow's own params model as it is chosen and from a row of their own,
-  what a run may spend and whether it is profiled. A saved menu MUST take
+  what a run may spend, whether it is profiled, and the backup targets an epic goes to -- the
+  defaults until others are switched on there, and held for as long as the interface is open,
+  "none" where there are no targets. A saved menu MUST take
   effect from the next run, and MUST refuse to save a flow whose agent role names no model, or --
   for every flow but `chat` -- one that has no budget.
 - MUST let what a run may spend -- a duration, a cost, output tokens, and whether a turn is let
@@ -128,7 +130,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST say who said, answered or started what another frontend did (`· by <name>`), and MUST
   list on the monitor every frontend reading the runs.
 - `/exit` MUST let go of this frontend alone, offering to leave a running flow running where a
-  host holds it; `/stop` MUST stop it for every frontend.
+  host holds it; `/stop` MUST stop it for every frontend. Once closed, `hmz` MUST give the
+  backups this process queued at most 15 seconds to finish, saying so where it waits and where
+  one was left.
 - MUST offer and run a command only where it works -- `/afk` anywhere but one agent's
   transcript, `/claim` only on an outworlder's, `/stop` only on the monitor and the shared
   transcript -- and refuse it elsewhere, saying where it works.
@@ -168,6 +172,11 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   order they are tried, added, taken off and put in another order there, and how it is tried
   again — refusing a chain that names the place that fails or one place twice, and offering
   nothing about falling back on the accounts page.
+- MUST list on the backup page of `/settings` every backup target -- its name, its URL with any
+  credential hidden, its branch, when it is used, and whether it is a default -- and offer
+  adding, correcting and removing one on one form: its name, URL and branch, `On session close`,
+  `Every N minutes` (off, or how many), `On epic end` -- none switched on is manual only -- and
+  `Default`; refusing a name that is not one short word or is another target's, or no URL.
 - MUST list the runs of this directory newest first with when each began, its flow, its task, how
   it went and how many sessions it opened, marking which can be picked up, readable while one runs;
   and, turned by `ctrl+t` or a button and remembered for this machine, those of every directory
@@ -176,7 +185,10 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and
   exporting it; an export MUST ask where it goes, a file or a directory to put it in, and land
   nowhere else, MUST carry a trace of that run's own sessions and no transcript, say where it
-  landed and how big it is, and replace that run's last export rather than pile up.
+  landed and how big it is, and replace that run's last export rather than pile up; and, where
+  there is a backup target, `upload` it -- to the targets it was started with, else the
+  defaults -- without holding anything up, saying where it goes, with how its last backup to
+  each target went said on it.
 - MUST make the monitor the parent screen and the log its child: a full-screen graph of the run
   over the log's own prompt, where every command works, with a graph status line in place of the
   log's; reached by `←` on an empty prompt and never by `esc` or a command, and left by `→` on an
@@ -199,12 +211,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST draw the board a flow and a person share under the diagram, its lines nodes like any
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
-- MUST make `/settings [page]` the one menu of every setting, a screen of its own in five pages
+- MUST make `/settings [page]` the one menu of every setting, a screen of its own in six pages
   from the broadest to the nearest -- general for this machine (details, the btw agent where
   there is one, and reporting, each under a heading of what it is about), accounts, fallback,
-  runtimes, and workspace for this directory, which it names across its top --
+  runtimes, backup, and workspace for this directory, which it names across its top --
   opening on those pages alone and going into one on `enter` or a click and back out on `esc`,
-  or straight into the one named `general`, `accounts`, `fallback`, `runtimes` or `workspace`,
+  or straight into the one named `general`, `accounts`, `fallback`, `runtimes`, `backup` or
+  `workspace`,
   offered as it is typed, or by its old name `settings`, `everywhere`, `directory` or
   `environments`, opening `/flow` on its flowverses for `flowverses` and saying they moved
   there, refusing any other; forget this directory alone; keep what

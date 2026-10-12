@@ -99,10 +99,10 @@ run, the machines a flow's environments go on, and what this directory remembers
 
 ## How it works
 
-`/settings` opens on five pages and nothing else, each a card saying what is in it. They run
+`/settings` opens on six pages and nothing else, each a card saying what is in it. They run
 from the broadest to the nearest: what is true wherever you run humanize, who your agents are
-and what takes over when one fails, where their work goes, and last the one directory open
-now.
+and what takes over when one fails, where their work goes and where its epics are kept, and
+last the one directory open now.
 <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one; <kbd>esc</kbd>, <kbd>backspace</kbd>,
 <kbd>←</kbd>, or a click on `/settings` across the top, comes back out. `/settings <page>` goes
 straight into the one named, and the word is offered as you type it:
@@ -113,6 +113,7 @@ straight into the one named, and the word is offered as you type it:
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
+| [**Backup**](#backup) | `backup` | the repositories epics are backed up to, and which are defaults |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, and forgetting it |
 
 The names they had still open them: `settings` and `everywhere` open General, `directory`
@@ -136,7 +137,7 @@ every value it can take under the row, the one in force ticked; <kbd>↑</kbd> <
 An on/off switch's list opens on the answer it is not, so <kbd>enter</kbd> twice turns it
 round. A row marked `▸` opens something.
 
-**A page that is a list** (Accounts, Runtimes, Fallback) is the list, under a
+**A page that is a list** (Accounts, Runtimes, Fallback, Backup) is the list, under a
 heading per group where it has groups, and under it the buttons for what is done about the
 list: one `Add …` first, then anything else that brings one in, then `Search…`, and **Save** at the
 far end where the page holds anything until it is saved. Runtimes holds nothing, so it has no
@@ -170,7 +171,7 @@ The last line of the screen always names the keys that work where the focus is, 
 ### When a change lands {#saving}
 
 What every page holds lands together, when you save: press **Save**, on any page or on the
-five of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
+six of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and a box in the
 middle of the screen asks **Save** or **Discard**; <kbd>esc</kbd> or a click off it takes you
 back. **Save** cannot be pressed until
 something is changed, and `● unsaved changes` across the top says when something is.
@@ -210,6 +211,9 @@ switch on [Details](#details), so every tool call and every line of thinking sho
    ────────────────────────────────────────────────────────────────────────
    ▦  <b>Runtimes</b>                                                0 machines
      <span class="m">ssh hosts, docker daemons, swarms, Apple containers and Slurm</span>
+   ────────────────────────────────────────────────────────────────────────
+   ⇪  <b>Backup</b>                                                   0 targets
+     <span class="m">repositories epics are backed up to</span>
    ────────────────────────────────────────────────────────────────────────
    ⌂  <b>Workspace</b>                                   demo · flow ralph_loop
      <span class="m">this directory: its flow, and forgetting it</span>
@@ -272,7 +276,7 @@ and <kbd>enter</kbd> on **Save**:
 What to look at, by number:
 
 1. **The card's summary.** Each card says what it holds right now at its right-hand end, so the
-   five cards are a status page before you open any of them: `details off · reports off` here,
+   six cards are a status page before you open any of them: `details off · reports off` here,
    the number of accounts, machines and rules on the others.
 2. **Save.** Nothing has changed yet, so it cannot be pressed.
 3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
@@ -1108,6 +1112,33 @@ Every row of this page is a call on `Hmz().runtimes`: `new`, `add`, `write`, `re
 `hosts`, `import_ssh` and `check`. See [Machines ›
 Runtimes](/reference/machines#runtimes).
 :::
+
+## Backup
+
+The git repositories epics are backed up to, which [Backing epics up](/user/backups) explains.
+Each target is a row: its name, `✔` where it is a default, its URL with any credential struck
+out, its branch, and when an epic is backed up there. **Add target** opens the form one is
+written on, and <kbd>enter</kbd> on one opens it again, with **Remove** under its rows:
+
+| Row | What it is |
+| --- | --- |
+| **name** | one short word, which `--backup` takes |
+| **URL** | the repository, as your own `git` reaches it |
+| **branch** | where epics are committed; `main` unless you say |
+| **On session close** | back an epic up as each of its sessions closes |
+| **Every N minutes** | `off`, or how many minutes apart while an epic runs |
+| **On epic end** | back an epic up once it has ended |
+| **Default** | a new epic goes here unless it is told otherwise |
+
+A target with none of the three switched on is backed up to only when you ask. The page holds
+what you change until it is saved, and writes `backup` in `~/.hmz/settings.yaml`
+([Settings reference](/reference/settings#backup)).
+
+Choose the targets of one flow's epics on `/flow`, on its **backup** row: the defaults until
+you switch others on there, for as long as `hmz` is open. Back an epic up by hand from
+`/epics`: <kbd>enter</kbd> on it, then **upload**, which goes to the targets it was started
+with, else the defaults, and says how its last backup to each went. Neither holds anything up;
+`hmz` waits up to 15 seconds for the backups it started once you close it.
 
 ## Flowverses
 

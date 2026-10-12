@@ -245,7 +245,7 @@ Each command's line in the completion list:
 | `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage runs in this directory` | |
 | `/resume` | `Resume the last run in this directory` | |
-| `/settings` | `Every setting: general, accounts, fallback, runtimes, workspace` | |
+| `/settings` | `Every setting: general, accounts, fallback, runtimes, backup, workspace` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
@@ -273,7 +273,7 @@ Every message is red and prefixed `hmz: `.
 | `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
 | `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
-| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, accounts, fallback, runtimes or workspace` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, accounts, fallback, runtimes, backup or workspace` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
 | `/btw` | no agent to ask | `/btw requires a coding agent` |
 | `/btw` | the session is gone | `/btw: no conversation found for <role>/<n>` |
@@ -302,9 +302,9 @@ See [`/resume`](#carrying-the-last-one-on-outright).
 ### `/settings [page]` {#settings-command}
 
 Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
-`general`, `accounts`, `fallback`, `runtimes`, `workspace`, or the aliases `settings` and
-`everywhere` (General), `directory` (Workspace) and `environments` (Runtimes);
-case-insensitive; only the first word is read. Completion offers the five names, in that
+`general`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, or the aliases `settings`
+and `everywhere` (General), `directory` (Workspace) and `environments` (Runtimes);
+case-insensitive; only the first word is read. Completion offers the six names, in that
 order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
 now` (dim) and opens [`/flow`](#where-flows-come-from) on Flowverses.
 
@@ -674,10 +674,10 @@ form's `workdir` on this machine -- complete as they are written, as a shell doe
 
 | Menu | Held until saved | Applied at once |
 | --- | --- | --- |
-| `/flow`, roles, agent sheet, params, budget, environment form, unsaved host | the flow, its roles, params, budget and profiling | installing, updating, uninstalling; adding, fetching and removing a flowverse |
-| `/settings` General, Workspace, Fallback | everything | — |
+| `/flow`, roles, agent sheet, params, budget, backup, environment form, unsaved host | the flow, its roles, params, budget, profiling and backup targets | installing, updating, uninstalling; adding, fetching and removing a flowverse |
+| `/settings` General, Workspace, Fallback, Backup | everything | — |
 | `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
-| `/settings` Runtimes; `/epics` | — | everything |
+| `/settings` Runtimes; `/epics` | — | everything (an upload is queued, not waited on) |
 | Monitor board | — | everything |
 
 ### Save? box {#save-box}
@@ -791,10 +791,11 @@ top, `esc` leaves, and params are not asked.
 | `params` (flows that take any) | the params changed from their defaults, or `defaults`, then `▸` | [params sheet](#setting-a-flow-up) |
 | `budget` | `set ▸` or `none ▸`; under it `what a run may spend: <summary>` | [budget sheet](#what-a-run-of-it-may-spend) |
 | <span id="profiling-row"></span>`profiling` (straight under `budget`) | a switch, `● on ▾` or `○ off ▾`: the flow's remembered value, else off; under it `samples the programs agents start` or `traced only` | nothing: `enter` drops `on` and `off` (see dropdown); a run started is [profiled](/reference/tracing#profiling-a-run) where it is on |
+| <span id="backup-row"></span>`backup` (straight under `profiling`) | the targets an epic goes to, `<a>, <b> ▸`, or `none ▸`; under it `where each epic is backed up`, with ` (the defaults)` until others are chosen | **Backup**: a switch per [target](#backup-page), named, its URL under it; **Done** `backs each epic up to the targets switched on`. With no target, nothing opens: `no backup targets: add one on /settings backup`. Held while `hmz` is open, for every flow, not remembered; a run started passes those settings still has as `backup`. |
 
 Buttons: **Update**, **Uninstall** and **Copy here**, as on [Installed](#flow-list) for this
 flow (not when the page is opened on it alone); then **Save** (`run this flow, set up as it is
-here`), which applies flow, roles, params, budget and profiling together. Keys `enter open` (`enter choose` on `profiling`) `  tab actions   esc <back|close>`. Roles filled by the runtime
+here`), which applies flow, roles, params, budget, profiling and backup together. Keys `enter open` (`enter choose` on `profiling`) `  tab actions   esc <back|close>`. Roles filled by the runtime
 (`Outworlder`, `LocalEnv`) are not rows. Messages:
 `<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
 nothing can be configured`.
@@ -1093,9 +1094,10 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | Element | Value |
 | --- | --- |
 | Title | `<when> · <flow>` |
-| About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).` |
+| About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).`, then a line per target it was backed up to: `<target>: backed up <when>` or `<target>: failed <when>: <error>` |
 | Keys | `enter choose   esc back` |
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
@@ -1130,8 +1132,8 @@ equivalent: [`hmz exec --resume`](/reference/cli#picking-a-run-up).
 
 ## `/settings` {#what-humanize-remembers}
 
-A screen of five pages, from the broadest scope to the nearest: this machine, the accounts and
-what takes over when one fails, where work runs, this directory. Where flows come from is
+A screen of six pages, from the broadest scope to the nearest: this machine, the accounts and
+what takes over when one fails, where work runs, where epics are backed up, this directory. Where flows come from is
 [`/flow`](#where-flows-come-from).
 Storage keys are in [Settings](/reference/settings).
 
@@ -1154,6 +1156,9 @@ Storage keys are in [Settings](/reference/settings).
   │ ▦  Runtimes                                                    1 machine │
   │    ssh hosts, docker daemons, swarms, Apple containers and Slurm         │
   │──────────────────────────────────────────────────────────────────────────│
+  │ ⇪  Backup                                                       1 target │
+  │    repositories epics are backed up to                                   │
+  │──────────────────────────────────────────────────────────────────────────│
   │ ⌂  Workspace                                        work/api · flow rlar │
   │    this directory: its flow, and forgetting it                           │
   ╰──────────────────────────────────────────────────────────────────────────╯
@@ -1169,6 +1174,7 @@ Storage keys are in [Settings](/reference/settings).
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
 | ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
 | ▦ Runtimes | `<n> machine(s)` | never |
+| ⇪ Backup | `<n> target(s)` | targets differ from what is saved |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | forget on |
 
 **Save** is disabled (tooltip `nothing to save yet`) until a page holds a change (`save all
@@ -1197,6 +1203,7 @@ Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
 | General, Workspace | Save | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
 | Fallback | Add fallback rule · Search… · Save | place, rule text |
+| Backup | Add target · Search… · Save | name, row text |
 | Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
 
 **Add a runtime…** drops `ssh host`, `docker host`, `docker swarm`, `apple containers` and
@@ -1218,6 +1225,7 @@ in force.
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Fallback rules | next failed turn | — |
+| Backup targets | the next backup | — |
 | Runtimes | at once | — |
 
 Leaving `/settings` writes a dim transcript line per change: first the pages' own (in the
@@ -1570,6 +1578,34 @@ config is still being read`, `select at least one host to import`, `<config>: <e
 `imported <names> from <config>[; left <a>, <b>]. Open a host to check it.` Imported hosts are
 not checked.
 
+### Backup page {#backup-page}
+
+Intro: `Repositories epics are backed up to, with your own git. A new epic goes to the ones
+marked ✔ unless told otherwise.` Rows: `<name>[ ✔]  <URL> · <branch> · <when>`, the URL with
+any credential hidden, `✔` on a default, `<when>` the policies switched on (`on session close,
+every <n> minutes, on epic end`) or `manual only`. Empty: `no backup targets yet`. Semantics:
+[Backing epics up](/user/backups).
+
+Target form: title `Add backup target` (or the name when editing); intro `A repository epics
+are copied to, one commit per backup, pushed with your own git. No policy means only when you
+ask.`
+
+| Row | Kind | Values | Default |
+| --- | --- | --- | --- |
+| `name` | written | one short word (`one short word, as --backup takes it`) | — |
+| `URL` | written | the repository (`the repository, reached with your own git`) | — |
+| `branch` | written | `where epics are committed` | `main` |
+| `On session close` | ▾ | `on`, `off` (`as each session ends`) | `off` |
+| `Every N minutes` | ▾ | `off`, `5 minutes`, `10 minutes`, `15 minutes`, `30 minutes`, `60 minutes`, `120 minutes`, and the target's own (`while the epic runs`) | `off` |
+| `On epic end` | ▾ | `on`, `off` (`once the epic ends`) | `off` |
+| `Default` | ▾ | `on`, `off` (`new epics go here unless told`) | `off` |
+
+Buttons: **Remove** (editing only; red; `removes this target when saved`), then **Done**
+(`applies this target when /settings is saved`). Refusals: `name is one short word: letters,
+digits, - and _`, `another target is named <name>`, `URL is required`. `Every N minutes` off
+keeps the minutes. Saved as `backup` ([Settings](/reference/settings#backup)); transcript on
+save: `<n> backup target(s) saved`, or `hmz: <why>` where settings refused them.
+
 ### Workspace page {#workspace-page}
 
 Intro: `What <last 2 path parts> remembers: the flow it opens on and how it was last
@@ -1824,6 +1860,7 @@ and when the width changes. The status line says `· copied` for 2 s.
 | `enable_sentry` | machine | Error reports, the first-start question |
 | `details` | machine | Details |
 | `btw` | machine | /btw agent |
+| `backup` | machine | the Backup page |
 | `workspaces.<dir>.flow` | directory | saving `/flow` |
 | `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, profile}` | directory, per flow | saving `/flow` |
 

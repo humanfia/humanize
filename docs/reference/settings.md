@@ -214,7 +214,8 @@ runtimes:
 ### `backup`
 
 The git repositories [epics are backed up to](/user/backups), written by
-`Hmz().settings.back_up_to(targets, defaults)` and read by every process that runs an epic, as
+`Hmz().settings.back_up_to(targets, defaults)` -- which the [Backup page](/user/settings#backup) of
+`/settings` saves through -- and read by every process that runs an epic, as
 the epic starts.
 
 | Key | Type | Default | Meaning |

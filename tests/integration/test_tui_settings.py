@@ -53,7 +53,7 @@ async def into_settings(pilot: Pilot[None], page: str = "") -> Adjusts:
     return await on(pilot, Adjusts)
 
 
-async def test_settings_opens_on_its_five_pages_and_esc_closes_it(
+async def test_settings_opens_on_its_six_pages_and_esc_closes_it(
     workspace: Path,
 ) -> None:
     app = Humanize()
@@ -61,7 +61,9 @@ async def test_settings_opens_on_its_five_pages_and_esc_closes_it(
         await into_settings(pilot)
 
         assert rows(app) == list(PAGES)
-        await shows(pilot, "General", "Accounts", "Fallback", "Runtimes", "Workspace")
+        await shows(
+            pilot, "General", "Accounts", "Fallback", "Runtimes", "Backup", "Workspace"
+        )
 
         await pilot.press("escape")
         await shows(pilot, "◉ chat")
