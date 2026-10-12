@@ -2254,10 +2254,15 @@ class CodexAgent(AgentBase):
             self.shelf.where(),
         )
         self._retiring = [one for one in self._retiring if not one._stopped]
+        # The LiteLLM gateway every server of an account it holds was pointed at, gone: they
+        # are pointed at nothing, and the next is pointed at the one started in its place.
+        # Read as it was left rather than asked for, which would start one under the lock.
+        through = self._gateway
+        lost = through is not None and not through.running
         kept: list[_AppServer] = []
         going: list[_AppServer] = []
         for one in self._servers:
-            if one._gone or one._proc.poll() is not None:
+            if one._gone or one._proc.poll() is not None or lost:
                 # Exited under us: its threads are on disk, and picked up on the next server
                 # rather than written to a pipe nobody reads.
                 going.append(one)

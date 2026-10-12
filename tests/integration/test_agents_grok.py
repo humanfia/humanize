@@ -17,6 +17,7 @@ import psutil
 import pytest
 from pydantic import BaseModel
 
+from hmz.coganchor import providers
 from hmz.coganchor.agents import (
     Failed,
     FakeTool,
@@ -27,9 +28,19 @@ from hmz.coganchor.agents import (
     Unrecoverable,
     Verdict,
 )
-from tests.integration.doubles_agents import MCP, Standins, kinds, standins
+from hmz.coganchor.gateway import gatewayable
+from hmz.coganchor.providers import Provider
+from tests.integration.doubles_agents import (
+    MCP,
+    Endpoint,
+    Standins,
+    kinds,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 CONFIG = GrokBuildAgentConfig(model="grok-stand-in", effort="high")
@@ -210,6 +221,112 @@ def test_a_hung_turn_is_ended_by_the_watchdog(
 
     with pytest.raises(Failed):
         GrokBuildAgent(CONFIG).new()("hang")
+
+
+#: A `grok agent` that opens every session on the first model of its catalogue, as 1.0.50
+#: does for a model not in it, and runs a turn as the `[model.*]` entry of its config says:
+#: chat completions at its endpoint under the key its variable holds, streamed.
+ROUTED = r"""
+import tomllib
+import urllib.request
+
+note()
+current = "openai/first-of-the-catalogue"
+while line := sys.stdin.readline():
+    asked = json.loads(line)
+    at, method = asked.get("id"), asked.get("method")
+    if method == "session/new":
+        out({"jsonrpc": "2.0", "id": at,
+             "result": {"sessionId": "ses-grok", "models": {"currentModelId": current}}})
+        continue
+    if method == "session/set_model":
+        current = asked["params"]["modelId"]
+    if method != "session/prompt":
+        out({"jsonrpc": "2.0", "id": at, "result": {}})
+        continue
+    said = asked["params"]["prompt"][0]["text"]
+    home = os.environ.get("GROK_HOME") or os.path.join(os.environ["HOME"], ".grok")
+    with open(os.path.join(home, "config.toml"), "rb") as config:
+        entry = tomllib.load(config)["model"][current]
+    note(entry["api_backend"])
+    request = urllib.request.Request(
+        entry["base_url"] + "/chat/completions",
+        data=json.dumps({"model": entry["model"], "stream": True,
+                         "messages": [{"role": "user", "content": said}]}).encode(),
+        headers={"Authorization": "Bearer " + os.environ[entry["env_key"]],
+                 "Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=60) as answer:
+        chunks = [json.loads(one[5:]) for one in answer.read().decode().splitlines()
+                  if one.startswith("data:") and one[5:].strip() != "[DONE]"]
+    body = "".join(one["choices"][0]["delta"].get("content") or ""
+                   for one in chunks if one.get("choices"))
+    out({"jsonrpc": "2.0", "method": "session/update",
+         "params": {"sessionId": "ses-grok", "update": {
+             "sessionUpdate": "agent_message_chunk",
+             "content": {"type": "text", "text": body}}}})
+    out({"jsonrpc": "2.0", "id": at, "result": {"stopReason": "end_turn"}})
+"""
+
+
+def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
+    """No credential path answered by another, which is the supervisor's to test."""
+    del self
+    return ()
+
+
+@pytest.fixture
+def endpoint() -> Iterator[Endpoint]:
+    # Driven to its end after the test, which is what shuts it.
+    yield from serving()
+
+
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+@pytest.mark.timeout(240)
+def test_grok_under_an_account_a_gateway_holds_runs_the_model_through_it(
+    endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = standins(
+        tmp_path,
+        monkeypatch,
+        "GROK_XAI_API_BASE_URL",
+        "XAI_API_KEY",
+        "LITELLM_GATEWAY_KEY",
+    )
+    held.install("grok", ROUTED)
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
+    # A credential path answered by another is the supervisor's, tested where it is written.
+    monkeypatch.setattr(Provider, "swaps", _unswapped)
+    providers.add(
+        "grok",
+        "gw",
+        way="litellm-openai-gateway",
+        env={
+            "LITELLM_GATEWAY_URL": endpoint.url,
+            "LITELLM_GATEWAY_KEY": "upstream-secret",
+            "LITELLM_GATEWAY_API": "openai",
+        },
+    )
+    agent = GrokBuildAgent(
+        GrokBuildAgentConfig(model="stand-in", effort="", provider="gw")
+    )
+    try:
+        said = agent.new(tmp_path)("say hi")
+        through = agent.gateway
+        assert through is not None
+    finally:
+        agent.stop()
+
+    assert said == "say hi"
+    assert [one["model"] for one in endpoint.asked] == ["stand-in"]
+    launch, turn = held.calls("grok")
+    assert launch.env["GROK_XAI_API_BASE_URL"] == through.url
+    assert launch.env["XAI_API_KEY"] == through.key
+    assert launch.env["LITELLM_GATEWAY_KEY"] is None
+    assert turn.stdin == "chat_completions"
+    assert not through.running
+    # And the entry it was asked for by, which named a port nothing listens on any more.
+    assert "127.0.0.1" not in (tmp_path / "home/.grok/config.toml").read_text()
 
 
 class _Word(BaseModel):

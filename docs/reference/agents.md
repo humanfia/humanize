@@ -1531,6 +1531,10 @@ server, so such a turn is refused while [fake tools](#callbacks-as-tools) are of
 - `--include-partial-messages`, `--agent-profile` and `--plugin-dir` are not fields.
 - Every turn is run with `GROK_FOLDER_TRUST=0`: Grok Build reads a project's skills, the ones a
   flow mounts under `.agents/skills` included, only from a folder it trusts.
+- A gateway account's session that `grok agent` opens or loads on a model other than its hidden
+  `[model.*]` entry (`--model` is taken only for a model in the catalogue it fetched) is put on
+  the entry with `session/set_model`.
+- Through a local LiteLLM gateway: see [Through LiteLLM](/reference/providers#through-litellm).
 
 ### Kimi Code {#the-daemon-kimi-is-driven-through}
 
@@ -1589,6 +1593,9 @@ No fields of its own.
 - `--cwd` is the directory on the machine `mcode` runs on: for work on another machine with
   `mcode` here, the copy of the work kept here, never the far path.
 - The session is continued with `--session` and the id its first turn's lines carry.
+- Through a local LiteLLM gateway, `--model` is `custom_provider:hmz-PORT-DIGEST/<model>`, a
+  provider the agent adds for the gateway: see
+  [Through LiteLLM](/reference/providers#through-litellm).
 - `--effort` is sent only where the account's catalogue lists the rung for the model (only
   `minimax/MiniMax-M3.1-Flash-Preview` takes rungs).
 - `read-only` is refused; `web_search=False` and a network-cutting fence are refused.

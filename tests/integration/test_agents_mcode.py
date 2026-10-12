@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.coganchor import providers
 from hmz.coganchor.agents import (
     SUBAGENTS,
     Failed,
@@ -20,9 +21,18 @@ from hmz.coganchor.agents import (
     Moment,
     Occasion,
 )
-from tests.integration.doubles_agents import Standins, kinds, standins
+from hmz.coganchor.gateway import gatewayable
+from hmz.coganchor.providers import Provider
+from tests.integration.doubles_agents import (
+    Endpoint,
+    Standins,
+    kinds,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 MODEL = "custom_provider:gateway/minimax-stand-in"
@@ -131,3 +141,109 @@ def test_a_failed_turn_is_a_failure_with_what_it_said(mcode: Standins) -> None:
     assert failed.value.returncode == 4
     with pytest.raises(RuntimeError):
         _ = session.id
+
+
+#: An `mcode` keeping the providers added to it in its home, as `provider add` and `provider
+#: remove` say, and running a turn of `exec` on one of them: chat completions at its base URL
+#: under the key it was added with, streamed -- refusing a model it was not added with.
+ROUTED = r"""
+import urllib.request
+
+kept = pathlib.Path(os.environ["HOME"]) / ".minimax" / "providers.json"
+added = json.loads(kept.read_text()) if kept.exists() else {}
+if argv[:1] == ["provider"]:
+    note(" ".join(argv))
+    if argv[1] == "remove":
+        if added.pop(argv[2].removeprefix("custom_provider:"), None) is None:
+            raise SystemExit(1)
+    else:
+        added[flags["--name"]] = {"base": flags["--base-url"], "model": flags["--model"],
+                                  "format": flags["--api-format"],
+                                  "key": os.environ[flags["--api-key-env"]]}
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    kept.write_text(json.dumps(added))
+    raise SystemExit(0)
+
+prompt = sys.stdin.read()
+note(prompt)
+named, _, model = flags["--model"].removeprefix("custom_provider:").partition("/")
+provider = added[named]
+assert provider["model"] == model, model
+request = urllib.request.Request(
+    provider["base"] + "/chat/completions",
+    data=json.dumps({"model": model, "stream": True,
+                     "messages": [{"role": "user", "content": prompt}]}).encode(),
+    headers={"Authorization": "Bearer " + provider["key"],
+             "Content-Type": "application/json"})
+with urllib.request.urlopen(request, timeout=60) as answer:
+    chunks = [json.loads(one[5:]) for one in answer.read().decode().splitlines()
+              if one.startswith("data:") and one[5:].strip() != "[DONE]"]
+body = "".join(one["choices"][0]["delta"].get("content") or ""
+               for one in chunks if one.get("choices"))
+session = flags.get("--session", "mvs_stand_in")
+out({"type": "exec.started", "sessionId": session})
+out({"type": "item.completed", "sessionId": session,
+     "item": {"type": "agent_message", "content": body}})
+out({"type": "turn.completed", "sessionId": session, "usage": {"outputTokens": 7},
+     "model": {"providerId": "custom_provider:" + named, "modelId": model}})
+out({"type": "exec.completed", "sessionId": session, "result": {"status": "succeeded"}})
+"""
+
+
+def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
+    """No credential path answered by another, which is the supervisor's to test."""
+    del self
+    return ()
+
+
+@pytest.fixture
+def endpoint() -> Iterator[Endpoint]:
+    # Driven to its end after the test, which is what shuts it.
+    yield from serving()
+
+
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+@pytest.mark.timeout(240)
+def test_mcode_under_an_account_a_gateway_holds_runs_the_model_through_it(
+    endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = standins(tmp_path, monkeypatch, "LITELLM_GATEWAY_KEY")
+    held.install("mcode", ROUTED)
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
+    # A credential path answered by another is the supervisor's, tested where it is written.
+    monkeypatch.setattr(Provider, "swaps", _unswapped)
+    providers.add(
+        "mcode",
+        "gw",
+        way="litellm-openai-gateway",
+        env={
+            "LITELLM_GATEWAY_URL": endpoint.url,
+            "LITELLM_GATEWAY_KEY": "upstream-secret",
+            "LITELLM_GATEWAY_API": "openai",
+        },
+    )
+    agent = MiniMaxCodeAgent(
+        MiniMaxCodeAgentConfig(model="stand-in", effort="", provider="gw")
+    )
+    try:
+        session = agent.new(tmp_path)
+        said = [session("say hi"), session("say more")]
+        through = agent.gateway
+        assert through is not None
+    finally:
+        agent.stop()
+
+    assert said == ["say hi", "say more"]
+    assert [one["model"] for one in endpoint.asked] == ["stand-in", "stand-in"]
+    added, turn, _, removed = held.calls("mcode")
+    named = added.flag("--name") or ""
+    assert named.startswith(f"hmz-{through.port}-")
+    assert added.stdin == (
+        f"provider add --name {named} --base-url {through.url} --api-format "
+        "openai-completions --model stand-in --api-key-env MCODE_PROVIDER_API_KEY"
+    )
+    assert removed.stdin == f"provider remove custom_provider:{named} --yes"
+    assert turn.flag("--model") == f"custom_provider:{named}/stand-in"
+    assert turn.env["LITELLM_GATEWAY_KEY"] is None
+    assert not through.running

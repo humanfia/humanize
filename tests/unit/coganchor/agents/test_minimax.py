@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import subprocess
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from pydantic import BaseModel
 
-from hmz.coganchor import fence, models
+from hmz.coganchor import fence, gateway, models, providers
 from hmz.coganchor.agents import (
     Failed,
     MiniMaxCodeAgent,
@@ -20,6 +22,7 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents.minimax import taken
 from hmz.coganchor.backends import Model
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Spawner, fenceable, offering
 
 if TYPE_CHECKING:
@@ -340,3 +343,149 @@ def test_an_agent_nobody_fenced_is_fenced_by_nothing(tmp_path: Path) -> None:
     agent = _mcode()
     agent.keeps = tmp_path
     assert agent.fenced() is None
+
+
+# --------------------------------------------------------------- through a LiteLLM gateway
+
+
+class _Gateway:
+    """A gateway that starts nothing: where it would be, and whether it was taken down."""
+
+    def __init__(self, provider: Provider) -> None:
+        self.account = provider
+        self.port = 4321
+        self.url = "http://127.0.0.1:4321"
+        self.key = "sk-master"
+        self.running = True
+
+    def stop(self) -> None:
+        self.running = False
+
+
+@dataclass
+class _Configured:
+    """Every `mcode provider` an agent ran, and what it ran each with."""
+
+    ran: list[list[str]] = field(default_factory=list[list[str]])
+    envs: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
+    #: What each exits with, by its subcommand.
+    exits: dict[str, int] = field(default_factory=dict[str, int])
+
+    def run(
+        self, argv: list[str], *, env: dict[str, str], **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        self.ran.append(argv)
+        self.envs.append(env)
+        return subprocess.CompletedProcess(argv, self.exits.get(argv[2], 0), "", "no")
+
+
+def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
+    """No credential path answered by another, which is the supervisor's to test."""
+    del self
+    return ()
+
+
+@pytest.fixture
+def routed(monkeypatch: pytest.MonkeyPatch) -> _Configured:
+    """An account litellm holds, a gateway only pretended, and `mcode provider` recorded."""
+    held = Provider(
+        cli="mcode",
+        name="gw",
+        way="litellm-openai-key",
+        env={"OPENAI_API_KEY": "upstream-secret"},
+    )
+
+    def find(cli: str, name: str) -> Provider:
+        del cli, name
+        return held
+
+    monkeypatch.setattr(providers, "find", find)
+    monkeypatch.setattr(Provider, "swaps", _unswapped)
+    monkeypatch.setattr(gateway, "Gateway", _Gateway)
+    monkeypatch.setenv("OPENAI_API_KEY", "lying-about")
+    configured = _Configured()
+    monkeypatch.setattr(subprocess, "run", configured.run)
+    return configured
+
+
+def test_a_turn_through_a_gateway_asks_for_it_as_a_provider_added_once(
+    spawner: Spawner, routed: _Configured, tmp_path: Path
+) -> None:
+    spawner.answering(_turn(outputTokens=4))
+    agent = _mcode(provider="gw", model="openai/gpt-5")
+    session = agent.new(tmp_path)
+
+    session("one")
+    result = list(session.stream("two"))[-1]
+
+    (added,) = routed.ran
+    named = added[4]
+    assert named.startswith("hmz-4321-")
+    assert added == [
+        "mcode",
+        "provider",
+        "add",
+        "--name",
+        named,
+        "--base-url",
+        "http://127.0.0.1:4321",
+        "--api-format",
+        "openai-completions",
+        "--model",
+        "openai/gpt-5",
+        "--api-key-env",
+        "MCODE_PROVIDER_API_KEY",
+    ]
+    assert routed.envs[0]["MCODE_PROVIDER_API_KEY"] == "sk-master"
+    assert "OPENAI_API_KEY" not in routed.envs[0]
+    asked = [one.args[one.args.index("--model") + 1] for one in spawner.started]
+    assert asked == [f"custom_provider:{named}/openai/gpt-5"] * 2
+    assert result.tokens == {"openai/gpt-5": 4}
+
+    agent.stop()
+
+    assert routed.ran[-1] == [
+        "mcode",
+        "provider",
+        "remove",
+        f"custom_provider:{named}",
+        "--yes",
+    ]
+
+
+def test_another_model_is_another_provider_beside_the_first(
+    spawner: Spawner, routed: _Configured, tmp_path: Path
+) -> None:
+    spawner.answering(_turn())
+    agent = _mcode(provider="gw", model="openai/gpt-5")
+    agent.new(tmp_path)("one")
+    agent.reconfigure(replace(agent.config, model="openai/gpt-5-mini"))
+    agent.new(tmp_path)("two")
+
+    names = [one[4] for one in routed.ran]
+    assert len(set(names)) == 2
+    assert all(one[2] == "add" for one in routed.ran)
+
+    agent.stop()
+
+    assert sorted(one[3] for one in routed.ran[2:]) == sorted(
+        f"custom_provider:{one}" for one in names
+    )
+
+
+def test_a_gateway_mcode_will_not_add_fails_the_turn(
+    spawner: Spawner, routed: _Configured, tmp_path: Path
+) -> None:
+    spawner.answering(_turn())
+    routed.exits = {"add": 2}
+
+    with pytest.raises(Failed):
+        _mcode(provider="gw", model="openai/gpt-5").new(tmp_path)("go")
+
+    assert not spawner.started
+
+
+@pytest.mark.usefixtures("routed")
+def test_an_account_through_a_gateway_names_its_model() -> None:
+    with pytest.raises(Unserved, match="name one"):
+        _mcode(provider="gw", model="")

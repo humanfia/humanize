@@ -123,6 +123,7 @@ def test_a_gateway_serves_every_model_of_the_account_under_its_key_alone() -> No
         "model": "openai/*",
         "api_base": "https://gw.example/v1",
         "api_key": "upstream-key",
+        "use_chat_completions_api": True,
     }
     assert said["model_list"] == [
         {"model_name": "openai/*", "litellm_params": params},
@@ -131,6 +132,16 @@ def test_a_gateway_serves_every_model_of_the_account_under_its_key_alone() -> No
     assert said["general_settings"] == {"master_key": "sk-master"}
     assert said["litellm_settings"]["drop_params"] is True
     assert said["litellm_settings"]["use_chat_completions_url_for_anthropic_messages"]
+
+
+def test_a_gateway_asks_a_vendor_in_whichever_protocol_it_speaks() -> None:
+    account = Provider(
+        cli="codex", name="a", way="litellm-openai-key", env={"OPENAI_API_KEY": "k"}
+    )
+
+    said = configured(account, "sk-master")
+
+    assert "use_chat_completions_api" not in said["model_list"][0]["litellm_params"]
 
 
 def test_a_gateway_for_an_account_naming_no_provider_is_refused() -> None:
@@ -149,11 +160,108 @@ def test_claude_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
     assert argued(_claude(), env) == ()
 
 
-def test_a_backend_naming_no_way_to_a_gateway_is_pointed_nowhere() -> None:
+@pytest.mark.parametrize(
+    ("cli", "expected", "args"),
+    [
+        (
+            "dsh",
+            {
+                "DEEPSEEK_BASE_URL": "http://127.0.0.1:4000",
+                "DEEPSEEK_API_KEY": "sk-master",
+                "DSH_GATEWAY_API": "openai-completions",
+            },
+            (),
+        ),
+        (
+            "kimi",
+            {
+                "KIMI_MODEL_BASE_URL": "http://127.0.0.1:4000",
+                "KIMI_MODEL_API_KEY": "sk-master",
+                "KIMI_MODEL_PROVIDER_TYPE": "openai",
+            },
+            (),
+        ),
+        (
+            "qwen",
+            {
+                "OPENAI_BASE_URL": "http://127.0.0.1:4000",
+                "OPENAI_API_KEY": "sk-master",
+                "QWEN_DEFAULT_AUTH_TYPE": "openai",
+            },
+            ("--auth-type", "openai"),
+        ),
+    ],
+)
+def test_a_cli_speaking_openais_api_is_pointed_at_a_gateway_by_its_openai_way(
+    cli: str, expected: dict[str, str], args: tuple[str, ...]
+) -> None:
+    profile = backends.named(cli)
+    assert profile is not None
+
+    env = spoken(profile, "http://127.0.0.1:4000", "sk-master")
+
+    assert env == expected
+    assert argued(profile, env) == args
+
+
+@pytest.mark.parametrize(
+    ("backend", "fixed"),
+    [
+        ("opencode", {"OPENCODE_GATEWAY_NPM": "@ai-sdk/openai-compatible"}),
+        ("mimo", {"MIMO_GATEWAY_API": "@ai-sdk/openai-compatible"}),
+        ("pi", {"PI_GATEWAY_API": "openai-completions"}),
+    ],
+)
+def test_a_cli_speaking_openais_api_is_pointed_at_the_gateways_v1(
+    backend: str, fixed: dict[str, str]
+) -> None:
+    profile = backends.named(backend)
+    assert profile is not None
+    assert profile.routes == "openai-gateway"
+
+    env = spoken(profile, "http://127.0.0.1:4000", "sk-master")
+
+    assert env[profile.endpoint] == "http://127.0.0.1:4000/v1"
+    assert "sk-master" in env.values()
+    assert fixed.items() <= env.items()
+    # The model is the turn's, which the driver says: nothing here names one.
+    assert not any(name.endswith("_MODEL") for name in env)
+
+
+def test_another_cli_speaking_openais_api_is_given_the_bare_gateway() -> None:
+    # One that adds `/v1/chat/completions` itself, as Antigravity's does, is not given `/v1`
+    # twice: the version is added only for the backends whose SDKs leave it out.
+    agy = backends.named("agy")
+    assert agy is not None
+
+    env = spoken(agy, "http://127.0.0.1:4000", "sk-master")
+
+    assert env["AGY_LLM_GATEWAY_URL"] == "http://127.0.0.1:4000"
+
+
+def test_codex_is_pointed_at_a_gateway_by_its_own_gateway_way() -> None:
     codex = backends.named("codex")
     assert codex is not None
-    assert spoken(codex, "http://127.0.0.1:4000", "sk") == {}
-    assert argued(codex, {}) == ()
+
+    env = spoken(codex, "http://127.0.0.1:4000", "sk-master")
+
+    # No `/v1` after it: codex asks `{base_url}/responses`, which the gateway serves too.
+    assert env == {
+        "CODEX_PROVIDER_URL": "http://127.0.0.1:4000",
+        "CODEX_PROVIDER_KEY": "sk-master",
+    }
+    said = argued(codex, env)
+    assert "model_providers.humanize.base_url=http://127.0.0.1:4000" in said
+    assert "model_providers.humanize.env_key=CODEX_PROVIDER_KEY" in said
+    assert "model_providers.humanize.wire_api=responses" in said
+    assert "sk-master" not in " ".join(said)
+
+
+def test_a_backend_naming_no_way_to_a_gateway_is_pointed_nowhere() -> None:
+    omp = backends.named("omp")
+    assert omp is not None
+    assert spoken(omp, "http://127.0.0.1:4000", "sk") == {}
+    assert argued(omp, {}) == ()
 
 
 @pytest.mark.parametrize("missing", NEEDS)

@@ -91,6 +91,7 @@ if TYPE_CHECKING:
     import subprocess
     from collections.abc import Iterator, Mapping
 
+    import tomlkit
     from pydantic import BaseModel
 
 #: What the CLI is installed as.
@@ -557,18 +558,52 @@ class GrokBuildSession(StreamSessionBase):
                 "mcpServers": [one.sent() for one in _bridged(self._agent)],
             }
             if self._id is not None:
-                self._settle(
+                loaded = self._settle(
                     proc,
                     self._ask("session/load", {"sessionId": self._id, **where}),
                     refused=Unrecoverable,
                 )
+                self._chooses(proc, self._id, loaded)
                 return
             opened = self._settle(proc, self._ask("session/new", where))
+            if not (named := str(opened.get("sessionId") or "")):
+                raise Failed(1, self._command(), "", f"{_COMMAND} named no session")
+            # Taken before the model is chosen, so that a session refused one is loaded by
+            # the next try rather than opened again beside it.
+            self._adopt(named)
+            self._chooses(proc, named, opened)
         finally:
             watchdog.cancel()
-        if not (named := str(opened.get("sessionId") or "")):
-            raise Failed(1, self._command(), "", f"{_COMMAND} named no session")
-        self._adopt(named)
+
+    def _chooses(
+        self, proc: subprocess.Popen[str], session: str, opened: dict[str, Any]
+    ) -> None:
+        """Puts the session on a gateway's entry, where it opened on another model.
+
+        `grok agent` 1.0.50 takes `--model` only for a model in the catalogue it fetched from
+        the endpoint, and opens on the first of that catalogue otherwise -- which the entry
+        :func:`_routed` keeps for a gateway account never is, being hidden. Unseen behind an
+        endpoint serving the one model, whose first is that model; traced behind a LiteLLM
+        gateway, whose catalogue is every model of its provider, as a session opened on
+        whichever of four hundred came first. `session/set_model` takes the entry. Only for
+        an entry: a model of the catalogue is one `--model` was taken for, under whatever id
+        the session reports it by.
+
+        Args:
+          proc: The process now up.
+          session: The session it opened or loaded.
+          opened: What it answered with, which names the model the session is on.
+        """
+        models = opened.get("models")
+        wanted = self._model()
+        if not isinstance(models, dict) or wanted == self._agent.config.model:
+            return
+        if cast("dict[str, Any]", models).get("currentModelId") in (None, wanted):
+            return
+        self._settle(
+            proc,
+            self._ask("session/set_model", {"sessionId": session, "modelId": wanted}),
+        )
 
     def _ask(self, method: str, params: dict[str, Any]) -> int:
         """Writes one request of the protocol's own, which is not a thing said to the agent.
@@ -1269,12 +1304,17 @@ def _routed(model: str, environ: Mapping[str, str]) -> str:
     }
     said = json.dumps(entry, sort_keys=True).encode()
     named = f"hmz-{hashlib.sha256(said).hexdigest()[:12]}/{model}"
-    from hmz.coganchor.backends import named as profile
-
-    found = profile(_COMMAND)
-    home = found.directory(environ) if found is not None else Path.home() / ".grok"
-    _entered(home / "config.toml", named, entry)
+    _entered(_configured(environ), named, entry)
     return named
+
+
+def _configured(environ: Mapping[str, str]) -> Path:
+    """The `config.toml` of the home a turn's CLI reads, under the turn's environment."""
+    from hmz.coganchor.backends import named
+
+    found = named(_COMMAND)
+    home = found.directory(environ) if found is not None else Path.home() / ".grok"
+    return home / "config.toml"
 
 
 def _entered(at: Path, named: str, entry: dict[str, Any]) -> None:
@@ -1298,21 +1338,11 @@ def _entered(at: Path, named: str, entry: dict[str, Any]) -> None:
     import fcntl
 
     import tomlkit
-    from tomlkit.exceptions import TOMLKitError
 
     from hmz import machine
     from hmz.coganchor import atomic
 
     at = at.resolve()
-
-    def reading() -> tomlkit.TOMLDocument:
-        try:
-            return tomlkit.parse(at.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return tomlkit.document()
-        except (TOMLKitError, UnicodeDecodeError) as error:
-            said = f"{at} cannot be read as TOML ({error}): correct it"
-            raise Unrecoverable(1, [_COMMAND], "", said) from error
 
     def held(doc: tomlkit.TOMLDocument) -> bool:
         kept = cast("dict[str, object]", doc).get("model")
@@ -1320,18 +1350,78 @@ def _entered(at: Path, named: str, entry: dict[str, Any]) -> None:
             return False
         return _plain(cast("dict[str, object]", kept).get(named)) == entry
 
-    if held(reading()):
+    if held(_reading(at)):
         return
     at.parent.mkdir(parents=True, exist_ok=True)
     with (machine() / "grok-config.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        doc = reading()
+        doc = _reading(at)
         if held(doc):
             return
         if "model" not in doc:
             doc["model"] = tomlkit.table(is_super_table=True)
         cast("dict[str, Any]", doc["model"])[named] = entry
         atomic.writes(at, tomlkit.dumps(doc), mode=None if at.exists() else 0o600)
+
+
+def _withdrawn(at: Path, base: str) -> None:
+    """Takes out of a Grok Build `config.toml` every entry :func:`_routed` kept for `base`.
+
+    For an endpoint that is gone for good -- a LiteLLM gateway on a port of loopback, which
+    every agent starts again on a port of its own -- so that the person's file does not keep
+    an entry per agent that ever ran. Under the lock :func:`_entered` takes, and through a
+    link as it is; nothing is written where there is nothing to take out.
+
+    Args:
+      at: The file, which need not be there.
+      base: The endpoint the entries name.
+    """
+    import fcntl
+
+    import tomlkit
+
+    from hmz import machine
+    from hmz.coganchor import atomic
+
+    at = at.resolve()
+    if not at.exists():
+        return
+    with (machine() / "grok-config.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        doc = _reading(at)
+        kept = cast("dict[str, Any]", doc).get("model")
+        if not isinstance(kept, dict):
+            return
+        gone = [
+            name
+            for name, entry in cast("dict[str, Any]", kept).items()
+            if name.startswith("hmz-")
+            and isinstance(entry, dict)
+            and cast("dict[str, Any]", entry).get("base_url") == base
+        ]
+        if not gone:
+            return
+        for name in gone:
+            del cast("dict[str, Any]", kept)[name]
+        atomic.writes(at, tomlkit.dumps(doc))
+
+
+def _reading(at: Path) -> tomlkit.TOMLDocument:
+    """A Grok Build `config.toml` as TOML that keeps its comments, and an empty one if none.
+
+    Raises:
+      Unrecoverable: If the file is there and is not TOML: see :func:`_entered`.
+    """
+    import tomlkit
+    from tomlkit.exceptions import TOMLKitError
+
+    try:
+        return tomlkit.parse(at.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return tomlkit.document()
+    except (TOMLKitError, UnicodeDecodeError) as error:
+        said = f"{at} cannot be read as TOML ({error}): correct it"
+        raise Unrecoverable(1, [_COMMAND], "", said) from error
 
 
 def _overlaid(theirs: str, headers: Mapping[str, str]) -> str:
@@ -1454,6 +1544,14 @@ class GrokBuildAgent(AgentBase):
     #: `--always-approve` already settled, so there is nothing there to be asked about.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
 
+    def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
+        """Initializes an agent that has pointed no turn at a gateway yet."""
+        super().__init__(config, name=name)
+        #: Every `config.toml` a turn of it may have written a LiteLLM gateway's entries into,
+        #: with the gateway: one for each the agent has had, a gateway that went having been
+        #: started again on another port.
+        self._entered: set[tuple[Path, str]] = set()
+
     def environment(self) -> Mapping[str, str]:
         """The provider's variables, and the one that has Grok Build read a flow's skills.
 
@@ -1476,12 +1574,21 @@ class GrokBuildAgent(AgentBase):
         one. Never for an agent on another machine, whose commands there would inherit it:
         :meth:`GrokBuildSession._model` refuses that turn instead.
 
+        And for an account a local LiteLLM gateway holds, the gateway as an endpoint speaking
+        chat completions: the one protocol it speaks to every provider behind it, where
+        `responses`, the gateway way's own answer, is one it speaks to some.
+
         Returns:
           The variables to add.
         """
         added = {**super().environment(), "GROK_FOLDER_TRUST": "0"}
+        if (through := self.gateway) is not None:
+            added[_SPEAKS] = "chat_completions"
         hushed = self.hushed()
         said = {k: v for k, v in os.environ.items() if k not in hushed} | added
+        if through is not None:
+            # Where a turn writes this gateway's entries, for :meth:`stop` to take out.
+            self._entered.add((_configured(said), through.url))
         key = said.get(_KEY, "")
         speaks = said.get(_SPEAKS, "").strip()
         if (
@@ -1518,6 +1625,20 @@ class GrokBuildAgent(AgentBase):
                 f"{type(self).__name__}: a fenced conversation cannot join the leader, "
                 "which runs its tools outside the fence; set leader to False or None"
             )
+
+    def stop(self) -> None:
+        """Stops as every agent does, and takes the gateway's entries out of `config.toml`.
+
+        The entries :func:`_routed` wrote for a LiteLLM gateway name a port nothing will
+        listen on again once the gateway has gone: see :func:`_withdrawn`. An agent never
+        stopped leaves them, hidden, holding the name of a variable and no key.
+        """
+        super().stop()
+        entered, self._entered = self._entered, set()
+        for at, base in entered:
+            # A file nobody can read or write now is one a stop leaves as it found it.
+            with contextlib.suppress(OSError, Unrecoverable):
+                _withdrawn(at, base)
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> GrokBuildSession:
         """Opens a new Grok Build session, in the directory it is given or in this one."""

@@ -23,9 +23,19 @@ from hmz.coganchor.agents import (
     OpencodeAgent,
     OpencodeAgentConfig,
 )
-from tests.integration.doubles_agents import Standins, kinds, standins
+from hmz.coganchor.gateway import gatewayable
+from tests.integration.doubles_agents import (
+    CHATTING,
+    Endpoint,
+    Standins,
+    kinds,
+    routing,
+    serving,
+    standins,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 OPENCODE = r"""
@@ -188,6 +198,74 @@ def test_a_run_cannot_be_talked_to_mid_turn_nor_given_a_goal(
         agent.new().interject("hello?")
     with pytest.raises(NotImplementedError):
         agent.new().pursue("the suite passes")
+
+
+#: An `opencode run` that does what the real one does with a provider of its config: fills
+#: the `{env:...}` in, finds the model `--model` names under the provider it names, and asks
+#: that provider's `baseURL` with its `apiKey` -- saying what came back as a turn.
+ROUTED = (
+    CHATTING
+    + r"""
+import re
+
+said = sys.stdin.read()
+note(said)
+session = flags.get("--session", "ses_stand_in")
+written = os.environ.get("OPENCODE_CONFIG_CONTENT") or os.environ["MIMOCODE_CONFIG_CONTENT"]
+config = json.loads(re.sub(r"\{env:(\w+)\}", lambda one: os.environ.get(one[1], ""), written))
+named, _, model = flags["--model"].partition("/")
+held = config["provider"][named]
+body = (chatted(held["options"]["baseURL"], held["options"]["apiKey"], model, said)
+        if model in held["models"] else "no such model: " + model)
+out({"type": "text", "sessionID": session, "part": {"id": "p1", "type": "text", "text": body}})
+out({"type": "step_finish", "sessionID": session,
+     "part": {"id": "p2", "type": "step-finish", "reason": "stop",
+              "tokens": {"total": 2, "input": 1, "output": 1, "reasoning": 0,
+                         "cache": {"read": 0, "write": 0}}}})
+"""
+)
+
+
+@pytest.fixture
+def upstream() -> Iterator[Endpoint]:
+    """The endpoint an account of litellm's is on, shut once the test is done with it."""
+    yield from serving()
+
+
+@pytest.mark.timeout(240)
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+@pytest.mark.parametrize(
+    ("name", "kind", "config"),
+    [
+        ("opencode", OpencodeAgent, OpencodeAgentConfig),
+        ("mimo", MimoCodeAgent, MimoCodeAgentConfig),
+    ],
+)
+def test_a_turn_through_a_litellm_gateway_reaches_the_accounts_endpoint(
+    upstream: Endpoint,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    kind: type[AgentBase],
+    config: type[AgentConfig],
+) -> None:
+    held = standins(tmp_path, monkeypatch, "OPENAI_API_KEY", "LITELLM_GATEWAY_KEY")
+    held.install(name, ROUTED)
+    routing(tmp_path, monkeypatch, name, upstream)
+    agent = kind(config(model="stand-in", effort="", provider="gw"))
+    try:
+        said = agent.new(tmp_path)("say hi")
+        through = agent.gateway
+        assert through is not None
+    finally:
+        agent.stop()
+
+    assert said == "say hi"
+    assert [one["model"] for one in upstream.asked] == ["stand-in"]
+    (call,) = held.calls(name)
+    assert call.env["OPENAI_API_KEY"] is None
+    assert call.env["LITELLM_GATEWAY_KEY"] is None
+    assert not through.running
 
 
 #: A run that takes the flow's server out of the config variable it was handed, the way the

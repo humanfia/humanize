@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz.coganchor import gateway, providers
 from hmz.coganchor.agents import (
     Failed,
     GrokBuildAgent,
@@ -19,6 +20,7 @@ from hmz.coganchor.agents.config import Unfenced
 from hmz.coganchor.agents.event import Unrecoverable
 from hmz.coganchor.agents.hooks import Moment
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.providers import Provider
 
 from .doubles_u5 import configured, heard, line, option, spawning
 
@@ -418,3 +420,126 @@ def test_a_gateway_speaking_no_api_grok_knows_is_unrecoverable(
         _turn(agent.new(tmp_path))
 
     assert not spawned
+
+
+# --------------------------------------------------------------- through a LiteLLM gateway
+
+
+class _Gateway:
+    """A gateway that starts nothing: where it would be, and whether it was taken down."""
+
+    def __init__(self, provider: Provider) -> None:
+        self.account = provider
+        self.port = 4321
+        self.url = "http://127.0.0.1:4321"
+        self.key = "sk-master"
+        self.running = True
+
+    def stop(self) -> None:
+        self.running = False
+
+
+def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
+    """No credential path answered by another, which is the supervisor's to test."""
+    del self
+    return ()
+
+
+@pytest.fixture
+def routed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An account litellm holds, and a gateway that is only pretended."""
+    held = Provider(
+        cli="grok",
+        name="gw",
+        way="litellm-openai-key",
+        env={"OPENAI_API_KEY": "upstream-secret"},
+    )
+
+    def find(cli: str, name: str) -> Provider:
+        del cli, name
+        return held
+
+    monkeypatch.setattr(providers, "find", find)
+    monkeypatch.setattr(Provider, "swaps", _unswapped)
+    monkeypatch.setattr(gateway, "Gateway", _Gateway)
+
+
+@pytest.mark.usefixtures("routed")
+def test_a_turn_through_a_gateway_speaks_chat_completions_to_it() -> None:
+    env = _agent(provider="gw").environment()
+
+    assert env["GROK_XAI_API_BASE_URL"] == "http://127.0.0.1:4321"
+    assert env["XAI_API_KEY"] == "sk-master"
+    assert env["GROK_GATEWAY_API_BACKEND"] == "chat_completions"
+    assert "upstream-secret" not in env.values()
+
+
+def _opening(current: str) -> Callable[[str], Iterable[str]]:
+    """Grok's ACP server, opening every session on `current` as 1.0.50 says it does."""
+    served = _acp()
+
+    def answers(told: str) -> Iterable[str]:
+        asked: dict[str, Any] = json.loads(told)
+        if asked.get("method") == "session/new":
+            result = {"sessionId": "g-1", "models": {"currentModelId": current}}
+            return [line({"jsonrpc": "2.0", "id": asked["id"], "result": result})]
+        if asked.get("method") == "session/set_model":
+            return [line({"jsonrpc": "2.0", "id": asked["id"], "result": {}})]
+        return served(told)
+
+    return answers
+
+
+@pytest.mark.usefixtures("routed")
+def test_a_session_opened_on_another_model_is_put_on_the_one_asked_for(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_opening("openai/first-of-many"))
+    agent = _agent(provider="gw")
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    asked = option(spawned[0].args, "--model")
+    told = _told(spawned[0].told)
+    assert [one["method"] for one in told] == [
+        "initialize",
+        "session/new",
+        "session/set_model",
+        "session/prompt",
+    ]
+    assert told[2]["params"] == {"sessionId": "g-1", "modelId": asked}
+
+
+def test_a_session_opened_on_the_model_asked_for_is_left_on_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_opening("grok-4"))
+    agent = _agent()
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    told = _told(spawned[0].told)
+    assert "session/set_model" not in [one["method"] for one in told]
+
+
+@pytest.mark.usefixtures("routed")
+def test_stopping_takes_the_gateways_entries_out_of_grok_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawning(monkeypatch, answers=_acp())
+    config = tmp_path / "home/.grok/config.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        '# theirs\n[model."hmz-0/m"]\nmodel = "m"\nbase_url = "http://gw.example/v1"\n'
+    )
+    agent = _agent(provider="gw")
+    heard(agent)
+    _turn(agent.new(tmp_path))
+    assert len(tomllib.loads(config.read_text())["model"]) == 2
+
+    agent.stop()
+
+    assert list(tomllib.loads(config.read_text())["model"]) == ["hmz-0/m"]
+    assert config.read_text().startswith("# theirs\n")

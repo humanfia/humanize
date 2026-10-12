@@ -39,6 +39,11 @@ if TYPE_CHECKING:
 #: puts it down under this name, which is what a command line reaches for.
 _COMMAND = "agy"
 
+#: What agy is told an enterprise gateway serves, which is then the whole of what it lists and
+#: of what `--model` takes. Through the local LiteLLM gateway that is the one model a turn
+#: names: the gateway holds a wildcard, and has no list of its own to say instead.
+_SERVED = "AGY_LLM_GATEWAY_MODELS"
+
 #: What a turn is run as at each rung of the ladder, in the CLI's own flags. Read off `agy
 #: --help` and the CLI's own wording for its modes, last checked against agy 1.2.2 on
 #: 2026-09-15: `--mode plan` is "research and plan without making changes", `--mode
@@ -530,6 +535,17 @@ class AntigravityCLISession(StreamSessionBase):
                     self._previous = Usage()
                 raise
 
+    def _environment(self) -> dict[str, str]:
+        """What the turn runs with, and through a LiteLLM gateway the model it serves.
+
+        Which is the model this agent runs, as :data:`_SERVED`: agy refuses any `--model` its
+        gateway was not told it serves.
+        """
+        held = dict(super()._environment())
+        if self._agent.gateway is not None:
+            held[_SERVED] = self._agent.config.model
+        return held
+
     def _command(self) -> list[str]:
         """Starts the official stream driver without a finite --print prompt."""
         argv, _ = self._turn("")
@@ -627,8 +643,10 @@ class AntigravityCLISession(StreamSessionBase):
         # How hard to think is said one of two ways here and the model chooses which: a name
         # that already carries the rung refuses the flag, and one that does not requires it.
         # An agent with no effort at all is left to be told so by the CLI, which names the
-        # rungs that model takes -- a flag carrying nothing would be answered with less.
-        if not _carried(config.model) and self.effort:
+        # rungs that model takes -- a flag carrying nothing would be answered with less. And a
+        # model its gateway serves takes none, as dsh's gateway's do: agy refuses the flag for
+        # every one of them, so through a LiteLLM gateway no rung is sent at all.
+        if not _carried(config.model) and self.effort and self._agent.gateway is None:
             argv += ["--effort", self.effort]
         if (defined := _defined(config)) is not None:
             _agents(_home(self._environ() or dict(os.environ), self._agent.node().args))
