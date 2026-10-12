@@ -57,7 +57,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first: how each ended, or `live` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first: how each ended, or `live`; `●` without `live` is one another process goes with, such as `hmz exec`, read as it writes itself down | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
 | **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a `chat` opens on its conversation instead | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |

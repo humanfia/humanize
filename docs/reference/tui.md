@@ -1079,7 +1079,7 @@ duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 
 | --- | --- |
 | Title | `Epics` |
 | About | `Every epic in this directory, newest first: task, status, and session count.`; on this machine, `Every epic on this machine, newest first: workspace, task, status, and session count.` |
-| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress reads `was left unfinished`. |
+| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `[<workspace> · ]<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|is still going\|was left unfinished][ · resumable]`. `<workspace>`, with `~` for the home directory, only on this machine. `resumable`: the run is of this directory, its flow is resumable now and it left a journal. A run in progress -- here, under a host, or in `hmz exec` -- reads `is still going`; `was left unfinished` is one whose process went before it ended. |
 | Buttons | **Search…** (flow, task, run name, and workspace on this machine); **this machine** / **this directory**, as `ctrl+t`; **Import…**, as `i` |
 | Keys | `enter open   ctrl+t this machine\|this directory   i import   / search   tab actions   esc close` |
 | Empty | `no flow has been run in this directory yet` / `no flow has been run on this machine yet`; `reading…` while a machine's are read |

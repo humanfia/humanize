@@ -77,6 +77,19 @@ async def test_a_run_stopped_is_listed_with_its_task_and_how_it_ended(
         assert rows(app) == [one.name for one in epics(workspace)]
 
 
+async def test_a_run_another_process_holds_is_listed_as_still_going(
+    workspace: Path,
+) -> None:
+    # Held as `hmz exec` holds the run it goes with, which no host here speaks for.
+    with Epic("chat", "elsewhere", workspace):
+        async with Humanize().run_test(size=SIZE) as pilot:
+            await opened(pilot)
+            await typed(pilot, "/epics")
+            await on(pilot, Epics)
+
+            await shows(pilot, "elsewhere · 0 sessions · is still going")
+
+
 async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
     workspace: Path,
 ) -> None:

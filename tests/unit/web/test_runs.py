@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.web.runs import held_by, refused, sessions_of, spending
+from hmz.web.runs import held_by, refused, row, sessions_of, spending
 
 if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
@@ -174,3 +174,43 @@ def test_an_import_refused_is_a_conflict_naming_the_epic_only_where_it_is_here(
     assert refusal.status == status
     assert str(refusal) == f"{said}."
     assert refusal.said.get("name") == named
+
+
+@dataclass(frozen=True)
+class _Row:
+    """As much of a run written down as a row of the list reads."""
+
+    how: str = ""
+    name: str = "20261012T135159.936Z-bc3e81"
+    workspace: str = "/work/one"
+    flow: str = "ralph"
+    task: str = "fix it"
+    began: str = "2026-10-08T10:00:00+00:00"
+    ended: str = ""
+    agents: tuple[Any, ...] = ()
+    sessions: tuple[Any, ...] = ()
+    resumable: bool = False
+    spent: dict[str, Any] | None = None
+    backup: tuple[str, ...] = ()
+    backed: dict[str, Any] | None = None
+
+
+@pytest.mark.parametrize(
+    ("how", "held", "going", "said"),
+    [
+        ("", True, True, "running"),
+        # Held by a process no host speaks for -- `hmz exec` -- and going all the same.
+        ("", False, True, "running"),
+        ("", False, False, "unfinished"),
+        ("done", False, False, "done"),
+    ],
+)
+def test_a_run_is_said_running_while_any_process_holds_it(
+    how: str, held: bool, going: bool, said: str
+) -> None:
+    ran = cast("Ran", _Row(how=how))
+
+    listed = row(ran, held=held, going=going)
+
+    assert listed["how"] == said
+    assert listed["held"] is held

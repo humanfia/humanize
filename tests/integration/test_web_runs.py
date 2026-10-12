@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz import machine
+from hmz.runtime.epic import Epic
 from tests.integration.doubles_core import AGENT, install, started
 from tests.integration.doubles_web import Browser, elsewhere, served, until
 
@@ -199,6 +200,24 @@ def _chatted(browser: Browser, task: str) -> None:
         until(heard, _record("asked"), "chat asking")
         browser.post("/api/held/stop")
         until(heard, _record("ended"), "the run ending")
+
+
+def test_an_epic_another_process_goes_with_is_listed_as_running(project: Path) -> None:
+    # Held as `hmz exec` holds the run it goes with, which no host here speaks for.
+    with Epic("chat", "elsewhere", project) as held, served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        (ran,) = browser.get("/api/runs").json()["runs"]
+        assert (ran["how"], ran["held"]) == ("running", False)
+        one = browser.get(f"/api/runs/{held.path.name}").json()
+        assert one["how"] == "running"
+
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        (ran,) = browser.get("/api/runs").json()["runs"]
+        assert ran["how"] == "done"
 
 
 def test_an_epic_written_down_is_read_back_out_of_the_logs_it_kept(

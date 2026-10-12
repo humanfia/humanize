@@ -103,6 +103,12 @@ class Epics:
 
         return foreign(epic)
 
+    def going(self, epic: Path) -> bool:
+        """Whether one epic's run is still going, in this process or any other."""
+        from hmz.runtime.epic import going
+
+        return going(epic)
+
     def state(self, epic: Path, flow: str = "") -> dict[str, Any]:
         """What a resumable flow kept in one run: the run's own flow, or one it called by ref."""
         from hmz.runtime.epic import state

@@ -722,6 +722,14 @@ def test_a_run_still_going_cannot_be_picked_up(workspace: Path) -> None:
     assert epic.picks_up(going.path) is True
 
 
+def test_a_run_is_going_while_its_epic_is_held(workspace: Path) -> None:
+    with Epic("f", "t", workspace) as held:
+        assert epic.going(held.path) is True
+
+    assert epic.going(held.path) is False
+    assert epic.going(workspace / "never") is False
+
+
 def test_what_a_flow_kept_is_read_back_key_by_key(tmp_path: Path) -> None:
     _journal(
         tmp_path / RESUME,

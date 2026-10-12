@@ -94,6 +94,7 @@ __all__ = [
     "called",
     "epics",
     "foreign",
+    "going",
     "harbor",
     "harnessed",
     "logs",
@@ -487,7 +488,7 @@ def picks_up(epic: Path) -> bool:
       and for one imported from a workspace this machine has not got (:func:`foreign`).
     """
     return (
-        not _going(epic)
+        not going(epic)
         and any(one.get("t") == "call" for one in _journal(epic))
         and not foreign(epic)
     )
@@ -586,7 +587,7 @@ def _hold(at: Path) -> int | None:
     return held
 
 
-def _going(epic: Path) -> bool:
+def going(epic: Path) -> bool:
     """Whether the run one epic is of is still going, here or in any other process.
 
     Args:

@@ -141,6 +141,16 @@ class Runs:
                 return ran
         raise Refusal(f"There is no epic {name}.", 404)
 
+    def going(self, ran: Ran) -> bool:
+        """Whether a run with no end written down is still going, in whatever process holds it.
+
+        The host says which run it holds; a run another process holds -- `hmz exec`, a
+        terminal interface holding its runs itself -- says so only by holding its epic.
+        """
+        from hmz.runtime.epic import going
+
+        return not ran.how and going(ran.at)
+
     def hmz(self, ran: Ran) -> Any:
         """humanize, for the workspace a run was run in -- there still or not."""
         return self._places.of(ran.workspace or str(self._places.here), made=True).hmz
@@ -307,8 +317,14 @@ def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> set[Path]:
     return held
 
 
-def row(ran: Ran, *, held: bool) -> dict[str, Any]:
-    """One run as the list says it."""
+def row(ran: Ran, *, held: bool, going: bool = False) -> dict[str, Any]:
+    """One run as the list says it.
+
+    Args:
+      ran: The run.
+      held: Whether it is the run a host is going with, which the page follows live.
+      going: Whether it is going at all, held by a host or by any other process.
+    """
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
     return {
         "name": ran.name,
@@ -317,7 +333,7 @@ def row(ran: Ran, *, held: bool) -> dict[str, Any]:
         "task": first[:_TOLD] + ("…" if len(first) > _TOLD else ""),
         "began": ran.began,
         "ended": ran.ended,
-        "how": ran.how or (RUNNING if held else UNFINISHED),
+        "how": ran.how or (RUNNING if held or going else UNFINISHED),
         "agents": [{"role": one.agent, "runs": one.spec} for one in ran.agents],
         "sessions": len(ran.sessions),
         "resumable": ran.resumable,
@@ -346,17 +362,18 @@ def labelled(spent: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def detail(
-    ran: Ran, *, held: bool, picks_up: bool, foreign: str = ""
+    ran: Ran, *, held: bool, picks_up: bool, foreign: str = "", going: bool = False
 ) -> dict[str, Any]:
     """One run, whole, as its own page says it.
 
     Args:
       ran: The run.
-      held: Whether it is the run going.
+      held: Whether it is the run a host is going with.
+      going: Whether it is going at all, held by a host or by any other process.
       picks_up: Whether it can be picked up.
       foreign: Why one imported cannot be picked up here, or "".
     """
-    return row(ran, held=held) | {
+    return row(ran, held=held, going=going) | {
         "at": str(ran.at),
         "task": ran.task,
         "ref": ran.ref,
@@ -555,7 +572,9 @@ def _listed(asked: Asked) -> dict[str, Any]:
     status = asked.query.get("status", "")
     flow = asked.query.get("flow", "")
     wanted = asked.query.get("q", "").casefold()
-    rows = [row(ran, held=ran.at in held) for ran in runs]
+    rows = [
+        row(ran, held=ran.at in held, going=asked.site.runs.going(ran)) for ran in runs
+    ]
     counts: dict[str, int] = {}
     for one in rows:
         counts[one["how"]] = counts.get(one["how"], 0) + 1
@@ -593,9 +612,13 @@ def _one(asked: Asked) -> dict[str, Any]:
     hmz = runs.hmz(ran)
     picks_up = hmz.epics.picks_up(ran.at)
     foreign = hmz.epics.foreign(ran.at)
-    return detail(ran, held=ran.at in held, picks_up=picks_up, foreign=foreign) | {
-        "calls": calls(hmz.epics.tree(ran.at))
-    }
+    return detail(
+        ran,
+        held=ran.at in held,
+        picks_up=picks_up,
+        foreign=foreign,
+        going=runs.going(ran),
+    ) | {"calls": calls(hmz.epics.tree(ran.at))}
 
 
 def _trace(asked: Asked) -> dict[str, Any]:

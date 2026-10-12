@@ -10041,9 +10041,12 @@ def _how(ran: Ran) -> str:
       ran: The run.
 
     Returns:
-      What became of it, in words: a run with no end written down is one that was abandoned
-      where it stood -- the machine it was on went, or the interface came down under it.
+      What became of it, in words: a run with no end written down is still going where a
+      process holds it -- this one, a host, an `hmz exec` -- and otherwise one that was
+      abandoned where it stood: the machine it was on went, or the interface came down under it.
     """
+    if not ran.how and _hmz().epics.going(ran.at):
+        return "is still going"
     return {
         "done": "finished",
         "failed": "failed",

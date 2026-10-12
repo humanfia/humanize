@@ -66,6 +66,14 @@ def test_the_runs_of_a_workspace_are_read_back(workspace: Path) -> None:
     assert epics.state(second, "official/other") == {}
 
 
+def test_a_run_reads_as_going_only_while_it_is_held(workspace: Path) -> None:
+    epics = Epics(workspace)
+    with Epic("ralph", "t", workspace) as held:
+        assert epics.going(held.path) is True
+
+    assert epics.going(held.path) is False
+
+
 def test_every_run_on_this_machine_is_read_back_oldest_first(
     workspace: Path, tmp_path: Path
 ) -> None:

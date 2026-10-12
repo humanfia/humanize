@@ -318,7 +318,9 @@ export function mountSidebar(root, context, where) {
 /** What can be done to one epic, from wherever it is listed. */
 export function epicMenu(run) {
   const base = `#/epics/${encodeURIComponent(run.name)}`
-  const resumes = run.resumable && !run.held && run.how !== 'done'
+  // Going, whether a host holds it or another process does -- `hmz exec`, say.
+  const going = run.held || run.how === 'running'
+  const resumes = run.resumable && !going && run.how !== 'done'
   return [
     { head: run.task.split('\n')[0] },
     { label: 'Open', glyph: 'open', href: base },
@@ -330,7 +332,7 @@ export function epicMenu(run) {
     { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
     { label: 'Copy task', glyph: 'copy', act: () => copy(run.task, 'Task copied') },
     { label: 'Copy name', glyph: 'copy', act: () => copy(run.name, 'Name copied') },
-    run.held ? null : { label: 'Export', glyph: 'download', act: () => (location.href = `/api/runs/${encodeURIComponent(run.name)}/bundle`) },
+    going ? null : { label: 'Export', glyph: 'download', act: () => (location.href = `/api/runs/${encodeURIComponent(run.name)}/bundle`) },
     { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
     run.held ? '-' : null,
     run.held ? { label: 'Stop', glyph: 'stop', danger: true, act: () => ask(run.workspace, 'stop').then(() => toast('Stopping'), (error) => toast(error.message)) } : null,

@@ -201,9 +201,10 @@ asks one, through the same side conversations: a second question to one still an
 | `GET /api/usage` | `days` (`30`; 1 to 365); `workspace` (only its runs) | `days` (per UTC day, oldest first), `flows` (costliest first), `ended` (`{how: n}`), `whole`: each with `runs`, `cost`, `output_tokens`, `seconds`, and `money`, `tokens`, `worked` as the terminal interface says them |
 
 A row is `name`, `flow`, `task` (its first line, cut at 240 characters), `began`, `ended`,
-`how` (as the run ended; `running` for the run going, `unfinished` for one that never said),
-`agents` (`[{role, runs}]`), `sessions` (a count), `resumable`, `held` (whether it is the run
-going), `spent`: what its budget counted as it ended, or `null`, `backup` (the targets it was
+`how` (as the run ended; `running` for a run going -- held by a host, or by another process such
+as `hmz exec` -- and `unfinished` for one whose process went before it said),
+`agents` (`[{role, runs}]`), `sessions` (a count), `resumable`, `held` (whether it is the run a
+host is going with, which the page follows live and can stop), `spent`: what its budget counted as it ended, or `null`, `backup` (the targets it was
 started with) and `backed` (`{target: {at, ok, error, why}}`: how its last backup to each
 went). A run of no such name is `404`.
 
