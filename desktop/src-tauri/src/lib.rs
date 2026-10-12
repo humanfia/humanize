@@ -251,13 +251,14 @@ fn browse(url: &str) {
 }
 
 /// `name` in `dir`, or `name (1)`, `name (2)` and on where that is taken, or `going` to be --
-/// numbered before what follows the first dot, as Safari does: `epic (1).tar.gz`.
+/// numbered before the extension: `20260930T053725.504Z-a3d685 (1).hmzepic`, the dot inside
+/// an epic's name being part of the name.
 fn unique(dir: &Path, name: &str, going: &[PathBuf]) -> PathBuf {
     let name = Path::new(name)
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("download");
-    let (stem, ext) = match name.find('.').filter(|&dot| dot > 0) {
+    let (stem, ext) = match name.rfind('.').filter(|&dot| dot > 0) {
         Some(dot) => name.split_at(dot),
         None => (name, ""),
     };
@@ -469,18 +470,23 @@ mod tests {
     fn numbers_a_download_whose_name_is_taken() {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(
-            unique(dir.path(), "epic.tar.gz", &[]),
-            dir.path().join("epic.tar.gz")
+            unique(dir.path(), "epic.hmzepic", &[]),
+            dir.path().join("epic.hmzepic")
         );
-        std::fs::write(dir.path().join("epic.tar.gz"), "").unwrap();
+        std::fs::write(dir.path().join("epic.hmzepic"), "").unwrap();
         assert_eq!(
-            unique(dir.path(), "epic.tar.gz", &[]),
-            dir.path().join("epic (1).tar.gz")
+            unique(dir.path(), "epic.hmzepic", &[]),
+            dir.path().join("epic (1).hmzepic")
         );
-        std::fs::write(dir.path().join("epic (1).tar.gz"), "").unwrap();
+        std::fs::write(dir.path().join("epic (1).hmzepic"), "").unwrap();
         assert_eq!(
-            unique(dir.path(), "epic.tar.gz", &[]),
-            dir.path().join("epic (2).tar.gz")
+            unique(dir.path(), "epic.hmzepic", &[]),
+            dir.path().join("epic (2).hmzepic")
+        );
+        std::fs::write(dir.path().join("1T2.3Z-a.hmzepic"), "").unwrap();
+        assert_eq!(
+            unique(dir.path(), "1T2.3Z-a.hmzepic", &[]),
+            dir.path().join("1T2.3Z-a (1).hmzepic")
         );
         std::fs::write(dir.path().join("README"), "").unwrap();
         assert_eq!(
@@ -497,10 +503,10 @@ mod tests {
             dir.path().join("escape.zip")
         );
         // Nor one another download in flight is going to.
-        let going = [dir.path().join("epic (2).tar.gz")];
+        let going = [dir.path().join("epic (2).hmzepic")];
         assert_eq!(
-            unique(dir.path(), "epic.tar.gz", &going),
-            dir.path().join("epic (3).tar.gz")
+            unique(dir.path(), "epic.hmzepic", &going),
+            dir.path().join("epic (3).hmzepic")
         );
     }
 

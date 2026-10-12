@@ -454,7 +454,7 @@ class Runner:
         Raises:
           Refused: For a flow that cannot be picked up, or no run of it to pick up.
         """
-        from .epic import picks_up, resumed
+        from .epic import foreign, picks_up, resumed
 
         if resume is False:
             return None
@@ -470,6 +470,8 @@ class Runner:
                 )
             return found
         found = Path(resume)
+        if why := foreign(found):
+            raise Refused(f"{found.name} cannot be resumed here: {why}")
         if not picks_up(found):
             raise Refused(f"{found.name} has no saved progress to resume from")
         return found

@@ -59,6 +59,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import threading
 import uuid
 from pathlib import Path
@@ -91,6 +92,7 @@ __all__ = [
     "Sub",
     "called",
     "epics",
+    "foreign",
     "harbor",
     "harnessed",
     "logs",
@@ -455,10 +457,85 @@ def picks_up(epic: Path) -> bool:
 
     Returns:
       True where the run was of a resumable flow and got as far as writing its first call
-      down; False for any other run, for one killed before it wrote anything, and for one
-      still going -- a run picked up from one that goes on is two loops on one directory.
+      down; False for any other run, for one killed before it wrote anything, for one
+      still going -- a run picked up from one that goes on is two loops on one directory --
+      and for one imported from a workspace this machine has not got (:func:`foreign`).
     """
-    return not _going(epic) and any(one.get("t") == "call" for one in _journal(epic))
+    return (
+        not _going(epic)
+        and any(one.get("t") == "call" for one in _journal(epic))
+        and not foreign(epic)
+    )
+
+
+def foreign(epic: Path) -> str:
+    """Why a run imported from another machine cannot be picked up on this one.
+
+    A run picked up goes on in the workspace it ran in, from where it got to there. So the
+    workspace it says has to be here, at that very path, and -- where it is a repository and
+    the bundle said which commit it was on -- has to hold that commit.
+
+    Args:
+      epic: The epic's directory.
+
+    Returns:
+      Why not, in words, or "" for a run that was not imported or can be picked up here.
+    """
+    events = _events(epic)
+    # The last: a run imported, exported again and imported here is on the commit it was
+    # exported from the second time.
+    imported = next(
+        (one for one in reversed(events) if one.get("event") == "imported"), None
+    )
+    if imported is None:
+        return ""
+    ran_in = next(
+        (
+            str(one.get("workspace") or "")
+            for one in events
+            if one.get("event") == "began"
+        ),
+        "",
+    )
+    at = Path(ran_in)
+    if not ran_in or not at.is_dir():
+        return f"the workspace it ran in, {ran_in or 'unsaid'}, is not on this machine"
+    if at.resolve() != at:
+        return f"the workspace it ran in, {ran_in}, is {at.resolve()} here"
+    head = str(imported.get("head") or "")
+    if head and not _holds(at, head):
+        return f"the workspace it ran in, {ran_in}, has no commit {head[:12]}"
+    return ""
+
+
+def _holds(at: Path, head: str) -> bool:
+    """Whether a workspace holds one commit, or is no repository to hold one in.
+
+    Args:
+      at: The workspace.
+      head: The commit.
+
+    Returns:
+      False for a repository without it, and True otherwise -- a directory that is not one,
+      or a machine with no git to ask, being a workspace with nothing to check.
+    """
+
+    def git(*said: str) -> int:
+        try:
+            return subprocess.run(
+                ["git", "-C", str(at), *said],
+                capture_output=True,
+                timeout=20.0,
+                check=False,
+                stdin=subprocess.DEVNULL,
+            ).returncode
+        except (OSError, subprocess.SubprocessError):
+            return 0
+
+    return (
+        git("cat-file", "-e", f"{head}^{{commit}}") == 0
+        or git("rev-parse", "--git-dir") != 0
+    )
 
 
 def _hold(at: Path) -> int | None:
