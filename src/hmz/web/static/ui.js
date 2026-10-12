@@ -165,7 +165,7 @@ document.addEventListener('mouseover', (event) => {
   while (at && at !== document.body) {
     text = said(at)
     if (text) break
-    if (at.matches('.side-label, .bar-title h1, .result-task, .card-about, .node-spec, .chip, .crumbs, .side-folder-name, .path, .path-entry span, .choice-about') && cut(at)) {
+    if (at.matches('.side-label, .bar-title h1, [data-hmz=flow-picker] b, .result-task, .card-about, .node-spec, .chip, .crumbs, .side-folder-name, .path, .path-entry span, .choice-about') && cut(at)) {
       text = at.textContent.trim()
       break
     }

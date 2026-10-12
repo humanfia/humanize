@@ -33,7 +33,7 @@ export function nameOf(path) {
  */
 export function workspacePicker(chosen, changed) {
   const said = h('b', {}, '…')
-  const button = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', title: chosen }, icon('folder'), said, icon('down'))
+  const button = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', 'data-tip': chosen }, icon('folder'), said, icon('down'))
   const folder = pathPicker({ label: 'Folder', placeholder: '~/project' })
   const typed = folder.input
   typed.dataset.hmz = 'workspace-path'
@@ -46,7 +46,7 @@ export function workspacePicker(chosen, changed) {
   function set(to) {
     path = to
     said.textContent = nameOf(to)
-    button.title = to
+    button.dataset.tip = to
   }
 
   menu(

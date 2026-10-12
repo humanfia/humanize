@@ -1155,6 +1155,11 @@ textarea {
 .flow-picker b {
   font-weight: 800;
   letter-spacing: -0.01em;
+  /* However long the name, the bar keeps room for its title: the rest is cut short. */
+  max-width: min(32ch, 40vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .flow-picker:hover,
@@ -2908,6 +2913,8 @@ details.said-more summary {
   gap: 6px;
   font-weight: 800;
   flex-wrap: wrap;
+  /* A name has nowhere to break, and is broken anywhere rather than run out of the card. */
+  overflow-wrap: anywhere;
 }
 
 .card-about {
@@ -2925,6 +2932,8 @@ details.said-more summary {
   background: var(--surface);
   display: grid;
   gap: 12px;
+  /* Names, refs and URLs have nowhere to break, and are broken anywhere rather than run out. */
+  overflow-wrap: anywhere;
 }
 
 .flow-detail header {
@@ -2951,6 +2960,11 @@ details.said-more summary {
 
 .flows-said:empty {
   display: none;
+}
+
+.flows-said .chip {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .node-tag.fresh {
