@@ -76,6 +76,17 @@ _FLEET = ("Task", "Agent")
 #: run, several to one message as before, and the turn ends when they have.
 _FOREGROUND = {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
 
+#: The models Claude Code reaches for on its own, beside the one a turn names: the small one
+#: it summarises a page or names a session with, and whichever a subagent asks for by family.
+#: Through a LiteLLM gateway every one of them is the account's model, since the account's
+#: provider has none of Anthropic's under those names.
+_FAMILIES = (
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_SMALL_FAST_MODEL",
+)
+
 _ALLOWED_TOOLS_MAX = 32
 
 #: How long a directory spelled as a name may be before Claude cuts it short and tells it
@@ -440,8 +451,15 @@ class ClaudeCodeSession(StreamSessionBase):
         return ["--session-id", str(uuid.uuid4())]
 
     def _environment(self) -> dict[str, str]:
-        """What the turn runs with, plus :data:`_FOREGROUND`, which nothing else outranks."""
-        return {**super()._environment(), **_FOREGROUND}
+        """What the turn runs with, plus :data:`_FOREGROUND`, which nothing else outranks.
+
+        And, through a LiteLLM gateway, every model of :data:`_FAMILIES` as the one this agent
+        runs.
+        """
+        held = {**super()._environment(), **_FOREGROUND}
+        if self._agent.gateway is not None:
+            held |= dict.fromkeys(_FAMILIES, self._agent.config.model)
+        return held
 
     def _command(self) -> list[str]:
         """Builds the ``claude --print`` that reads turns from stdin and says events on stdout.

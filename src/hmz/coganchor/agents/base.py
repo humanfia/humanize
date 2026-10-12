@@ -56,6 +56,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.fallbacks import Answer
     from hmz.coganchor.fence import Fence
+    from hmz.coganchor.gateway import Gateway
     from hmz.coganchor.machines import MachineConfig
     from hmz.coganchor.providers import Provider
     from hmz.coganchor.tailing import Tail
@@ -3992,6 +3993,10 @@ class AgentBase(ABC):
         #: agent rather than per process, so that what a turn leaves there -- a build's
         #: cache, a file it means to read back -- is there for the next turn of the session.
         self._scratch: str | None = None
+        #: The LiteLLM gateway this agent's turns reach their model through, for an account
+        #: litellm holds, once the first of them has started it; and what guards starting it.
+        self._gateway: Gateway | None = None
+        self._gatewaying = threading.Lock()
 
     @property
     def id(self) -> str:
@@ -4040,6 +4045,7 @@ class AgentBase(ABC):
         # Put back on anything, not only a refusal: a check that failed some other way has
         # accepted nothing either, and the config is still the one it was.
         try:
+            self._routes(self._config)
             self._fences(self._config)
         except BaseException:
             self._config = was
@@ -4126,7 +4132,37 @@ class AgentBase(ABC):
                 f"{type(self).__name__} has no way of being told not to search the web; "
                 "web_search must be on for it"
             )
+        self._routes(config)
         self._fences(config)
+
+    def _routes(self, config: AgentConfig) -> None:
+        """Refuses an account held by a local gateway, for a CLI that runs on another machine.
+
+        The gateway is started where the CLI runs, on loopback, and the CLI is pointed at it
+        there. A CLI that runs on another machine -- the target's own, driven natively, or a
+        harness put elsewhere -- would be pointed at a loopback the gateway is not on, and the
+        account the gateway holds is not to be carried to that machine to start one there.
+
+        Args:
+          config: What the agent is to run at.
+
+        Raises:
+          Unserved: If the account goes through a gateway and the CLI would run elsewhere.
+        """
+        anchor: AnchorConfig | None = getattr(config.machine, "anchor", None)
+        if anchor is None or not config.provider:
+            return
+        from hmz.coganchor import providers
+        from hmz.coganchor.elsewhere import elsewhere
+
+        if not (anchor.native or elsewhere(anchor)):
+            return
+        if providers.routed(providers.find(self.backend, config.provider)):
+            raise Unserved(
+                f"{type(self).__name__}: the {config.provider} account goes through a local "
+                "LiteLLM gateway, which runs where the CLI does -- and this CLI runs on "
+                "another machine; run its harness here"
+            )
 
     def _fences(self, config: AgentConfig) -> None:
         """Refuses a fence that neither the CLI nor this machine can hold the agent to.
@@ -4383,6 +4419,10 @@ class AgentBase(ABC):
             hosts = backends.reachable(
                 profile, providers.composed(self.provider, profile)
             )
+        if (through := self.gateway) is not None:
+            # The gateway the account is held by, on loopback at a port of its own: read
+            # out of no variable `reachable` follows, so named here.
+            hosts = (*hosts, f"127.0.0.1:{through.port}")
         if (provider := self.provider) is not None:
             writes.append(provider.at)
         if sys.platform == "darwin":
@@ -5091,14 +5131,81 @@ class AgentBase(ABC):
         Which is what a provider that is a key, an endpoint or an account on somebody's cloud
         comes to: every one of these CLIs reads such a thing out of a variable of its own.
 
+        For an account litellm holds, that is the gateway holding it instead: the variables of
+        the backend's own way of being pointed at an endpoint
+        (:attr:`~hmz.coganchor.backends.Profile.routes`), pointing it at :attr:`gateway` under
+        that gateway's key -- and none of the account's, which the gateway alone is given.
+
         Returns:
           The variables to add, which is nothing at all for an agent running as its CLI does
           -- and a `PATH` with the flow's command lines first, once there have been any.
         """
         from hmz.coganchor import providers
 
-        added = providers.environ(self.provider)
+        if (through := self.gateway) is not None:
+            from hmz.coganchor.backends import named
+            from hmz.coganchor.gateway import spoken
+
+            profile = named(self.backend)
+            assert profile is not None  # noqa: S101 -- only a backend that routes has one
+            # Reached directly, whatever proxy this machine's environment names: a proxy
+            # elsewhere has never heard of this machine's loopback.
+            bypassed = os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or ""
+            direct = ",".join(
+                one for one in (bypassed, "127.0.0.1", "localhost") if one
+            )
+            added = spoken(profile, through.url, through.key) | {
+                "NO_PROXY": direct,
+                "no_proxy": direct,
+            }
+        else:
+            added = providers.environ(self.provider)
         return {**added, **self._shelf.environ(added)}
+
+    @property
+    def gateway(self) -> Gateway | None:
+        """The LiteLLM gateway this agent's turns reach their model through, or None.
+
+        One for an agent whose account was made by a way through a gateway
+        (:func:`hmz.coganchor.backends.routed`), started the first time it is asked for, on
+        this machine -- where the CLI runs: an agent whose CLI runs elsewhere is refused such
+        an account where it is configured. One per agent, and so per account: started again
+        for an account it has since been moved to, and taken down when the agent is stopped
+        or collected, or at exit for one held to the end.
+
+        Raises:
+          Unserved: If the backend has no way of being pointed at a gateway, or its CLI runs
+            on another machine.
+          subprocess.CalledProcessError: If the gateway would not start, which is a turn that
+            could not reach its model.
+        """
+        from hmz.coganchor import providers
+
+        provider = self.provider
+        if not providers.routed(provider):
+            return None
+        assert provider is not None  # noqa: S101 -- `routed` says so
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.gateway import Gateway
+
+        with self._gatewaying:
+            if self._gateway is not None and (
+                self._gateway.account != provider or not self._gateway.running
+            ):
+                self._gateway.stop()
+                self._gateway = None
+            if self._gateway is None:
+                profile = named(self.backend)
+                if profile is None or not profile.routes:
+                    raise Unserved(
+                        f"{self.backend} has no way of being pointed at a LiteLLM gateway, "
+                        f"so the {provider.name} account cannot be used with it"
+                    )
+                self._routes(self._config)
+                # Taken down by its own finalizer once nothing holds it, which is when this
+                # agent is collected, or at exit for one held to the end.
+                self._gateway = Gateway(provider)
+            return self._gateway
 
     def hushed(self) -> frozenset[str]:
         """The variables a turn of this agent is run without, whoever left them lying about.
@@ -5231,6 +5338,14 @@ class AgentBase(ABC):
             argv = [found, *argv[1:]]
         if provider is not None and provider.args:
             argv = [*argv, *provider.args]
+        through = self.gateway
+        if through is not None:
+            from hmz.coganchor.backends import named
+            from hmz.coganchor.gateway import argued
+
+            profile = named(self.backend)
+            assert profile is not None  # noqa: S101 -- `gateway` has checked
+            argv = [*argv, *argued(profile, self.environment())]
         if anchor is not None and native:
             # The target's own CLI keeps its sessions on the target, where nothing of this
             # machine's reaches: they stay where it keeps them, and the run says so.
@@ -5247,6 +5362,15 @@ class AgentBase(ABC):
         # is not to be given it: everything the agent exports is inherited by every command
         # it runs there, and a key crossing to another machine is a key on that machine.
         private = tuple(provider.env) if provider is not None else ()
+        if through is not None:
+            from dataclasses import replace
+
+            # And the gateway it is pointed at instead, on this machine's loopback: kept here
+            # as the agent's own connections are where they would otherwise go to the target.
+            private = (*private, *self.environment())
+            if anchor.net == "remote":
+                held = f"127.0.0.1:{through.port}"
+                anchor = replace(anchor, net_allow=(*anchor.net_allow, held))
         return self._reaching(anchor, provider).command(
             argv, swaps=(*swaps, *kept), private=private, chdir=cwd
         )
@@ -5505,6 +5629,10 @@ class AgentBase(ABC):
             stood_in = self._stands_in
         if stood_in:
             stood_in.stop()
+        with self._gatewaying:
+            through, self._gateway = self._gateway, None
+        if through is not None:
+            through.stop()
 
     def watch(
         self, listener: Callable[[AgentBase, SessionBase | None, Event], None]

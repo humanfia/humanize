@@ -83,7 +83,7 @@ humanize's own environment:
 | --- | --- |
 | `hmz[dsh]` | DeepSeek Harness (`dsh`). It has no CLI to install. |
 | `hmz[kimi]` | Kimi Code (`kimi`), alongside its CLI. |
-| `hmz[litellm]` | litellm (`litellm`): a model called directly, with no CLI to install. |
+| `hmz[litellm]` | litellm (`litellm`): a model called directly, with no CLI to install. And its gateway, which runs Claude Code as any account litellm can reach. |
 | `hmz[all]` | All three. |
 
 ::: code-group

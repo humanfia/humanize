@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from hmz.coganchor import backends, providers
+from hmz.coganchor import backends, gateway, providers
 from hmz.coganchor.providers import (
     ENV,
     LOCAL,
@@ -23,6 +23,7 @@ from hmz.coganchor.providers import (
     hushed,
     ready,
     remove,
+    routed,
     serves,
     ways,
     where,
@@ -298,11 +299,33 @@ def test_held_is_what_is_written_down() -> None:
 # --------------------------------------------------------------------------------- ways
 
 
-def test_a_backend_offers_its_own_ways_and_then_variables_of_your_own() -> None:
+def test_a_backend_offers_its_own_ways_and_then_variables_of_your_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(gateway, "gatewayable", lambda: False)
     offered = ways("claude-code")
 
     assert offered[-1] == ENV
     assert offered[:-1] == profile("claude").ways
+
+
+def test_a_backend_a_gateway_can_speak_to_offers_litellms_ways_through_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(gateway, "gatewayable", lambda: True)
+    claude = profile("claude")
+    offered = ways("claude")
+
+    assert offered == (*claude.ways, *backends.routed(claude), ENV)
+    assert "litellm-openai-gateway" in [one.name for one in offered]
+
+
+def test_no_way_goes_through_a_gateway_that_cannot_be_started_here(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(gateway, "gatewayable", lambda: False)
+
+    assert not any(one.name.startswith(backends.ROUTED) for one in ways("claude"))
 
 
 @pytest.mark.parametrize("cli", ["dsh", "litellm"])
@@ -362,6 +385,54 @@ def test_a_turn_under_a_provider_is_run_without_every_other_account() -> None:
     assert "ANTHROPIC_AUTH_TOKEN" in gone
     assert "CLAUDE_CODE_OAUTH_TOKEN" in gone
     assert "ANTHROPIC_API_KEY" not in gone
+
+
+def test_an_account_a_gateway_holds_is_hushed_from_the_cli_too() -> None:
+    claude = profile("claude")
+    made = Provider(
+        cli="claude",
+        name="w",
+        way="litellm-openai-key",
+        env={"OPENAI_API_KEY": "upstream", "ANTHROPIC_API_KEY": "also"},
+    )
+
+    gone = hushed(made, claude)
+
+    assert {"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"} <= gone
+
+
+@pytest.mark.parametrize(
+    ("cli", "way", "expected"),
+    [
+        ("claude", "litellm-openai-key", True),
+        ("claude", "anthropic-gateway", False),
+        ("litellm", "litellm-openai-key", False),
+    ],
+)
+def test_an_account_goes_through_a_gateway_by_the_way_it_was_made(
+    cli: str, way: str, expected: bool
+) -> None:
+    assert routed(Provider(cli=cli, name="w", way=way)) is expected
+    assert routed(None) is False
+
+
+def test_the_composed_environment_of_a_gateways_account_is_none_of_its_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "lying-about")
+    monkeypatch.setenv("KEPT", "1")
+    made = Provider(
+        cli="claude",
+        name="w",
+        way="litellm-openai-gateway",
+        env={"LITELLM_GATEWAY_URL": "https://gw.example", "OPENAI_API_KEY": "k"},
+    )
+
+    env = composed(made, profile("claude"))
+
+    assert env["KEPT"] == "1"
+    assert "LITELLM_GATEWAY_URL" not in env
+    assert "OPENAI_API_KEY" not in env
 
 
 @pytest.mark.parametrize("which", ["provider", "profile"])

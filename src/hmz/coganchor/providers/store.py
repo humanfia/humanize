@@ -38,6 +38,7 @@ __all__ = [
     "find",
     "hushed",
     "providers",
+    "routed",
     "serves",
     "ways",
     "where",
@@ -78,14 +79,19 @@ def ways(cli: str) -> tuple[backends.Way, ...]:
       where that backend accepts arbitrary credentials. DeepSeek Harness takes only the ways
       it names -- its key and its gateways -- and so does litellm, whose turns are calls in
       this process and are handed the account rather than an environment to read it from.
-      Nothing at all for a name no backend answers to.
+      Every way litellm has in besides, through a local gateway, for a backend that can be
+      spoken to through one -- while the gateway can be started here at all. Nothing at all
+      for a name no backend answers to.
     """
+    from hmz.coganchor.gateway import gatewayable
+
     profile = backends.named(cli)
     if profile is None:
         return ()
     if profile.name in ("dsh", "litellm"):
         return profile.ways
-    return (*profile.ways, ENV)
+    through = backends.routed(profile) if gatewayable() else ()
+    return (*profile.ways, *through, ENV)
 
 
 @dataclass(frozen=True, slots=True)
@@ -610,10 +616,31 @@ def hushed(
 
     Returns:
       The variables to take away: nothing at all where there is no provider or no backend.
+      For an account held by a local gateway, what the account sets as well: those are the
+      gateway's, and the CLI is handed the gateway instead.
     """
     if provider is None or profile is None:
         return frozenset()
+    if routed(provider):
+        return profile.hushes() | set(provider.env)
     return profile.hushes() - set(provider.env)
+
+
+def routed(provider: Provider | None) -> bool:
+    """Whether a turn under this account goes through a local LiteLLM gateway.
+
+    Args:
+      provider: The account, or None for none.
+
+    Returns:
+      Whether it was made by one of the ways :func:`hmz.coganchor.backends.routed` makes, for
+      a backend other than litellm itself.
+    """
+    return (
+        provider is not None
+        and provider.cli != "litellm"
+        and bool(backends.upstream(provider.way))
+    )
 
 
 def composed(
@@ -631,9 +658,10 @@ def composed(
       profile: The backend, or None for a CLI nothing is written down about.
 
     Returns:
-      The variables.
+      The variables. For an account held by a local gateway, none of the account's: the CLI
+      reaches the gateway on loopback, which is the agent's to add where it starts one.
     """
     gone = hushed(provider, profile)
-    return {
-        name: value for name, value in os.environ.items() if name not in gone
-    } | environ(provider)
+    return {name: value for name, value in os.environ.items() if name not in gone} | (
+        {} if routed(provider) else environ(provider)
+    )

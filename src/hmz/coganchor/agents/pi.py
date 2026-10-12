@@ -17,6 +17,7 @@ import threading
 import urllib.parse
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz import machine
@@ -30,7 +31,6 @@ from .preload import preloaded
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterator, Mapping
-    from pathlib import Path
 
     from pydantic import BaseModel
 
@@ -99,6 +99,12 @@ _COMPILED = "NODE_COMPILE_CACHE"
 #: another machine sharing the home could read, and it is not the CLI's own directory to put
 #: anything in.
 _CACHE = ("compiled", "pi")
+
+#: The extension that registers a flow's own callbacks as tools of pi's, shipped beside this
+#: module, and the variable it reads the bridge to them out of: pi takes an extension by path
+#: on its command line, and takes it under `--no-extensions` too.
+_TOOLS = Path(__file__).with_name("pi_tools.cjs")
+_BRIDGE = "HMZ_PI_TOOLS"
 
 #: The tools of pi's own that change something rather than look at something, which is the
 #: whole of what an agent that may change nothing is refused. `powershell` is in here for the
@@ -383,6 +389,10 @@ class PiSession(StreamSessionBase):
     #: user message pi answers with is the model having it.
     steers: ClassVar[bool] = True
 
+    #: Through an extension of humanize's own (:data:`_TOOLS`), since pi takes no MCP server
+    #: anywhere but in a file of the user's.
+    takes_tools: ClassVar[bool] = True
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:
@@ -428,6 +438,9 @@ class PiSession(StreamSessionBase):
         #: different events -- the id and the name once at the start, the arguments as bare
         #: fragments after it -- and a row needs the name and the arguments together.
         self._calling: dict[int, tuple[str, str, str]] = {}
+        #: The names of the callbacks the process now up was started with. The extension
+        #: lists them once, as pi loads it, so a flow offering others is a pi started again.
+        self._telling: tuple[str, ...] = ()
 
     @property
     def named(self) -> str | None:
@@ -510,6 +523,9 @@ class PiSession(StreamSessionBase):
             argv.append("--no-context-files")
         if not getattr(config, "extensions", True):
             argv.append("--no-extensions")
+        self._telling = self._offered()
+        if self._telling:
+            argv += ["--extension", str(_TOOLS)]
         # Also wherever the fence cuts the network, which is where startup network work would
         # only be refused: not needed for a turn in 0.85.1, whose print and RPC modes do none,
         # but the grep and find tools fetch `rg` and `fd` from GitHub where this machine has
@@ -546,6 +562,8 @@ class PiSession(StreamSessionBase):
             # refused: the compile it would have saved is all that is lost.
             with contextlib.suppress(OSError):
                 added[_COMPILED] = str(machine().joinpath(*_CACHE))
+        if self._telling:
+            added[_BRIDGE] = json.dumps(self._agent.toolbox.command())
         return preloaded(self._agent, added)
 
     def _write(self, text: str, ticket: str = "") -> str:
@@ -628,6 +646,19 @@ class PiSession(StreamSessionBase):
             self._send(json.dumps({"type": "abort"}) + "\n")
             self._aborted.wait(_ABORTING)
         super()._cuts()
+
+    def _offered(self) -> tuple[str, ...]:
+        """The names of the callbacks in front of the agent now, sorted.
+
+        Names rather than everything a tool says, as Claude's driver compares them: a name is
+        what a tool is here, and a flow building its list afresh before every turn is
+        offering the same thing each time.
+        """
+        return tuple(sorted(one.name for one in self._agent.toolbox.offered()))
+
+    def _stale(self) -> bool:
+        """Whether the process up was started with callbacks other than the ones offered now."""
+        return self._telling != self._offered()
 
     def _restarted(self) -> None:
         """Forgets the turn the last process was in the middle of, which this one is not."""

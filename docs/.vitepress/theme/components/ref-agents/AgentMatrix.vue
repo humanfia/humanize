@@ -106,7 +106,7 @@ const ROWS: Row[] = [
     schema: Y, fork: ELSEWHERE, web: Y, rungs: ALL4, fast: Y, tools: Y, trace: Y,
   }),
   row('cursor-agent', 'Cursor Agent', { sub: Y, rungs: ALL4, fast: Y }),
-  row('dsh', 'DeepSeek Harness', { goal: Y, web: Y, rungs: BYPASS, trace: Y }),
+  row('dsh', 'DeepSeek Harness', { goal: Y, web: Y, rungs: BYPASS, tools: Y, trace: Y }),
   row('grok', 'Grok Build', { schema: Y, fork: Y, web: Y, rungs: ALL4, tools: HELD, trace: Y }),
   row('kimi', 'Kimi Code', {
     goal: Y, steer: Y, perm: Y, ask: Y,
@@ -115,9 +115,9 @@ const ROWS: Row[] = [
   row('litellm', 'a model, called directly', { schema: Y, fork: ELSEWHERE, rungs: ALL4, trace: Y }),
   row('mcode', 'MiniMax Code', { sub: Y, schema: Y, rungs: NO_RO, trace: Y }),
   row('mimo', 'mimocode', { fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
-  row('omp', 'Oh My Pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, trace: Y }),
+  row('omp', 'Oh My Pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, tools: Y, trace: Y }),
   row('opencode', 'opencode', { fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
-  row('pi', 'pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, trace: Y }),
+  row('pi', 'pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, tools: Y, trace: Y }),
   row('qwen', 'Qwen Code', { schema: Y, fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
   row('an ACP CLI', 'added on this machine', { fork: IF_SERVED, rungs: BYPASS, tools: Y }),
 ]

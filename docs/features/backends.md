@@ -23,6 +23,9 @@ import { withBase } from 'vitepress'
   litellm and an ACP CLI take none.
 - **Or no CLI at all.** `litellm` calls a model directly: one chat completion a turn over the
   session's history, no tools, no environment.
+- **Any endpoint, any CLI.** With litellm installed, Claude Code runs as any account litellm
+  has a way in for -- a vendor's key, a gateway, Bedrock, Vertex, Azure -- through a
+  [gateway on loopback](/reference/providers#through-litellm).
 - **Three need an extra.** DeepSeek Harness, Kimi Code and litellm, at
   [install](/user/installation).
 
