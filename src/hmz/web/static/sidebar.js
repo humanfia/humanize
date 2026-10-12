@@ -233,6 +233,7 @@ export function mountSidebar(root, context, where) {
     if (!agents.length) return h('p', { class: 'side-quiet nested' }, 'No agents')
     const base = `#/epics/${encodeURIComponent(run.name)}`
     const logged = run.name === here && parts[2] === 'logs' && !parts[3]
+    const mythed = run.name === here && parts[2] === 'exomyth'
     return h(
       'ul',
       { class: 'side-tree', role: 'list' },
@@ -242,6 +243,14 @@ export function mountSidebar(root, context, where) {
         menuOn(h('a', { class: ['side-agent', logged && 'current'], href: `${base}/logs`, 'aria-current': logged ? 'page' : null, 'data-hmz': 'log' }, icon('thread'), h('span', { class: 'side-label' }, 'Log')), () => [
           { label: 'Open', glyph: 'open', href: `${base}/logs` },
           { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/logs`, 'Link copied') },
+        ]),
+      ),
+      h(
+        'li',
+        {},
+        menuOn(h('a', { class: ['side-agent', mythed && 'current'], href: `${base}/exomyth`, 'aria-current': mythed ? 'page' : null, 'data-hmz': 'exomyth-link' }, icon('chart'), h('span', { class: 'side-label' }, 'Exomyth')), () => [
+          { label: 'Open', glyph: 'open', href: `${base}/exomyth` },
+          { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/exomyth`, 'Link copied') },
         ]),
       ),
       agents.map((agent) => {
@@ -309,6 +318,7 @@ export function epicMenu(run) {
     { head: run.task.split('\n')[0] },
     { label: 'Open', glyph: 'open', href: base },
     { label: 'Open log', glyph: 'thread', href: `${base}/logs` },
+    { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
     resumes ? { label: 'Resume', glyph: 'resume', href: `#/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}` } : null,
     { label: 'New epic like it', glyph: 'new', href: `#/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}` },
     '-',

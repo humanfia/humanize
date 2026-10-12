@@ -137,6 +137,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<role>/<n>` | The thread of the `n`-th session that role opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs[/<role>]` | The log every agent and person appears on; or one agent's, across its sessions; or one person's, what they are asked and answer. |
+| `#/epics/<name>/exomyth[?tab=flame]` | The epic's [Exomyth](/user/web#exomyth): its timeline, or its flame graph. |
 | `#/flows[?workspace=&flow=]` | The flows on offer in a workspace, one opened. |
 | `#/flows?tab=verses[&verse=]` | The flowverses, one opened. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |

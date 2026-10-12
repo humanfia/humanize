@@ -1,8 +1,9 @@
 // One epic: the run going, as it happens, or one written down. `#/runs/<name>` draws it as a
 // graph of its agents and who handed to whom; `/agents/<role>` is the graph with that agent
-// picked out; `/sessions/<key>` is one session's thread, as a chat is read. `#/live` is
-// whichever run is going. Under the view, while the run goes, are the questions it waits on a
-// person for and the box that says a line to it; beside it, a panel of what it is and was --
+// picked out; `/sessions/<key>` is one session's thread, as a chat is read; `/exomyth` is its
+// timeline, drawn by views/exomyth. `#/live` is whichever run is going. Under the view, while
+// the run goes, are the questions it waits on a person for and the box that says a line to it;
+// beside it, a panel of what it is and was --
 // its figures, its budget, how it was set up, the flows it called -- with its board, its people
 // and the side questions asked beside it.
 
@@ -22,6 +23,7 @@ import { saidTraced, sayer } from '../transcript.js'
 const LINES = 3000
 
 export function mount(root, { parts, query }) {
+  if (parts[0] === 'epics' && parts[2] === 'exomyth') return exomyth(root, parts[1], query)
   let name = parts[0] === 'live' ? '' : parts[1]
   /** Where the epic going is looked for, for an epic not named. */
   const wanted = query.get('workspace') || ''
@@ -117,6 +119,7 @@ export function mount(root, { parts, query }) {
       if (going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(workspace(), 'stop') }))
       else if (going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(workspace(), 'force') }))
       if (!going && detail.picks_up) actions.push(h('a', { class: 'btn', href: `#/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}` }, icon('resume'), 'Resume'))
+      actions.push(h('a', { class: 'icon-btn', href: `#/epics/${encodeURIComponent(detail.name)}/exomyth`, 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
       if (!going) actions.push(h('a', { class: 'icon-btn', href: `/api/runs/${encodeURIComponent(detail.name)}/bundle`, download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
       actions.push(copier('Copy link', () => location.href))
       actions.push(panel.toggle)
@@ -449,12 +452,37 @@ export function mount(root, { parts, query }) {
     },
     /** Moves to another part of the same run without drawing it all again. */
     moved({ parts: next }) {
-      if (next[0] !== 'epics' || !name || next[1] !== name) return false
+      if (next[0] !== 'epics' || !name || next[1] !== name || next[2] === 'exomyth') return false
       mode = modeOf(next)
       for (const one of ['head', 'panel-run', 'dock-composer']) drawn[one] = undefined
       draw()
       return true
     },
+  }
+}
+
+/**
+ * An epic's Exomyth, loaded once it is first opened: what leaves it, and never moving within
+ * it to another view of the epic.
+ */
+function exomyth(root, name, query) {
+  let leave = null
+  let left = false
+  import('./exomyth/view.js').then(
+    (module) => {
+      if (!left) leave = module.mount(root, name, query)
+    },
+    (error) => {
+      console.error(error)
+      if (!left) fill(root, h('div', { class: 'view' }, problem(`This view failed to open: ${error.message}`)))
+    },
+  )
+  return {
+    leave() {
+      left = true
+      if (leave) leave()
+    },
+    moved: () => false,
   }
 }
 
