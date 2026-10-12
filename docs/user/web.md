@@ -161,6 +161,36 @@ spent, and how long it took, with how much of that was spent working.
 - **Pick it up** opens a new epic on it, where its flow can be picked up. See
   [Picking a run up](/user/resuming).
 
+### Exomyth {#exomyth}
+
+**Exomyth** (the chart at the top of an epic, its row under the epic in the sidebar, or its
+menu) lays the epic out over time, as [Perfetto](https://ui.perfetto.dev) lays out a trace --
+but with **every session its own process**, under the session or the flow that started it. It
+reads the epic's [timeline](/reference/tracing#timeline) out of the logs its agents kept; an
+epic still going is read again every two seconds while the tab is shown.
+
+- **Timeline.** The epic's flows, each session and each program a [profiled](/user/tracing)
+  epic ran, a row each, with a track per lane of its spans: sessions, turns, model calls,
+  tools, messages and events, each category in its colour. The triangle by a name folds a
+  process to one row; **Expand** and **Collapse** do every one. **Arrows** shows what started
+  each process.
+- **Flame.** The same spans as a flame graph, over the stretch picked or the whole epic.
+
+| Do | To |
+| --- | --- |
+| <kbd>W</kbd> / <kbd>S</kbd>, or <kbd>Ctrl</kbd>+wheel, or a pinch | Zoom in and out where the pointer is |
+| <kbd>A</kbd> / <kbd>D</kbd>, or a sideways or <kbd>Shift</kbd>+wheel | Pan |
+| Wheel | Scroll through the processes |
+| Click a span | Pick it: the panel says what it is and what it carried |
+| Double-click a span, or <kbd>F</kbd> | Zoom to the span or process picked |
+| Drag across the chart or the ruler | Pick a stretch of time: how long, and the spans and tokens in it by category |
+| <kbd>/</kbd> | Find spans by their name; <kbd>Enter</kbd> or <kbd>N</kbd> goes to the next, <kbd>Shift</kbd>+<kbd>Enter</kbd> or <kbd>Shift</kbd>+<kbd>N</kbd> the one before |
+| <kbd>0</kbd> or <kbd>Home</kbd> | Show the whole epic |
+| <kbd>Esc</kbd> | Let go of what is picked |
+
+With nothing picked, the panel says the epic's figures, each category's spans, time and
+tokens, and every process -- click one to pick it.
+
 ### Importing an epic {#importing-an-epic}
 
 Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or in the machine's menu at

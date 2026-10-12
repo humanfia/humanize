@@ -135,6 +135,14 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   again on every request, answered with the tag that says whether the page has it already. A
   span's id MUST be read in the last timeline laid out of that run, and one asked for with a
   `layout` that is not that timeline's MUST be refused as a conflict.
+- MUST draw any epic, going or written down, as its Exomyth: its timeline's processes as rows
+  of their tracks under a ruler of time, each under the process that started it, folded or
+  opened, with an arrow from each span that started one; moved over by keys, a wheel and a
+  pinch as Perfetto is moved over; a span pointed at said in brief and one picked said whole
+  with what it carried; a stretch of time picked summed by category; spans found by their
+  words, one after the next; and, beside it, a flame graph. It MUST draw on one canvas, in the
+  theme shown, only what shows, a frame of fifty thousand spans in well under a frame's time,
+  and MUST read an epic going again while it is looked at and goes, asking only for what changed.
 - MUST let a flow be set up in a workspace and saved without starting it, refused where a role
   has no agent or -- for every flow but chat -- nothing says what it may spend, and MUST save
   it as it is started.
