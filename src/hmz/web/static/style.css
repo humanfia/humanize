@@ -4007,5 +4007,110 @@ input[aria-invalid='true'] {
   .daemons-table td:last-child .row {
     flex-wrap: wrap;
     justify-content: flex-start;
+/* notifications */
+
+.notify-bell {
+  position: relative;
+  margin-left: auto;
+}
+
+.notify-count {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 16px;
+  padding: 0 4px;
+  background: var(--pink);
+  color: var(--on-fill);
+  font: 700 10px/16px var(--mono);
+  text-align: center;
+  pointer-events: none;
+}
+
+.notify-menu {
+  width: min(340px, calc(100vw - 32px));
+}
+
+.notify-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.notify-head .popover-head {
+  flex: 1;
+}
+
+.notify-item .glyph,
+.notify-open .glyph {
+  color: var(--tone);
+}
+
+.notify-item.notify-unread .choice-label::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 7px;
+  vertical-align: 1px;
+  background: var(--cyan);
+}
+
+.notify-when,
+.notify-none {
+  font: 11px var(--mono);
+  color: var(--ink-3);
+}
+
+.notify-none {
+  margin: 0;
+  padding: 10px 8px;
+}
+
+.notify-toasts {
+  position: fixed;
+  z-index: 75;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+}
+
+.notify-toasts:empty {
+  display: none;
+}
+
+.notify-card {
+  display: flex;
+  align-items: flex-start;
+  background: var(--raised);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--pink);
+  animation: notify-in 0.18s ease-out;
+}
+
+.notify-open {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+  padding: 10px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notify-open:hover {
+  background: var(--hover);
+}
+
+@keyframes notify-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
   }
 }

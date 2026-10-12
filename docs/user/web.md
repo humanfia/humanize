@@ -81,6 +81,23 @@ and settings; every link keeps it, and going to another daemon's address draws e
 of that one. An address naming no daemon is Local's. See
 [The page](/reference/web#page).
 
+### Notifications {#notifications}
+
+The bell at the top of the sidebar gathers what needs you, from every daemon at once rather
+than only the one shown: an epic **Done**, **Failed** or **Stopped**, a **Question** a flow put
+to a person, and a **Chat turn** -- a `chat` waiting for your next line. Its count is how many
+you have not read. Its menu lists them newest first, each with its daemon (**Local**, or the
+daemon's name), its flow and what it said, and how long ago; **Mark read** reads them all and
+**Clear** empties the list. Click one to read it and open it: a question or a chat turn opens the
+epic going in its directory, and an ended epic opens that epic.
+
+Each one heard while the page is open also shows a card at the bottom right for a few seconds;
+click it to open what it is about. While the page is hidden or another window is in front, the
+system shows it too -- the browser's own notification, once you have let the page send them,
+or in [the app](/user/desktop) the system's own -- and clicking it brings the page back on it.
+Which kinds are notified, and whether the system shows them, is set under **Settings →
+Notifications**.
+
 **Right-click** anything for what can be done to it: a folder in the sidebar (new epic here, its
 flows, search it, copy its path, settings), an epic (open, its log, resume, copy its link or task,
 export, stop), an agent or a session, a node on the graph, a flow or flowverse card, a search

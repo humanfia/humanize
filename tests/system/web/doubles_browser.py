@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from tests.integration.doubles_web import PATIENCE
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
 
     from playwright.sync_api import Page
 
@@ -52,6 +52,7 @@ def opened(
     dark: bool = False,
     user_agent: str | None = None,
     init: str | None = None,
+    routed: Callable[[Page], object] | None = None,
 ) -> Generator[Page]:
     """The page, in a browser let in by the address, until the block ends.
 
@@ -63,6 +64,7 @@ def opened(
       dark: Whether the system the browser runs on asks for dark colours.
       user_agent: What the browser says it is, where not its own: as the macOS app's window.
       init: A script run in the page before any of its own.
+      routed: Told the page before it is opened, to answer some of its requests itself.
 
     Yields:
       The page, drawn and with its sidebar up.
@@ -87,6 +89,8 @@ def opened(
             if init:
                 context.add_init_script(init)
             page = context.new_page()
+            if routed:
+                routed(page)
             failed: list[str] = []
             # Bar the browser's word that a resize took more than one frame to settle: a
             # notice, not a failure, which WebKit raises as an error on a busy machine.
