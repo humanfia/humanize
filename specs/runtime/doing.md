@@ -332,13 +332,16 @@ class Fallbacks:
   answer refused with who gave it.
 - A question MUST stay asked with nobody attached, MUST be offered to everybody when its
   claimant goes rather than asked again, and MUST be taken back when its run stops or ends or its
-  role goes away.
+  role goes away. One asked while exactly one conversation has a turn open MUST name that
+  conversation, so that a frontend can put it in that conversation's transcript.
 - Away MUST be per role, and MUST outlive the frontend that said it. A frontend MUST NOT say it
   is away for a role somebody else holds, and saying it is away for everything MUST leave those
   roles as they were.
 - A line said to a run MUST go into the turn open on the view it was said on -- a conversation,
   a role's newest, or the first working -- one at a time per agent until the agent says it has
-  it; said while no turn is open it MUST go into whichever turn starts next for it, and one the
+  it; said while no turn is open it MUST go into whichever turn starts next for it -- unless the
+  run is waiting to be told what to say next, which a line said to any of its agents or
+  conversations with no turn open MUST answer, going into no turn a second time -- and one the
   agent refuses MUST go back to the head of the queue. A turn that ends holding one, and a run
   that stops or ends with any waiting, MUST say so. Claims MUST NOT gate what is said to agents.
 - One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST

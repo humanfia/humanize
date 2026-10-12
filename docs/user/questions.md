@@ -35,7 +35,8 @@ The agent stops, the question comes up in yellow, and whatever you type next is 
   with it.
 - **A flow's question** comes from the flow, between turns: `chat` asks what to say next after
   every answer, and a flow that needs a setting from you asks for it. The flow waits, then goes
-  on with what you said.
+  on with what you said. A line said to one of the run's agents or conversations with no turn
+  open answers it too.
 
 Both are shown the same way, a `●` line in yellow with `type an answer, or /afk to stop being
 asked` under it, and both are answered the same way: type a line and press <kbd>enter</kbd>.
