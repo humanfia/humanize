@@ -26,7 +26,7 @@ import sys
 import threading
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -139,9 +139,20 @@ def kinds(events: list[Any]) -> list[str]:
 RUNTIME_CONTEXT = "Current runtime context."
 
 
+#: How Claude Code opens what it says of its own environment, as a user message after the
+#: prompt, once a gateway has turned its system reminders into messages.
+OPERATOR_NOTE = "Operator note"
+
+#: And how it opens the reminders it puts in front of a prompt, in the prompt's own message.
+REMINDER = "<system-reminder>"
+
+
 def harnessed(message: dict[str, Any]) -> bool:
     """Whether a user message is one a harness wrote itself, not one it was prompted with."""
-    return str(message.get("content") or "").startswith(RUNTIME_CONTEXT)
+    return any(
+        one.startswith((RUNTIME_CONTEXT, OPERATOR_NOTE))
+        for one in _parts(message.get("content"))
+    )
 
 
 @dataclass
@@ -158,6 +169,29 @@ class Endpoint:
     url: str
     asked: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     shut: threading.Event = field(default_factory=threading.Event)
+
+
+def _text(content: object) -> str:
+    """What a message says: its content, or the last text part of content sent as parts.
+
+    A CLI speaking through a gateway sends its prompt as parts, with the reminders the CLI
+    itself adds to the turn in front of it, so the prompt is the last part that is not one.
+    """
+    parts = _parts(content)
+    said = [one for one in parts if not one.startswith(REMINDER)] or parts
+    return said[-1] if said else ""
+
+
+def _parts(content: object) -> list[str]:
+    """A message's content as the texts it is made of: one, or a part apiece."""
+    if not isinstance(content, list):
+        return [str(content or "")]
+    parts = [
+        cast("dict[str, Any]", one)
+        for one in cast("list[Any]", content)
+        if isinstance(one, dict)
+    ]
+    return [str(one.get("text") or "") for one in parts if one.get("type") == "text"]
 
 
 class _Answers(BaseHTTPRequestHandler):
@@ -203,7 +237,7 @@ class _Answers(BaseHTTPRequestHandler):
         # The first line only: a prompt asked for a shape in words carries the schema below.
         said = next(
             (
-                str(one.get("content") or "").partition("\n")[0]
+                _text(one.get("content")).partition("\n")[0]
                 for one in reversed(asked.get("messages") or [])
                 if one.get("role") == "user" and not harnessed(one)
             ),

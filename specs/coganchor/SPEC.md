@@ -129,8 +129,9 @@ class Profile:
     # it takes and how long it may go silent; whether it swarms,
     # searches, restarts, resumes, shares a session or forks one; which hooks, preloads and
     # bundles it has seams for; which variables and credentials an account of it is; the ways
-    # it can be asked what it runs; its endpoint and what fronts it; and the signs by which a
-    # failure of it is read.
+    # it can be asked what it runs; its endpoint and what fronts it; the signs by which a
+    # failure of it is read; and which of its ways a local LiteLLM gateway is spoken to it
+    # through (`routes`).
     def runs(self) -> str: ...
     def takes(self, effort: str) -> bool: ...
     def tags(self) -> frozenset[str]: ...
@@ -154,12 +155,15 @@ AUTO: str
 AS_CONFIGURED: str                  # the rung every backend takes, that says nothing
 DSH_SDK: str
 LITELLM_SDK: str                    # litellm: a model called in-process, no CLI, no env
+ROUTED = "litellm-"                 # what a way through a local LiteLLM gateway starts with
 
 def named(backend: str) -> Profile | None: ...
 def profiles() -> tuple[Profile, ...]: ...
 def read(spec: str) -> tuple[str, Profile, str, str, str]: ...  # "CLI[@ACCOUNT]/MODEL[:EFFORT]"
 def serves(env: Mapping[str, str], backend: str) -> dict[str, str] | None: ...
 def alike(variable: str) -> tuple[str, ...]: ...
+def routed(profile: Profile) -> tuple[Way, ...]: ...  # litellm's ways, through a gateway
+def upstream(way: str) -> str: ...  # which of litellm's ways one through a gateway is
 def written(effort: str) -> str: ...
 def permitted(permission: str) -> str: ...
 def speaking() -> dict[str, tuple[str, ...]]: ...
@@ -177,6 +181,27 @@ def journalled(
 def trouble(
     backend: str, *said: str | bytes | None, status: int = 0, journal: str = ""
 ) -> str: ...
+
+# gateway.py -- a LiteLLM proxy on loopback, holding an account litellm has a way in for
+NEEDS: tuple[str, ...]  # the modules a gateway cannot start without
+
+class Gateway:
+    port: int
+    url: str      # http://127.0.0.1:PORT
+    key: str      # its master key, the one credential the CLI is handed
+    account: Provider
+    def __init__(self, provider: Provider, *, seconds: float = ...) -> None: ...
+    @property
+    def running(self) -> bool: ...
+    def stop(self) -> None: ...
+
+def gatewayable() -> bool: ...
+def prefix(provider: Provider | None) -> str: ...  # the provider litellm sends it to
+def spelled(model: str, provider: Provider | None) -> str: ...
+def credentials(provider: Provider | None) -> dict[str, str]: ...
+def configured(provider: Provider, key: str) -> dict[str, Any]: ...
+def spoken(profile: Profile, url: str, key: str) -> dict[str, str]: ...
+def argued(profile: Profile, env: Mapping[str, str]) -> tuple[str, ...]: ...
 
 # spelling.py -- where an agent's model ends and its effort begins; a leaf `runtime.kept` names
 def parted(said: str) -> tuple[str, str]: ...  # "MODEL[:EFFORT]" -> (model, effort or "")
@@ -515,6 +540,13 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 - What an ssh target is told besides its host MUST reach every `ssh` to it ahead of humanize's
   own options and MUST survive its spelling being read back, and two targets at one host told
   different things MUST NOT share a connection.
+- A backend naming `routes` MUST be offered every way litellm has in, through a gateway, while
+  `gatewayable`; a turn under such an account MUST be the CLI pointed at a `Gateway` on this
+  machine's loopback by that way, under the gateway's own key, with none of the account's
+  variables -- which only the gateway, in a file only this user can read and gone with it, is
+  given. `spelled` and `credentials` MUST be the one mapping a litellm account comes to, for a
+  gateway and an in-process turn alike. What such an account runs MUST be what is behind the
+  gateway -- the endpoint a gateway account names, or litellm's own catalogue of its provider.
 - What a provider sets MUST reach the turn as its environment and MUST NOT be written into a command
   line; what it hushes MUST be taken off on the target; a credential the CLI reads out of the user's
   own home MUST NOT be projected, and a turn with nothing else to carry the account MUST be refused.

@@ -201,7 +201,7 @@ and a negative cap (`a budget cannot be less than nothing`).
 | --- | --- | --- |
 | `agy`, `claude`, `codex`, `dsh`, `grok`, `qwen` | the id the CLI or its endpoint serves | `claude-opus-5`, `gpt-5.6-sol`, `deepseek-v4-flash` |
 | `kimi` | Kimi Code's `provider/id` | `kimi-code/k3` |
-| `litellm` | a litellm model string, `provider/id`; under a gateway account a bare id, sent as `openai/<id>` or `anthropic/<id>` | `openai/gpt-5`, `anthropic/claude-sonnet-4-5` |
+| `litellm` | a litellm model string, `provider/id`; under an account a bare id, sent to the account's provider -- `openai/<id>` under an OpenAI key, the protocol under a gateway account | `openai/gpt-5`, `anthropic/claude-sonnet-4-5` |
 | `pi`, `omp`, `opencode` | `provider/id` | `openai-codex/gpt-5.5`, `deepseek/deepseek-v4-flash`, `opencode/big-pickle` |
 | `mimo` | `provider/id`; under a gateway account, the id its endpoint serves (sent as `humanize/<id>`) | `xiaomi/mimo-v2.5`, `gpt-5.6-sol` |
 | `cursor-agent` | an id from the account's list, the rung and tier written into it | `composer-2.5-high-fast` |
