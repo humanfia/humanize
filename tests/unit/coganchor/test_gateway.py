@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 from typing import TYPE_CHECKING
 
@@ -171,6 +172,18 @@ def test_a_cli_speaking_openais_api_is_pointed_at_the_gateways_v1(
     assert fixed.items() <= env.items()
     # The model is the turn's, which the driver says: nothing here names one.
     assert not any(name.endswith("_MODEL") for name in env)
+
+
+def test_another_cli_speaking_openais_api_is_given_the_bare_gateway() -> None:
+    # One that adds `/v1/chat/completions` itself, as Antigravity's does, is not given `/v1`
+    # twice: the version is added only for the backends whose SDKs leave it out.
+    opencode = backends.named("opencode")
+    assert opencode is not None
+    other = dataclasses.replace(opencode, name="agy")
+
+    env = spoken(other, "http://127.0.0.1:4000", "sk-master")
+
+    assert env[other.endpoint] == "http://127.0.0.1:4000"
 
 
 def test_a_backend_naming_no_way_to_a_gateway_is_pointed_nowhere() -> None:
