@@ -72,6 +72,13 @@ class Run:
         return self._runner.impl.ref
 
     @property
+    def chats(self) -> bool:
+        """Whether the flow is humanize's own `chat`, said by where it is, not by its name."""
+        from hmz.runtime.flowing import privileged
+
+        return privileged(self._runner.impl)
+
+    @property
     def task(self) -> str:
         """What it was asked to do."""
         return self._task
@@ -90,6 +97,11 @@ class Run:
     def profile(self) -> bool:
         """Whether the run profiles the programs its agents start, as well as tracing them."""
         return self._runner.profile
+
+    @property
+    def backup(self) -> tuple[str, ...]:
+        """The backup targets the epic goes to, by name."""
+        return self._runner.backup
 
     @property
     def usage(self) -> Usage:

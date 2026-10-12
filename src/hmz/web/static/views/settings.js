@@ -1,7 +1,7 @@
 // What humanize remembers, as ChatGPT keeps its settings: a dialog over the page with its pages
 // down the side, in the order the terminal interface's `/settings` lists them -- what is true
 // wherever humanize runs, who its agents are and what takes over when one fails, where their
-// work goes, this one directory -- and last what the runs here spent; and, after what is true
+// work goes, where epics are backed up, this one directory -- and last what the runs here spent; and, after what is true
 // wherever humanize runs, how this browser draws the page.
 
 import { shut } from '../app.js'
@@ -15,6 +15,7 @@ const PAGES = {
   accounts: { label: 'Accounts', about: 'Credentials agents run as', load: () => import('./settings/accounts.js') },
   fallback: { label: 'Fallback', about: 'Where a failed turn goes next', load: () => import('./settings/fallback.js') },
   runtimes: { label: 'Runtimes', about: 'Machines environments run on', load: () => import('./settings/runtimes.js') },
+  backup: { label: 'Backup', about: 'Git repositories epics go to', load: () => import('./settings/backup.js') },
   workspace: { label: 'Workspace', about: 'This directory’s saved setup', load: () => import('./settings/workspace.js') },
   usage: { label: 'Usage', about: 'Spending by day and flow', load: () => import('./settings/usage.js') },
 }

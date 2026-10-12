@@ -65,7 +65,7 @@ import datetime
 import os
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from hmz.flows import (
     AskUserHookAgentMixin,
@@ -95,7 +95,7 @@ from .specs import spelled
 from .spi import HARNESS_CAPABILITIES, HookBridge, Kept
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Awaitable, Callable, Iterable, Mapping
     from pathlib import Path
 
     import pydantic
@@ -112,10 +112,17 @@ if TYPE_CHECKING:
         SessionBase,
         Verdict,
     )
+    from hmz.coganchor.agents.tools import Tool
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import AnchoredConfig, MachineConfig
-    from hmz.flows import BudgetExceeded, HarnessError, HookResult, Permission
+    from hmz.flows import (
+        BudgetExceeded,
+        FakeTool,
+        HarnessError,
+        HookResult,
+        Permission,
+    )
 
     from .affinity import Harbors
     from .specs import AgentSpec
@@ -359,6 +366,7 @@ class HarnessDriver:
         hooks: HookTable,
         fork_of: SessionHandle | None = None,
         carry_on: Kept | None = None,
+        tools: tuple[FakeTool, ...] = (),
     ) -> HarnessSession:
         """Opens a session, which starts no CLI until its first turn.
 
@@ -370,6 +378,7 @@ class HarnessDriver:
           fork_of: A session of this driver to carry on from, or None for a fresh one.
           carry_on: A conversation a session kept to carry on from, as a fork of it, or
             None.
+          tools: The flow's tools its turns offer the agent.
 
         Returns:
           The session.
@@ -416,6 +425,7 @@ class HarnessDriver:
             skills=skills,
             bridge=HookBridge.here(timeout=HOOK_TIMEOUT),
             carry_on=carry_on,
+            tools=tools,
         )
         if self._closed:
             # Closed while the session was being made, so it is closed with the rest.
@@ -1048,6 +1058,7 @@ class HarnessSession:
         "_take",
         "_timers",
         "_tokens",
+        "_tools",
         "_turn_cost",
         "_turn_tokens",
         "_written",
@@ -1065,6 +1076,7 @@ class HarnessSession:
         skills: tuple[Skill, ...],
         bridge: HookBridge,
         carry_on: Kept | None = None,
+        tools: tuple[FakeTool, ...] = (),
     ) -> None:
         """Initializes a session that has taken no turn.
 
@@ -1078,6 +1090,7 @@ class HarnessSession:
           skills: What skills it is given.
           bridge: What carries moments from the CLI's threads to the engine's loop.
           carry_on: The kept conversation `session` is a fork of, or None.
+          tools: The flow's tools its turns offer the agent.
         """
         self._driver = driver
         self._loop = asyncio.get_running_loop()
@@ -1094,7 +1107,8 @@ class HarnessSession:
         #: The kept conversation it carries on, until a turn has cut a conversation of its own
         #: from it: one moved before that is cut from it again, wherever it moves to.
         self._carry_on = carry_on
-        # A question waits on a person, for as long as the loop runs.
+        # A question waits on a person, and a tool on the flow's function, for as long as
+        # the loop runs.
         self._asking = HookBridge(self._loop, timeout=None)
         self._lock = threading.Lock()
         # What the session has spent, and what of the CLI's own count has been read.
@@ -1126,6 +1140,7 @@ class HarnessSession:
         self._closed = False
         self._pre: Hung | None = None
         self._hung = frozenset(kind for kind in _STARTING if kind in hooks)
+        self._tools = tuple(self._tool(one) for one in tools)
         self._listen()
 
     # ---------------------------------------------------------------------- what it is
@@ -1224,6 +1239,31 @@ class HarnessSession:
             self._agent.ask = self._ask
         self._agent.watch(self._heard)
         self._settle_pre_tool_use()
+        if self._tools:
+            self._session.offers(self._tools)
+
+    def _tool(self, tool: FakeTool) -> Tool:
+        """A flow's tool as coganchor offers it: its call carried onto the engine's loop."""
+        from hmz.coganchor.agents.tools import Tool
+
+        async def outcome(given: tuple[Any, ...]) -> tuple[object, Exception | None]:
+            try:
+                return await cast("Callable[..., Awaitable[object]]", tool.call)(
+                    *given
+                ), None
+            except Exception as why:  # noqa: BLE001 -- the tool's failure, told the agent
+                return None, why
+
+        def call(*given: Any) -> object:
+            said, why = self._asking.call(
+                lambda: outcome(given),
+                default=(None, SessionError("the flow did not answer")),
+            )
+            if why is not None:
+                raise why
+            return said
+
+        return Tool(tool.name, tool.about, call, tool.takes)
 
     def _settle_pre_tool_use(self) -> None:
         """Hangs PRE_TOOL_USE on the CLI only while a hook is hung on it.

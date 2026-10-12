@@ -7,10 +7,13 @@ then waits to be told again. It is the flow the terminal interface opens on, so 
 something is all it takes to start.
 
 Two agents, then, and the second of them is you: `human` is the outworlder, and saying
-something to it is asking what to say next. Run from a command line, where nobody is at a
-prompt, the outworlder is away and answers with nothing, so the flow does the one thing it was
-given and stops. A question the agent stops to ask its user mid-turn is put to you the same
-way, on a harness that asks.
+something to it is asking what to say next. Here the outworlder is the conversation itself
+rather than a question beside it: a reply waits for your next message, and a follow-up or a
+steer typed in the conversation is that message, with no separate ask to answer. A question
+the agent stops to ask its user mid-turn is put to you the same way, on a harness that asks,
+and shows in the conversation with the options it offered. Run from a command line, where
+nobody is at a prompt, the outworlder is away and answers with nothing, so the flow does the
+one thing it was given and stops.
 
 The agent is whatever harness was chosen, with everything that harness can do: `chat` declares
 a plain `Agent` -- one allowed the web -- because it talks to any of them, and the runtime hands

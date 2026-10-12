@@ -38,8 +38,8 @@ class Link:  # a context manager; iterable of messages until a listener is set
     def asked(self, said: Mapping[str, Any], *, seconds: float | None = None) -> dict[str, Any]: ...
     def start(self, flow: str | os.PathLike[str], task: str, *, agents: Mapping[str, Any] | None = None,
               envs: Mapping[str, Any] | None = None, params: Any = None, budget: Any = None,
-              profile: bool = False,
-              resume: bool | str | os.PathLike[str] = False) -> dict[str, Any]: ...
+              profile: bool = False, resume: bool | str | os.PathLike[str] = False,
+              backup: Iterable[str] | None = None) -> dict[str, Any]: ...
     def say(self, text: str, *, to: str = "") -> dict[str, Any]: ...
     def answer(self, question: str, text: str) -> dict[str, Any]: ...
     def stop(self) -> dict[str, Any]: ...
@@ -125,7 +125,7 @@ class Frames:
   host process MUST read nothing, MUST write its own descriptors into the epic of the run it
   holds, MUST say what is printed in it to its frontends a line at a time, MUST ignore an
   interrupt, MUST close its runs on a terminate and wait a while for them to let go of what they
-  made, and MUST report its own failures where that has been answered yes. `kill` MUST end one
+  made, MUST give the backups of its epics a while to finish before it goes, and MUST report its own failures where that has been answered yes. `kill` MUST end one
   workspace's host and no other.
 - MUST carry one JSON object a `MESSAGE` frame each way, and MUST carry out every request off the
   thread carrying the bytes: a frontend's requests in the order it made them, an aside apart

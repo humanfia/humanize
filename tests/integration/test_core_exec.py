@@ -54,6 +54,41 @@ async def elsewhere(task, *, agents, envs, params, ctx):
 """
 
 
+#: A flow whose agent is offered one of the flow's own functions as a tool.
+SCRIBED = """
+import pathlib
+
+import pydantic
+
+from hmz.flows import (
+    Agent, AgentCollection, EnvCollection, FakeTool, FakeToolAgentMixin, FlowParams, flow,
+)
+
+
+class Note(pydantic.BaseModel):
+    text: str
+
+
+async def remember(note: Note) -> str:
+    pathlib.Path("noted.txt").write_text(note.text)
+    return f"noted {note.text}"
+
+
+class Scribe(Agent, FakeToolAgentMixin):
+    _tools = (FakeTool("remember", "Writes a note down.", remember, Note),)
+
+
+class Agents(AgentCollection):
+    scribe: Scribe
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def scribed(task, *, agents, envs, params, ctx):
+    scribe = agents["scribe"]
+    return await scribe.run(task, session=await scribe.spawn())
+"""
+
+
 @pytest.fixture(autouse=True)
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return install(tmp_path, monkeypatch)
@@ -155,6 +190,26 @@ def test_json_writes_the_run_as_one_object_per_line() -> None:
         MODEL,
     )
     assert result["tokens"] == {MODEL: 10 + TOKENS}
+
+
+def test_an_agent_calling_a_flows_tool_runs_the_flows_function(
+    tmp_path: Path, project: Path
+) -> None:
+    flow = write_flow(tmp_path / "flows", "scribed", SCRIBED)
+
+    ran = hmz_exec(
+        "-f",
+        flow,
+        "-a",
+        f"scribe={AGENT}",
+        "-p",
+        "budget.cost=1",
+        'tool: remember {"text": "hi"}',
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert ran.stdout.strip() == "tools: remember; said: noted hi"
+    assert (project / "noted.txt").read_text() == "hi"
 
 
 def test_an_env_role_works_where_its_e_names(tmp_path: Path) -> None:

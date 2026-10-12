@@ -1816,7 +1816,7 @@ class KimiCodeCLIAgent(AgentBase):
         #: on running turns inside the walls the old one was put up with -- the fence is put
         #: around the daemon once, where it starts, and every session of the agent is a
         #: session of that one process.
-        self._server_as: tuple[str, Fence | None] | None = None
+        self._server_as: tuple[str, Fence | None, str] | None = None
         self._serving = threading.Lock()
 
     def environment(self) -> Mapping[str, str]:
@@ -1879,6 +1879,7 @@ class KimiCodeCLIAgent(AgentBase):
             if self._server is not None and self._server_as != (
                 self.node().name,
                 self.config.fence,
+                self.shelf.where(),
             ):
                 # Started as an account this agent has since left, or inside a fence it has
                 # since been set up with another of. Let go of rather than taken down: a turn
@@ -1913,14 +1914,14 @@ class KimiCodeCLIAgent(AgentBase):
                 # between the two reads would name the account this server is *not* signed
                 # into, and a server that believes it is already elsewhere is one nothing ever
                 # starts again.
-                account = self.node().name
+                account, pathed = self.node().name, self.shelf.where()
                 self._listening = port or None
                 try:
                     spawned = self.spawned(argv)
                 finally:
                     self._listening = None
                 self._server = _AppServer(spawned, self._environ())
-                self._server_as = (account, fence)
+                self._server_as = (account, fence, pathed)
                 # Held by the finalizer alone, which is what takes the daemon down: when the
                 # agent is collected, and at exit for one held to the end.
                 weakref.finalize(self, self._server.stop)

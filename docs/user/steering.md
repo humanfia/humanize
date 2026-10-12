@@ -178,6 +178,7 @@ To the conversation you are reading. <kbd>shift+tab</kbd> changes which one that
 | a conversation with a turn open | into that turn |
 | every agent, which is where the screen opens | into whichever turn is open |
 | a conversation between turns, or nothing is working | onto the pin, then into the next turn to start |
+| [`chat`](https://humanfia.ai/flows/chat)'s conversation between turns | the next message, which starts the next turn |
 | an outworlder, or every agent while a [question](/user/questions) is up | the answer to it |
 
 Lines go **one at a time, in order**. The next one goes only after the agent has taken the one
