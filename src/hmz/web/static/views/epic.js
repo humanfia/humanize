@@ -1,7 +1,7 @@
 // One epic: the run going, as it happens, or one written down. `#/runs/<name>` draws it as a
 // graph of its agents and who handed to whom; `/agents/<role>` is the graph with that agent
 // picked out; `/sessions/<key>` is one session's thread, as a chat is read. `#/live` is
-// whichever run is going. Under the view, while the run goes, are the questions it waits on a
+// whichever run is going -- a chat's opened on its conversation rather than its graph. Under the view, while the run goes, are the questions it waits on a
 // person for and the box that says a line to it; beside it, a panel of what it is and was --
 // its figures, its budget, how it was set up, the flows it called -- with its board, its people
 // and the side questions asked beside it.
@@ -9,7 +9,7 @@
 import { asides, board, outworlders, question, saying } from '../acting.js'
 import { get } from '../api.js'
 import { go } from '../app.js'
-import { ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
+import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { ask } from '../held.js'
 import { live, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
@@ -48,6 +48,8 @@ export function mount(root, { parts, query }) {
   let tracing = false
   let traceError = null
   let tab = 'epic'
+  /** Whether the epic going was a chat not named when this was opened, to be opened on its conversation once it has one. */
+  let landing = false
   const drawn = {}
 
   /** Draws one part again, where what it is drawn from has changed. */
@@ -87,6 +89,7 @@ export function mount(root, { parts, query }) {
       // The run going is named now: the address says which, and it is followed by name.
       name = detail.name
       history.replaceState(null, '', `#/epics/${encodeURIComponent(name)}`)
+      landing = chatting(detail)
       stop()
       stop = watch(name, detail.workspace, told)
       return
@@ -96,6 +99,13 @@ export function mount(root, { parts, query }) {
       btw = asides(detail.workspace, detail.name)
     }
     const run = going && going.started ? going : null
+    const opened = landing && run && run.records.find((one) => one.type === 'opened' && !one.person)
+    if (opened) {
+      // A chat is a conversation, and is opened on it, as a chat app opens on one.
+      landing = false
+      history.replaceState(null, '', `#/epics/${encodeURIComponent(name)}/sessions/${encodeURIComponent(opened.key)}`)
+      mode = modeOf(['epics', name, 'sessions', opened.key])
+    }
     const model = run ? live(held, run, detail) : written(detail, traced)
     const roleOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
     persons = new Set(model.agents.filter((one) => one.person).map((one) => one.role))
@@ -152,7 +162,7 @@ export function mount(root, { parts, query }) {
       } }, label)))
       listed = h('div', { class: 'shape-list', 'data-hmz': 'agent-list' })
       fill(main, shape === 'graph' ? drawn_.node : h('div', { class: 'list-scroll' }, listed), switching)
-      for (const one of ['thread', 'thread-head', 'agent-list', 'graph-note']) drawn[one] = undefined
+      for (const one of ['thread', 'thread-head', 'thread-ask', 'agent-list', 'graph-note']) drawn[one] = undefined
     })
     if (shape === 'list') {
       region('agent-list', [model.agents.map(({ role, working, status, spec, sessions, tokens }) => [role, working, status, spec, tokens, sessions.map((one) => [one.key, one.working, one.turns.length])]), mode.focus], () => fill(listed, listOf(model, detail.name, mode.focus)))
@@ -212,14 +222,16 @@ export function mount(root, { parts, query }) {
       fill(main, h('div', { class: 'thread-scroll' }, h('div', { class: 'thread-column' }, cut, box)))
       saidFor = ''
       drawn['thread'] = undefined
+      drawn['thread-ask'] = undefined
     })
     const scroller = main.querySelector('.thread-scroll')
     if (run) {
       // Another link's records start their numbers over: what was said is said again from the top.
-      const whose = JSON.stringify([key, run.number, held().epoch])
+      const chat = chatting(detail)
+      const whose = JSON.stringify([key, run.number, held().epoch, chat])
       if (saidFor !== whose) {
         saidFor = whose
-        saidBy = sayer(key)
+        saidBy = sayer(key, { chat })
         saidUpTo = -1
         fill(box)
         cut.hidden = true
@@ -242,6 +254,23 @@ export function mount(root, { parts, query }) {
       if (mode.session) markRead(detail.name, mode.session, run.records)
       if (!box.childElementCount) box.append(h('p', { class: 'dim thread-empty' }, 'Nothing said yet.'))
       else if (added) box.querySelector(':scope > .thread-empty')?.remove()
+      // What a chat's agent stops to ask in a turn is asked at the end of its conversation,
+      // its answers offered there to pick and anything typed below answering it.
+      const asking = chat && mode.session && run.live ? askedIn(mode.session) : null
+      region('thread-ask', [saidFor, asking], () => {
+        main.querySelector('.thread-ask')?.remove()
+        if (!asking || !asking.options.length) return
+        box.after(
+          h(
+            'div',
+            { class: 'thread-ask row', 'data-hmz': 'thread-ask' },
+            asking.options.map((option, index) =>
+              acting(option, () => ask(workspace(), 'answer', { question: asking.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
+            ),
+          ),
+        )
+        added = true
+      })
       if (added && stuck) scroller.scrollTop = scroller.scrollHeight
       return
     }
@@ -276,9 +305,14 @@ export function mount(root, { parts, query }) {
     const pending = going ? (standing.pending && standing.pending.pending) || [] : []
     const clients = standing.clients && standing.clients.clients
     const me = held() ? held().me : ''
-    region('dock-questions', [pending, me, clients], () => {
+    // A chat waiting to be told what next is waiting on its composer, which says it; what it
+    // asks in its conversation's thread is asked there.
+    const chat = chatting(detail)
+    const threaded = chat && mode.session ? askedIn(mode.session) : null
+    const carded = pending.filter((one) => !(chat && (one.mode === 'listen' || (threaded && one.question === threaded.question))))
+    region('dock-questions', [carded, me, clients], () => {
       const kept = new Set()
-      const shown = pending.map((one) => {
+      const shown = carded.map((one) => {
         const key = JSON.stringify([one.question, one.owner || '', me, one.text, one.options])
         if (!cards.has(key)) cards.set(key, question(workspace(), one, me, clients))
         kept.add(key)
@@ -297,7 +331,9 @@ export function mount(root, { parts, query }) {
       // In a thread, a line goes to whose thread it is: a session, an agent, or a person.
       const to = mode.session || (mode.log ? (persons.has(mode.log) ? `outworlder:${mode.log}` : mode.log) : '')
       if (to && sayToKey !== to) {
-        sayTo = saying(workspace(), to)
+        // A chat's line is said to its next turn, which is its one conversation's: the turn
+        // open, or the next the person is asked to start.
+        sayTo = saying(workspace(), to, { asked: () => askedIn(to), to: chatting(detail) && mode.session ? '' : to })
         sayToKey = to
       }
     }
@@ -426,6 +462,24 @@ export function mount(root, { parts, query }) {
 
   // ------------------------------------------------------------------ following it
 
+  /**
+   * What a session is asked now that this page may answer: a question asked while its turn is
+   * open, which says whose turn it is -- or, in a chat, whatever its person is asked, a
+   * conversation having one session for it to be.
+   */
+  function askedIn(session) {
+    const run = seen && seen.going && seen.going.live ? seen.going : null
+    if (!run || !run.started || !session.includes('/') || session.startsWith('outworlder:')) return null
+    const pending = (held().standing.pending && held().standing.pending.pending) || []
+    return (
+      pending.find((one) => {
+        if (one.owner && one.owner !== held().me) return false
+        const key = one.key || (run.records.findLast((record) => record.type === 'asked' && record.question === one.question) || {}).key
+        return key ? key === session : chatting(run.started)
+      }) || null
+    )
+  }
+
   function held() {
     return seen && seen.held
   }
@@ -450,12 +504,18 @@ export function mount(root, { parts, query }) {
     /** Moves to another part of the same run without drawing it all again. */
     moved({ parts: next }) {
       if (next[0] !== 'epics' || !name || next[1] !== name) return false
+      landing = false
       mode = modeOf(next)
       for (const one of ['head', 'panel-run', 'dock-composer']) drawn[one] = undefined
       draw()
       return true
     },
   }
+}
+
+/** Whether an epic is the built-in chat, read as a conversation rather than as a flow. */
+function chatting(epic) {
+  return flowName(epic.flow) === 'chat'
 }
 
 function modeOf(parts) {

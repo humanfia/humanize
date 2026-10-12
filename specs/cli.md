@@ -1,9 +1,9 @@
 # `cli`
 
-`hmz` -- the whole command line, over layers that have none of their own. Three commands anybody
+`hmz` -- the whole command line, over layers that have none of their own. Four commands anybody
 types, one door onto what humanize spawns for itself, and naming no command at all opens the
-terminal interface; `hmz web` opens the web interface instead, and `hmz update` moves humanize
-itself to its newest release. It reads a line, routes it and
+terminal interface; `hmz web` opens the web interface instead, `hmz update` moves humanize
+itself to its newest release, and `hmz backup` backs an epic up. It reads a line, routes it and
 settles who is reading; it decides nothing a layer under it decides.
 
 ## API
@@ -11,9 +11,11 @@ settles who is reading; it decides nothing a layer under it decides.
 ```shell
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
 hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
-         [-p|--params <param>[,<param>...]]... [--profile] [--resume] [--json] <task>
+         [-p|--params <param>[,<param>...]]... [--profile] [--resume] [--json]
+         [--backup <target>|none]... <task>
 hmz web [--port <port>] [--no-open] [--attached]
 hmz update
+hmz backup <epic> [--to <target>]...
 <ref>    := [@<flowverse>/][<user>/]<flow>[:<name>] | <path> | git+<url>[@<rev>][#<subdir>][:<name>]
 <path>   := .<...> | /<...> | ~<...>   # nothing else is a path
 <agent>  := <role>=<cli>[@<provider>]/<model>[:<effort>]
@@ -37,7 +39,8 @@ hmz internal hook --at <socket>
 ```python
 # __init__.py
 APART = "HUMANIZE_DAEMON"   # `off`, `0` or `no`: keep the run with the terminal
-COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, web, update, internal
+COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, web, update, backup,
+                                                               # internal
 INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, fence, hook, tools
 def main(argv: list[str] | None = None) -> int: ...
 def opens() -> int: ...
@@ -69,6 +72,8 @@ class Shown:    # the agents' own events, drawn as one run; a context manager
 def web(argv: list[str], *, apart: bool) -> int: ...
 # update.py -- `hmz update`
 def update(argv: list[str]) -> int: ...
+# backup.py -- `hmz backup`
+def backup(argv: list[str]) -> int: ...
 # anchor.py, cred.py, fence.py, hook.py, tools.py -- one command apiece
 def anchor(argv: list[str]) -> int: ...
 def cred(argv: list[str]) -> int: ...
@@ -79,7 +84,8 @@ def tools(argv: list[str]) -> int: ...
 
 ## Requirements
 
-- MUST offer exactly three commands to a person -- `hmz exec`, `hmz web` and `hmz update` -- and
+- MUST offer exactly four commands to a person -- `hmz exec`, `hmz web`, `hmz update` and
+  `hmz backup` -- and
   MUST leave everything else humanize keeps to the prompt, to the web interface or to `sdk`, a run
   already held here included: `hmz` and `hmz web` each open it.
 - MUST gather every line humanize spawns for itself under `hmz internal`, MUST show every command in
@@ -169,6 +175,15 @@ def tools(argv: list[str]) -> int: ...
 - MUST read `<cli>` from the front and `<effort>` from after the last colon so that a model's own
   punctuation stays the model's, and MUST NOT restate here which backends exist.
 - A run started from a command line MUST have nobody outside it: its outworlder is away.
+- `--backup` MUST name the backup targets the epic goes to, `none` MUST mean none, and without
+  it the epic MUST go to the default targets; a target settings has none of MUST be a usage
+  error. Once the run has said how it went, `hmz exec` MUST give its epic's backups a bounded
+  while to finish, saying that it is, and MUST say so and exit as the run had it where they do
+  not.
+- `hmz backup` MUST back one epic of this directory, by name or path, up to the targets `--to`
+  names, else those it was started with, else the defaults, MUST wait for it and say how each
+  target took it -- a URL with nothing signed into it -- and MUST exit zero where all did, one
+  where one did not, and two for an epic or a target there is none of, or no target at all.
 - MUST draw a run from the agents' own event stream rather than from each backend's own progress and
   MUST NOT show both, saying which agent is taking a turn and in which conversation, what it said,
   what it ran, what it started, and what a turn cost -- in money as well as tokens, and tokens alone

@@ -61,9 +61,13 @@ function threadOf(one) {
  * shared one, where `key` is "". Kept between records, so that a transcript of thousands of
  * lines is drawn once and then added to, rather than drawn again for every word.
  *
+ * A chat's is read as a conversation: its session's thread opens on the task and goes on with
+ * every answer the person gave as a line of theirs, and what to say next is never drawn as
+ * asked, since it is only the reply said back.
+ *
  * @returns {(record: object) => Node[]} What one more record adds to the transcript.
  */
-export function sayer(key) {
+export function sayer(key, { chat = false } = {}) {
   const began = new Map()
   const [kind, role] = key.startsWith('agent:') ? ['agent', key.slice(6)] : key.startsWith('person:') ? ['person', key.slice(7)] : ['session', '']
   const of = (record) => String(record.session || record.key || record.agent || '')
@@ -77,9 +81,22 @@ export function sayer(key) {
         return mine || toPerson ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
       }
       case 'asked':
-        return !key || (kind === 'person' ? record.role === role : record.role && (kind === 'agent' ? record.role === role : key.startsWith(`${record.role}/`)))
+        if (chat && record.mode === 'listen' && kind !== 'person') return []
+        // A question asked while a turn is open is that session's, where it says whose it is.
+        return !key ||
+          (kind === 'person'
+            ? record.role === role
+            : record.key
+              ? whose(record)
+              : chat
+                ? kind === 'session'
+                : record.role && (kind === 'agent' ? record.role === role : key.startsWith(`${record.role}/`)))
           ? [line('asks', record.text, { who: `${record.role || 'the flow'} asks` })]
           : []
+      case 'answered':
+        return chat && key && kind !== 'person' && record.text ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+      case 'started':
+        return chat && key && kind !== 'person' && record.task ? [line('you', record.task)] : []
       case 'notice':
       case 'printed':
         return key ? [] : [line('notice', record.text)]

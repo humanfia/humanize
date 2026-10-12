@@ -77,6 +77,7 @@ if TYPE_CHECKING:
     from .tracing.profile import Profiler
 
 __all__ = [
+    "BACKED",
     "JOURNAL",
     "LOCAL",
     "RECORD",
@@ -96,6 +97,7 @@ __all__ = [
     "harbor",
     "harnessed",
     "logs",
+    "note",
     "opened",
     "picks_up",
     "read",
@@ -119,6 +121,9 @@ _LEGIBLE = re.compile(r"[^A-Za-z0-9._@-]+")
 
 #: The file an epic's own record is written to, inside the epic's directory.
 JOURNAL = "epic.jsonl"
+
+#: What a line saying how one backup of the epic went is, in its own record.
+BACKED = "backed"
 
 #: What the record of a flow another flow called is called, beside the run's own: which
 #: flow it is of, and an id of that call rather than of the flow -- a flow called twice is
@@ -296,6 +301,10 @@ class Ran(NamedTuple):
       spent: What the run spent as its budget counted it, as JSON -- `cost` in dollars,
         `output_tokens` and `seconds` -- written as it ended, or None for a run still going
         or one killed before it could say.
+      backup: The git repositories it was to be backed up to, by the name each is kept
+        under in settings.
+      backed: How its last backup to each target went, by target: `at`, `ok`, `error` --
+        "" where it went -- and `why` it was backed up.
     """
 
     at: Path
@@ -317,6 +326,8 @@ class Ran(NamedTuple):
     picked_up: str = ""
     profile: bool = False
     spent: dict[str, Any] | None = None
+    backup: tuple[str, ...] = ()
+    backed: dict[str, dict[str, Any]] = {}  # noqa: RUF012 -- a NamedTuple's default
 
     @property
     def name(self) -> str:
@@ -664,6 +675,7 @@ class Epic:
         resumable: bool = False,
         picked_up: Path | None = None,
         profile: bool = False,
+        backup: Sequence[str] = (),
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
 
@@ -687,6 +699,7 @@ class Epic:
             that what a turn spent its minutes on is in the run's trace beside the turn. Asked
             of the run as its budget is, by whoever starts it, and written down with the rest
             so that a run picked up again is profiled as the run it goes on from was.
+          backup: The git repositories it is backed up to, by name.
         """
         self._begin(
             home()
@@ -732,6 +745,7 @@ class Epic:
             params=dict(params or {}),
             **({"budget": dict(budget)} if budget is not None else {}),
             **({"profile": True} if profile else {}),
+            **({"backup": list(backup)} if backup else {}),
             spelling=SPELLING,
         )
 
@@ -1245,6 +1259,7 @@ def read(epic: Path) -> Ran | None:
     spelled = str if began.get("spelling") == SPELLING else _respelled
     params = began.get("params")
     budget = began.get("budget")
+    backup = began.get("backup")
     return Ran(
         at=epic,
         flow=str(began.get("flow") or ""),
@@ -1276,7 +1291,50 @@ def read(epic: Path) -> Ran | None:
             if usage
             else None
         ),
+        backup=tuple(
+            str(one)
+            for one in cast("list[Any]", backup if isinstance(backup, list) else [])
+        ),
+        backed={
+            str(one.get("to")): {
+                "at": str(one.get("at") or ""),
+                "ok": one.get("ok") is True,
+                "error": str(one.get("error") or ""),
+                "why": str(one.get("why") or ""),
+            }
+            # Only since it came here: one imported was backed up on another machine, to
+            # targets of that machine's.
+            for one in events[_here(events) :]
+            if one.get("event") == BACKED
+        },
     )
+
+
+def _here(events: list[dict[str, Any]]) -> int:
+    """Where in one epic's events this machine's own begin: after the last import, if any."""
+    return next(
+        (
+            len(events) - at
+            for at, one in enumerate(reversed(events))
+            if one.get("event") == "imported"
+        ),
+        0,
+    )
+
+
+def note(epic: Path, event: str, **said: Any) -> None:
+    """Appends one line to an epic's own record from outside the run writing it.
+
+    What happens to a run once it has ended, or beside it -- a backup of it -- is still
+    written where the run is read, as every line of it is: appended whole and flushed.
+
+    Args:
+      epic: The epic's directory.
+      event: What happened.
+      said: What is worth saying about it.
+    """
+    with (epic / JOURNAL).open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({"event": event, "at": _now(), **said}) + "\n")
 
 
 def _respelled(one: object) -> str:
