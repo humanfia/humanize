@@ -1097,6 +1097,7 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | Keys | `enter choose   esc back` |
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. |
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
 there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
@@ -1104,6 +1105,59 @@ across the top: one row `to   file, or directory to put <run>.epic.tar.gz in`, a
 [path](#path-completion); **Done** `writes the archive there`, `~` expanded; error `where to
 export to is required`. A directory, existing or ending in `/`, gets `<run>.epic.tar.gz`;
 anything else is the file. `esc` goes back to the run.
+
+### Exomyth {#exomyth}
+
+The epic as a timeline of its sessions, as [the Exomyth timeline](/reference/tracing#timeline)
+lays it out, on a screen of its own: `hmz › /epics › <when> · <flow> › Exomyth` across the
+top, **Timeline** and **Flame** at the right of it (the one shown in bold), then `<epic> ·
+<n> session(s) · <n> span(s) · <length>[ · live]`. It is read off the screen (`reading…`;
+an error in red); while the epic is `live` it is read again every 3 seconds, a failed read
+included, keeping the window, the search, what is folded (by process key) and the span under
+the cursor (by process, track, depth and start). A timeline of a version this hmz does not
+know is refused: `timeline version <n> is not 1`.
+
+**Timeline**: a ruler of time (`│0s   │2s …`, a tick every 12 cells or more, at 1, 2 or 5 of a
+unit), then a row per lane. On the left, as wide as a third of the screen and at most 28
+cells, each process under the one it hangs from, two cells deeper, `▾` (open) or `▸`
+(folded) before one with more than one lane or a process under it; a track's second and later
+lanes are its name or blank. The row under the cursor is marked `❯`. A span is a bar across
+its row in its category's colour of the theme (`flow` primary, `session` accent, `turn`
+secondary, `llm` success, `tool` warning, `message` primary, `event` accent, `process`
+secondary), cut to the eighth of a cell at either end (`▏▎▍▌▋▊▉█`), its name written on it where
+it fits (cut with `…`), and an eighth of a gap where it starts hard against the span before.
+Spans narrower than a cell are one `▌` in that cell. The span under the cursor is drawn in the
+pair turned round. It opens on the whole epic with the cursor on the first span of the first
+row.
+
+| Key | Does |
+| --- | --- |
+| `w`, `+`, `=` / `s`, `-` | zoom in / out by 2, around the span under the cursor where it is on screen (else the middle); down to an eighth of a µs a cell, out to four times the epic |
+| `a`, `shift+←` / `d`, `shift+→` | pan back / on a quarter of the window; at most half a window off either end |
+| `↑` / `↓`, `pageup` / `pagedown` | the row above / below (10 rows), the cursor on the span on screen nearest the moment it was at, or none |
+| `←` / `→` | the span before / after in the row, the window moved to it where it is off screen |
+| `enter` | a pane under the chart of the span under the cursor, following the cursor, or shuts it: its name; category · process · track · depth; `start <t> · lasted <t> · <ISO time>`; `[<model> · ]<n> in · <n> out` where it has either; then each of its first 12 args, `<key> <value>` on one line of at most 200 characters (`+<n> more`) |
+| `f` | zoom to the span under the cursor |
+| `0` | the whole epic |
+| `space` | fold the process of the row under the cursor to its first row, hiding the processes under it, or open it out |
+| `/` | search box (`span name`): `enter` goes to the first span after the cursor whose name holds it (any case), opening out what hides it: `<i> of <n> · <words>`, or `no span named <words>` |
+| `n` / `N` | the next / previous span found |
+| `tab` | **Flame** |
+| `r` | read again |
+| `esc` | out of the search, then the pane, then back to the run |
+
+Keys line: `w/s zoom   a/d pan   ←/→ span   enter details   f fit   0 whole   space fold   / search
+[n/N next   ]tab flame   esc back`.
+
+**Flame**: where the time in the window went, as three rows of nested bars over a list: kind
+of process (`flow` primary, `session` secondary, `os` warning), then category, then name,
+each as wide as its share, heaviest first, cut by an eighth of a gap from the one before. Time
+is each span's own inside the window, less the spans under it in its track; `t` weighs by
+tokens in and out instead. Under it `time|tokens   spans   stack`, and a list of at most 400
+stacks, each under the one it is part of: total (as on the ruler, or tokens as
+[the status line](#the-status-line) counts them), how many spans, and its name; the stack under
+the list's cursor is drawn turned round in the bars. Under the list: `weighed by time|tokens ·
+<from> · <to>`. Keys: `↑/↓ stack   t tokens|time   r refresh   tab timeline   esc back`.
 
 ## `/resume` {#carrying-the-last-one-on-outright}
 

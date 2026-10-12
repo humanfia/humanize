@@ -9486,6 +9486,9 @@ class Adjusted(NamedTuple):
 #: names would be two things to learn.
 RESUMES, _EXPORTS = "resume", "export"
 
+#: And reading it as a timeline, which is a screen of its own (:mod:`hmz.tui.exomyth`).
+_EXOMYTH = "exomyth"
+
 #: What the trace an export gathers is filed as, inside the run's own `traces/`. Named for
 #: what made it rather than for the moment it was made: a trace gathered by hand keeps both
 #: when it is gathered twice, and this one is of a run that is over and will not read any
@@ -9605,9 +9608,9 @@ class Does(Picks):
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """Carrying on where it stopped, where that is a thing this flow can do, and sending it.
+        """Carrying on where it stopped, where this flow can, sending it, and reading it.
 
-        Two rather than four. Gathering a trace wrote a file into the run that an export
+        No row for gathering a trace: that wrote a file into the run that an export
         would have carried anyway, so exporting gathers one and packs it: a bundle read by
         somebody who was not there is a bundle with the timeline already in it.
         """
@@ -9627,6 +9630,7 @@ class Does(Picks):
                 "the entire run as an archive, with its trace",
             )
         )
+        held.append((_EXOMYTH, "Exomyth", "the epic as a timeline of its sessions"))
         return held
 
     def nothing(self) -> str:
@@ -10122,6 +10126,11 @@ class Epics(Sheet[Doing]):
             )
             if said is None:
                 return  # walked out of it, which does nothing to the run
+            if said == _EXOMYTH:
+                from .exomyth import Exomyth
+
+                await showing.push_screen_wait(Exomyth(ran))
+                continue
             if said != _EXPORTS:
                 break
             to = await showing.push_screen_wait(Exporting(ran))

@@ -22,6 +22,12 @@ end of this page you will have found a run, exported its trace and read it.
 
 <HmzCast name="epics" alt="/epics listing two runs, going into the newest, and exporting it: the archive's path, its size, and 1 session, 10 slices, 3 programs" />
 
+To read a run without leaving the terminal, choose **Exomyth** instead of **export run**: every
+session is a row of bars under the session that started it. <kbd>w</kbd> <kbd>s</kbd> zoom,
+<kbd>a</kbd> <kbd>d</kbd> pan, <kbd>←</kbd> <kbd>→</kbd> step from span to span, <kbd>enter</kbd>
+shows the one under the cursor whole, and <kbd>tab</kbd> turns it into a flame of where the time
+went. Every key is in [Exomyth](/reference/tui#exomyth).
+
 ## Before you start
 
 - A run of a flow in this directory. `/epics` lists the runs of the directory `hmz` was

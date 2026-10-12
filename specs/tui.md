@@ -177,6 +177,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   exporting it; an export MUST ask where it goes, a file or a directory to put it in, and land
   nowhere else, MUST carry a trace of that run's own sessions and no transcript, say where it
   landed and how big it is, and replace that run's last export rather than pile up.
+- MUST open a run from its sheet in Exomyth: every session a process under the one that started
+  it, foldable, each lane a row of its spans cut to the eighth of a cell and coloured by category
+  in the theme's colours under a ruler of time; zoomed and panned around the span under the
+  cursor, which moves between spans and rows, is searched to by name and opens a pane of the span
+  whole; and, a tab away, a flame of where the time on screen went -- kind of process, category,
+  name -- weighed by time or tokens. Read without holding the screen up and again every few
+  seconds while the run goes, drawing only the rows on screen, responsive at fifty thousand spans.
 - MUST make the monitor the parent screen and the log its child: a full-screen graph of the run
   over the log's own prompt, where every command works, with a graph status line in place of the
   log's; reached by `←` on an empty prompt and never by `esc` or a command, and left by `→` on an
@@ -265,6 +272,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
 | `space` | monitor | on an empty prompt: open an agent out to its sessions, or shut it |
 | `ctrl+t` | monitor | the graph or the list |
+| `w`/`s`, `a`/`d`, `←`/`→`, `↑`/`↓`, `enter`, `f`, `0`, `space`, `/`, `n`/`N`, `tab`, `t`, `r` | Exomyth | zoom, pan, the span before or after, the row above or below, the span's pane, fit it, the whole run, fold, search, the next found, timeline or flame, time or tokens, read again |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
 | `↑`, `↓` | sheets | walk the rows, round the ends, keeping the row being written; back to the list from its search or its buttons; in a box, between its buttons |
