@@ -41,14 +41,19 @@ export function question(workspace, one, me, clients) {
  * Says a line to the run: into one session's turn, to a role, or to the next turn to start --
  * or, given a session, into that session alone. Made once for a page, as `asides` is, and told
  * who there is to say it to as that changes, so that a line being typed outlives every drawing
- * of the page around it.
+ * of the page around it. Given what the session is asked, a line typed while it is asked
+ * something answers it, as a reply in a conversation does; and a session's line may be said
+ * on another view of the run than the session's own.
  */
-export function saying(workspace, session = '') {
+export function saying(workspace, session = '', { asked = () => null, to: into = session } = {}) {
   const to = h('select', { 'aria-label': 'Say it to' })
   const box = composer({
     placeholder: session ? `Message ${session.replace(/^outworlder:/, '')}` : 'Message the epic',
     label: 'What to say',
-    submit: (text) => ask(workspace, 'say', { text, to: session || to.value }),
+    submit: (text) => {
+      const one = asked()
+      return one ? ask(workspace, 'answer', { question: one.question, text }) : ask(workspace, 'say', { text, to: into || to.value })
+    },
     tools: session ? [] : [chipSelect('To', to)],
   })
   box.node.dataset.hmz = 'say'

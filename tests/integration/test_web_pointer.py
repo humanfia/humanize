@@ -201,3 +201,58 @@ def test_settings_fit_a_phone(project: Path, engine: str) -> None:
             wide = page.evaluate("document.querySelector('.dialog').scrollWidth")
             assert wide <= 390, f"{one} is {wide} wide"
             assert re.match(r"\d", str(wide))
+
+
+def _whole(page: Page, popup: Locator) -> None:
+    """Asserts a popup is drawn whole within the window: no edge of it past the window's."""
+    box = popup.bounding_box()
+    assert box is not None
+    size = page.viewport_size
+    assert size is not None
+    assert box["x"] >= 0, box
+    assert box["y"] >= 0, box
+    assert box["x"] + box["width"] <= size["width"], (box, size)
+    assert box["y"] + box["height"] <= size["height"], (box, size)
+
+
+def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -> None:
+    """A menu opens on the side of its button there is room on, however far down a list it is."""
+    with served() as site, opened(site, engine=engine, width=900, height=420) as page:
+        # The last of a list that scrolls, in a dialog: its menu opens over the button.
+        _go(page, "/settings/themes")
+        last = page.locator("[data-hmz=pair]").last
+        last.evaluate("(row) => row.scrollIntoView({ block: 'end' })")
+        last.get_by_role("button", name="Export").click()
+        menu = page.get_by_role("menu", name="Export")
+        expect(menu.get_by_role("menuitem")).to_have_text(["Pair", "Light", "Dark"])
+        _whole(page, menu)
+        button = last.get_by_role("button", name="Export").bounding_box()
+        drawn = menu.bounding_box()
+        assert button is not None
+        assert drawn is not None
+        assert drawn["y"] + drawn["height"] <= button["y"]
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+
+        # The machine's menu, at the foot of the window: over its button, as wide as it.
+        page.locator("[data-hmz=machine-menu]").click()
+        _whole(page, page.get_by_role("menu", name="Machine"))
+        page.keyboard.press("Escape")
+
+        # A path browsed for from the folder a new epic opens, in a window too short for it.
+        _go(page, "/new?flow=chat")
+        page.locator("[data-hmz=workspace-picker]").click()
+        _whole(page, page.get_by_role("menu", name="Workdirs"))
+        page.get_by_role("menuitem", name="Open folder…").click()
+        _whole(page, page.locator(".workdir-open"))
+        page.locator("[data-hmz=path-browse]").click()
+        panel = page.locator("[data-hmz=path-panel]")
+        expect(panel.locator(".crumb").last).to_have_text("~")
+        _whole(page, panel)
+
+        # What a right click opens, at the window's foot.
+        _go(page, "/settings/themes")
+        row = page.locator("[data-hmz=pair]").last
+        row.scroll_into_view_if_needed()
+        row.click(button="right", position={"x": 300, "y": 20})
+        _whole(page, page.locator(".popover.context"))

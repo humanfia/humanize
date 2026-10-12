@@ -1,8 +1,8 @@
 // How the page looks: the pair -- or any two themes -- Auto follows the system with, every pair
-// humanize comes with and every theme made here -- used, copied, written out as a `.hmztheme`
-// file or read in from one -- and one made here opened to be changed: its name, what it is made
-// on, each of its colours and a picture behind any of the large planes, shown on the page as it
-// is changed and kept at once.
+// humanize comes with and every pair and theme made here -- used, copied, written out as a
+// `.hmztheme` file or read in from one -- and one made here opened to be changed: its name, what
+// it is made on, each of its colours and a picture behind any of the large planes, shown on the
+// page as it is changed and kept at once.
 
 import { confirming, fill, h, iconButton, problem } from '../../dom.js'
 import { choice, menu } from '../../shell.js'
@@ -30,7 +30,7 @@ function list(holder) {
       'select',
       { 'aria-label': 'Auto pair', 'data-hmz': 'auto-pair' },
       now ? null : h('option', { value: '', selected: true, disabled: true }, 'Custom'),
-      look.PAIRS.map((one) => h('option', { value: one.key, selected: now === one.key }, one.name)),
+      look.pairs().map((one) => h('option', { value: one.key, selected: now === one.key }, one.name)),
     )
     select.addEventListener('change', () => {
       look.usePair(select.value)
@@ -52,7 +52,7 @@ function list(holder) {
     file.value = ''
     if (!chosen) return
     try {
-      const one = await look.imported(await chosen.text())
+      const [one] = await look.imported(await chosen.text())
       toast(`Imported ${one.name}`)
       redraw()
     } catch (error) {
@@ -61,6 +61,10 @@ function list(holder) {
   })
   const fresh = async (from, name) => {
     const one = await look.create(from, name)
+    location.hash = `/settings/themes/${one.id}`
+  }
+  const freshPair = async ([light, dark], name) => {
+    const [one] = await look.createPair(light, dark, name)
     location.hash = `/settings/themes/${one.id}`
   }
   const use = (one) => {
@@ -75,15 +79,19 @@ function list(holder) {
     { label: 'Duplicate', glyph: 'copy', act: () => fresh(one, `${one.name} copy`) },
     { label: 'Export', glyph: 'download', act: () => look.exported(one) },
   ]
-  // A button opening a choice of the pair's light or dark, for something done to one of them.
-  const either = (label, two, act) => {
+  // A button opening a choice of the whole pair, where it can be done to it, or its light or dark.
+  const either = (label, two, act, whole = null) => {
     const button = h('button', { class: 'btn quiet small', type: 'button', 'aria-label': label }, label)
     const holding = h('span', { class: 'menu-holder' }, button)
-    menu(button, (close) => two.map((one) => choice({ label: one.base === 'dark' ? 'Dark' : 'Light', act: () => act(one), close })), { label, align: 'end' })
+    menu(
+      button,
+      (close) => [whole ? choice({ label: 'Pair', act: whole, close }) : null, two.map((one) => choice({ label: one.base === 'dark' ? 'Dark' : 'Light', act: () => act(one), close }))],
+      { label, align: 'end' },
+    )
     return holding
   }
   const pairRow = (pair) => {
-    const two = look.OWN.filter((one) => one.pair === pair.key)
+    const two = look.members(pair.key)
     const on = auto() && look.pairing() === pair.key
     const node = h(
       'div',
@@ -99,8 +107,10 @@ function list(holder) {
         'div',
         { class: 'row' },
         h('button', { class: 'btn small', type: 'button', disabled: on, onclick: () => (look.usePair(pair.key), redraw()) }, 'Use pair'),
-        either('Duplicate', two, (one) => fresh(one, `${pair.name} copy`)),
-        either('Export', two, (one) => look.exported(one)),
+        pair.mine ? either('Edit', two, (one) => (location.hash = `/settings/themes/${one.id}`)) : null,
+        either('Duplicate', two, (one) => fresh(one, `${pair.name} ${one.base}`), () => freshPair(two, `${pair.name} copy`)),
+        either('Export', two, (one) => look.exported(one), () => look.exported(pair.key)),
+        pair.mine ? confirming({ label: 'Delete', ask: `Delete ${pair.name}?`, yes: 'Delete', small: true, act: () => look.removePair(pair.key).then(redraw) }) : null,
       ),
     )
     return menuOn(node, () => [{ head: pair.name }, { label: 'Use pair', glyph: 'check', act: () => (look.usePair(pair.key), redraw()) }])
@@ -125,7 +135,8 @@ function list(holder) {
     return menuOn(node, () => offered(one))
   }
   const redraw = () => {
-    const mine = look.themes().filter((one) => !look.OWN.includes(one))
+    const mine = look.themes().filter((one) => !look.OWN.includes(one) && !one.pair)
+    const pairsMine = look.pairs().filter((one) => one.mine)
     fill(
       holder,
       h(
@@ -149,9 +160,18 @@ function list(holder) {
           'header',
           {},
           h('h2', {}, 'Yours'),
-          h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => fresh(shown(), 'New theme') }, 'New'), h('button', { class: 'btn quiet small', type: 'button', onclick: () => file.click() }, 'Import'), file),
+          h(
+            'div',
+            { class: 'row' },
+            h('button', { class: 'btn small', type: 'button', onclick: () => fresh(shown(), 'New theme') }, 'New'),
+            h('button', { class: 'btn quiet small', type: 'button', onclick: () => freshPair(look.members(look.pairing() || 'humanize'), 'New pair') }, 'New pair'),
+            h('button', { class: 'btn quiet small', type: 'button', onclick: () => file.click() }, 'Import'),
+            file,
+          ),
         ),
-        mine.length ? h('div', { class: 'theme-list' }, mine.map(row)) : h('p', { class: 'dim' }, 'None yet: make one, duplicate a preset or import a file.'),
+        pairsMine.length || mine.length
+          ? h('div', { class: 'theme-list' }, pairsMine.map(pairRow), mine.map(row))
+          : h('p', { class: 'dim' }, 'None yet: make a theme or a pair, duplicate a preset or import a file.'),
       ),
     )
   }
@@ -200,11 +220,23 @@ function editor(holder, id) {
     look.paint(one)
   }
   const name = h('input', { type: 'text', value: one.name, 'aria-label': 'Name', 'data-hmz': 'theme-name', maxlength: '60' })
+  // A pair's name is both its themes'.
   name.addEventListener('input', () => {
     if (!name.value.trim()) return
     one.name = name.value.trim()
-    look.save(one)
+    if (one.pair) look.rename(one.pair, one.name)
+    else look.save(one)
   })
+  // In a pair, which of its two is open, each a press away.
+  const sides = one.pair
+    ? h(
+        'div',
+        { class: 'segmented', role: 'group', 'aria-label': 'Side', 'data-hmz': 'theme-side' },
+        look.members(one.pair).map((other) =>
+          h('button', { type: 'button', 'aria-pressed': String(other.id === one.id), onclick: () => (location.hash = `/settings/themes/${other.id}`) }, other.base === 'dark' ? 'Dark' : 'Light'),
+        ),
+      )
+    : null
   const base = h('select', { 'aria-label': 'Base', 'data-hmz': 'theme-base' }, h('option', { value: 'light', selected: one.base === 'light' }, 'Light'), h('option', { value: 'dark', selected: one.base === 'dark' }, 'Dark'))
   base.addEventListener('change', () => {
     one.base = probe.dataset.theme = base.value
@@ -312,14 +344,18 @@ function editor(holder, id) {
         'div',
         { class: 'form' },
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Name'), name),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, 'Base'), base, h('span', { class: 'hint' }, 'What any colour left blank is taken from.')),
+        one.pair
+          ? h('div', { class: 'field' }, h('span', { class: 'label' }, 'Side'), sides, h('span', { class: 'hint' }, 'A pair’s light is shown where the system is light, its dark where it is dark.'))
+          : h('div', { class: 'field' }, h('span', { class: 'label' }, 'Base'), base, h('span', { class: 'hint' }, 'What any colour left blank is taken from.')),
         h(
           'div',
           { class: 'row' },
           h('a', { class: 'btn', href: '#/settings/themes' }, 'Done'),
-          h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.choose(one.id), toast(`Using ${one.name}`)) }, 'Use'),
-          h('button', { class: 'btn quiet', type: 'button', onclick: () => look.exported(one) }, 'Export'),
-          confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', act: () => look.remove(one.id).then(() => (location.hash = '/settings/themes')) }),
+          one.pair
+            ? h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.usePair(one.pair), toast(`Using ${one.name}`)) }, 'Use pair')
+            : h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.choose(one.id), toast(`Using ${one.name}`)) }, 'Use'),
+          h('button', { class: 'btn quiet', type: 'button', onclick: () => look.exported(one.pair || one) }, 'Export'),
+          confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', act: () => (one.pair ? look.removePair(one.pair) : look.remove(one.id)).then(() => (location.hash = '/settings/themes')) }),
         ),
       ),
     ),

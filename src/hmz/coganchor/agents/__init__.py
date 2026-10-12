@@ -28,6 +28,7 @@ from .base import (
 )
 from .board import ANYONE, FLOW, USER, WHOSE, Board, Item, Refused
 from .claude import ClaudeCodeAgent, ClaudeCodeAgentConfig, ClaudeCodeSession
+from .clis import Cli, Command, Shelf
 from .codex import CodexAgent, CodexAgentConfig, CodexSession
 from .config import (
     CUTOFFS,
@@ -156,9 +157,11 @@ __all__ = [
     "ClaudeCodeAgent",
     "ClaudeCodeAgentConfig",
     "ClaudeCodeSession",
+    "Cli",
     "CodexAgent",
     "CodexAgentConfig",
     "CodexSession",
+    "Command",
     "CommandSessionBase",
     "CursorAgent",
     "CursorAgentConfig",
@@ -212,6 +215,7 @@ __all__ = [
     "Refused",
     "Saying",
     "SessionBase",
+    "Shelf",
     "Stopped",
     "StreamSessionBase",
     "Tool",

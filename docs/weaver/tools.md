@@ -33,8 +33,9 @@ for the answer. In a flow, that user is your flow:
    the turn carries on from there.
 
 The hook is the flow's own code, so it can take a turn of another agent, read the workspace, or
-call a whole flow before it answers. The agent's turn is paused meanwhile. `hmz.flows` has no
-other way to hand an agent a tool: the question is the tool.
+call a whole flow before it answers. The agent's turn is paused meanwhile. On Claude Code and
+Codex the flow can also hand the agent [a tool of its own](#fake-tools), which the agent calls
+by name rather than by asking.
 
 The agent only knows when to ask, and how to phrase it, from its prompt, so the flow says both.
 A fixed first word, like `review ` below, is the simplest way for the hook to tell one kind of
@@ -258,6 +259,46 @@ hmz exec: error: delegating: 'builder' needs AskUserHookAgentMixin, which mcode 
 ```
 
 See [Hooks › Declaring a mixin](/weaver/hooks#declaring-a-mixin).
+
+## A tool of the flow's own {#fake-tools}
+
+A `FakeTool` is a function of the flow's that the agent sees as one more tool. The role
+declares it in `_tools`, beside `_skills`, and takes `FakeToolAgentMixin`:
+
+```python
+import pydantic
+
+from hmz.flows import Agent, FakeTool, FakeToolAgentMixin
+
+
+class Review(pydantic.BaseModel):
+    path: str
+
+
+async def review(asked: Review) -> str:
+    return f"{asked.path} looks right"  # any flow code: a turn, a subflow, a file read
+
+
+class Builder(Agent, FakeToolAgentMixin):
+    _tools = (FakeTool("review", "Reviews one file and says what is wrong with it.", review, Review),)
+```
+
+| `FakeTool` field | |
+| --- | --- |
+| `name` | what the agent calls it; one name per role |
+| `about` | what it is for, the whole of what the model is told about when to use it |
+| `call` | the function, sync or async, given an instance of `takes` (nothing where `takes` is `None`) |
+| `takes` | the pydantic model of its arguments, or `None` |
+
+The function runs in the flow's process, on the flow's loop, as the flow; the agent's turn
+waits for it. A string it returns is what the agent reads, `None` reads `done`, anything else
+is sent as JSON. What it raises is the tool failing: the agent is told, and the turn and the
+flow go on. Every session of the role offers the tools, `derive` keeps them, and a flow the agent
+is handed on to offers the ones its own role declares instead.
+
+Only `claude` and `codex` serve `FakeToolAgentMixin`; any other CLI is refused before the first
+turn. In a test, a fake session calls one with `await session.use("review", {"path": "calc.py"})`,
+which answers what the agent would read.
 
 ## Variations
 
