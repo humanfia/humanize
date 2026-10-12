@@ -93,8 +93,8 @@ Beside the package, and bound by a spec of its own rather than by the requiremen
   `tests/integration/test_core_layering.py`, which MUST hold the table.
 - No two layers MUST name each other, but for one pair: `flows` MAY hand `flow`, `load` and
   `Outworlder.new` to `runtime/flowing`, importing it inside the call and never at import.
-  `flows` MUST import nothing else of humanize, and MUST be checked to do so rather than taken
-  on trust.
+  `flows` MUST import nothing else of humanize but `coganchor/faking`, the fake tool and fake
+  command line types it re-exports, and MUST be checked to do so rather than taken on trust.
 - `cli` MUST reach `runtime` by name. `tui` and `web` MUST each reach it through `daemon`, and
   `daemon` MUST offer it. What both of them work out of a run as it happens MUST be
   `runtime/watching`'s. `sdk` MUST be named by no layer.

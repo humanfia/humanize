@@ -9,7 +9,8 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, Field
 
-from hmz.coganchor.agents.clis import Cli, Command, Shelf
+from hmz.coganchor.agents.clis import Shelf
+from hmz.coganchor.faking import FakeCli, FakeCommand
 
 
 class Colour(enum.Enum):
@@ -31,14 +32,16 @@ def _filed(ticket: File) -> File:
     return ticket
 
 
-def _tix(*more: Command) -> Cli:
-    return Cli(
-        "tix", "Track tickets.", (Command("file", "File one.", _filed, File), *more)
+def _tix(*more: FakeCommand) -> FakeCli:
+    return FakeCli(
+        "tix", "Track tickets.", (FakeCommand("file", "File one.", _filed, File), *more)
     )
 
 
 def test_help_lists_what_it_is_for_and_every_command() -> None:
-    code, out, err = _tix(Command("list", "List them.", lambda: None)).run(["--help"])
+    code, out, err = _tix(FakeCommand("list", "List them.", lambda: None)).run(
+        ["--help"]
+    )
     assert (code, err) == (0, "")
     assert out.startswith("usage: tix ")
     assert "Track tickets." in out
@@ -131,7 +134,7 @@ def test_a_line_it_will_not_take_is_a_usage_error(argv: list[str], said: str) ->
 def test_what_the_function_answers_is_what_is_printed(
     answers: object, printed: str | None
 ) -> None:
-    cli = Cli("one", "One.", (Command("go", "Go.", lambda: answers),))
+    cli = FakeCli("one", "One.", (FakeCommand("go", "Go.", lambda: answers),))
     code, out, err = cli.run(["go"])
     assert (code, err) == (0, "")
     if printed is None:
@@ -144,13 +147,13 @@ def test_a_function_leaving_with_a_status_exits_with_it() -> None:
     def leaves(code: object) -> None:
         raise SystemExit(code)
 
-    cli = Cli(
+    cli = FakeCli(
         "one",
         "One.",
         (
-            Command("four", "4.", lambda: leaves(4)),
-            Command("none", "0.", lambda: leaves(None)),
-            Command("said", "1.", lambda: leaves("out of tickets")),
+            FakeCommand("four", "4.", lambda: leaves(4)),
+            FakeCommand("none", "0.", lambda: leaves(None)),
+            FakeCommand("said", "1.", lambda: leaves("out of tickets")),
         ),
     )
     assert cli.run(["four"]) == (4, "", "")
@@ -159,21 +162,25 @@ def test_a_function_leaving_with_a_status_exits_with_it() -> None:
 
 
 def test_a_function_that_raises_is_a_program_that_failed() -> None:
-    cli = Cli("one", "One.", (Command("go", "Go.", lambda: 1 / 0),))
+    cli = FakeCli("one", "One.", (FakeCommand("go", "Go.", lambda: 1 / 0),))
     assert cli.run(["go"]) == (1, "", "one: ZeroDivisionError: division by zero\n")
 
 
 @pytest.mark.parametrize("name", ["", "a/b", "-x", ".x", "a b"])
 def test_a_name_no_shell_could_run_is_refused(name: str) -> None:
     with pytest.raises(ValueError, match="not a name"):
-        Cli(name, "No.", (Command("go", "Go.", lambda: None),))
+        FakeCli(name, "No.", (FakeCommand("go", "Go.", lambda: None),))
 
 
 def test_a_command_line_needs_commands_each_named_once() -> None:
     with pytest.raises(ValueError, match="no commands"):
-        Cli("one", "One.", ())
+        FakeCli("one", "One.", ())
     with pytest.raises(ValueError, match="twice"):
-        Cli("one", "One.", (Command("go", "a", print), Command("go", "b", print)))
+        FakeCli(
+            "one",
+            "One.",
+            (FakeCommand("go", "a", print), FakeCommand("go", "b", print)),
+        )
 
 
 def test_a_shelf_nothing_was_shelved_on_has_nowhere_and_adds_nothing() -> None:
@@ -203,7 +210,7 @@ def _sized(one: Sized) -> Sized:
 
 
 def test_choices_that_are_not_words_and_aliased_fields_are_taken_as_typed() -> None:
-    cli = Cli("one", "One.", (Command("go", "Go.", _sized, Sized),))
+    cli = FakeCli("one", "One.", (FakeCommand("go", "Go.", _sized, Sized),))
     code, out, err = cli.run(["go", "--n", "2", "--size", "2", "--from-", "there"])
     assert (code, err) == (0, "")
     assert json.loads(out) == {"n": 2, "size": 2, "from_": "there"}

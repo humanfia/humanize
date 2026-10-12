@@ -89,6 +89,42 @@ async def scribed(task, *, agents, envs, params, ctx):
 """
 
 
+TRIAGED = """
+import pathlib
+
+import pydantic
+
+from hmz.flows import (
+    Agent, AgentCollection, EnvCollection, FakeCli, FakeCommand, FlowParams, flow,
+)
+
+
+class Ticket(pydantic.BaseModel):
+    title: str = pydantic.Field(description="What the ticket says.")
+
+
+async def file(ticket: Ticket) -> str:
+    pathlib.Path("filed.txt").write_text(ticket.title)
+    return f"filed {ticket.title}"
+
+
+class Triager(Agent):
+    _clis = (
+        FakeCli("tix", "Files tickets.", (FakeCommand("file", "Files one.", file, Ticket),)),
+    )
+
+
+class Agents(AgentCollection):
+    triager: Triager
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def triaged(task, *, agents, envs, params, ctx):
+    triager = agents["triager"]
+    return await triager.run(task, session=await triager.spawn())
+"""
+
+
 @pytest.fixture(autouse=True)
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return install(tmp_path, monkeypatch)
@@ -210,6 +246,38 @@ def test_an_agent_calling_a_flows_tool_runs_the_flows_function(
     assert ran.returncode == 0, ran.stderr
     assert ran.stdout.strip() == "tools: remember; said: noted hi"
     assert (project / "noted.txt").read_text() == "hi"
+
+
+def test_an_agent_running_a_flows_command_line_runs_the_flows_function(
+    tmp_path: Path, project: Path
+) -> None:
+    flow = write_flow(tmp_path / "flows", "triaged", TRIAGED)
+    argvs = [
+        ["tix", "--help"],
+        ["tix", "file", "--title", "x"],
+        ["tix", "file"],
+    ]
+
+    ran = hmz_exec(
+        "-f",
+        flow,
+        "-a",
+        f"triager={AGENT}",
+        "-p",
+        "budget.cost=1",
+        f"run: {json.dumps(argvs)}",
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    helped, filed, refused = json.loads(ran.stdout)
+    assert helped[0] == 0
+    assert helped[1].startswith("usage: tix")
+    assert "Files tickets." in helped[1]
+    assert "file" in helped[1]
+    assert filed == [0, "filed x\n", ""]
+    assert (project / "filed.txt").read_text() == "x"
+    assert refused[0] == 2
+    assert "required: --title" in refused[2]
 
 
 def test_an_env_role_works_where_its_e_names(tmp_path: Path) -> None:

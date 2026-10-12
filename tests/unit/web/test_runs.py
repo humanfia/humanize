@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.web.runs import held_by, sessions_of, spending
+from hmz.web.runs import held_by, refused, sessions_of, spending
 
 if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
@@ -150,3 +150,27 @@ def test_a_trace_is_read_as_each_sessions_actions_in_the_order_they_happened() -
     ]
     assert first[1]["at"] == "t3"
     assert first[1]["args"] == {"command": "ls"}
+
+
+@pytest.mark.parametrize(
+    ("said", "status", "named"),
+    [
+        (
+            "20261012T1015Z-ab12 is already here, at /h/epics/-w/20261012T1015Z-ab12",
+            409,
+            "20261012T1015Z-ab12",
+        ),
+        ("an epic is already here, at /h/epics/-w/an epic", 409, "an epic"),
+        ("a is already here, at /h/epics/-w/b", 400, None),
+        ("x.hmzepic is not a bundle humanize can read: not a gzip file", 400, None),
+        ("x.txt is not a .hmzepic file", 400, None),
+    ],
+)
+def test_an_import_refused_is_a_conflict_naming_the_epic_only_where_it_is_here(
+    said: str, status: int, named: str | None
+) -> None:
+    refusal = refused(ValueError(said))
+
+    assert refusal.status == status
+    assert str(refusal) == f"{said}."
+    assert refusal.said.get("name") == named

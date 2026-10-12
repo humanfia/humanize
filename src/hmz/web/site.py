@@ -21,17 +21,20 @@ import errno
 import hashlib
 import ipaddress
 import json
+import os
 import secrets
 import shutil
 import socket
 import string
 import sys
+import tempfile
 import threading
 import traceback
 import urllib.parse
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from . import (
@@ -46,10 +49,10 @@ from . import (
     settings,
     verses,
 )
-from .routing import Asked, Download, Refusal, Route, Stream
+from .routing import Asked, Download, Made, Refusal, Route, Stream
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Generator
 
     from .places import Places
     from .runs import Runs
@@ -76,8 +79,20 @@ _PORTS = 8
 #: What binding IPv6's loopback fails with on a machine that has none.
 _NO_IPV6 = frozenset({errno.EADDRNOTAVAIL, errno.EAFNOSUPPORT})
 
-#: The most a write may send.
+#: The most a write may send as JSON.
 _LARGEST = 1 << 20
+
+#: The most a write may send as a file.
+_LARGEST_FILE = 2 << 30
+
+#: How much of a file sent is read at a time.
+_CHUNK = 1 << 20
+
+#: The header a file sent says its name in.
+_FILENAME = "X-Hmz-Filename"
+
+#: The longest name a file sent may have, in bytes, as a file system takes one.
+_NAMED = 255
 
 #: What each kind of file the page is made of is served as.
 _KINDS = {
@@ -257,7 +272,7 @@ class _Handler(BaseHTTPRequestHandler):
             # What a refused write sent may not have been read: it is no next request.
             if method == "POST":
                 self.close_connection = True
-            self._json({"error": str(why)}, why.status)
+            self._json({"error": str(why)} | why.said, why.status)
         except (BrokenPipeError, ConnectionResetError):
             self.close_connection = True
 
@@ -344,16 +359,13 @@ class _Handler(BaseHTTPRequestHandler):
             )
         if not self._asked_here():
             raise Refusal("Use this server's own page to make this request.", 403)
-        body: dict[str, Any] = {}
-        if method == "POST":
-            body = self._body()
         for route in ROUTES:
             matched = route.match(method, path)
             if matched is None:
                 continue
-            asked = Asked(self.site, matched, query, body)
             try:
-                answer = route.answers(asked)
+                with self._sent(method, route) as (body, file):
+                    answer = route.answers(Asked(self.site, matched, query, body, file))
             except Refusal:
                 raise
             except Exception as why:
@@ -363,6 +375,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._streams(answer, query)
             elif isinstance(answer, Download):
                 self._downloads(answer)
+            elif isinstance(answer, Made):
+                self._json(answer.answer, HTTPStatus.CREATED)
             else:
                 self._json(answer)
             return
@@ -373,20 +387,52 @@ class _Handler(BaseHTTPRequestHandler):
         )
         raise Refusal("There is nothing here by that name.", 405 if known else 404)
 
-    def _body(self) -> dict[str, Any]:
-        """What a write sent, which must come from this server's own page and be JSON."""
+    @contextlib.contextmanager
+    def _sent(
+        self, method: str, route: Route
+    ) -> Generator[tuple[dict[str, Any], Path | None]]:
+        """What a write sent, which must come from this server's own page: JSON, or a file.
+
+        A file is taken only by a route that takes one, sent as the kind it takes or as bytes,
+        and is kept until the route has answered.
+
+        Yields:
+          The JSON sent, and the file, or None.
+        """
+        if method != "POST":
+            yield {}, None
+            return
         if not self._from_its_page():
             raise Refusal("Use this server's own page to make this request.", 403)
-        if not self.headers.get("Content-Type", "").startswith("application/json"):
+        kind = self.headers.get("Content-Type", "").partition(";")[0].strip()
+        if route.file and kind in (route.file, "application/octet-stream"):
+            from hmz import machine
+
+            scratch = Path(tempfile.mkdtemp(dir=machine()))
+            try:
+                yield {}, self._file_sent(scratch)
+            finally:
+                shutil.rmtree(scratch, ignore_errors=True)
+            return
+        if kind != "application/json":
             raise Refusal("Send JSON.", 415)
+        yield self._body(), None
+
+    def _length(self, largest: int) -> int:
+        """How long what a write sent says it is, no longer than `largest`."""
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError as why:
             raise Refusal("Say how long what is sent is.", 411) from why
         if length < 0:
             raise Refusal("Say how long what is sent is.", 411)
-        if length > _LARGEST:
+        if length > largest:
             raise Refusal("That is more than a request here may send.", 413)
+        return length
+
+    def _body(self) -> dict[str, Any]:
+        """What a write sent as JSON."""
+        length = self._length(_LARGEST)
         try:
             said = json.loads(self.rfile.read(length) or b"{}")
         except (ValueError, RecursionError) as why:
@@ -394,6 +440,31 @@ class _Handler(BaseHTTPRequestHandler):
         if not isinstance(said, dict):
             raise Refusal("Send a JSON object.", 400)
         return dict(said)  # pyright: ignore[reportUnknownArgumentType]
+
+    def _file_sent(self, scratch: Path) -> Path:
+        """A file a write sent, written into `scratch` under the name it was sent as.
+
+        The name is said, percent-encoded, in `X-Hmz-Filename`.
+        """
+        name = os.path.basename(urllib.parse.unquote(self.headers.get(_FILENAME, "")))  # noqa: PTH119
+        # Its last part, and nothing that would put it anywhere but straight in `scratch`.
+        at = os.path.normpath(os.path.join(scratch, name))  # noqa: PTH118
+        if (
+            not at.startswith(f"{scratch}{os.sep}")
+            or os.sep in at.removeprefix(f"{scratch}{os.sep}")
+            or "\0" in at
+            or len(name.encode()) > _NAMED
+        ):
+            raise Refusal(f"Say the file's name in {_FILENAME}.", 400)
+        left = self._length(_LARGEST_FILE)
+        with open(at, "wb") as written:  # noqa: PTH123
+            while left:
+                read = self.rfile.read(min(left, _CHUNK))
+                if not read:
+                    raise Refusal("The file sent was cut short.", 400)
+                written.write(read)
+                left -= len(read)
+        return Path(at)
 
     def _json(self, answer: Any, status: int = 200) -> None:
         body = json.dumps(

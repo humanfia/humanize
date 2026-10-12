@@ -62,11 +62,11 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **An epic** | Its graph: who handed to whom -- a `chat` opens on its conversation instead | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: every place flows come from, and every release each index lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
-| **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task |
+| **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar names this machine and says how many epics are going on it;
-its menu opens **Settings**, **Usage** and **Download**, which downloads an epic out of a
+its menu opens **Import**, **Settings**, **Usage** and **Download**, which downloads an epic out of a
 [backup target](/user/backups#downloading-an-epic). Where a newer humanize is out, the machine is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
@@ -159,10 +159,66 @@ spent, and how long it took, with how much of that was spent working.
 - **Upload** (the up arrow at the top, or in the epic's menu) backs it up now to the targets it
   was started with, else the defaults, and says which at once; hover it for how its last
   backup to each target went. See [Backing epics up](/user/backups).
-- **Not resumable here**, beside how it went, marks an epic downloaded or imported from a
-  directory this machine has not got as it was; hover it for why.
 - **Pick it up** opens a new epic on it, where its flow can be picked up. See
   [Picking a run up](/user/resuming).
+
+### Exomyth {#exomyth}
+
+**Exomyth** (the chart at the top of an epic, its row under the epic in the sidebar, or its
+menu) lays the epic out over time, as [Perfetto](https://ui.perfetto.dev) lays out a trace --
+but with **every session its own process**, under the session or the flow that started it. It
+reads the epic's [timeline](/reference/tracing#timeline) out of the logs its agents kept; an
+epic still going is read again every two seconds while the tab is shown.
+
+- **Timeline.** The epic's flows, each session and each program a [profiled](/user/tracing)
+  epic ran, a row each, with a track per lane of its spans: sessions, turns, model calls,
+  tools, messages and events, each category in its colour. The triangle by a name folds a
+  process to one row; **Expand** and **Collapse** do every one. **Arrows** shows what started
+  each process.
+- **Flame.** The same spans as a flame graph, over the stretch picked on the Timeline or the
+  whole epic: under the epic, each agent (its role) with its sessions merged -- **Merge
+  sessions** off puts each session apart -- or each flow or program, then its turns and what
+  they did, by name. Weigh it by **Time**, **Tokens in**, **Tokens out** or **Count**; **Bottom
+  up** turns it into a flame. Under it, **Slices** sums every name: count, total and own time,
+  average, p50, p95 and longest, and tokens.
+
+| Do (Timeline) | To |
+| --- | --- |
+| <kbd>W</kbd> / <kbd>S</kbd>, or <kbd>Ctrl</kbd>+wheel, or a pinch | Zoom in and out where the pointer is |
+| <kbd>A</kbd> / <kbd>D</kbd>, or a sideways or <kbd>Shift</kbd>+wheel | Pan |
+| Wheel | Scroll through the processes |
+| Click a span | Pick it: the panel says what it is and what it carried |
+| Double-click a span, or <kbd>F</kbd> | Zoom to the span or process picked |
+| Drag across the chart or the ruler | Pick a stretch of time: how long, and the spans and tokens in it by category |
+| <kbd>/</kbd> | Find spans by their name; <kbd>Enter</kbd> or <kbd>N</kbd> goes to the next, <kbd>Shift</kbd>+<kbd>Enter</kbd> or <kbd>Shift</kbd>+<kbd>N</kbd> the one before |
+| <kbd>0</kbd> or <kbd>Home</kbd> | Show the whole epic |
+| <kbd>Esc</kbd> | Let go of what is picked |
+
+| Do (Flame) | To |
+| --- | --- |
+| Point at a frame | Its total, its own, its share of the whole and how many spans |
+| Click a frame | Zoom to it; click one above it, or a name in the crumbs, to zoom back out |
+| <kbd>Esc</kbd> | Zoom out a level |
+| <kbd>/</kbd> | Light the frames whose name holds the words, and say what share of the whole they hold |
+| Click a column's heading | Sort the slices by it; again, the other way |
+| Click a slice | Light its frames; **Show in timeline** finds it on the Timeline |
+
+With nothing picked, the panel says the epic's figures, each category's spans, time and
+tokens, and every process -- click one to pick it.
+
+### Importing an epic {#importing-an-epic}
+
+Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or in the machine's menu at
+the foot of the sidebar, or right-click between the epics in the sidebar, and pick the file --
+or drop it anywhere on the window. It is read back in under the directory it ran in, and opens
+once it is in. One you already have is refused, with **Open** to go to it.
+
+An imported epic is read as any other. It is picked up only where the directory it ran in is
+here at the same path, holding the commit its archive says; otherwise it says why under it,
+`Imported · not resumable here: …`, and offers no **Resume**. A `.hmzepic` already on this
+machine is imported by its address too, `#/epics/import?path=<file>`, once you press **Import**
+under its path, and opens on its [Exomyth](#exomyth) -- as the [macOS app](/user/desktop#opening-a-hmzepic)
+opens one you double-click. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 

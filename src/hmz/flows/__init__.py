@@ -32,13 +32,17 @@ in and the params it takes, and is handed exactly those::
 What is here is types: the protocols a flow's agents, environments, sessions and context
 answer to (:mod:`~hmz.flows.agents`, :mod:`~hmz.flows.envs`, :mod:`~hmz.flows.defining`),
 the moments a hook is hung on (:mod:`~hmz.flows.hooks`), and everything a flow can catch
-(:mod:`~hmz.flows.errors`). The objects a flow is handed are the runtime's, and answer to
-these structurally. Three things here do run: :func:`flow`, :func:`load` and
-`Outworlder.new`, each of which hands its call to :mod:`hmz.runtime.flowing` when it is made
--- so importing this costs pydantic and nothing of humanize's own.
+(:mod:`~hmz.flows.errors`), with the fake tools and command lines a role hands its agent,
+which are :mod:`hmz.coganchor.faking`'s own -- one type each, whichever side holds it. The
+objects a flow is handed are the runtime's, and answer to these structurally. Three things here
+do run: :func:`flow`, :func:`load` and `Outworlder.new`, each of which hands its call to
+:mod:`hmz.runtime.flowing` when it is made -- so importing this costs pydantic and nothing of
+humanize's own but that one light module.
 """
 
 from __future__ import annotations
+
+from hmz.coganchor.faking import FakeCli, FakeCommand, FakeTool
 
 from .agents import (
     HARNESS_AGENTS,
@@ -51,7 +55,6 @@ from .agents import (
     CodexAgent,
     CursorAgent,
     DeepSeekHarnessAgent,
-    FakeTool,
     FakeToolAgentMixin,
     GoalCommandAgentMixin,
     GrokBuildAgent,
@@ -203,6 +206,8 @@ __all__ = [
     "EnvFileNotFound",
     "EnvPermissionDenied",
     "EnvUnavailable",
+    "FakeCli",
+    "FakeCommand",
     "FakeTool",
     "FakeToolAgentMixin",
     "FilesEnvMixin",

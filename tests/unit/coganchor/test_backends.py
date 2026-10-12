@@ -51,6 +51,39 @@ def test_every_profile_is_well_formed(profile: Profile) -> None:
         assert host == host.lower()
         assert "/" not in host
         assert "*" not in host.removeprefix("*.")
+    assert not profile.routes or profile.routes in {one.name for one in profile.ways}
+
+
+def test_a_backend_that_routes_takes_every_way_litellm_has_through_a_gateway() -> None:
+    claude = backends.named("claude")
+    litellm = backends.named("litellm")
+    assert claude is not None
+    assert litellm is not None
+
+    through = backends.routed(claude)
+
+    assert [one.name for one in through] == [
+        f"{backends.ROUTED}{one.name}" for one in litellm.ways
+    ]
+    assert [one.asks for one in through] == [one.asks for one in litellm.ways]
+    assert [one.sets for one in through] == [one.sets for one in litellm.ways]
+    assert all(not one.argv and not one.args for one in through)
+
+
+def test_a_backend_that_does_not_route_takes_no_way_through_a_gateway() -> None:
+    codex = backends.named("codex")
+    assert codex is not None
+    assert backends.routed(codex) == ()
+
+
+@pytest.mark.parametrize(
+    ("way", "expected"),
+    [("litellm-openai-key", "openai-key"), ("anthropic-gateway", ""), ("", "")],
+)
+def test_a_way_through_a_gateway_says_which_of_litellms_it_is(
+    way: str, expected: str
+) -> None:
+    assert backends.upstream(way) == expected
 
 
 @pytest.mark.parametrize("profile", PROFILES, ids=_named)

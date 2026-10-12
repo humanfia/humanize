@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic import BaseModel
 
-from hmz.coganchor.agents import Failed, QwenCodeAgent, QwenCodeAgentConfig, Tool
+from hmz.coganchor.agents import Failed, FakeTool, QwenCodeAgent, QwenCodeAgentConfig
 from tests.integration.doubles_agents import Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -182,11 +182,11 @@ def test_a_tool_of_the_flows_own_is_reached_through_the_settings_file(
         return said.word.lower()
 
     session = QwenCodeAgent(CONFIG).new()
-    session.offers([Tool("shout", "Shouts a word.", shout, Word)])
+    session.offers([FakeTool("shout", "Shouts a word.", shout, Word)])
 
     assert session("tool shout hello") == "shout:HELLO"
     assert heard == ["hello"]
 
-    session.offers([Tool("whisper", "Whispers a word.", whisper, Word)])
+    session.offers([FakeTool("whisper", "Whispers a word.", whisper, Word)])
     assert session("tool whisper HI") == "whisper:hi"
     assert len({one.pid for one in qwen.calls()}) == 2

@@ -19,6 +19,7 @@ class _Role:
     harness: HarnessKind | None = None
     capabilities: frozenset[type] = frozenset()
     auto: bool = False
+    clis: tuple[object, ...] = ()
 
 
 def role(

@@ -981,6 +981,37 @@ code {
   box-shadow: 3px 3px 0 var(--pink);
 }
 
+/* A toast that stays: an import going, or why it failed, until the next or until closed. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(640px, calc(100vw - 32px));
+}
+
+.notice .error {
+  margin: 0;
+  padding: 0 0 0 8px;
+  background: none;
+  color: inherit;
+  font-weight: 500;
+}
+
+.notice a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.notice .icon-btn {
+  color: inherit;
+}
+
+/* A file dragged over the window, which takes a .hmzepic dropped anywhere on it. */
+body.dropping .app {
+  outline: 3px dashed var(--pink);
+  outline-offset: -3px;
+}
+
 /* The page's own parts are not text to select; what it says is. */
 .sidebar,
 .bar,
@@ -2839,6 +2870,242 @@ details.said-more summary {
 [data-hmz='outworlder'] {
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
+}
+
+/* ------------------------------------------------------------------ Exomyth
+
+   An epic's timeline: the tabs and tools over it, the canvas it is drawn on -- held at the top
+   of a column as tall as every process laid out, so the page's own scrollbar scrolls it -- and
+   the panel beside. The canvas reads its colours off the tokens above, the categories' keys in
+   the panel the same ones. */
+
+.exo-tools {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  padding: 0 16px;
+  border-bottom: 2px solid var(--ink);
+  background: var(--paper);
+}
+
+.exo-tools .tabs {
+  border-bottom: 0;
+}
+
+.exo-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 0;
+}
+
+.exo-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+  color: var(--ink-3);
+}
+
+.exo-search .exo-find {
+  width: 160px;
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  outline: none;
+}
+
+.exo-search .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+.exo-found {
+  min-width: 3ch;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.exo-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.exo-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  outline: none;
+}
+
+.exo-canvas {
+  position: sticky;
+  top: 0;
+  display: block;
+  touch-action: none;
+}
+
+.exo-spacer {
+  width: 1px;
+}
+
+.exo-flame {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 16px 16px;
+}
+
+.exo-flame-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.exo-crumbs {
+  margin: 8px 0 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.exo-crumbs [aria-current] {
+  font-weight: 600;
+}
+
+.exo-flame-box {
+  border: 1px solid var(--line-strong);
+}
+
+.exo-flame-canvas {
+  display: block;
+}
+
+.exo-stats {
+  margin-top: 16px;
+}
+
+.exo-stats-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+}
+
+.exo-stats-head h3 {
+  margin: 0;
+}
+
+.exo-stats th {
+  padding: 0;
+}
+
+.exo-sort {
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.exo-row {
+  cursor: pointer;
+}
+
+.exo-row:hover td {
+  background: var(--hover);
+}
+
+.exo-row.chosen td {
+  background: var(--hover);
+  box-shadow: inset 0 -2px 0 var(--pink);
+}
+
+.exo-more {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.exo-tip {
+  white-space: pre-line;
+}
+
+.exo-name {
+  margin: 0 0 10px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.exo-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.exo-link:hover {
+  text-decoration: underline;
+}
+
+pre.exo-args {
+  max-height: 50vh;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.exo-key {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  background: var(--lane-6);
+}
+
+.exo-flow {
+  background: var(--primary);
+}
+
+.exo-session,
+.exo-process {
+  background: var(--lane-3);
+}
+
+.exo-turn {
+  background: var(--lane-1);
+}
+
+.exo-llm {
+  background: var(--lane-2);
+}
+
+.exo-tool {
+  background: var(--lane-4);
+}
+
+.exo-message {
+  background: var(--lane-5);
 }
 
 /* ------------------------------------------------------------------ flows */
