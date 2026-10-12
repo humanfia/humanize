@@ -180,3 +180,21 @@ def test_a_command_line_taken_back_is_not_found_and_the_shelf_goes_with_the_agen
     session.close()
     agent.shelf.close()
     assert not Path(where).exists()
+    assert agent.shelf.empty()
+
+
+class Helpless(BaseModel):
+    help: str
+
+
+def test_a_command_line_no_parser_can_be_built_for_fails_rather_than_hangs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = standins(tmp_path, monkeypatch)
+    held.install("cursor-agent", CURSOR)
+    session = CursorAgent(CURSORED).new()
+    session.shelves([Cli("odd", "Odd.", (Command("go", "Go.", print, Helpless),))])
+
+    ran = _ran(session, "odd go --help")
+    assert ran["code"] == 1
+    assert "odd: ArgumentError" in str(ran["err"])

@@ -185,3 +185,28 @@ def test_a_shelf_nothing_was_shelved_on_has_nowhere_and_adds_nothing() -> None:
     assert shelf.environ({"PATH": "/bin"}) == {}
     shelf.close()
     shelf.close()
+
+
+class Size(enum.Enum):
+    SMALL = 1
+    LARGE = 2
+
+
+class Sized(BaseModel):
+    n: Literal[1, 2]
+    size: Size = Size.SMALL
+    from_: str = Field("here", alias="from")
+
+
+def _sized(one: Sized) -> Sized:
+    return one
+
+
+def test_choices_that_are_not_words_and_aliased_fields_are_taken_as_typed() -> None:
+    cli = Cli("one", "One.", (Command("go", "Go.", _sized, Sized),))
+    code, out, err = cli.run(["go", "--n", "2", "--size", "2", "--from-", "there"])
+    assert (code, err) == (0, "")
+    assert json.loads(out) == {"n": 2, "size": 2, "from_": "there"}
+    code, _, err = cli.run(["go", "--n", "3"])
+    assert code == 2
+    assert "invalid choice: '3'" in err

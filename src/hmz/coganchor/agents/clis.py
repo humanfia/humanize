@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import enum
+import functools
 import io
 import json
 import os
@@ -138,7 +139,11 @@ class Cli:
             named = given.pop("_command")
             command = next(one for one in self.commands if one.name == named)
             try:
-                taken = None if command.takes is None else command.takes(**given)
+                taken = (
+                    None
+                    if command.takes is None
+                    else command.takes.model_validate(given, by_name=True)
+                )
             except ValidationError as why:
                 parsers[command.name].error(_refused(why))
         except _Exited as exited:
@@ -274,7 +279,8 @@ def _options(parser: argparse.ArgumentParser, model: type[BaseModel]) -> None:
         if kind is bool and not many:
             options["action"] = argparse.BooleanOptionalAction
         elif choices := _choices(kind):
-            options["choices"] = choices
+            options["choices"] = list(choices.values())
+            options["type"] = functools.partial(_chosen, choices)
         else:
             options["metavar"] = name.upper()
         if many:
@@ -306,17 +312,23 @@ def _shape(annotation: Any) -> tuple[Any, bool]:
     return annotation, False
 
 
-def _choices(kind: Any) -> list[str] | None:
-    """The values a field may take as typed, where it may take only some.
+def _choices(kind: Any) -> dict[str, Any] | None:
+    """The values a field may take, by how each is typed, where it may take only some.
 
     Returns:
-      Each value of a `Literal` or an `Enum`, as it is typed, or None for any other type.
+      Each value of a `Literal` or an `Enum`, or None for any other type. By the words
+      rather than as the words, since `Literal[1, 2]` is a field that refuses `"1"`.
     """
     if get_origin(kind) is Literal:
-        return [str(one) for one in get_args(kind)]
+        return {str(one): one for one in get_args(kind)}
     if isinstance(kind, type) and issubclass(kind, enum.Enum):
-        return [str(one.value) for one in kind]
+        return {str(one.value): one.value for one in kind}
     return None
+
+
+def _chosen(choices: Mapping[str, Any], typed: str) -> Any:
+    """The choice a word is, or the word itself where it is none, for the parser to refuse."""
+    return choices.get(typed, typed)
 
 
 class Shelf:
@@ -400,6 +412,7 @@ class Shelf:
         """Stops serving, and takes the directory away. Doing it twice does it once."""
         self._closed.set()
         with self._lock:
+            self._held.clear()
             sock, self._sock = self._sock, None
             where, self._where = self._where, None
         if sock is not None:
@@ -496,7 +509,12 @@ class Shelf:
                 # command it cannot find.
                 code, out, err = 127, "", f"{name}: command not found\n"
             else:
-                code, out, err = cli.run(argv)
+                try:
+                    code, out, err = cli.run(argv)
+                except Exception as why:  # noqa: BLE001 -- a program that failed, not the flow
+                    # A model no parser can be built from -- a field called `help` -- among
+                    # whatever else: the run fails rather than the thread answering it.
+                    code, out, err = 1, "", f"{name}: {type(why).__name__}: {why}\n"
             with contextlib.suppress(OSError):
                 stream.write(
                     (json.dumps({"code": code, "out": out, "err": err}) + "\n").encode()

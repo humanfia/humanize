@@ -565,6 +565,8 @@ class DshSession(SessionBase):
         # anchored one, which works in a mirror the anchor makes once it is running and
         # starts it in: the anchor is started wherever there is a directory to start it in.
         started = where if self._agent.anchor is None else _nearest(where)
+        # Where the shelf was, read before the environment is built out of it.
+        pathed = self._agent.shelf.where()
         # An account is the whole of what a turn under it runs on: its key, and the endpoint
         # to send that key to where the account was made by a gateway way. The layers an
         # installed dsh reads -- its `settings.yaml`, its credential store, the project's
@@ -684,7 +686,7 @@ class DshSession(SessionBase):
         self._harness, self._composition = harness, written
         self._runtime_effort = effort
         self._runtime_composition = composition
-        self._as, self._pathed = self._agent.node().name, self._agent.shelf.where()
+        self._as, self._pathed = self._agent.node().name, pathed
         self._reaper = weakref.finalize(self, harness.close)
         return harness
 
