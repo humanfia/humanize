@@ -324,6 +324,9 @@ include = ["src", "tests"]
 exclude = ["tests/system/sample"]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
+# As CI checks it, on any machine: the fences and the sandbox call what only Linux's `os`
+# and `socket` have, catching the `AttributeError` elsewhere, which a check on a Mac refuses.
+pythonPlatform = "Linux"
 venvPath = "."
 venv = ".venv"
 # The only checker here is pyright, so a suppression names a pyright rule.
