@@ -1,7 +1,7 @@
 """What a flow declares, read off its collections: one role apiece, and what each asks for.
 
 A flow says what it needs by the types of its `AgentCollection` and `EnvCollection` keys, and
-by the mixins, permission, skills and resources those types carry. That is read here, once
+by the mixins, permission, skills, tools and resources those types carry. That is read here, once
 per collection and once per declared type, into :class:`AgentRole` and :class:`EnvRole` --
 plain values the engine checks what a caller passes against, and the ways in draw pickers
 from, without either of them touching an annotation again.
@@ -20,7 +20,7 @@ import re
 import sys
 import typing
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, ForwardRef
+from typing import TYPE_CHECKING, Any, ForwardRef, cast
 
 import typing_extensions
 
@@ -31,6 +31,8 @@ from hmz.flows import (
     CPUEnvMixin,
     Env,
     EnvCollection,
+    FakeTool,
+    FakeToolAgentMixin,
     FlowDefinitionError,
     FlowParams,
     GPUEnvMixin,
@@ -86,11 +88,13 @@ class Grant:
       capabilities: The mixins it may use.
       permission: What an agent's sessions run under; unused for an environment.
       skills: The skills an agent's sessions are given, as the role names them.
+      tools: The flow's tools an agent's sessions offer, as the role declares them.
     """
 
     capabilities: frozenset[type]
     permission: Permission = _NO_PERMISSION
     skills: tuple[str, ...] = ()
+    tools: tuple[FakeTool, ...] = ()
 
     @classmethod
     def of(
@@ -98,22 +102,25 @@ class Grant:
         capabilities: frozenset[type],
         permission: Permission = _NO_PERMISSION,
         skills: tuple[str, ...] = (),
+        tools: tuple[FakeTool, ...] = (),
     ) -> Grant:
-        """The one grant of these capabilities, permission and skills.
+        """The one grant of these capabilities, permission, skills and tools.
 
         Grants are compared by identity where it counts -- a role remembers what it made of
         each grant it was offered -- so equal ones are the same object, and a run, a
         `derive` or a thousand of either make no new ones.
         """
-        key = (capabilities, permission, skills)
+        key = (capabilities, permission, skills, tools)
         grant = _GRANTS.get(key)
         if grant is None:
-            grant = _GRANTS[key] = cls(capabilities, permission, skills)
+            grant = _GRANTS[key] = cls(capabilities, permission, skills, tools)
         return grant
 
 
 #: Every grant made, by what it grants.
-_GRANTS: dict[tuple[frozenset[type], Permission, tuple[str, ...]], Grant] = {}
+_GRANTS: dict[
+    tuple[frozenset[type], Permission, tuple[str, ...], tuple[FakeTool, ...]], Grant
+] = {}
 
 
 #: Why a grant offered for a role does not meet it -- the exception to raise and what to
@@ -134,6 +141,7 @@ class AgentRole:
       capabilities: The agent mixins it asks for.
       permission: What its sessions run under, and the least an agent given for it holds.
       skills: The skills its sessions are given, as it names them.
+      tools: The flow's tools its sessions offer, as it declares them.
       grant: What a view of an agent filling it is granted.
     """
 
@@ -145,6 +153,7 @@ class AgentRole:
     capabilities: frozenset[type]
     permission: Permission
     skills: tuple[str, ...]
+    tools: tuple[FakeTool, ...]
     grant: Grant
     #: What a grant offered for this role came to, by the grant: None where it meets the
     #: role, else the refusal -- so that a caller passing the same kind of agent a
@@ -364,7 +373,9 @@ def agent_roles(
             raise FlowDefinitionError(
                 f"{collection.__qualname__}.{name}: {declared!r} is not an Agent"
             )
-        auto, harness, capabilities, permission, skills, grant = _agent_type(declared)
+        auto, harness, capabilities, permission, skills, tools, grant = _agent_type(
+            declared
+        )
         roles.append(
             AgentRole(
                 name=name,
@@ -375,6 +386,7 @@ def agent_roles(
                 capabilities=capabilities,
                 permission=permission,
                 skills=skills,
+                tools=tools,
                 grant=grant,
             )
         )
@@ -498,6 +510,7 @@ _AGENT_TYPES: dict[
         frozenset[type],
         Permission,
         tuple[str, ...],
+        tuple[FakeTool, ...],
         Grant,
     ],
 ] = {}
@@ -517,7 +530,13 @@ _HARNESSES = {
 def _agent_type(
     declared: type,
 ) -> tuple[
-    bool, HarnessKind | None, frozenset[type], Permission, tuple[str, ...], Grant
+    bool,
+    HarnessKind | None,
+    frozenset[type],
+    Permission,
+    tuple[str, ...],
+    tuple[FakeTool, ...],
+    Grant,
 ]:
     """What one agent type asks for, read off its bases and class attributes."""
     known = _AGENT_TYPES.get(declared)
@@ -550,13 +569,25 @@ def _agent_type(
     ):
         raise FlowDefinitionError(f"{where}._skills is not a tuple of skill names")
     named = tuple(str(one) for one in skills)  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+    tools: object = getattr(declared, "_tools", ())
+    if not isinstance(tools, (tuple, list)) or not all(
+        isinstance(one, FakeTool)
+        for one in tools  # pyright: ignore[reportUnknownVariableType]
+    ):
+        raise FlowDefinitionError(f"{where}._tools is not a tuple of FakeTool")
+    offered = tuple(cast("list[FakeTool]", tools))
+    if len({one.name for one in offered}) < len(offered):
+        raise FlowDefinitionError(f"{where}._tools names one tool twice")
+    if offered and FakeToolAgentMixin not in capabilities:
+        raise FlowDefinitionError(f"{where}._tools needs FakeToolAgentMixin")
     known = (
         auto,
         harnesses[0] if harnesses else None,
         capabilities,
         permission,
         named,
-        Grant.of(capabilities, permission, named),
+        offered,
+        Grant.of(capabilities, permission, named, offered),
     )
     _AGENT_TYPES[declared] = known
     return known

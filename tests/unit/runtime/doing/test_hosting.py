@@ -143,6 +143,7 @@ class FakeRun:
 
     flow: str = "ralph"
     ref: str = "official/ralph"
+    chats: bool = False
     declaration: Declaration = field(default_factory=Declaration)
     budget: Budget = field(default_factory=lambda: Budget(cost=2.0))
     usage: Usage = field(default_factory=lambda: Usage(cost=0.5))
@@ -1074,6 +1075,80 @@ def test_what_to_say_next_is_answered_by_the_oldest_line_waiting(
     assert asking.done.wait(PATIENCE)
     assert asking.answer == "carry on"
     assert alice.told("asked", run=1)["mode"] == "listen"
+    run.released.set()
+
+
+@pytest.mark.parametrize("to", ["builder", "builder/1"])
+def test_a_line_said_to_a_conversation_between_turns_answers_what_to_say_next(
+    to: str, host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
+    run = _started(alice, where)
+    agent, session = Agent(), Session()
+    _opened(run, agent, session)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, Question("what next?"))
+    asked = alice.told("asked", run=1)
+    assert (asked["mode"], asked["key"]) == ("listen", "")
+
+    alice.asks("say", text="tell me more", to=to)
+
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer == "tell me more"
+    # The turn it starts is about it already, and takes it no second time.
+    assert cast("Callable[[], list[str]]", agent.waiting)() == []
+    run.released.set()
+
+
+def test_a_line_said_to_a_conversation_between_turns_of_another_flow_waits_for_its_turn(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    agent, session = Agent(), Session()
+    _opened(run, agent, session)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, Question("which budget?"))
+    alice.told("asked", run=1)
+
+    alice.asks("say", text="next time", to="builder/1")
+    alice.waits(
+        lambda one: (
+            one["type"] == "waiting"
+            and [each["text"] for each in one["queued"]] == ["next time"]
+        )
+    )
+
+    assert not asking.done.wait(0.3)
+    alice.asks("say", text="two", to="outworlder:outworlder")
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer == "two"
+    assert cast("Callable[[], list[str]]", agent.waiting)() == ["next time"]
+    run.released.set()
+
+
+def test_a_line_said_to_a_conversation_working_is_no_answer(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    agent, session = Agent(), Session()
+    _opened(run, agent, session)
+    _heard(run, agent, session, Event("begins"))
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, Question("which?", ("a", "b")))
+    asked = alice.told("asked", run=1)
+    assert (asked["mode"], asked["key"]) == ("ask", "builder/1")
+    pending = alice.waits(lambda one: one["type"] == "pending" and one["pending"])
+    assert pending["pending"][0]["key"] == "builder/1"
+
+    alice.asks("say", text="for the turn", to="builder/1")
+
+    assert session.given.wait(PATIENCE)
+    assert not asking.done.is_set()
+    alice.asks("answer", question=asked["question"], text="a")
+    assert asking.done.wait(PATIENCE)
     run.released.set()
 
 

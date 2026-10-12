@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import socket
+import subprocess
 import urllib.parse
 from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.integration.doubles_core import install
+from hmz import home
+from hmz.runtime import backing
+from tests.integration.doubles_core import AGENT, hmz_exec, install
 from tests.integration.doubles_web import Browser, served
 
 if TYPE_CHECKING:
@@ -230,3 +233,80 @@ def test_an_account_is_corrected_without_its_values_being_shown(project: Path) -
             "/api/accounts/correct", {"cli": "claude", "name": "nobody", "answers": {}}
         )
         assert missing.status == 404
+
+
+def test_backup_targets_are_written_and_read_with_nothing_signed_into_them(
+    project: Path,
+) -> None:
+    secret = "https://me:hunter2@example.com/epics.git"
+    lab = {"name": "lab", "url": secret, "policies": ["end", "interval"], "every": 5}
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+
+        written = browser.post(
+            "/api/settings", {"backup": {"targets": [lab], "defaults": ["lab"]}}
+        )
+
+        assert written.status == 200, written.body
+        said = written.json()["backup"]
+        assert said == {
+            "targets": [
+                {
+                    "name": "lab",
+                    "url": "https://***@example.com/epics.git",
+                    "branch": "main",
+                    "policies": ["end", "interval"],
+                    "every": 5,
+                }
+            ],
+            "defaults": ["lab"],
+        }
+        assert "hunter2" not in browser.get("/api/settings").body.decode()
+
+        # Sent back as it was shown, the URL is the one written; a bad target writes nothing.
+        kept = said["targets"][0] | {"branch": "epics"}
+        sent = {"backup": {"targets": [kept], "defaults": []}}
+        assert browser.post("/api/settings", sent).status == 200
+        bad = browser.post(
+            "/api/settings",
+            {"backup": {"targets": [kept | {"policies": ["never"]}]}, "details": True},
+        )
+        assert bad.status == 400
+        moved = {"targets": [kept | {"name": "elsewhere"}]}
+        assert browser.post("/api/settings", {"backup": moved}).status == 400
+        file = (home() / "settings.yaml").read_text()
+        assert secret in file
+        assert "branch: epics" in file
+        assert browser.get("/api/settings").json()["details"] is not True
+
+
+def test_an_epic_is_uploaded_without_the_page_waiting_on_the_push(
+    project: Path,
+) -> None:
+    bare = project.parent / "epics.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    assert hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "hi").returncode == 0
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        name = browser.get("/api/runs").json()["runs"][0]["name"]
+        assert browser.post(f"/api/runs/{name}/backup").status == 409
+
+        target = {"name": "t", "url": str(bare)}
+        browser.post("/api/settings", {"backup": {"targets": [target]}})
+        assert browser.post(f"/api/runs/{name}/backup", {"to": ["x"]}).status == 400
+        queued = browser.post(f"/api/runs/{name}/backup", {"to": ["t"]})
+
+        assert queued.status == 200, queued.body
+        assert queued.json() == {"queued": ["t"]}
+        assert backing.wait(60)
+        backed = browser.get(f"/api/runs/{name}").json()["backed"]
+        assert backed["t"]["ok"] is True
+        log = subprocess.run(
+            ["git", "--git-dir", str(bare), "log", "--format=%s", "main"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert log.stdout.splitlines() == [f"Back up epic {name} (manual)"]

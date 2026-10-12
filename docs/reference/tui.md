@@ -389,7 +389,7 @@ Paths are not names: use `/flow ./path`.
 | Condition | Result |
 | --- | --- |
 | btw on | Asked as a side question. |
-| a question is answerable here (aggregate, monitor, or the asking outworlder's view) | Taken as the answer. |
+| a question is answerable here (aggregate, monitor, the asking outworlder's view, or the conversation it is part of) | Taken as the answer. |
 | `<name>` not among the offered flows | `hmz: no such flow: <name>`, and for a name said as before the `@` (`local/x`) ` -- a flow of local is called @local/x now` |
 | a run going | `hmz: cannot choose a flow while one is running` |
 | the flow is [set up](#set-up) | Chosen; with a task, the run starts. Without a task, `enter a task to start the flow`. |
@@ -439,7 +439,8 @@ Lines said and not yet taken are **pinned** on the left above the editor:
 ## Questions, and being away {#questions-and-being-away}
 
 A question comes from a flow's `Outworlder` role, or from an agent asking its user through a
-hook the flow hung. It is shown on the asking outworlder's view and on the aggregate:
+hook the flow hung. It is shown on the asking outworlder's view and on the aggregate, and
+also in the conversation it is part of, where it is one:
 
 ```text
 ● Which region?
@@ -452,7 +453,8 @@ hook the flow hung. It is shown on the asking outworlder's view and on the aggre
 | --- | --- |
 | Options | `      <n>. <option>` (6 spaces). |
 | Footer | `   <name>'s to answer` (held by another), else `   [yours to answer: ]type an answer, or /afk to stop being asked`. |
-| Answerable here | On the aggregate or monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role. Only questions unowned or owned by this frontend, and not already being answered. None on a `session` view. |
+| Part of a conversation | A question asked while one conversation has a turn open (the asked record's `key`, else the only conversation working), and a `listen` question whose text is the last answer a conversation gave (a conversation asking what next, as `chat` does after every turn). The first is shown in that conversation as well (its question line left out where the agent's own `●` line already says it), and reaches the aggregate from there rather than from the outworlder's view; the second is not shown at all, its footer on the outworlder's view only. The answer is echoed in that conversation too. |
+| Answerable here | On the aggregate or monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role; on a `session` view: the oldest part of the conversation read (the newest of the agent read). Only questions unowned or owned by this frontend, and not already being answered. |
 | Answer | The next line typed. A bare number `1‥n` that is not itself an option picks that option (resolved by the host). Echoed as `❯ <text>[ · by <name>]`. |
 | Refusals | `hmz: already answered by <name>`, `hmz: <role> is <name>'s`, `hmz: no question <id> is waiting`. |
 | Away | While a role is away its questions are answered at once: `""` for text, a schema's defaults, or `OutworlderAway` for a field with none; an agent's question is told nobody answered. A question pending when away is set is withdrawn (the flow sees `OutworlderAway`). |
@@ -1099,6 +1101,7 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused for an epic of another directory: `this epic ran in <workspace>; resume it from hmz there`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
 | `export run` | `the entire run as an archive, with its trace`. Opens **Export run** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. |
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
 there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
@@ -1106,6 +1109,59 @@ across the top: one row `to   file, or directory to put <run>.epic.tar.gz in`, a
 [path](#path-completion); **Done** `writes the archive there`, `~` expanded; error `where to
 export to is required`. A directory, existing or ending in `/`, gets `<run>.epic.tar.gz`;
 anything else is the file. `esc` goes back to the run.
+
+### Exomyth {#exomyth}
+
+The epic as a timeline of its sessions, as [the Exomyth timeline](/reference/tracing#timeline)
+lays it out, on a screen of its own: `hmz › /epics › <when> · <flow> › Exomyth` across the
+top, **Timeline** and **Flame** at the right of it (the one shown in bold), then
+`<epic> · <n> session(s) · <n> span(s) · <length>[ · live]`. It is read off the screen (`reading…`;
+an error in red); while the epic is `live` it is read again every 3 seconds, a failed read
+included, keeping the window, the search, what is folded (by process key) and the span under
+the cursor (by process, track, depth and start). A timeline of a version this hmz does not
+know is refused: `timeline version <n> is not 1`.
+
+**Timeline**: a ruler of time (`│0s   │2s …`, a tick every 12 cells or more, at 1, 2 or 5 of a
+unit), then a row per lane. On the left, as wide as a third of the screen and at most 28
+cells, each process under the one it hangs from, two cells deeper, `▾` (open) or `▸`
+(folded) before one with more than one lane or a process under it; a track's second and later
+lanes are its name or blank. The row under the cursor is marked `❯`. A span is a bar across
+its row in its category's colour of the theme (`flow` primary, `session` accent, `turn`
+secondary, `llm` success, `tool` warning, `message` primary, `event` accent, `process`
+secondary), cut to the eighth of a cell at either end (`▏▎▍▌▋▊▉█`), its name written on it where
+it fits (cut with `…`), and an eighth of a gap where it starts hard against the span before.
+Spans narrower than a cell are one `▌` in that cell. The span under the cursor is drawn in the
+pair turned round. It opens on the whole epic with the cursor on the first span of the first
+row.
+
+| Key | Does |
+| --- | --- |
+| `w`, `+`, `=` / `s`, `-` | zoom in / out by 2, around the span under the cursor where it is on screen (else the middle); down to an eighth of a µs a cell, out to four times the epic |
+| `a`, `shift+←` / `d`, `shift+→` | pan back / on a quarter of the window; at most half a window off either end |
+| `↑` / `↓`, `pageup` / `pagedown` | the row above / below (10 rows), the cursor on the span on screen nearest the moment it was at, or none |
+| `←` / `→` | the span before / after in the row, the window moved to it where it is off screen |
+| `enter` | a pane under the chart of the span under the cursor, following the cursor, or shuts it: its name; category · process · track · depth; `start <t> · lasted <t> · <ISO time>`; `[<model> · ]<n> in · <n> out` where it has either; then each of its first 12 args, `<key> <value>` on one line of at most 200 characters (`+<n> more`) |
+| `f` | zoom to the span under the cursor |
+| `0` | the whole epic |
+| `space` | fold the process of the row under the cursor to its first row, hiding the processes under it, or open it out |
+| `/` | search box (`span name`): `enter` goes to the first span after the cursor whose name holds it (any case), opening out what hides it: `<i> of <n> · <words>`, or `no span named <words>` |
+| `n` / `N` | the next / previous span found |
+| `tab` | **Flame** |
+| `r` | read again |
+| `esc` | out of the search, then the pane, then back to the run |
+
+Keys line:
+`w/s zoom   a/d pan   ←/→ span   enter details   f fit   0 whole   space fold   / search   [n/N next   ]tab flame   esc back`.
+
+**Flame**: where the time in the window went, as three rows of nested bars over a list: kind
+of process (`flow` primary, `session` secondary, `os` warning), then category, then name,
+each as wide as its share, heaviest first, cut by an eighth of a gap from the one before. Time
+is each span's own inside the window, less the spans under it in its track; `t` weighs by
+tokens in and out instead. Under it `time|tokens   spans   stack`, and a list of at most 400
+stacks, each under the one it is part of: total (as on the ruler, or tokens as
+[the status line](#the-status-line) counts them), how many spans, and its name; the stack under
+the list's cursor is drawn turned round in the bars. Under the list:
+`weighed by time|tokens · <from> · <to>`. Keys: `↑/↓ stack   t tokens|time   r refresh   tab timeline   esc back`.
 
 ## `/resume` {#carrying-the-last-one-on-outright}
 

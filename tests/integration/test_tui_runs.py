@@ -152,3 +152,39 @@ async def test_exit_while_a_run_is_going_asks_and_stopping_it_ends_both(
 
         await until(pilot, lambda: not app.is_running, "the interface to close")
     assert ended(workspace) == "stopped"
+
+
+async def test_a_line_typed_reading_the_conversation_between_turns_is_its_next_turn(
+    workspace: Path,
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "wait first")
+        await shows(pilot, "still on it")
+        await pilot.press("shift+tab")  # onto the conversation, while its turn is open
+        await shows(pilot, "conversation 1")
+        await typed(pilot, "more")
+        await shows(pilot, "heard wait first then more")
+
+        await typed(pilot, "second")
+
+        await shows(pilot, "heard second")
+    assert heard(workspace) == ["wait first", "more", "second"]
+
+
+async def test_what_the_agent_stops_to_ask_is_shown_and_answered_in_its_conversation(
+    workspace: Path,
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "ask me")
+        await shows(pilot, "Which colour? (red / blue)")
+        await pilot.press("shift+tab")
+        await shows(
+            pilot, "conversation 1", "Which colour? (red / blue)", "type an answer"
+        )
+
+        await typed(pilot, "blue")
+
+        drawn = await shows(pilot, "picked blue")
+    assert "❯ blue" in drawn

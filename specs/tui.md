@@ -59,8 +59,9 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST show which agent is read, how many conversations it holds, whether it is working and
   whether it has something unread — nothing unread while the shared transcript is read — and
   each outworlder of a running flow, whether it is asking, away, read or unread.
-- MUST send a typed line to the conversation being read, or to whichever of the agent's has a
-  turn open, holding it for the next turn otherwise, and keep it against the agent that took it.
+- MUST send a typed line that answers nothing to the conversation being read, or to whichever
+  of the agent's has a turn open, holding it for the next turn otherwise, and keep it against
+  the agent that took it.
 - MUST name what is running as the flow started and whatever it called, innermost last.
 - MUST offer exactly these commands, each doing what it says: `/flow`, `/btw`, `/epics`,
   `/resume`, `/settings`, `/clear`, `/afk`, `/claim`, `/stop`, `/exit`. `/btw [question]` MUST enter btw
@@ -117,7 +118,10 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST be whoever is outside a run, once per outworlder: a question one puts MUST be shown on
   its transcript and the shared one and answered with the next line typed on either -- the
   oldest of that outworlder's, or of any on the shared one -- an offered answer taken by its
-  number as well; `/afk` MUST make the outworlder read away, or every one elsewhere that this
+  number as well. One part of a conversation MUST be shown and answered in that conversation
+  too, the answer with it: what its agent stopped mid-turn to ask, with what it offers, and a
+  conversation's answer said back to ask what next, shown as that answer alone and answered
+  with the next line typed on the shared transcript or reading that conversation; `/afk` MUST make the outworlder read away, or every one elsewhere that this
   frontend may answer for, leaving the ones another holds as they were, and MUST outlive it.
 - MUST be one frontend of the runs it reads, whole and on its own: MUST ask for everything it
   does to a run through its `link` -- starting, saying, answering, stopping, `/afk`, `/claim`,
@@ -189,6 +193,13 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   there is a backup target, `upload` it -- to the targets it was started with, else the
   defaults -- without holding anything up, saying where it goes, with how its last backup to
   each target went said on it.
+- MUST open a run from its sheet in Exomyth: every session a process under the one that started
+  it, foldable, each lane a row of its spans cut to the eighth of a cell and coloured by category
+  in the theme's colours under a ruler of time; zoomed and panned around the span under the
+  cursor, which moves between spans and rows, is searched to by name and opens a pane of the span
+  whole; and, a tab away, a flame of where the time on screen went -- kind of process, category,
+  name -- weighed by time or tokens. Read without holding the screen up and again every few
+  seconds while the run goes, drawing only the rows on screen, responsive at fifty thousand spans.
 - MUST make the monitor the parent screen and the log its child: a full-screen graph of the run
   over the log's own prompt, where every command works, with a graph status line in place of the
   log's; reached by `←` on an empty prompt and never by `esc` or a command, and left by `→` on an
@@ -278,6 +289,7 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
 | `space` | monitor | on an empty prompt: open an agent out to its sessions, or shut it |
 | `ctrl+t` | monitor | the graph or the list |
+| `w`/`s`, `a`/`d`, `←`/`→`, `↑`/`↓`, `enter`, `f`, `0`, `space`, `/`, `n`/`N`, `tab`, `t`, `r` | Exomyth | zoom, pan, the span before or after, the row above or below, the span's pane, fit it, the whole run, fold, search, the next found, timeline or flame, time or tokens, read again |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
 | `↑`, `↓` | sheets | walk the rows, round the ends, keeping the row being written; back to the list from its search or its buttons; in a box, between its buttons |

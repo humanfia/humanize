@@ -79,6 +79,33 @@ def test_a_run_started_from_a_page_is_followed_answered_and_stopped(
         assert browser.get("/api/runs/no-such-run").status == 404
 
 
+def test_a_line_said_in_the_conversation_between_turns_is_the_next_turn(
+    project: Path,
+) -> None:
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        with browser.follows() as heard:
+            browser.post("/api/held/start", _CHAT)
+            _, asked = until(heard, _record("asked", mode="listen"), "chat asking")
+            assert asked["key"] == ""
+
+            said = {"text": "tell me more", "to": "assistant/1"}
+            assert browser.post("/api/held/say", said).status == 200
+            until(
+                heard,
+                _record("answered", question=asked["question"], text="tell me more"),
+                "the question answered",
+            )
+            until(
+                heard,
+                _record("event", kind="text", text="did: tell me more"),
+                "a reply",
+            )
+            until(heard, _record("asked", mode="listen"), "chat asking again")
+            browser.post("/api/held/stop")
+
+
 def test_a_page_that_heard_part_of_the_stream_hears_the_rest_and_no_more(
     project: Path,
 ) -> None:

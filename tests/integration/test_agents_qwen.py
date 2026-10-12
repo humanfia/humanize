@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic import BaseModel
 
-from hmz.coganchor.agents import Failed, QwenCodeAgent, QwenCodeAgentConfig
+from hmz.coganchor.agents import Failed, QwenCodeAgent, QwenCodeAgentConfig, Tool
 from tests.integration.doubles_agents import Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -31,8 +31,35 @@ def record(said):
     out({"session_id": session, **said})
 
 
+def served(name, word):
+    import subprocess
+    with open(os.environ["QWEN_CODE_SYSTEM_SETTINGS_PATH"]) as held:
+        server = json.load(held)["mcpServers"]["humanize"]
+    assert server["trust"] is True
+    bridge = subprocess.Popen([server["command"], *server["args"]],
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+
+    def ask(number, method, params):
+        bridge.stdin.write(json.dumps({"jsonrpc": "2.0", "id": number, "method": method,
+                                       "params": params}) + "\n")
+        bridge.stdin.flush()
+        return json.loads(bridge.stdout.readline())["result"]
+
+    ask(1, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                          "clientInfo": {"name": "qwen", "version": "0"}})
+    bridge.stdin.write(json.dumps({"jsonrpc": "2.0",
+                                   "method": "notifications/initialized"}) + "\n")
+    listed = [one["name"] for one in ask(2, "tools/list", {})["tools"]]
+    called = ask(3, "tools/call", {"name": name, "arguments": {"word": word}})
+    bridge.stdin.close()
+    bridge.wait()
+    return ",".join(listed) + ":" + called["content"][0]["text"]
+
+
 def turn(said):
     note(said)
+    if said.startswith("tool "):
+        said = served(*said.split()[1:])
     if said == "crash":
         print("qwen: something broke", file=sys.stderr, flush=True)
         sys.exit(3)
@@ -136,3 +163,30 @@ def test_a_hung_turn_is_ended_by_the_watchdog(
 
     with pytest.raises(Failed):
         QwenCodeAgent(CONFIG).new()("hang")
+
+
+class Word(BaseModel):
+    word: str
+
+
+def test_a_tool_of_the_flows_own_is_reached_through_the_settings_file(
+    qwen: Standins,
+) -> None:
+    heard: list[str] = []
+
+    def shout(said: Word) -> str:
+        heard.append(said.word)
+        return said.word.upper()
+
+    def whisper(said: Word) -> str:
+        return said.word.lower()
+
+    session = QwenCodeAgent(CONFIG).new()
+    session.offers([Tool("shout", "Shouts a word.", shout, Word)])
+
+    assert session("tool shout hello") == "shout:HELLO"
+    assert heard == ["hello"]
+
+    session.offers([Tool("whisper", "Whispers a word.", whisper, Word)])
+    assert session("tool whisper HI") == "whisper:hi"
+    assert len({one.pid for one in qwen.calls()}) == 2

@@ -17,6 +17,8 @@ from hmz.flows import (
     Env,
     EnvBackendKind,
     EnvCollection,
+    FakeTool,
+    FakeToolAgentMixin,
     FilesEnvMixin,
     FlowContext,
     FlowParams,
@@ -40,6 +42,7 @@ from hmz.flows import (
     flow,
 )
 from hmz.runtime.flowing.declaring import Grant
+from hmz.runtime.flowing.engine import full_view
 from hmz.runtime.flowing.fakes import (
     FakeAgentDriver,
     FakeEnvDriver,
@@ -462,6 +465,96 @@ async def test_a_hook_is_heard_while_it_is_hung_and_not_once_taken_down() -> Non
         HookKind.USER_PROMPT_SUBMIT,
         HookKind.STOP,
     ]
+
+
+class Note(pydantic.BaseModel):
+    text: str
+
+
+#: What the tools of `scribed` were called with, and as which flow call.
+NOTED: list[tuple[str, object]] = []
+
+
+async def remember(note: Note) -> str:
+    NOTED.append((note.text, CALLING.get()))
+    return f"noted {note.text}"
+
+
+def counted() -> dict[str, int]:
+    return {"notes": len(NOTED)}
+
+
+def broken() -> None:
+    raise ValueError("no ink")
+
+
+class Scribe(Agent, FakeToolAgentMixin):
+    _tools = (
+        FakeTool("remember", "Writes a note down.", remember, Note),
+        FakeTool("count", "Says how many notes there are.", counted),
+        FakeTool("broken", "Fails.", broken),
+    )
+
+
+class Scribes(AgentCollection):
+    scribe: Scribe
+
+
+@flow(agents=Scribes, envs=NoEnvs, params=Prompt)
+async def scribed(
+    task: str, *, agents: Scribes, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> tuple[str, object]:
+    scribe = agents["scribe"].derive(permission=Permission())
+    return await scribe.run(task, session=await scribe.spawn()), ctx
+
+
+async def test_a_sessions_tools_run_as_its_flow_and_answer_the_agent() -> None:
+    async def reply(prompt: str, *, session: Any, **_: Any) -> str:
+        with pytest.raises(SessionError, match="no tool called 'gone'"):
+            await session.use("gone")
+        return " | ".join(
+            [
+                await session.use("remember", {"text": prompt}),
+                await session.use("count"),
+                await session.use("broken"),
+                await session.use("remember", {}),
+            ]
+        )
+
+    NOTED.clear()
+    coder = FakeAgentDriver(reply=reply)
+
+    said, ctx = await run_fake(scribed, "hi", agents={"scribe": coder})
+
+    assert said.startswith('noted hi | {"notes": 1} | ValueError: no ink | Valid')
+    assert [("hi", ctx)] == NOTED
+    with pytest.raises(SessionError, match="is closed"):
+        await coder.sessions[0].use("count")
+
+
+@full_view
+@flow(agents=Scribes, envs=NoEnvs, params=Prompt)
+async def fully(
+    task: str, *, agents: Scribes, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> str:
+    scribe = agents["scribe"]
+    return await scribe.run(task, session=await scribe.spawn())
+
+
+@flow(agents=Goals, envs=NoEnvs, params=Prompt)
+async def handing(
+    task: str, *, agents: Goals, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> str:
+    return await fully(task, agents={"scribe": agents["coder"]}, envs={}, params=params)
+
+
+async def test_a_flow_handed_an_agent_offers_its_own_roles_tools() -> None:
+    async def reply(prompt: str, *, session: Any, **_: Any) -> str:
+        return await session.use("broken")
+
+    coder = FakeAgentDriver(reply=reply)
+
+    assert await run_fake(handing, agents={"coder": coder}) == "ValueError: no ink"
 
 
 # ----------------------------------------------------------------------------- outworlders
