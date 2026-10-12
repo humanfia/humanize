@@ -44,6 +44,8 @@ from . import (
     held,
     paths,
     places,
+    proxy,
+    remote,
     runs,
     runtimes,
     settings,
@@ -55,6 +57,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
     from .places import Places
+    from .remote import Remotes
     from .runs import Runs
 
 __all__ = ["Site"]
@@ -71,7 +74,11 @@ ROUTES: tuple[Route, ...] = (
     *paths.ROUTES,
     *places.ROUTES,
     *verses.ROUTES,
+    *remote.ROUTES,
 )
+
+#: What a daemon is called in the paths a page asks another machine's daemon by.
+_DAEMON = frozenset(string.ascii_letters + string.digits + "._-")
 
 #: How many ports any would do for are tried before one free on both loopbacks is given up on.
 _PORTS = 8
@@ -152,6 +159,8 @@ class Site(ThreadingHTTPServer):
         self.places = places
         self.hmz: Any = places.hmz
         self.runs = runs
+        #: The daemons on other machines, as each is reached, once `listening` has them.
+        self.remotes: Remotes | None = None
         #: Set as the server stops, which is what ends every stream it is sending.
         self.going = threading.Event()
         self._key = secrets.token_urlsafe(32)
@@ -284,6 +293,8 @@ class _Handler(BaseHTTPRequestHandler):
             )
         if path.startswith("/api/"):
             self._api(method, path, query)
+        elif path.startswith("/d/"):
+            self._daemon(method, path, query)
         elif method != "GET":
             raise Refusal("Only the page's own files are here.", 405)
         elif path == "/" and "key" in query:
@@ -352,13 +363,39 @@ class _Handler(BaseHTTPRequestHandler):
         )
         self._ends(0)
 
-    def _api(self, method: str, path: str, query: dict[str, str]) -> None:
+    def _admits(self) -> None:
+        """Refuses a request to the API from a browser not let in, or from another page."""
         if not self._signed_in():
             raise Refusal(
                 "Open the address hmz web printed to let this browser in.", 401
             )
         if not self._asked_here():
             raise Refusal("Use this server's own page to make this request.", 403)
+
+    def _daemon(self, method: str, path: str, query: dict[str, str]) -> None:
+        """The API of a daemon by name, `/d/<name>/api/...`.
+
+        This machine's own for `local`, and otherwise asked of the interface on the machine
+        it names.
+        """
+        name, _, rest = path.removeprefix("/d/").partition("/")
+        rest = f"/{rest}"
+        if not name or not set(name) <= _DAEMON or not rest.startswith("/api/"):
+            raise Refusal("There is nothing here by that name.", 404)
+        if name == "local":
+            self._api(method, rest, query)
+            return
+        self._admits()
+        if method == "POST" and not self._from_its_page():
+            raise Refusal("Use this server's own page to make this request.", 403)
+        if self.site.remotes is None:
+            raise Refusal("There is no daemon by that name.", 404)
+        port, said = self.site.remotes.asks(name)
+        asked = urllib.parse.urlsplit(self.path).query
+        proxy.forwards(self, port, said, method, rest + (f"?{asked}" if asked else ""))
+
+    def _api(self, method: str, path: str, query: dict[str, str]) -> None:
+        self._admits()
         for route in ROUTES:
             matched = route.match(method, path)
             if matched is None:
