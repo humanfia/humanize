@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import psutil
 import pytest
+from pydantic import BaseModel
 
 from hmz.coganchor import providers
 from hmz.coganchor.agents import (
@@ -23,11 +24,14 @@ from hmz.coganchor.agents import (
     GrokBuildAgentConfig,
     Moment,
     Occasion,
+    Tool,
+    Unrecoverable,
     Verdict,
 )
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
 from tests.integration.doubles_agents import (
+    MCP,
     Endpoint,
     Standins,
     kinds,
@@ -61,6 +65,8 @@ if argv[:1] == ["agent"] and "stdio" in argv:
         if method == "initialize":
             out({"jsonrpc": "2.0", "id": at, "result": {"protocolVersion": 1}})
             continue
+        if method in ("session/new", "session/load"):
+            servers = asked["params"]["mcpServers"]
         if method == "session/new":
             out({"jsonrpc": "2.0", "id": at, "result": {"sessionId": session}})
             continue
@@ -84,6 +90,14 @@ if argv[:1] == ["agent"] and "stdio" in argv:
             out({"jsonrpc": "2.0", "id": at,
                  "error": {"code": -32000, "message": "it could not finish"}})
             sys.exit(1)
+        if said.startswith("tool "):
+            _, name, given = said.split(" ", 2)
+            (server,) = [one for one in servers if one["name"] == "humanize"]
+            listed, text = mcp(server, name, json.loads(given))
+            told("agent_message_chunk", content={"type": "text",
+                                                 "text": ",".join(listed) + ": " + text})
+            out({"jsonrpc": "2.0", "id": at, "result": {"stopReason": "end_turn"}})
+            continue
         if said == "ask":
             out({"jsonrpc": "2.0", "id": 9001, "method": "session/request_permission",
                  "params": {"sessionId": session,
@@ -122,7 +136,7 @@ out({"type": "end", "stopReason": "end_turn", "sessionId": session, "num_turns":
 @pytest.fixture
 def grok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standins:
     held = standins(tmp_path, monkeypatch)
-    held.install("grok", GROK)
+    held.install("grok", MCP + GROK)
     return held
 
 
@@ -313,3 +327,46 @@ def test_grok_under_an_account_a_gateway_holds_runs_the_model_through_it(
     assert not through.running
     # And the entry it was asked for by, which named a port nothing listens on any more.
     assert "127.0.0.1" not in (tmp_path / "home/.grok/config.toml").read_text()
+
+
+class _Word(BaseModel):
+    word: str
+
+
+def test_a_flow_s_callback_is_a_tool_grok_reaches_over_mcp(grok: Standins) -> None:
+    seen: list[str] = []
+
+    def looks_up(said: _Word) -> str:
+        seen.append(said.word)
+        return f"found {said.word}"
+
+    session = GrokBuildAgent(CONFIG).new()
+    try:
+        session.offers(
+            [Tool(name="lookup", about="Looks up.", call=looks_up, takes=_Word)]
+        )
+        answered = session('tool lookup {"word": "kiwi"}')
+        session.offers(
+            [Tool(name="define", about="Defines.", call=looks_up, takes=_Word)]
+        )
+        again = session('tool define {"word": "fig"}')
+    finally:
+        session.close()
+
+    assert seen == ["kiwi", "fig"]
+    assert answered == "lookup: found kiwi"
+    # Told of another list, grok was started again and the conversation loaded onto it.
+    assert again == "define: found fig"
+    assert "load ses-grok" in grok.said()
+
+
+def test_a_turn_only_grok_p_can_take_is_refused_while_callbacks_are_offered(
+    grok: Standins,
+) -> None:
+    session = GrokBuildAgent(CONFIG).new()
+    session.offers([Tool(name="lookup", about="Looks up.", call=lambda: "found")])
+
+    with pytest.raises(Unrecoverable, match="takes no MCP server"):
+        session("hello", schema=_Word)
+
+    assert grok.calls() == []

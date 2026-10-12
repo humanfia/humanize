@@ -67,6 +67,7 @@ const IF_SERVED: Cell = { can: true, text: 'if served', tone: 'warning' }
 const ALL4: Cell = { can: true, text: 'all 4', tone: 'tip' }
 const BYPASS: Cell = { can: false, text: 'bypass', tone: 'warning' }
 const NO_RO: Cell = { can: false, text: 'no read-only', tone: 'warning' }
+const HELD: Cell = { can: true, text: 'held turns', tone: 'warning' }
 
 const COLUMNS: Column[] = [
   { key: 'goal', head: 'Goal', href: '#goals', filter: 'pursue a goal', group: 'flow' },
@@ -106,7 +107,7 @@ const ROWS: Row[] = [
   }),
   row('cursor-agent', 'Cursor Agent', { sub: Y, rungs: ALL4, fast: Y }),
   row('dsh', 'DeepSeek Harness', { goal: Y, web: Y, rungs: BYPASS, trace: Y }),
-  row('grok', 'Grok Build', { schema: Y, fork: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('grok', 'Grok Build', { schema: Y, fork: Y, web: Y, rungs: ALL4, tools: HELD, trace: Y }),
   row('kimi', 'Kimi Code', {
     goal: Y, steer: Y, perm: Y, ask: Y,
     fork: ELSEWHERE, web: Y, rungs: ALL4, trace: Y,
@@ -118,7 +119,7 @@ const ROWS: Row[] = [
   row('opencode', 'opencode', { fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
   row('pi', 'pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, trace: Y }),
   row('qwen', 'Qwen Code', { schema: Y, fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
-  row('an ACP CLI', 'added on this machine', { fork: IF_SERVED, rungs: BYPASS }),
+  row('an ACP CLI', 'added on this machine', { fork: IF_SERVED, rungs: BYPASS, tools: Y }),
 ]
 
 const picked = ref<Set<Key>>(new Set())

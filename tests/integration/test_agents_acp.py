@@ -13,6 +13,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from pydantic import BaseModel
 
 from hmz.coganchor import backends
 from hmz.coganchor.agents import (
@@ -20,10 +21,11 @@ from hmz.coganchor.agents import (
     AcpAgentConfig,
     Failed,
     Moment,
+    Tool,
     Unhooked,
     driver,
 )
-from tests.integration.doubles_agents import Standins, kinds, standins
+from tests.integration.doubles_agents import MCP, Standins, kinds, standins
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -68,10 +70,11 @@ for line in sys.stdin:
     if method != "session/prompt":
         note(method + " " + json.dumps(params, sort_keys=True))
     if method == "initialize":
-        answer(at, {"protocolVersion": 1, "agentCapabilities": {"loadSession": False},
+        answer(at, {"protocolVersion": 1, "agentCapabilities": {"loadSession": True},
                     "authMethods": []})
-    elif method == "session/new":
-        answer(at, {"sessionId": "ses-acp-1"})
+    elif method in ("session/new", "session/load"):
+        servers = params.get("mcpServers") or []
+        answer(at, {"sessionId": params.get("sessionId", "ses-acp-1")})
     elif method == "session/prompt":
         said = params["prompt"][0]["text"]
         note(said)
@@ -88,6 +91,12 @@ for line in sys.stdin:
                 pass
             note("cancelled")
             answer(at, {"stopReason": "cancelled"})
+        elif said.startswith("tool "):
+            _, name, given = said.split(" ", 2)
+            (server,) = [one for one in servers if one["name"] == "humanize"]
+            listed, text = mcp(server, name, json.loads(given))
+            say(session, ",".join(listed) + ": " + text)
+            answer(at, {"stopReason": "end_turn"})
         elif said.startswith("read "):
             back = ask("fs/read_text_file", {"sessionId": session, "path": said[5:]})
             say(session, json.dumps(back.get("result") or back.get("error")))
@@ -127,7 +136,7 @@ for line in sys.stdin:
 @pytest.fixture
 def acp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standins:
     held = standins(tmp_path, monkeypatch)
-    held.install("my-agent", ACP)
+    held.install("my-agent", MCP + ACP)
     backends.remember("my-agent", ["my-agent", "--acp"])
     return held
 
@@ -254,3 +263,38 @@ def test_a_turn_cut_off_is_cancelled_over_the_protocol(
 
     assert not turn.is_alive()
     assert "cancelled" in acp.said()
+
+
+class _Word(BaseModel):
+    word: str
+
+
+def test_a_flow_s_callback_is_a_tool_the_agent_reaches_over_mcp(acp: Standins) -> None:
+    seen: list[str] = []
+
+    def looks_up(said: _Word) -> str:
+        seen.append(said.word)
+        return f"found {said.word}"
+
+    session = _agent().new()
+    try:
+        session.offers(
+            [Tool(name="lookup", about="Looks up.", call=looks_up, takes=_Word)]
+        )
+        answered = session('tool lookup {"word": "kiwi"}')
+        session.offers(
+            [Tool(name="define", about="Defines.", call=looks_up, takes=_Word)]
+        )
+        again = session('tool define {"word": "fig"}')
+    finally:
+        session.close()
+
+    assert seen == ["kiwi", "fig"]
+    assert answered == "lookup: found kiwi"
+    # Told of another list, the agent was started again and the conversation loaded onto it.
+    assert again == "define: found fig"
+    assert len({one.pid for one in acp.calls()}) == 2
+    (opened,) = _told(acp, "session/new")
+    (loaded,) = _told(acp, "session/load")
+    assert loaded["sessionId"] == "ses-acp-1"
+    assert [one["name"] for one in opened["mcpServers"]] == ["humanize"]

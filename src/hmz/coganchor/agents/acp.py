@@ -442,6 +442,11 @@ class AcpSession(SessionBase):
     #: the prompt, as it is for every other backend without a setting for it.
     shapes: ClassVar[bool] = False
 
+    #: `mcpServers` is a field of every call that opens a conversation, so the flow's own
+    #: callbacks go to the agent as one more stdio server beside whatever it was configured
+    #: with -- said to this conversation and to nothing the person who installed the CLI keeps.
+    takes_tools: ClassVar[bool] = True
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:
@@ -471,6 +476,9 @@ class AcpSession(SessionBase):
         #: and what the next one is to be called.
         self._running: dict[str, _Terminal] = {}
         self._held = 0
+        #: The names of the callbacks the conversation now open was opened with, which is
+        #: what the agent listed when it started their server.
+        self._telling: tuple[str, ...] = ()
 
     def _connection(self) -> AcpConnection:
         """The agent, started and initialized and holding a session, made on first use.
@@ -483,9 +491,14 @@ class AcpSession(SessionBase):
           subprocess.CalledProcessError: If the agent will not start, speaks a protocol this
             client does not, refuses to open a session, or cannot pick one back up.
         """
-        if self._link is not None and self.elsewhere():
-            # Started as an account this agent has since left: ended here, on the thread that
-            # holds it, so that the next turn opens one as whoever the agent now is.
+        if self._link is not None and (
+            self.elsewhere() or self._telling != _named(self._agent)
+        ):
+            # Started as an account this agent has since left, or told of callbacks the flow
+            # has since changed -- an agent lists a server's tools as the conversation opens
+            # it, and the only way to hand it another list is to open the conversation again.
+            # Ended here, on the thread that holds it, so that the next turn picks the same
+            # conversation back up on a process told what is true now.
             self._shut()
         if self._link is not None:
             return self._link
@@ -514,6 +527,7 @@ class AcpSession(SessionBase):
             cwd=None if self._agent.anchor is not None else self._workspace(),
         )
         self._as, self._pathed = self._agent.node().name, pathed
+        self._telling = _named(self._agent)
         try:
             link.start()
             self._agreed(
@@ -599,7 +613,8 @@ class AcpSession(SessionBase):
             # Absolute, which the protocol requires, and the one the session works in.
             "cwd": self._workspace(),
             # What this client is handing the agent on top of whatever the CLI is already
-            # configured with, which is nothing unless the agent was made carrying some. An
+            # configured with, which is nothing unless the agent was made carrying some or the
+            # flow is offering callbacks of its own. An
             # empty list is the protocol's own default rather than humanize declining
             # anything: the servers the person who installed the CLI wrote down are the CLI's
             # own and are loaded whatever a client sends.
@@ -630,11 +645,17 @@ class AcpSession(SessionBase):
         )
 
     def _servers(self) -> tuple[McpServer, ...]:
-        """The MCP servers this agent's conversations are to be given, on top of the CLI's."""
-        return cast(
+        """The MCP servers this agent's conversations are to be given, on top of the CLI's.
+
+        Those it was configured with, and the bridge to the flow's own callbacks where the
+        conversation was opened offering any -- read off what was recorded then, so that what
+        is sent and what going stale is measured against are one reading of the toolbox.
+        """
+        configured = cast(
             "tuple[McpServer, ...]",
             tuple(getattr(self._agent.config, "mcp_servers", ())),
         )
+        return (*configured, *(_bridged(self._agent) if self._telling else ()))
 
     def _settle(self, link: AcpConnection, at: int) -> dict[str, Any]:
         """Waits for one request to be answered, serving whatever is asked on the way.
@@ -1202,6 +1223,33 @@ class McpServer:
             "args": list(self.args),
             "env": [{"name": one, "value": value} for one, value in self.env],
         }
+
+
+def _named(agent: AgentBase) -> tuple[str, ...]:
+    """The names of the callbacks in front of an agent, sorted, which is what going stale means.
+
+    Names rather than everything a tool says, as for Claude: a name is what a tool is here,
+    and two conversations offering one name are offering one tool.
+    """
+    return tuple(sorted(one.name for one in agent.toolbox.offered()))
+
+
+def _bridged(agent: AgentBase) -> tuple[McpServer, ...]:
+    """The flow's own callbacks as the server a conversation is opened with, or none at all.
+
+    Read out of the entry the toolbox hands every CLI that keeps its servers in a file, so
+    that the server is called here what it is called everywhere else. Nothing where nothing
+    is offered: a bridge to an empty list is a process the agent starts for no tool.
+
+    Read from here by grok too, which opens its conversations the same way.
+    """
+    if not agent.toolbox.offered():
+        return ()
+    entries = cast("dict[str, Any]", agent.toolbox.config()["mcpServers"])
+    return tuple(
+        McpServer(name=name, command=str(entry["command"]), args=tuple(entry["args"]))
+        for name, entry in entries.items()
+    )
 
 
 @dataclass(frozen=True, kw_only=True)

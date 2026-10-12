@@ -60,6 +60,34 @@ def out(obj):
 """
 
 
+#: What a stand-in that was handed MCP servers does with one, put before its body: starts the
+#: server's stdio command as a real CLI would, says `initialize`, lists its tools and calls one,
+#: answering with what the list named and what the call came back with.
+MCP = r"""
+def mcp(server, name, arguments):
+    import subprocess
+
+    held = subprocess.Popen([server["command"], *server["args"]], stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, text=True)
+
+    def rpc(at, method, params):
+        held.stdin.write(json.dumps({"jsonrpc": "2.0", "id": at, "method": method,
+                                     "params": params}) + "\n")
+        held.stdin.flush()
+        return json.loads(held.stdout.readline())["result"]
+
+    rpc(1, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                          "clientInfo": {"name": "stand-in", "version": "1"}})
+    held.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
+    listed = [one["name"] for one in rpc(2, "tools/list", {})["tools"]]
+    called = rpc(3, "tools/call", {"name": name, "arguments": arguments})
+    held.stdin.close()
+    held.wait()
+    return listed, called["content"][0]["text"]
+
+"""
+
+
 @dataclass(frozen=True)
 class Call:
     """One thing a stand-in was asked: by which name, with what, and in what environment."""
