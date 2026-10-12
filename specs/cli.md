@@ -113,7 +113,8 @@ def tools(argv: list[str]) -> int: ...
   a browser on it unless told `--no-open`, and MUST exit zero once interrupted and one, saying
   why, where the port cannot be had. A terminate or a hangup MUST stop it as an interrupt does,
   and so MUST its standard input closing where it is told `--attached`: whatever started it
-  takes it down by going, however it went.
+  takes it down by going, however it went -- another machine's `hmz web` reaching this one's
+  daemon over ssh included.
 - `hmz update` MUST move this install to the newest release `coganchor.releases` fetches, with
   whatever installed it -- `uv tool upgrade` for a uv tool, `pipx upgrade` for a pipx one, and
   otherwise pip, or uv's pip where there is no pip, asked for the extras whose packages are all

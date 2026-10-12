@@ -3,8 +3,8 @@
 The macOS app in `desktop/`: one window on the page `hmz web` serves, which it starts as its own
 child and stops as it quits. It is a frame around that page and nothing more: it draws nothing
 of humanize's but how it is getting there and what went wrong, and is answerable only for
-having the `hmz` of its own release installed, starting it, showing its page, leaving nothing
-running behind it, and keeping itself up to date.
+having the `hmz` of its own release installed, starting it, showing its page and what it
+notifies, leaving nothing running behind it, and keeping itself up to date.
 
 ## API
 
@@ -39,6 +39,9 @@ invoke('status', {after})  // once it is not starting, and not `after`, the stat
 invoke('retry')       // starts again, where it failed, stopped or found no hmz
 invoke('keep')        // starts the hmz there, where installing its own failed and `keep` was said
 invoke('update_now')  // installs its own now, where it is waiting
+
+// What `hmz web`'s page asks of it, and nothing else.
+invoke('notify', {title, body, address})  // a notification; clicked, the page opens `address`
 ```
 
 `HUMANIZE_HMZ` is for development and tests: it names the `hmz` to run, nothing else is looked
@@ -123,8 +126,12 @@ either: it runs the first `hmz` it finds.
   Reload, Actual Size, Zoom In, Zoom Out and Full Screen; and the documentation under Help. It
   MUST NOT take a shortcut the page binds: Cmd+K, Cmd+Shift+O and Cmd+. are the page's.
 - MUST NOT put a script of its own into `hmz web`'s page but what says whether the window is
-  full screen, nor grant it any of the app's commands, nor anything but to drag and zoom the
-  window.
+  full screen, nor grant it any of the app's commands but `notify`, nor anything but that and to
+  drag and zoom the window.
+- MUST show what `notify` is handed as a notification of macOS's own, its title and body as
+  text, asking macOS for leave the first time; and a click on one MUST bring the window forward
+  and open its address on `hmz web`'s page, only where it is a `#` address of that page's own
+  origin.
 
 ### Leaving
 

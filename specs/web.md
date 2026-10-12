@@ -3,8 +3,9 @@
 The web interface `hmz web` serves: every workspace's runs on this machine, drawn in a browser on
 it. Where the terminal interface is about the directory it is opened in, this is about the
 machine, as the daemon is: one more frontend of the runs each workspace's host holds, beside
-every terminal interface opened on them. It runs flows and reads them back, defines no flows,
-drives no agents and keeps no store of its own.
+every terminal interface opened on them -- and, through the `hmz web` it starts on each over ssh,
+of other machines' daemons. It runs flows and reads them back, defines no flows, drives no agents
+and keeps no store of its own.
 
 ## API
 
@@ -23,6 +24,49 @@ def serve(
 class Site(ThreadingHTTPServer):
     port: int  # property
     address: str  # property: http://127.0.0.1:<port>/?key=<key>
+    notices: Notices
+    remotes: Remotes
+# notices.py -- what this machine's runs did that a person would want told
+class Notices:
+    def since(self, after: int = 0) -> list[dict[str, Any]]: ...  # each numbered after `after`
+    def heard(self, callback: Callable[[dict[str, Any]], None]) -> None: ...  # each as it comes
+# remote.py -- the daemons of other machines, each reached over ssh
+class Remotes:
+    def state(self, name: str) -> dict[str, Any]: ...  # {state, detail, version}
+    def reached(self, name: str) -> tuple[int, str]: ...  # its port forwarded here, and its key
+    def connect(self, name: str) -> None: ...
+    def close(self) -> None: ...
+```
+
+```text
+GET  /api/notices?after=<id>          {notices, last}, of this machine's runs alone
+GET  /api/notices/stream              `notice` events, resumed from Last-Event-ID
+     a notice                         {id, kind, workspace, epic, flow, task, role, text, at}
+     its kind                         done | failed | stopped | asked | listening
+GET  /api/daemons                     Local, then each SSH daemon, with how it stands
+POST /api/daemons                     one added or changed
+POST /api/daemons/remove              one removed
+POST /api/daemons/import              ssh config's hosts not yet added, those named
+GET  /api/daemons/hosts               ssh config's hosts not yet added
+POST /api/daemons/<name>/connect      reached again
+GET  /api/daemons/<name>/state        idle | connecting | installing | up | failed
+     /d/<name>/api/...                that daemon's /api/..., proxied; /d/local/api/ is /api/
+GET  /api/notifications               {items, unread}: every daemon's notices, each with
+                                      its daemon and whether it is read
+GET  /api/notifications/stream        `notification` events
+POST /api/notifications/read          {ids} or {all}
+POST /api/notifications/clear
+GET  /api/notifications/settings      {kinds: {done, failed, stopped, asked, listening}, system}
+POST /api/notifications/settings
+```
+
+```yaml
+# settings.yaml, Local's alone
+daemons:              # each SSH daemon; Local is always there and never written
+  - {name, host, user, port, identity_file, proxy_jump, options: [[key, value]], alias, config}
+notifications:        # every kind, and the system, on unless turned off
+  kinds: {done: true, failed: true, stopped: true, asked: true, listening: true}
+  system: true
 ```
 
 `listening` attaches to the runs and listens without answering; `Site.serve_forever` answers
@@ -207,5 +251,59 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
   and the desktop app alike.
 - MUST draw its chrome around the window controls of the desktop app when it is shown in it,
   and nothing else differently.
-- MUST make every view an address that can be kept and opened again, and MUST say, rather than
-  hide, a refusal where it happened.
+- MUST make every view an address that can be kept and opened again, the daemon it is of
+  included, and MUST say, rather than hide, a refusal where it happened.
+
+### Daemons
+
+- MUST keep the daemons in Local's settings: `Local`, this machine's, always there and never
+  removed or renamed, and every other an SSH host -- set up a part at a time as a runtime's ssh
+  host is, or imported from the ssh config, those already added skipped -- named by letters,
+  digits, `.`, `_` and `-`, `local` being Local's alone.
+- MUST reach an SSH daemon by running `hmz web --no-open --attached --port 0` there over ssh, as
+  its entry says, and forwarding a free port of this machine's loopback to the address it prints,
+  holding ssh's input open so that it goes as this does; MUST try again, waiting longer each
+  time, where it drops; and MUST stop everything it started there as it goes.
+- MUST find the `hmz` there as a login shell finds it, `~/.local/bin` included, and where none is
+  or it is not this one's version, install this one's with `uv tool install --force --python
+  '>=3.12' 'hmz==<version>'`, getting uv there with astral's installer first where it has none,
+  saying `Installing` while it does. It MUST NOT replace one while that machine's daemon holds
+  running epics, nor where it cannot tell, saying why and reaching nothing; and a development
+  build, `0.0.0`, MUST install nothing.
+- MUST hand a page an SSH daemon's `/api/` under `/d/<name>/api/` of its own origin --
+  server-sent events and uploads streamed through, and the key and cookie that daemon's `hmz web`
+  takes put in here, never handed to the page -- and nothing else of it; `/d/local/api/` MUST be
+  `/api/`. One not reached MUST be refused as unavailable, saying how it stands.
+- MUST draw the sidebar's foot as the daemon bar: the daemon shown, its host, how it stands and
+  how many epics it runs. A click on it MUST open the picker -- every daemon and how it stands,
+  one picked switched to, `Connect` on one that failed, `Manage` for the daemons in Settings --
+  with the machine's own choices below it.
+- MUST show the daemon picked alone -- its workspaces, epics, flows, settings and everything
+  else but the notifications -- carrying it in every address as `#/@<name>/...`, an address
+  without one being Local's, and MUST draw everything again of the daemon switched to.
+- MUST group Settings as `App`, what is this page's and Local's alone -- themes, daemons and
+  notifications -- and `Daemon`, every page a daemon keeps -- general, accounts, fallback,
+  runtimes, backup, workspace and usage -- read and written of the daemon picked on them, the
+  one shown at first. Each Daemon page MUST offer `Batch apply`, which writes what that page
+  saves to every daemon picked and says how each went; MUST NOT carry what only a secret sets,
+  and MUST say so where it is left out.
+
+### Notifications
+
+- MUST tell, of this machine's runs, every epic that ends -- `done`, `stopped`, or `failed`
+  where it failed, crashed, ran out of budget or was refused -- every question a flow asks a
+  person, `asked`, and every chat waiting on its next turn, `listening`: each a notice, numbered
+  in order and kept to a bound, served after a number and as server-sent events resumed from the
+  last heard, `hmz web` reached over ssh included. It MUST work them out of each host's status as
+  the daemon answers it, never by attaching, so that no host is kept for them.
+- MUST gather, on Local alone, the notices of every daemon reached into one list of
+  notifications, each naming its daemon and whether it is read, the newest few hundred kept, and
+  MUST keep out of it, before it is kept or sent, every kind turned off.
+- MUST offer them, whichever daemon is shown, behind a bell with how many are unread: each
+  opening its epic on its daemon, marked read one or all, and cleared; and each new one as a card
+  that goes after a while.
+- MUST tell the system of a new one where the page is hidden or not focused, unless that is
+  turned off: in the desktop app by its `notify`, and in a browser by its notifications, leave
+  for which is asked only by a click in Settings.
+- MUST keep which kinds are told and whether the system is in Local's settings alone, never a
+  daemon's.

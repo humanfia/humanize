@@ -76,7 +76,7 @@ class Host:
                *, replay: bool = True) -> str: ...  # the frontend's client id
     def detach(self, client: str) -> None: ...
     def asked(self, client: str, said: dict[str, Any]) -> dict[str, Any]: ...
-    def status(self) -> dict[str, Any]: ...
+    def status(self) -> dict[str, Any]: ...  # beside what runs: pending, ended, epic, task
     def away_for(self, role: str) -> bool: ...
     def printed(self, text: str) -> None: ...
     attached: int; idle: bool; closed: bool; epic: Path | None  # properties
@@ -374,6 +374,10 @@ class Fallbacks:
   that stops or ends with any waiting, MUST say so. Claims MUST NOT gate what is said to agents.
 - A run MUST be started with the backup targets its frontend chose, or the defaults where
   it chose none, and how it was started MUST say which.
+- `status` MUST say, beside what is running, every question waiting on a person --
+  `{question, role, text, mode}`, `mode` being `ask`, or `listen` for a chat waiting on its next
+  turn -- how the last run ended, `{how, why, epic, at}` or null, and the epic and task of the
+  run going or the last, so that a frontend can tell what happened without attaching.
 - One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST
   close every conversation of a stopping run under whatever turn is open, and say how many.
 - An aside MUST be read-only, carry no skills, say nothing to the run, answer only the frontend
