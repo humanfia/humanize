@@ -17,10 +17,13 @@ const failed = new Map()
 
 /** Reads the CLIs installed again -- as a workspace runs them -- and tells every picker. */
 let reading = ''
+/** Whose CLIs they are: '' for the daemon the page is on, else `/d/<name>`, as Settings picks. */
+let base = ''
 
-export async function readBackends(workspace = reading) {
+export async function readBackends(workspace = reading, from = '') {
   reading = workspace
-  backends = await get(`/api/backends?workspace=${encodeURIComponent(workspace)}`)
+  base = from
+  backends = await get(`${from}/api/backends?workspace=${encodeURIComponent(workspace)}`)
   for (const one of told) one()
   return backends
 }
@@ -31,12 +34,12 @@ function ask(cli, account) {
   if (!asking.has(key)) {
     asking.set(
       key,
-      post('/api/accounts/models', { cli, name: account })
+      post(`${base}/api/accounts/models`, { cli, name: account })
         .then(() => failed.delete(key))
         .catch((error) => failed.set(key, error.message))
         .finally(() => {
           asking.delete(key)
-          return readBackends()
+          return readBackends(reading, base)
         }),
     )
   }

@@ -8,7 +8,7 @@
 import { get, post } from '../../api.js'
 import { acting, ago, confirming, fill, h, problem } from '../../dom.js'
 
-export function draw(holder) {
+export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'accounts' })
   const making = h('section', { class: 'panel', 'data-hmz': 'make-account' })
   fill(
@@ -38,7 +38,7 @@ export function draw(holder) {
           h(
             'div',
             { class: 'row' },
-            acting('Refresh models', async () => shown(await post('/api/accounts/models', { cli: one.cli, name: one.name })), { kind: 'btn small quiet', busy: 'Asking…' }),
+            acting('Refresh models', async () => shown(await post(scope.at('/api/accounts/models'), { cli: one.cli, name: one.name })), { kind: 'btn small quiet', busy: 'Asking…' }),
             one.serves.length ? copying(one) : null,
             one.name ? h('button', { class: 'btn small quiet', type: 'button', onclick: () => correcting(one) }, 'Edit') : null,
             one.name
@@ -47,7 +47,7 @@ export function draw(holder) {
                   ask: `Remove ${one.cli}@${one.name}, credentials and all?`,
                   yes: 'Remove',
                   small: true,
-                  act: async () => shown(await post('/api/accounts/remove', { cli: one.cli, name: one.name })),
+                  act: async () => shown(await post(scope.at('/api/accounts/remove'), { cli: one.cli, name: one.name })),
                 })
               : null,
           ),
@@ -56,7 +56,8 @@ export function draw(holder) {
     )
     fill(
       listing,
-      h('h2', {}, 'Accounts'),
+      // Nothing an account holds is ever shown, so nothing of it can be copied elsewhere.
+      h('header', {}, h('h2', {}, 'Accounts'), scope.batch(null, { off: 'Secrets stay put' })),
       rows.length
         ? h(
             'div',
@@ -74,7 +75,7 @@ export function draw(holder) {
       'span',
       { class: 'row' },
       into,
-      acting('Copy', async () => shown(await post('/api/accounts/copy', { cli: one.cli, name: one.name, into: into.value })), { kind: 'btn small quiet', busy: 'Copying…' }),
+      acting('Copy', async () => shown(await post(scope.at('/api/accounts/copy'), { cli: one.cli, name: one.name, into: into.value })), { kind: 'btn small quiet', busy: 'Copying…' }),
     )
   }
 
@@ -113,7 +114,7 @@ export function draw(holder) {
       for (const input of form.querySelectorAll('input[data-env]')) if (input.value) given[input.dataset.env] = input.value
       save.disabled = true
       try {
-        shown(await post('/api/accounts/correct', { cli: one.cli, name: one.name, answers: given }))
+        shown(await post(scope.at('/api/accounts/correct'), { cli: one.cli, name: one.name, answers: given }))
         fill(said, h('span', { class: 'dim', role: 'status' }, 'Saved.'))
         for (const input of form.querySelectorAll('input')) input.value = ''
       } catch (error) {
@@ -203,7 +204,7 @@ export function draw(holder) {
       for (const input of answers.querySelectorAll('input[data-env]')) if (input.value) given[input.dataset.env] = input.value
       make.disabled = true
       try {
-        shown(await post('/api/accounts', { cli: cli.value, name: name.value.trim(), way: way.value, answers: given }))
+        shown(await post(scope.at('/api/accounts'), { cli: cli.value, name: name.value.trim(), way: way.value, answers: given }))
         fill(said, h('span', { class: 'dim', role: 'status' }, `Made ${cli.value}@${name.value.trim()}.`))
         name.value = ''
         for (const input of answers.querySelectorAll('input')) input.value = ''
@@ -217,7 +218,7 @@ export function draw(holder) {
     drawWays()
   }
 
-  get('/api/accounts')
+  get(scope.at('/api/accounts'))
     .then((answer) => {
       shown(answer)
       drawMaking()

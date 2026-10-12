@@ -14,8 +14,9 @@ import { follow } from './shell.js'
  * @param {string} [made.placeholder]
  * @param {string} [made.id]
  * @param {(path: string) => void} [made.changed] Told the path whenever it changes.
+ * @param {string} [made.from] Whose paths: '' for the daemon the page is on, else `/d/<name>`.
  */
-export function pathPicker({ value = '', files = false, label, placeholder = files ? '~/file' : '~/folder', id, changed = () => {} }) {
+export function pathPicker({ value = '', files = false, label, placeholder = files ? '~/file' : '~/folder', id, changed = () => {}, from = '' }) {
   const list = `paths-${Math.random().toString(36).slice(2, 8)}`
   const input = h('input', { type: 'text', value, placeholder, 'aria-label': label, id, list, autocomplete: 'off', spellcheck: 'false', 'data-hmz': 'path-input' })
   const offered = h('datalist', { id: list })
@@ -37,7 +38,7 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     clearTimeout(typed)
     typed = setTimeout(async () => {
       try {
-        const { paths } = await get(`/api/paths?typed=${encodeURIComponent(input.value)}`)
+        const { paths } = await get(`${from}/api/paths?typed=${encodeURIComponent(input.value)}`)
         fill(offered, paths.map((one) => h('option', { value: one })))
       } catch {
         fill(offered)
@@ -48,7 +49,7 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
   async function show(dir) {
     let read
     try {
-      read = await get(`/api/files?at=${encodeURIComponent(dir)}${files ? '&files=1' : ''}${hidden ? '&hidden=1' : ''}`)
+      read = await get(`${from}/api/files?at=${encodeURIComponent(dir)}${files ? '&files=1' : ''}${hidden ? '&hidden=1' : ''}`)
     } catch (error) {
       if (dir !== '~') return show('~')
       fill(panel, h('p', { class: 'error' }, error.message))

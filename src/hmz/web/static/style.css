@@ -3845,3 +3845,70 @@ input[aria-invalid='true'] {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* settings daemons */
+.settings-group {
+  margin: 12px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.settings-nav h2 + .settings-group {
+  margin-top: 0;
+}
+
+.settings-daemon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-daemon select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.batch-dialog {
+  width: min(calc(100vw - 32px), 420px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 16px 20px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 8px 8px 0 var(--cyan);
+}
+
+.batch-dialog::backdrop {
+  background: var(--scrim);
+}
+
+.batch-dialog h3 {
+  margin: 0 0 4px;
+}
+
+.batch-results {
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 860px) {
+  .settings-group {
+    margin: 0 4px 0 8px;
+    align-self: center;
+    white-space: nowrap;
+  }
+
+  .settings-daemon {
+    padding: 8px 12px;
+  }
+}

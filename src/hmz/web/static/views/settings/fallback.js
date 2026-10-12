@@ -6,7 +6,7 @@ import { get, post } from '../../api.js'
 import { acting, confirming, fill, h, iconButton, lasting, problem } from '../../dom.js'
 import { placePicker, readBackends } from '../../pickers.js'
 
-export function draw(holder) {
+export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'fallbacks' })
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-fallback' })
   const places = h('datalist', { id: 'places' })
@@ -36,14 +36,15 @@ export function draw(holder) {
             'div',
             { class: 'row' },
             h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
-            confirming({ label: 'Clear', ask: `Let ${one.spec} fall back nowhere again?`, yes: 'Clear', small: true, act: async () => shown(await post('/api/fallbacks/clear', { spec: one.spec })) }),
+            confirming({ label: 'Clear', ask: `Let ${one.spec} fall back nowhere again?`, yes: 'Clear', small: true, act: async () => shown(await post(scope.at('/api/fallbacks/clear'), { spec: one.spec })) }),
           ),
         ),
       ),
     )
     fill(
       listing,
-      h('h2', {}, 'Steps'),
+      // Each step written over the one of its place there, or added; none there taken away.
+      h('header', {}, h('h2', {}, 'Steps'), scope.batch(() => data.steps.map(({ spec, to, tries, policy, timeout }) => ['/api/fallbacks', { spec, to, tries, policy, timeout }]))),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Place'), h('th', {}, 'Tried'), h('th', {}, 'Then'), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'No steps. A failed turn fails where it ran.'),
@@ -103,7 +104,7 @@ export function draw(holder) {
           'Save',
           async () => {
             const to = [...chain.children].map((line) => line.picked.value()).filter(Boolean)
-            const answer = await post('/api/fallbacks', { spec: spec.value(), to, tries: Number(tries.value || 0), policy: policy.value, timeout: Number(timeout.value || 0) })
+            const answer = await post(scope.at('/api/fallbacks'), { spec: spec.value(), to, tries: Number(tries.value || 0), policy: policy.value, timeout: Number(timeout.value || 0) })
             editing = null
             shown(answer)
           },
@@ -118,7 +119,7 @@ export function draw(holder) {
   }
 
   let pickers = []
-  Promise.all([get('/api/fallbacks'), readBackends()])
+  Promise.all([get(scope.at('/api/fallbacks')), readBackends(undefined, scope.base)])
     .then(([answer]) => shown(answer))
     .catch((error) => fill(listing, problem(error)))
 }
