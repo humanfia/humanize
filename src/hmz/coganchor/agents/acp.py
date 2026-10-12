@@ -505,12 +505,15 @@ class AcpSession(SessionBase):
                 "that machine's; reads_files, writes_files and terminals offer it this "
                 "one, and must be off for a turn that lands there",
             )
+        # Where the shelf was, read before the environment is built out of it, as the account
+        # is read before a process is started.
+        pathed = self._agent.shelf.where()
         link = AcpConnection(
             argv=argv,
             environ=self._environ(),
             cwd=None if self._agent.anchor is not None else self._workspace(),
         )
-        self._as = self._agent.node().name
+        self._as, self._pathed = self._agent.node().name, pathed
         try:
             link.start()
             self._agreed(

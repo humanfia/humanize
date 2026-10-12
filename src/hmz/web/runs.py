@@ -16,7 +16,7 @@ import shutil
 import tempfile
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .routing import Download, Refusal, routes
 
@@ -274,6 +274,8 @@ def row(ran: Ran, *, held: bool) -> dict[str, Any]:
         "resumable": ran.resumable,
         "spent": labelled(ran.spent),
         "held": held,
+        "backup": list(ran.backup),
+        "backed": ran.backed,
     }
 
 
@@ -560,6 +562,25 @@ def _bundle(asked: Asked) -> Download:
     return runs.bundled(runs.named(asked.matched["name"]))
 
 
+def _backup(asked: Asked) -> dict[str, Any]:
+    runs = asked.site.runs
+    ran = runs.named(asked.matched["name"])
+    to: object = asked.body.get("to")
+    if to is not None and not (
+        isinstance(to, list)
+        and all(isinstance(one, str) for one in cast("list[Any]", to))
+    ):
+        raise Refusal("to is a list of backup target names.")
+    try:
+        # Queued, never waited on: how it went is read back off the epic as it is polled.
+        queued = runs.hmz(ran).backups.push(ran, cast("list[str] | None", to))
+    except ValueError as why:
+        raise Refusal(f"{str(why)[:1].upper()}{str(why)[1:]}.") from why
+    if not queued:
+        raise Refusal("There is no backup target: add one in Settings.", 409)
+    return {"queued": list(queued)}
+
+
 def _usage(asked: Asked) -> dict[str, Any]:
     try:
         days = min(365, max(1, int(asked.query.get("days", "30"))))
@@ -578,6 +599,7 @@ ROUTES = routes(
     ("GET", "/api/runs/{name}/timeline", _timeline),
     ("GET", "/api/runs/{name}/timeline/span/{id}", _span),
     ("GET", "/api/runs/{name}/bundle", _bundle),
+    ("POST", "/api/runs/{name}/backup", _backup),
     ("GET", "/api/usage", _usage),
 )
 

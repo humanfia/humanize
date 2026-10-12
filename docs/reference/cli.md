@@ -631,6 +631,7 @@ COMMAND`, `invalid choice: …`) and exits `2`.
 | Command | Summary as printed | Spawned by |
 | --- | --- | --- |
 | [`anchor`](#hmz-internal-anchor) | `run an agent turn on another machine` | every turn whose work lands on another machine |
+| [`cli`](#hmz-internal-cli) | `relay agent runs of a flow's command line to the flow` | a script on an agent's `PATH`, once per run of a flow's command line |
 | [`cred`](#hmz-internal-cred) | `run a program with credentials from an account` | every turn or login under an account, and every turn whose sessions humanize keeps |
 | [`fence`](#hmz-internal-fence) | `run a program held to what its flow permits` | every turn of an agent whose permission fences anything |
 | [`hook`](#hmz-internal-hook) | `relay agent hooks to a flow` | a CLI's hook table, once per hook call |
@@ -809,6 +810,23 @@ Carries the tool protocol both ways at once between stdin/stdout and the Unix so
 | `1` | the socket cannot be reached (`hmz internal tools: <socket>: <why>`) |
 | `2` | no `--at` |
 
+### `hmz internal cli` {#hmz-internal-cli}
+
+```text
+hmz internal cli --at SOCKET --name NAME [-- WORDS...]
+```
+
+Sends `{"name": NAME, "argv": WORDS}` on one line to the Unix socket `SOCKET`, reads one line
+`{"code", "out", "err"}` back, writes `out` to stdout and `err` to stderr, and exits `code`.
+Everything after the first `--` is passed on untouched, `--help` and later `--` included.
+Stdin is not read. See [Agents › Command lines](/reference/agents#command-lines).
+
+| Exit | When |
+| --- | --- |
+| the flow's | it answered: `0`, `2` for a usage error, `127` for a command line no longer shelved, or what the flow's function exited with |
+| `1` | the socket cannot be reached (`NAME: the flow serving it has ended (<why>)`), or no answer came back (`NAME: the flow serving it gave no answer`) |
+| `2` | no `--at` or `--name` |
+
 ## Exit statuses {#exit-statuses}
 
 | Status | Command | Meaning |
@@ -825,6 +843,7 @@ Carries the tool protocol both ways at once between stdin/stdout and the Unix so
 | `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the run has let go of what it made. |
 | `129`, `143` | `hmz exec` | `SIGHUP`, `SIGTERM`, after the run has let go of what it made. |
 | *program's* | `internal anchor`, `cred`, `fence` | The wrapped program's own status. |
+| *flow's* | `internal cli` | What the flow answered the run with. |
 
 ## Environment variables {#environment-variables}
 

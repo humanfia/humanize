@@ -666,7 +666,7 @@ read last (`Profile.journal`).
 | --- | --- |
 | `Unrecoverable` (a `Failed`) | no retry could change it: a context-window overflow, a session id the backend will not resume, a budget spent with `then="fail"`. Never retried, never carried to another account. |
 | `Stopped` | the agent was [stopped](#stopping). Not a `CalledProcessError`. |
-| `NotImplementedError` | the backend lacks the feature (`pursue` without goals, `interject` without steering, `fork` without forks, `offers` without tools) |
+| `NotImplementedError` | the backend lacks the feature (`pursue` without goals, `interject` without steering, `fork` without forks, `offers` without tools, `shelves` without a shell) |
 
 `suppress=True` returns `""` (or `None` with a schema) for a `Failed` or a schema mismatch, and
 nothing else.
@@ -1114,16 +1114,77 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 - Served where `session.takes_tools`: `claude` (`--mcp-config`), `codex`
   (`-c mcp_servers.humanize.…`), `qwen` (`mcpServers.humanize`, `trust: true`, in its
   `QWEN_CODE_SYSTEM_SETTINGS_PATH` file; the user's `mcp.allowed`/`mcp.excluded` and folder
-  trust still apply), `pi` (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under
-  `--no-extensions` too), `omp` (RPC `set_host_tools`) and `dsh` (a
-  `@deepseek-ai/dsh-mcp-client` row in its patch, tools named `mcp__humanize__<name>`);
-  elsewhere `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
+  trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
+  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `pi` (`--extension
+  <hmz>/coganchor/agents/pi_tools.cjs`, loaded under `--no-extensions` too), `omp` (RPC
+  `set_host_tools`) and `dsh` (a `@deepseek-ai/dsh-mcp-client` row in its patch, tools named
+  `mcp__humanize__<name>`); elsewhere `NotImplementedError: <cli> has no way of being given a
+  tool of a flow's own`.
 - The road is MCP: the CLI is given `hmz internal tools --at <socket>`, which `pi`'s extension
   starts itself. `omp` asks for each call back over its own RPC pipe instead. Tools are per
   agent.
 - Offering other names between two turns starts `pi` and `dsh` again before the next one;
   `omp` is told on the process already up.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
+
+## Command lines {#command-lines}
+
+`session.shelves([Cli(name, about, commands)])` puts a program called `name` on the agent's
+`PATH`; every run of it is answered in this process. `shelves(None)` takes them back. Not
+available to flows yet.
+
+```python
+class File(BaseModel):
+    title: str = Field(description="what the ticket says")
+    points: int = 3
+
+session.shelves([Cli("tix", "Track tickets.", (Command("file", "File one.", file, File),))])
+# the agent's shell: tix --help; tix file --help; tix file --title "red build" --points 5
+```
+
+| `Command` field | Meaning |
+| --- | --- |
+| `name` | the subcommand typed after the program's name |
+| `about` | its line in `--help`, and its own `--help` description |
+| `takes` | a pydantic model of its options, or `None` for none |
+| `call` | called with the model (or nothing) |
+
+| Field of `takes` | Option |
+| --- | --- |
+| any | `--field-name FIELD_NAME`, help from `Field(description=…)` and the default |
+| no default | required |
+| `bool` | `--flag` / `--no-flag` |
+| `list[T]`, `tuple[T, ...]`, `set[T]` | `--flag [V ...]` |
+| `Literal[…]`, an `Enum` | `--flag {a,b}` |
+
+The words are parsed by `argparse` and validated by the model, so a value the model refuses is a
+usage error like a missing flag.
+
+| Run | Stdout | Stderr | Exit |
+| --- | --- | --- | --- |
+| `--help`, `COMMAND --help` | the help | | `0` |
+| a line the parser or the model refuses | | the usage and `NAME COMMAND: error: …` | `2` |
+| `call` returns a `str` | it, with a trailing newline | | `0` |
+| `call` returns `None` | | | `0` |
+| `call` returns anything else | it as indented JSON (a model as `model_dump(mode="json")`) | | `0` |
+| `call` raises `SystemExit(n)` | | a non-integer `n` | `n` (`None` is `0`, text is `1`) |
+| `call` raises anything else | | `NAME: <Type>: <message>` | `1` |
+| a command line taken back since the shell found it | | `NAME: command not found` | `127` |
+
+- `Cli` refuses a `name` that is not a plain file name (letters, digits, `.`, `_`, `-`, not
+  starting with `.` or `-`), no commands, and a command named twice (`ValueError`).
+- Served wherever there is a shell (`session.takes_clis`): every backend but `litellm` and the
+  person at the prompt, where `NotImplementedError: <cli> has no shell to run a command line of
+  a flow's own in`.
+- Command lines are per agent, as tools are. The first one shelved makes `agent.shelf`: a 0700
+  directory under `$TMPDIR` holding `bin/NAME` (a `#!/bin/sh` script running
+  [`hmz internal cli`](/reference/cli#hmz-internal-cli)) and the socket. `bin` is put first on
+  `PATH` in every process of the agent from then on, and a process held open from before is
+  started again for its next turn.
+- `call` runs on a thread of its own per run. Stdin and the working directory are not passed.
+- Under a [fence](#the-fence) the directory is readable. Under a supervised anchor it and the
+  Python running humanize are kept here (`local_execs`, `local_paths`). A native anchored turn
+  on a non-`local` target with any shelved is refused.
 
 ## Machine and account
 
@@ -1566,6 +1627,10 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 
 - The table is written for the turn, never to a settings file. Its `read` and `edit` rules are
   relative to the top of the git checkout the session is in, or `/`.
+- [Callback tools](#callbacks-as-tools) are a `local` server `humanize` in `mcp`, merged into
+  the `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT` the turn would otherwise have (the
+  account's, else an exported one); the model sees them as `humanize_<name>`. A value that is
+  not a JSON object (JSONC included) fails the turn with `ValueError`.
 - mimocode reads `~/.claude.json` at start; where the fence does not let it,
   `MIMOCODE_DISABLE_CLAUDE_CODE=1` is set.
 - Both keep sessions in SQLite; traces read it with a query.
