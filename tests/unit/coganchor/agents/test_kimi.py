@@ -23,8 +23,9 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents.hooks import Moment
 from hmz.coganchor.agents.kimi import LOG_LEVELS, READABLE
 from hmz.coganchor.fence import Fence
+from hmz.coganchor.providers import Provider
 
-from .doubles_u5 import UNREAL_PID, Process, configured, heard, spawning
+from .doubles_u5 import UNREAL_PID, Process, configured, gatewayed, heard, spawning
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -474,3 +475,75 @@ def test_a_word_put_in_with_no_turn_running_is_refused(
 ) -> None:
     with pytest.raises(RuntimeError, match="no turn"):
         made().new(tmp_path).interject("hold on")
+
+
+# --------------------------------------------------------------- through a LiteLLM gateway
+
+_ROUTED = Provider(
+    cli="kimi",
+    name="gw",
+    way="litellm-openai-key",
+    env={"OPENAI_API_KEY": "upstream-secret"},
+)
+
+
+def test_the_daemon_through_a_gateway_is_pointed_at_it_naming_the_agents_model(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del daemon
+    monkeypatch.setenv("KIMI_MODEL_NAME", "lying-about")
+    gatewayed(monkeypatch, _ROUTED)
+
+    _turn(made(provider="gw").new(tmp_path))
+
+    env = server[0].env
+    assert env is not None
+    assert env["KIMI_MODEL_BASE_URL"] == "http://127.0.0.1:4321"
+    assert env["KIMI_MODEL_API_KEY"] == "sk-master"
+    assert env["KIMI_MODEL_PROVIDER_TYPE"] == "openai"
+    assert env["KIMI_MODEL_NAME"] == "kimi-k2"
+    assert "upstream-secret" not in env.values()
+
+
+def test_a_daemon_through_a_gateway_is_started_again_for_another_model(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del daemon
+    gatewayed(monkeypatch, _ROUTED)
+    agent = made(provider="gw")
+
+    _turn(agent.new(tmp_path))
+    agent.reconfigure(KimiCodeCLIAgentConfig(model="kimi-k3", effort="", provider="gw"))
+    _turn(agent.new(tmp_path))
+
+    assert [(one.env or {}).get("KIMI_MODEL_NAME") for one in server] == [
+        "kimi-k2",
+        "kimi-k3",
+    ]
+
+
+def test_a_gateway_started_again_starts_the_daemon_again(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del daemon
+    started = gatewayed(monkeypatch, _ROUTED)
+    agent = made(provider="gw")
+
+    _turn(agent.new(tmp_path))
+    started[0].running = False
+    _turn(agent.new(tmp_path))
+
+    assert len(started) == 2
+    assert len(server) == 2

@@ -111,6 +111,13 @@ _TAIL = 20
 #: key alone -- so a gateway that answers is this one, and not another on a port it let go of.
 _READY_AT = "/v1/models"
 
+#: The backends pointed at the gateway with `/v1` after it, and what that is: theirs take a
+#: base URL with the API's version in it and add only the operation, as OpenAI's SDKs do --
+#: where Anthropic's add `/v1/messages` themselves, and a CLI that adds the whole OpenAI path
+#: itself is given the bare URL by not being here.
+_VERSIONED_FOR = frozenset({"opencode", "mimo", "pi"})
+_VERSIONED = "/v1"
+
 #: What asks it, past any proxy the environment names.
 _DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -243,7 +250,14 @@ def configured(provider: Provider, key: str) -> dict[str, Any]:
             f"The account {provider.name!r} names no provider for the gateway to send "
             "its turns to"
         )
-    params = {"model": f"{said}/*", **credentials(provider)}
+    params: dict[str, Any] = {"model": f"{said}/*", **credentials(provider)}
+    if provider.env.get(_URL):
+        # A turn asked in the Responses API, as codex asks every one, sent to somebody's
+        # endpoint as chat completions: the one every endpoint calling itself OpenAI-compatible
+        # speaks, where litellm would otherwise ask it in the Responses API. A vendor's own
+        # is asked in whichever it speaks, and one that has no Responses API in chat
+        # completions anyway.
+        params["use_chat_completions_api"] = True
     return {
         "model_list": [
             {"model_name": f"{said}/*", "litellm_params": params},
@@ -276,19 +290,21 @@ def spoken(profile: backends.Profile, url: str, key: str) -> dict[str, str]:
 
     Returns:
       The variables of the way :attr:`~hmz.coganchor.backends.Profile.routes` names, the one
-      that says where to go answered with the gateway and its secret with the key, what has
-      an answer that is usually right answered with that, and what the way sets. Nothing for
-      a backend that names no such way.
+      that says where to go answered with the gateway -- at `/v1` for opencode, mimo and pi,
+      whose SDKs add only the operation -- and its secret with the key, what has an answer
+      that is usually right answered with that, and what the way sets. Nothing for a backend
+      that names no such way.
     """
     way = _routes(profile)
     if way is None:
         return {}
+    where = f"{url}{_VERSIONED}" if profile.name in _VERSIONED_FOR else url
     held: dict[str, str] = {}
     for asked in way.asks:
         if asked.secret:
             held[asked.env] = key
         elif asked.env == profile.endpoint or asked.env.endswith(("_URL", "_BASE")):
-            held[asked.env] = url
+            held[asked.env] = where
         elif asked.fixed:
             held[asked.env] = asked.fixed
     return held | dict(way.sets)

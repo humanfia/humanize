@@ -566,6 +566,13 @@ def test_ask_an_account_through_a_gateway_reads_litellms_catalogue_for_its_provi
         Model("openai/gpt-4o", ()),
     )
     assert ran.calls == 0
+    # agy takes no effort for any model its gateway serves, so none is offered at a rung.
+    providers.add("agy", "gw", way="litellm-openai-key", env={"OPENAI_API_KEY": "k"})
+    assert models.ask("agy", "gw") == (
+        Model("openai/gpt-5", ()),
+        Model("openai/gpt-4o", ()),
+    )
+    assert ran.calls == 0
 
 
 def test_ask_litellm_not_installed(

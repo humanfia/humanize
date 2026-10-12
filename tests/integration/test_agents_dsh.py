@@ -4,7 +4,8 @@ The harness is the SDK's own bundled runtime, started by the driver as it would 
 what it calls is the model, which here is an `Endpoint` on the loopback that
 `DEEPSEEK_BASE_URL` points it at. So a turn is the whole path -- the driver composing the
 runtime, the SDK's JSON-RPC to it, the runtime's chat completion -- with only the model
-standing in.
+standing in. Under an account a local LiteLLM gateway holds, the gateway is run for real
+between the two.
 """
 
 from __future__ import annotations
@@ -13,7 +14,9 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz.coganchor import providers
 from hmz.coganchor.agents import DshAgent, DshAgentConfig, Failed, Unrecoverable
+from hmz.coganchor.gateway import gatewayable
 from tests.integration.doubles_agents import Endpoint, harnessed, kinds, serving
 
 if TYPE_CHECKING:
@@ -90,6 +93,44 @@ def test_a_model_gone_silent_is_given_up_on_by_the_watchdog(
 
     with pytest.raises(Failed):
         DshAgent(CONFIG).new()("hang")
+
+
+@pytest.mark.skipif(not gatewayable(), reason="the [litellm] extra is not installed")
+@pytest.mark.timeout(240)
+def test_a_turn_under_an_account_a_gateway_holds_reaches_its_endpoint_through_it(
+    endpoint: Endpoint, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "hmz"))
+    monkeypatch.setenv("LITELLM_GATEWAY_KEY", "lying-about")
+    providers.add(
+        "dsh",
+        "gw",
+        way="litellm-openai-gateway",
+        env={
+            "LITELLM_GATEWAY_URL": endpoint.url,
+            "LITELLM_GATEWAY_KEY": "upstream-secret",
+            "LITELLM_GATEWAY_API": "openai",
+        },
+    )
+    agent = DshAgent(DshAgentConfig(model="stand-in", effort="high", provider="gw"))
+    try:
+        said = list(agent.new().stream("hello"))
+        through = agent.gateway
+        assert through is not None
+        env = agent.environment()
+        hushed = agent.hushed()
+    finally:
+        agent.stop()
+
+    assert said[-1].text == "hello"
+    (asked,) = endpoint.asked
+    assert asked["model"] == "stand-in"
+    assert _conversation(asked) == [("user", "hello")]
+    assert env["DEEPSEEK_BASE_URL"] == through.url
+    assert env["DEEPSEEK_API_KEY"] == through.key
+    assert "upstream-secret" not in env.values()
+    assert "LITELLM_GATEWAY_KEY" in hushed
+    assert not through.running
 
 
 def test_a_callback_offered_is_run_here_when_the_model_reaches_for_it(

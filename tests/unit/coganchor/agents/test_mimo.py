@@ -22,6 +22,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.fence import Fence
 from tests.unit.coganchor.agents.doubles_u4 import Spawner, fenceable
+from tests.unit.coganchor.agents.doubles_u5 import routing
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -172,6 +173,21 @@ def test_a_gateway_account_asks_for_its_model_under_the_gateway(
     assert proc.args[proc.args.index("--model") + 1] == f"humanize/{served}"
     assert proc.environ["MIMO_GATEWAY_MODEL"] == served
     assert proc.environ["MIMO_GATEWAY_URL"] == "http://gw"
+
+
+def test_a_turn_through_a_gateway_asks_it_for_the_turns_model(
+    spawner: Spawner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    routing(monkeypatch, "mimo")
+    _mimo(model="openai/gpt-5", provider="gw").new(tmp_path)("go")
+    proc = spawner.last
+    assert proc.args[proc.args.index("--model") + 1] == "humanize/openai/gpt-5"
+    assert proc.environ["MIMO_GATEWAY_MODEL"] == "openai/gpt-5"
+    assert proc.environ["MIMO_GATEWAY_URL"] == "http://127.0.0.1:4321/v1"
+    assert proc.environ["MIMO_GATEWAY_KEY"] == "sk-master"
+    assert proc.environ["MIMO_GATEWAY_API"] == "@ai-sdk/openai-compatible"
+    assert "OPENAI_API_KEY" not in proc.environ
+    assert "upstream-secret" not in proc.environ.values()
 
 
 def test_any_other_account_names_its_model_as_it_is(

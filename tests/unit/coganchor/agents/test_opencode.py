@@ -17,7 +17,7 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents.config import Unserved
 from hmz.coganchor.fence import Fence
 
-from .doubles_u5 import configured, heard, line, option, spawning
+from .doubles_u5 import configured, heard, line, option, routing, spawning
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -373,3 +373,25 @@ def test_a_fence_is_left_alone_where_no_provider_is_configured(
 
 def test_an_agent_without_a_fence_has_none() -> None:
     assert _agent().fenced() is None
+
+
+def test_a_turn_through_a_gateway_asks_it_for_the_turns_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    routing(monkeypatch, "opencode")
+    spawned = spawning(monkeypatch, opening=_TURN)
+    agent = _agent(model="openai/gpt-5", provider="gw")
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    (process,) = spawned
+    env = process.env or {}
+    assert option(process.args, "--model") == "gateway/openai/gpt-5"
+    assert env["OPENCODE_GATEWAY_MODEL"] == "openai/gpt-5"
+    assert env["OPENCODE_GATEWAY_URL"] == "http://127.0.0.1:4321/v1"
+    assert env["OPENCODE_GATEWAY_KEY"] == "sk-master"
+    assert env["OPENCODE_GATEWAY_NPM"] == "@ai-sdk/openai-compatible"
+    assert "{env:OPENCODE_GATEWAY_URL}" in env["OPENCODE_CONFIG_CONTENT"]
+    assert "OPENAI_API_KEY" not in env
+    assert "upstream-secret" not in env.values()

@@ -64,6 +64,7 @@ if TYPE_CHECKING:
     from websockets.sync.client import ClientConnection
 
     from hmz.coganchor.fence import Fence
+    from hmz.coganchor.gateway import Gateway
 
 #: What to say when the websocket client a session is told about its own turn over is not
 #: in this Python environment. Kimi Code is an extra rather than part of every install, so
@@ -87,6 +88,9 @@ _EXTRA = (
 #: would leave this loop reading banner lines that never match until the agent was collected.
 #: Verified against 0.42.0 by starting both.
 _LISTENING = re.compile(r"^Kimi server: (\S+)/#token=(\S+)$")
+
+#: The model the provider a daemon builds out of `KIMI_MODEL_*` is made with.
+_MODEL_NAME = "KIMI_MODEL_NAME"
 
 #: What `kimi web --log-level` takes, and the one of them this driver cannot be run at. The
 #: level is the daemon's own logging, which nothing here reads -- what it decides for us is
@@ -1815,8 +1819,13 @@ class KimiCodeCLIAgent(AgentBase):
         #: somebody else, and one set up with another fence starts another rather than going
         #: on running turns inside the walls the old one was put up with -- the fence is put
         #: around the daemon once, where it starts, and every session of the agent is a
-        #: session of that one process.
-        self._server_as: tuple[str, Fence | None, str] | None = None
+        #: session of that one process. With the flow's command lines on its PATH from
+        #: where the shelf was. And, for an account a local LiteLLM gateway holds, pointed at
+        #: which gateway and naming which model (see :meth:`environment`): one started again
+        #: is at another port under another key.
+        self._server_as: tuple[str, Fence | None, str, Gateway | None, str] | None = (
+            None
+        )
         self._serving = threading.Lock()
 
     def environment(self) -> Mapping[str, str]:
@@ -1832,11 +1841,19 @@ class KimiCodeCLIAgent(AgentBase):
         started, so a hook hung after that gets nothing from this backend for as long as the
         agent lives. A backend that is a process a turn asks it again every turn.
 
+        And, for an account a local LiteLLM gateway holds, the model the daemon's one provider
+        is made with: the account's way of saying it is asked of the person rather than
+        answered by the gateway, and what it is to be is the model this agent runs, which the
+        gateway sends on to whatever is behind it.
+
         Returns:
           The provider's own variables, and the preload beside them for an agent something is
           listening to.
         """
-        return preloaded(self, super().environment())
+        held = dict(super().environment())
+        if self.gateway is not None:
+            held[_MODEL_NAME] = self.config.model
+        return preloaded(self, held)
 
     def natively(self, fence: Fence) -> Fence:
         """None of the fence, which Kimi has no way of holding itself to; plus its port.
@@ -1880,6 +1897,7 @@ class KimiCodeCLIAgent(AgentBase):
                 self.node().name,
                 self.config.fence,
                 self.shelf.where(),
+                *self._through(),
             ):
                 # Started as an account this agent has since left, or inside a fence it has
                 # since been set up with another of. Let go of rather than taken down: a turn
@@ -1915,17 +1933,23 @@ class KimiCodeCLIAgent(AgentBase):
                 # into, and a server that believes it is already elsewhere is one nothing ever
                 # starts again.
                 account, pathed = self.node().name, self.shelf.where()
+                through = self._through()
                 self._listening = port or None
                 try:
                     spawned = self.spawned(argv)
                 finally:
                     self._listening = None
                 self._server = _AppServer(spawned, self._environ())
-                self._server_as = (account, fence, pathed)
+                self._server_as = (account, fence, pathed, *through)
                 # Held by the finalizer alone, which is what takes the daemon down: when the
                 # agent is collected, and at exit for one held to the end.
                 weakref.finalize(self, self._server.stop)
             return self._server
+
+    def _through(self) -> tuple[Gateway | None, str]:
+        """The gateway a daemon is pointed at and the model it names, or neither."""
+        through = self.gateway
+        return through, self.config.model if through is not None else ""
 
     def stop(self) -> None:
         """Takes no further turn, and takes down the server the turn under way is waiting on."""

@@ -10,7 +10,7 @@ import pytest
 from hmz.coganchor.agents import Failed, PiAgent, PiAgentConfig, PiSession, driver
 from hmz.coganchor.fence import Fence
 
-from .doubles_u5 import configured, heard, line, option, spawning
+from .doubles_u5 import configured, heard, line, option, routing, spawning
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -346,3 +346,37 @@ def test_a_bare_model_name_reaches_every_provider_declared(tmp_path: Path) -> No
 
 def test_an_agent_without_a_fence_has_none() -> None:
     assert _agent().fenced() is None
+
+
+def test_a_turn_through_a_gateway_declares_it_at_the_turns_model_until_the_agent_stops(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    routing(monkeypatch, "pi")
+    _declared(tmp_path, {"mine": {"baseUrl": "https://gw.example"}})
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    agent = _agent(model="openai/gpt-5", provider="gw")
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    (process,) = spawned
+    models = tmp_path / "home/.pi/agent/models.json"
+    named = option(process.args, "--provider")
+    assert named is not None
+    assert json.loads(models.read_text())["providers"][named] == {
+        "baseUrl": "http://127.0.0.1:4321/v1",
+        "api": "openai-completions",
+        "apiKey": "$PI_GATEWAY_KEY",
+        "models": [{"id": "openai/gpt-5"}],
+    }
+    assert option(process.args, "--model") == "openai/gpt-5"
+    env = process.env or {}
+    assert env["PI_GATEWAY_KEY"] == "sk-master"
+    assert "OPENAI_API_KEY" not in env
+    assert "upstream-secret" not in json.dumps(env) + models.read_text()
+
+    agent.stop()
+
+    assert json.loads(models.read_text())["providers"] == {
+        "mine": {"baseUrl": "https://gw.example"}
+    }
