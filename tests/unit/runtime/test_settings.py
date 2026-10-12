@@ -244,6 +244,19 @@ def test_details_are_off_until_turned_on(held: doubles.Store) -> None:
     assert Settings().details is False
 
 
+def test_epics_are_of_this_directory_until_turned_to_this_machine(
+    held: doubles.Store,
+) -> None:
+    said = Settings()
+    assert said.every_epic is False
+
+    said.every_epic = True
+    assert Settings().every_epic is True
+
+    said.every_epic = False
+    assert Settings().every_epic is False
+
+
 def test_btw_is_nobodys_until_chosen(held: doubles.Store) -> None:
     said = Settings()
     assert said.btw == ""

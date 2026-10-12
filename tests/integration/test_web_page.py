@@ -8,6 +8,7 @@ WebKit, which the macOS app's window is.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -320,6 +321,54 @@ def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
         assert again.evaluate("document.documentElement.dataset.theme") == "dark"
         assert _paints(again, "--paper") == "#102030"
         again.close()
+
+
+def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _go(page, "/settings/themes")
+        page.get_by_role("button", name="New pair").click()
+        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
+            "Light"
+        )
+        page.locator("[data-hmz=theme-name]").fill("Dusk")
+        page.locator("[data-hmz=colour-paper]").fill("#fff8e0")
+        page.locator("[data-hmz=theme-side]").get_by_role("button", name="Dark").click()
+        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
+            "Dark"
+        )
+        expect(page.locator("[data-hmz=theme-name]")).to_have_value("Dusk")
+        page.locator("[data-hmz=colour-paper]").fill("#201008")
+        page.get_by_role("link", name="Done").click()
+
+        dusk = page.locator("[data-hmz=pair]", has_text="Dusk")
+        dusk.get_by_role("button", name="Export").click()
+        with page.expect_download() as saving:
+            page.get_by_role("menuitem", name="Pair").click()
+        saved = saving.value
+        assert saved.suggested_filename == "Dusk.hmztheme"
+        written = json.loads(Path(saved.path()).read_text())
+        assert written["name"] == "Dusk"
+        assert written["light"]["colors"]["paper"] == "#fff8e0"
+        assert written["dark"]["colors"]["paper"] == "#201008"
+
+        dusk.get_by_role("button", name="Delete").click()
+        dusk.get_by_role("button", name="Delete").click()
+        expect(dusk).to_have_count(0)
+        page.locator("[data-hmz=theme-file]").set_input_files(
+            {
+                "name": "Dusk.hmztheme",
+                "mimeType": "application/json",
+                "buffer": json.dumps(written).encode(),
+            }
+        )
+        expect(dusk).to_have_count(1)
+        page.locator("[data-hmz=auto-pair]").select_option(label="Dusk")
+        _painted(page, "--paper", "#fff8e0")
+        page.emulate_media(color_scheme="dark")
+        _painted(page, "--paper", "#201008")
+        expect(dusk).to_have_class(re.compile("chosen"))
 
 
 def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> None:

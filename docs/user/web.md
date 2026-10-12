@@ -201,9 +201,12 @@ with a pair: under **Auto** pick a **Pair** -- or any theme for the system's **L
 for its **Dark**, your own included. Click a preset's light or dark
 swatch to use that one theme whatever the system is.
 
-**New** makes a theme from the one showing, **Duplicate** from any; **Edit** opens one of yours:
+**New** makes a theme from the one showing, and **New pair** a pair of your own -- a light theme
+and a dark one, which Auto can follow your system with as it does a preset -- from the pair
+showing. **Duplicate** copies any theme, or a whole pair. **Edit** opens one of yours:
 
 - **Name**, and the **Base** it is made on, Light or Dark, whose colour any you leave blank is.
+  In a pair, the name is both themes', and **Side** switches between its light and its dark.
 - Every colour, by what it colours: **Backgrounds** (page, sidebar, surface, raised),
   **Text**, **Controls** (button, its text, primary button, its text, field, edge), **Lines**,
   **Accents** and the **Graph**'s lanes. Pick one or type any CSS colour, such as
@@ -213,8 +216,8 @@ swatch to use that one theme whatever the system is.
   Where your system asks for reduced motion, a moving picture is held still.
 
 The page shows a theme as you change it, and keeps every change at once. **Export** saves a
-theme, pictures and all, as a `.hmztheme` file; **Import** reads one back, here or in any other
-browser. Themes are kept by the browser, as the rest of what the page remembers is, so another
+theme, or a pair with both its themes, pictures and all, as a `.hmztheme` file; **Import** reads
+one back, here or in any other browser. Themes are kept by the browser, as the rest of what the page remembers is, so another
 browser -- or [the app](/user/desktop) -- has its own until you import them there.
 
 A `.hmztheme` file is JSON:
@@ -226,6 +229,17 @@ A `.hmztheme` file is JSON:
   "base": "dark",
   "colors": { "paper": "#102030", "primary": "#ec6fa3" },
   "images": { "page": { "fit": "cover", "data": "data:image/svg+xml;base64,…" } }
+}
+```
+
+A pair holds both its themes, each with its `colors` and `images`, in place of a `base`:
+
+```json
+{
+  "hmztheme": 1,
+  "name": "Dusk",
+  "light": { "colors": { "paper": "#fff8e0" }, "images": {} },
+  "dark": { "colors": { "paper": "#201008" }, "images": {} }
 }
 ```
 

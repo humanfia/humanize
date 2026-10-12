@@ -760,11 +760,20 @@ class BackendAgent(AgentBase):
 - Every session of an agent a run drives MUST be kept in `keeps` -- its run's -- and nothing of it
   in the CLI's own home: answered by the turn's supervisor, or told to the CLI where its driver
   tells it where. `keeps` MUST be settled by the first process that keeps one there, and MUST
-  refuse to move afterwards. A session MUST stay where the CLI keeps it only for an agent no run
-  drives, whose `keeps` is None and for which humanize MUST keep nothing of its own, a turn taken
-  on another machine -- the target's own CLI, or a harness elsewhere -- a machine that cannot
-  supervise one, and a process told `KEEPING=off`; and `kept` MUST answer where it is, laid out as
-  the CLI's home is, or None for a backend nothing says the home of and no `keeps`.
+  refuse to move afterwards. A turn taken on another machine -- the target's own CLI, or a harness
+  elsewhere -- MUST keep its session in that CLI's home there, and every file the backend logs it
+  to MUST be copied into `keeps` from the moment the backend names it: a log of lines a whole line
+  at a time every few seconds, and every log whole as the session closes or is let go of, on a
+  thread of its own that never holds up a turn, its streams or a stop, and says a failed copy once
+  without raising; a native turn whose provider projects the CLI's home into its private
+  directory MUST say where that landed, the copying MUST follow it there, and the turn MUST bring
+  every directory of it the backend logs sessions under back into `keeps` as it ends, before
+  that home is removed -- never a file every session shares. A session MUST stay
+  where the CLI keeps it, with nothing copied, only for an
+  agent no run drives, whose `keeps` is None and for which humanize MUST keep nothing of its own,
+  a machine that cannot supervise one or that no command is started on, and a process told
+  `KEEPING=off`; and `kept` MUST answer where it is or its copy is, laid out as the CLI's home is,
+  or None for a backend nothing says the home of and no `keeps`.
 - `pursue` MUST be the backend's own goal feature, followed across every turn it takes, and MUST
   raise `NotImplementedError` where there is none rather than asking in the prompt.
 - `loads` MUST take hold from the next turn, a session told nothing MUST carry every skill the flow

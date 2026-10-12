@@ -660,7 +660,8 @@ def under() -> Path: ...  # machine()/skills
 - The machine MUST be asked whether it has the CLI down the road a native turn takes, one
   question at a time, and a run stopped while it asks MUST take the asking down with it; where
   the harness went -- `local`, `self`, or `<backend>:<name>` -- MUST be written down with each
-  session whose work is elsewhere.
+  session whose work is elsewhere, and a session under `self` or `<backend>:<name>` MUST be kept
+  in the epic as the copy the runtime spec says, before its machine is closed.
 
 ### Fakes
 

@@ -105,6 +105,7 @@ class Epics:
     def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None: ...
     def under(self) -> Path: ...
     def all(self) -> list[Path]: ...
+    def every(self) -> list[Path]: ...  # of every workspace on this machine
     def read(self, epic: Path) -> Ran | None: ...
     def tree(self, epic: Path) -> tuple[Called, ...]: ...
     def sessions(self, epic: Path) -> list[Session]: ...
@@ -120,6 +121,7 @@ class Epics:
         start: str | None = None,
         end: str | None = None,
     ) -> tuple[Path, dict[str, Any]]: ...
+    def timeline(self, epic: Path) -> Timeline: ...  # Exomyth, tracing.md
     def bundled(
         self,
         epic: Path,
@@ -307,6 +309,8 @@ class Fallbacks:
   named, and one asked for without a workspace MUST stay without one. It MUST read the sessions
   that run kept, and a trace asked for without saying where MUST read the sessions every run
   kept.
+- A timeline of one run MUST be gathered from exactly what a trace of it is, with the run, the
+  tree of flows it called and its profile, and MUST NOT be written anywhere.
 
 ### Hosting
 

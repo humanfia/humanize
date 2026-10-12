@@ -821,19 +821,27 @@ class Road:
         return [*self.prefix, " ".join(["exec", *(shlex.quote(word) for word in argv)])]
 
     def run(
-        self, argv: Sequence[str], feeding: bytes = b""
+        self, argv: Sequence[str], feeding: bytes = b"", timeout: float | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         """Runs one short command over there and waits for it.
 
         Args:
           argv: What to run.
           feeding: What to put on its input.
+          timeout: How long to wait for it, in seconds, or None for as long as it takes.
 
         Returns:
           What it did, with both its streams captured.
+
+        Raises:
+          subprocess.TimeoutExpired: If it took longer than `timeout`.
         """
         return subprocess.run(
-            self.line(argv), input=feeding, capture_output=True, check=False
+            self.line(argv),
+            input=feeding,
+            capture_output=True,
+            check=False,
+            timeout=timeout,
         )
 
     def mirror(self, named: str) -> str:

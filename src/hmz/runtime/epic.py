@@ -991,6 +991,22 @@ def epics(workspace: Path | str | None = None) -> list[Path]:
         return []
 
 
+def every() -> list[Path]:
+    """The epics run on this machine, in every workspace, oldest first.
+
+    Returns:
+      One directory per epic, ordered by the moment it began, which is what each is named.
+    """
+    found: list[Path] = []
+    with contextlib.suppress(OSError):
+        for workspace in (home() / "epics").iterdir():
+            with contextlib.suppress(OSError):
+                found += (
+                    one for one in workspace.iterdir() if (one / JOURNAL).is_file()
+                )
+    return sorted(found, key=lambda one: one.name)
+
+
 def _events(epic: Path) -> list[dict[str, Any]]:
     """Every line one epic holds, in the order they were written.
 
