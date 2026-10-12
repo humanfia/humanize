@@ -4,11 +4,13 @@
 [daemon](/features/daemon) holds every directory's runs: each epic going as it happens, every
 epic written down, starting one in any directory, what they spent, and what humanize remembers.
 It is one more window onto the runs `hmz` shows, not a copy of them. Start an epic in the
-terminal and answer it in the browser, or the other way round.
+terminal and answer it in the browser, or the other way round. The same page reaches the epics of
+[other machines](#daemons) over ssh, one at a time, and [tells you](#notifications) when an epic
+on any of them ends or asks you something.
 
 ::: info At a glance
-- **You will** watch, steer and start epics in any directory from a browser, read an epic
-  written down, and see what they spent.
+- **You will** watch, steer and start epics in any directory from a browser, on this machine or
+  an ssh host, read an epic written down, see what they spent, and be told when one needs you.
 - **Use it when** a picture of a run reads better than a transcript: its agents and who handed
   to whom, each session's turns laid out over time, a week's spend by flow.
 - **You need** humanize installed as in [Installation](/user/installation), and a browser on the
@@ -65,38 +67,17 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Search epics** (<kbd>⌘K</kbd>) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
-The foot of the sidebar is the daemon bar: the daemon the page is of -- **Local**, or an SSH
-daemon by its name -- its host, a dot for how it stands (up, connecting, installing, failed or
-not connected) and how many epics are `live` on it, or `idle`. Click it for the daemon picker:
-every daemon with how it stands, a click switching the page to it; **Connect** under one that
-failed; **Manage**, which opens **Settings → Daemons**; then **Import**,
-**Settings**, **Usage** and **Download**, which downloads an epic out of a
-[backup target](/user/backups#downloading-an-epic). Where a newer humanize is out, the bar is marked ↑ and the picker offers
-**Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
+The foot of the sidebar is the [daemon bar](#daemon-bar): it names the daemon the page shows,
+its host and whether it is reached, and says how many epics are going on it. Its menu picks
+another daemon, and opens **Import**, **Settings**, **Usage** and **Download**, which downloads an epic out of a
+[backup target](/user/backups#downloading-an-epic). Where a newer humanize is out, the bar is marked ↑ and its menu offers
+**Update**, which copies `hmz update` to run in a terminal. The bell at the top of the sidebar
+opens your [notifications](#notifications). <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
-Every view is an address: copy it, keep it, or open it in another tab. An address names the
-daemon it is of first, `#/@gpu/new`, and the page shows only that daemon's epics, workspaces
-and settings; every link keeps it, and going to another daemon's address draws everything again
-of that one. An address naming no daemon is Local's. See
-[The page](/reference/web#page).
-
-### Notifications {#notifications}
-
-The bell at the top of the sidebar gathers what needs you, from every daemon at once rather
-than only the one shown: an epic **Done**, **Failed** or **Stopped**, a **Question** a flow put
-to a person, and a **Chat turn** -- a `chat` waiting for your next line. Its count is how many
-you have not read. Its menu lists them newest first, each with its daemon (**Local**, or the
-daemon's name), its flow and what it said, and how long ago; **Mark read** reads them all and
-**Clear** empties the list. Click one to read it and open it: a question or a chat turn opens the
-epic going in its directory, and an ended epic opens that epic.
-
-Each one heard while the page is open also shows a card at the bottom right for a few seconds;
-click it to open what it is about. While the page is hidden or another window is in front, the
-system shows it too -- the browser's own notification, once you have let the page send them,
-or in [the app](/user/desktop) the system's own -- and clicking it brings the page back on it.
-Which kinds are notified, and whether the system shows them, is set under **Settings →
-Notifications**.
+Every view is an address: copy it, keep it, or open it in another tab. The address names the
+daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same machine; one with no
+`@` is Local's.
 
 **Right-click** anything for what can be done to it: a folder in the sidebar (new epic here, its
 flows, search it, copy its path, settings), an epic (open, its log, resume, copy its link or task,
@@ -237,9 +218,10 @@ tokens, and every process -- click one to pick it.
 
 ### Importing an epic {#importing-an-epic}
 
-Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or in the daemon picker at
-the foot of the sidebar, or right-click between the epics in the sidebar, and pick the file --
-or drop it anywhere on the window. It is read back in under the directory it ran in, and opens
+Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or in the daemon bar's
+menu at the foot of the sidebar, or right-click between the epics in the sidebar, and pick the file --
+or drop it anywhere on the window. It is read back in on the daemon the page shows, under the
+directory it ran in, and opens
 once it is in. One you already have is refused, with **Open** to go to it.
 
 An imported epic is read as any other. It is picked up only where the directory it ran in is
@@ -270,7 +252,7 @@ directory last set it up:
 needs at least one limit. The page goes to the epic once it starts -- a `chat` to its
 conversation.
 
-### Settings
+### Settings {#settings}
 
 Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches and
 what it tells you of them. It is the same whichever daemon is on screen. **Daemon** is the same
@@ -280,8 +262,6 @@ daemon:
 | Page | What is there |
 | --- | --- |
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
-| **Daemons** | The daemons this page reaches: **Local**, and each SSH host added or imported |
-| **Notifications** | Which notifications appear, from every daemon, and whether the system shows them |
 | **General** | Whether a turn's working is shown, the [`/btw` agent](/user/btw), and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
@@ -392,10 +372,112 @@ Start `hmz web` in a project, and open **New epic**:
 - The terminal's transcript shows the task you typed in the browser, marked `· by browser`.
 - The sidebar lists the epic, `stopped`; **Search epics** shows what it spent.
 
+## Daemons {#daemons}
+
+Each machine whose epics the page reaches is a **daemon**: the [daemon](/features/daemon) there
+holds its runs. **Local** is this machine, always there and never removed. Every other is an ssh
+host, reached the way `ssh` reaches it, with your keys and your ssh config.
+
+The page shows one daemon at a time: the sidebar's folders and epics, a new epic, search,
+flows and the Daemon pages of Settings are all that daemon's. To see another's, switch to it.
+The daemon is part of every address, `#/@<name>/…`, so a tab can stay on one while another tab
+shows a second.
+
+### The daemon bar {#daemon-bar}
+
+The foot of the sidebar names the daemon showing, its host, a dot for whether it is reached, and
+how many epics are going on it. Click it for its menu:
+
+- every daemon, with whether it is reached; pick one to switch to it. An ssh host is connected
+  to when you pick it.
+- **Connect** on one that failed, to try it again.
+- **Manage**, which opens **Settings → Daemons**.
+- **Update**, **Import**, **Settings**, **Usage** and **Download**, as before.
+
+A daemon is in one of these states:
+
+| State | What it means |
+| --- | --- |
+| `idle` | Not connected to yet. |
+| `connecting` | `ssh` is reaching the host and starting `hmz web` there. |
+| `installing` | The host has no `hmz`, or another version, and it is being installed. See [What happens on connect](#on-connect). |
+| `up` | Reached: its epics are on the page. |
+| `failed` | It could not be reached; the menu says why, and **Connect** tries again. |
+
+### Adding one {#adding-a-daemon}
+
+**Settings → Daemons** lists Local and every ssh host, each with its state. **Add** opens a form,
+the same as an [ssh runtime's](/user/settings#an-ssh-host): the **name** the page calls it, then
+the host, user, port, key, proxy jump and options, a part at a time. A name is letters, digits,
+`.`, `_` and `-`; `local` is Local's and cannot be taken.
+
+**Import** reads your `~/.ssh/config` and lists every host in it not yet added, with a switch
+each: switch on the ones you want, and each is added under its `Host`, resolved through your
+config every time, so editing the config edits the daemon. Nothing here writes to the config.
+
+Edit a daemon, connect to it to check it, or remove it, which asks first. Removing one forgets
+how to reach it, and nothing on the host: its epics, and its `hmz`, stay there.
+
+The daemons are kept in this machine's `~/.hmz/settings.yaml`, under `daemons`.
+
+### What happens on connect {#on-connect}
+
+Connecting runs `hmz web --no-open --attached --port 0` on the host over `ssh`, forwards a free
+port here to the one it printed with `ssh -N -L`, and passes the page's calls for that daemon
+through Local's `hmz web` to it. Nothing on the host listens beyond its own loopback, and your
+browser only ever talks to Local.
+
+- **It brings the host the same humanize.** Before it starts `hmz web` there, it asks the host's
+  `hmz --version`, through a login shell with `~/.local/bin` on its `PATH`. Where there is none,
+  or one of another version, it runs `uv tool install --force --python '>=3.12' 'hmz==<version>'`
+  on the host, at this machine's version, installing uv there first where the host has none.
+  The daemon says `installing` meanwhile.
+- **It never replaces an `hmz` holding running epics.** Where the host's daemon has epics
+  running, or it cannot tell, the `hmz` there is left as it is, and the daemon says why.
+- **It keeps reaching it.** A connection that drops is tried again, waiting longer each time.
+- **The epics outlive it.** Stopping `hmz web` here closes every ssh connection, and the
+  `hmz web` on each host stops with it; the epics there keep going, held by that host's
+  daemon. See [Leaving it running](/user/leaving).
+
+## Notifications {#notifications}
+
+The page tells you when something happens that you may want to look at, on **every** daemon,
+not only the one showing:
+
+| Kind | When |
+| --- | --- |
+| **done** | An epic ended, done. |
+| **failed** | An epic failed, crashed, ran out of its budget, or was refused. |
+| **stopped** | An epic was stopped. |
+| **asked** | A flow put a question to a person: the outworlder. See [Questions](/user/questions). |
+| **listening** | A `chat` finished a turn and waits for your next line. |
+
+Each says which daemon, which directory and which epic it came from, and what was asked or how
+it ended.
+
+- **The bell**, at the top of the sidebar, counts the ones you have not read. Click it for the
+  **menu**: the latest notifications of every daemon, newest first, each labelled with its
+  daemon. Click one to open its epic, switching to its daemon; mark them all read, or clear
+  them. The last 200 or so are kept.
+- **Toasts.** A new notification also shows as a card in the corner of the page for a few
+  seconds.
+- **System notifications.** While the page is hidden or not focused, a notification is also
+  one of your system's: the browser's, or, in [the macOS app](/user/desktop#notifications), a
+  macOS one. Clicking it brings the page back on what it is about.
+
+A daemon is heard from while it is reached: Local always, an ssh host once it is `up`.
+
+**Settings → Notifications** switches each kind on or off, and system notifications as a whole.
+A browser shows system notifications only once you allow it: press the button on that page,
+which asks the browser. A kind switched off is not shown, kept or counted. These are App
+settings: they are kept in this machine's `~/.hmz/settings.yaml`, under `notifications`, and hold
+for every daemon, never one daemon apart.
+
 ## From another machine {#over-ssh}
 
 `hmz web` only listens on the machine it runs on. To use it from your laptop while `hmz` runs on
-a server, forward a port over ssh:
+a server, the simplest way is to add the server as a [daemon](#daemons) of the page on your
+laptop. To serve the page from the server itself instead, forward a port over ssh:
 
 ```sh
 ssh -L 8765:127.0.0.1:8765 you@devbox
@@ -472,6 +554,26 @@ The host holding the runs went: it was closed, or it let this window go. The pag
 runs again by itself a moment later, starting a host where none is, and the daemon bar
 says `idle` or how many are `live` again once it has.
 
+### A daemon says `failed`
+
+`ssh` could not reach the host, or `hmz web` could not start there; the daemon bar's menu, and
+**Settings → Daemons**, say what it said. Check that `ssh <host>` works from a terminal here
+without asking for anything -- a password or a host key to accept cannot be answered from the
+page -- then press **Connect**.
+
+### A daemon will not update its `hmz`
+
+The host's daemon has epics running, or the page could not tell whether it has, so its `hmz` is
+left as it is. Once they have ended, press **Connect** again; or update it on the host yourself,
+`uv tool install --force 'hmz==<version>'`.
+
+### No system notifications
+
+They come only while the page is hidden or not focused, and in a browser only once it is
+allowed: press the button in **Settings → Notifications**, and check that the browser's site
+settings, and your system's, let it notify. Check too that **Settings → Notifications** has the
+kind, and system notifications, switched on.
+
 ### A way in is marked `(at a terminal)`
 
 It runs the CLI's own sign-in, which needs a terminal. Make that account from `/settings` in
@@ -481,4 +583,5 @@ It runs the CLI's own sign-in, which needs a terminal. Make that account from `/
 
 - [Watching a run (the monitor)](/user/monitor): the same run, drawn in the terminal.
 - [Leaving it running](/user/leaving): how a run outlives every window onto it.
+- [The macOS app](/user/desktop): the same page in a window of its own.
 - [Web reference](/reference/web): the command line, every route the page uses, and the stream.

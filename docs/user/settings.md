@@ -121,6 +121,10 @@ opens Workspace, and `environments` opens Runtimes. The [flowverses](#flowverses
 `/flow` now, and `/settings flowverses` opens them there. A card marked `● unsaved` holds a
 change you have not saved yet.
 
+The [web page](/user/web#settings) has the same pages, under **Daemon**, for whichever daemon
+it reaches -- this machine or an ssh host -- with **Batch apply** to copy one to several; its
+**App** pages, themes, daemons and notifications, belong to the page and this machine alone.
+
 ### How a page is laid out {#layout}
 
 Inside a page, the line across the top says where you are (`hmz › /settings › Accounts`),
