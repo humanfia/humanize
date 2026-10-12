@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tarfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -25,8 +26,6 @@ from tests.integration.doubles_tui import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from textual.pilot import Pilot
 
 
@@ -123,11 +122,10 @@ async def test_resume_picks_the_last_run_of_a_resumable_flow_back_up(
     ]
 
 
-async def test_epics_turn_to_this_machine_and_remember_it(
-    workspace: Path, tmp_path: Path
-) -> None:
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
+async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> None:
+    # Under home, so that it is said short enough not to be wrapped: `~/elsewhere`.
+    elsewhere = Path.home() / "elsewhere"
+    elsewhere.mkdir(parents=True)
     with Epic("chat", "here", workspace) as here:
         pass
     with Epic(OWN, "there", elsewhere, resumable=True) as there:
@@ -144,14 +142,14 @@ async def test_epics_turn_to_this_machine_and_remember_it(
         await shows(pilot, "Every epic on this machine", "ctrl+t this directory")
         await until(pilot, lambda: len(rows(app)) == 2, "both epics")
         assert rows(app) == [there.path.name, here.path.name]
-        await shows(pilot, "elsewhere · there")
+        await shows(pilot, "~/elsewhere · there")
 
         # Another directory's epic is read and exported from here, but not carried on.
         await pilot.press("up", "enter")
         await shows(pilot, "resume run")
         await pilot.press("enter")
         await on(pilot, Epics)
-        await shows(pilot, "resume it from hmz there")
+        await shows(pilot, "this epic ran in ~/elsewhere; resume it from hmz there")
 
         await pilot.press("escape")
         await typed(pilot, "/epics")
