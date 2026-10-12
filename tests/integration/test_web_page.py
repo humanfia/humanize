@@ -673,7 +673,7 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         with page.expect_download() as saving:
             page.get_by_role("link", name="Export").click()
         saved = saving.value
-        assert saved.suggested_filename.endswith(".tar.gz")
+        assert saved.suggested_filename.endswith(".hmzepic")
         assert Path(saved.path()).read_bytes()[:2] == b"\x1f\x8b"
 
         # WebKit lets a click write unasked, and knows no permission to write by.

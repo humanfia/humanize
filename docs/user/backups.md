@@ -88,7 +88,9 @@ lab: backed up to git@github.com:you/epics.git
 $ hmz backup 20261012T091500.123Z-1a2b3c --to home
 ```
 
-Without `--to`, the epic goes to the targets it was started with, else to the defaults.
+Without `--to`, the epic goes to the targets it was started with, else to the defaults. An
+epic [imported](/user/export) from another machine goes to the defaults: the targets it was
+started with were that machine's, and so were its backups, which this machine does not show.
 
 In [`hmz web`](/user/web), **Upload** in an epic's menu, or at the top of the epic, does the same
 without waiting for it; hover it for how the last backup to each target went.

@@ -1103,9 +1103,9 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 
 **Export run** (`The entire run as one archive, with its trace, to send to somebody who was not
 there. Credentials are struck out of every byte of it.`), `Export run` as its step of the way
-across the top: one row `to   file, or directory to put <run>.epic.tar.gz in`, a
+across the top: one row `to   file, or directory to put <run>.hmzepic in`, a
 [path](#path-completion); **Done** `writes the archive there`, `~` expanded; error `where to
-export to is required`. A directory, existing or ending in `/`, gets `<run>.epic.tar.gz`;
+export to is required`. A directory, existing or ending in `/`, gets `<run>.hmzepic`;
 anything else is the file. `esc` goes back to the run.
 
 ### Exomyth {#exomyth}

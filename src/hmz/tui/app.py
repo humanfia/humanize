@@ -3727,6 +3727,8 @@ class Humanize(App[None]):
             return ran, (
                 f"{ran.flow} does not support resuming, so {ran.name} cannot be resumed"
             )
+        if why := self.hmz.epics.foreign(epic):
+            return ran, f"{ran.name} cannot be resumed here: {why}"
         # A journal with nothing in it is a run killed before it wrote down where it had got
         # to, and carrying it on would be a run starting from the top wearing a line that
         # says which run it came from -- a record of something that did not happen.

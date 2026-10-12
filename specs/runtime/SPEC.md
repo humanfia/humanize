@@ -216,13 +216,14 @@ def opened(epic: Path) -> dict[str, list[str]]: ...
 def where(epic: Path, session: Session) -> Path: ...
 def logs(epic: Path, session: Session) -> dict[str, Path]: ...
 def picks_up(epic: Path) -> bool: ...
+def foreign(epic: Path) -> str: ...  # why an imported run cannot be picked up here, or ""
 def state(epic: Path, flow: str = "") -> dict[str, Any]: ...  # flow by canonical ref
 def resumed(flow: str, workspace: Path | str | None = None) -> Path | None: ...
 BACKED = "backed"  # the line saying how one backup of an epic went
 def note(epic: Path, event: str, **said: Any) -> None: ...  # a line from outside the run
 
-# exporting.py -- one whole run as one archive
-BUNDLE = "{epic}.epic.tar.gz"
+# exporting.py -- one whole run as one archive, and back
+BUNDLE = "{epic}.hmzepic"  # a gzipped tar
 MANIFEST = "manifest.json"
 TRANSCRIPT = "transcript.md"
 REDACTED = "[redacted]"
@@ -234,6 +235,7 @@ def bundle(
     transcript: str | None = None,
 ) -> tuple[Path, dict[str, Any]]: ...
 def unpacked(epic: Path, into: Path) -> dict[str, Any]: ...  # what a bundle holds, as files
+def unbundle(archive: str | os.PathLike[str]) -> Path: ...
 def logged(epic: Path) -> dict[str, dict[str, Path]]: ...
 def plain(said: str, struck: Sequence[str] = ()) -> str: ...
 def sized(count: int) -> str: ...
@@ -366,6 +368,15 @@ class Keeping:  # one epic's policies, as it runs
 - A bundle MUST be written whole and leave nothing behind where it fails, MUST be readable by
   whoever exported it alone, MUST land only where a path names, a file or a directory to put it
   in, and MUST replace the earlier archive when one run is exported twice.
+- Importing MUST take only a `.hmzepic` holding one epic directory with its `epic.jsonl` and
+  manifest and nothing but plain files under it, MUST refuse any other archive, any member that
+  would land outside it, and an epic already here, and MUST leave nothing behind where it
+  fails. The epic MUST land whole under the workspace it says it ran in, each session's logs
+  where that session says it is kept -- one kept in another machine's CLI home kept in the
+  epic, its line saying so -- and MUST say it was imported, from which file and which commit.
+- An imported run MUST NOT be picked up unless the workspace it ran in is here at that very
+  path and, where that is a repository and a commit was said, holds that commit; resuming one
+  that cannot MUST be refused saying why.
 - Constructing a `Runner` MUST raise `Refused`, before anything runs and before any agent
   starts, for a flow that cannot be loaded; a role given that the flow does not declare, that
   the runtime fills -- an `Outworlder`, a `LocalEnv` -- or that is given twice; a required

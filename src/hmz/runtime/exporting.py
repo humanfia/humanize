@@ -29,21 +29,29 @@ A backend that logs nothing -- opencode and mimocode keep their sessions in a da
 their own -- is said so in the manifest rather than left as an empty directory. A bundle that
 quietly holds no sessions and a backend that quietly writes none read identically, and only
 one of them is a bug.
+
+And read back. A bundle imported on another machine is an epic there like any other, under
+the workspace it says it ran in and laid out as one written there would be -- each session's
+logs where that session says it is kept -- with a line saying where it came from. Whether it
+can be picked up is :func:`hmz.runtime.epic.foreign`'s to say.
 """
 
 from __future__ import annotations
 
 import contextlib
 import datetime
+import gzip
 import hashlib
 import io
 import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import tarfile
 import tempfile
+import zlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -54,10 +62,12 @@ from hmz.runtime.epic import (
     SESSIONS,
     TRACES,
     logs,
+    note,
     read,
     records,
     sessions,
     tree,
+    under,
 )
 
 if TYPE_CHECKING:
@@ -75,6 +85,7 @@ __all__ = [
     "logged",
     "plain",
     "sized",
+    "unbundle",
     "unpacked",
 ]
 
@@ -83,7 +94,9 @@ __all__ = [
 #: the filename would only say when somebody pressed the key. Exporting one run twice is the
 #: same run twice, and the later archive is the earlier one plus whatever has happened since
 #: -- so it replaces it rather than leaving two nobody can tell apart.
-BUNDLE = "{epic}.epic.tar.gz"
+#: A gzipped tar all the same, under an extension of its own so that an import knows one when
+#: it is handed one.
+BUNDLE = "{epic}.hmzepic"
 
 #: What the archive says about itself.
 MANIFEST = "manifest.json"
@@ -362,6 +375,194 @@ def _writes(
     )
     puts(MANIFEST, said.encode("utf-8"))
     return said
+
+
+def unbundle(archive: str | os.PathLike[str]) -> Path:
+    """Reads one bundle back in as an epic of this machine's.
+
+    Placed under the workspace the run says it ran in, as a run there would be, and laid out
+    as one: each session's logs where that session says it is kept -- or, for one that stayed
+    in its CLI's own home, in the epic as a session kept there, the line saying so rewritten,
+    since another machine's home is nowhere here. A line saying which file it came from goes
+    last, which is what says it was imported.
+
+    Args:
+      archive: The bundle, which is a `.hmzepic`.
+
+    Returns:
+      Where the epic now is.
+
+    Raises:
+      ValueError: For a file that is not a bundle -- not named as one, not a gzipped tar,
+        not one epic holding its record and manifest, or holding anything but plain files
+        under it -- for a run that says no workspace, and for an epic already here.
+    """
+    source = Path(archive).expanduser()
+    if not source.name.endswith(BUNDLE.removeprefix("{epic}")):
+        raise ValueError(f"{source.name} is not a {BUNDLE.removeprefix('{epic}')} file")
+    try:
+        with tarfile.open(source, "r:gz") as reading:
+            members = reading.getmembers()
+            name = _one(source, members)
+            head = _head_of(reading, name)
+            ran_in = _workspace_of(reading, name)
+            kept = under(ran_in)
+            if (kept / name).exists():
+                raise ValueError(f"{name} is already here, at {kept / name}")
+            kept.mkdir(parents=True, exist_ok=True)
+            # Written whole beside where it goes and moved into place, one level down so
+            # that nothing listing the runs there reads it half-written as one.
+            beside = Path(tempfile.mkdtemp(dir=kept, prefix=f".{name}."))
+            try:
+                reading.extractall(beside, members=members, filter="data")
+                epic = beside / name
+                _settle(epic, beside)
+                note(epic, "imported", **{"from": source.name, "head": head})
+                try:
+                    epic.rename(kept / name)
+                except OSError as why:
+                    raise ValueError(
+                        f"{name} is already here, at {kept / name}"
+                    ) from why
+            finally:
+                shutil.rmtree(beside, ignore_errors=True)
+                # The workspace's own directory, where this import was the first run in it
+                # and it failed.
+                with contextlib.suppress(OSError):
+                    kept.rmdir()
+    except (tarfile.TarError, gzip.BadGzipFile, EOFError, zlib.error) as why:
+        raise ValueError(
+            f"{source.name} is not a bundle humanize can read: {why}"
+        ) from why
+    except OSError as why:
+        raise ValueError(f"{source.name} could not be imported: {why}") from why
+    return kept / name
+
+
+def _one(source: Path, members: Sequence[tarfile.TarInfo]) -> str:
+    """The one epic a bundle holds, by name, having checked that it holds nothing else.
+
+    Args:
+      source: The bundle, for what is said of it.
+      members: Everything in it.
+
+    Returns:
+      The epic's name, which is what it is filed under here.
+
+    Raises:
+      ValueError: For anything but plain files and directories under one plain name holding
+        the epic's record and its manifest.
+    """
+    names = {one.name.split("/", 1)[0] for one in members}
+    if len(names) != 1:
+        raise ValueError(f"{source.name} does not hold exactly one epic")
+    name = names.pop()
+    if name in {"", ".", ".."} or name.startswith(".") or "\\" in name:
+        raise ValueError(f"{source.name} holds an epic named {name!r}")
+    for one in members:
+        if not (one.isfile() or one.isdir()) or ".." in one.name.split("/"):
+            raise ValueError(
+                f"{source.name} holds {one.name}, which is not a file in it"
+            )
+    files = {one.name for one in members if one.isfile()}
+    for needed in (JOURNAL, MANIFEST):
+        if f"{name}/{needed}" not in files:
+            raise ValueError(f"{source.name} has no {needed}")
+    return name
+
+
+def _head_of(reading: tarfile.TarFile, name: str) -> str:
+    """The commit a bundle's manifest says its workspace was on, or "" where it says none."""
+    held = reading.extractfile(f"{name}/{MANIFEST}")
+    try:
+        said: object = json.loads(held.read()) if held is not None else None
+    except ValueError:
+        return ""
+    if isinstance(said, dict):
+        workspace = cast("dict[str, Any]", said).get("workspace")
+        if isinstance(workspace, dict):
+            return str(cast("dict[str, Any]", workspace).get("head") or "")
+    return ""
+
+
+def _workspace_of(reading: tarfile.TarFile, name: str) -> str:
+    """Where the run a bundle holds says it ran, off the line it began with.
+
+    Raises:
+      ValueError: For a run that says nowhere, which is nowhere to put it.
+    """
+    held = reading.extractfile(f"{name}/{JOURNAL}")
+    for line in held.read().splitlines() if held is not None else ():
+        try:
+            said = json.loads(line)
+        except ValueError:
+            continue
+        if (
+            isinstance(said, dict)
+            and cast("dict[str, Any]", said).get("event") == "began"
+        ):
+            ran_in = str(cast("dict[str, Any]", said).get("workspace") or "")
+            if ran_in and Path(ran_in).is_absolute():
+                return ran_in
+            break
+    raise ValueError(f"{name} says no workspace it ran in")
+
+
+def _settle(epic: Path, beside: Path) -> None:
+    """Moves each session's logs out of where the bundle filed them to where it is kept.
+
+    A bundle files them under `sessions/<session>/`; the session says where it is kept, from
+    the epic. One that said another machine's whole path is kept in the epic instead, where
+    its CLI's sessions are kept, and its lines are rewritten to say so.
+
+    Args:
+      epic: The epic, read out of the bundle.
+      beside: Somewhere to put what the bundle filed while it is being moved.
+    """
+    filed = beside / f".{SESSIONS}"
+    if (epic / SESSIONS).is_dir():
+        (epic / SESSIONS).rename(filed)
+    _rehomed(epic)
+    for one in sessions(epic):
+        source = filed / one.name
+        target = (epic / (one.where or f"{SESSIONS}/{one.name}")).resolve()
+        if not source.is_dir() or not target.is_relative_to(epic.resolve()):
+            continue
+        for found in sorted(source.rglob("*")):
+            if found.is_file():
+                at = target / found.relative_to(source)
+                at.parent.mkdir(parents=True, exist_ok=True)
+                found.replace(at)
+
+
+def _rehomed(epic: Path) -> None:
+    """Rewrites each line saying a session stayed in another machine's home to say the epic.
+
+    Args:
+      epic: The epic, read out of the bundle.
+    """
+    for record in records(epic):
+        lines = record.read_text(encoding="utf-8", errors="replace").splitlines()
+        record.write_text(
+            "".join(f"{_rehome(one)}\n" for one in lines), encoding="utf-8"
+        )
+
+
+def _rehome(line: str) -> str:
+    """One line of a record, rewritten where it says a session stayed in a CLI's own home."""
+    try:
+        said = json.loads(line)
+    except ValueError:
+        return line
+    if not isinstance(said, dict):
+        return line
+    held = cast("dict[str, Any]", said)
+    if (
+        held.get("event") != "opened"
+        or not Path(str(held.get("where") or "")).is_absolute()
+    ):
+        return line
+    return json.dumps(held | {"where": f"{SESSIONS}/{held.get('backend') or ''}"})
 
 
 def logged(epic: Path) -> dict[str, dict[str, Path]]:
@@ -732,7 +933,9 @@ def _manifest(
         mine = version("hmz")
     except PackageNotFoundError:  # pragma: no cover -- an install that is not one
         mine = ""
-    workspace = Path(ran.workspace) if ran.workspace else epic
+    head = _pinned(epic)
+    if head is None:
+        head = _head(Path(ran.workspace) if ran.workspace else epic)
     named = sorted(
         {one.backend for one in ran.agents} | {one.backend for one in ran.sessions}
     )
@@ -750,7 +953,7 @@ def _manifest(
             "how": ran.how or "left unfinished",
             "resumable": ran.resumable,
         },
-        "workspace": {"at": ran.workspace, "head": _head(workspace)},
+        "workspace": {"at": ran.workspace, "head": head},
         "agents": [
             {
                 "agent": one.agent,
@@ -772,6 +975,27 @@ def _manifest(
         "held": [*held, MANIFEST],
         "redacted": list(STRUCK),
     }
+
+
+def _pinned(epic: Path) -> str | None:
+    """The commit an imported run was said to be on, off its last import; None for one not.
+
+    Its workspace here is another checkout, if it is here at all, so what that is on now is
+    not what the run was on.
+    """
+    with contextlib.suppress(OSError):
+        lines = (epic / JOURNAL).read_text(encoding="utf-8", errors="replace")
+        for line in reversed(lines.splitlines()):
+            try:
+                said = json.loads(line)
+            except ValueError:
+                continue
+            if (
+                isinstance(said, dict)
+                and cast("dict[str, Any]", said).get("event") == "imported"
+            ):
+                return str(cast("dict[str, Any]", said).get("head") or "")
+    return None
 
 
 def _head(workspace: Path) -> str:

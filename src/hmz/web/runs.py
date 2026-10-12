@@ -223,7 +223,7 @@ class Runs:
         except Exception:
             shutil.rmtree(scratch, ignore_errors=True)
             raise
-        return Download(at, at.name, "application/gzip", gone=True)
+        return Download(at, at.name, "application/vnd.hmz.epic+gzip", gone=True)
 
 
 def held_by(runs: list[Ran], running: dict[str, dict[str, Any]]) -> set[Path]:
