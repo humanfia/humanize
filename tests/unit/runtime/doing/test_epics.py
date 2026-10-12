@@ -11,7 +11,7 @@ import pytest
 
 from hmz.runtime import Epics, exporting
 from hmz.runtime.epic import RESUME, SESSIONS, TRACES, Epic
-from hmz.runtime.tracing import collector, profile
+from hmz.runtime.tracing import collector, profile, timeline
 
 if TYPE_CHECKING:
     from tests.unit.runtime.doubles_u12 import Stands
@@ -100,6 +100,32 @@ def test_a_trace_of_a_run_is_of_that_runs_sessions_and_kept_with_it(
         "profile": run / profile.PROFILE,
         "kept": [run / SESSIONS],
     }
+
+
+def test_a_timeline_of_a_run_is_laid_out_of_what_its_trace_is_gathered_from(
+    workspace: Path, stand: Stands
+) -> None:
+    gathered = stand(collector, "gather", ["session"])
+    laid = stand(timeline, "build", "laid out")
+    run = _run(workspace)
+
+    said: Any = Epics(workspace).timeline(run)
+
+    assert said == "laid out"
+    ((args, kwargs),) = gathered.calls
+    assert args == (None,)
+    assert kwargs == {
+        "sessions": ["s1", "s2", "s3"],
+        "agents": {"builder": ["s1", "s2"], "reviewer": ["s3"]},
+        "kept": [run / SESSIONS],
+    }
+    ((args, kwargs),) = laid.calls
+    assert args == (["session"],)
+    assert kwargs["ran"] == Epics(workspace).read(run)
+    assert kwargs["calls"] == ()
+    assert kwargs["profiled"] == []
+    # Written nowhere: a timeline is drawn and thrown away.
+    assert not (run / TRACES).exists()
 
 
 def test_a_trace_goes_where_it_is_told(

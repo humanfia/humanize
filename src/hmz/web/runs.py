@@ -1,4 +1,4 @@
-"""Every run on this machine as its epic wrote it down: the list, one run, its trace.
+"""Every run on this machine as its epic wrote it down: the list, one run, its trace, its timeline.
 
 What a page reads of a run that is over, or of the one going, as far as the epic says it:
 which flow, on what, with which agents, how it ended and what it spent, the tree of flows it
@@ -61,6 +61,8 @@ class Runs:
         self._lock = threading.Lock()
         self._read: dict[Path, tuple[tuple[int, int], Ran | None]] = {}
         self._traced: dict[Path, tuple[tuple[int, int], list[dict[str, Any]]]] = {}
+        # Each an Exomyth timeline as `runtime/tracing` lays one out, which this does not import.
+        self._timelines: dict[Path, tuple[tuple[int, int], Any]] = {}
 
     def all(self, workspace: str = "") -> list[Ran]:
         """Every run that reads as one, newest first: of every workspace, or of one.
@@ -162,6 +164,50 @@ class Runs:
                 while len(self._traced) > _TRACES:
                     del self._traced[next(iter(self._traced))]
         return said
+
+    def timeline(self, ran: Ran) -> Any:
+        """A run laid out as an Exomyth timeline, read back out of the logs it kept.
+
+        Kept for a run that has ended until its record changes, the last few of them; laid
+        out again on every reading of a run still going, whose logs are still being written.
+        Either way the last one laid out is kept, which is what a slice's id is an id in.
+        """
+        stamp = _stamp(ran.at)
+        with self._lock:
+            kept = self._timelines.get(ran.at)
+        if kept is not None and ran.ended and kept[0] == stamp:
+            return kept[1]
+        laid = self.hmz(ran).epics.timeline(ran.at)
+        with self._lock:
+            self._timelines.pop(ran.at, None)
+            self._timelines[ran.at] = (stamp, laid)
+            while len(self._timelines) > _TRACES:
+                del self._timelines[next(iter(self._timelines))]
+        return laid
+
+    def span(self, ran: Ran, ident: str, layout: str = "") -> dict[str, Any]:
+        """One slice of a run's timeline, whole: the last one laid out, or one laid out now.
+
+        Args:
+          ran: The run.
+          ident: The slice, by its id.
+          layout: The `layout` of the timeline the id was read in, or "" for whichever.
+
+        Raises:
+          Refusal: If that timeline has no slice of that id, or it is not the one the id was
+            read in -- a run still going has been laid out again since, and ids moved.
+        """
+        with self._lock:
+            kept = self._timelines.get(ran.at)
+        laid = kept[1] if kept is not None else self.timeline(ran)
+        if layout and laid.document["layout"] != layout:
+            raise Refusal(
+                f"Epic {ran.name} has been laid out again; read it again.", 409
+            )
+        try:
+            return laid.span(int(ident))
+        except (KeyError, ValueError) as why:
+            raise Refusal(f"Epic {ran.name} has no span {ident}.", 404) from why
 
     def bundled(self, ran: Ran) -> Download:
         """One run as one archive, struck of credentials, for the browser to save."""
@@ -491,6 +537,20 @@ def _trace(asked: Asked) -> dict[str, Any]:
     return {"sessions": runs.traced(runs.named(asked.matched["name"]))}
 
 
+def _timeline(asked: Asked) -> dict[str, Any]:
+    runs = asked.site.runs
+    return runs.timeline(runs.named(asked.matched["name"])).document
+
+
+def _span(asked: Asked) -> dict[str, Any]:
+    runs = asked.site.runs
+    return runs.span(
+        runs.named(asked.matched["name"]),
+        asked.matched["id"],
+        asked.query.get("layout", ""),
+    )
+
+
 def _bundle(asked: Asked) -> Download:
     runs = asked.site.runs
     return runs.bundled(runs.named(asked.matched["name"]))
@@ -511,6 +571,8 @@ ROUTES = routes(
     ("GET", "/api/runs", _listed),
     ("GET", "/api/runs/{name}", _one),
     ("GET", "/api/runs/{name}/trace", _trace),
+    ("GET", "/api/runs/{name}/timeline", _timeline),
+    ("GET", "/api/runs/{name}/timeline/span/{id}", _span),
     ("GET", "/api/runs/{name}/bundle", _bundle),
     ("GET", "/api/usage", _usage),
 )
