@@ -174,9 +174,14 @@ epic still going is read again every two seconds while the tab is shown.
   tools, messages and events, each category in its colour. The triangle by a name folds a
   process to one row; **Expand** and **Collapse** do every one. **Arrows** shows what started
   each process.
-- **Flame.** The same spans as a flame graph, over the stretch picked or the whole epic.
+- **Flame.** The same spans as a flame graph, over the stretch picked on the Timeline or the
+  whole epic: under the epic, each agent (its role) with its sessions merged -- **Merge
+  sessions** off puts each session apart -- or each flow or program, then its turns and what
+  they did, by name. Weigh it by **Time**, **Tokens in**, **Tokens out** or **Count**; **Bottom
+  up** turns it into a flame. Under it, **Slices** sums every name: count, total and own time,
+  average, p50, p95 and longest, and tokens.
 
-| Do | To |
+| Do (Timeline) | To |
 | --- | --- |
 | <kbd>W</kbd> / <kbd>S</kbd>, or <kbd>Ctrl</kbd>+wheel, or a pinch | Zoom in and out where the pointer is |
 | <kbd>A</kbd> / <kbd>D</kbd>, or a sideways or <kbd>Shift</kbd>+wheel | Pan |
@@ -187,6 +192,15 @@ epic still going is read again every two seconds while the tab is shown.
 | <kbd>/</kbd> | Find spans by their name; <kbd>Enter</kbd> or <kbd>N</kbd> goes to the next, <kbd>Shift</kbd>+<kbd>Enter</kbd> or <kbd>Shift</kbd>+<kbd>N</kbd> the one before |
 | <kbd>0</kbd> or <kbd>Home</kbd> | Show the whole epic |
 | <kbd>Esc</kbd> | Let go of what is picked |
+
+| Do (Flame) | To |
+| --- | --- |
+| Point at a frame | Its total, its own, its share of the whole and how many spans |
+| Click a frame | Zoom to it; click one above it, or a name in the crumbs, to zoom back out |
+| <kbd>Esc</kbd> | Zoom out a level |
+| <kbd>/</kbd> | Light the frames whose name holds the words, and say what share of the whole they hold |
+| Click a column's heading | Sort the slices by it; again, the other way |
+| Click a slice | Light its frames; **Show in timeline** finds it on the Timeline |
 
 With nothing picked, the panel says the epic's figures, each category's spans, time and
 tokens, and every process -- click one to pick it.
