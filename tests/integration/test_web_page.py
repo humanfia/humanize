@@ -82,6 +82,47 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
         )
 
 
+def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "move me")
+        expect(page.locator("[data-hmz=waiting] [data-hmz=question]")).to_be_visible()
+        agent = page.locator("[data-hmz=graph-agent][data-role=assistant]")
+        expect(agent.locator("[data-hmz=graph-session] .unread")).to_have_count(1)
+        canvas = page.locator("[data-hmz=graph]").bounding_box()
+        drawn = agent.bounding_box()
+        assert canvas
+        assert drawn
+        address = page.url
+
+        # Dragged from a session on the node, past where the graph ends: nothing opens.
+        session = agent.locator("[data-hmz=graph-session]").bounding_box()
+        assert session
+        page.mouse.move(session["x"] + 10, session["y"] + 10)
+        page.mouse.down()
+        page.mouse.move(session["x"] - 290, session["y"] - 190, steps=8)
+        page.mouse.up()
+        moved = agent.bounding_box()
+        assert moved
+        assert abs(moved["x"] - (drawn["x"] - 300)) < 2
+        assert abs(moved["y"] - (drawn["y"] - 200)) < 2
+        assert page.url == address
+
+        zoom = page.locator("[data-hmz=graph] + .zoom .zoom-said")
+        before = zoom.inner_text()
+        page.mouse.move(canvas["x"] + canvas["width"] / 2, canvas["y"] + 40)
+        page.mouse.wheel(0, -300)
+        expect(zoom).not_to_have_text(before)
+
+        page.get_by_role("button", name="Recenter").click()
+        expect(zoom).to_have_text(before)
+        back = agent.bounding_box()
+        assert back
+        assert abs(back["x"] - drawn["x"]) < 2
+        assert abs(back["y"] - drawn["y"]) < 2
+
+
 def test_a_model_no_cli_would_list_is_typed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str
 ) -> None:
