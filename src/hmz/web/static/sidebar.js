@@ -48,6 +48,7 @@ export function mountSidebar(root, context, where) {
       context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
       choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
+      choice({ label: 'Download', glyph: 'download', href: '#/download', close }),
     ],
     { up: true, label: 'Machine' },
   )

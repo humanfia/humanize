@@ -3083,6 +3083,30 @@ details.said-more summary {
   display: none;
 }
 
+.dialog-title {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+}
+
+.stored-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 10px 2px;
+  font: 600 12px var(--mono);
+  color: var(--ink-3);
+}
+
+.stored-workspace .stored-head {
+  margin-left: 22px;
+  font-weight: 400;
+}
+
+.stored-workspace .results {
+  margin-left: 16px;
+}
+
 .results {
   list-style: none;
   margin: 0;

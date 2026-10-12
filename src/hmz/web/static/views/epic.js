@@ -122,7 +122,7 @@ export function mount(root, { parts, query }) {
     const going = Boolean(run && run.live)
     const state = run ? (run.ended ? run.ended.how : run.state === 'stopping' ? 'stopping' : run.live ? 'running' : detail.how) : detail.how
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
-    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed], () => {
+    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, detail.foreign], () => {
       const actions = []
       if (going && run.state === 'running') actions.push(confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', act: () => ask(workspace(), 'stop') }))
       else if (going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', act: () => ask(workspace(), 'force') }))
@@ -138,6 +138,8 @@ export function mount(root, { parts, query }) {
         h('span', { class: 'mono', title: detail.flow }, flowName(detail.flow)),
         h('span', { title: when(detail.began) }, `began ${ago(detail.began)}`),
         h('span', { class: 'mono', 'data-hmz': 'clock' }),
+        // Downloaded or imported from a workspace this machine has not got as it was.
+        detail.foreign ? h('span', { class: 'node-tag', title: detail.foreign, 'data-hmz': 'foreign' }, 'Not resumable here') : null,
       ]
       const where = mode.session || (mode.log ? `${mode.log} log` : 'Log')
       const title = reading(mode)

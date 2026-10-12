@@ -66,7 +66,8 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Settings** | What humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar names this machine and says how many epics are going on it;
-its menu opens **Settings** and **Usage**. Where a newer humanize is out, the machine is marked ↑ and its menu offers
+its menu opens **Settings**, **Usage** and **Download**, which downloads an epic out of a
+[backup target](/user/backups#downloading-an-epic). Where a newer humanize is out, the machine is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away. On a phone
 the sidebar is a drawer behind the button in the corner.
 
@@ -158,6 +159,8 @@ spent, and how long it took, with how much of that was spent working.
 - **Upload** (the up arrow at the top, or in the epic's menu) backs it up now to the targets it
   was started with, else the defaults, and says which at once; hover it for how its last
   backup to each target went. See [Backing epics up](/user/backups).
+- **Not resumable here**, beside how it went, marks an epic downloaded or imported from a
+  directory this machine has not got as it was; hover it for why.
 - **Pick it up** opens a new epic on it, where its flow can be picked up. See
   [Picking a run up](/user/resuming).
 

@@ -140,6 +140,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/flows[?workspace=&flow=]` | The flows on offer in a workspace, one opened. |
 | `#/flows?tab=verses[&verse=]` | The flowverses, one opened. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
+| `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |
 | `#/settings/<page>[?days=]` | A dialog: `general`, `themes`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace` or `usage`; `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
 
 The page keeps a few conveniences in the browser's `localStorage`, each forgotten without
@@ -186,12 +187,14 @@ asks one, through the same side conversations: a second question to one still an
 | Method and path | Takes | Answers |
 | --- | --- | --- |
 | `GET /api/runs` | `workspace` (only its runs; every workspace's without), `status`, `flow`, `q` (in its task, flow or name), `offset` (`0`), `limit` (`50`, at most `200`) | `runs` (rows, newest first), `total`, `offset`, `limit`, `counts` (`{how: n}` over every run), `flows` |
-| `GET /api/runs/<name>` | | Of whichever workspace it ran in: the row (`workspace` among it), and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile`, `picks_up` (whether it can be picked up), `calls` (the tree of flows it called) |
+| `GET /api/runs/<name>` | | Of whichever workspace it ran in: the row (`workspace` among it), and `at`, the whole `task`, `ref`, `agents` (`role`, `runs`, `backend`, `model`, `effort`, `provider`), `sessions`, `envs`, `used`, `params`, `budget`, `picked_up`, `profile`, `picks_up` (whether it can be picked up), `calls` (the tree of flows it called), `foreign` (why an imported epic cannot be picked up here, or "") |
 | `GET /api/runs/<name>/trace` | | `sessions`: each with its `key`, `agent` and `actions` (`category`, `name`, `at`, `start`, `seconds`, `args`), read out of the run's logs as [tracing](/reference/tracing) reads them; the last **4** of runs that have ended kept, until the run's journal changes |
 | `GET /api/runs/<name>/timeline` | | The run's [Exomyth timeline](/reference/tracing#timeline): compact JSON, with an `ETag`. A run that has ended is laid out once, the last **4** kept until its journal changes; a run going is laid out again on every request |
 | `GET /api/runs/<name>/timeline/span/<id>` | `layout` (the timeline's own) | [One span](/reference/tracing#timeline-span) of the last timeline laid out of the run, whole; `404` for an id it does not have, `409` where `layout` is not the last timeline's |
 | `GET /api/runs/<name>/bundle` | | The run's [export](/reference/tracing), as a download |
 | `POST /api/runs/<name>/backup` | `to` (target names; the run's own, else the defaults, without) | `queued`: the targets it was [backed up](/user/backups) to, on threads of their own -- nothing waits for the push; `400` for a target there is none of, `409` where there is no target at all |
+| `GET /api/backups/<target>/epics` | | `epics`, newest first: each `key` (`<machine>/<workspace>/<epic>`), `machine`, `workspace`, `epic`, `flow`, `task`, `began`, `ended`, `how`, `head`, and `here` (whether this machine has an epic of that name). Fetched afresh, so it can take a while; `400` for a target there is none of, `502` where the repository could not be reached |
+| `POST /api/backups/<target>/pull` | `key` | `name`: the epic, [downloaded](/user/backups#downloading-an-epic) as an import is; `400` for one already here, a key naming nothing there, or a target there is none of; `502` where the repository could not be reached |
 | `GET /api/usage` | `days` (`30`; 1 to 365); `workspace` (only its runs) | `days` (per UTC day, oldest first), `flows` (costliest first), `ended` (`{how: n}`), `whole`: each with `runs`, `cost`, `output_tokens`, `seconds`, and `money`, `tokens`, `worked` as the terminal interface says them |
 
 A row is `name`, `flow`, `task` (its first line, cut at 240 characters), `began`, `ended`,

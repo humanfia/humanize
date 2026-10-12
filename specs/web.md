@@ -123,6 +123,12 @@ until `Site.shutdown`. `serve` is both, until it is interrupted.
 - MUST offer `Upload` on every epic, which backs it up now to the targets it was started with,
   else the defaults, answering at once with the targets it was queued for -- never waiting on a
   push -- and MUST say how its last backup to each target went, as it is read again.
+- MUST offer `Download` in the machine's menu, which lists every epic a backup target holds --
+  the target picked where there is more than one, fetched afresh off any other request, by
+  machine and then by workspace, those already here marked -- and downloads one as an import
+  does, opening it, a refusal said where it happened and a URL never shown with anything signed
+  into it; and MUST say of an epic imported from a workspace this machine has not got why it
+  cannot be picked up here.
 - MUST serve a run's Exomyth timeline as `runtime/tracing` lays it out, and each span of it whole
   by its id, refusing an id it does not have as not found. A run that has ended MUST be laid
   out once until its record changes, the last few kept; a run still going MUST be laid out
