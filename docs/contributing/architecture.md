@@ -55,7 +55,8 @@ when:
   ones. `from hmz.runtime import telemetry` names `telemetry`, not the whole of `runtime`.
 - **Two layers name each other.** One pair may: `flows` calls into `runtime/flowing` from inside
   `flow`, `load` and `Outworlder.new`, and never at import. Importing `hmz.flows` must load
-  nothing else of humanize, and that is checked too.
+  nothing else of humanize but `hmz.coganchor.faking`, which holds `FakeTool`, `FakeCli` and
+  `FakeCommand`, and that is checked too.
 - **A top-level package is missing from the table.** `cli` is the one exemption.
 - **The anchor's target half loads more than it may.** `coganchor/serve/` runs on the target
   machine, which may be any architecture, so it may import `coganchor.proto`, and

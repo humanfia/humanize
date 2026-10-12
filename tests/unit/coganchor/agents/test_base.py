@@ -31,7 +31,6 @@ from hmz.coganchor.agents.base import (
     StreamSessionBase,
     identifying,
 )
-from hmz.coganchor.agents.clis import Cli, Command
 from hmz.coganchor.agents.config import AgentConfig, Budget, Unserved
 from hmz.coganchor.agents.event import (
     Event,
@@ -43,8 +42,8 @@ from hmz.coganchor.agents.event import (
 )
 from hmz.coganchor.agents.hooks import Moment, Occasion, Verdict
 from hmz.coganchor.agents.skills import Loaded
-from hmz.coganchor.agents.tools import Tool
 from hmz.coganchor.anchor import AnchorConfig
+from hmz.coganchor.faking import FakeCli, FakeCommand, FakeTool
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers.store import Provider
 from hmz.runtime import telemetry
@@ -575,7 +574,7 @@ def test_the_book_of_words_put_in() -> None:
 
 
 def test_tools_are_refused_by_a_backend_that_cannot_take_them() -> None:
-    tool = Tool(name="t", about="a tool", call=lambda: None)
+    tool = FakeTool(name="t", about="a tool", call=lambda: None)
     session = Scripted().new()
     with pytest.raises(NotImplementedError, match="tool of a flow's own"):
         session.offers([tool])
@@ -585,7 +584,7 @@ def test_tools_are_refused_by_a_backend_that_cannot_take_them() -> None:
 
 
 def test_tools_offered_are_the_agents_until_the_session_closes() -> None:
-    tool = Tool(name="t", about="a tool", call=lambda: None)
+    tool = FakeTool(name="t", about="a tool", call=lambda: None)
     agent = Scripted(session=Steered)
     session = agent.new()
     session.offers([tool])
@@ -603,7 +602,7 @@ def test_command_lines_are_refused_by_a_backend_with_no_shell() -> None:
     class Shellless(Turns):
         takes_clis: ClassVar[bool] = False
 
-    cli = Cli("tix", "Tickets.", (Command("go", "Go.", lambda: None),))
+    cli = FakeCli("tix", "Tickets.", (FakeCommand("go", "Go.", lambda: None),))
     session = Scripted(session=Shellless).new()
     with pytest.raises(NotImplementedError, match="no shell"):
         session.shelves([cli])
@@ -684,7 +683,7 @@ def test_a_fork_needs_a_conversation_to_carry() -> None:
 
 def test_a_fork_is_a_second_conversation_from_here(tmp_path: Path) -> None:
     agent = Scripted(backend="claude", script=_forking(), session=Steered)
-    tool = Tool(name="t", about="a tool", call=lambda: None)
+    tool = FakeTool(name="t", about="a tool", call=lambda: None)
     parent = agent.new(tmp_path)
     parent("read the code")
     parent.effort = "max"

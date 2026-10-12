@@ -36,11 +36,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Iterable
 
-    from pydantic import BaseModel
+    from hmz.coganchor.faking import FakeTool
 
-__all__ = ["PROTOCOL", "Tool", "Toolbox", "serve"]
+__all__ = ["PROTOCOL", "Toolbox", "serve"]
 
 #: The version of the protocol this speaks, which is what a client is answered with. The
 #: revision every one of these CLIs shipped against; a client asking for another is answered
@@ -59,62 +59,6 @@ _LOOKING = 0.2
 _NO_METHOD, _BAD_PARAMS = -32601, -32602
 
 
-@dataclass(frozen=True, slots=True)
-class Tool:
-    """One callback of the flow's, as the agent is offered it.
-
-    Attributes:
-      name: What the agent calls it, which is what it must be told to use. A tool named for
-        what it does is a tool a model reaches for at the right moment.
-      about: What it is for, said to the model. This is the whole of what the model knows
-        about when to use it, so it is a sentence rather than a label.
-      takes: The shape of what it is called with, as a pydantic model, or None for a tool
-        that takes nothing. The model is the whole of what the agent is told: its fields,
-        their types, which are required and the description each was declared with are
-        already in it, so nothing about the arguments is said twice.
-      call: What to run when the agent reaches for it. It is given the arguments -- the model
-        where one was declared, and nothing at all where none was -- and what it answers is
-        put in front of the agent as text. It runs on the thread serving the tool call, which
-        is not the thread the flow is on: a callback that touches what the flow is touching
-        answers for that itself.
-    """
-
-    name: str
-    about: str
-    call: Callable[..., Any]
-    takes: type[BaseModel] | None = None
-
-    def schema(self) -> dict[str, Any]:
-        """What the agent is told this tool takes, as the JSON Schema the protocol wants.
-
-        Returns:
-          The model's own schema, or the schema of a tool that takes nothing.
-        """
-        if self.takes is None:
-            return {"type": "object", "properties": {}}
-        return self.takes.model_json_schema()
-
-    def called(self, given: Mapping[str, Any]) -> str:
-        """Runs the callback and says what it answered, in words the agent can read.
-
-        Args:
-          given: What the agent called it with.
-
-        Returns:
-          What the callback answered, as text. A callback that answers with nothing is a tool
-          that did something rather than one that failed, and says so.
-
-        Raises:
-          Exception: Whatever the callback raised, which is answered to the agent as the tool
-            having failed rather than as the turn having failed: a flow must not end because
-            a model called one of its tools wrongly.
-        """
-        said = self.call() if self.takes is None else self.call(self.takes(**given))
-        if said is None:
-            return "done"
-        return said if isinstance(said, str) else json.dumps(said, default=str)
-
-
 class Toolbox:
     """The callbacks one agent's conversations are offering, served over a socket.
 
@@ -131,7 +75,7 @@ class Toolbox:
         #: What each conversation is offering, by the id of the conversation: a session that
         #: stops offering something takes it away, and one that never offered anything is not
         #: in here at all.
-        self._held: dict[int, tuple[Tool, ...]] = {}
+        self._held: dict[int, tuple[FakeTool, ...]] = {}
         self._lock = threading.RLock()
         self._at: str = ""
         self._sock: socket.socket | None = None
@@ -139,7 +83,7 @@ class Toolbox:
         self._closed = threading.Event()
         self._where: tempfile.TemporaryDirectory[str] | None = None
 
-    def offers(self, whose: int, tools: Iterable[Tool]) -> None:
+    def offers(self, whose: int, tools: Iterable[FakeTool]) -> None:
         """Says which callbacks one conversation is putting in front of the agent.
 
         Args:
@@ -153,7 +97,7 @@ class Toolbox:
             else:
                 self._held.pop(whose, None)
 
-    def offered(self) -> tuple[Tool, ...]:
+    def offered(self) -> tuple[FakeTool, ...]:
         """Every callback in front of the agent now, one per name.
 
         Returns:
@@ -162,7 +106,7 @@ class Toolbox:
           one list.
         """
         with self._lock:
-            found: dict[str, Tool] = {}
+            found: dict[str, FakeTool] = {}
             for tools in self._held.values():
                 for one in tools:
                     found.setdefault(one.name, one)
@@ -297,7 +241,9 @@ class _Refused(Exception):  # noqa: N818  -- what it is, not what went wrong
     said: str = field(default="")
 
 
-def serve(line: str, offered: Callable[[], tuple[Tool, ...]]) -> dict[str, Any] | None:
+def serve(
+    line: str, offered: Callable[[], tuple[FakeTool, ...]]
+) -> dict[str, Any] | None:
     """Answers one line of the protocol, which is one JSON-RPC message.
 
     Written as a function of the line so that what the protocol says is one thing to read and
@@ -343,7 +289,7 @@ def serve(line: str, offered: Callable[[], tuple[Tool, ...]]) -> dict[str, Any] 
 
 
 def _answers(
-    method: str, given: dict[str, Any], offered: Callable[[], tuple[Tool, ...]]
+    method: str, given: dict[str, Any], offered: Callable[[], tuple[FakeTool, ...]]
 ) -> dict[str, Any]:
     """What one call is answered with.
 

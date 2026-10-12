@@ -22,7 +22,7 @@ import psutil
 import pytest
 from pydantic import BaseModel
 
-from hmz.coganchor.agents import Failed, OhMyPiAgent, OhMyPiAgentConfig, Tool
+from hmz.coganchor.agents import Failed, FakeTool, OhMyPiAgent, OhMyPiAgentConfig
 from tests.integration.doubles_agents import Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -509,12 +509,12 @@ def test_a_callback_offered_is_a_host_tool_run_here_when_reached_for(
         raise ValueError("not today")
 
     session = OhMyPiAgent(CONFIG).new()
-    session.offers([Tool("shout", "Says a word louder.", shout, Asked)])
+    session.offers([FakeTool("shout", "Says a word louder.", shout, Asked)])
 
     assert session('use shout {"word": "hi"}') == "HI"
     assert heard == ["hi"]
 
-    session.offers([Tool("refuse", "Says no.", refuse)])
+    session.offers([FakeTool("refuse", "Says no.", refuse)])
 
     assert session("use refuse") == "failed: ValueError: not today"
     assert len({one.pid for one in omp.calls()}) == 1

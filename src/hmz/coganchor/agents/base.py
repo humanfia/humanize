@@ -36,13 +36,13 @@ from typing import (
 
 from hmz.coganchor.backends import AUTO
 
-from .clis import Cli, Shelf
+from .clis import Shelf
 from .codenames import codename
 from .config import PERMISSIONS, UNSAID, Unfenced, Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
 from .skills import Loaded, mount, unmount
-from .tools import Tool, Toolbox
+from .tools import Toolbox
 from .watchdog import Watchdog, held
 
 if TYPE_CHECKING:
@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor import AnchorConfig
     from hmz.coganchor.backends import Profile
+    from hmz.coganchor.faking import FakeCli, FakeTool
     from hmz.coganchor.fallbacks import Answer
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.gateway import Gateway
@@ -569,10 +570,10 @@ class SessionBase(ABC):
         #: it may say again between any two turns. Held here as well as in the agent's
         #: toolbox so that a session can say what it is offering without asking the agent
         #: what everything else is offering too.
-        self._tools: tuple[Tool, ...] = ()
+        self._tools: tuple[FakeTool, ...] = ()
         #: The flow's own command lines this conversation is putting on the agent's PATH, held
         #: here as well as on the agent's shelf for the reason its tools are.
-        self._clis: tuple[Cli, ...] = ()
+        self._clis: tuple[FakeCli, ...] = ()
         #: And which of them are actually down in the workspace now, or None while none are.
         #: The two differ for exactly as long as it takes the next turn to start, which is
         #: where what was asked for is put where the backend reads it.
@@ -758,11 +759,11 @@ class SessionBase(ABC):
         self._skills = None if skills is None else tuple(dict.fromkeys(skills))
 
     @property
-    def tools(self) -> tuple[Tool, ...]:
+    def tools(self) -> tuple[FakeTool, ...]:
         """The flow's own callbacks this conversation is putting in front of the agent."""
         return self._tools
 
-    def offers(self, tools: Iterable[Tool] | None) -> None:
+    def offers(self, tools: Iterable[FakeTool] | None) -> None:
         """Says which callbacks of the flow's the agent may reach for, from the next turn on.
 
         A callback is a function of the flow's own, and the agent reaching for it is that
@@ -803,11 +804,11 @@ class SessionBase(ABC):
         box.offers(id(self), self._tools)
 
     @property
-    def clis(self) -> tuple[Cli, ...]:
+    def clis(self) -> tuple[FakeCli, ...]:
         """The flow's own command lines this conversation is putting on the agent's PATH."""
         return self._clis
 
-    def shelves(self, clis: Iterable[Cli] | None) -> None:
+    def shelves(self, clis: Iterable[FakeCli] | None) -> None:
         """Says which command lines of the flow's the agent may run, from the next turn on.
 
         A command line is a program on the agent's PATH whose every run -- `--help` and usage

@@ -118,7 +118,7 @@ All classes are importable from `hmz.coganchor.agents`.
 | Web off | `Profile.searches` | `web_search=False` can be said |
 | Rungs | `AgentBase.rungs` | which [rungs](#what-an-agent-may-do) the backend takes |
 | Fast tier | `AgentBase.service_tiers` | `service_tier="fast"` is served |
-| Tools | `SessionBase.takes_tools`; `FakeToolAgentMixin` | Python callbacks can be offered as tools; a flow's as [fake tools](/reference/flows#fake-tools) |
+| Tools | `SessionBase.takes_tools`; `FakeToolAgentMixin` | [fake tools](#callbacks-as-tools) can be offered, from Python or from a flow's `_tools` |
 | Trace | `_READERS` in `hmz.runtime.tracing.collector` | `Hmz().epics.trace()` reads its logs |
 
 The flow mixins are what a role typed as that harness may declare; the driver columns are what
@@ -1098,13 +1098,15 @@ Brought skills are copied, for the session's life, where the backend reads a pro
   into the target's workspace; under a supervised anchor they reach the target only where it
   reads this workspace.
 
-## Callback tools {#callbacks-as-tools}
+## Fake tools {#callbacks-as-tools}
 
-`session.offers([Tool(name, about, call, takes=None)])` gives the agent a tool whose call runs
-`call` in this process; `offers(None)` withdraws them. A flow offers them by declaring
-[`FakeTool`s](/weaver/tools#fake-tools) in a role's `_tools`.
+`session.offers([FakeTool(name, about, call, takes=None)])` gives the agent a tool whose call
+runs `call` in this process; `offers(None)` withdraws them. `FakeTool` is one type, from
+`hmz.coganchor.faking`, exported here and by `hmz.flows`: a flow's
+[`_tools`](/weaver/tools#fake-tools) are handed to `offers` as they were declared, with only
+`call` wrapped to run on the flow's loop as the flow.
 
-| `Tool` field | Meaning |
+| `FakeTool` field | Meaning |
 | --- | --- |
 | `name` | what the agent calls it |
 | `about` | what it is for, said to the model |
@@ -1134,22 +1136,24 @@ Brought skills are copied, for the session's life, where the backend reads a pro
   `omp` is told on the process already up.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
 
-## Command lines {#command-lines}
+## Fake command lines {#command-lines}
 
-`session.shelves([Cli(name, about, commands)])` puts a program called `name` on the agent's
-`PATH`; every run of it is answered in this process. `shelves(None)` takes them back. Not
-available to flows yet.
+`session.shelves([FakeCli(name, about, commands)])` puts a program called `name` on the agent's
+`PATH`; every run of it is answered in this process. `shelves(None)` takes them back. `FakeCli`
+and `FakeCommand` are one type each, from `hmz.coganchor.faking`, exported here and by
+`hmz.flows`: a flow's [`_clis`](/weaver/tools#fake-clis) are handed to `shelves` as they were
+declared, with only each command's `call` wrapped to run as the flow.
 
 ```python
 class File(BaseModel):
     title: str = Field(description="what the ticket says")
     points: int = 3
 
-session.shelves([Cli("tix", "Track tickets.", (Command("file", "File one.", file, File),))])
+session.shelves([FakeCli("tix", "Track tickets.", (FakeCommand("file", "File one.", file, File),))])
 # the agent's shell: tix --help; tix file --help; tix file --title "red build" --points 5
 ```
 
-| `Command` field | Meaning |
+| `FakeCommand` field | Meaning |
 | --- | --- |
 | `name` | the subcommand typed after the program's name |
 | `about` | its line in `--help`, and its own `--help` description |
@@ -1178,7 +1182,7 @@ usage error like a missing flag.
 | `call` raises anything else | | `NAME: <Type>: <message>` | `1` |
 | a command line taken back since the shell found it | | `NAME: command not found` | `127` |
 
-- `Cli` refuses a `name` that is not a plain file name (letters, digits, `.`, `_`, `-`, not
+- `FakeCli` refuses a `name` that is not a plain file name (letters, digits, `.`, `_`, `-`, not
   starting with `.` or `-`), no commands, and a command named twice (`ValueError`).
 - Served wherever there is a shell (`session.takes_clis`): every backend but `litellm` and the
   person at the prompt, where `NotImplementedError: <cli> has no shell to run a command line of
@@ -1348,7 +1352,7 @@ or flow resources restart the process; an anchored turn always ends it.
   hosts (including `lh3.googleusercontent.com`) and starts a loopback language server on a
   kernel-chosen port; the turn is started as `hmz-offline` regardless of `web_search`.
 - Credential: `antigravity-oauth-token` under its home (only `HOME` moves it).
-- [Callback tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
+- [Fake tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
   with `--add-dir` (the session directory is then always added too); a change in the offered
   names restarts the process. agy runs commands in the first workspace directory by path, so
   the plugin's must sort after the session's: where it would sort before (a session under
@@ -1489,7 +1493,7 @@ effort goes in the handshake.
 - `Unrecoverable`: the length refusal, and a session id the runtime will not resume.
 - `DSH_HOME` is the kept directory, and sessions go under its `sessions` (`Profile.told`).
 - `interject` is unsupported: `session/prompt` queues and `steer` is not on the SDK surface.
-- Offered [callbacks](#callbacks-as-tools) insert a `@deepseek-ai/dsh-mcp-client` row
+- Offered [fake tools](#callbacks-as-tools) insert a `@deepseek-ai/dsh-mcp-client` row
   (`serverName: humanize`, `failOnStartupError: true`) into the patch; other names restart the
   runtime.
 - Without an account, the SDK's saved credentials or `DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`.
@@ -1501,7 +1505,7 @@ model, an effort, an approval, an agent profile, a plugin directory and the lead
 tool-withholding rung, `web_search=False`, a network-cutting fence, a shape, a fork, or any field
 below but `leader` set away from default sends the turn to
 `grok -p --output-format streaming-json --resume <id> …` instead. `grok -p` takes no MCP
-server, so such a turn is refused while [callback tools](#callbacks-as-tools) are offered.
+server, so such a turn is refused while [fake tools](#callbacks-as-tools) are offered.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -1609,7 +1613,7 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   (`agentInvoked: false`), also ends the turn.
 - At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
   `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
-- Offered [callbacks](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
+- Offered [fake tools](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
   the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
   is answered `host_tool_result`. A refused `set_host_tools` fails the turn.
 - No `NODE_COMPILE_CACHE` and no `NODE_OPTIONS` preload: omp is one Bun-compiled executable,
@@ -1642,7 +1646,7 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 
 - The table is written for the turn, never to a settings file. Its `read` and `edit` rules are
   relative to the top of the git checkout the session is in, or `/`.
-- [Callback tools](#callbacks-as-tools) are a `local` server `humanize` in `mcp`, merged into
+- [Fake tools](#callbacks-as-tools) are a `local` server `humanize` in `mcp`, merged into
   the `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT` the turn would otherwise have (the
   account's, else an exported one); the model sees them as `humanize_<name>`. A value that is
   not a JSON object (JSONC included) fails the turn with `ValueError`.
@@ -1672,7 +1676,7 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `skill_paths` | `()` | `--skill` per entry |
 
 `--session-id` rather than `--continue`, which resumes the newest session in the directory.
-pi 0.85.1 has no web tools of its own. Offered [callbacks](#callbacks-as-tools) add the
+pi 0.85.1 has no web tools of its own. Offered [fake tools](#callbacks-as-tools) add the
 `--extension`, which reads the bridge's argv from `HMZ_PI_TOOLS` and registers each tool under
 its own name.
 
@@ -1694,7 +1698,7 @@ one.
   shared by concurrent sessions at that effort, under one `hmz-qwen-*` temporary directory.
   A `QWEN_CODE_SYSTEM_DEFAULTS_PATH` of the user's is watched for changes; settings the driver
   cannot parse keep a fresh process per turn.
-- An agent offering [callback tools](#callbacks-as-tools) or serving a `PRE_TOOL_USE` table gets
+- An agent offering [fake tools](#callbacks-as-tools) or serving a `PRE_TOOL_USE` table gets
   a settings file of its own instead; the tools go in as `mcpServers.humanize`, and a change in
   which names are offered restarts the process.
 - Usage counts each assistant message once; the terminal summary fills only missing fields.
@@ -1748,7 +1752,7 @@ cannot be steered, has no goal, reports no usage and has no trace.
 | `reads_files` | `bool` | serve `fs/read_text_file` from this machine |
 | `writes_files` | `bool` | serve `fs/write_text_file` |
 | `terminals` | `bool` | serve `terminal/*` (start, read, wait, kill) |
-| `mcp_servers` | `tuple[McpServer, ...]` | MCP servers added to the agent's own; [callback tools](#callbacks-as-tools) add a `humanize` one |
+| `mcp_servers` | `tuple[McpServer, ...]` | MCP servers added to the agent's own; [fake tools](#callbacks-as-tools) add a `humanize` one |
 
 The first three are refused for an agent under a native anchor. Under a fence, what this
 client does for the agent is held to the same fence: a refused file or path is answered with

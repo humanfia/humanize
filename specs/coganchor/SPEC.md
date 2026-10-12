@@ -206,6 +206,8 @@ def argued(profile: Profile, env: Mapping[str, str]) -> tuple[str, ...]: ...
 # spelling.py -- where an agent's model ends and its effort begins; a leaf `runtime.kept` names
 def parted(said: str) -> tuple[str, str]: ...  # "MODEL[:EFFORT]" -> (model, effort or "")
 
+# faking.py -- FakeTool, FakeCli and FakeCommand, as agents.md gives them; a leaf `flows` names
+
 # models.py -- what each backend runs, asked of it and kept until it is asked again
 WAITING: float   # how long `ask` gives a backend to answer
 STALE: timedelta  # how long what one said is offered before it is asked again

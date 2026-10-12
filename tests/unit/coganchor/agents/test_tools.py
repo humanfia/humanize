@@ -9,7 +9,8 @@ import pytest
 from pydantic import BaseModel, Field
 
 from hmz.coganchor import __version__
-from hmz.coganchor.agents.tools import PROTOCOL, Tool, Toolbox, serve
+from hmz.coganchor.agents.tools import PROTOCOL, Toolbox, serve
+from hmz.coganchor.faking import FakeTool
 
 
 class _Task(BaseModel):
@@ -38,15 +39,15 @@ def _plain_broken() -> NoReturn:
 
 
 _TOOLS = (
-    Tool(name="noop", about="does nothing", call=_nothing),
-    Tool(name="echo", about="says it", call=_named, takes=_Task),
-    Tool(name="data", about="answers data", call=_listed),
-    Tool(name="broken", about="fails", call=_broken),
-    Tool(name="plain", about="fails plainly", call=_plain_broken),
+    FakeTool(name="noop", about="does nothing", call=_nothing),
+    FakeTool(name="echo", about="says it", call=_named, takes=_Task),
+    FakeTool(name="data", about="answers data", call=_listed),
+    FakeTool(name="broken", about="fails", call=_broken),
+    FakeTool(name="plain", about="fails plainly", call=_plain_broken),
 )
 
 
-def _offered() -> tuple[Tool, ...]:
+def _offered() -> tuple[FakeTool, ...]:
     return _TOOLS
 
 
@@ -67,7 +68,7 @@ def test_schema_of_a_tool_is_its_models() -> None:
     ],
 )
 def test_called_says_what_the_callback_answered(
-    tool: Tool, given: dict[str, Any], said: str
+    tool: FakeTool, given: dict[str, Any], said: str
 ) -> None:
     assert tool.called(given) == said
 
@@ -164,7 +165,7 @@ def test_a_toolbox_holds_one_tool_per_name_in_the_order_offered() -> None:
     box = Toolbox()
     assert box.empty()
     assert box.offered() == ()
-    other = Tool(name="noop", about="another noop", call=_nothing)
+    other = FakeTool(name="noop", about="another noop", call=_nothing)
     box.offers(1, _TOOLS[:2])
     box.offers(2, [other, _TOOLS[2]])
     assert not box.empty()

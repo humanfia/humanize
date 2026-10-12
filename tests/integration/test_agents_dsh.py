@@ -97,7 +97,7 @@ def test_a_callback_offered_is_run_here_when_the_model_reaches_for_it(
 ) -> None:
     from pydantic import BaseModel
 
-    from hmz.coganchor.agents import Tool
+    from hmz.coganchor.agents import FakeTool
 
     class Asked(BaseModel):
         word: str
@@ -109,7 +109,7 @@ def test_a_callback_offered_is_run_here_when_the_model_reaches_for_it(
         return asked.word.upper()
 
     session = DshAgent(CONFIG).new()
-    session.offers([Tool("shout", "Says a word louder.", shout, Asked)])
+    session.offers([FakeTool("shout", "Says a word louder.", shout, Asked)])
 
     said = session('use shout {"word": "hi"}')
 

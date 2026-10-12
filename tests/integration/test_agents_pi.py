@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic import BaseModel
 
-from hmz.coganchor.agents import Failed, PiAgent, PiAgentConfig, Tool
+from hmz.coganchor.agents import Failed, FakeTool, PiAgent, PiAgentConfig
 from tests.integration.doubles_agents import Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -266,8 +266,8 @@ def test_a_callback_offered_is_run_here_when_the_model_reaches_for_it(
     session = PiAgent(CONFIG).new()
     session.offers(
         [
-            Tool("shout", "Says a word louder.", shout, Asked),
-            Tool("refuse", "Says no.", refuse),
+            FakeTool("shout", "Says a word louder.", shout, Asked),
+            FakeTool("refuse", "Says no.", refuse),
         ]
     )
 

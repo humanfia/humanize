@@ -17,6 +17,8 @@ from hmz.flows import (
     Env,
     EnvBackendKind,
     EnvCollection,
+    FakeCli,
+    FakeCommand,
     FakeTool,
     FakeToolAgentMixin,
     FilesEnvMixin,
@@ -555,6 +557,74 @@ async def test_a_flow_handed_an_agent_offers_its_own_roles_tools() -> None:
     coder = FakeAgentDriver(reply=reply)
 
     assert await run_fake(handing, agents={"coder": coder}) == "ValueError: no ink"
+
+
+class Ticket(pydantic.BaseModel):
+    title: str = pydantic.Field(description="What the ticket says.")
+
+
+#: What the command lines of `triaged` filed, and as which flow call.
+TICKETS: list[tuple[str, object]] = []
+
+
+async def file(ticket: Ticket) -> str:
+    TICKETS.append((ticket.title, CALLING.get()))
+    return f"filed {ticket.title}"
+
+
+class Triager(Agent):
+    _clis = (
+        FakeCli(
+            "tix", "Files tickets.", (FakeCommand("file", "Files one.", file, Ticket),)
+        ),
+    )
+
+
+class Triagers(AgentCollection):
+    triager: Triager
+
+
+@flow(agents=Triagers, envs=NoEnvs, params=Prompt)
+async def triaged(
+    task: str, *, agents: Triagers, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> tuple[str, object]:
+    triager = agents["triager"]
+    return await triager.run(task, session=await triager.spawn()), ctx
+
+
+async def test_a_sessions_command_lines_run_as_its_flow_and_answer_as_programs() -> (
+    None
+):
+    ran: list[tuple[int, str, str]] = []
+
+    async def reply(prompt: str, *, session: Any, **_: Any) -> str:
+        ran.append(await session.run_cli(["tix", "--help"]))
+        ran.append(await session.run_cli(["tix", "file", "--title", prompt]))
+        ran.append(await session.run_cli(["tix", "file"]))
+        with pytest.raises(SessionError, match="no command line called 'nope'"):
+            await session.run_cli(["nope"])
+        return "ok"
+
+    TICKETS.clear()
+    coder = FakeAgentDriver(reply=reply)
+
+    said, ctx = await run_fake(triaged, "hi", agents={"triager": coder})
+
+    helped, filed, refused = ran
+    assert said == "ok"
+    assert helped[0] == 0
+    assert "Files one." in helped[1]
+    assert filed == (0, "filed hi\n", "")
+    assert refused[0] == 2
+    assert "--title" in refused[2]
+    assert [("hi", ctx)] == TICKETS
+
+
+async def test_a_model_called_directly_runs_no_command_lines() -> None:
+    model = FakeAgentDriver(HarnessKind.LITELLM)
+
+    with pytest.raises(UnsupportedOperation, match="no shell"):
+        await run_fake(triaged, agents={"triager": model})
 
 
 # ----------------------------------------------------------------------------- outworlders

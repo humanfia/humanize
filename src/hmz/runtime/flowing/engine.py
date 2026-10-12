@@ -554,9 +554,14 @@ def _agent(
             if refusal is not None:
                 raise refusal[0](f"{flow.ref}: {role.name!r} {refusal[1]}")
         if full:
-            # Everything the agent given holds, but the tools: those are the callee's own.
+            # Everything the agent given holds, but the tools and command lines: those are
+            # the callee's own.
             grant = Grant.of(
-                grant.capabilities, grant.permission, grant.skills, role.tools
+                grant.capabilities,
+                grant.permission,
+                grant.skills,
+                role.tools,
+                role.clis,
             )
         else:
             grant = role.grant
@@ -1804,6 +1809,7 @@ async def run_flow(
                     role.permission,
                     role.skills,
                     role.tools,
+                    role.clis,
                 )
                 if impl._full
                 else role.grant

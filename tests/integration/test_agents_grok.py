@@ -19,11 +19,11 @@ from pydantic import BaseModel
 
 from hmz.coganchor.agents import (
     Failed,
+    FakeTool,
     GrokBuildAgent,
     GrokBuildAgentConfig,
     Moment,
     Occasion,
-    Tool,
     Unrecoverable,
     Verdict,
 )
@@ -226,11 +226,11 @@ def test_a_flow_s_callback_is_a_tool_grok_reaches_over_mcp(grok: Standins) -> No
     session = GrokBuildAgent(CONFIG).new()
     try:
         session.offers(
-            [Tool(name="lookup", about="Looks up.", call=looks_up, takes=_Word)]
+            [FakeTool(name="lookup", about="Looks up.", call=looks_up, takes=_Word)]
         )
         answered = session('tool lookup {"word": "kiwi"}')
         session.offers(
-            [Tool(name="define", about="Defines.", call=looks_up, takes=_Word)]
+            [FakeTool(name="define", about="Defines.", call=looks_up, takes=_Word)]
         )
         again = session('tool define {"word": "fig"}')
     finally:
@@ -247,7 +247,7 @@ def test_a_turn_only_grok_p_can_take_is_refused_while_callbacks_are_offered(
     grok: Standins,
 ) -> None:
     session = GrokBuildAgent(CONFIG).new()
-    session.offers([Tool(name="lookup", about="Looks up.", call=lambda: "found")])
+    session.offers([FakeTool(name="lookup", about="Looks up.", call=lambda: "found")])
 
     with pytest.raises(Unrecoverable, match="takes no MCP server"):
         session("hello", schema=_Word)
