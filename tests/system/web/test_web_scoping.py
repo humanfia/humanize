@@ -16,7 +16,8 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, go, opened, served
+from tests.integration.doubles_web import served
+from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -38,7 +39,8 @@ def _asked(page: Page) -> list[str]:
 
     def heard(request: Request) -> None:
         path = urllib.parse.urlsplit(request.url).path
-        if "/api/" in path:
+        # What is the same whichever daemon is shown is asked of the page's own server.
+        if "/api/" in path and not re.match(r"/api/(daemons|notifications)\b", path):
             paths.append(path)
 
     page.on("request", heard)

@@ -289,6 +289,9 @@ Every `error` but the last is the runtime's own sentence, e.g.
 | `POST /api/daemons/remove` | `name` | As `GET` |
 | `GET /api/daemons/hosts` | | `hosts` your ssh config names that are not daemons yet (`alias`, `name`, `host`, `user`, `port`, `identity_files`, `proxy_jump`) |
 | `POST /api/daemons/import` | `aliases` | As `GET`, and `added`: the daemons made, skipping any already there |
+| `GET /api/daemons/{name}/state` | | `state` (`idle`, `connecting`, `installing`, `up` or `failed`), `detail` (what was said last, such as uv's last line) and `version` (its `hmz`'s) |
+| `POST /api/daemons/{name}/connect` | | As `GET …/state`, once it is being reached: its `hmz` installed at this version where none or another is and it holds no running epics, `hmz web --no-open --attached` started there over ssh, and a port of this machine forwarded to it |
+| any `/d/{name}/api/…` | as `/api/…` there | What that daemon's own interface answers, passed through as it comes -- a stream included -- signed in with its key, which no page sees; `503` while it is not up, `404` for a daemon not written down |
 
 An account is listed by the names of the variables it sets (`sets`), never by a value.
 

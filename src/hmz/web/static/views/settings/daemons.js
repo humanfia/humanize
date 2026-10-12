@@ -139,20 +139,20 @@ export function draw(holder) {
           acting(
             editing ? 'Save' : 'Add',
             async () => {
-              const entry = {
-                ...(editing || {}),
-                name: name.value.trim(),
+              const fields = {
                 host: host.value.trim(),
                 user: user.value.trim(),
-                port: port.value === '' ? null : Number(port.value),
                 identity_file: key.value(),
                 proxy_jump: jump.value.trim(),
                 options: options.read(),
               }
-              delete entry.state
-              delete entry.detail
-              delete entry.version
-              await post('/api/daemons', entry)
+              if (port.value !== '') fields.port = Number(port.value)
+              // What an edited daemon was brought in from its ssh config by, kept as it was.
+              if (editing) for (const kept of ['alias', 'config']) if (editing[kept]) fields[kept] = editing[kept]
+              const called = name.value.trim()
+              await post('/api/daemons', { name: called, fields, replace: Boolean(editing) })
+              // Renamed: the daemon under its old name goes.
+              if (editing && editing.name !== called) await post('/api/daemons/remove', { name: editing.name })
               editing = null
               drawWriting()
               await read()

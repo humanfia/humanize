@@ -3855,8 +3855,13 @@ input[aria-invalid='true'] {
 }
 
 .side-daemon b {
-  flex: none;
-  max-width: 70%;
+  flex: 0 1 auto;
+  min-width: 3ch;
+}
+
+/* The bar's words take what the row leaves, so a short name is never cut. */
+.side-account .side-account-text {
+  flex: 1 1 auto;
 }
 
 .side-host {
@@ -3884,6 +3889,8 @@ input[aria-invalid='true'] {
 
 .side-account[data-state='failed'] .side-avatar {
   background: var(--fail);
+}
+
 /* settings daemons */
 .settings-group {
   margin: 12px 10px 4px;
@@ -3948,6 +3955,9 @@ input[aria-invalid='true'] {
 
   .settings-daemon {
     padding: 8px 12px;
+  }
+}
+
 /* settings: daemons, notifications */
 .daemon-state .glyph {
   margin-right: 6px;
@@ -4007,6 +4017,9 @@ input[aria-invalid='true'] {
   .daemons-table td:last-child .row {
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+}
+
 /* notifications */
 
 .notify-bell {

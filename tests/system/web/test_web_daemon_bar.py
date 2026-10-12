@@ -15,7 +15,8 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, opened, served
+from tests.integration.doubles_web import served
+from tests.system.web.doubles_browser import ENGINES, opened
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -95,7 +96,7 @@ def test_the_bar_names_the_daemon_and_its_picker_switches(
 
         bar.click()
         picker.get_by_role("menuitem", name="Manage").click()
-        page.wait_for_url(re.compile(r".*#/settings/daemons$"))
+        page.wait_for_url(re.compile(r".*#/@lab/settings/daemons$"))
 
 
 def test_without_daemons_the_bar_is_local(project: Path, engine: str) -> None:

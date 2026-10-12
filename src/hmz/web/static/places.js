@@ -99,10 +99,14 @@ export function workspacePicker(chosen, changed) {
     }
   })
 
-  workspaces().then((answer) => {
-    list = answer.workspaces
-    if (!path) path = answer.here
-    set(path)
-  })
+  workspaces().then(
+    (answer) => {
+      list = answer.workspaces
+      if (!path) path = answer.here
+      set(path)
+    },
+    // A daemon that cannot be reached: the view it is on says why.
+    () => {},
+  )
   return { node, set, value: () => path }
 }

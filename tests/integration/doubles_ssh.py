@@ -13,8 +13,8 @@ said to be installed at, or none, and a `uv` whose `tool install` installs the v
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import sys
 import tempfile
 from dataclasses import dataclass

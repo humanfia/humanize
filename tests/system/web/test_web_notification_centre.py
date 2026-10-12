@@ -10,13 +10,15 @@ by the browser's `Notification` or by the macOS app. Each in Chromium and WebKit
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import expect
 
-from tests.integration.doubles_web import ENGINES, opened, served
+from tests.integration.doubles_web import served
+from tests.system.web.doubles_browser import ENGINES, opened
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page, Route
@@ -177,9 +179,21 @@ def test_a_notification_heard_is_a_card_that_opens_it(engine: str) -> None:
 
 
 def test_there_is_no_bell_where_the_server_has_no_notifications(engine: str) -> None:
-    with served() as site, opened(site, engine=engine) as page:
+    def older(page: Page) -> None:
+        # A server of an older humanize, which has none to give.
+        page.route(
+            re.compile(r".*/api/notifications(/.*|\?.*)?$"),
+            lambda route: route.fulfill(status=404, json={"error": "Not found."}),
+        )
+
+    with served() as site, opened(site, engine=engine, routed=older) as page:
         expect(page.locator("[data-hmz=sidebar] .brand")).to_be_visible()
         expect(page.locator("[data-hmz=notifications]")).to_be_hidden()
+
+
+def test_the_bell_is_there_where_the_server_has_notifications(engine: str) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        expect(page.locator("[data-hmz=notifications]")).to_be_visible()
 
 
 @pytest.mark.parametrize("system", [True, False])

@@ -60,21 +60,10 @@ The app is a window, not a second humanize. It runs `hmz` as
 - **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts
   -- are reached from the app as from a browser, with your ssh config, and switched between at
   the foot of the sidebar.
-- **It notifies as macOS does.** See [Notifications](#notifications).
 - **It updates itself.** See [Updates](#updates).
 - **It notifies you as a Mac app does.** When an epic ends, a flow asks you something, or a chat
   turn is done while you are not looking at the window, the page's notification shows in the
   corner of the screen and in Notification Center. See [Notifications](#notifications).
-
-## Notifications {#notifications}
-
-The page's [notifications](/user/web#notifications) come from the app itself, so they
-look and stay as any Mac app's do. The first one asks whether humanize may send them: choose
-**Allow**. To change that later, open **System Settings → Notifications → humanize**.
-
-Clicking one brings the window forward, on what it is about: the epic that ended, or the daemon
-whose flow asked. Which kinds you are told of is set on the page, in **Settings →
-Notifications**.
 
 ## Opening a `.hmzepic` {#opening-a-hmzepic}
 
@@ -95,9 +84,9 @@ and toasts as in a browser, and, while the window is hidden or not in front, as 
 notifications from humanize. Click one: the window comes to the front, on the epic it is about.
 
 The kinds that appear, and whether they are macOS notifications at all, are set in
-**Settings → Notifications**; the app needs no permission asked there, as a browser does.
-macOS's own **System Settings → Notifications → humanize** decides how they are shown, or
-silences them.
+**Settings → Notifications**; the app needs no permission asked there, as a browser does. The
+first one asks whether humanize may send them: choose **Allow**. After that, macOS's own
+**System Settings → Notifications → humanize** decides how they are shown, or silences them.
 
 ## Updates {#updates}
 

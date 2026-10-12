@@ -1,5 +1,7 @@
-"""Settings, per daemon: the app's own pages apart from a daemon's, which daemon those read and
-write, and what a page holds copied to several daemons at once.
+"""Settings, per daemon.
+
+The app's own pages apart from a daemon's, which daemon those read and write, and what a page
+holds copied to several daemons at once.
 
 The daemons are the browser's to fake: the list of them is answered in the page's browser, and
 so is everything sent to the remote ones -- `gpu` mirrors what Local reads and takes whatever
@@ -16,7 +18,8 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, go, opened, served
+from tests.integration.doubles_web import served
+from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -53,6 +56,10 @@ def _daemons(page: Page) -> list[tuple[str, str, Any]]:
         found = re.match(r".*/d/([^/]+)(/api/.*)", request.url)
         assert found
         name, path = found.groups()
+        if name == "local":
+            # The page's own daemon, which it asks as it asks everything: no fake of it.
+            route.fallback()
+            return
         body = json.loads(request.post_data) if request.post_data else None
         asked.append((name, f"{request.method} {path.split('?')[0]}", body))
         if name == "lab":
@@ -104,10 +111,7 @@ def test_the_daemon_picked_is_the_one_read_and_written(
 
         page.get_by_role("button", name="Save").click()
         expect(page.get_by_role("button", name="Saved")).to_be_visible()
-        assert any(
-            one[:2] == ("gpu", "POST /api/settings")
-            for one in asked
-        )
+        assert any(one[:2] == ("gpu", "POST /api/settings") for one in asked)
 
         # Kept in the address, the daemon is the one the page opens on again.
         asked.clear()

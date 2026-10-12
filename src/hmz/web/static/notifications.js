@@ -48,8 +48,6 @@ export function bell() {
 let wait = 10000
 /** What was heard since the list was last asked for, which an older answer must not drop. */
 let fresh = new Map()
-/** Whether the system is let show them, as the settings said when last read. */
-let settings = Promise.resolve(null)
 
 async function start() {
   try {
@@ -63,14 +61,12 @@ async function start() {
     return
   }
   button.hidden = false
-  readSettings()
   const stream = new EventSource('/api/notifications/stream')
   stream.addEventListener('notification', (event) => heard(JSON.parse(event.data)))
   // Read again whenever the stream opens, for what came before it did, and as the page is
-  // looked at again, for what another tab read or cleared; the settings as it is left.
+  // looked at again, for what another tab read or cleared.
   stream.addEventListener('open', () => reread().catch(() => {}))
-  document.addEventListener('visibilitychange', () => (document.hidden ? readSettings() : reread().catch(() => {})))
-  addEventListener('blur', readSettings)
+  document.addEventListener('visibilitychange', () => document.hidden || reread().catch(() => {}))
 }
 
 async function reread() {
@@ -79,10 +75,6 @@ async function reread() {
   const known = new Set((answer.items || []).map((one) => one.id))
   items = [...[...fresh.values()].reverse().filter((one) => !known.has(one.id)), ...(answer.items || [])]
   draw()
-}
-
-function readSettings() {
-  settings = get('/api/notifications/settings').catch(() => null)
 }
 
 function heard(item) {
@@ -179,7 +171,8 @@ function card(item) {
 /** One the system shows, while the page is not looked at and the settings let it. */
 async function system(item) {
   if (!document.hidden && document.hasFocus()) return
-  const said = await settings
+  // Read as one comes, rare as they are, so a change in Settings holds at once.
+  const said = await get('/api/notifications/settings').catch(() => null)
   if (!said || !said.system) return
   const title = `${kindOf(item)} · ${daemonOf(item)}`
   const body = about(item)

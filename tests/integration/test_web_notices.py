@@ -102,7 +102,11 @@ def test_a_chat_waiting_and_an_epic_ending_are_notices(project: Path) -> None:
         assert browser.get("/api/notices").json() == {"notices": [], "last": 0}
 
         with _follows(browser) as heard:
-            chat = {"flow": "chat", "task": "hello there", "agents": {"assistant": AGENT}}
+            chat = {
+                "flow": "chat",
+                "task": "hello there",
+                "agents": {"assistant": AGENT},
+            }
             assert browser.post("/api/held/start", chat).status == 200
             _, listening = _until(heard, "listening")
             assert (listening["workspace"], listening["flow"]) == (str(project), "chat")

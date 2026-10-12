@@ -8,6 +8,7 @@ them, so that what the page sent is what is checked. Each test runs in Chromium 
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +16,8 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import ENGINES, go, opened, served
+from tests.integration.doubles_web import served
+from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -71,7 +73,7 @@ class _Daemons:
             return
         elif route.request.method == "POST":
             self.daemons = [one for one in self.daemons if one["name"] != body["name"]]
-            self.daemons.append(body)
+            self.daemons.append({"name": body["name"], **body["fields"]})
             said = self.listed()
         else:
             said = self.listed()
@@ -111,12 +113,15 @@ def test_a_daemon_is_added_a_part_at_a_time(project: Path, engine: str) -> None:
             "/api/daemons",
             {
                 "name": "lab",
-                "host": "lab.example",
-                "user": "ann",
-                "port": 2222,
-                "identity_file": "~/.ssh/lab",
-                "proxy_jump": "me@jump",
-                "options": [["ServerAliveInterval", "30"]],
+                "fields": {
+                    "host": "lab.example",
+                    "user": "ann",
+                    "port": 2222,
+                    "identity_file": "~/.ssh/lab",
+                    "proxy_jump": "me@jump",
+                    "options": [["ServerAliveInterval", "30"]],
+                },
+                "replace": False,
             },
         )
 
@@ -161,7 +166,14 @@ def test_a_refused_connection_is_said_where_it_happened(
 def test_without_the_endpoints_the_pages_say_unavailable(
     project: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
+    def older(page: Page) -> None:
+        # A server of an older humanize, which has neither.
+        page.route(
+            re.compile(r".*/api/(daemons|notifications)(/.*|\?.*)?$"),
+            lambda route: route.fulfill(status=404, json={"error": "Not found."}),
+        )
+
+    with served() as site, opened(site, engine=engine, routed=older) as page:
         for name in ("daemons", "notifications"):
             go(page, f"/settings/{name}")
             body = page.locator(f"[data-hmz=settings-{name}]")

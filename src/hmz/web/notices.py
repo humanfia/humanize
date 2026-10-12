@@ -67,9 +67,7 @@ class Notices:
         self._statuses = statuses
         self._every = every
         self._changed = threading.Condition()
-        self._kept: collections.deque[dict[str, Any]] = collections.deque(
-            maxlen=_KEPT
-        )
+        self._kept: collections.deque[dict[str, Any]] = collections.deque(maxlen=_KEPT)
         self._last = 0
         self._listeners: list[Callable[[dict[str, Any]], None]] = []
         #: How each workspace last stood, where its host said: what is news is against this.
@@ -219,11 +217,7 @@ def _noticed(
     """
     made: list[dict[str, Any]] = []
     ended = now.get("ended")
-    if (
-        ended
-        and ended != was.get("ended")
-        and float(ended.get("at") or began) >= began
-    ):
+    if ended and ended != was.get("ended") and float(ended.get("at") or began) >= began:
         why = str(ended.get("why") or "").strip()
         made.append(
             {
