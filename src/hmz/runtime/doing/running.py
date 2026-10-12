@@ -72,6 +72,13 @@ class Run:
         return self._runner.impl.ref
 
     @property
+    def chats(self) -> bool:
+        """Whether the flow is humanize's own `chat`, said by where it is, not by its name."""
+        from hmz.runtime.flowing import privileged
+
+        return privileged(self._runner.impl)
+
+    @property
     def task(self) -> str:
         """What it was asked to do."""
         return self._task

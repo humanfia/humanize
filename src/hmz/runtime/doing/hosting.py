@@ -1570,11 +1570,15 @@ class Host:
     def _line_for(self, current: _Run, role: str) -> _Line | None:
         """The oldest line waiting that answers what a role asks, where one does.
 
-        One said to the run at large or to the role does; and so does one said by name to
-        any of the run's agents or conversations with no turn open to take it, which would
-        otherwise wait for a turn that only this answer starts. Under the lock.
+        One said to the run at large or to the role does. And in `chat`, whose every question
+        between turns is what to say next, so does one said by name to its agent or its
+        conversation with no turn open to take it, which would otherwise wait for a turn that
+        only this answer starts. Under the lock.
         """
-        named = {agent.id for agent in current.agents} | set(current.numbered.values())
+        named: set[str] = set()
+        if current.run.chats:
+            named = {agent.id for agent in current.agents}
+            named |= set(current.numbered.values())
         return next(
             (
                 one

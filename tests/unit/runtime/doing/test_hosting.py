@@ -143,6 +143,7 @@ class FakeRun:
 
     flow: str = "ralph"
     ref: str = "official/ralph"
+    chats: bool = False
     declaration: Declaration = field(default_factory=Declaration)
     budget: Budget = field(default_factory=lambda: Budget(cost=2.0))
     usage: Usage = field(default_factory=lambda: Usage(cost=0.5))
@@ -1065,6 +1066,7 @@ def test_a_line_said_to_a_conversation_between_turns_answers_what_to_say_next(
     to: str, host: Host, where: Workspace, outworlders: Outworlders
 ) -> None:
     alice = Told(host, "alice")
+    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
     run = _started(alice, where)
     agent, session = Agent(), Session()
     _opened(run, agent, session)
@@ -1079,6 +1081,33 @@ def test_a_line_said_to_a_conversation_between_turns_answers_what_to_say_next(
     assert asking.answer == "tell me more"
     # The turn it starts is about it already, and takes it no second time.
     assert cast("Callable[[], list[str]]", agent.waiting)() == []
+    run.released.set()
+
+
+def test_a_line_said_to_a_conversation_between_turns_of_another_flow_waits_for_its_turn(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    agent, session = Agent(), Session()
+    _opened(run, agent, session)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, Question("which budget?"))
+    alice.told("asked", run=1)
+
+    alice.asks("say", text="next time", to="builder/1")
+    alice.waits(
+        lambda one: (
+            one["type"] == "waiting"
+            and [each["text"] for each in one["queued"]] == ["next time"]
+        )
+    )
+
+    assert not asking.done.wait(0.3)
+    alice.asks("say", text="two", to="outworlder:outworlder")
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer == "two"
+    assert cast("Callable[[], list[str]]", agent.waiting)() == ["next time"]
     run.released.set()
 
 

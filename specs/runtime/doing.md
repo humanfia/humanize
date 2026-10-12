@@ -85,8 +85,8 @@ class Run:
     def __init__(
         self, runner: Runner, task: str, *, outworlder: OutworlderDriver | None = None
     ) -> None: ...
-    flow: str; ref: str; task: str; declaration: Declaration; budget: Budget; profile: bool
-    usage: Usage; epic: Path | None; running: bool; raised: BaseException | None
+    flow: str; ref: str; chats: bool; task: str; declaration: Declaration; budget: Budget
+    profile: bool; usage: Usage; epic: Path | None; running: bool; raised: BaseException | None
     result: Any  # properties
     @property
     def agents(self) -> tuple[AgentBase, ...]: ...  # behind each session still open, by role
@@ -340,8 +340,9 @@ class Fallbacks:
 - A line said to a run MUST go into the turn open on the view it was said on -- a conversation,
   a role's newest, or the first working -- one at a time per agent until the agent says it has
   it; said while no turn is open it MUST go into whichever turn starts next for it -- unless the
-  run is waiting to be told what to say next, which a line said to any of its agents or
-  conversations with no turn open MUST answer, going into no turn a second time -- and one the
+  run is `chat`'s and waiting to be told what to say next, which a line said to its agent or
+  conversation with no turn open MUST answer, going into no turn a second time; every other
+  flow's MUST wait for that turn -- and one the
   agent refuses MUST go back to the head of the queue. A turn that ends holding one, and a run
   that stops or ends with any waiting, MUST say so. Claims MUST NOT gate what is said to agents.
 - One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST

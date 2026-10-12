@@ -299,8 +299,8 @@ An exception inside a request is refused with `str(exception)` or its type name.
 | `to` | The line |
 | --- | --- |
 | `""` | Answers a pending *listen* question the sender may answer, else goes to the first conversation with a turn open (in opening order). |
-| `<role>` | That role's newest conversation with a turn open; with none open, answers a pending listen question the sender may answer. |
-| `<role>/<n>` | That conversation; with no turn open in it, answers a pending listen question the sender may answer. |
+| `<role>` | That role's newest conversation with a turn open; with none open, in `chat` only, answers a pending listen question the sender may answer. |
+| `<role>/<n>` | That conversation; with no turn open in it, in `chat` only, answers a pending listen question the sender may answer. |
 | `outworlder:<role>` | Answers that role's pending listen question only; never put into a turn. |
 
 A line enters a conversation only while a turn is open, one line per agent at a time; it
