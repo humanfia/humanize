@@ -2,19 +2,18 @@
 // chart is drawn in plain HTML with a table beside it, so no figure rests on a colour or on a
 // pointer hovering over it.
 
-import { address, hash, poll } from '../../api.js'
+import { address, get, hash, poll } from '../../api.js'
 import { stays } from '../../app.js'
 import { badge, fill, flowName, h, problem } from '../../dom.js'
-import { workspaces } from '../../places.js'
 
 /** How far back the page can look, in days. */
 const RANGES = [7, 30, 90, 365]
 
-export function draw(holder, query) {
+export function draw(holder, query, parts, scope) {
   let days = Number(query.get('days')) || 30
   let workspace = query.get('workspace') || ''
   const places = h('select', { 'aria-label': 'Workdir' }, h('option', { value: '' }, 'All workdirs'))
-  workspaces().then((answer) => {
+  get(scope.at('/api/workspaces')).then((answer) => {
     fill(places, h('option', { value: '' }, 'All workdirs'), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace, title: one.path }, one.name)))
   }, () => {})
   places.addEventListener('change', () => {
@@ -28,7 +27,7 @@ export function draw(holder, query) {
   let stop = () => {}
   const watch = () => {
     stop()
-    stays({ days, workspace })
+    stays({ ...scope.query, days, workspace })
     fill(
       range,
       RANGES.map((one) => {
@@ -40,7 +39,7 @@ export function draw(holder, query) {
         return button
       }),
     )
-    stop = poll(address('/api/usage', { days, workspace }), 30000, (data, error) => draw(data, error))
+    stop = poll(address(scope.at('/api/usage'), { days, workspace }), 30000, (data, error) => draw(data, error))
   }
 
   function draw(data, error) {

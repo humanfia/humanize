@@ -20,7 +20,7 @@ function whenSaid(one) {
   return said.length ? said.join(' · ') : 'Manual'
 }
 
-export function draw(holder) {
+export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'backups' })
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-backup' })
   fill(holder, listing, writing)
@@ -35,7 +35,7 @@ export function draw(holder) {
 
   /** Writes every target down, as they are with one change made, and lists them again. */
   const save = async (targets, defaults) => {
-    data = (await post('/api/settings', { backup: { targets, defaults } })).backup
+    data = (await post(scope.at('/api/settings'), { backup: { targets, defaults } })).backup
     drawListing()
   }
 
@@ -85,7 +85,7 @@ export function draw(holder) {
     )
     fill(
       listing,
-      h('h2', {}, 'Targets'),
+      h('header', {}, h('h2', {}, 'Targets'), scope.batch(() => [['/api/settings', { backup: data }]])),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Repository'), h('th', {}, 'When'), h('th', {}, ''), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'None yet: no epic is backed up.'),
@@ -147,7 +147,7 @@ export function draw(holder) {
     fill(writing, h('h2', {}, editing ? `Edit ${editing.name}` : 'New target'), form)
   }
 
-  get('/api/settings')
+  get(scope.at('/api/settings'))
     .then(shown)
     .catch((error) => fill(listing, problem(error)))
 }

@@ -9,7 +9,7 @@ import { pathPicker } from '../../paths.js'
 
 const GIB = 2 ** 30
 
-export function draw(holder) {
+export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'runtimes' })
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-runtime' })
   const importing = h('section', { class: 'panel', 'data-hmz': 'import-runtimes' })
@@ -43,20 +43,21 @@ export function draw(holder) {
             acting(
               'Check',
               async () => {
-                checked[key] = await post('/api/runtimes/check', { backend: one.backend, name: one.name })
+                checked[key] = await post(scope.at('/api/runtimes/check'), { backend: one.backend, name: one.name })
                 drawListing()
               },
               { kind: 'btn small quiet', busy: 'Asking…' },
             ),
             h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
-            confirming({ label: 'Remove', ask: `Remove ${one.name}?`, yes: 'Remove', small: true, act: async () => shown(await post('/api/runtimes/remove', { backend: one.backend, name: one.name })) }),
+            confirming({ label: 'Remove', ask: `Remove ${one.name}?`, yes: 'Remove', small: true, act: async () => shown(await post(scope.at('/api/runtimes/remove'), { backend: one.backend, name: one.name })) }),
           ),
         ),
       )
     })
     fill(
       listing,
-      h('h2', {}, 'Runtimes'),
+      // Each runtime written over the one of its name there, or added; none there taken away.
+      h('header', {}, h('h2', {}, 'Runtimes'), scope.batch(() => data.runtimes.map(({ backend, name, made, ...fields }) => ['/api/runtimes', { backend, name, fields, replace: true }]))),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Backend'), h('th', {}, 'Name'), h('th', {}, 'Address'), h('th', {}, 'Resources'), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'None yet: every environment is this machine, or spelled out where it is named.'),
@@ -79,7 +80,7 @@ export function draw(holder) {
       fill(fields)
       for (const [key, empty] of Object.entries(blank)) {
         const value = editing ? editing[key] : empty
-        const [input, read] = field(key, empty, value, { backend: backend.value, name: name.value.trim(), runtimes: data.runtimes })
+        const [input, read] = field(key, empty, value, { backend: backend.value, name: name.value.trim(), runtimes: data.runtimes, from: scope.base })
         readers[key] = read
         fields.append(h('div', { class: ['field', (Array.isArray(empty) || (empty && typeof empty === 'object')) && 'wide'] }, h('label', { for: `runtime-${key}` }, labelOf(key)), input))
       }
@@ -103,7 +104,7 @@ export function draw(holder) {
             async () => {
               const given = {}
               for (const [key, read] of Object.entries(readers)) given[key] = read()
-              const answer = await post('/api/runtimes', { backend: backend.value, name: name.value.trim(), fields: given, replace: Boolean(editing) })
+              const answer = await post(scope.at('/api/runtimes'), { backend: backend.value, name: name.value.trim(), fields: given, replace: Boolean(editing) })
               editing = null
               shown(answer)
             },
@@ -121,7 +122,7 @@ export function draw(holder) {
     const read = acting(
       'Read SSH config',
       async () => {
-        const { hosts } = await get('/api/runtimes/hosts')
+        const { hosts } = await get(scope.at('/api/runtimes/hosts'))
         const boxes = hosts.map((one) => ({ one, box: h('input', { type: 'checkbox', disabled: one.saved }) }))
         fill(
           importing,
@@ -143,7 +144,7 @@ export function draw(holder) {
                     async () => {
                       const names = boxes.filter(({ box }) => box.checked).map(({ one }) => one.alias)
                       if (!names.length) return
-                      shown(await post('/api/runtimes/import', { names }))
+                      shown(await post(scope.at('/api/runtimes/import'), { names }))
                       drawImporting()
                     },
                     { kind: 'btn primary', busy: 'Importing…' },
@@ -158,7 +159,7 @@ export function draw(holder) {
     fill(importing, h('h2', {}, 'SSH config'), h('p', { class: 'dim' }, 'Import hosts from your SSH config as runtimes.'), read)
   }
 
-  get('/api/runtimes')
+  get(scope.at('/api/runtimes'))
     .then((answer) => {
       shown(answer)
       drawImporting()
@@ -194,12 +195,12 @@ function labelOf(key) {
   return `${words.slice(0, 1).toUpperCase()}${words.slice(1)}${key.endsWith('memory') ? ', GiB' : ''}`
 }
 
-/** The SSH hosts your config names, read once, for the fields that name one. */
-let hosts = null
-onDaemon(() => (hosts = null))
-function sshHosts() {
-  hosts ||= get('/api/runtimes/hosts').then((answer) => answer.hosts.map((one) => one.alias), () => [])
-  return hosts
+/** The SSH hosts each daemon's config names, read once, for the fields that name one. */
+const hosts = new Map()
+onDaemon(() => hosts.clear())
+function sshHosts(from) {
+  if (!hosts.has(from)) hosts.set(from, get(`${from}/api/runtimes/hosts`).then((answer) => answer.hosts.map((one) => one.alias), () => []))
+  return hosts.get(from)
 }
 
 /**
@@ -208,10 +209,10 @@ function sshHosts() {
  * a directory browsed for, the runtimes to fall back to and where a harness runs picked from
  * what is saved and put in order, options as names and values, and a list a row at a time.
  */
-function field(key, empty, value, { backend, name, runtimes }) {
+function field(key, empty, value, { backend, name, runtimes, from }) {
   const id = `runtime-${key}`
   if (key === 'identity_file' || key === 'config' || key === 'tls_dir') {
-    const picked = pathPicker({ value: value || '', files: key !== 'tls_dir', label: labelOf(key), id, placeholder: key === 'config' ? '~/.ssh/config' : key === 'tls_dir' ? '~/.docker' : '~/.ssh/id_ed25519' })
+    const picked = pathPicker({ value: value || '', files: key !== 'tls_dir', label: labelOf(key), id, from, placeholder: key === 'config' ? '~/.ssh/config' : key === 'tls_dir' ? '~/.docker' : '~/.ssh/id_ed25519' })
     return [picked.node, () => picked.value()]
   }
   if (key === 'fallback') {
@@ -245,7 +246,7 @@ function field(key, empty, value, { backend, name, runtimes }) {
     // A host your SSH config names, picked; any other written.
     const offered = h('datalist', { id: `${id}-hosts` })
     const input = h('input', { id, type: 'text', value: value || '', list: offered.id, autocomplete: 'off', placeholder: key === 'alias' ? 'A host in your SSH config' : key === 'host' ? 'box.example' : 'user@jump' })
-    sshHosts().then((names) => fill(offered, names.map((one) => h('option', { value: one }))))
+    sshHosts(from).then((names) => fill(offered, names.map((one) => h('option', { value: one }))))
     return [h('div', { class: 'row' }, input, offered), () => input.value.trim()]
   }
   const input = h('input', { id, type: 'text', value: value || '', autocomplete: 'off' })

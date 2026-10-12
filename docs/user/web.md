@@ -255,18 +255,37 @@ conversation.
 
 ### Settings
 
-The same pages as [`/settings`](/user/settings), in the same order, and what the epics spent:
+Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches and
+what it tells you of them. It is the same whichever daemon is on screen. **Daemon** is the same
+pages as [`/settings`](/user/settings), in the same order, and what the epics spent, all of one
+daemon:
 
 | Page | What is there |
 | --- | --- |
-| **General** | Whether a turn's working is shown, the [`/btw` agent](/user/btw), and [error reports](/user/reporting) |
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
+| **Daemons** | The daemons this page reaches: **Local**, and each SSH host added or imported |
+| **Notifications** | Which notifications appear, from every daemon, and whether the system shows them |
+| **General** | Whether a turn's working is shown, the [`/btw` agent](/user/btw), and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one. A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
 | **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
+
+Above the **Daemon** pages, **Daemon** picks which daemon they read and write: the one on screen
+until another is picked. It goes into the address as `?daemon=<name>`, so a daemon's page can be
+kept and opened again. Picking one changes nothing else on screen.
+
+**Batch apply**, on **General**, **Fallback**, **Runtimes** and **Backup**, copies what the page
+holds to other daemons at once. Tick the daemons, or **All**, then **Apply**. Each daemon then
+says **Applied** or why it refused. **General** sends the form as it stands, saved or not.
+**Backup** sends every target and default, in place of the daemon's own. A target signed into its URL
+is refused there, since the URL is never shown whole. **Fallback** and
+**Runtimes** send each step or runtime, written over the one of the same name there, or added.
+Nothing a daemon already has is taken away. **Accounts** cannot be copied, since their secrets
+are never shown (**Secrets stay put**). **Workspace** and **Usage** are of one daemon's
+directories, and have no **Batch apply**.
 
 An account is never shown by its values: a page lists the names of the variables it sets, and
 nothing else. A way in that runs a CLI's own sign-in, such as `login`, needs a terminal: it is
