@@ -3379,6 +3379,10 @@ details.said-more summary {
   margin-left: auto;
 }
 
+.field > .segmented {
+  justify-self: start;
+}
+
 .theme-list {
   display: grid;
   gap: 8px;
