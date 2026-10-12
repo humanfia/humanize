@@ -234,6 +234,9 @@ export function mount(root, { query }) {
   }
   window.addEventListener('hashchange', back)
   return () => {
+    // A flow still loading once this is left is picked nowhere: it would put its query in the
+    // address of whatever replaced it.
+    loading = null
     window.removeEventListener('hashchange', back)
     for (const one of leaving) one()
   }
