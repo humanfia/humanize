@@ -20,18 +20,19 @@ looking for what drives `omp` should find a file called that.
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from .config import AgentConfig
+from .event import Event
 from .pi import PiAgent, PiSession
+from .tools import serve
 
 if TYPE_CHECKING:
     import os
     from collections.abc import Iterator, Mapping
     from pathlib import Path
-
-    from .event import Event
 
 #: The command omp is installed as.
 _COMMAND = "omp"
@@ -60,12 +61,30 @@ _APPROVAL = ("Approve", "Deny")
 #: its answer is told from one to a command somebody else sent.
 _NAMING = "hmz-session"
 
+#: What the `set_host_tools` putting a flow's own callbacks in front of the agent is sent
+#: under, so that omp refusing it is told from its refusing anything else.
+_HOSTING = "hmz-tools"
+
 #: The files omp declares providers of its own in, under its home, in the order it reads them.
 _MODELS = ("models.yml", "models.yaml")
 
 
 class OhMyPiSession(PiSession):
-    """An omp conversation: pi's, opened and resumed as omp opens and resumes one."""
+    """An omp conversation: pi's, opened and resumed as omp opens and resumes one.
+
+    A flow's own callbacks are omp's host tools rather than pi's extension: omp's RPC mode
+    takes tools from whoever is driving it, as `set_host_tools`, and asks for each call
+    back over the same pipe -- so a callback runs here with no bridge and no socket, and a
+    flow offering others between two turns is told to the process already up.
+    """
+
+    def __init__(
+        self, agent: PiAgent, cwd: str | os.PathLike[str] | None = None
+    ) -> None:
+        """Initializes a session whose process has been offered nothing yet."""
+        super().__init__(agent, cwd)
+        #: The names of the callbacks the process now up was last told of.
+        self._hosting: tuple[str, ...] = ()
 
     def _command(self) -> list[str]:
         """Builds the ``omp --mode rpc`` that reads commands on stdin and says events on stdout.
@@ -98,6 +117,15 @@ class OhMyPiSession(PiSession):
             argv += ["--approval-mode", mode]
         return argv
 
+    def _stale(self) -> bool:
+        """Never for the callbacks, which omp is told of without being started again."""
+        return super(PiSession, self)._stale()
+
+    def _restarted(self) -> None:
+        """Forgets what the last process was told of, which this one has not been."""
+        super()._restarted()
+        self._hosting = ()
+
     def _environment(self) -> Mapping[str, str]:
         """What a turn is run with, which is the provider's and nothing of pi's.
 
@@ -115,9 +143,62 @@ class OhMyPiSession(PiSession):
         has done anything at all.
         """
         line = super()._write(text, ticket)
+        offered = self._agent.toolbox.offered()
+        names = tuple(sorted(one.name for one in offered))
+        if not ticket and names != self._hosting:
+            # Ahead of a turn's prompt, which omp runs after it, and never alongside a word
+            # put into a turn already running: the tools are registered before the next model
+            # call. The whole set each time, which is what replaces the last.
+            self._hosting = names
+            tools = [
+                {
+                    "name": one.name,
+                    "description": one.about,
+                    "parameters": one.schema(),
+                    # Shown to the model outright rather than left to be searched for.
+                    "loadMode": "essential",
+                }
+                for one in offered
+            ]
+            told = {"type": "set_host_tools", "id": _HOSTING, "tools": tools}
+            line = json.dumps(told) + "\n" + line
         if ticket or self.named is not None:
             return line
         return json.dumps({"type": "get_state", "id": _NAMING}) + "\n" + line
+
+    def _hosts(self, said: dict[str, Any], asking: object) -> None:
+        """Runs one callback omp asked for, and tells omp what it answered.
+
+        On a thread of its own, since a callback may take as long as the flow it starts, and
+        omp goes on saying things that are read in the meantime.
+
+        Args:
+          said: The `host_tool_call`, as read.
+          asking: The process that asked. A callback that outlived it is answered to nobody:
+            the process up now never made the call, and an id of its own may be the same one.
+        """
+        called: dict[str, Any] = {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "tools/call",
+            "params": {
+                "name": said.get("toolName"),
+                "arguments": said.get("arguments") or {},
+            },
+        }
+        answer = serve(json.dumps(called), self._agent.toolbox.offered) or {}
+        result = cast("dict[str, Any]", answer.get("result") or {})
+        if "error" in answer:
+            why = str(cast("dict[str, Any]", answer["error"]).get("message") or "")
+            result = {"content": [{"type": "text", "text": why}], "isError": True}
+        told = {
+            "type": "host_tool_result",
+            "id": said.get("id"),
+            "result": {"content": result.get("content") or []},
+            "isError": bool(result.get("isError")),
+        }
+        if self._proc is asking:
+            self._send(json.dumps(told) + "\n")
 
     def _event(self, said: dict[str, Any]) -> Iterator[Event]:
         """Reads the events omp spells its own way, and hands pi's driver the rest.
@@ -154,6 +235,21 @@ class OhMyPiSession(PiSession):
                 yield self._answered()  # finished where it was said: a command of omp's own
             case "prompt_result" if said.get("agentInvoked") is False:
                 yield self._answered()  # the same, said once it had run
+            case "response" if (
+                said.get("id") == _HOSTING and said.get("success") is False
+            ):
+                # An omp with no host tools, or one refusing these: the turn would run with
+                # none of what the flow offered in front of the model, so it does not run.
+                yield Event(
+                    kind="failed", text=str(said.get("error") or "no host tools")
+                )
+            case "host_tool_call":
+                threading.Thread(
+                    target=self._hosts,
+                    args=(said, self._proc),
+                    name="hmz-omp-tool",
+                    daemon=True,
+                ).start()
             case _:
                 yield from super()._event(said)
 

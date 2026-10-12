@@ -1110,10 +1110,16 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 | `takes` | a pydantic model of its arguments, or `None` for none |
 | `call` | called with the model (or nothing); its return value goes back as text; raising is the tool failing |
 
-- Served by `claude` (`--mcp-config`) and `codex` (`-c mcp_servers.humanize.…`)
-  (`session.takes_tools`); elsewhere `NotImplementedError: <cli> has no way of being given a
-  tool of a flow's own`.
-- The road is MCP: the CLI is given `hmz internal tools --at <socket>`. Tools are per agent.
+- Served by `claude` (`--mcp-config`), `codex` (`-c mcp_servers.humanize.…`), `pi`
+  (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under `--no-extensions` too),
+  `omp` (RPC `set_host_tools`) and `dsh` (a `@deepseek-ai/dsh-mcp-client` row in its patch,
+  tools named `mcp__humanize__<name>`) (`session.takes_tools`); elsewhere
+  `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
+- The road is MCP: the CLI is given `hmz internal tools --at <socket>`, which `pi`'s extension
+  starts itself. `omp` asks for each call back over its own RPC pipe instead. Tools are per
+  agent.
+- Offering other names between two turns starts `pi` and `dsh` again before the next one;
+  `omp` is told on the process already up.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
 
 ## Machine and account
@@ -1405,6 +1411,9 @@ effort goes in the handshake.
 - `Unrecoverable`: the length refusal, and a session id the runtime will not resume.
 - `DSH_HOME` is the kept directory, and sessions go under its `sessions` (`Profile.told`).
 - `interject` is unsupported: `session/prompt` queues and `steer` is not on the SDK surface.
+- Offered [callbacks](#callbacks-as-tools) insert a `@deepseek-ai/dsh-mcp-client` row
+  (`serverName: humanize`, `failOnStartupError: true`) into the patch; other names restart the
+  runtime.
 - Without an account, the SDK's saved credentials or `DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`.
 
 ### Grok Build {#grok-build}
@@ -1521,6 +1530,9 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   (`agentInvoked: false`), also ends the turn.
 - At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
   `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
+- Offered [callbacks](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
+  the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
+  is answered `host_tool_result`. A refused `set_host_tools` fails the turn.
 - No `NODE_COMPILE_CACHE` and no `NODE_OPTIONS` preload: omp is one Bun-compiled executable,
   so `PRE_TOOL_USE` is read off the turn only.
 - The fence also lets through the `baseUrl` of the model's provider in `models.yml` (else
@@ -1564,6 +1576,7 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
   [--thinking <rung>]
   [--exclude-tools bash,edit,write,powershell] [--no-context-files] [--no-extensions]
   [--offline] [--append-system-prompt <s>]... [--skill <path>]...
+  [--extension <hmz>/coganchor/agents/pi_tools.cjs]
 ```
 
 | Field | Default | Meaning |
@@ -1576,7 +1589,9 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `skill_paths` | `()` | `--skill` per entry |
 
 `--session-id` rather than `--continue`, which resumes the newest session in the directory.
-pi 0.85.1 has no web tools of its own.
+pi 0.85.1 has no web tools of its own. Offered [callbacks](#callbacks-as-tools) add the
+`--extension`, which reads the bridge's argv from `HMZ_PI_TOOLS` and registers each tool under
+its own name.
 
 ### Qwen Code {#qwen-code}
 

@@ -90,3 +90,30 @@ def test_a_model_gone_silent_is_given_up_on_by_the_watchdog(
 
     with pytest.raises(Failed):
         DshAgent(CONFIG).new()("hang")
+
+
+def test_a_callback_offered_is_run_here_when_the_model_reaches_for_it(
+    endpoint: Endpoint,
+) -> None:
+    from pydantic import BaseModel
+
+    from hmz.coganchor.agents import Tool
+
+    class Asked(BaseModel):
+        word: str
+
+    heard: list[str] = []
+
+    def shout(asked: Asked) -> str:
+        heard.append(asked.word)
+        return asked.word.upper()
+
+    session = DshAgent(CONFIG).new()
+    session.offers([Tool("shout", "Says a word louder.", shout, Asked)])
+
+    said = session('use shout {"word": "hi"}')
+
+    assert heard == ["hi"]
+    assert said == "the tool said HI"
+    offered = [one["function"]["name"] for one in endpoint.asked[0]["tools"]]
+    assert "mcp__humanize__shout" in offered
