@@ -1118,8 +1118,8 @@ Brought skills are copied, for the session's life, where the backend reads a pro
   `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), and `grok` and an ACP CLI (a
   `humanize` stdio server in the `mcpServers` of the call that opens the conversation);
   elsewhere `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
-- Changing the offered names restarts the process and picks the conversation back up; an ACP
-  CLI serving neither `session/resume` nor `session/load` fails that turn instead.
+- On `grok` and an ACP CLI, changing the offered names restarts the process and picks the
+  conversation back up; an ACP CLI serving neither `session/resume` nor `session/load` fails that turn instead.
 - `grok` serves them on held-open turns only: a turn that needs `grok -p` (a shape, a fork, and
   the rest under [Grok Build](#grok-build)) is refused with `Unrecoverable` while any are offered.
 - The road is MCP: the CLI is given `hmz internal tools --at <socket>`. Tools are per agent.
