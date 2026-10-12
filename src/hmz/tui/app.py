@@ -999,6 +999,12 @@ class Humanize(App[None]):
         #: not put there twice.
         self._last_answer = ""
         self._last_asked = ""
+        #: The conversation that last answered, where it is one of the run in front of us.
+        self._last_answer_in = ""
+        #: Which conversation each question still waiting is part of, where it is one: what an
+        #: agent stopped mid-turn to ask, and a conversation saying its answer back to ask what
+        #: next. A line typed reading that conversation answers it.
+        self._asked_in: dict[str, str] = {}
         #: When something was last copied off the screen, so that the status line can say so
         #: for a moment: a clipboard is written to silently, and a gesture that says nothing
         #: is one nobody knows worked.
@@ -1479,7 +1485,9 @@ class Humanize(App[None]):
         self._copied = time.monotonic()
         self._draw()
 
-    def _said_by_you(self, text: str, whose: str = "", by: str = "") -> None:
+    def _said_by_you(
+        self, text: str, whose: str = "", by: str = "", *, shared: bool = True
+    ) -> None:
         """Puts something you said in the transcript, behind the `❯` Claude Code marks it with.
 
         Args:
@@ -1491,6 +1499,7 @@ class Humanize(App[None]):
             a line that went to nobody in particular: a command, the task that starts a flow,
             a line a flow that ended never took.
           by: Who said it, as `_by` says it, where it was another frontend rather than you.
+          shared: Whether it goes on the one every agent is on as well; see `_into`.
         """
         # What is read next starts its own part.
         self._keeping(whose or None).packed = False
@@ -1500,7 +1509,7 @@ class Humanize(App[None]):
             f"[dim]{_YOURS}[/] {said[0]}" + (f"[dim]{escape(by)}[/]" if by else ""),
             *(f"  {one}" for one in said[1:]),
         ):
-            self._into(whose or None, line)
+            self._into(whose or None, line, shared=shared)
 
     def _by(self, said: Mapping[str, Any]) -> str:
         """Who said something the runs were told, where it was not this interface.
@@ -3994,6 +4003,12 @@ class Humanize(App[None]):
             self._given = list(message.get("given") or ())
         elif kind == "pending":
             self._pending = list(message.get("pending") or ())
+            waiting = {str(one.get("question")) for one in self._pending}
+            self._asked_in = {
+                asked: held
+                for asked, held in self._asked_in.items()
+                if asked in waiting
+            }
         elif kind == "board":
             items = message.get("items")
             self._boarded = (
@@ -4068,7 +4083,8 @@ class Humanize(App[None]):
             self._now_reading(_EVERY, stepped=False)
         # The conversations of the run before this one went with it, and so do their numbers
         # and their transcripts: this run's first conversation is its role's first again.
-        self._working, self._placed = set(), {}
+        self._working, self._placed, self._asked_in = set(), {}, {}
+        self._last_answer_in = ""
         # And where their harnesses went, which this run settles for itself.
         self._harnessed = {}
         for gone in [key for key in self._kept if "/" in key]:
@@ -4187,6 +4203,7 @@ class Humanize(App[None]):
             # Kept to tell a flow saying an agent's answer back to the person -- a
             # conversation asking what next -- from a question it asks them.
             self._last_answer = text
+            self._last_answer_in = numbered or ""
         elif kind == "asks":
             self._last_asked = text
         # The conversation's own transcript, which is its agent's too and every agent's.
@@ -4406,35 +4423,65 @@ class Humanize(App[None]):
 
         On an outworlder's own transcript, the oldest that outworlder asks; on the one every
         agent is on, and on the monitor, the oldest any of them asks, those being where every
-        one of them is answered. On an agent's own, none: what is typed there is said to it.
-        And only one this interface may answer: a role another holds is theirs.
+        one of them is answered. On an agent's own, the oldest that is part of a conversation
+        being read -- one its agent stopped to ask, or one saying its answer back to ask what
+        next -- since that is the conversation the line carries on; anything else typed there
+        is said to it. And only one this interface may answer: a role another holds is theirs.
 
         Returns:
           The question, as the runs said it, or None where a typed line goes elsewhere.
         """
         kind = self._view_kind()
-        if kind == "session":
-            return None
         role = self._attached.removeprefix(_OUTWORLDER) if kind == "outworlder" else ""
         return next(
             (
                 one
                 for one in self._pending
                 if (not role or one.get("role") == role)
+                and (kind != "session" or self._read_in(one))
                 and one.get("owner") in (None, self._me)
                 and one.get("question") not in self._answering
             ),
             None,
         )
 
+    def _read_in(self, asked: Mapping[str, Any]) -> bool:
+        """Whether a question is part of the conversation being read."""
+        held = self._asked_in.get(str(asked.get("question"))) or asked.get("key") or ""
+        return bool(held) and held == self._reading()
+
+    def _held_in(self, record: Mapping[str, Any], *, said_back: bool) -> str:
+        """The conversation a question is part of, or "" for one asked of the run at large.
+
+        Args:
+          record: The question, as the runs said it.
+          said_back: Whether it says the last answer back, to ask what next.
+
+        Returns:
+          The conversation of a turn stopped to ask it -- as the runs name it, else the one
+          turn open, which is what they name -- or the one that gave the answer it says back.
+        """
+        if said_back:
+            return self._last_answer_in
+        if key := str(record.get("key") or ""):
+            return key
+        if record.get("mode") != "ask":
+            return ""
+        working = [key for key in self._conversations() if key in self._working]
+        return working[0] if len(working) == 1 else ""
+
     def _show_question(self, record: dict[str, Any]) -> None:
         """Shows a question the flow asks, and what it will take for an answer.
 
         On the transcript of the outworlder asking, and on the one every agent is on --
         unless an agent has just stopped to ask the same thing, or has just said it, which
-        is already there and is not said twice. The answers it offers are numbered, so that
-        one is chosen by its number as well as by its words. What to say next, with nothing
-        asked in words, is shown as nothing: the prompt is what asks it.
+        is already there and is not said twice. One that is part of a conversation -- what
+        its agent stopped mid-turn to ask -- is shown in that conversation as well, which is
+        how it reaches the one every agent is on; one saying a conversation's answer back to
+        ask what next is the answer already there, and the next line typed reading that
+        conversation answers it. The answers it offers are numbered, so that one is chosen by
+        its number as well as by its words. What to say next, with nothing asked in words,
+        is shown as nothing: the prompt is what asks it.
 
         Args:
           record: What the flow wants to know, and which outworlder wants it.
@@ -4444,43 +4491,61 @@ class Humanize(App[None]):
             self._outworlders.append(role)
         asked = str(record.get("text") or "").strip()
         listening = record.get("mode") == "listen"
-        if listening and not asked:
-            return
-        key = f"{_OUTWORLDER}{role}"
         repeated = bool(self._last_asked) and asked == self._last_asked.strip()
         # A conversation saying back what its agent answered, to ask what next: on the
         # one every agent is on already.
         said_back = listening and asked == self._last_answer.strip()
-        self._part(
-            key,
-            f"[yellow]{_SAID}[/] {escape(asked)}",
-            packs=False,
-            shared=not (repeated or said_back),
-        )
-        for at, option in enumerate(record.get("options") or (), 1):
-            self._into(key, f"      [dim]{at}. {escape(option)}[/dim]")
+        if held := self._held_in(record, said_back=said_back):
+            self._asked_in[str(record.get("question"))] = held
+        if listening and not asked:
+            return
+        key = f"{_OUTWORLDER}{role}"
         whose = self._whose(role)
-        self._into(
-            key,
+        hint = (
             f"   [dim]{escape(whose)} to answer[/dim]"
             if whose not in ("", "yours")
             else f"   [dim]{'yours to answer: ' if whose else ''}type an answer, or /afk "
-            "to stop being asked[/dim]",
+            "to stop being asked[/dim]"
         )
+        question = f"[yellow]{_SAID}[/] {escape(asked)}"
+        # The outworlder's own transcript has all of it, and puts it on the shared one
+        # where no conversation it is part of does.
+        self._part(
+            key, question, packs=False, shared=not (held or repeated or said_back)
+        )
+        shown = [(key, not held)]
+        if held and not said_back:
+            if not repeated:
+                self._part(held, question, packs=False)
+            shown.append((held, True))
+        for into, shared in shown:
+            for at, option in enumerate(record.get("options") or (), 1):
+                self._into(
+                    into, f"      [dim]{at}. {escape(option)}[/dim]", shared=shared
+                )
+            self._into(into, hint, shared=shared)
 
     def _answered(self, record: dict[str, Any]) -> None:
         """Shows a question answered, on its outworlder's transcript and the shared one.
+
+        And in the conversation it is part of, where it is one: the answer is that
+        conversation carried on.
 
         Args:
           record: What was answered, by whom, to which question.
         """
         asked = record.get("question")
         self._pending = [one for one in self._pending if one.get("question") != asked]
+        held = self._asked_in.pop(str(asked), "")
+        text, by = str(record.get("text") or ""), self._by(record)
         self._said_by_you(
-            str(record.get("text") or ""),
+            text,
             f"{_OUTWORLDER}{record.get('role') or 'outworlder'}",
-            self._by(record),
+            by,
+            shared=not held,
         )
+        if held:
+            self._said_by_you(text, held, by)
 
     @property
     def _set_up(self) -> bool:

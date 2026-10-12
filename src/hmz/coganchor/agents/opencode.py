@@ -24,7 +24,7 @@ from .config import UNSAID, AgentConfig, Unserved
 from .event import Event, Failed, Usage
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
 
     from hmz.coganchor.fence import Fence
 
@@ -263,6 +263,13 @@ class OpencodeSession(CommandSessionBase):
     command: ClassVar[str] = "opencode"
     permits: ClassVar[str] = "OPENCODE_PERMISSION"
 
+    #: The variable it reads a config from, merged over every file of it: where the flow's own
+    #: callbacks are said, so that nothing of the person at this machine's is written.
+    configures: ClassVar[str] = "OPENCODE_CONFIG_CONTENT"
+
+    #: It takes a server of the flow's own in that config, started afresh by every run.
+    takes_tools: ClassVar[bool] = True
+
     #: Which permissions of that table are the ways out of the workspace, and so the ones
     #: `web_search` is said in. Two here -- the tool that fetches a page it is given, and the
     #: one that goes looking for pages it is not -- because either left allowed is an agent
@@ -390,11 +397,16 @@ class OpencodeSession(CommandSessionBase):
 
         And, for a gateway account, which of the gateway's models its config lists: the one
         this turn names, in place of the one the account was made with.
+
+        And, where the flow is offering callbacks, the server they are reached through, in the
+        config variable: see :meth:`_offering`.
         """
         config = self._agent.config
         environment = dict(super()._environment())
         if bare := self._gatewayed():
             environment[_GATEWAY_MODEL] = bare
+        if self._agent.toolbox.offered():
+            environment[type(self).configures] = self._offering(environment)
         if not _tabled(config):
             return environment
         # A word this table has no row for falls to the row that says nothing, as codex and
@@ -422,6 +434,43 @@ class OpencodeSession(CommandSessionBase):
         if not allowed:
             return environment
         return {**environment, type(self).permits: json.dumps(allowed)}
+
+    def _offering(self, environment: Mapping[str, str]) -> str:
+        """The config this turn runs under, with the flow's own callbacks added to it.
+
+        Added to whatever that variable already says rather than in place of it: a gateway
+        account says its provider there, and a person may have exported one of their own. A
+        run is one process, so what is offered is said afresh every turn and nothing has to
+        notice it changing.
+
+        Args:
+          environment: What this turn sets on top of this process's own.
+
+        Returns:
+          The config, as the JSON the variable holds.
+
+        Raises:
+          ValueError: If what the variable already says is not a JSON object to add to -- a
+            config with comments in it, say, which the CLI reads and this cannot. Refused
+            rather than replaced: the turn would otherwise run without what that config said.
+        """
+        named = type(self).configures
+        held = environment.get(named)
+        if held is None and named not in self._agent.hushed():
+            held = os.environ.get(named)
+        server = {
+            "type": "local",
+            "command": self._agent.toolbox.command(),
+            "enabled": True,
+        }
+        try:
+            config: dict[str, Any] = json.loads(held) if held else {}
+            config["mcp"] = {**config.get("mcp", {}), "humanize": server}
+        except (ValueError, TypeError, AttributeError) as why:
+            raise ValueError(
+                f"{named} is not a JSON object the flow's callbacks can be added to"
+            ) from why
+        return json.dumps(config, separators=(",", ":"))
 
     def _fenced(
         self, fence: Fence, rung: dict[str, str]

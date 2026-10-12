@@ -154,6 +154,9 @@ class LiteLLMSession(SessionBase):
     #: The history is a file rather than a directory's, so a fork goes wherever it is asked.
     forks_elsewhere: ClassVar[bool] = True
 
+    #: A model and nothing else: there is no shell for a command line to be run in.
+    takes_clis: ClassVar[bool] = False
+
     def __init__(
         self, agent: LiteLLMAgent, cwd: str | os.PathLike[str] | None = None
     ) -> None:

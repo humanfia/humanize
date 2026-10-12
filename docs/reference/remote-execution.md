@@ -417,9 +417,10 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
   An anchored turn gets no hook table, so there `PreToolUse` is read off the CLI's stream and
   cannot stop a tool ([Agents › Refusing a tool](/reference/agents#refusing-a-tool)).
 - **Callbacks do not cross.** A native turn on a non-`local` target offered the flow's tool
-  callbacks is refused: `<cli>: a turn driven on <target> cannot be offered the flow's own
-  callbacks -- the bridge that carries them is a program on this machine, and the CLI that
-  would start it is on that one`.
+  callbacks or [command lines](/reference/agents#command-lines) is refused: `<cli>: a turn
+  driven on <target> cannot be offered the flow's own callbacks or command lines -- the bridge
+  that carries them is a program on this machine, and the CLI that would start it is on that
+  one`.
 - **Sessions of a native or afar turn stay where that CLI keeps them**, on the other machine; a
   run copies what they log into its epic as they go and whole as they close
   ([Providers › Sessions on another machine](/reference/providers#sessions-on-another-machine)).
@@ -519,6 +520,7 @@ A path is answered from the target unless it is one of these:
 | `~/.hmz`, `~/.humanize`, `~/.cache/humanize`, `~/.config/humanize` | `statepaths.COMMON_STATE_PATHS` |
 | `local_paths`, `local_execs`, and what every `redirects` entry is answered with | `AnchorConfig` |
 | The program that bridges the flow's tool callbacks, when offered | added to `local_execs` |
+| The agent's shelf of the flow's command lines, once any is shelved, and the Python they run | added to `local_execs`; the shelf to `local_paths` too |
 
 | CLI | State paths kept here |
 | --- | --- |

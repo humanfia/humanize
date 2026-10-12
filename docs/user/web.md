@@ -155,6 +155,9 @@ spent, and how long it took, with how much of that was spent working.
   reads its thread the same way.
 - **Export** (the arrow at the top) downloads the epic as one archive, struck of credentials.
   See [Exporting a run](/user/export).
+- **Upload** (the up arrow at the top, or in the epic's menu) backs it up now to the targets it
+  was started with, else the defaults, and says which at once; hover it for how its last
+  backup to each target went. See [Backing epics up](/user/backups).
 - **Pick it up** opens a new epic on it, where its flow can be picked up. See
   [Picking a run up](/user/resuming).
 
@@ -173,7 +176,8 @@ directory last set it up:
   the model.
 - **Environments.** Per role: the **Backend**, the **Runtime** of it (or **Add runtime…**, or
   for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
-- **Parameters**, the **Budget**, and **Profile**. **Save** keeps all of it for that directory
+- **Parameters**, the **Budget**, **Backup** -- the [targets](/user/backups) the epic is backed
+  up to, the defaults ticked each time -- and **Profile**. **Save** keeps the rest for that directory
   without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set. Every flow but `chat`
 needs at least one limit. The page goes to the epic once it starts -- a `chat` to its
 conversation.
@@ -189,6 +193,7 @@ The same pages as [`/settings`](/user/settings), in the same order, and what the
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
+| **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one. A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
 | **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
 

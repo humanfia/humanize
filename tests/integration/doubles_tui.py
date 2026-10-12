@@ -9,6 +9,8 @@ it holds, the driver, a process -- with nothing real behind it:
 - told something starting with `wait`, it says `still on it` and holds the answer until it is
   told something more, then answers with both -- which is what makes steering a turn and
   cutting one off observable;
+- told something starting with `ask`, it stops to ask `Which colour?`, offering `red` and
+  `blue`, and answers `picked <the answer>`;
 - a word put into a turn under way is acknowledged as Claude acknowledges one;
 - every turn costs 1,000 input tokens and 200 output tokens.
 
@@ -94,6 +96,16 @@ for line in sys.stdin:
             }]}
         say(type="control_response", response=answer)
         continue
+    if message.get("type") == "control_response":
+        given = message["response"]["response"].get("updatedInput") or {}
+        answer = "picked " + " ".join((given.get("answers") or {}).values())
+        say(type="assistant", message={"content": [{"type": "text", "text": answer}]})
+        turns += 1
+        say(type="result", subtype="success", result=answer, modelUsage={
+            "MODEL": {"inputTokens": 1000 * turns, "outputTokens": 200 * turns},
+        })
+        held = []
+        continue
     if message.get("type") != "user":
         continue
     text = message["message"]["content"][0]["text"]
@@ -102,6 +114,14 @@ for line in sys.stdin:
         say(type="command_lifecycle", state="started", command_uuid=message["uuid"])
     lines = [one.strip() for one in text.splitlines() if one.strip()]
     held.append(next((one for one in reversed(lines) if not one.startswith("<")), ""))
+    if held[0].startswith("ask") and len(held) == 1:
+        say(type="control_request", request_id="asks", request={
+            "subtype": "can_use_tool", "tool_name": "AskUserQuestion", "input": {
+                "questions": [{"question": "Which colour?",
+                               "options": [{"label": "red"}, {"label": "blue"}]}],
+            },
+        })
+        continue
     if held[0].startswith("wait") and len(held) == 1:
         say(type="assistant", message={"content": [{"type": "text", "text": "still on it"}]})
         continue
