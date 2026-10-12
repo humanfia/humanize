@@ -650,6 +650,24 @@ def test_a_run_is_picked_up_from_the_epic_named_or_the_newest(
     assert _runner(resume=True, workspace=tmp_path).picked_up == one.path
 
 
+def test_a_run_imported_from_a_workspace_not_here_is_not_picked_up(
+    engine_: Flowing, tmp_path: Path
+) -> None:
+    engine_.impl.resumable = True
+    named = _picked_up(tmp_path / "named")
+    (named / epic.JOURNAL).write_text(
+        json.dumps({"event": "began", "workspace": str(tmp_path / "gone")})
+        + "\n"
+        + json.dumps({"event": "imported", "from": "named.hmzepic"})
+        + "\n"
+    )
+
+    with pytest.raises(
+        Refused, match=r"cannot be resumed here: .* not on this machine"
+    ):
+        _runner(resume=named)
+
+
 # ------------------------------------------------------------------ prices
 
 

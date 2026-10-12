@@ -395,11 +395,11 @@ into its own epic and records `picked_up`.
 ## Export {#export}
 
 *export run* on `/epics`, `Epics.bundled(epic, output=…)`, or `hmz.runtime.exporting.bundle` writes one
-gzip-compressed tar archive of a run:
+gzip-compressed tar archive of a run, under the extension `.hmzepic`:
 
 | Property | Value |
 | --- | --- |
-| Name | `<epic>.epic.tar.gz` |
+| Name | `<epic>.hmzepic` |
 | Location | `output`, required: a file, or a directory — existing or ending in `/` — to put it in; made absolute |
 | Write | to `.<name>.<random>.new` (mode `0600`, kept), then renamed over; exporting a run again replaces the archive |
 | Refused | `ValueError: <dir> is not a run` for a directory holding no epic |
@@ -417,6 +417,22 @@ one), then the archive, and reports `<path> · <size> · <n> sessions, <n> slice
    `opened`;
 5. `transcript.md`, only when a caller passes a transcript;
 6. `manifest.json`.
+
+### Import {#import}
+
+`Epics.imported(archive)` or `hmz.runtime.exporting.unbundle` reads one back in:
+
+| Property | Value |
+| --- | --- |
+| Takes | a `.hmzepic` holding exactly one `<epic>/` with `epic.jsonl` and `manifest.json`, nothing but plain files and directories, extracted with `tarfile`'s `data` filter |
+| Lands | `<home>/epics/<workspace>/<epic>`, the workspace being `began.workspace`; written in a hidden directory beside it, then renamed in |
+| Sessions | `sessions/<session name>/<path>` moved back to each session's `where`; a `where` that was a whole path (the other machine's CLI home) becomes `sessions/<cli>` and its `opened` line says so |
+| Marks | an `imported` line, `{from, head}`: the file's name and the manifest's `workspace.head` |
+| Refused | `ValueError` for another extension, a file that is not a gzipped tar, more or less than one epic, a member that is not a plain file or would land outside it, a run saying no workspace, and an epic already here |
+
+An imported run is picked up (`picks_up`, `resumed`, `--resume`) only where `began.workspace`
+is a directory here whose resolved path is itself and, when it is a git repository and `head`
+is set, holds that commit. `Epics.foreign(epic)` says why not; resuming one is refused with it.
 
 ### `manifest.json`
 
@@ -455,7 +471,8 @@ Each is replaced by `[redacted]`.
 
 [`Hmz().epics`](/reference/sdk#epics) (`hmz.runtime.Epics`) reads epics and makes traces and
 bundles. Reading: `all()`, `read(epic)`, `sessions(epic)`, `opened(epic)`, `state(epic, flow)`,
-`resumed(flow)`, `picks_up(epic)` ([SDK](/reference/sdk#epics)).
+`resumed(flow)`, `picks_up(epic)`, `foreign(epic)`; `imported(archive)` reads a bundle back
+([SDK](/reference/sdk#epics)).
 
 ### `Epics.traced` {#epics-traced}
 

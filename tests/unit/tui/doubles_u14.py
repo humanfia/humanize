@@ -75,7 +75,7 @@ class Epics:
 
     def bundled(self, at: Path, output: str) -> tuple[Path, int]:
         self.calls.append(("bundled", at, output))
-        landed = Path(output) / "run.tar.gz"
+        landed = Path(output) / "run.hmzepic"
         landed.write_bytes(self.archive)
         return landed, len(self.archive)
 

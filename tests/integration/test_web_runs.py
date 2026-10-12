@@ -76,6 +76,8 @@ def test_a_run_started_from_a_page_is_followed_answered_and_stopped(
         bundle = browser.get(f"/api/runs/{run['name']}/bundle")
         assert bundle.status == 200
         assert bundle.headers["content-disposition"].startswith("attachment;")
+        assert bundle.headers["content-type"] == "application/vnd.hmz.epic+gzip"
+        assert bundle.headers["content-disposition"].endswith(".hmzepic")
         assert browser.get("/api/runs/no-such-run").status == 404
 
 

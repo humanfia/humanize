@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import json
 import platform
+import shutil
 import stat
 import subprocess
 import tarfile
@@ -14,7 +16,18 @@ import pytest
 
 from hmz.coganchor import backends, providers
 from hmz.runtime import exporting
-from hmz.runtime.epic import RESUME, SESSIONS, TRACES, Drove, Epic
+from hmz.runtime.epic import (
+    RESUME,
+    SESSIONS,
+    TRACES,
+    Drove,
+    Epic,
+    foreign,
+    logs,
+    picks_up,
+    read,
+    sessions,
+)
 from hmz.runtime.exporting import (
     MANIFEST,
     REDACTED,
@@ -22,6 +35,7 @@ from hmz.runtime.exporting import (
     bundle,
     plain,
     sized,
+    unbundle,
     unpacked,
 )
 
@@ -88,7 +102,7 @@ def test_a_size_is_three_digits_and_a_unit(count: int, said: str) -> None:
 
 def test_what_is_struck_is_said_in_words() -> None:
     assert all(isinstance(one, str) and one for one in exporting.STRUCK)
-    assert exporting.BUNDLE.format(epic="x") == "x.epic.tar.gz"
+    assert exporting.BUNDLE.format(epic="x") == "x.hmzepic"
 
 
 # ------------------------------------------------------------------ a bundle
@@ -192,9 +206,9 @@ def test_a_whole_run_goes_in_one_archive(
     world.programs["claude"] = str(tmp_path / "claude-bin")
     (tmp_path / "claude-bin").write_bytes(b"#!binary")
 
-    landed, manifest = bundle(ran, tmp_path / "out.tar.gz")
+    landed, manifest = bundle(ran, tmp_path / "out.hmzepic")
 
-    assert landed == tmp_path / "out.tar.gz"
+    assert landed == tmp_path / "out.hmzepic"
     assert stat.S_IMODE(landed.stat().st_mode) == 0o600
     members = _members(landed)
     name = ran.name
@@ -277,7 +291,7 @@ def test_a_transcript_handed_in_goes_in_scrubbed(
 ) -> None:
     landed, manifest = bundle(ran, tmp_path, transcript="said ghp_abcdefghijklmnopqr")
 
-    assert landed == tmp_path / f"{ran.name}.epic.tar.gz"
+    assert landed == tmp_path / f"{ran.name}.hmzepic"
     members = _members(landed)
     assert members[f"{ran.name}/{TRANSCRIPT}"].decode() == f"said {REDACTED}"
     assert TRANSCRIPT in manifest["held"]
@@ -288,7 +302,7 @@ def test_a_directory_not_made_yet_is_one_to_write_into(
 ) -> None:
     landed, _ = bundle(ran, f"{tmp_path}/out/")
 
-    assert landed == tmp_path / "out" / f"{ran.name}.epic.tar.gz"
+    assert landed == tmp_path / "out" / f"{ran.name}.hmzepic"
     assert landed.is_file()
 
 
@@ -316,12 +330,12 @@ def test_a_directory_holding_no_run_is_nothing_to_export(
     world: World, tmp_path: Path
 ) -> None:
     with pytest.raises(ValueError, match="is not a run"):
-        bundle(tmp_path, tmp_path / "out.tar.gz")
+        bundle(tmp_path, tmp_path / "out.hmzepic")
 
 
 def test_a_home_nobody_has_is_nowhere_to_write(world: World, ran: Path) -> None:
     with pytest.raises(ValueError, match="no home directory"):
-        bundle(ran, "~u12-nobody-at-all/out.tar.gz")
+        bundle(ran, "~u12-nobody-at-all/out.hmzepic")
 
 
 def test_what_each_session_was_logged_to_is_found(world: World, ran: Path) -> None:
@@ -337,3 +351,162 @@ def test_what_each_session_was_logged_to_is_found(world: World, ran: Path) -> No
             / "s1.jsonl"
         }
     }
+
+
+# ------------------------------------------------------------------ read back in
+
+
+def _away(ran: Path, tmp_path: Path) -> Path:
+    """Exports one run and takes the run itself away, as another machine would not have it."""
+    landed, _ = bundle(ran, tmp_path)
+    shutil.rmtree(ran)
+    return landed
+
+
+def test_a_bundle_reads_back_in_as_the_epic_it_was(
+    world: World, ran: Path, tmp_path: Path
+) -> None:
+    before = read(ran)
+    assert before is not None
+
+    back = unbundle(_away(ran, tmp_path))
+
+    assert back == ran
+    # As it was, less the credentials struck out of it on the way.
+    assert read(back) == before._replace(task=f"fix it with {REDACTED}")
+    log = back / SESSIONS / "claude" / "projects" / "p" / "s1.jsonl"
+    assert '"input_tokens": 9' in log.read_text()
+    assert logs(back, sessions(back)[0]) == {"projects/p/s1.jsonl": log}
+    last = json.loads((back / "epic.jsonl").read_text().splitlines()[-1])
+    assert (last["event"], last["from"], last["head"]) == (
+        "imported",
+        f"{ran.name}.hmzepic",
+        "abc123",
+    )
+    assert (back / MANIFEST).is_file()
+    assert [one.name for one in back.parent.iterdir()] == [ran.name]
+    assert foreign(back) == ""
+    assert picks_up(back)
+
+
+def test_an_epic_already_here_is_not_imported_again(
+    world: World, ran: Path, tmp_path: Path
+) -> None:
+    landed, _ = bundle(ran, tmp_path)
+
+    with pytest.raises(ValueError, match="already here"):
+        unbundle(landed)
+
+
+def test_a_session_kept_in_another_machines_home_is_kept_in_the_epic(
+    world: World, tmp_path: Path
+) -> None:
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    home = tmp_path / "claude-home"
+    with Epic("chat", "hi", workspace) as one:
+        one.session("a", "claude", "", "s9", where=home)
+    (home / "projects" / "p").mkdir(parents=True)
+    (home / "projects" / "p" / "s9.jsonl").write_text("{}\n")
+
+    back = unbundle(_away(one.path, tmp_path))
+
+    (session,) = sessions(back)
+    assert session.where == f"{SESSIONS}/claude"
+    assert (back / SESSIONS / "claude" / "projects" / "p" / "s9.jsonl").is_file()
+
+
+def test_a_run_whose_workspace_is_not_here_cannot_be_picked_up(
+    world: World, ran: Path, tmp_path: Path
+) -> None:
+    back = unbundle(_away(ran, tmp_path))
+    (tmp_path / "project").rename(tmp_path / "elsewhere")
+
+    assert "is not on this machine" in foreign(back)
+    assert not picks_up(back)
+
+
+def test_a_run_whose_commit_the_repository_has_not_got_cannot_be_picked_up(
+    world: World, ran: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    back = unbundle(_away(ran, tmp_path))
+
+    def run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(argv, 128 if "cat-file" in argv else 0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert "has no commit abc123" in foreign(back)
+    assert not picks_up(back)
+
+
+def test_an_imported_run_exported_again_says_the_commit_it_was_on(
+    world: World, ran: Path, tmp_path: Path
+) -> None:
+    back = unbundle(_away(ran, tmp_path))
+    world.head = "def456"
+
+    _, manifest = bundle(back, tmp_path / "again.hmzepic")
+
+    assert manifest["workspace"]["head"] == "abc123"
+
+
+def test_a_run_not_imported_is_foreign_to_nothing(world: World, ran: Path) -> None:
+    assert foreign(ran) == ""
+    assert world.ran == []
+
+
+def _archive(at: Path, *members: tuple[str, bytes | None]) -> Path:
+    """A gzipped tar holding each of `members`, a file or -- for None -- a link."""
+    with tarfile.open(at, "w:gz") as writing:
+        for name, said in members:
+            held = tarfile.TarInfo(name)
+            if said is None:
+                held.type, held.linkname = tarfile.SYMTYPE, "/etc/passwd"
+                writing.addfile(held)
+            else:
+                held.size = len(said)
+                writing.addfile(held, io.BytesIO(said))
+    return at
+
+
+_BEGAN = b'{"event": "began", "workspace": "/somewhere"}\n'
+_MANIFEST = ("e/manifest.json", b"{}")
+
+
+@pytest.mark.parametrize(
+    ("members", "why"),
+    [
+        ((("e/epic.jsonl", _BEGAN), ("f/manifest.json", b"{}")), "exactly one epic"),
+        ((("e/epic.jsonl", _BEGAN),), "no manifest.json"),
+        ((_MANIFEST,), "no epic.jsonl"),
+        ((("e/epic.jsonl", _BEGAN), _MANIFEST, ("e/x", None)), "not a file"),
+        ((("e/epic.jsonl", _BEGAN), _MANIFEST, ("e/../x", b"x")), "not a file in it"),
+        ((("../epic.jsonl", _BEGAN), ("../manifest.json", b"{}")), "named '..'"),
+        ((("/epic.jsonl", _BEGAN), ("/manifest.json", b"{}")), "named ''"),
+        ((("e/epic.jsonl", b'{"event": "began"}\n'), _MANIFEST), "no workspace"),
+    ],
+)
+def test_anything_but_one_plain_epic_is_refused(
+    tmp_path: Path, members: tuple[tuple[str, bytes | None], ...], why: str
+) -> None:
+    with pytest.raises(ValueError, match=why):
+        unbundle(_archive(tmp_path / "x.hmzepic", *members))
+    assert not (tmp_path / "x").exists()
+    assert not (tmp_path.parent / "x").exists()
+
+
+def test_what_is_not_a_bundle_is_refused(tmp_path: Path) -> None:
+    (tmp_path / "x.hmzepic").write_text("not gzip")
+    with pytest.raises(ValueError, match="not a bundle"):
+        unbundle(tmp_path / "x.hmzepic")
+    whole = _archive(
+        tmp_path / "y.hmzepic", ("e/epic.jsonl", _BEGAN * 999), _MANIFEST
+    ).read_bytes()
+    (tmp_path / "y.hmzepic").write_bytes(whole[:40] + b"\xff" * 40 + whole[80:])
+    with pytest.raises(ValueError, match="not a bundle"):
+        unbundle(tmp_path / "y.hmzepic")
+    with pytest.raises(ValueError, match="could not be imported"):
+        unbundle(tmp_path / "gone.hmzepic")
+    with pytest.raises(ValueError, match=r"not a \.hmzepic"):
+        unbundle(tmp_path / "x.epic.tar.gz")

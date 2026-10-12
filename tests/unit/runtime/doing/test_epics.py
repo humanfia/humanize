@@ -223,6 +223,24 @@ def test_a_run_is_bundled_by_the_exporter(workspace: Path, stand: Stands) -> Non
     assert bundled.calls == [((run, "out"), {"transcript": "screen"})]
 
 
+def test_a_bundle_is_imported_by_the_exporter(workspace: Path, stand: Stands) -> None:
+    unbundled = stand(exporting, "unbundle", Path("where"))
+
+    assert Epics(workspace).imported("x.hmzepic") == Path("where")
+    assert unbundled.calls == [(("x.hmzepic",), {})]
+
+
+def test_a_run_imported_from_a_workspace_not_here_is_foreign(workspace: Path) -> None:
+    run = _run(workspace, resumable=True)
+    (run / RESUME).write_text('{"t": "call", "id": 1}\n')
+    with (run / "epic.jsonl").open("a") as stream:
+        stream.write('{"event": "imported", "from": "x.hmzepic"}\n')
+    workspace.rename(workspace.with_name("gone"))
+
+    assert "not on this machine" in Epics(workspace).foreign(run)
+    assert Epics(workspace).picks_up(run) is False
+
+
 def test_a_journal_nobody_wrote_cannot_be_picked_up(workspace: Path) -> None:
     run = _run(workspace)
     (run / RESUME).write_text("not json\n")

@@ -1114,9 +1114,10 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 - Served where `session.takes_tools`: `claude` (`--mcp-config`), `codex`
   (`-c mcp_servers.humanize.…`), `qwen` (`mcpServers.humanize`, `trust: true`, in its
   `QWEN_CODE_SYSTEM_SETTINGS_PATH` file; the user's `mcp.allowed`/`mcp.excluded` and folder
-  trust still apply), and `opencode` and `mimo` (`mcp.humanize` merged into
-  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`); elsewhere
-  `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
+  trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
+  `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), and `agy` (a plugin,
+  `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`);
+  elsewhere `NotImplementedError: <cli> has no way of being given a tool of a flow's own`.
 - The road is MCP: the CLI is given `hmz internal tools --at <socket>`. Tools are per agent.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
 
@@ -1334,6 +1335,13 @@ or flow resources restart the process; an anchored turn always ends it.
   hosts (including `lh3.googleusercontent.com`) and starts a loopback language server on a
   kernel-chosen port; the turn is started as `hmz-offline` regardless of `web_search`.
 - Credential: `antigravity-oauth-token` under its home (only `HOME` moves it).
+- [Callback tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
+  with `--add-dir` (the session directory is then always added too); a change in the offered
+  names restarts the process. agy runs commands in the first workspace directory by path, so
+  the plugin's must sort after the session's: where it would sort before (a session under
+  `/workspace` with `TMPDIR=/tmp`) the turn is refused with `Unserved: agy cannot be offered
+  tools in <dir>`. Calls need `auto` or `bypass` (or the user's own `mcp(...)` allow rule); at
+  other rungs agy denies them.
 
 ### Claude Code {#claude-code}
 

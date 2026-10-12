@@ -386,12 +386,14 @@ places tried after it, in order.
 | `sessions(epic)` | `list[Session]` | Every session, across every record of the epic. |
 | `opened(epic)` | `dict[str, list[str]]` | Session ids per agent role. |
 | `resumed(flow: str)` | `Path \| None` | The epic `--resume` would pick up. `flow`: canonical ref or name as run. |
-| `picks_up(epic)` | `bool` | Whether its journal has an entry. |
+| `picks_up(epic)` | `bool` | Whether its journal has an entry, it is not going, and it is not `foreign`. |
+| `foreign(epic)` | `str` | Why an imported run cannot be picked up here (its workspace is not at that path, or lacks the commit its bundle recorded), or `""`. |
 | `state(epic, flow: str = "")` | `dict[str, Any]` | A resumable flow's kept `ctx.state`: the run's own flow, or another by canonical ref. |
 | `traced(epic, *, output=None, start=None, end=None)` | `tuple[Path, dict]` | Gathers the run's own sessions into a Chrome trace. Default `output`: the epic's `traces/`, named for the moment. `start`/`end`: any wording `dateparser` reads. [Tracing](/reference/tracing#from-python). |
 | `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None, kept=None)` | `dict` | The same collector for any sessions. `sessions=None`: every session of the workspace; empty iterable: none. `kept`: directories of kept sessions to read (default: everywhere humanize keeps them). |
 | `timeline(epic)` | `Timeline` | The run as an [Exomyth timeline](/reference/tracing#timeline): `.document`, and `.span(id)` for one span whole. Writes nothing. |
-| `bundled(epic, *, output, transcript=None)` | `tuple[Path, dict]` | One `.epic.tar.gz` of the whole run, credentials struck out. `output` (required): a file, or a directory to put it in. Returns the path and its manifest. [Exporting a run](/user/export). |
+| `bundled(epic, *, output, transcript=None)` | `tuple[Path, dict]` | One `.hmzepic` of the whole run, credentials struck out. `output` (required): a file, or a directory to put it in. Returns the path and its manifest. [Exporting a run](/user/export). |
+| `imported(archive)` | `Path` | Reads a `.hmzepic` back in as an epic of the workspace it ran in, wherever that is. `ValueError` for anything else, an unsafe member, or an epic already here. [Importing a run](/user/export#importing-a-run). |
 
 ## `Host` {#host}
 

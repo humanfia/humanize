@@ -88,13 +88,13 @@ async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
 
         await pilot.press("enter")
         await on(pilot, Exporting)
-        await pilot.press(*"out.tar.gz", "enter", "enter")
+        await pilot.press(*"out.hmzepic", "enter", "enter")
 
         await on(pilot, Epics)
-        await until(pilot, (workspace / "out.tar.gz").exists, "the archive")
+        await until(pilot, (workspace / "out.hmzepic").exists, "the archive")
         await shows(pilot, " kB ")
 
-    with tarfile.open(workspace / "out.tar.gz") as archive:
+    with tarfile.open(workspace / "out.hmzepic") as archive:
         named = archive.getnames()
     (epic,) = epics(workspace)
     assert any(one.endswith("epic.jsonl") for one in named)

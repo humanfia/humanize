@@ -3,7 +3,8 @@
 One run is one epic: a directory holding what happened, the sessions it opened, and the journal
 of a flow that says it can be picked up. What is written down as a run happens is
 :mod:`hmz.runtime.epic`; reading the backends' own logs back is :mod:`hmz.runtime.tracing`;
-packaging one whole run up to send somewhere is :mod:`hmz.runtime.exporting`. All three are asked
+packaging one whole run up to send somewhere, and reading one back in, is
+:mod:`hmz.runtime.exporting`. All three are asked
 here, so that whatever is listing the runs -- a command line, the interface's own `/epics` -- asks
 one object about the one workspace it is about.
 """
@@ -95,6 +96,12 @@ class Epics:
         from hmz.runtime.epic import picks_up
 
         return picks_up(epic)
+
+    def foreign(self, epic: Path) -> str:
+        """Why a run imported from another machine cannot be picked up here, or "" for none."""
+        from hmz.runtime.epic import foreign
+
+        return foreign(epic)
 
     def state(self, epic: Path, flow: str = "") -> dict[str, Any]:
         """What a resumable flow kept in one run: the run's own flow, or one it called by ref."""
@@ -229,6 +236,26 @@ class Epics:
         from hmz.runtime.exporting import bundle
 
         return bundle(epic, output, transcript=transcript)
+
+    def imported(self, archive: str | os.PathLike[str]) -> Path:
+        """Reads one bundle back in, as an epic of the workspace it says it ran in.
+
+        Which is wherever that is, rather than this workspace: a run is kept under where it
+        ran, and an import is the run it was.
+
+        Args:
+          archive: The bundle, a `.hmzepic`.
+
+        Returns:
+          Where the epic now is.
+
+        Raises:
+          ValueError: For a file that is not a bundle, or holds anything outside the one
+            epic it should, and for an epic already here.
+        """
+        from hmz.runtime.exporting import unbundle
+
+        return unbundle(archive)
 
     def trace(
         self,
