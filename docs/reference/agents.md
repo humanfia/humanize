@@ -1110,8 +1110,10 @@ Brought skills are copied, for the session's life, where the backend reads a pro
 | `takes` | a pydantic model of its arguments, or `None` for none |
 | `call` | called with the model (or nothing); its return value goes back as text; raising is the tool failing |
 
-- Served by `claude` (`--mcp-config`) and `codex` (`-c mcp_servers.humanize.…`)
-  (`session.takes_tools`); elsewhere `NotImplementedError: <cli> has no way of being given a
+- Served where `session.takes_tools`: `claude` (`--mcp-config`), `codex`
+  (`-c mcp_servers.humanize.…`) and `qwen` (`mcpServers.humanize`, `trust: true`, in its
+  `QWEN_CODE_SYSTEM_SETTINGS_PATH` file; the user's `mcp.allowed`/`mcp.excluded` and folder
+  trust still apply); elsewhere `NotImplementedError: <cli> has no way of being given a
   tool of a flow's own`.
 - The road is MCP: the CLI is given `hmz internal tools --at <socket>`. Tools are per agent.
 - A native anchored turn on a non-`local` target cannot be offered tools (refused).
@@ -1596,6 +1598,9 @@ one.
   shared by concurrent sessions at that effort, under one `hmz-qwen-*` temporary directory.
   A `QWEN_CODE_SYSTEM_DEFAULTS_PATH` of the user's is watched for changes; settings the driver
   cannot parse keep a fresh process per turn.
+- An agent offering [callback tools](#callbacks-as-tools) or serving a `PRE_TOOL_USE` table gets
+  a settings file of its own instead; the tools go in as `mcpServers.humanize`, and a change in
+  which names are offered restarts the process.
 - Usage counts each assistant message once; the terminal summary fills only missing fields.
 
 ## A CLI of your own {#a-cli-of-your-own}
