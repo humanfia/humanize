@@ -43,6 +43,8 @@ from hmz.coganchor.agents.event import (
 from hmz.coganchor.agents.hooks import Moment, Occasion, Verdict
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.agents.tools import Tool
+from hmz.coganchor.anchor import AnchorConfig
+from hmz.coganchor.machines import AnchoredConfig
 from hmz.runtime import telemetry
 from tests.unit.coganchor.agents.doubles_core import (
     Scripted,
@@ -1129,6 +1131,25 @@ def test_where_an_agent_keeps_its_sessions(tmp_path: Path) -> None:
     agent.keeps = None
     assert agent.keeps is None
     assert KEEPING == "HUMANIZE_SESSIONS"
+
+
+def test_sessions_logged_on_another_machine_are_kept_in_the_run_as_copies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(KEEPING, raising=False)
+    native = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
+    afar = AnchorConfig(target="ssh://box", harness="ssh://gpu", workspace="/w")
+    here = AnchorConfig(target="tcp://box:9", workspace="/w", native=True)
+    for anchor, copied in ((native, True), (afar, True), (here, False)):
+        machine = AnchoredConfig(anchor=anchor)
+        agent = Scripted(
+            AgentConfig(model="m", effort="", machine=machine), backend="claude"
+        )
+        agent.keeps = tmp_path
+        assert agent.anchor == anchor
+        assert (agent.kept() == tmp_path / "claude") is copied
+    monkeypatch.setenv(KEEPING, "off")
+    assert agent.kept() != tmp_path / "claude"
 
 
 def test_a_journal_is_told_every_session_opened(tmp_path: Path) -> None:

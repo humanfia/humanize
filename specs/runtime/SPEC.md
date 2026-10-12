@@ -311,9 +311,12 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   account they ran as, what the backend called it, which conversation it was forked from and
   where it is kept. A session a turn could keep MUST be kept in the epic as the only copy of it:
   under `sessions/<cli>/`, laid out as that CLI's home is, written, resumed and forked there, and
-  never in the CLI's own home. One no turn could keep MUST be read where its CLI kept it, the
-  epic saying where; an epic holding a link per session MUST still read back, and no epic MUST
-  be given one.
+  never in the CLI's own home. One whose CLI ran on another machine -- the target's own, or under
+  a harness elsewhere -- MUST be kept there and copied into the epic's `sessions/<cli>/`, laid
+  out the same way: whole lines as they are logged while it is open, the whole of it as it
+  closes, and read from that copy. One neither kept nor copied MUST be read where its CLI kept
+  it, the epic saying where; an epic holding a link per session MUST still read back, and no
+  epic MUST be given one.
 - A resumable run's journal MUST be kept inside its epic, MUST be there for a run picking it
   up even where this one was killed, and a run picking one up MUST be handed a copy of it in an
   epic of its own and MUST say which epic it came from.

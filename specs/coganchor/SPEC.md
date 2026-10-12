@@ -528,7 +528,10 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 - A native session MUST refuse a turn asking for the flow's own callbacks and MUST ask nothing of
   this machine's kernel; the skills a flow carries MUST be put into the target's workspace for the
   turn and taken out again, writing over nothing and removing only what was made; and its sessions
-  MUST stay where the target's CLI keeps them.
+  MUST stay where the target's CLI keeps them, copied here as `agents` says.
+- What a CLI on another machine logs MUST be read down the road a turn there takes, one short
+  command at a time -- what the session logged and how long, then what was appended since --
+  putting nothing on that machine and holding nothing open between the two.
 - A ticket MUST be unguessable, MUST be the whole of what authenticates a peer, and MUST pair only
   the two halves that presented the same one; exactly one connection MUST carry a session and both
   halves MUST agree on which; nothing of it MUST reach a half before it has been told how the
