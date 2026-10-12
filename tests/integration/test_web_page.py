@@ -31,7 +31,7 @@ from tests.integration.doubles_web import (
 )
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Page
+    from playwright.sync_api import Locator, Page
 
 #: Every settings page, by the word its address ends in.
 _PAGES = (
@@ -101,6 +101,19 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
         )
 
 
+def _centre(node: Locator) -> dict[str, float]:
+    """Where a node's middle is on the graph: what is drawn around the graph can move it."""
+    expect(node).to_be_visible()
+    box = node.bounding_box()
+    canvas = node.page.locator("[data-hmz=graph]").bounding_box()
+    assert box
+    assert canvas
+    return {
+        "x": box["x"] + box["width"] / 2 - canvas["x"],
+        "y": box["y"] + box["height"] / 2 - canvas["y"],
+    }
+
+
 def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
     project: Path, engine: str
 ) -> None:
@@ -110,10 +123,24 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
         page.locator("[data-hmz=bar] .crumbs a").click()
         agent = page.locator("[data-hmz=graph-agent][data-role=assistant]")
         expect(agent.locator("[data-hmz=graph-session]")).to_be_visible()
+        # Stopped, so nothing it goes on to do redraws the graph while it is moved.
+        page.get_by_role("button", name="Stop").click()
+        page.get_by_role("button", name="Stop").click()
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopped")
+        )
+        # Measured once the graph has stopped moving: what settles around it resizes the canvas.
+        page.wait_for_function(
+            """() => new Promise((settled) => {
+              const at = () => JSON.stringify(document.querySelector(
+                '[data-hmz=graph-agent][data-role=assistant]')?.getBoundingClientRect())
+              const before = at()
+              setTimeout(() => settled(before !== undefined && at() === before), 300)
+            })"""
+        )
         canvas = page.locator("[data-hmz=graph]").bounding_box()
-        drawn = agent.bounding_box()
+        drawn = _centre(agent)
         assert canvas
-        assert drawn
         address = page.url
 
         # Dragged from a session on the node, past where the graph ends: nothing opens.
@@ -123,8 +150,7 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
         page.mouse.down()
         page.mouse.move(session["x"] - 290, session["y"] - 190, steps=8)
         page.mouse.up()
-        moved = agent.bounding_box()
-        assert moved
+        moved = _centre(agent)
         assert abs(moved["x"] - (drawn["x"] - 300)) < 2
         assert abs(moved["y"] - (drawn["y"] - 200)) < 2
         assert page.url == address
@@ -134,8 +160,7 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
         before = zoom.inner_text()
         page.mouse.move(canvas["x"] + canvas["width"] / 2, canvas["y"] + 40)
         page.mouse.wheel(30, 40)
-        slid = agent.bounding_box()
-        assert slid
+        slid = _centre(agent)
         assert abs(slid["x"] - (moved["x"] - 30)) < 2
         assert abs(slid["y"] - (moved["y"] - 40)) < 2
         expect(zoom).to_have_text(before)
@@ -150,8 +175,7 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
 
         page.get_by_role("button", name="Recenter").click()
         expect(zoom).to_have_text(before)
-        back = agent.bounding_box()
-        assert back
+        back = _centre(agent)
         assert abs(back["x"] - drawn["x"]) < 2
         assert abs(back["y"] - drawn["y"]) < 2
 
