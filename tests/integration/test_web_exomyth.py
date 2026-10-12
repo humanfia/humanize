@@ -166,15 +166,19 @@ def test_an_epic_is_drawn_as_its_processes_moved_over_and_read(
         assert box
         page.mouse.move(box["x"] + box["width"] * 0.6, box["y"] + 60)
         whole = page.evaluate("window.__exomyth.view()")
+        # Held until it has moved, as far as it gets in a frame or a hundred.
         page.keyboard.down("w")
-        page.wait_for_timeout(300)
+        page.wait_for_function(
+            "(half) => { const v = window.__exomyth.view(); return v.t1 - v.t0 < half }",
+            arg=(whole["t1"] - whole["t0"]) / 2,
+        )
         page.keyboard.up("w")
         zoomed = page.evaluate("window.__exomyth.view()")
-        assert zoomed["t1"] - zoomed["t0"] < (whole["t1"] - whole["t0"]) / 2
         page.keyboard.down("d")
-        page.wait_for_timeout(200)
+        page.wait_for_function(
+            "(from) => window.__exomyth.view().t0 > from", arg=zoomed["t0"]
+        )
         page.keyboard.up("d")
-        assert page.evaluate("window.__exomyth.view()")["t0"] > zoomed["t0"]
         page.keyboard.press("0")
         assert page.evaluate("window.__exomyth.view()") == whole
 
