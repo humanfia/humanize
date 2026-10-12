@@ -2,11 +2,12 @@
 // refusal into the sentence the server gave, and one store for what is read again and again,
 // shared by every view of it.
 
-/** A refusal: the server's own sentence, and the status it came with. */
+/** A refusal: the server's own sentence, the status it came with, and what else it said. */
 export class Refused extends Error {
-  constructor(message, status) {
+  constructor(message, status, said = null) {
     super(message)
     this.status = status
+    this.said = said || {}
   }
 }
 
@@ -26,6 +27,17 @@ export async function post(url, body = {}) {
   )
 }
 
+/** Sends a file as it is, under its name, and reads the answer, or throws the server's sentence. */
+export async function send(url, file, kind) {
+  return answered(
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': kind, 'X-Hmz-Filename': encodeURIComponent(file.name), Accept: 'application/json' },
+      body: file,
+    }),
+  )
+}
+
 async function answered(response) {
   const text = await response.text()
   let said = null
@@ -36,7 +48,7 @@ async function answered(response) {
   }
   if (response.status === 401) window.dispatchEvent(new CustomEvent('hmz:out'))
   if (!response.ok) {
-    throw new Refused((said && said.error) || text || `The server answered ${response.status}.`, response.status)
+    throw new Refused((said && said.error) || text || `The server answered ${response.status}.`, response.status, said)
   }
   return said
 }

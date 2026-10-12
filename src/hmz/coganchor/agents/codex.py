@@ -2242,7 +2242,7 @@ class CodexAgent(AgentBase):
           is retired (:meth:`_AppServer.retire`): among those returned where no turn is
           running on it, and taken down by the last turn that is where one is.
         """
-        offering = tuple(sorted(one.name for one in self.toolbox.offered()))
+        offering = self.toolbox.names()
         # Read before the environment is built out of it: a fallback landing between the two
         # reads would name the account the new server is *not* signed into, and a server that
         # believes it is already elsewhere is one nothing ever starts again.

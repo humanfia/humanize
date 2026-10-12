@@ -58,7 +58,8 @@ Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__
 | Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
 | Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) |
 | Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` ([table](#what-each-harness-serves)) |
-| Agent mixins | `FakeToolAgentMixin` with [`FakeTool`](#fake-tools), `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
+| Fake tools and command lines | [`FakeTool`](#fake-tools), [`FakeCli`, `FakeCommand`](#fake-clis): `hmz.coganchor.faking`'s own, re-exported |
+| Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
 | Budgets | [`Budget`](#budget), [`Usage`](#usage) |
 | Environments | [`EnvCollection`](#envcollection), [`Env`](#env), [`LocalEnv`](#localenv), [`EnvBackendKind`](#envbackendkind), [`SequenceNotStr`](#sequencenotstr) |
@@ -132,6 +133,9 @@ captured namespaces (`FlowDefinitionError`; the first four rows are prefixed
 | `_tools` not a tuple/list of `FakeTool` | `<Type>._tools is not a tuple of FakeTool` |
 | two of `_tools` of one name | `<Type>._tools names one tool twice` |
 | `_tools` without `FakeToolAgentMixin` | `<Type>._tools needs FakeToolAgentMixin` |
+| `_clis` not a tuple/list of `FakeCli` | `<Type>._clis is not a tuple of FakeCli` |
+| two of `_clis` of one name | `<Type>._clis names one command line twice` |
+| `_clis` on a `LiteLLMAgent` or an `Outworlder` | `<Type>._clis needs an agent with a shell` |
 | environment type carries an agent mixin | `an environment cannot be declared with an agent's mixins` |
 | `_cpu_count`, `_memory`, `_gpu_count`, `_gpu_memory` not an `int` ≥ 0 (a `bool` is refused) | `<Type>.<attr> is not a whole number of at least 0` |
 | `_image` not a string without whitespace | `<Type>._image is not an image: <value>` |
@@ -339,6 +343,7 @@ class Agent(Protocol):
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
     _tools: ClassVar[tuple[FakeTool, ...]] = ()
+    _clis: ClassVar[tuple[FakeCli, ...]] = ()
 
     role: str                     # read-only properties
     harness: HarnessKind
@@ -366,6 +371,7 @@ class Agent(Protocol):
 | `_permission` | `Permission` | `Permission()` | What the role's sessions may touch; they run under exactly this. See [Permissions](#what-each-agent-may-do). |
 | `_skills` | `tuple[str, ...]` | `()` | Skills mounted into the role's sessions. See [Skills](#the-skills-a-flow-brings). |
 | `_tools` | `tuple[FakeTool, ...]` | `()` | The flow's functions the role's sessions offer the agent as tools; needs `FakeToolAgentMixin`. See [Fake tools](#fake-tools). |
+| `_clis` | `tuple[FakeCli, ...]` | `()` | The flow's command lines the role's sessions put on the agent's PATH; any harness but `litellm`. See [Fake command lines](#fake-clis). |
 
 | Property | Type | Value |
 | --- | --- | --- |
@@ -449,8 +455,46 @@ instance of `takes`, or nothing where `takes` is `None` -- in the flow's process
 as the flow; the turn waits for it. A `str` it returns is what the agent reads, `None` reads
 `done`, anything else JSON. What it raises is answered to the agent as the tool failing; the
 turn and the flow go on. `derive` keeps a view's tools; a flow handed the agent offers its own
-role's. Served by `claude` and `codex` where the CLI runs on this machine; a turn of one run
-natively on another is refused. See [A tool of the flow's own](/weaver/tools#fake-tools).
+role's. Served where the harness's row below has Fake tools (not `acp`: its protocol is a
+plain `Agent`, which serves no mixin), where the CLI runs on this machine; a turn of one run
+natively on another is refused. On `grok`, a turn only `grok -p` can take (an `output_schema`,
+a fork's first turn, web search off, a rung that takes tools away) is refused with
+`HarnessUnrecoverable` while tools are offered. See
+[A tool of the flow's own](/weaver/tools#fake-tools).
+
+`FakeTool` is the type coganchor's drivers offer (`SessionBase.offers`), so a flow's tool is
+handed to the CLI as it was declared, with only its `call` wrapped to run as the flow.
+
+#### Fake command lines {#fake-clis}
+
+```python
+@dataclass(frozen=True, slots=True)
+class FakeCommand:
+    name: str
+    about: str
+    call: Callable[..., object]
+    takes: type[pydantic.BaseModel] | None = None
+
+@dataclass(frozen=True, slots=True)
+class FakeCli:
+    name: str                          # a file name: letters, digits, `.`, `_`, `-`
+    about: str
+    commands: tuple[FakeCommand, ...]  # at least one, each named once
+    def run(self, argv: Sequence[str]) -> tuple[int, str, str]: ...
+```
+
+Each of a role's `_clis` is a program named `name` on the PATH of every process of the agent,
+answered by an `argparse` parser built from each command's `takes`: a `--flag` per field, its
+description the help, required where it has no default. `--help` prints the help and exits 0; a
+line the parser or the model refuses prints the usage and exits 2. Running a command runs
+`call` -- sync or async, given an instance of `takes`, or nothing where it is `None` -- in the
+flow's process, as the flow: a `str` it returns is printed, `None` prints nothing, anything else
+JSON; `SystemExit(n)` exits `n`, anything else raised exits 1 with the error on stderr. No mixin
+is needed: every harness with a shell serves it, and a role declaring any is refused for
+`litellm`: `<ref>: '<role>' declares _clis, and litellm has no shell to run them` from `hmz exec`
+or as `CapabilityMissing` before the run starts, and `UnsupportedOperation` at `run` for one a
+caller hands on, as an `env` is. `FakeCli` is the type coganchor's drivers shelve
+(`SessionBase.shelves`). See [A command line of the flow's own](/weaver/tools#fake-clis).
 
 ### What each harness serves {#what-each-harness-serves}
 
@@ -463,13 +507,13 @@ Generated from `hmz.runtime.flowing.spi.HARNESS_CAPABILITIES` and the harness pr
 | `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
 | `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
 | `kimi` | ✓ | | ✓ | ✓ | | ✓ | | any workdir | read-only, workspace-write, auto, bypass |
-| `pi` `omp` | | | ✓ | | | ✓ | | same workdir | read-only, workspace-write, auto, bypass |
-| `dsh` | ✓ | | | | | | | no | bypass |
+| `pi` `omp` | | | ✓ | | | ✓ | ✓ | same workdir | read-only, workspace-write, auto, bypass |
+| `dsh` | ✓ | | | | | | ✓ | no | bypass |
 | `litellm` | | | | | | | | any workdir | read-only, workspace-write, auto, bypass |
 | `cursor-agent` | | | | | ✓ | | | no | read-only, workspace-write, auto, bypass |
 | `mcode` | | | | | ✓ | | | no | workspace-write, auto, bypass |
-| `grok` `opencode` `mimo` `qwen` | | | | | | | | same workdir | read-only, workspace-write, auto, bypass |
-| `agy` | | | | | | | | no | read-only, workspace-write, auto, bypass |
+| `grok` `opencode` `mimo` `qwen` | | | | | | | ✓ | same workdir | read-only, workspace-write, auto, bypass |
+| `agy` | | | | | | | ✓ | no | read-only, workspace-write, auto, bypass |
 | `acp` | | | | | | | | same workdir | set by the CLI |
 
 </div>
@@ -1433,7 +1477,7 @@ nothing was spent. Refusals for one kind of agent grant are computed once per ro
 | anything not handed out by the run | — | `RequirementError`: `<ref>: '<role>' was given <value>, which is not an agent the run handed out` (or `environment`) |
 
 The callee receives **exactly** its declaration: each agent re-granted the callee role's
-mixins, `_permission`, `_skills` and `_tools`; each environment the callee role's mixins. Its hooks
+mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. Its hooks
 and sessions are its own; a session the caller opened cannot be used by the callee.
 
 `Hmz().flows.running()` lists every flow call currently running in this process (oldest
@@ -2117,9 +2161,10 @@ turn.
 | `await subagent(name, task="", said="") -> str` | `SUBAGENT_START`, `SUBAGENT_STOP` where served. |
 | `await until_steered() -> str` | Waits for a `steer` and returns it. |
 | `await use(name, input=None) -> str` | Calls one of the role's [fake tools](#fake-tools), as the agent would, and returns what the agent would read. `SessionError` for a name it does not offer. |
+| `await run_cli(argv) -> tuple[int, str, str]` | Runs one of the role's [fake command lines](#fake-clis), `argv` starting with its name, as the agent's shell would: the status, stdout and stderr. `SessionError` for a name it does not shelve. |
 
 Attributes: `prompts`, `requests`, `steered` (prompt, queued), `tools` (name, input, ran),
-`offered` (the fake tools), `forked_from`, `permission`, `skills`, `turns`, `named`, `closed`, `id`, `usage`.
+`offered` (the fake tools), `shelved` (the fake command lines), `forked_from`, `permission`, `skills`, `turns`, `named`, `closed`, `id`, `usage`.
 
 ::: warning `until_steered()` waits indefinitely
 Give such a test a hard deadline:

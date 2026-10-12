@@ -8,7 +8,7 @@ import { h, icon, iconButton } from './dom.js'
 const app = () => document.querySelector('.app')
 const narrow = matchMedia('(max-width: 860px)')
 /** Whether the page is the macOS app's window, as theme.js found before the page was drawn. */
-const inApp = document.documentElement.dataset.shell === 'macos'
+export const inApp = document.documentElement.dataset.shell === 'macos'
 
 /** Reads a choice this browser keeps, or the default where it keeps none or cannot. */
 export function kept(name, otherwise) {
@@ -109,12 +109,19 @@ export function follow(pop, anchor, how) {
     if (!event || !(event.target instanceof Node) || !pop.contains(event.target)) place(pop, anchor, how)
   }
   again()
-  const grown = new ResizeObserver(() => again())
+  // Placed again in the next frame rather than inside the observer's own: placing it sizes it,
+  // which said there would be a size the observer is not told of, and an error.
+  let frame = 0
+  const grown = new ResizeObserver(() => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => again())
+  })
   grown.observe(pop)
   addEventListener('scroll', again, true)
   addEventListener('resize', again)
   return () => {
     grown.disconnect()
+    cancelAnimationFrame(frame)
     removeEventListener('scroll', again, true)
     removeEventListener('resize', again)
   }

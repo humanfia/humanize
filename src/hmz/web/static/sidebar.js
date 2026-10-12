@@ -5,6 +5,7 @@
 
 import { address, get, poll, post, refresh } from './api.js'
 import { ask } from './held.js'
+import { pick } from './importing.js'
 import { copy, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, when } from './dom.js'
 import { sessionsOf } from './epic.js'
@@ -46,6 +47,7 @@ export function mountSidebar(root, context, where) {
     account,
     (close) => [
       context.newer ? choice({ label: 'Update', about: `hmz ${context.newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
+      choice({ label: 'Import', glyph: 'file', act: pick, close }),
       choice({ label: 'Settings', glyph: 'gear', href: '#/settings/general', close }),
       choice({ label: 'Usage', glyph: 'chart', href: '#/settings/usage', close }),
     ],
@@ -73,6 +75,8 @@ export function mountSidebar(root, context, where) {
   )
   // The band across its top, above the row.
   dragged(root, '')
+  // What is offered between the epics, rather than on one of them.
+  menuOn(list, () => [{ label: 'Import', glyph: 'file', act: pick }])
   root.addEventListener('click', (event) => {
     if (event.target.closest('a[href]')) settleSidebar()
   })
@@ -233,6 +237,7 @@ export function mountSidebar(root, context, where) {
     if (!agents.length) return h('p', { class: 'side-quiet nested' }, 'No agents')
     const base = `#/epics/${encodeURIComponent(run.name)}`
     const logged = run.name === here && parts[2] === 'logs' && !parts[3]
+    const mythed = run.name === here && parts[2] === 'exomyth'
     return h(
       'ul',
       { class: 'side-tree', role: 'list' },
@@ -242,6 +247,14 @@ export function mountSidebar(root, context, where) {
         menuOn(h('a', { class: ['side-agent', logged && 'current'], href: `${base}/logs`, 'aria-current': logged ? 'page' : null, 'data-hmz': 'log' }, icon('thread'), h('span', { class: 'side-label' }, 'Log')), () => [
           { label: 'Open', glyph: 'open', href: `${base}/logs` },
           { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/logs`, 'Link copied') },
+        ]),
+      ),
+      h(
+        'li',
+        {},
+        menuOn(h('a', { class: ['side-agent', mythed && 'current'], href: `${base}/exomyth`, 'aria-current': mythed ? 'page' : null, 'data-hmz': 'exomyth-link' }, icon('chart'), h('span', { class: 'side-label' }, 'Exomyth')), () => [
+          { label: 'Open', glyph: 'open', href: `${base}/exomyth` },
+          { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/exomyth`, 'Link copied') },
         ]),
       ),
       agents.map((agent) => {
@@ -309,6 +322,7 @@ export function epicMenu(run) {
     { head: run.task.split('\n')[0] },
     { label: 'Open', glyph: 'open', href: base },
     { label: 'Open log', glyph: 'thread', href: `${base}/logs` },
+    { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
     resumes ? { label: 'Resume', glyph: 'resume', href: `#/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}` } : null,
     { label: 'New epic like it', glyph: 'new', href: `#/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}` },
     '-',
