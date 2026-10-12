@@ -257,7 +257,9 @@ runs.bundled(epic, output="/tmp/for-the-issue.hmzepic")
 
 ### Importing a run
 
-Somebody sent you a `.hmzepic`? Read it back in, and it is a run like any other:
+Somebody sent you a `.hmzepic`? Read it back in, and it is a run like any other. In `hmz`,
+open `/epics`, press `i` (or **Import…**) and give the file; the list shows it with the cursor
+on it, turning to this machine's epics when it ran in another directory. From a script:
 
 ```python
 from hmz.sdk import Hmz

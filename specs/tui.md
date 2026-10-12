@@ -177,6 +177,10 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   and, turned by `ctrl+t` or a button and remembered for this machine, those of every directory
   on this machine instead, each with its directory, read without holding the screen up.
 - MUST refuse to carry on a run of another directory, saying where it ran.
+- MUST import an epic from a `.hmzepic`, by a key or a button, asking which file as a path,
+  read without holding the screen up, and put the cursor on it -- listing this machine's where
+  it is of another directory -- or on the one already here that it would be; MUST refuse a file
+  that is not one in plain words, and say on an imported epic that cannot go on here why not.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and
   exporting it; an export MUST ask where it goes, a file or a directory to put it in, and land
   nowhere else, MUST carry a trace of that run's own sessions and no transcript, say where it
