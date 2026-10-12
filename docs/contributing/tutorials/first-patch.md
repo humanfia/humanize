@@ -127,8 +127,8 @@ gh pr create --fill
 Without push access, run `gh repo fork --remote` first and push to your fork. `gh pr create`
 opens the pull request across it either way.
 
-CI then runs `title.yml`, whose `title` checks the pull request's title, and `ci.yml`, the
-same jobs for every pull request:
+CI then runs `title.yml`, whose `title` checks the pull request's title, and `ci.yml`, whose
+tests run for what your change touched:
 
 | | |
 | --- | --- |

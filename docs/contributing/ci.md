@@ -17,23 +17,40 @@ editing the title runs it alone; `main` needs it too.
 Every job starts at once. The organisation runs at most 20 jobs at a time, 5 of them on macOS,
 shared by every pull request and every run of the merge queue, and a job's setup outlasts most
 packages' tests. So the jobs are few: on each system one runs every package's unit tests and
-every topic's integration tests but `web`, and another runs `web`, the slowest. `desktop`
-takes a macOS runner only when `desktop/` changed:
+every topic's integration tests but `web`, and another runs `web`, the slowest. And each runs
+only for what your change touched, which `changes` finds first:
 
 ```text
-static      every hook, then the package ─────────────────┐
-tests       unit, a package at a time, then integration,  │
-            a topic at a time but web      × Linux, macOS ┼─▶ ci-ok
-web         integration's web topic        × Linux, macOS ┤
-changes ─▶ desktop   the macOS app, if desktop/ changed ──┘
+static      every hook, then the package ───────────────────────┐
+changes ─┬▶ tests    unit, a package at a time, then            │
+         │           integration, a topic at a time but web     │
+         │                                     × Linux, macOS ──┼─▶ ci-ok
+         ├▶ web      integration's web topic   × Linux, macOS ──┤
+         └▶ desktop  the macOS app, on macOS ───────────────────┘
 ```
+
+| Runs | When the change touched |
+| --- | --- |
+| everything | `pyproject.toml`, `uv.lock`, a file directly in `src/hmz/`, `tests/conftest.py` or `ci.yml` |
+| `tests/unit/<package>` | `src/hmz/<package>/` or `tests/unit/<package>/`: unit tests mock every other package |
+| the `agents` topic | `runtime`, `flows`, `coganchor` or `cli` |
+| the `daemon` topic | those, `daemon` or `sdk` |
+| the `tui` topic | those of `agents`, `daemon` or `tui` |
+| the `core`, `anchor` and `web` topics | anything in `src/hmz/`: they run `hmz` whole |
+| a topic | also its own files in `tests/integration/`; `doubles_core.py` counts for `core`, `anchor` and `web` |
+| `desktop` | `desktop/` or `ci.yml` |
+
+`runtime`, `flows` and `coganchor` import each other, so a topic that runs one runs all three.
+The other topics' rows follow what their tests import, and `hmz`, which loads a package only
+when a command needs it. A test that comes to run a package its row leaves out takes it into
+the row in `ci.yml`'s `changes`.
 
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
 | `static` | Every pre-commit hook: `ruff`, `pyright` strict, `actionlint` and `zizmor` over `.github/`, and the file hygiene. Then the wheel and the sdist build, and PyPI would render `README.md`, so any commit on a `release/*` branch can be [released](/contributing/releasing) | `uv run pre-commit run --all-files`, then `uv build --no-sources && uvx twine check --strict dist/*` |
-| `tests (<os>)` | `tests/unit/<package>`, each directory under `tests/unit/` on its own; then `tests/integration/test_<topic>_*.py`, each of `core`, `agents`, `tui`, `daemon` and `anchor` on its own. On a push to `main`, only the environment, for its cache | `uv run pytest tests/unit/<package>`, `uv run pytest tests/integration/test_<topic>_*.py` |
-| `web (<os>)` | `tests/integration/test_web_*.py`. Skipped on a push to `main` | `uv run pytest tests/integration/test_web_*.py` |
-| `changes` | Whether `desktop/` or `ci.yml` changed. Skipped on `release.yml`'s run, which builds the app regardless | |
+| `tests (<os>)` | `tests/unit/<package>`, each directory under `tests/unit/` on its own; then `tests/integration/test_<topic>_*.py`, each of `core`, `agents`, `tui`, `daemon` and `anchor` on its own; each that the change touched. On a push to `main`, only the environment, for its cache. Skipped when the change touched none | `uv run pytest tests/unit/<package>`, `uv run pytest tests/integration/test_<topic>_*.py` |
+| `web (<os>)` | `tests/integration/test_web_*.py`. Skipped on a push to `main`, and when the change did not touch it | `uv run pytest tests/integration/test_web_*.py` |
+| `changes` | What the change touched, by the table above. Skipped on `release.yml`'s run, which runs everything | |
 | `desktop` | [The macOS app](/contributing/#the-macos-app) in `desktop/`: `cargo fmt --check`, `cargo clippy` with warnings as errors, `cargo test`, and the app built unoptimised, without the disk image. Skipped when `desktop/` is unchanged | the commands in [The macOS app](/contributing/#the-macos-app) |
 | `ci-ok` | Every job above passed, or was skipped as it says | |
 | `title`, in `title.yml` | The pull request's title is a [Conventional Commit](/contributing/#commits): squashing writes it to the branch, and a release's changelog is written from those titles. Skipped in the merge queue, whose pull requests had theirs checked before they queued. The release pull request has none: release-please writes its title | |
@@ -47,9 +64,9 @@ The `web` topic drives `hmz web`'s page in headless Chromium and in WebKit, the 
 macOS app's window draws it with: fetch both with `uv run playwright install chromium webkit`
 before running it.
 
-A new package's directory under `tests/unit/` runs with no change to `ci.yml`. A new topic
-takes a word in the `tests` job's list of topics; a file named for no topic in it, nor `web`,
-runs in no job.
+A new package's directory under `tests/unit/` takes a `unit-<package>` filter in `changes`,
+and `tests` fails until it has one. A new topic takes a filter and a word in the `tests` job's
+list of topics; a file named for no topic in it, nor `web`, runs in no job.
 
 ## How long it takes
 

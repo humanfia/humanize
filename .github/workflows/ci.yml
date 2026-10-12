@@ -1,7 +1,9 @@
 # Lint and the package, then the tests on Linux and macOS: on each system one job runs the unit
 # tests a package at a time and the integration tests a topic at a time, and another runs the
-# `web` topic, the slowest; the macOS app in desktop/ is built and tested on macOS when it
-# changed. Few jobs, because the organisation runs at most 20 at once and 5 of them on macOS,
+# `web` topic, the slowest; the macOS app in desktop/ is built and tested on macOS. Each runs
+# only for what the change touched: a package's unit tests when the package or its tests
+# changed, a topic when a package it runs or its tests changed, everything when what all the
+# tests share changed. Few jobs, because the organisation runs at most 20 at once and 5 of them on macOS,
 # and a job's setup outlasts most packages' tests. `ci-ok` is the one check a branch rule
 # needs, and the merge queue runs it again on each pull request as `main` will be once it
 # merges, so a push to `main`, already tested there, only saves the caches pull requests
@@ -31,8 +33,9 @@ env:
   FORCE_COLOR: "1"
 
 jobs:
-  # Whether desktop/ changed, from a Linux runner, so a change that leaves it alone spends no
-  # macOS runner on it. release.yml's dispatch skips it and builds the app regardless.
+  # What the change touched, from a Linux runner, so what it leaves alone spends no runner.
+  # `changes` lists the filters below it matched. release.yml's dispatch skips it, and runs
+  # everything.
   changes:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -41,7 +44,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      desktop: ${{ steps.filter.outputs.desktop }}
+      changes: ${{ steps.filter.outputs.changes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,7 +53,58 @@ jobs:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
+          # Unit tests mock every other package, so a package's run only for it. The agents,
+          # daemon and tui topics run the packages they import, and `hmz`, which loads the
+          # rest lazily; core, anchor and web run `hmz` whole. runtime, flows and coganchor
+          # import each other, so each is the three.
           filters: |
+            shared: &shared
+              - pyproject.toml
+              - uv.lock
+              - src/hmz/*
+              - tests/conftest.py
+              - .github/workflows/ci.yml
+            kernel: &kernel
+              - src/hmz/runtime/**
+              - src/hmz/flows/**
+              - src/hmz/coganchor/**
+            unit-cli: [*shared, src/hmz/cli/**, tests/unit/cli/**]
+            unit-coganchor: [*shared, src/hmz/coganchor/**, tests/unit/coganchor/**]
+            unit-daemon: [*shared, src/hmz/daemon/**, tests/unit/daemon/**]
+            unit-flows: [*shared, src/hmz/flows/**, tests/unit/flows/**]
+            unit-runtime: [*shared, src/hmz/runtime/**, tests/unit/runtime/**]
+            unit-sdk: [*shared, src/hmz/sdk/**, tests/unit/sdk/**]
+            unit-tui: [*shared, src/hmz/tui/**, tests/unit/tui/**]
+            unit-web: [*shared, src/hmz/web/**, tests/unit/web/**]
+            integration-agents:
+              - *shared
+              - *kernel
+              - src/hmz/cli/**
+              - tests/integration/*_agents*.py
+            integration-daemon:
+              - *shared
+              - *kernel
+              - src/hmz/{cli,daemon,sdk}/**
+              - tests/integration/*_daemon*.py
+            integration-tui:
+              - *shared
+              - *kernel
+              - src/hmz/{cli,daemon,tui}/**
+              - tests/integration/*_tui*.py
+            integration-core:
+              - *shared
+              - src/hmz/**
+              - tests/integration/*_core*.py
+            integration-anchor:
+              - *shared
+              - src/hmz/**
+              - tests/integration/*_anchor*.py
+              - tests/integration/doubles_core.py
+            web:
+              - *shared
+              - src/hmz/**
+              - tests/integration/*_web*.py
+              - tests/integration/doubles_core.py
             desktop:
               - desktop/**
               - .github/workflows/ci.yml
@@ -91,9 +145,12 @@ jobs:
         run: uvx twine@7.0.0 check --strict dist/*
 
   # Each package's unit tests and each topic's integration tests run alone, as they would in a
-  # job of their own, so none leans on another's; the log folds each into a group.
+  # job of their own, so none leans on another's; the log folds each into a group. On a push,
+  # the environment alone, for its cache.
   tests:
     name: tests (${{ matrix.os }})
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"unit-') || contains(needs.changes.outputs.changes, '"integration-')) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -116,10 +173,20 @@ jobs:
 
       - name: pytest tests/unit/<package>, a package at a time
         if: github.event_name != 'push'
+        env:
+          CHANGES: ${{ needs.changes.outputs.changes || '' }}
+          EVENT: ${{ github.event_name }}
         run: |
           status=0
           for dir in tests/unit/*/; do
             package=$(basename "$dir")
+            if ! grep -q "^ *unit-$package:" .github/workflows/ci.yml; then
+              status=1; echo "::error::tests/unit/$package has no unit-$package filter in ci.yml"
+            fi
+            if [[ $EVENT != workflow_dispatch && $CHANGES != *"\"unit-$package\""* ]]; then
+              echo "unit $package: unchanged"
+              continue
+            fi
             echo "::group::unit $package"
             uv run --frozen --all-extras pytest "$dir" --durations=10 \
               || { status=1; echo "::error::tests/unit/$package failed"; }
@@ -131,10 +198,17 @@ jobs:
       # more than they compute, and `-n auto` alone counts physical cores.
       - name: pytest tests/integration/test_<topic>_*.py, a topic at a time, but web
         if: ${{ !cancelled() && github.event_name != 'push' }}
+        env:
+          CHANGES: ${{ needs.changes.outputs.changes || '' }}
+          EVENT: ${{ github.event_name }}
         run: |
           export PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN)))
           status=0
           for topic in core agents tui daemon anchor; do
+            if [[ $EVENT != workflow_dispatch && $CHANGES != *"\"integration-$topic\""* ]]; then
+              echo "integration $topic: unchanged"
+              continue
+            fi
             echo "::group::integration $topic"
             uv run --frozen --all-extras pytest tests/integration/test_"$topic"_*.py --durations=25 \
               || { status=1; echo "::error::integration $topic failed"; }
@@ -145,7 +219,8 @@ jobs:
   # The `web` topic, apart: the slowest, and it fetches browsers.
   web:
     name: web (${{ matrix.os }})
-    if: github.event_name != 'push'
+    needs: changes
+    if: ${{ !cancelled() && github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"web"')) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -177,7 +252,7 @@ jobs:
   # as a release builds it, but unoptimised and without the disk image.
   desktop:
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.desktop == 'true') }}
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"desktop"')) }}
     runs-on: macos-latest
     timeout-minutes: 30
     defaults:
@@ -230,6 +305,6 @@ jobs:
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
-          # `changes` on a dispatch, `web` on a push, `desktop` when desktop/ is unchanged.
-          allowed-skips: changes, web, desktop
+          # `changes` on a dispatch, `web` on a push, and what the change left alone.
+          allowed-skips: changes, tests, web, desktop
           jobs: ${{ toJSON(needs) }}
