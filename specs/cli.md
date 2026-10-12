@@ -31,6 +31,7 @@ hmz internal anchor rendezvous [--listen [<host>:]<port>] [--punching <seconds>]
 hmz internal cred (--map | --keep) <from>=<to> [...] -- <command> [<args>...]
 hmz internal fence --policy (<json> | @<path>) [--] <command> [<args>...]
 hmz internal tools --at <socket>
+hmz internal cli --at <socket> --name <name> [-- <words>...]
 hmz internal hook --at <socket>
 ```
 
@@ -38,7 +39,7 @@ hmz internal hook --at <socket>
 # __init__.py
 APART = "HUMANIZE_DAEMON"   # `off`, `0` or `no`: keep the run with the terminal
 COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, web, update, internal
-INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, fence, hook, tools
+INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cli, cred, fence, hook, tools
 def main(argv: list[str] | None = None) -> int: ...
 def opens() -> int: ...
 def many(count: int | str, thing: str) -> str: ...
@@ -69,8 +70,9 @@ class Shown:    # the agents' own events, drawn as one run; a context manager
 def web(argv: list[str], *, apart: bool) -> int: ...
 # update.py -- `hmz update`
 def update(argv: list[str]) -> int: ...
-# anchor.py, cred.py, fence.py, hook.py, tools.py -- one command apiece
+# anchor.py, cli.py, cred.py, fence.py, hook.py, tools.py -- one command apiece
 def anchor(argv: list[str]) -> int: ...
+def cli(argv: list[str]) -> int: ...
 def cred(argv: list[str]) -> int: ...
 def fence(argv: list[str]) -> int: ...
 def hook(argv: list[str]) -> int: ...
@@ -183,6 +185,9 @@ def tools(argv: list[str]) -> int: ...
   put up.
 - `hmz internal tools` MUST do nothing but carry lines, MUST carry both directions at once with the
   end of either ending the other, and MUST answer a socket that is not there with a status rather than
+  a crash.
+- `hmz internal cli` MUST do nothing but carry the one run and its answer, MUST exit with the
+  status the flow answered, and MUST answer a socket that is not there with a status rather than
   a crash.
 - `hmz internal hook` MUST do nothing but carry the one call, MUST exit zero whatever the flow said
   and whether or not it was there, MUST NOT exit with the status these CLIs read as the hook itself

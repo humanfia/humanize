@@ -510,7 +510,7 @@ class AcpSession(SessionBase):
             environ=self._environ(),
             cwd=None if self._agent.anchor is not None else self._workspace(),
         )
-        self._as = self._agent.node().name
+        self._as, self._pathed = self._agent.node().name, self._agent.shelf.where()
         try:
             link.start()
             self._agreed(

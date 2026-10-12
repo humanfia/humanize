@@ -574,6 +574,9 @@ class DshSession(SessionBase):
         # machine happens to be pointed at, and the account's own would never be read at all.
         if self._agent.provider is None:
             environment = _native_dsh_environment(Path(where))
+            # With the flow's command lines on its PATH, which an account's environment
+            # already carries.
+            environment |= self._agent.shelf.environ()
         else:
             environment = dict(self._agent.environment())
         # The one preset this driver can start a runtime at (see `DshAgent.rungs`), said
@@ -681,7 +684,7 @@ class DshSession(SessionBase):
         self._harness, self._composition = harness, written
         self._runtime_effort = effort
         self._runtime_composition = composition
-        self._as = self._agent.node().name
+        self._as, self._pathed = self._agent.node().name, self._agent.shelf.where()
         self._reaper = weakref.finalize(self, harness.close)
         return harness
 
