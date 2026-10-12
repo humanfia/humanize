@@ -138,7 +138,7 @@ def test_other_tools_after_a_turn_are_refused_before_the_runtime_is(
 ) -> None:
     from pydantic import BaseModel
 
-    from hmz.coganchor.agents import Tool
+    from hmz.coganchor.agents import FakeTool
 
     class Asked(BaseModel):
         word: str
@@ -149,7 +149,7 @@ def test_other_tools_after_a_turn_are_refused_before_the_runtime_is(
     session = DshAgent(CONFIG).new()
     assert session("one") == "one"
 
-    session.offers([Tool("shout", "Says a word louder.", shout, Asked)])
+    session.offers([FakeTool("shout", "Says a word louder.", shout, Asked)])
     with pytest.raises(Unrecoverable, match="cannot carry") as refused:
         session("two")
 
